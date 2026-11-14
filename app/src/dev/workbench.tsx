@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowUpIcon, PlusIcon, SearchIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import type { OutsideFacts } from "../../../core/frame-types.ts";
-import { OutsideItemActions, OutsideItemHeader } from "../desk/outside-card";
+import { OutsideItemActions, OutsideItemHeader } from "../desk/outside-toolbar";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";

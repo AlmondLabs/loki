@@ -14,6 +14,7 @@ export interface ReplyBox {
   text: string;
   /** How a mail reply is addressed (plan 076); null while the person has not changed it, which sends to all. */
   mail: MailAddressing | null;
+  /** The card's reply is on its way; derived from the cards sending, never stored, so another card's box cannot drop it. */
   busy: boolean;
   error: string | null;
   /**
@@ -91,7 +92,7 @@ export function placeAt(rows: readonly AttentionItem[], item: AttentionItem, at:
   return [...rest.slice(0, to), item, ...rest.slice(to)];
 }
 
-/** What the deck's moves read and write: the selected card, the visit's rows and decisions, the badge's flash, the pickers and the reply box. */
+/** What the deck's moves read and write: the selected card, the visit's rows and decisions, the badge's flash, the pickers and each card's reply box. */
 export interface DeckMovesHost {
   /**
    * The selected card the moves act on, read when the key is pressed, so a highlight that press committed counts (AE4).
@@ -106,9 +107,14 @@ export interface DeckMovesHost {
   decided: Decision[];
   /** The lane Flow is in on this device, null for Everything (plan 087, KTD6). */
   lane: ResolvedLane | null;
-  /** The reply box of the selected card. */
-  reply: ReplyBox;
+  /**
+   * The reply box of the card `id` names, read at the press: a move reads the box of the card it acts on, which is not
+   * the drawn card's when a highlight committed in the same event (AE4).
+   */
+  replyOf: (id: string) => ReplyBox;
   setReply: (id: string, patch: Partial<ReplyBox>) => void;
+  /** Mark the card `id` as sending its reply, or no longer; the moves on it wait until it went. */
+  setSending: (id: string, on: boolean) => void;
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
   say: (word: string) => void;
@@ -118,8 +124,8 @@ export interface DeckMovesHost {
    */
   notice?: (item: AttentionItem, words: string) => void;
   setDir: (dir: "next" | "back") => void;
-  /** Open a picker on the selected card, or close it with null. */
-  pick: (kind: PickerKind | null) => void;
+  /** Open a picker on the card `id` names, or close it with null. */
+  pick: (id: string, kind: PickerKind | null) => void;
   /** A reply went out this visit. */
   sent: () => void;
   moves: DeckMoveApi;
@@ -195,8 +201,10 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setDecided((d) => d.filter((x) => !(x.item === item && x.action === action)));
     putBack(item, at);
   };
+  /** The box of the card a move acts on. */
+  const replyOf = (item: AttentionItem) => host.replyOf(idOf(item));
   /** Text waits in an outside card's box: the key sends it, then makes its move. */
-  const hasReply = (item: AttentionItem) => !!item.outside && !!moves.replyOutside && host.reply.text.trim() !== "";
+  const hasReply = (item: AttentionItem) => !!item.outside && !!moves.replyOutside && replyOf(item).text.trim() !== "";
 
   /**
    * A mail reply (plan 076): the card moves on at once and the reply is held for its undo, which Z takes back while it
@@ -205,7 +213,7 @@ export function createDeckMoves(host: DeckMovesHost) {
    */
   const sendHeld = async (item: AttentionItem, then: Move, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
     const id = idOf(item);
-    const { text, mail } = host.reply;
+    const { text, mail } = replyOf(item);
     const outbox = host.newId?.() ?? newId();
     const { action, via } = DECISION[then];
     const mine = (d: Decision) => d.held?.outbox_id === outbox;
@@ -242,7 +250,7 @@ export function createDeckMoves(host: DeckMovesHost) {
    */
   const sendHeldStay = async (item: AttentionItem, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
     const id = idOf(item);
-    const { text, mail } = host.reply;
+    const { text, mail } = replyOf(item);
     const outbox = host.newId?.() ?? newId();
     host.setReply(id, { text: "", mail: null, error: null, held: { outbox_id: outbox, text, mail } });
     host.say("Sending · z undo");
@@ -263,15 +271,17 @@ export function createDeckMoves(host: DeckMovesHost) {
   const sendThen = async (item: AttentionItem, then: ReplyThen): Promise<void> => {
     const send = moves.replyOutside;
     const id = idOf(item);
-    if (!send || host.reply.busy) return;
+    const box = replyOf(item);
+    if (!send || box.busy) return;
     if (item.outside?.provider === "gmail" && moves.unsendOutside) return then === "stay" ? sendHeldStay(item, send) : sendHeld(item, then, send);
-    host.setReply(id, { busy: true, error: null });
+    host.setSending(id, true);
+    host.setReply(id, { error: null });
     let r: OutsideReplyResult;
     try {
-      const threadTs = openedThreadOf(item, host.reply);
-      r = await send(item, host.reply.text, then, { mail: host.reply.mail, ...(threadTs ? { thread_ts: threadTs } : {}) });
+      const threadTs = openedThreadOf(item, box);
+      r = await send(item, box.text, then, { mail: box.mail, ...(threadTs ? { thread_ts: threadTs } : {}) });
     } finally {
-      host.setReply(id, { busy: false });
+      host.setSending(id, false);
     }
     if (r.sent) {
       host.setReply(id, { text: "", mail: null });
@@ -295,7 +305,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   /** Read (⌘], →): marked read here and out there; the card rests and comes back later. */
   const read = () => {
     const item = host.selected();
-    if (!item || host.reply.busy) return;
+    if (!item || replyOf(item).busy) return;
     if (hasReply(item)) return void sendThen(item, "read");
     const at = decide(item, "read");
     host.say("Read");
@@ -309,7 +319,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   /** Later (⌘[, ←): left unread here and out there, back in a day; the second press in a row asks when (R7). */
   const later = () => {
     const item = host.selected();
-    if (!item || host.reply.busy) return;
+    if (!item || replyOf(item).busy) return;
     if (hasReply(item)) return void sendThen(item, "later");
     // An account that needs a sign-in refuses every write, so Later would bring the card straight back and the deck
     // could never get past it: the card is passed over for this visit, nothing is written, and the notice says why.
@@ -319,7 +329,7 @@ export function createDeckMoves(host: DeckMovesHost) {
       refuse(item, "Skipped for this visit: nothing changed in its account");
       return;
     }
-    if (moves.laterAsks(item)) return host.pick("later");
+    if (moves.laterAsks(item)) return host.pick(idOf(item), "later");
     const at = decide(item, "later");
     host.say("Later");
     void moves.later(item).then((r) => {
@@ -329,7 +339,7 @@ export function createDeckMoves(host: DeckMovesHost) {
       } else if (r.ask) {
         // The card's rest moved under the press: it asks after all.
         restore(item, "later", at);
-        host.pick("later");
+        host.pick(idOf(item), "later");
       }
     });
   };
@@ -338,7 +348,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   const pickLater = (until: string) => {
     const item = host.selected();
     if (!item) return;
-    host.pick(null);
+    host.pick(idOf(item), null);
     const at = decide(item, "later");
     host.say("Later");
     void moves.later(item, until).then((r) => {
@@ -355,7 +365,7 @@ export function createDeckMoves(host: DeckMovesHost) {
    */
   const archive = () => {
     const item = host.selected();
-    if (!item || host.reply.busy) return;
+    if (!item || replyOf(item).busy) return;
     if (!item.outside && item.id === "default") return host.say("Main chats stay");
     if (item.outside && !OUTSIDE_ENDS[item.outside.provider].archive) return host.say("A Jira card ends with read");
     if (hasReply(item)) return void sendThen(item, "archive");
@@ -370,7 +380,8 @@ export function createDeckMoves(host: DeckMovesHost) {
 
   /** L: open the label picker on an email card; on any other card it does nothing. */
   const label = () => {
-    if (takesLabels(host.selected())) host.pick("label");
+    const item = host.selected();
+    if (item && takesLabels(item)) host.pick(idOf(item), "label");
   };
 
   /** The labels picked for the selected card: added in Gmail, and the card stays for the next key (R12). Resolves to the reason, or null. */
@@ -379,7 +390,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (!item) return null;
     const err = await moves.label(item, labelIds);
     if (err) return err;
-    host.pick(null);
+    host.pick(idOf(item), null);
     host.setDecided((d) => [...d, { item, action: "label", via: "label", stamp: stampOf(item) }]);
     host.say("Labelled");
     return null;
@@ -398,8 +409,8 @@ export function createDeckMoves(host: DeckMovesHost) {
    */
   const undo = () => {
     // A mail reply sent alone and still held (plan 083): stopped before it goes, and the words come back to the box.
-    const waiting = host.reply.held;
     const here = host.selected();
+    const waiting = here ? replyOf(here).held : null;
     if (waiting && here && moves.unsendOutside) {
       void moves.unsendOutside(here, waiting.outbox_id).then((stopped) => {
         if (!stopped) return host.say("Already sent");

@@ -27,8 +27,8 @@ const ALLOWED: ReadonlyArray<[string, string]> = [
   ["settings/mcp.tsx", "github"],
   ["desk/catch-up-parts.tsx", "back · new since"],
   ["desk/catch-up-parts.tsx", "draft"],
-  ["desk/outside-card.tsx", "in"],
-  ["desk/outside-card.tsx", "back · new since"],
+  ["desk/outside-toolbar.tsx", "in"],
+  ["desk/outside-toolbar.tsx", "back · new since"],
 ];
 
 /** Starts that are never a sentence's: loki's own name, a path or a URL. */

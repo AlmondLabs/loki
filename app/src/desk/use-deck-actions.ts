@@ -35,6 +35,22 @@ export function createFlash(set: (word: string | null) => void, ms = FLASH_MS): 
 }
 
 /**
+ * The cards whose reply is on its way, outside React so a second press in the same event already sees the first. `set`
+ * returns a copy for drawing.
+ */
+export function createSending(): { has: (id: string) => boolean; set: (id: string, on: boolean) => ReadonlySet<string> } {
+  const ids = new Set<string>();
+  return {
+    has: (id) => ids.has(id),
+    set(id, on) {
+      if (on) ids.add(id);
+      else ids.delete(id);
+      return new Set(ids);
+    },
+  };
+}
+
+/**
  * What moves a card, and the small state those moves leave behind: the flash on the badge
  * ("read", "later", "archived", "labelled", "approved", "sent"), the count of replies this visit, which way the last
  * move went so the next card enters from that side, the picker open on the card, and an outside card's reply box,
@@ -87,6 +103,13 @@ export function useDeckActions({
    * unless the kept words already hold them.
    */
   const [box, setBox] = useState<{ id: string; seeded: readonly string[] } & ReplyBox>({ id: "", seeded: [], ...EMPTY_REPLY });
+  /**
+   * The cards whose reply is on its way, by id: kept apart from the box, which another card selected replaces, so a card
+   * stays busy until its send settles however the selection moves. `sendingNow` is what a press reads, current within the
+   * same event; the state draws it.
+   */
+  const [sendingNow] = useState(() => createSending());
+  const [sending, setSendingIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const currentId = current ? idOf(current) : "";
   const own = box.id === currentId ? box : { id: currentId, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
@@ -97,7 +120,9 @@ export function useDeckActions({
     const missing = fresh.filter((s) => !own.text.includes(s.text));
     setBox({ ...own, text: withSeeds(own.text, missing), seeded: [...own.seeded, ...fresh.map((s) => s.id)] });
   }
-  const reply: ReplyBox = box.id === currentId ? box : { ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
+  /** A card's box as written so far: the held box when it is that card's, else its kept words. */
+  const boxOf = (id: string): ReplyBox => (box.id === id ? box : { ...EMPTY_REPLY, text: outsideReplies.get(id) });
+  const reply: ReplyBox = { ...boxOf(currentId), busy: sending.has(currentId) };
   const picker = picking?.id === currentId ? picking.kind : null;
 
   // One flash for the deck's life, made once from the stable setter, and its pending clear cancelled when the deck goes.
@@ -108,14 +133,18 @@ export function useDeckActions({
     if (patch.text !== undefined) outsideReplies.set(id, patch.text);
     setBox((b) => ({ ...(b.id === id ? b : { id, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(id) }), ...patch }));
   };
+  const setSending = (id: string, on: boolean) => {
+    setSendingIds(sendingNow.set(id, on));
+  };
   const deck = createDeckMoves({
     selected,
     queue,
     select,
     decided,
     lane,
-    reply,
+    replyOf: (id) => ({ ...boxOf(id), busy: sendingNow.has(id) }),
     setReply,
+    setSending,
     setDecided,
     setQueue,
     say,
@@ -125,7 +154,7 @@ export function useDeckActions({
       notify(words, mend && onSignIn ? { action: { label: mend, onClick: onSignIn } } : undefined);
     },
     setDir,
-    pick: (kind) => setPicking(kind && currentId ? { id: currentId, kind } : null),
+    pick: (id, kind) => setPicking((p) => (kind ? { id, kind } : p?.id === id ? null : p)),
     sent: () => setReplies((n) => n + 1),
     moves,
   });

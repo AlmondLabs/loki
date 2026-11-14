@@ -63,7 +63,7 @@ describe("the keyboard (U5)", () => {
 
 describe("Flow (U6)", () => {
   test("a Gmail card's moves are symbols named in Apple's words, their keys in the tooltip, Archive last and prominent", async () => {
-    const { OutsideItemActions } = await import("../app/src/desk/outside-card.tsx");
+    const { OutsideItemActions } = await import("../app/src/desk/outside-toolbar.tsx");
     const facts = {
       provider: "gmail" as const,
       account_id: "gmail:ada@example.com",
@@ -115,7 +115,7 @@ describe("the wording pass", () => {
     const { AgentTurn } = await import("../app/src/item/agent-turn.tsx");
     const { AgentPlan } = await import("../app/src/item/agent-plan.tsx");
     const { Thought } = await import("../app/src/item/thought.tsx");
-    const { OutsideItemHeader } = await import("../app/src/desk/outside-card.tsx");
+    const { OutsideItemHeader } = await import("../app/src/desk/outside-toolbar.tsx");
     const turn = html(createElement(AgentTurn, { agentName: "friday", state: "needs you", failed: 0, took: "2 min", parts: [], draw: () => null }));
     expect(turn).toContain("Worked 2 min");
     expect(turn).toContain("Needs you");

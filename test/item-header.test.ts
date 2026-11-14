@@ -6,7 +6,7 @@ import { chatItem, outsideItem } from "../app/src/item/item-view.ts";
 import type { ToolbarMove } from "../app/src/item/toolbar.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { ChatItemHeader, type ChatMoves } from "../app/src/desk/catch-up-parts.tsx";
-import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-card.tsx";
+import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-toolbar.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
 // Plan 097, U8: the item's header; plan 2026-11-14-1330, U6: a Flow card's toolbar, its moves as symbols.

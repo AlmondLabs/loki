@@ -82,6 +82,15 @@ export function answeredElsewhere(item: AttentionItem, items: readonly Attention
   return !(now?.status === "running" && touched.has(id));
 }
 
+/**
+ * The visit's rows as their cards are now: the queue keeps its own objects for the rows that stay, so its identity says
+ * whether anything moved, and a row draws the live item of the same id instead, so a new message updates its preview,
+ * time and unread mark. A row whose card left the items keeps the queue's.
+ */
+export function liveRows(queue: readonly AttentionItem[], live: ReadonlyMap<string, AttentionItem>): AttentionItem[] {
+  return queue.map((i) => live.get(idOf(i)) ?? i);
+}
+
 /** What the Flow deck reads from the app: the cards, the lane, the moves out there and the visit's listeners. */
 export interface FlowDeckOptions {
   /** Every card in Flow, whatever the lane: the deck reads the lane's (KTD3). */
@@ -114,6 +123,7 @@ export function useFlowDeck({ items, lane, moves, onSignIn, onPass, onShown, loa
   // What undo takes back and the summary shows: the visit's moves on cards this lane holds (KTD6).
   const decided = lane ? allDecided.filter((d) => inLane(d.item, lane)) : allDecided;
   const live = useMemo(() => new Map(items.map((i) => [idOf(i), i])), [items]);
+  const rows = useMemo(() => liveRows(queue, live), [queue, live]);
   /** Chats the person replied to or answered in this visit: their agent's turn is not an answer from elsewhere. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -177,6 +187,8 @@ export function useFlowDeck({ items, lane, moves, onSignIn, onPass, onShown, loa
     shown,
     /** The visit's rows, in the list's order. */
     queue,
+    /** The same rows as their cards are now, for drawing the list. */
+    rows,
     /** The selected card, as it is now. */
     current,
     /** The selected card was answered elsewhere: it stays, its moves off, until the selection leaves it (R11). */

@@ -8,7 +8,7 @@ import type { MoveResult, OutsideReplyResult } from "../core/attention/use-atten
 import type { ReplyThen } from "../core/frame-types.ts";
 import { opensChat } from "../app/src/desk/use-deck-keys.ts";
 import { FLASH_MS, createFlash } from "../app/src/desk/use-deck-actions.ts";
-import { EMPTY_REPLY, cardKey, createDeckMoves, type PickerKind } from "../app/src/desk/deck-moves.ts";
+import { EMPTY_REPLY, cardKey, createDeckMoves, type PickerKind, type ReplyBox } from "../app/src/desk/deck-moves.ts";
 import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/desk/return-picker.tsx";
 import { pickableLabels } from "../app/src/desk/label-picker.tsx";
 import { COMMIT_REST_MS, createListSelection } from "../app/src/shell/list-keys.ts";
@@ -70,17 +70,41 @@ function deck(
   } = {},
 ) {
   const calls: Array<[string, ...unknown[]]> = [];
+  const first = queue.at(0);
+  const firstId = first ? idOf(first) : "";
   const state = {
     queue,
     selected: null as string | null,
     decided: [] as Decision[],
     flash: [] as string[],
     picker: null as PickerKind | null,
+    /** The card the open picker is on. */
+    pickerId: null as string | null,
+    /** The one full reply box, as the deck holds it: the first row's to begin with. */
     box: { ...EMPTY_REPLY, text: over.text ?? "" },
+    boxId: firstId,
+    /** The words left in every card's box, kept by id as the session keeps them. */
+    texts: new Map<string, string>([[firstId, over.text ?? ""]]),
+    /** The cards whose reply is on its way. */
+    sending: new Set<string>(),
   };
   const apply = <T>(v: SetStateAction<T>, old: T): T => (typeof v === "function" ? (v as (o: T) => T)(old) : v);
   /** The selected card: the one picked, else the first row, as the deck falls back. */
   const selected = () => state.queue.find((i) => idOf(i) === state.selected) ?? state.queue.at(0);
+  /** A card's reply box, as useDeckActions resolves it: the full box when it is that card's, else its kept words. */
+  const replyOf = (id: string) => {
+    const base = id === state.boxId ? state.box : { ...EMPTY_REPLY, text: state.texts.get(id) ?? "" };
+    return { ...base, busy: state.sending.has(id) };
+  };
+  /** Write to a card's box, as the deck's setReply does: another card's box replaces the one held. */
+  const setReply = (id: string, patch: Partial<ReplyBox>) => {
+    if (patch.text !== undefined) state.texts.set(id, patch.text);
+    if (id !== state.boxId) {
+      state.boxId = id;
+      state.box = { ...EMPTY_REPLY, text: state.texts.get(id) ?? "" };
+    }
+    state.box = { ...state.box, ...patch };
+  };
   const moves = () =>
     createDeckMoves({
       selected: over.elsewhere ? () => undefined : selected,
@@ -88,14 +112,15 @@ function deck(
       select: (id) => (state.selected = id),
       decided: state.decided,
       lane: null,
-      reply: state.box,
-      setReply: (_id, patch) => (state.box = { ...state.box, ...patch }),
+      replyOf,
+      setReply,
+      setSending: (id: string, on: boolean) => (on ? state.sending.add(id) : state.sending.delete(id)),
       setDecided: (v) => (state.decided = apply(v, state.decided)),
       setQueue: (v) => (state.queue = apply(v, state.queue)),
       say: (w) => state.flash.push(w),
       ...(over.notices ? { notice: (_item: AttentionItem, w: string) => over.notices?.push(w) } : {}),
       setDir: () => {},
-      pick: (k) => (state.picker = k),
+      pick: (id: string, k: PickerKind | null) => ((state.picker = k), (state.pickerId = k ? id : null)),
       sent: () => calls.push(["sent"]),
       newId: () => "o1",
       moves: {
@@ -125,7 +150,9 @@ function deck(
   /** Select the row `id` names, as a click or the arrows commit it. */
   const select = (id: string) => (state.selected = `a1/${id}`);
   const shown = () => selected()?.id;
-  return { state, calls, moves, select, shown };
+  /** Type into the box of the card `cardId` names, as the person does once it is selected. */
+  const type = (cardId: string, text: string) => setReply(cardId, { text });
+  return { state, calls, moves, select, shown, type };
 }
 
 describe("the selected card (R9)", () => {
@@ -216,6 +243,51 @@ describe("the selected card (R9)", () => {
     sel.act(() => d.moves().archive());
     expect(d.calls).toEqual([["archive", "b"]]);
     expect(d.state.queue.map((i) => i.id)).toEqual(["a", "c"]);
+  });
+  /** Two outside cards: A, with words in its box, drawn first; and B, another thread of the same account. */
+  const twoThreads = () => {
+    const a = outsideItem("A");
+    const b = outsideItem("B", { id: "t2#1", outside: { ...must(a.outside, "facts"), thread_id: "t2", subject: "B" } });
+    return { a, b };
+  };
+  test("Covers AE4. a move on a newly highlighted card reads that card's box, never the drawn card's words", async () => {
+    const { a, b } = twoThreads();
+    const d = deck([a, b], { text: "For A only" });
+    // The moves were made while A was drawn; the highlight commits B in the same event as the key.
+    const m = d.moves();
+    d.state.selected = idOf(b);
+    m.archive();
+    await settle();
+    expect(d.calls).toEqual([["archive", "t2#1"]]);
+    expect(d.state.texts.get(idOf(a))).toBe("For A only");
+  });
+  test("Covers AE4. a second Later on a newly highlighted card opens its picker on that card", () => {
+    const { a, b } = twoThreads();
+    const d = deck([a, b], { asks: true });
+    const m = d.moves();
+    d.state.selected = idOf(b);
+    m.later();
+    expect(d.state.picker).toBe("later");
+    expect(d.state.pickerId).toBe(idOf(b));
+  });
+  test("a card whose reply is on its way refuses its moves after the person typed on another card and came back", async () => {
+    const { a, b } = twoThreads();
+    const slack = (i: AttentionItem): AttentionItem => ({ ...i, outside: { ...must(i.outside, "facts"), provider: "slack" } });
+    let finish: (r: OutsideReplyResult) => void = () => {};
+    const pending = new Promise<OutsideReplyResult>((r) => (finish = r));
+    const d = deck([slack(a), slack(b)], { text: "on it", reply: pending });
+    d.moves().read();
+    // While it goes, the person selects B and types there, then comes back to A and presses ⌘] again.
+    d.state.selected = idOf(b);
+    d.type(idOf(b), "h");
+    d.state.selected = idOf(a);
+    d.moves().read();
+    d.moves().archive();
+    d.moves().later();
+    d.moves().sendReply();
+    finish({ sent: true, error: null });
+    await settle();
+    expect(d.calls.filter((c) => c[0] === "reply")).toEqual([["reply", "t1#1", "on it", "read"]]);
   });
 });
 

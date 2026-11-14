@@ -11,7 +11,7 @@ import { FlowCaughtUp, VisitSummary } from "../app/src/desk/catch-up-parts.tsx";
 import { flowLanes } from "../app/src/desk/flow-column.tsx";
 import { switchLane } from "../app/src/desk/use-deck-queue.ts";
 import { EMPTY_REPLY, createDeckMoves } from "../app/src/desk/deck-moves.ts";
-import { createVisit, endOnPageHide } from "../app/src/desk/use-flow-deck.ts";
+import { answeredElsewhere, createVisit, endOnPageHide, liveRows } from "../app/src/desk/use-flow-deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
 /** The desktop Flow's lanes (plan 087, U6): the deck's lane, the quiet count and undo across switches; the empty list and the visit's summary; and a visit's end. */
@@ -42,8 +42,9 @@ function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
       select: (id) => (state.selected = id),
       decided: state.decided,
       lane: state.lane,
-      reply: EMPTY_REPLY,
+      replyOf: () => EMPTY_REPLY,
       setReply: noop,
+      setSending: noop,
       setDecided: (v) => (state.decided = apply(v, state.decided)),
       setQueue: (v) => (state.queue = apply(v, state.queue)),
       say: (w) => state.flash.push(w),
@@ -233,6 +234,37 @@ describe("a visit is the time in the Flow place (KTD6)", () => {
     const passes: unknown[] = [];
     createVisit(0, () => 10).end({ decided: [], replies: 0, onPass: (p: unknown) => passes.push(p) });
     expect(passes).toEqual([]);
+  });
+});
+
+describe("the list's rows", () => {
+  test("a row draws its card as it is now: a new message updates its preview, time and unread mark, and the order stays", () => {
+    const b = of("b1", "ag-work", "Ada", { lastAssistantText: "first", last_message_at: "2026-09-05T10:00:00Z", unread: false });
+    const queue = [work, b, home];
+    const newer = { ...b, lastAssistantText: "second", last_message_at: "2026-09-05T11:00:00Z", unread: true };
+    const rows = liveRows(queue, new Map([work, newer, home].map((i) => [idOf(i), i])));
+    expect(rows.map((i) => i.id)).toEqual(["w1", "b1", "h1"]);
+    expect(rows[1]).toBe(newer);
+  });
+  test("a row whose card left the items keeps its kept snapshot", () => {
+    const rows = liveRows([work, home], new Map([[idOf(home), home]]));
+    expect(rows).toEqual([work, home]);
+  });
+});
+
+describe("a card answered elsewhere (R11)", () => {
+  const touched = new Set([idOf(work)]);
+  const running = { ...work, status: "running" as const };
+  const resting = { ...work, resting: true };
+  test.each([
+    ["still in the Inbox", work, [work], false, new Set<string>(), false],
+    ["archived or gone from the items", work, [home], false, new Set<string>(), true],
+    ["running after the person replied here", running, [running], false, touched, false],
+    ["running with no reply from here", running, [running], false, new Set<string>(), true],
+    ["resting while the visit leaves resting cards out", resting, [resting], false, new Set<string>(), true],
+    ["resting while the visit goes through them", resting, [resting], true, new Set<string>(), false],
+  ])("%s", (_name, item, items, rest, mine, expected) => {
+    expect(answeredElsewhere(item, items, rest, mine)).toBe(expected);
   });
 });
 

@@ -253,7 +253,7 @@ export function FlowPlace(props: FlowPlaceProps) {
         label={title}
         title={title}
         count={liveWaitingCount(shown) || null}
-        rows={flowRows(flow.queue)}
+        rows={flowRows(flow.rows)}
         selectedId={selectedId}
         onSelect={flow.select}
         onEnter={() => replyRef.current?.focus()}

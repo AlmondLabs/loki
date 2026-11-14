@@ -15,17 +15,8 @@ import { ownerAgentOf } from "../core/attention/model.ts";
 import { FrameChatClient, type FrameRequest } from "../core/attention/chat-client.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentLanes } from "../core/attention/lanes.ts";
-import {
-  OutsideCard,
-  OutsideItemActions,
-  OutsideItemHeader,
-  OutsideReply,
-  OutsideThread,
-  ticketAsk,
-  withLoaded,
-  type ReplyBoxControl,
-  type ThreadState,
-} from "../app/src/desk/outside-card.tsx";
+import { OutsideCard, OutsideReply, OutsideThread, ticketAsk, withLoaded, type ReplyBoxControl, type ThreadState } from "../app/src/desk/outside-card.tsx";
+import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-toolbar.tsx";
 import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import { outsideTitle, replyPlace } from "../app/src/desk/outside-words.ts";
 import { Decisions } from "../app/src/phone/inbox.tsx";
