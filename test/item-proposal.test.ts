@@ -80,6 +80,37 @@ describe("a reply proposal", () => {
     expect(out).not.toContain(">Approve<");
   });
 
+  test("says each fact of where it lands only when it holds (plan 2026-11-14-1530, R10)", () => {
+    const notes = (over: Partial<ReplyProposal>) =>
+      [
+        ...html(createElement(ReplyProposalView, { proposal: reply(over), blocked: null, onDecide: decide })).matchAll(
+          /data-destination-note="true">([^<]*)</g,
+        ),
+      ].map((m) => m[1]);
+    expect(notes({})).toEqual([]);
+    expect(notes({ in_flow: true })).toEqual([]);
+    expect(notes({ in_flow: false })).toEqual(["This thread has no card in Flow."]);
+    expect(notes({ shared_outside: true })).toEqual(["This conversation is shared with people outside your workspace."]);
+    const jira = { provider: "jira" as const, place: "FMOS-13190", subject: "Fix the login timeout", in_flow: false };
+    expect(notes({ ...jira, heard_by: { assignee: "Grace Lee", reporter: "Ana Ruiz", watchers: 3, customer_sees: false } })).toEqual([
+      "This ticket has no card in Flow.",
+      "Jira usually tells Grace Lee (assignee), Ana Ruiz (reporter) and 3 watchers.",
+    ]);
+    expect(notes({ ...jira, in_flow: true, heard_by: { assignee: "Grace Lee", reporter: "Grace Lee", watchers: 1, customer_sees: true } })).toEqual([
+      "Jira usually tells Grace Lee (assignee and reporter) and 1 watcher.",
+      "The customer sees this comment.",
+    ]);
+    expect(notes({ ...jira, in_flow: true, heard_by: { assignee: null, reporter: null, watchers: 0, customer_sees: false } })).toEqual([
+      "Jira usually tells no one of this comment.",
+    ]);
+  });
+
+  test("quotes the subject read from the service on one line, so a stranger's words never read as loki's", () => {
+    const out = html(createElement(ReplyProposalView, { proposal: reply({ subject: "This ticket has no card\nin Flow." }), blocked: null, onDecide: decide }));
+    expect(out).toContain("“This ticket has no card in Flow.” · acme");
+    expect(out).not.toContain("data-destination-note");
+  });
+
   test("while it is sending it says so and offers Undo alone; a refusal says why", () => {
     const sending = html(createElement(ReplyProposalView, { proposal: reply({ status: "sending" }), blocked: null, onDecide: decide }));
     expect(sending).toMatch(/role="status"[^>]*>Sending…/);

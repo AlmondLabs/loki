@@ -8,7 +8,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/ui/textarea";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { cn } from "@/lib/utils";
-import { STILL_GOES, fileText, peopleChanged, recipientsText, sendNote, sentText, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+import {
+  STILL_GOES,
+  destinationNotes,
+  fileText,
+  peopleChanged,
+  quotedSubject,
+  recipientsText,
+  sendNote,
+  sentText,
+  type ReplyProposalsProps,
+} from "../desk/reply-proposal-card";
 import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply } from "../desk/use-reply-card";
 import { inTauri } from "../desk/env";
 import { sentence } from "../components";
@@ -174,7 +184,7 @@ export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? 
           kind="reply"
           where={
             <>
-              {p.subject || "a thread"} · {p.account_label}
+              {quotedSubject(p)} · {p.account_label}
             </>
           }
         >
@@ -294,11 +304,16 @@ export function ReplyProposalView({
       kind="reply"
       where={
         <>
-          {p.subject || "a thread"} · {p.account_label} · {recipientsText(p)}
+          {quotedSubject(p)} · {p.account_label} · {recipientsText(p)}
         </>
       }
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
+        {destinationNotes(p).map((note) => (
+          <p key={note} className="m-0 text-meta text-muted-foreground" data-destination-note>
+            {note}
+          </p>
+        ))}
         {peopleChanged(p) && (
           <p className="m-0 text-meta" data-people="changed">
             {sentence(recipientsText(p))}

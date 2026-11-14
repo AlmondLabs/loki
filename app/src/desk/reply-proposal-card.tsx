@@ -82,6 +82,47 @@ export function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" |
   }
 }
 
+/** The longest subject a card quotes; a longer one ends in an ellipsis. */
+const SUBJECT_MAX = 100;
+
+/**
+ * A reply's subject as its card quotes it (plan 2026-11-14-1530, U4): words read from the service, which a stranger
+ * may have written, so they sit in quotation marks on one line and never read as loki's own.
+ */
+export function quotedSubject(p: Pick<ReplyProposal, "subject">): string {
+  const line = p.subject.replace(/\s+/g, " ").trim();
+  if (!line) return "a thread";
+  return `“${line.length > SUBJECT_MAX ? `${line.slice(0, SUBJECT_MAX - 1)}…` : line}”`;
+}
+
+/** Who Jira usually tells of a comment, as its card says it: "Grace Lee (assignee), Ana Ruiz (reporter) and 3 watchers". */
+function heardByWords(h: NonNullable<ReplyProposal["heard_by"]>): string {
+  const people =
+    h.assignee && h.assignee === h.reporter
+      ? [`${h.assignee} (assignee and reporter)`]
+      : [h.assignee ? `${h.assignee} (assignee)` : "", h.reporter ? `${h.reporter} (reporter)` : ""].filter(Boolean);
+  if (h.watchers > 0) people.push(h.watchers === 1 ? "1 watcher" : `${String(h.watchers)} watchers`);
+  if (people.length === 0) return "Jira usually tells no one of this comment.";
+  const last = people.pop() ?? "";
+  return `Jira usually tells ${people.length ? `${people.join(", ")} and ${last}` : last}.`;
+}
+
+/**
+ * What a card says under where a reply goes (plan 2026-11-14-1530, R10), each as a sentence and only when it holds:
+ * that the thread has no card in Flow, that people outside the workspace are in a Slack conversation, who Jira usually
+ * tells of a comment, and that a service desk's customer sees it.
+ */
+export function destinationNotes(p: Pick<ReplyProposal, "provider" | "in_flow" | "shared_outside" | "heard_by">): string[] {
+  const notes: string[] = [];
+  if (p.in_flow === false) notes.push(p.provider === "jira" ? "This ticket has no card in Flow." : "This thread has no card in Flow.");
+  if (p.shared_outside) notes.push("This conversation is shared with people outside your workspace.");
+  if (p.heard_by) {
+    notes.push(heardByWords(p.heard_by));
+    if (p.heard_by.customer_sees) notes.push("The customer sees this comment.");
+  }
+  return notes;
+}
+
 /** True when a Gmail reply came back because the thread's people changed, so its card spells out who. */
 export const peopleChanged = (p: Pick<ReplyProposal, "people_added" | "people_removed">): boolean =>
   (p.people_added?.length ?? 0) + (p.people_removed?.length ?? 0) > 0;
@@ -234,13 +275,18 @@ function ReplyProposalCard({
       <div className="loki-suggestion-head" style={{ cursor: "default" }}>
         <span className="loki-suggestion-kicker">{sentence(REPLY_WORDS[p.provider].kicker)}</span>
         <span className="loki-suggestion-title">
-          {p.subject || "a thread"} · {p.account_label}
+          {quotedSubject(p)} · {p.account_label}
         </span>
         <span className="loki-suggestion-target" data-people={peopleChanged(p) ? "changed" : undefined}>
           {recipientsText(p)}
         </span>
       </div>
       <div className="loki-suggestion-body">
+        {destinationNotes(p).map((note) => (
+          <div key={note} className="loki-suggestion-note" data-destination-note>
+            {note}
+          </div>
+        ))}
         <TextArea
           size={size}
           value={card.text}

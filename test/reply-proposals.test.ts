@@ -1176,7 +1176,7 @@ describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
   test("names the account, the thread and its people, holds the text to edit, and offers Send and Reject on the desktop and the phone alike", () => {
     const desk = html({ source: source([proposal]), rt });
     for (const words of [
-      "Re: The plan · ada@acme.com",
+      "“Re: The plan” · ada@acme.com",
       "to Grace Hopper &lt;grace@acme.com&gt; · cc Bob &lt;bob@acme.com&gt;",
       "Friday works.",
       ">Send<",
