@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { COMMIT_REST_MS, createListSelection, heldRows, listKeyOf, moveFor, stepRow, type Schedule } from "../app/src/shell/list-keys.ts";
-import { ContentList, NothingSelected, firstControl, listStop, onListKeyDown, toolbarControl } from "../app/src/shell/content-list.tsx";
+import { ContentList, NothingSelected, firstControl, leaveList, listStop, onListKeyDown, toolbarControl } from "../app/src/shell/content-list.tsx";
 
 /**
  * One list's keyboard and selection, as Mail's (plan 2026-11-14-1330, KTD3): arrows highlight at once and commit after
@@ -306,6 +306,35 @@ describe("focus between the list and the detail (KTD13, KTD14)", () => {
     const list = root([el("a", { tabIndex: -1 }), el("b"), el("c", { tabIndex: -1 })]);
     expect(listStop(list as unknown as ParentNode)).toMatchObject({ name: "b" });
     expect(listStop(null)).toBeNull();
+  });
+  describe("Hide List with focus in the list moves it to the detail, so the arrows stop committing rows nobody sees", () => {
+    /** A focusable stand-in that records whether it was focused or let go. */
+    const spy = (name: string) => {
+      const said: string[] = [];
+      return { said, node: { ...el(name), focus: () => said.push(`focus ${name}`), blur: () => said.push(`blur ${name}`) } };
+    };
+    const list = (inside: unknown[]) => ({ contains: (n: unknown) => inside.includes(n) });
+    test("to the detail's toolbar first, else its first control", () => {
+      const row = spy("row");
+      const read = spy("read");
+      leaveList(list([row.node]), { querySelectorAll: () => [root([read.node])] } as unknown as ParentNode, row.node as unknown as HTMLElement);
+      expect(read.said).toEqual(["focus read"]);
+      const reply = spy("reply");
+      const content = { querySelectorAll: (q: string) => (q.includes("pane-header") ? [] : [reply.node]) };
+      leaveList(list([row.node]), content as unknown as ParentNode, row.node as unknown as HTMLElement);
+      expect(reply.said).toEqual(["focus reply"]);
+    });
+    test("with nothing in the detail to take it, the row lets go of focus", () => {
+      const search = spy("search");
+      leaveList(list([search.node]), { querySelectorAll: () => [] } as unknown as ParentNode, search.node as unknown as HTMLElement);
+      expect(search.said).toEqual(["blur search"]);
+    });
+    test("focus outside the list stays where it is", () => {
+      const box = spy("box");
+      const read = spy("read");
+      leaveList(list([]), { querySelectorAll: () => [root([read.node])] } as unknown as ParentNode, box.node as unknown as HTMLElement);
+      expect([...box.said, ...read.said]).toEqual([]);
+    });
   });
 });
 

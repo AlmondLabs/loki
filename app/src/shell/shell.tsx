@@ -35,7 +35,7 @@ import { ColumnEdge, ListColumn } from "./list-column";
 import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
 import { ChatListView } from "./desk-sidebar";
-import { listStop, type ContentListHandle } from "./content-list";
+import { leaveList, listStop, type ContentListHandle } from "./content-list";
 import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows } from "./sidebar-model";
 import { AgentFace } from "../desk/agent-chip";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
@@ -473,6 +473,8 @@ export function Shell() {
   const chatList = useRef<ContentListHandle>(null);
   /** Chats' list slot, and with `listSlot` the other places', for Esc to move focus to the list showing (KTD14). */
   const chatSlot = useRef<HTMLDivElement>(null);
+  /** The whole list column, for Hide List to move focus out of it (leaveList). */
+  const listColumn = useRef<HTMLDivElement>(null);
   const toList = () => {
     if (!layout.listShown) return;
     listStop(segment === "desk" ? chatSlot.current : listSlot)?.focus();
@@ -501,7 +503,11 @@ export function Shell() {
       "column.toggle": () => {
         if (column.has) column.toggle();
       },
-      "list.toggle": () => column.toggleList(),
+      "list.toggle": () => {
+        if (layout.listShown)
+          leaveList(listColumn.current, document.querySelector("main"), document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        column.toggleList();
+      },
       "window.hide": () => {
         if (inTauri) hideCurrentWindow();
       },
@@ -606,6 +612,7 @@ export function Shell() {
         {/* Always mounted, hidden in a place with no list or with the list hidden (View › Hide List), so Chats' list keeps
             its scroll across places (KTD1). */}
         <div
+          ref={listColumn}
           className="loki-list-column"
           aria-hidden={!layout.listShown}
           style={{

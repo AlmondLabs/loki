@@ -233,6 +233,18 @@ export function toolbarControl(main: ParentNode | null): HTMLElement | null {
 }
 
 /**
+ * View › Hide List with focus in the list (a row, its Search): the column goes invisible but would keep focus, and the
+ * arrows would go on committing rows nobody sees. Focus moves to the detail instead, its toolbar first as Tab goes,
+ * else its first control; with neither, the list lets go of it.
+ */
+export function leaveList(list: Pick<Node, "contains"> | null, main: ParentNode | null, active: HTMLElement | null): void {
+  if (!list || !active || !list.contains(active)) return;
+  const to = toolbarControl(main) ?? firstControl(main);
+  if (to) to.focus();
+  else active.blur();
+}
+
+/**
  * Tab from the list (KTD13): once the committed row has drawn its detail, focus the first control in its toolbar, in
  * the window's one `<main>`; with none there (Learn's toolbar is its title alone), `fallback` moves focus into the
  * detail's content as Return does.

@@ -67,10 +67,13 @@ export type EscapeStep = "preferences" | "messages" | "list";
  * acts takes the key. In the detail it moves focus to the list, and in the list, or anywhere else, it does nothing; it
  * never leaves the place. While typing the key is the text's, except in Flow's reply box, which is in the detail. In
  * Chats the Desk tab goes back to Messages first. A dialog keeps it, but Esc with focus slipped out of Preferences
- * closes it (`prevented`: the sheet already took it).
+ * closes it. An Esc something inside already took (`prevented`: the sheet, the slash palette, the find bar) does
+ * nothing more, so one press dismisses only the innermost thing; a box that hands the key on (Flow's reply box) leaves
+ * it unprevented.
  */
 export function escapeSteps(at: { segment: Segment; dialog: DialogState; typing: boolean; inDetail: boolean; prevented: boolean }): EscapeStep[] {
-  if (at.dialog === "preferences") return at.prevented ? [] : ["preferences"];
+  if (at.prevented) return [];
+  if (at.dialog === "preferences") return ["preferences"];
   if (at.dialog !== "none") return [];
   if (at.typing) return at.segment === "inbox" && at.inDetail ? ["list"] : [];
   const steps: EscapeStep[] = at.segment === "desk" ? ["messages"] : [];

@@ -126,6 +126,11 @@ describe("Esc is the same in every place (plan 2026-11-14-1330, KTD14)", () => {
     expect(at({ segment: "inbox", typing: true })).toEqual(["list"]);
     expect(at({ segment: "inbox", typing: true, inDetail: false })).toEqual([]);
   });
+  test("an Esc something inside already took (the slash palette, the find bar) does nothing more", () => {
+    expect(at({ segment: "inbox", typing: true, prevented: true })).toEqual([]);
+    expect(at({ segment: "learn", prevented: true })).toEqual([]);
+    expect(at({ segment: "desk", prevented: true })).toEqual([]);
+  });
   test("a dialog keeps it, and Preferences closes on one that slipped out of it", () => {
     expect(at({ dialog: "other" })).toEqual([]);
     expect(at({ dialog: "search" })).toEqual([]);

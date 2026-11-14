@@ -766,7 +766,7 @@ export function OutsideReply({
       e.preventDefault();
       setLineOpen(true);
     } else if (key === "escape") {
-      e.preventDefault();
+      // Not prevented: the shell skips an Esc something inside already took, and this one is handed on to it.
       if (!text && onEscapeEmpty) onEscapeEmpty();
       else e.currentTarget.blur();
     }
