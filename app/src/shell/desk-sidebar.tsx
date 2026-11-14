@@ -11,31 +11,29 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Button, Field, IconButton, ListIcon, ListRow, ListSection } from "../components";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { IconButton, ListIcon } from "../components";
 import { ago } from "../shared/ago";
 import { Icon, Glyph } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
-import { AgentFace } from "../desk/agent-chip";
-import { avatarUrl } from "../desk/env";
-import { ColumnHeader } from "./list-column";
+import { ContentList, type ContentRow } from "./content-list";
+import { keyFor } from "./keymap";
 import {
+  ALL_CHATS,
+  ARCHIVED_CHATS,
+  PINNED_CHATS,
   canArchive,
   canMove,
   canLabel,
   canPin,
   canRename,
   doneAction,
-  loadSidebar,
   moveTargets,
   offscreenWaits,
-  saveSidebar,
-  sidebarModel,
-  toggleFold,
+  type ChatSource,
   type MoveTarget,
-  type SidebarPref,
-  type SidebarRow,
+  type SourceRow,
 } from "./sidebar-model";
 import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk, savePurpose } from "../desk/rename-desk";
@@ -51,42 +49,47 @@ import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsDialog } from "../chat/labels";
 
-/** The row's data-launch, so the pills can find a waiting row in the list. */
+/** The row's data-launch, so the pills and a closed menu can find a chat's row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;
-const ARCHIVED = "archived";
-
-/** Filtering opens every fold, so a match is never hidden behind one. */
-function isFolded(pref: SidebarPref, filtering: boolean, id: string): boolean {
-  return !filtering && (id === ARCHIVED ? !pref.archivedOpen : pref.collapsed.includes(id));
-}
+/** The id of the New Chat row a chat being started puts at the top; no chat's scope starts with a colon. */
+const NEW_ROW = ":new";
 
 const NO_ARCHIVE_REASON = "Archiving needs loki's daemon, which is not connected";
 const NO_MOVE_REASON = "Changing folder needs loki's daemon, which is not connected";
 const NO_LABEL_REASON = "Labels need loki's daemon, which is not connected";
 
-/** localStorage, or nothing (a blocked store only costs the folds and the scroll). */
-const store = (): Pick<Storage, "getItem" | "setItem"> | null => {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-};
+/** The sentence an empty source shows (KTD3). */
+function emptyFor(source: Pick<ChatSource, "id" | "title">): string {
+  if (source.id === ALL_CHATS) return "No chats yet.";
+  if (source.id === PINNED_CHATS) return "No pinned chats.";
+  if (source.id === ARCHIVED_CHATS) return "No archived chats.";
+  return `No chats with ${source.title} yet.`;
+}
 
-/** The props of the Chats sidebar (`DeskSidebar`): the chats, agents and Inbox items it lists, the chat on show, and what its rows and menus can do. */
-export interface DeskSidebarProps {
+/** The props of the Chats list (`ChatList`): the source and its rows, the chat selected, and what its rows and menus can do. */
+export interface ChatListProps {
+  /** The source's rows, Search applied (sidebar-model.ts sourceRows). */
+  rows: SourceRow[];
+  /** The source chosen in the sidebar. */
+  source: Pick<ChatSource, "id" | "title" | "agentId">;
+  /** The chat committed in this list, or null when the source does not hold the one open (KTD8). */
+  selected: string | null;
+  /** Chats is the place showing. Hidden, the list stays mounted for its scroll but leaves ⌥⌘F to the list on screen. */
+  shown: boolean;
+  /** Every chat, for the dialogs to read a chat's latest labels and purpose. */
   desks: DeskSummary[];
-  agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
-  current: string;
   /** The link to loki's daemon is up; archive and restore wait for it. */
   connected: boolean;
-  onOpen: (scope: string) => void;
-  /** Start a new desk, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
+  /** Commit a chat: an arrow's rest, a click, or ⌘[ ⌘]. It shows in the detail; focus stays in the list (KTD4). */
+  onSelect: (scope: string) => void;
+  /** Return or Tab on the selected chat, or Open from its menu: focus goes into its message box. */
+  onEnter: (scope: string) => void;
+  /** Start a new chat, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
   onNew?: (agentId: string | null) => void;
   /**
    * A chat not started yet shows in the pane (⌘N, U20): the list leads with a New Chat row, the
-   * current one, as Messages leads with a new message, and no chat below it is current.
+   * selected one, as Messages leads with a new message.
    */
   drafting?: boolean;
   onPin: (desk: DeskSummary, pinned: boolean) => void;
@@ -101,19 +104,14 @@ export interface DeskSidebarProps {
   folders?: FolderApi;
   /** Done by hand, the Inbox's clear (true) and its undo (false); left out, the menu has neither. */
   onDone?: (item: AttentionItem, done: boolean) => void;
-  /** An agent's face (desk/env avatarUrl); a prop so the list renders without a window. */
-  avatar: (agentId: string) => string | null;
-  /**
-   * The filter, when the window holds it (a label chip or ⌘K sets it to `label:<name>`); left out, the sidebar keeps
-   * its own.
-   */
-  query?: string;
-  onQuery?: (query: string) => void;
+  /** The Search, held by the window so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
+  query: string;
+  onQuery: (query: string) => void;
   /** Labels on chats (plan 022): the list chips take their colours from, and saving a chat's labels; left out, no Labels…. */
   labels?: { list: LabelView[] | null; set: (desk: DeskSummary, labels: string[]) => Promise<string | null> };
   /**
-   * Where agents live, once Macs are paired (plan 023): this Mac's id, and each agent's home and its name. Each agent's
-   * section says it once; a row marks only a chat living elsewhere or one whose Mac is asleep.
+   * Where agents live, once Macs are paired (plan 023): this Mac's id, and each agent's home and its name. A row marks
+   * only a chat living elsewhere or one whose Mac is asleep.
    */
   homes?: { here: string; of: (agentId: string) => { mac: string; name: string } | null };
   /** This Mac and the Macs paired with it, and moving a chat to one (plan 023, addendum A1); left out, no Move to. */
@@ -121,18 +119,22 @@ export interface DeskSidebarProps {
 }
 
 /**
- * The Desk column, Slack's channel sidebar (plan 013 U4): a "Desks" header with new desk, a filter, then
- * Pinned and one folding section per agent (sidebar-model.ts), the archive folded at the bottom. A row opens its
- * desk; hover buttons and the row's context menu pin and archive. When a desk that needs you is scrolled
- * out of sight, a pill at that edge says so and brings it into view. Folds and scroll outlive restarts.
+ * Chats' list (plan 2026-11-14-1330, U3), Mail's message list on ContentList: the source's name over Search and New
+ * Chat, then one line per chat (R5), under agent headings when the source is every chat. The arrows highlight and
+ * commit after a rest, which shows the chat without moving focus; Return or Tab goes into its message box. Hover
+ * shows pin and archive, a right click the row's menu. When a chat that needs you is scrolled out of sight, a pill at
+ * that edge says so and brings it into view.
  */
-export function DeskSidebar({
+export function ChatList({
+  rows,
+  source,
+  selected,
+  shown,
   desks,
-  agents,
   items,
-  current,
   connected,
-  onOpen,
+  onSelect,
+  onEnter,
   onNew,
   drafting = false,
   onPin,
@@ -142,316 +144,156 @@ export function DeskSidebar({
   onMove,
   folders,
   onDone,
-  avatar,
-  query: heldQuery,
+  query,
   onQuery,
   labels,
   macs,
   homes,
-}: DeskSidebarProps) {
-  const [ownQuery, setOwnQuery] = useState("");
-  const query = heldQuery ?? ownQuery;
-  const setQuery = onQuery ?? setOwnQuery;
-  const [pref, setPref] = useState<SidebarPref>(() => {
-    const s = store();
-    return s ? loadSidebar(s) : { collapsed: [], archivedOpen: false, scroll: 0 };
-  });
+}: ChatListProps) {
   const [menu, setMenu] = useState<{ desk: DeskSummary; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<DeskSummary | null>(null);
   const [moving, setMoving] = useState<DeskSummary | null>(null);
   const [labeling, setLabeling] = useState<DeskSummary | null>(null);
-  const [pills, setPills] = useState<{ up: string | null; down: string | null }>({ up: null, down: null });
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const fieldRef = useRef<HTMLInputElement>(null);
-  /** The scroll kept from last time, put back once the desks have arrived. */
-  const savedScroll = useRef(pref.scroll);
+  const [pills, setPills] = useState<{ up: string | null; down: string | null; top: number }>({ up: null, down: null, top: 0 });
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const rowEl = (scope: string) => wrapRef.current?.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(scope))}"]`) ?? null;
 
-  const model = useMemo(() => sidebarModel(desks, items, { query, current, agents }), [desks, items, query, current, agents]);
-  const filtering = query.trim() !== "";
-  const folded = (id: string) => isFolded(pref, filtering, id);
-  const waiting = useMemo(
-    () => model.sections.filter((s) => !isFolded(pref, filtering, s.id)).flatMap((s) => s.rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope)),
-    [model, pref, filtering],
-  );
-
-  useEffect(() => {
-    const s = store();
-    if (s) saveSidebar(s, pref);
-  }, [pref]);
-  const fold = (id: string) => setPref((p) => (id === ARCHIVED ? { ...p, archivedOpen: !p.archivedOpen } : toggleFold(p, id)));
-
-  // The pills: where each waiting row sits against the visible band of the list.
+  const waiting = useMemo(() => rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope), [rows]);
+  // The pills: where each waiting row sits against the visible band of the rows.
   const measure = useCallback(() => {
-    const el = scrollRef.current;
+    const el = wrapRef.current?.querySelector<HTMLElement>(".loki-content-list-rows");
     if (!el) return;
     const box = el.getBoundingClientRect();
-    const rows = waiting.flatMap((scope) => {
-      const r = el.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(scope))}"]`)?.getBoundingClientRect();
+    const at = waiting.flatMap((scope) => {
+      const r = wrapRef.current?.querySelector(`[data-launch="${CSS.escape(launchOf(scope))}"]`)?.getBoundingClientRect();
       return r ? [{ id: scope, top: r.top - box.top + el.scrollTop, bottom: r.bottom - box.top + el.scrollTop }] : [];
     });
-    const next = offscreenWaits(rows, { top: el.scrollTop, bottom: el.scrollTop + el.clientHeight });
-    setPills((p) => (p.up === next.up && p.down === next.down ? p : next));
+    const next = { ...offscreenWaits(at, { top: el.scrollTop, bottom: el.scrollTop + el.clientHeight }), top: el.offsetTop };
+    setPills((p) => (p.up === next.up && p.down === next.down && p.top === next.top ? p : next));
   }, [waiting]);
-  useLayoutEffect(measure, [measure, model]);
+  useLayoutEffect(measure, [measure, rows]);
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = wrapRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, [measure]);
 
-  // The kept scroll goes back once the desks have arrived, and is kept again a beat after each scroll.
-  const restored = useRef(false);
-  const hasRows = model.sections.length > 0;
-  useLayoutEffect(() => {
-    if (restored.current || !hasRows || !scrollRef.current) return;
-    restored.current = true;
-    scrollRef.current.scrollTop = savedScroll.current;
-  }, [hasRows]);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    },
-    [],
-  );
-  const onScroll = () => {
-    measure();
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      const el = scrollRef.current;
-      if (el && restored.current) setPref((p) => ({ ...p, scroll: el.scrollTop }));
-    }, 250);
-  };
+  // A chat selected from outside the list (⌘K, a notification, landing) is brought into view in it (R7).
+  useEffect(() => {
+    const list = wrapRef.current?.querySelector<HTMLElement>(".loki-content-list-rows");
+    const row = selected === null ? null : wrapRef.current?.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(selected))}"]`);
+    if (!list || !row) return;
+    const box = list.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    if (r.top < box.top) list.scrollTop -= box.top - r.top;
+    else if (r.bottom > box.bottom) list.scrollTop += r.bottom - box.bottom;
+  }, [selected, source.id]);
 
   const reveal = (scope: string | null) => {
     if (!scope) return;
-    const row = scrollRef.current?.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(scope))}"]`);
+    const row = rowEl(scope);
     row?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
     row?.focus({ preventScroll: true });
   };
 
-  /** The Mac an agent lives on, in its section's header, once Macs are paired. */
-  const homeAside = (agentId: string) => {
-    const home = homes?.of(agentId);
-    return home ? (
-      <span title={`${home.name}: where this agent's chats start`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        <Icon name="laptop" size={12} />
-        {home.name}
-      </span>
-    ) : undefined;
-  };
-
-  // The rows' handlers stay the same functions from render to render and look the chat up when called, so a row
-  // redraws only when what it shows changed (plan 051): one chat moving no longer redraws the whole list.
-  const native = NATIVE_MENUS;
-  // In the Mac app the row's menu is the system's, popped up at the pointer (U19).
-  const popRow = (d: DeskSummary, x: number, y: number) =>
-    void popUpMenu(
-      rowMenuEntries({
-        desk: d,
-        item: items.find((i) => i.agent_id === d.agent_id && i.id === d.conversation_id) ?? null,
-        connected,
-        onOpen,
-        onPin,
-        onArchive,
-        onRename: setRenaming,
-        onMove: onMove && folders ? setMoving : undefined,
-        onLabels: labels ? setLabeling : undefined,
-        onDone,
-        targets: macs ? moveTargets(d, macs.view) : [],
-        onMoveTo: macs?.move,
-      }),
-      { x, y },
-    ).catch((e: unknown) => console.warn("loki: row menu", e));
-  const latest = useRef({ desks, onOpen, onPin, onArchive, native, popRow });
-  useEffect(() => {
-    latest.current = { desks, onOpen, onPin, onArchive, native, popRow };
-  });
-  const deskOf = (scope: string) => latest.current.desks.find((d) => d.scope === scope);
-  const openRow = useCallback((scope: string) => latest.current.onOpen(scope), []);
-  const menuRow = useCallback((scope: string, x: number, y: number) => {
+  const itemOf = (d: DeskSummary) => items.find((i) => i.agent_id === d.agent_id && i.id === d.conversation_id) ?? null;
+  const deskOf = (scope: string) => desks.find((d) => d.scope === scope);
+  const menuEntries = (d: DeskSummary) =>
+    rowMenuEntries({
+      desk: d,
+      item: itemOf(d),
+      connected,
+      onOpen: onEnter,
+      onPin,
+      onArchive,
+      onRename: setRenaming,
+      onMove: onMove && folders ? setMoving : undefined,
+      onLabels: labels ? setLabeling : undefined,
+      onDone,
+      targets: macs ? moveTargets(d, macs.view) : [],
+      onMoveTo: macs?.move,
+    });
+  const openMenu = (scope: string, e: MouseEvent<HTMLButtonElement>) => {
     const d = deskOf(scope);
     if (!d) return;
-    if (latest.current.native) latest.current.popRow(d, x, y);
+    const box = e.currentTarget.getBoundingClientRect();
+    // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
+    const x = e.clientX || box.left + 24;
+    const y = e.clientY || box.bottom;
+    // In the Mac app the row's menu is the system's, popped up at the pointer (U19).
+    if (NATIVE_MENUS) void popUpMenu(menuEntries(d), { x, y }).catch((err: unknown) => console.warn("loki: row menu", err));
     else setMenu({ desk: d, x, y });
-  }, []);
-  const pinRow = useCallback((scope: string, pinned: boolean) => {
-    const d = deskOf(scope);
-    if (d) latest.current.onPin(d, pinned);
-  }, []);
-  const archiveRow = useCallback((scope: string, archived: boolean) => {
-    const d = deskOf(scope);
-    if (d) latest.current.onArchive(d, archived);
-  }, []);
+  };
 
-  const rowOf = (r: SidebarRow) => {
+  const chatRow = (r: SourceRow): ContentRow => {
     const d = r.desk;
-    return (
-      <ChatRow
-        key={d.scope}
-        scope={d.scope}
-        title={d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope)}
-        time={ago(d.last_active)}
-        badge={r.badge}
-        badgeNoun={r.badgeNoun}
-        unread={r.unread}
-        note={r.note}
-        live={r.live}
-        current={r.current}
-        dim={d.status !== "live" || d.reachable === false}
-        pinnable={canPin(d)}
-        pinned={!!d.pinned}
-        archivable={canArchive(d)}
-        archived={d.status === "archived"}
-        connected={connected}
-        home={d.home}
-        homeName={d.home_name}
-        reachable={d.reachable}
-        agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null}
-        here={homes?.here}
-        onOpen={openRow}
-        onMenu={menuRow}
-        onPin={pinRow}
-        onArchive={archiveRow}
-      />
-    );
+    const pinnable = canPin(d);
+    const archivable = canArchive(d);
+    return {
+      id: d.scope,
+      section: r.section,
+      title: d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope),
+      // When it last spoke; the badge or the live dot takes its place while something waits or runs.
+      time: ago(d.last_active),
+      badge: r.badge,
+      badgeNoun: r.badgeNoun,
+      unread: r.unread,
+      note: r.note,
+      live: r.live,
+      liveAtEnd: true,
+      dim: d.status !== "live" || d.reachable === false,
+      // One mark at most beside the name, and only where it differs from its agent (the status is on the right).
+      flags: (
+        <HomeMark
+          row={{ home: d.home, home_name: d.home_name, reachable: d.reachable }}
+          agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null}
+          here={homes?.here}
+        />
+      ),
+      launch: launchOf(d.scope),
+      actions:
+        pinnable || archivable ? (
+          <ChatRowActions desk={d} pinnable={pinnable} archivable={archivable} connected={connected} onPin={onPin} onArchive={onArchive} />
+        ) : undefined,
+    };
   };
-
-  const onFieldKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Escape" && query) {
-      e.preventDefault();
-      e.stopPropagation();
-      setQuery("");
-    } else if (e.key === "Enter") {
-      const first = model.sections.at(0)?.rows.at(0) ?? model.archived.at(0);
-      if (first) {
-        e.preventDefault();
-        onOpen(first.desk.scope);
-      }
-    } else if (e.key === "ArrowDown") {
-      const row = scrollRef.current?.querySelector<HTMLElement>(".loki-list-row");
-      if (row) {
-        e.preventDefault();
-        row.focus();
-      }
-    }
-  };
-
-  // ↑↓ between the rows, as from the filter into the first: one key per desk instead of a Tab through each row's actions. ↑ from the first row goes back to the filter.
-  const onRowsKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
-    const target = e.target as HTMLElement;
-    if (!target.classList.contains("loki-list-row")) return;
-    const rows = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".loki-list-row") ?? [])];
-    const i = rows.indexOf(target);
-    const next = e.key === "ArrowDown" ? rows[i + 1] : i > 0 ? rows[i - 1] : fieldRef.current;
-    if (!next) return;
-    e.preventDefault();
-    next.focus();
-  };
+  const contentRows: ContentRow[] = [
+    // The chat it stands for is already open in the pane; the row only shows where you are.
+    ...(drafting ? [{ id: NEW_ROW, lead: <ListIcon name="compose" />, title: "New Chat", label: "New chat, not started yet" }] : []),
+    ...rows.map(chatRow),
+  ];
 
   return (
     <>
-      <ColumnHeader
-        title="Chats"
-        quiet
-        actions={
-          onNew && (
-            <IconButton label="New chat" title="New chat" onClick={() => onNew(null)}>
-              <Icon name="plus" size={16} />
-            </IconButton>
-          )
-        }
-      />
-      <div className="loki-sidebar-filter">
-        <Field
-          ref={fieldRef}
-          size="sm"
-          type="search"
-          name="desk-filter"
-          autoComplete="off"
-          data-1p-ignore
-          data-lpignore="true"
-          data-bwignore
-          data-form-type="other"
-          placeholder="Find a chat…"
-          aria-label="Find a chat"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onFieldKey}
+      <div ref={wrapRef} className="loki-sidebar-body" onScrollCapture={measure}>
+        <ContentList
+          key={source.id}
+          label={source.title}
+          title={source.title}
+          rows={contentRows}
+          selectedId={drafting ? NEW_ROW : selected}
+          onSelect={(id) => {
+            if (id !== NEW_ROW) onSelect(id);
+          }}
+          onEnter={(id) => {
+            if (id !== NEW_ROW) onEnter(id);
+          }}
+          onMenu={(id, e) => {
+            if (id !== NEW_ROW) openMenu(id, e);
+          }}
+          empty={emptyFor(source)}
+          newAction={onNew && { label: "New Chat", run: () => onNew(source.agentId), keys: keyFor("desk.new") }}
+          query={query}
+          // Hidden behind another place, the list keeps its Search but gives up ⌥⌘F.
+          onQuery={shown ? onQuery : undefined}
         />
-      </div>
-      <div className="loki-sidebar-body">
-        <div ref={scrollRef} className="loki-column-scroll" onScroll={onScroll} onKeyDown={onRowsKey}>
-          {drafting && (
-            <ul className="loki-list" aria-label="New chat">
-              {/* The chat it stands for is already open in the pane; the row only shows where you are. */}
-              <ListRow lead={<ListIcon name="compose" />} title="New Chat" current label="New chat, not started yet" onOpen={() => {}} />
-            </ul>
-          )}
-          {model.sections.map((s) => {
-            const shut = folded(s.id);
-            return (
-              <ListSection
-                key={s.id}
-                title={s.title}
-                icon={s.id === "pinned" ? "pin" : undefined}
-                // The agent's face heads its section; its chats, the main one included, are plain rows.
-                face={s.agentId ? <AgentFace name={s.title} src={avatar(s.agentId)} size={16} /> : undefined}
-                // Folded, the section still says how many of its desks need you.
-                count={shut ? s.waiting : null}
-                aside={s.agentId ? homeAside(s.agentId) : undefined}
-                open={!shut}
-                onToggle={filtering ? undefined : () => fold(s.id)}
-                actions={
-                  onNew && s.agentId ? (
-                    <IconButton size={24} label={`New chat with ${s.title}`} title={`New chat with ${s.title}`} onClick={() => onNew(s.agentId)}>
-                      <Icon name="plus" size={14} />
-                    </IconButton>
-                  ) : undefined
-                }
-              >
-                {s.rows.map((r) => rowOf(r))}
-              </ListSection>
-            );
-          })}
-          {model.archived.length > 0 && (
-            <ListSection
-              title="Archived"
-              icon="archive"
-              count={model.archived.length}
-              open={!folded(ARCHIVED)}
-              onToggle={filtering ? undefined : () => fold(ARCHIVED)}
-            >
-              {model.archived.map((r) => rowOf(r))}
-            </ListSection>
-          )}
-          {model.empty && (
-            <div role="status" className="loki-sidebar-empty">
-              <span className="loki-meta loki-meta--wrap">No chats match “{query.trim()}”.</span>
-              <Button
-                onClick={() => {
-                  setQuery("");
-                  fieldRef.current?.focus();
-                }}
-              >
-                Clear Filter
-              </Button>
-            </div>
-          )}
-          {!filtering && !hasRows && model.archived.length === 0 && (
-            <div className="loki-sidebar-empty">
-              <span className="loki-meta loki-meta--wrap">No chats yet</span>
-              {onNew && <Button onClick={() => onNew(null)}>New Chat</Button>}
-            </div>
-          )}
-        </div>
         {pills.up && (
           <button
             type="button"
             className="loki-sidebar-pill loki-sidebar-pill--up"
+            style={{ top: pills.top + 8 }}
             onClick={() => reveal(pills.up)}
             aria-label="Scroll up to a chat that needs you"
           >
@@ -478,10 +320,10 @@ export function DeskSidebar({
       {menu && (
         <RowMenu
           {...menu}
-          item={items.find((i) => i.agent_id === menu.desk.agent_id && i.id === menu.desk.conversation_id) ?? null}
+          item={itemOf(menu.desk)}
           connected={connected}
           onClose={() => setMenu(null)}
-          onOpen={onOpen}
+          onOpen={onEnter}
           onPin={onPin}
           onArchive={onArchive}
           onRename={setRenaming}
@@ -536,10 +378,11 @@ interface RowMenuProps {
   /** The Macs this chat can move to (sidebar-model.ts moveTargets). */
   targets: MoveTarget[];
   onMoveTo?: (d: DeskSummary, to: MoveTarget) => void;
-  onOpen: DeskSidebarProps["onOpen"];
-  onPin: DeskSidebarProps["onPin"];
-  onArchive: DeskSidebarProps["onArchive"];
-  onDone?: DeskSidebarProps["onDone"];
+  /** Open: focus into the chat's message box (the right click has already selected it). */
+  onOpen: (scope: string) => void;
+  onPin: ChatListProps["onPin"];
+  onArchive: ChatListProps["onArchive"];
+  onDone?: ChatListProps["onDone"];
 }
 
 /**
@@ -654,34 +497,24 @@ function RowMenu({ x, y, onClose, ...props }: RowMenuProps & { x: number; y: num
 }
 
 /**
- * The sidebar wired to the window's models, as the tree drawer it replaced was: pin through the mod,
- * archive through loki's daemon and then a fresh desks list, each with a notice.
+ * The Chats list wired to the window's models: pin through the mod, archive through loki's daemon and then a fresh
+ * chats list, each with a notice.
  */
-export function DeskSidebarView({
+export function ChatListView({
   desk,
   catchUp,
   notice,
-  onOpen,
   onNew,
-  query,
-  onQuery,
-  drafting = false,
-}: {
+  ...list
+}: Pick<ChatListProps, "rows" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting"> & {
   desk: Desk;
   catchUp: CatchUp;
   notice: (m: string) => void;
-  onOpen: (scope: string) => void;
   onNew: (agentId: string | null) => void;
-  query: string;
-  onQuery: (query: string) => void;
-  /** A chat not started yet shows in the pane (⌘N): no row is the open one. */
-  drafting?: boolean;
 }) {
-  const connected = catchUp.status === "open";
   return (
-    <DeskSidebar
-      query={query}
-      onQuery={onQuery}
+    <ChatList
+      {...list}
       labels={{
         list: catchUp.labels.list,
         set: async (d, next) => {
@@ -692,13 +525,8 @@ export function DeskSidebarView({
         },
       }}
       desks={desk.desks.list}
-      agents={catchUp.agents}
       items={catchUp.items}
-      current={drafting ? "" : desk.scope}
-      drafting={drafting}
-      connected={connected}
-      avatar={avatarUrl}
-      onOpen={onOpen}
+      connected={catchUp.status === "open"}
       onNew={desk.attention.available ? onNew : undefined}
       onPin={(d, pinned) => {
         if (d.agent_id && d.conversation_id) desk.desks.pin(d.agent_id, d.conversation_id, pinned);
@@ -739,10 +567,10 @@ export function DeskSidebarView({
 }
 
 /** Where each agent lives and this Mac's id, as `homesOf` builds it. */
-export type Homes = NonNullable<DeskSidebarProps["homes"]>;
+export type Homes = NonNullable<ChatListProps["homes"]>;
 
 /** Where each agent lives, by Mac name, once another Mac is paired; none before (one Mac needs no saying). The phone's Home reads it too. */
-export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): DeskSidebarProps["homes"] {
+export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): ChatListProps["homes"] {
   if (!macs?.peers.length) return undefined;
   const names = new Map([[macs.me.mac_id, macs.me.name], ...macs.peers.map((p) => [p.mac_id, p.name] as const)]);
   return {
@@ -754,84 +582,36 @@ export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id
   };
 }
 
-/** One chat's row in the list, as plain values and handlers that take its scope (see DeskSidebar's rowOf). */
-interface ChatRowProps {
-  scope: string;
-  title: string;
-  time: string;
-  badge: number | null;
-  badgeNoun?: string;
-  unread: boolean;
-  note?: string;
-  live: boolean;
-  current: boolean;
-  dim: boolean;
-  pinnable: boolean;
-  pinned: boolean;
-  archivable: boolean;
-  archived: boolean;
-  connected: boolean;
-  home?: string;
-  homeName?: string;
-  reachable?: boolean;
-  agentHome?: string | null;
-  here?: string;
-  onOpen: (scope: string) => void;
-  onMenu: (scope: string, x: number, y: number) => void;
-  onPin: (scope: string, pinned: boolean) => void;
-  onArchive: (scope: string, archived: boolean) => void;
-}
-
 /** A row's pin and archive buttons, shown on hover; the row leaves them out when the chat can be neither. */
-function ChatRowActions(p: Pick<ChatRowProps, "scope" | "pinnable" | "pinned" | "archivable" | "archived" | "connected" | "onPin" | "onArchive">) {
-  const archiveTitle = p.archived ? "Restore from the archive" : "Archive";
+function ChatRowActions({
+  desk: d,
+  pinnable,
+  archivable,
+  connected,
+  onPin,
+  onArchive,
+}: { desk: DeskSummary; pinnable: boolean; archivable: boolean; connected: boolean } & Pick<ChatListProps, "onPin" | "onArchive">) {
+  const pinned = !!d.pinned;
+  const archived = d.status === "archived";
+  const archiveTitle = archived ? "Restore from the archive" : "Archive";
   return (
     <>
-      {p.pinnable && (
-        <IconButton size={24} label={p.pinned ? "Unpin" : "Pin"} title={p.pinned ? "Unpin" : "Pin to the top"} onClick={() => p.onPin(p.scope, !p.pinned)}>
+      {pinnable && (
+        <IconButton size={24} label={pinned ? "Unpin" : "Pin"} title={pinned ? "Unpin" : "Pin to the top"} onClick={() => onPin(d, !pinned)}>
           <Icon name="pin" size={14} />
         </IconButton>
       )}
-      {p.archivable && (
+      {archivable && (
         <IconButton
           size={24}
-          label={p.archived ? "Restore" : "Archive"}
-          title={p.connected ? archiveTitle : NO_ARCHIVE_REASON}
-          disabled={!p.connected}
-          onClick={() => p.onArchive(p.scope, !p.archived)}
+          label={archived ? "Restore" : "Archive"}
+          title={connected ? archiveTitle : NO_ARCHIVE_REASON}
+          disabled={!connected}
+          onClick={() => onArchive(d, !archived)}
         >
-          <Icon name={p.archived ? "history" : "archive"} size={14} />
+          <Icon name={archived ? "history" : "archive"} size={14} />
         </IconButton>
       )}
     </>
   );
 }
-
-/** A chat's row, drawn again only when one of its own values changes (plan 051). */
-const ChatRow = memo(function ChatRow(p: ChatRowProps) {
-  return (
-    <ListRow
-      title={p.title}
-      // When it last spoke; the badge or the live dot takes its place while something waits or runs.
-      time={p.time}
-      // One mark at most beside the name, and only where it differs from its section (the status is on the right).
-      flags={<HomeMark row={{ home: p.home, home_name: p.homeName, reachable: p.reachable }} agentHome={p.agentHome} here={p.here} />}
-      badge={p.badge}
-      badgeNoun={p.badgeNoun}
-      unread={p.unread}
-      note={p.note}
-      live={p.live}
-      liveAtEnd
-      current={p.current}
-      dim={p.dim}
-      launch={launchOf(p.scope)}
-      onOpen={() => p.onOpen(p.scope)}
-      onMenu={(e: MouseEvent<HTMLButtonElement>) => {
-        const box = e.currentTarget.getBoundingClientRect();
-        // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
-        p.onMenu(p.scope, e.clientX || box.left + 24, e.clientY || box.bottom);
-      }}
-      actions={p.pinnable || p.archivable ? <ChatRowActions {...p} /> : undefined}
-    />
-  );
-});

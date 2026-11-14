@@ -17,6 +17,11 @@ import {
   toggleFold,
   moveTargets,
   homeMark,
+  chatSources,
+  sourceRows,
+  openIn,
+  stepChat,
+  sourceHolds,
 } from "../app/src/shell/sidebar-model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
@@ -27,7 +32,8 @@ import { outsideItem } from "./fixtures/outside-item.ts";
 /**
  * The desk sidebar's model (app/src/shell/sidebar-model.ts, plan 013 U4): Pinned, then one section per agent
  * by recent activity, each live desk once, the agent's main chat first; the filter; the marks; the pin and
- * archive rules; the "needs you" pills; and what survives a reload.
+ * archive rules; the "needs you" pills; and what survives a reload. Since plan 2026-11-14-1330 (U3) the same rules
+ * give Chats' sources in the sidebar and each source's rows in the list.
  */
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
@@ -117,6 +123,114 @@ describe("the filter (scenario 2)", () => {
     expect(m.sections).toEqual([]);
     expect(m.archived).toEqual([]);
     expect(m.empty).toBe(true);
+  });
+});
+
+describe("Chats' sources in the sidebar (plan 2026-11-14-1330, R4)", () => {
+  test("Pinned, then each agent with what waits on it, an agent with no chats too, then Archived", () => {
+    const sources = chatSources(
+      desks,
+      [item("a1", "jira", "approval"), item("a1", "email", "question")],
+      [
+        { id: "a1", name: "friday" },
+        { id: "a2", name: "ira" },
+        { id: "a3", name: "nova" },
+      ],
+    );
+    expect(sources.map((s) => [s.id, s.title, s.waiting])).toEqual([
+      ["pinned", "Pinned", 1],
+      ["agent:a2", "ira", 0],
+      ["agent:a1", "friday", 1],
+      ["agent:a3", "nova", 0],
+      ["archived", "Archived", 0],
+    ]);
+    expect(sources.find((s) => s.id === "agent:a3")?.agentId).toBe("a3");
+  });
+
+  test("every chat lists under agent headings, Pinned first; one agent's chats have none and leave its pinned ones to Pinned", () => {
+    const all = sourceRows(desks, [], { source: "all" });
+    expect(all.map((r) => [r.section, r.desk.scope])).toEqual([
+      ["Pinned", "email"],
+      ["ira", "default-a2"],
+      ["ira", "notes"],
+      ["friday", "default-a1"],
+      ["friday", "jira"],
+      ["friday", "aws"],
+    ]);
+    const friday = sourceRows(desks, [], { source: "agent:a1" });
+    expect(friday.map((r) => [r.section, r.desk.scope])).toEqual([
+      [undefined, "default-a1"],
+      [undefined, "jira"],
+      [undefined, "aws"],
+    ]);
+    expect(scopes(sourceRows(desks, [], { source: "pinned" }))).toEqual(["email"]);
+    expect(scopes(sourceRows(desks, [], { source: "archived" }))).toEqual(["gone", "dead"]);
+    expect(scopes(sourceRows([...desks, desk("shared", { status: "none" })], [], { source: "archived" }))).toEqual(["gone", "dead"]);
+    expect(sourceRows(desks, [], { source: "agent:a3" })).toEqual([]);
+  });
+
+  test("label:infra in Search filters the chosen source's rows only", () => {
+    const labelled = [
+      desk("deploy", { labels: ["infra"] }),
+      desk("bill", { labels: ["billing"] }),
+      desk("notes", { agent_id: "a2", agent_name: "ira", labels: ["infra"] }),
+    ];
+    expect(scopes(sourceRows(labelled, [], { source: "agent:a1", query: "label:infra" }))).toEqual(["deploy"]);
+    expect(scopes(sourceRows(labelled, [], { source: "all", query: "label:infra" }))).toEqual(["deploy", "notes"]);
+  });
+});
+
+describe("opening a chat from outside the list chooses its source (KTD8, R7)", () => {
+  const at = (source: string, query = "") => ({ source, query });
+  test("an unpinned chat of ira's opened while Pinned shows: the source becomes ira (AE3)", () => {
+    expect(openIn({ scope: "notes", agent_id: "a2" }, at("pinned"), desks)).toEqual({ source: "agent:a2", query: "" });
+  });
+  test("an archived chat selects Archived; a pinned one while an agent shows selects Pinned", () => {
+    expect(openIn({ scope: "gone", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("archived");
+    expect(openIn({ scope: "email", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("pinned");
+  });
+  test("a source that holds the chat stays, every chat's included", () => {
+    expect(openIn({ scope: "jira", agent_id: "a1" }, at("all"), desks).source).toBe("all");
+    expect(openIn({ scope: "jira", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("agent:a1");
+  });
+  test("a Search that hides the chat is cleared; one that shows it stays", () => {
+    expect(openIn({ scope: "jira", agent_id: "a1" }, at("all", "aws"), desks)).toEqual({ source: "all", query: "" });
+    expect(openIn({ scope: "aws", agent_id: "a1" }, at("all", "aws"), desks)).toEqual({ source: "all", query: "aws" });
+  });
+  test("a chat not listed yet, just made, goes under its agent", () => {
+    expect(openIn({ scope: "fresh", agent_id: "a2" }, at("pinned"), desks).source).toBe("agent:a2");
+  });
+});
+
+describe("choosing another source (KTD8)", () => {
+  const jira = desks[1];
+  test("a source that holds the open chat keeps it selected; one that does not leaves the detail with No Chat Selected", () => {
+    expect(["all", "agent:a1"].map((x) => sourceHolds(x, jira))).toEqual([true, true]);
+    expect(["pinned", "agent:a2", "archived"].map((x) => sourceHolds(x, jira))).toEqual([false, false, false]);
+    expect(sourceHolds("archived", desks[6])).toBe(true);
+    expect(sourceHolds("all", desks[6])).toBe(false);
+    // The canvas's shared scope has no conversation: it is in no source, the archive included.
+    expect(sourceHolds("archived", desk("shared", { status: "none", conversation_id: null }))).toBe(false);
+  });
+});
+
+describe("⌘[ and ⌘] step the list's visible rows (R16)", () => {
+  test("⌘] goes to the next row the list shows, skipping rows the Search hides, and wraps", () => {
+    const chats = [
+      desk("deploy", { labels: ["infra"], last_active: "2026-09-08T12:00:00Z" }),
+      desk("bill", { last_active: "2026-09-08T11:00:00Z" }),
+      desk("ops", { labels: ["infra"], last_active: "2026-09-08T10:00:00Z" }),
+    ];
+    const ids = scopes(sourceRows(chats, [], { source: "agent:a1", query: "label:infra" }));
+    expect(ids).toEqual(["deploy", "ops"]);
+    expect(stepChat(ids, "deploy", 1)).toBe("ops");
+    expect(stepChat(ids, "ops", 1)).toBe("deploy");
+    expect(stepChat(ids, "deploy", -1)).toBe("ops");
+  });
+  test("with nothing selected ⌘] takes the first row and ⌘[ the last; an empty list goes nowhere", () => {
+    expect(stepChat(["x", "y", "z"], null, 1)).toBe("x");
+    expect(stepChat(["x", "y", "z"], "gone", -1)).toBe("z");
+    expect(stepChat([], null, 1)).toBeNull();
   });
 });
 
@@ -299,22 +413,18 @@ describe("what survives a reload (scenario 6)", () => {
     const m = new Map<string, string>();
     return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m };
   };
-  test("collapsed sections and scroll round-trip under loki.desktop.sidebar", () => {
+  test("the folded places round-trip under loki.desktop.sidebar; the list keeps its own scroll", () => {
     const store = memory();
-    saveSidebar(store, { collapsed: ["agent:a1"], archivedOpen: true, scroll: 240 });
+    saveSidebar(store, { collapsed: ["desk"] });
     expect(SIDEBAR_KEY).toBe("loki.desktop.sidebar");
     expect(store.m.has(SIDEBAR_KEY)).toBe(true);
-    expect(loadSidebar(store)).toEqual({ collapsed: ["agent:a1"], archivedOpen: true, scroll: 240 });
+    expect(loadSidebar(store)).toEqual({ collapsed: ["desk"] });
   });
-  test("missing or broken: the defaults (everything open, the archive folded, at the top)", () => {
-    const fresh = { collapsed: [], archivedOpen: false, scroll: 0 };
+  test("missing or broken: everything open; an older save's archive fold and scroll are dropped", () => {
+    const fresh = { collapsed: [] };
     expect(parseSidebar(null)).toEqual(fresh);
     expect(parseSidebar("{not json")).toEqual(fresh);
-    expect(parseSidebar(JSON.stringify({ collapsed: [1, "pinned"], archivedOpen: "yes", scroll: -5 }))).toEqual({
-      collapsed: ["pinned"],
-      archivedOpen: false,
-      scroll: 0,
-    });
+    expect(parseSidebar(JSON.stringify({ collapsed: [1, "pinned"], archivedOpen: true, scroll: 240 }))).toEqual({ collapsed: ["pinned"] });
   });
   test("a blocked store costs only the preference", () => {
     const blocked = {
@@ -325,51 +435,67 @@ describe("what survives a reload (scenario 6)", () => {
         throw new Error("blocked");
       },
     };
-    expect(loadSidebar(blocked)).toEqual({ collapsed: [], archivedOpen: false, scroll: 0 });
-    expect(() => saveSidebar(blocked, { collapsed: [], archivedOpen: false, scroll: 0 })).not.toThrow();
+    expect(loadSidebar(blocked)).toEqual({ collapsed: [] });
+    expect(() => saveSidebar(blocked, { collapsed: [] })).not.toThrow();
   });
-  test("toggleFold folds and unfolds one section", () => {
-    const p = { collapsed: ["pinned"], archivedOpen: false, scroll: 10 };
-    expect(toggleFold(p, "agent:a1").collapsed).toEqual(["pinned", "agent:a1"]);
+  test("toggleFold folds and unfolds one place's sources", () => {
+    const p = { collapsed: ["pinned"] };
+    expect(toggleFold(p, "desk").collapsed).toEqual(["pinned", "desk"]);
     expect(toggleFold(p, "pinned").collapsed).toEqual([]);
-    expect(toggleFold(p, "pinned").scroll).toBe(10);
   });
 });
 
-describe("the sidebar, rendered", () => {
-  test("Desks header with new desk and the filter; Pinned then agents; the waiting row's badge; the current row; archive folded", async () => {
+describe("the Chats list, rendered", () => {
+  const render = async (over: Record<string, unknown>) => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { DeskSidebar } = await import("../app/src/shell/desk-sidebar.tsx");
+    const { ChatList } = await import("../app/src/shell/desk-sidebar.tsx");
     const noop = () => {};
-    const html = renderToStaticMarkup(
-      createElement(DeskSidebar, {
+    return renderToStaticMarkup(
+      createElement(ChatList, {
+        rows: sourceRows(desks, [item("a1", "jira", "approval")], { source: "all" }),
+        source: { id: "all", title: "Chats", agentId: null },
+        selected: "aws",
+        shown: true,
         desks,
-        agents: [],
         items: [item("a1", "jira", "approval")],
-        current: "aws",
         connected: false,
-        onOpen: noop,
+        onSelect: noop,
+        onEnter: noop,
         onNew: noop,
         onPin: noop,
         onArchive: noop,
         onRename: () => Promise.resolve(null),
-        avatar: () => null,
+        query: "",
+        onQuery: noop,
+        ...over,
       }),
     );
-    expect(html).toContain('aria-label="New chat"');
-    expect(html).toContain('placeholder="Find a chat…"');
+  };
+
+  test("the source's name over Search and New Chat; agent headings; the waiting row's badge; the open chat selected", async () => {
+    const html = await render({});
+    expect(html).toContain('aria-label="Chats"');
+    expect(html).toContain('aria-label="New Chat"');
+    expect(html).toContain('aria-label="Search Chats"');
     expect(html.indexOf(">Pinned<")).toBeLessThan(html.indexOf(">ira<"));
     expect(html.indexOf(">ira<")).toBeLessThan(html.indexOf(">friday<"));
-    expect(html).toContain('aria-label="New chat with friday"');
     expect(html).toContain("unread, 1 needs approval</span>");
     expect(html).toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*aws/);
-    // The archive is folded by default: its entry shows, its rows do not.
-    expect(html).toContain(">Archived<");
-    expect(html).not.toContain("Old spike");
     // Not connected: archive is there but disabled, with the reason.
     expect(html).toMatch(/aria-label="Archive"[^>]*disabled|disabled[^>]*aria-label="Archive"/);
     expect(html).toContain("Archiving needs loki&#x27;s daemon");
+  });
+
+  test("a chat being started leads the list as the selected New Chat row", async () => {
+    const html = await render({ drafting: true });
+    expect(html).toMatch(/aria-current="page"[^>]*aria-label="New chat, not started yet"|aria-label="New chat, not started yet"[^>]*aria-current="page"/);
+  });
+
+  test("an empty source says so, with its New Chat", async () => {
+    const html = await render({ rows: [], source: { id: "agent:a3", title: "nova", agentId: "a3" }, selected: null });
+    expect(html).toContain("No chats with nova yet.");
+    expect(html).toMatch(/<button[^>]*>New Chat<\/button>/);
   });
 });
 

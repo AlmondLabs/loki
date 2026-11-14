@@ -1377,7 +1377,9 @@ button.loki-list-section-toggle {
 /* Liquid Glass's places (shell/sidebar.tsx Places, U12): the source list's first rows, as Mail lists its mailboxes. A
    symbol in the accent, the name, a grey count; the place showing is filled, never bold. */
 .loki-places {
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -1423,6 +1425,51 @@ button.loki-list-section-toggle {
   font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
+}
+/* A place's sources (plan 2026-11-14-1330, R1): one level under its row, and a chevron at the row's trailing edge that
+   folds them, shown on hover as Mail's is. */
+.loki-place-group,
+.loki-place-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.loki-place-head {
+  position: relative;
+  display: flex;
+}
+.loki-place-head > .loki-place {
+  flex: 1;
+  min-width: 0;
+}
+.loki-place-fold {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  opacity: 0;
+}
+.loki-place-head:hover .loki-place-fold,
+.loki-place-fold:focus-visible,
+.loki-place-fold[aria-expanded="false"] {
+  opacity: 1;
+}
+.loki-place-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.loki-place--source {
+  width: 100%;
+  padding-left: 20px;
 }
 /* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
 .loki-sidebar-toggle[aria-pressed] {

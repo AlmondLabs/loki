@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { SEGMENTS } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { countText } from "../components";
@@ -7,6 +7,8 @@ import { ariaShortcut, keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
 import { PanelLeftIcon } from "lucide-react";
 import { Glyph, Icon, type IconName } from "../shared/icons";
+import { columnsStore } from "./columns";
+import { loadSidebar, saveSidebar, toggleFold, type SidebarPref } from "./sidebar-model";
 
 /**
  * The native title bar is hidden (src-tauri/src/lib.rs: overlay style on the Mac, undecorated on Windows and Linux),
@@ -129,28 +131,78 @@ export function WindowControls({ maximized, onAction }: { maximized: boolean; on
 /** Each place's icon, by loki's icon names: the same as ⌘K and the menus use. */
 const PLACE_ICON: Record<Segment, IconName> = { desk: "desk", inbox: "inbox", agents: "agents", learn: "learn", settings: "settings" };
 
+/** One source under a place in the sidebar: its id, its name, its symbol or face, and the grey count of what waits in it. */
+export interface PlaceSource {
+  id: string;
+  title: string;
+  icon?: IconName;
+  /** A face in place of the symbol: an agent's. */
+  face?: ReactNode;
+  count: number;
+}
+
+/** A place's sources under its row (plan 2026-11-14-1330, R1): Chats' Pinned, one per agent, and Archived. */
+export interface PlaceSources {
+  items: readonly PlaceSource[];
+  /** The source showing in the list. */
+  selected: string;
+  /** The source the place's own row stands for: every chat, for Chats (R4). */
+  all: string;
+  onSelect: (id: string) => void;
+}
+
+/** The sidebar's folds as saved; fresh when the page may not keep them. */
+function savedFolds(): SidebarPref {
+  const store = columnsStore();
+  return store ? loadSidebar(store) : { collapsed: [] };
+}
+
 /**
  * The sidebar's head (plan 2026-11-12-1505, U12): the window's places as the source list's first rows, as Mail lists
  * its mailboxes. Each row is a symbol in the accent, the place's name and a grey count
  * (what waits in Flow, the cards due in Learn); the place showing is filled, never bold. Preferences is not a row: it is
- * ⌘, and the menu bar's, as on every Mac app.
+ * ⌘, and the menu bar's, as on every Mac app. A place with sources lists them under its row, one level down, with a
+ * disclosure chevron at the row's trailing edge that folds them; the rows are the same in every place, and choosing a
+ * source moves only the selection (plan 2026-11-14-1330, R1). The folds outlive restarts.
  */
-export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: Segment; onSelect: (s: Segment) => void; waiting: number; dueCards?: number }) {
+export function Places({
+  segment,
+  onSelect,
+  waiting,
+  dueCards = 0,
+  sources = {},
+}: {
+  segment: Segment;
+  onSelect: (s: Segment) => void;
+  waiting: number;
+  dueCards?: number;
+  sources?: Partial<Record<Segment, PlaceSources>>;
+}) {
+  const [folds, setFolds] = useState(savedFolds);
+  const fold = (id: string) => {
+    const next = toggleFold(folds, id);
+    setFolds(next);
+    const store = columnsStore();
+    if (store) saveSidebar(store, next);
+  };
   return (
     <nav aria-label="Sections" className="loki-places">
       {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
         const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
         const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
-        return (
+        const own = sources[s.id];
+        const here = segment === s.id;
+        const row = (
           <button
             key={s.id}
             type="button"
             className="loki-place"
-            aria-current={segment === s.id ? "page" : undefined}
+            // With sources, the place's row is current only while it stands for the source showing (every chat).
+            aria-current={here && (!own || own.selected === own.all) ? "page" : undefined}
             aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
             title={`${s.label} (${s.key})`}
             aria-keyshortcuts={ariaShortcut(s.key)}
-            onClick={() => onSelect(s.id)}
+            onClick={() => (own ? own.onSelect(own.all) : onSelect(s.id))}
           >
             <span className="loki-place-icon">
               <Icon name={PLACE_ICON[s.id]} size={18} />
@@ -162,6 +214,48 @@ export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: 
               </span>
             )}
           </button>
+        );
+        if (!own) return row;
+        const folded = folds.collapsed.includes(s.id);
+        return (
+          <div key={s.id} className="loki-place-group">
+            <div className="loki-place-head">
+              {row}
+              <button
+                type="button"
+                className="loki-place-fold"
+                aria-expanded={!folded}
+                aria-label={`${s.label} sources`}
+                title={folded ? "Show" : "Hide"}
+                onClick={() => fold(s.id)}
+              >
+                <Icon name="chevron-down" size={12} className={folded ? "loki-list-section-chev loki-list-section-chev--folded" : "loki-list-section-chev"} />
+              </button>
+            </div>
+            {!folded && (
+              <ul className="loki-place-sources" aria-label={`${s.label} sources`}>
+                {own.items.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      type="button"
+                      className="loki-place loki-place--source"
+                      aria-current={here && own.selected === it.id ? "page" : undefined}
+                      aria-label={it.count > 0 ? `${it.title}, ${it.count} waiting` : it.title}
+                      onClick={() => own.onSelect(it.id)}
+                    >
+                      <span className="loki-place-icon">{it.face ?? (it.icon && <Icon name={it.icon} size={16} />)}</span>
+                      <span className="loki-place-label">{it.title}</span>
+                      {it.count > 0 && (
+                        <span aria-hidden className="loki-place-count">
+                          {countText(it.count)}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         );
       })}
     </nav>

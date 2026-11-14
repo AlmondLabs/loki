@@ -269,7 +269,12 @@ Internals keep the name desk.
   never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A newer loki is
   said once per version as a notice with **Update…** and **Later** (it sat as a row at the sidebar's foot until
   2026-11-14); Preferences › loki keeps saying it while it is newer. The pane is the window's one `main`; the places
-  are its navigation.
+  are its navigation. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
+  (plan 2026-11-14-1330, R1): the same rows in every place, so changing place moves only the selection. Each source is
+  a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
+  for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
+  hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
+  first (Pinned, each agent, Archived); the other places keep their lists under the places until they move.
 - **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
   edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden.
@@ -278,17 +283,23 @@ Internals keep the name desk.
   is a source-list heading under the places, small and grey, with its "+", except where it would repeat the place
   above it (Chats, Agents): there it is said to a screen reader only and its "+" keeps the trailing edge, as Mail
   never names a mailbox twice; Learn's list starts at its Views.
-- **Chats sidebar.** A filter ("Find a chat…", by chat or agent name; ↓ into the rows, ↑↓ between them, ↵ opens
-  the first match), then **Pinned**, then one folding section per agent with its own "+", then a folded
-  **Archived**. A row is the chat's name in full ink, as Mail titles every message (grey until 2026-11-14): a grey count (and bold) when it waits on you, a green dot while
-  its agent works, and for a chat whose agent has finished a small ring after the name, bold as well while there
-  is news since you last looked. **Viewed is not read, and read is not done**: opening a chat views it
+- **Chats list.** Chats on the three columns (plan 2026-11-14-1330, U3): the sidebar's source chosen, its chats in the
+  list column on `ContentList`, the chat in the detail. The toolbar names the source, with New Chat (an agent's starts
+  one with that agent) and Search (⌥⌘F; chat or agent names and `label:`, the source's rows only). Every chat's list
+  keeps a heading per agent, Pinned first, so each "Main chat" stays distinct; a source's own list has none. A row is
+  one line, the chat's name in full ink, as Mail titles every message (grey until 2026-11-14), then at the trailing
+  edge one mark: a grey count (and bold) when it waits on you, a green dot while its agent works, a ring when it has
+  finished, or the time. **Viewed is not read, and read is not done**: opening a chat views it
   (un-bolds it), the ring stays until you act or Mark as read, and only archiving takes the chat out of the Inbox;
   bold and ring is new, the ring alone is "viewed, not read", neither is read. The phone reads the same marks
-  through the mod. Hover shows pin and archive; a right click opens the row menu (open, Mark as read or unread,
-  Rename…, Change folder…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a "Needs you"
-  pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
-  replaced the desks tree drawer (2026-09-23, approved by the user); the tree went with Tasks (plan 049).
+  through the mod. Hover shows pin and archive; a right click selects the row and opens its menu (open, Mark as read or
+  unread, Rename…, Change folder…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a
+  "Needs you" pill at the top or bottom edge of the rows scrolls it back. The arrows highlight at once and commit after
+  a rest, so the chat's link opens once per commit and focus stays in the list (KTD4); Return or Tab goes into the
+  message box. Opening a chat from elsewhere chooses the source that holds it and selects its row (KTD8); choosing a
+  source that does not hold the open chat shows "No Chat Selected" and opens no link. The list stays mounted, hidden,
+  while another place shows, so it keeps its scroll. The sidebar replaced the desks tree drawer (2026-09-23, approved by
+  the user); the tree went with Tasks (plan 049), and the list column took the chats from the sidebar (2026-11-14).
 - **Chat pane.** A chat opens on **Messages** with the composer focused, from anywhere (the sidebar, search,
   the Inbox's Enter or O, Agents, Learn). **Canvas** is the tab beside it: today's sheet edge to edge with the
   chat as a viewport **inset** (framing centres in the uncovered part, toggling the chat slides the sheet by its

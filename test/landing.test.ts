@@ -26,11 +26,16 @@ describe("where a window lands", () => {
     expect(landing({ ...base, waiting: 3 })).toEqual({ kind: "flow" });
   });
   test("else the chat they were in most recently; an archived one never", () => {
-    expect(landing(base)).toEqual({ kind: "chat", scope: "b" });
+    expect(landing(base)).toEqual({ kind: "chat", scope: "b", source: "agent:ira" });
     expect(landing({ ...base, desks: [desk("a", "2026-11-13T10:00:00Z"), desk("z", "2026-11-14T12:00:00Z", "archived")] })).toEqual({
       kind: "chat",
       scope: "a",
+      source: "agent:ira",
     });
+  });
+  test("landing on a chat selects its agent's source, or Pinned for a pinned chat (plan 2026-11-14-1330, R7)", () => {
+    const pinned = { ...desk("p", "2026-11-14T10:00:00Z"), pinned: true };
+    expect(landing({ ...base, desks: [desk("a", "2026-11-13T10:00:00Z"), pinned] })).toEqual({ kind: "chat", scope: "p", source: "pinned" });
   });
   test("with neither, nothing: the pane says No Chat Selected", () => {
     expect(landing({ ...base, desks: [] })).toEqual({ kind: "none" });
@@ -41,6 +46,10 @@ describe("where a window lands", () => {
     expect(landing({ ...base, onChats: false })).toBeNull();
   });
   test("a landing compares as one string", () => {
-    expect([landingKey({ kind: "flow" }), landingKey({ kind: "none" }), landingKey({ kind: "chat", scope: "b" })]).toEqual(["flow", "none", "chat:b"]);
+    expect([landingKey({ kind: "flow" }), landingKey({ kind: "none" }), landingKey({ kind: "chat", scope: "b", source: "agent:ira" })]).toEqual([
+      "flow",
+      "none",
+      "chat:b",
+    ]);
   });
 });
