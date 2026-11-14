@@ -103,3 +103,25 @@ describe("an opened step", () => {
     expect(out).not.toContain("text-muted-foreground/50");
   });
 });
+
+describe("thoughts on the work line (plan 2026-11-14-0852, 4)", () => {
+  const read: TranscriptRow = { role: "tool", text: "Read · signups.csv", tool: { name: "Read" }, thought: "Look at the file first.", thought_ms: 3000 };
+  const answer: TranscriptRow = { role: "assistant", text: "There are 40 signups.", thought: "Count the rows.", thought_ms: 2000 };
+
+  test("a turn that thinks, reads, thinks and answers is one work line: both thoughts are steps in it, in order", async () => {
+    const { thoughtsIntoWork } = await import("../app/src/item/entries.ts");
+    const steps = { kind: "steps" as const, key: "r-0", rows: [read], running: false, arrived: false };
+    const message = { kind: "message" as const, key: "r-1", row: answer, last: true, first: true, arrived: false };
+    const { into, folded } = thoughtsIntoWork([[steps, message]]);
+    expect(into.get("r-0")).toEqual([answer]);
+    expect([...folded]).toEqual(["r-1"]);
+    // A reply with no work before it keeps its own line.
+    expect(thoughtsIntoWork([[message]]).folded.size).toBe(0);
+  });
+
+  test("the line names its one step, and opened lists each thought where it came", () => {
+    const closed = html(createElement(Work, { rows: [read], thoughts: [answer], running: false, arrived: false }));
+    expect(closed).toContain("Read signups.csv");
+    expect(closed).not.toContain("Used a tool");
+  });
+});

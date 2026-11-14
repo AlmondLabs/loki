@@ -196,3 +196,22 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
   out.push(...held);
   return out;
 }
+
+/**
+ * Where a turn's thoughts are drawn (plan 2026-11-14-0852, 4): a thought before a reply that follows a stretch of work
+ * joins that stretch's Work line as its last step, so a turn that thinks, reads, thinks and answers is one line before
+ * the answer, not three. `into` gives each stretch the rows whose thoughts it takes; `folded` the replies whose
+ * thought it took, which then draw no Thought line of their own. A thought with no stretch before it keeps its line.
+ */
+export function thoughtsIntoWork(turns: ReadonlyArray<readonly TurnPart[]>): { into: Map<string, TranscriptRow[]>; folded: Set<string> } {
+  const into = new Map<string, TranscriptRow[]>();
+  const folded = new Set<string>();
+  for (const parts of turns)
+    parts.forEach((p, i) => {
+      const before = i > 0 ? parts[i - 1] : null;
+      if (p.kind !== "message" || !p.row.thought || before?.kind !== "steps") return;
+      into.set(before.key, [...(into.get(before.key) ?? []), p.row]);
+      folded.add(p.key);
+    });
+  return { into, folded };
+}

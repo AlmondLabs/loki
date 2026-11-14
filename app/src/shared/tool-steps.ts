@@ -212,6 +212,9 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
   if (running) return took ? `Working · ${took}` : "Working";
   const only = rows.length === 1 ? rows[0] : null;
   if (only?.tool?.description && stepKind(only) === "command") return `Ran ${only.tool.description}${only.tool.failed ? " · failed" : ""}`;
+  // One step that names what it was done to says so ("Read signups.csv"), not "Used a tool".
+  const target = only?.role === "tool" && !["command", "background", "agent"].includes(stepKind(only)) ? stepTarget(only) : null;
+  if (only && target) return `${stepVerb(stepName(only))} ${target}${stepFailed(only) ? " · failed" : ""}`;
   const count = (k: StepKind) => rows.filter((r) => stepKind(r) === k).length;
   const background = count("background");
   const commands = count("command");

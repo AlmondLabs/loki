@@ -20,7 +20,7 @@ import { ThreadError } from "../chat/thread-error";
 import { StepsLoad } from "../chat/tool-steps";
 import { useArrivedFrom } from "../chat/transcript";
 import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../chat/transcript-window";
-import { threadEntries, threadTurns, type TurnPart } from "./entries";
+import { threadEntries, threadTurns, thoughtsIntoWork, type TurnPart } from "./entries";
 import { WidgetArtifact } from "./content-parts";
 import { ChangeEntry, DayMarker, EventEntry, NewMarker } from "./event-entry";
 import { chatEntries, type ItemEntry } from "./item-view";
@@ -126,6 +126,8 @@ function ThreadBody({
         if (samePlan(plan, lastPlan)) repeated.add(p.key);
         lastPlan = plan;
       }
+  // A thought before a reply that follows work joins that work's line (plan 2026-11-14-0852, 4).
+  const thoughts = thoughtsIntoWork(entries.flatMap((e) => (e.kind === "turn" ? [e.parts] : [])));
   // The live turn's badge already says it is working; the thinking line is for the wait before its first part.
   const tailEntry = entries.at(-1);
   const turnWorking = tailEntry?.kind === "turn" && tailEntry.state === "working";
@@ -154,17 +156,21 @@ function ThreadBody({
         return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
         return (
-          <>
-            <Thought rows={p.rows} />
-            <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} planAsBefore={repeated.has(p.key)} />
-          </>
+          <Work
+            rows={p.rows}
+            thoughts={thoughts.into.get(p.key)}
+            running={p.running || paused(p.rows)}
+            arrived={p.arrived}
+            waiting={paused(p.rows)}
+            planAsBefore={repeated.has(p.key)}
+          />
         );
       case "event":
         return <EventEntry row={p.row} arrived={p.arrived} />;
       case "message":
         return (
           <>
-            <Thought rows={[p.row]} />
+            {!thoughts.folded.has(p.key) && <Thought rows={[p.row]} />}
             {message(p)}
           </>
         );

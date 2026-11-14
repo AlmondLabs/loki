@@ -107,9 +107,9 @@ drawing its own line inside a turn, and its text becomes a step in the Work list
 to the thought), in order with the tools. A turn with thoughts and no tools still shows "Thought for 12 seconds"
 alone. The step's label is the verb and its object ("Read signups.csv"), never "Used" before a verb.
 
-Where: `item/timeline.tsx`, `item/work.tsx`, `item/thought.tsx`, `shared/tool-steps.ts`, and the phone's thread
-(`phone/thread-parts.tsx`) so both read alike. Tests: `entries` and `tool-steps` cases for a think, read, think,
-answer turn.
+Where: `item/timeline.tsx`, `item/work.tsx`, `item/thought.tsx`, `item/entries.ts` (`thoughtsIntoWork`) and
+`shared/tool-steps.ts`. The phone's thread draws no thoughts, so it has nothing to change. Tests: `item-work` for a
+think, read, think, answer turn, and `tool-steps` for the one-step line.
 
 ## 5. Keys that act without a modifier, and one key bound twice
 

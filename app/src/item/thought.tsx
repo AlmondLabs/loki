@@ -1,4 +1,3 @@
-import { capitalFirst } from "../kit/words";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/ui/ai-elements/reasoning";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 
@@ -11,12 +10,12 @@ export function thoughtOf(rows: readonly TranscriptRow[]): { text: string; secon
   return { text: thought.map((r) => r.thought).join("\n\n"), seconds: timed ? Math.max(1, Math.round(ms / 1000)) : undefined };
 }
 
-/** The trigger's words: how long it thought when that is known, never a guess (KTD8). */
-const words = (seconds: number | undefined) => {
-  const line = seconds === undefined ? "thought" : `thought for ${seconds} ${seconds === 1 ? "second" : "seconds"}`;
-  // The line takes a capital, as every label does (plan 2026-11-12-1505, R7).
-  return <span>{capitalFirst(line)}</span>;
-};
+/** How long it thought, when that is known, never a guess (KTD8): "Thought for 12 seconds", or "Thought". */
+export const thoughtWords = (seconds: number | undefined): string =>
+  seconds === undefined ? "Thought" : `Thought for ${seconds} ${seconds === 1 ? "second" : "seconds"}`;
+
+/** The trigger's words, as a span. */
+const words = (seconds: number | undefined) => <span>{thoughtWords(seconds)}</span>;
 
 /**
  * What the agent thought before a reply or a stretch of work (plan 097, U9), on AI Elements' Reasoning: folded to one
