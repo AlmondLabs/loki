@@ -54,16 +54,7 @@ export function SlashPalette({
               /{c.id}
               {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 6 }}>{c.args}</span>}
             </span>
-            <span
-              style={{
-                fontSize: "var(--loki-text-tag)",
-                color: "var(--loki-muted)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                minWidth: 0,
-              }}
-            >
+            <span className="loki-truncate" style={{ fontSize: "var(--loki-text-tag)", color: "var(--loki-muted)" }}>
               {sentence(commandText(c))}
             </span>
             <span style={{ fontSize: "var(--loki-text-micro)", color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>

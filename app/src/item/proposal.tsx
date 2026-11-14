@@ -40,7 +40,7 @@ export function ProposalFrame({ kind, where, children, className }: { kind: Prop
       <header className="flex min-w-0 items-center gap-2 text-meta">
         {kind !== "reply" && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-loki-attention" />}
         <span className={cn("font-semibold", kind === "reply" ? "text-ring" : "text-foreground")}>{kind}</span>
-        {where && <span className="min-w-0 truncate text-muted-foreground">{where}</span>}
+        {where && <span className="loki-truncate text-muted-foreground">{where}</span>}
       </header>
       {children}
     </section>
@@ -89,7 +89,7 @@ export function ApprovalProposal({
               type="button"
               aria-expanded={open}
               onClick={() => setOpen((o) => !o)}
-              className="min-w-0 cursor-pointer truncate text-left text-meta text-muted-foreground hover:text-foreground"
+              className="loki-truncate cursor-pointer text-left text-meta text-muted-foreground hover:text-foreground"
               title={open ? "Hide the input" : "Show the whole input"}
             >
               {line}

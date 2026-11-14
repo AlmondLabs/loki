@@ -120,7 +120,7 @@ export const ToolSteps = memo(
         {failure !== null && (!open || touch) && (
           <button type="button" className="loki-steps-failure" onClick={() => show(failure)}>
             <Icon name="close" size={12} />
-            <span>{stepTarget(rows[failure]) ?? stepName(rows[failure])} failed</span>
+            <span className="loki-truncate">{stepTarget(rows[failure]) ?? stepName(rows[failure])} failed</span>
           </button>
         )}
         {open &&
@@ -148,7 +148,7 @@ function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: 
         {first}
         {stepFailed(row) && <span className="loki-steps-failed">Failed</span>}
       </span>
-      {second && <span className="loki-steps-target">{second}</span>}
+      {second && <span className="loki-truncate">{second}</span>}
     </span>
   );
 }

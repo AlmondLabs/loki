@@ -683,7 +683,11 @@ const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 Hours", "1d": "1
 
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {
-  return <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)" }}>{children}</span>;
+  return (
+    <span className="loki-mono" style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)" }}>
+      {children}
+    </span>
+  );
 }
 
 /** Preferences › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
@@ -767,10 +771,10 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     {i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}
                   </td>
                   <td
+                    className="loki-mono"
                     style={{
                       padding: "6px 12px 6px 0",
                       width: 170,
-                      fontFamily: "var(--loki-mono)",
                       fontSize: "var(--loki-text-meta)",
                       color: "var(--loki-fg)",
                       whiteSpace: "nowrap",

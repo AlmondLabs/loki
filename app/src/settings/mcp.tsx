@@ -192,7 +192,9 @@ function ServerRow({
                     aria-label={`Always load ${t.name}`}
                   />
                   <span style={{ minWidth: 0 }}>
-                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)" }}>{t.name}</span>
+                    <span className="loki-mono" style={{ fontSize: "var(--loki-text-meta)" }}>
+                      {t.name}
+                    </span>
                     {t.read_only && (
                       <Chip static tag style={{ marginLeft: 6 }}>
                         Read-only
@@ -412,7 +414,7 @@ function ServerForm({
         </Button>
       </div>
       <div className="loki-meta loki-meta--wrap">
-        Written to <span style={{ fontFamily: "var(--loki-mono)" }}>{configPath}</span>, which loki's daemon follows.
+        Written to <span className="loki-mono">{configPath}</span>, which loki's daemon follows.
       </div>
     </div>
   );

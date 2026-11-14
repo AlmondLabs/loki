@@ -125,9 +125,9 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
             <span className="loki-mail-msg-name">{name}</span>
-            {address && address !== name && <Meta style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>&lt;{address}&gt;</Meta>}
+            {address && address !== name && <Meta>&lt;{address}&gt;</Meta>}
           </div>
-          {sentTo && <Meta style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sentTo}</Meta>}
+          {sentTo && <Meta style={{ display: "block" }}>{sentTo}</Meta>}
         </div>
         {when && (
           <Meta style={{ flex: "none" }} title={new Date(m.at).toLocaleString()}>

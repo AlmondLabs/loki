@@ -34,7 +34,9 @@ export function Stat({ data }: KitProps) {
   return (
     <div className="loki-widget-body">
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: "var(--loki-text-hero)", fontWeight: 600, fontFamily: "var(--loki-mono)" }}>{asText(data.value ?? "—")}</span>
+        <span className="loki-mono" style={{ fontSize: "var(--loki-text-hero)", fontWeight: 600 }}>
+          {asText(data.value ?? "—")}
+        </span>
         {typeof data.unit === "string" && <span className="loki-muted">{data.unit}</span>}
         {delta !== null && (
           <span
@@ -73,7 +75,7 @@ export function SliderControl({ data, onSet }: KitProps) {
     <div className="loki-widget-body" style={{ display: "grid", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <span>{asText(data.label ?? "value")}</span>
-        <span style={{ fontFamily: "var(--loki-mono)" }}>
+        <span className="loki-mono">
           {shown}
           {typeof data.unit === "string" ? ` ${data.unit}` : ""}
         </span>

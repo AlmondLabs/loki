@@ -1029,7 +1029,7 @@ function NotSentLine({
         Not sent: {error ?? note.reason}
       </Meta>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <Meta style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={note.text}>
+        <Meta style={{ flex: 1, minWidth: 0 }} title={note.text}>
           “{firstLine(note.text)}”
         </Meta>
         {onUnsent && (

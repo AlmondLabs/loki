@@ -47,7 +47,9 @@ export function MemoryPage({
   return (
     <Pane>
       <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <span style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)" }}>{filePath}</span>
+        <span className="loki-mono" style={{ color: "var(--loki-fg)" }}>
+          {filePath}
+        </span>
         {loadingView && <span>Loading…</span>}
         <span style={{ flex: 1 }} />
         <Button

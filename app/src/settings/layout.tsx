@@ -10,12 +10,12 @@ export function Fact({ label, value, mono = false }: { label: string; value: Rea
     <div style={{ display: "flex", alignItems: "baseline", gap: 24, padding: "12px 0" }}>
       <div style={{ flex: "none", minWidth: 120, fontSize: "var(--loki-text-body)", fontWeight: 600, color: "var(--loki-fg)" }}>{label}</div>
       <div
+        className={mono ? "loki-mono" : undefined}
         style={{
           flex: 1,
           minWidth: 0,
           textAlign: "right",
           color: "var(--loki-fg)",
-          fontFamily: mono ? "var(--loki-mono)" : undefined,
           fontSize: mono ? "var(--loki-text-meta)" : "var(--loki-text-body)",
           lineHeight: 1.5,
           overflowWrap: "anywhere",
@@ -57,9 +57,10 @@ export function Setting({ label, help, mono = false, children }: { label: string
     <div style={{ display: "flex", alignItems: "center", gap: 24, padding: "12px 0", minHeight: 32 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
+          className={mono ? "loki-mono" : undefined}
           style={
             mono
-              ? { fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", overflowWrap: "anywhere" }
+              ? { fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", overflowWrap: "anywhere" }
               : { fontSize: "var(--loki-text-body)", fontWeight: 600, color: "var(--loki-fg)" }
           }
         >

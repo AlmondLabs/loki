@@ -576,7 +576,7 @@ export function ConversationHeader({
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
+        <Title className="loki-truncate">{title}</Title>
         {purpose && (
           <div className="loki-chat-purpose" title={purpose}>
             {purpose}

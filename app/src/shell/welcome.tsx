@@ -223,7 +223,7 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
       <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
       {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-        Its log is <code style={mono}>~/.loki/logs/daemon.log</code>.
+        Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
       </div>
       <Button size="sm" tone="positive" disabled={busy} onClick={retry} style={{ justifySelf: "start" }}>
         {busy ? "checking…" : "check again"}
@@ -231,8 +231,6 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
     </div>
   );
 }
-
-const mono = { fontFamily: "var(--loki-mono)" };
 
 /**
  * No Node 22 or newer anywhere loki looks: what to install, this system's usual command, the nodejs.org link, and
@@ -252,18 +250,18 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
           {missing.at ? (
             <>
               {" "}
-              at <code style={mono}>{missing.at}</code>
+              at <code className="loki-mono">{missing.at}</code>
             </>
           ) : null}
           , older than {missing.needed}.
         </div>
       )}
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-        <code style={mono}>{help.command}</code>
+        <code className="loki-mono">{help.command}</code>
         {help.also ? (
           <>
             {" "}
-            or <code style={mono}>{help.also}</code>
+            or <code className="loki-mono">{help.also}</code>
           </>
         ) : null}{" "}
         {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.

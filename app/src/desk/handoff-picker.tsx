@@ -116,10 +116,8 @@ export function HandoffPicker({
               style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}
             >
               <span
+                className="loki-truncate"
                 style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
                   fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)",
                 }}
               >

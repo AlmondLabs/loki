@@ -89,7 +89,7 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
             onClick={() => onOpen(x.conversation_id ?? "default")}
             style={{ justifyContent: "space-between", fontSize: "var(--loki-text-body)" }}
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "Main chat"}</span>
+            <span className="loki-truncate">{x.title ?? "Main chat"}</span>
             <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
               {x.active ? "Active" : x.last_active ? ago(x.last_active) : ""}
             </span>

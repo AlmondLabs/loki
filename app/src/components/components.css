@@ -555,6 +555,19 @@ textarea.loki-field {
 .loki-meta--negative {
   color: var(--loki-negative);
 }
+/* The two text classes. They sit after .loki-meta so a meta line can take either: a Tailwind utility would lose to
+   .loki-meta, because loki's stylesheets are not in a cascade layer and Tailwind's utilities are. */
+/* Mono: code, paths, hosts, keys and other data (the rule under Tokens). Sets the face only. */
+.loki-mono {
+  font-family: var(--loki-mono);
+}
+/* One line, cut with an ellipsis. min-width: 0 lets it shrink as a flex or grid item. */
+.loki-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .loki-title {
   font-family: var(--loki-font);
   font-size: var(--loki-text-title);

@@ -39,7 +39,7 @@ export function Macs({ macs, connected }: { macs: MacsApi; connected: boolean })
           help={
             view.me.host ? (
               <>
-                {view.me.name} · <span style={{ fontFamily: "var(--loki-mono)" }}>{view.me.host}</span>
+                {view.me.name} · <span className="loki-mono">{view.me.host}</span>
               </>
             ) : (
               `${view.me.name}, not on a tailnet: open Tailscale and sign in to pair Macs.`
@@ -147,9 +147,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
               <Dot aria-hidden size={8} color={d.online ? "var(--loki-positive)" : "var(--loki-border)"} ring={!d.online} />
               <span style={{ display: "grid", minWidth: 0, flex: 1 }}>
                 <span style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{d.name}</span>
-                <span className="loki-meta" style={{ fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {d.address}
-                </span>
+                <span className="loki-meta loki-mono">{d.address}</span>
               </span>
               <span className="loki-meta">{d.paired ? "Paired" : d.online ? d.os : "Offline"}</span>
             </PickRow>
@@ -167,11 +165,11 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   const expired = left === "expired";
   return (
     <div style={{ display: "grid", gap: 4, paddingBottom: 12 }}>
-      <div style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+      <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
         {code.code}
       </div>
       {code.host && (
-        <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
+        <div className="loki-meta loki-meta--wrap loki-mono" style={{ overflowWrap: "anywhere" }}>
           {code.host}
         </div>
       )}
@@ -194,7 +192,7 @@ function PairedMacs({ peers, onForget }: { peers: Pushes["peers"]["peers"]; onFo
           label={p.name}
           help={
             <>
-              <span style={{ fontFamily: "var(--loki-mono)" }}>{p.host}</span> · {p.reachable ? "connected" : `out of reach, ${lastSeen(p.last_seen_at, now)}`}
+              <span className="loki-mono">{p.host}</span> · {p.reachable ? "connected" : `out of reach, ${lastSeen(p.last_seen_at, now)}`}
             </>
           }
         >

@@ -548,7 +548,7 @@ function ChatPicker({
         {choices.map((c) => (
           <li key={c.key}>
             <Row dense={!touch} touch={touch} disabled={disabled} onClick={() => choose(c)} className="loki-suggestion-hit">
-              <span className="loki-suggestion-hit-title">{c.title}</span>
+              <span className="loki-truncate">{c.title}</span>
               {c.line && <span className="loki-suggestion-hit-line">{c.line}</span>}
             </Row>
           </li>

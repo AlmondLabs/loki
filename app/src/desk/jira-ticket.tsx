@@ -77,9 +77,7 @@ export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket:
           ◆
         </span>
         {/* The key is an id, so it is mono, as task ids are. */}
-        <span className="loki-jira-key" style={{ fontFamily: "var(--loki-mono)" }}>
-          {ticket.key}
-        </span>
+        <span className="loki-jira-key loki-mono">{ticket.key}</span>
         {kind && <span className="loki-jira-kind">· {kind}</span>}
         {change && <NewMark title={sentence(`${HEAD_FIELDS.get(change.field) ?? change.field} changed · ${byWhen(change)}`)} />}
       </div>

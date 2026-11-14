@@ -138,11 +138,16 @@ describe("design tokens: every style stays on the scales", () => {
     expect([...inline, ...inCss]).toEqual([]);
   });
   test("inline faces are the reading face or mono — never the retired display or label aliases", () => {
-    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter(
-      (h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$|^mono \? "var\(--loki-mono\)" : undefined$/.test(value(h)),
-    );
+    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$/.test(value(h)));
     expect(off).toEqual([]);
     expect(findAll(code, /var\(--loki-(display|label)\)/g, (m) => m[0])).toEqual([]);
+  });
+  test("desktop views set mono and a one-line ellipsis with their classes, loki-mono and loki-truncate, never inline", () => {
+    // the phone keeps its own inline styles and .loki-phone-ellipsis; shadcn's files are upstream
+    const desktop = code.filter((f) => f.path.endsWith(".tsx") && !f.path.startsWith("phone/") && !f.path.startsWith("ui/"));
+    const mono = findAll(desktop, /fontFamily: [^,}\n]*--loki-mono/g, (m) => m[0]);
+    const ellipsis = findAll(desktop, /textOverflow: "ellipsis"/g, (m) => m[0]);
+    expect([...mono, ...ellipsis]).toEqual([]);
   });
   test("labels are shown as written: no uppercase transform inline, nor in a desktop stylesheet", () => {
     const inline = findAll(code, /textTransform: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => value(h).includes("uppercase"));
@@ -165,8 +170,9 @@ describe("design tokens: every style stays on the scales", () => {
     const mono = desktopCss.flatMap((f) =>
       [...f.text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => `${f.path}: ${m[1].trim()}`),
     );
-    // Tailwind's @theme only aliases the token (font-loki-mono); it presents nothing
-    expect(mono.filter((h) => !/\b(code|pre|kbd)\b|--mono\b|@theme inline$/.test(value(h)))).toEqual([]);
+    // Tailwind's @theme only aliases the token (font-loki-mono); it presents nothing. .loki-mono is the one class a
+    // view puts on code, data and keys.
+    expect(mono.filter((h) => !/\b(code|pre|kbd)\b|--mono\b|@theme inline$|^\.loki-mono$/.test(value(h)))).toEqual([]);
   });
   test("window-level stacking uses LAYER, never a big literal or arithmetic on one", () => {
     const big = findAll(code, /zIndex: ([0-9]{3,})/g, (m) => m[1]);

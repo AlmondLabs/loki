@@ -183,7 +183,7 @@ function NoTailscale() {
   return (
     <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
       Tailscale is not on this Mac. With it on the Mac and the phone, signed in to one account, this works from any network —{" "}
-      <span style={{ fontFamily: "var(--loki-mono)" }}>tailscale.com/download</span>
+      <span className="loki-mono">tailscale.com/download</span>
     </span>
   );
 }
@@ -222,8 +222,8 @@ function RouteRow({
         </span>
         {address && (
           <span
+            className="loki-mono"
             style={{
-              fontFamily: "var(--loki-mono)",
               fontSize: "var(--loki-text-meta)",
               color: lit ? "var(--loki-fg)" : "var(--loki-muted)",
               overflowWrap: "anywhere",
@@ -263,10 +263,10 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
       <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
-        <div style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+        <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
           {code.code}
         </div>
-        <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
+        <div className="loki-meta loki-meta--wrap loki-mono" style={{ overflowWrap: "anywhere" }}>
           {url}
         </div>
         <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>

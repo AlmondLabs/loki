@@ -154,7 +154,7 @@ function EngineRow({
         )}
       </Setting>
       {details && (
-        <div className="loki-meta loki-meta--wrap" style={{ paddingBottom: 12, fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
+        <div className="loki-meta loki-meta--wrap loki-mono" style={{ paddingBottom: 12, overflowWrap: "anywhere" }}>
           {[e.command, ...e.args].join(" ")}
         </div>
       )}
@@ -234,7 +234,7 @@ function EngineForm({
         </Button>
       </div>
       <div className="loki-meta loki-meta--wrap">
-        Kept in <span style={{ fontFamily: "var(--loki-mono)" }}>{configPath}</span>.
+        Kept in <span className="loki-mono">{configPath}</span>.
       </div>
     </div>
   );

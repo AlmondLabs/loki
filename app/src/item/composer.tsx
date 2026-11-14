@@ -193,7 +193,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
             isFileAttachment(a) ? (
               <span key={a.id} title={a.path} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta">
                 <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-                <span className="max-w-40 truncate">{a.name}</span>
+                <span className="loki-truncate max-w-40">{a.name}</span>
                 <span className="text-muted-foreground">{fileSize(a.size)}</span>
                 <PromptInputButton size="icon-xs" aria-label={`Remove ${a.name}`} onClick={() => remove(a)}>
                   <XIcon />
@@ -221,7 +221,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
               className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta"
             >
               <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-              <span className="max-w-40 truncate">{u.name}</span>
+              <span className="loki-truncate max-w-40">{u.name}</span>
               <span className={u.error ? "text-destructive" : "text-muted-foreground"}>{u.error ? "Failed" : `${Math.round(u.share * 100)}%`}</span>
               {u.error && (
                 <PromptInputButton size="icon-xs" aria-label={`Remove ${u.name}`} onClick={() => box.dismissUpload(u.id)}>

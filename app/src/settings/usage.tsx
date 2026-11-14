@@ -143,7 +143,7 @@ function Breakdown({
               fontSize: "var(--loki-text-body)",
             }}
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={l.key}>
+            <span className="loki-truncate" title={l.key}>
               {name(l.key)}
             </span>
             <span aria-hidden style={{ height: 6, borderRadius: "var(--loki-radius-pill)", background: "var(--loki-hover)" }}>

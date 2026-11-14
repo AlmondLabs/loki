@@ -95,7 +95,7 @@ export function WidgetArtifact({
     <Artifact data-row="widget" data-gone={w.gone ? "true" : undefined} className="shadow-none">
       <ArtifactHeader className="gap-3 px-3 py-2">
         <div className="flex min-w-0 flex-col">
-          <ArtifactTitle className="truncate">{w.title}</ArtifactTitle>
+          <ArtifactTitle className="loki-truncate">{w.title}</ArtifactTitle>
           <ArtifactDescription className="text-meta">
             {w.who} {w.change}
             {time && (

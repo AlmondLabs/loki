@@ -550,9 +550,7 @@ function FolderList({
               style={{ display: "grid", gap: 0 }}
             >
               <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{label}</div>
-              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>
-                {o.path}
-              </div>
+              <div className="loki-meta loki-mono">{o.path}</div>
             </Row>
           </div>
         );

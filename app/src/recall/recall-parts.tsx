@@ -173,7 +173,7 @@ export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRest
 /** The key legend under the deck. */
 export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
-    <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
+    <div className="loki-meta loki-meta--wrap loki-mono" style={{ textAlign: "center", marginTop: 12 }}>
       {revealed
         ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back"
         : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
