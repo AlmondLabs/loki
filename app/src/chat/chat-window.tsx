@@ -8,7 +8,7 @@ import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
 import { LinkHeader } from "./link-header";
 import { PanelLeftIcon, PanelRightIcon, XIcon, MessageSquareIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /**
  * The panel sits on the sheet in one of three places (⌘← / ⌘→ move it): stacked on the left
@@ -106,13 +106,11 @@ export function ChatWindow({
                 <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
                   {onToggleWidth && placement !== "center" && (
                     <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "narrow chat" : "wide chat"}>
-                      <GlassIcon icon={width === "wide" ? PanelLeftIcon : PanelRightIcon}>
-                        <WidthIcon wide={width === "wide"} />
-                      </GlassIcon>
+                      <Glyph icon={width === "wide" ? PanelLeftIcon : PanelRightIcon} />
                     </IconButton>
                   )}
                   <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: "var(--loki-text-body)" }}>
-                    <GlassIcon icon={XIcon}>×</GlassIcon>
+                    <Glyph icon={XIcon} />
                   </IconButton>
                 </div>
               }
@@ -129,21 +127,6 @@ export function ChatWindow({
         />
       </div>
     </>
-  );
-}
-
-/** A panel outline with its divider on the side the toggle will move it to. */
-function WidthIcon({ wide }: { wide: boolean }) {
-  return wide ? (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-      <path d="M6.5 2.5v11" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-      <path d="M10.5 2.5v11" />
-    </svg>
   );
 }
 
@@ -233,15 +216,7 @@ export function ChatBubble({
         zIndex: LAYER.bubble,
       }}
     >
-      {open ? (
-        <GlassIcon icon={XIcon} size={18}>
-          ×
-        </GlassIcon>
-      ) : (
-        <GlassIcon icon={MessageSquareIcon} size={18}>
-          ✳
-        </GlassIcon>
-      )}
+      {open ? <Glyph icon={XIcon} size={18} /> : <Glyph icon={MessageSquareIcon} size={18} />}
       {alert && !open && (
         <span
           aria-label="permission waiting"

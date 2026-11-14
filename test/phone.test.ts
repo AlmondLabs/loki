@@ -597,14 +597,12 @@ describe("Preferences: appearance on the phone is System, Light or Dark — no p
     expect(PHONE_APPEARANCE.map((a) => a.value)).toEqual([...THEME_PREFERENCES]);
     expect(PHONE_APPEARANCE.map((a) => a.label)).toEqual(["System", "Light", "Dark"]);
   });
-  test("the phone's Preferences page offers only its own Liquid Glass look, never the desktop's palettes", async () => {
+  test("neither the phone's Preferences nor the desktop's offers a look or palette to pick", async () => {
     const { readFileSync } = await import("node:fs");
     const settings = readFileSync(new URL("../app/src/phone/preferences.tsx", import.meta.url), "utf8");
-    expect(settings).not.toMatch(/ThemeChoice|PALETTES|tokyo/);
-    // Plan 2026-11-12-1505, U9: Liquid Glass on or off, kept on this phone.
-    expect([...settings.matchAll(/setPalette\("([a-z-]+)"\)/g)].map((m) => m[1]).sort()).toEqual(["apple", "loki"]);
+    expect(settings).not.toMatch(/ThemeChoice|PALETTES|tokyo|setPalette/);
     const desktop = readFileSync(new URL("../app/src/settings/settings.tsx", import.meta.url), "utf8");
-    expect(desktop).toMatch(/options=\{PALETTES\}/);
+    expect(desktop).not.toMatch(/PALETTES|setPalette/);
   });
 });
 

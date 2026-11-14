@@ -1,4 +1,3 @@
-import { useLook } from "../theme";
 import { CheckCircle2Icon, CircleDotIcon, CircleIcon } from "lucide-react";
 import type { PlanItem } from "../../../core/attention/transcript.ts";
 import { Plan, PlanContent, PlanDescription, PlanHeader, PlanTitle, PlanTrigger } from "@/ui/ai-elements/plan";
@@ -21,12 +20,11 @@ export const planProgress = (items: readonly PlanItem[]): string => `${items.fil
  * moment it arrives, so nothing here can tell it is being worked on; it does not shimmer or open by itself.
  */
 export function AgentPlan({ items }: { items: readonly PlanItem[] }) {
-  const glass = useLook() === "glass";
   return (
     <Plan data-plan defaultOpen={false} className="gap-2 py-3">
       <PlanHeader className="px-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <PlanTitle className="text-body">{glass ? "Plan" : "plan"}</PlanTitle>
+          <PlanTitle className="text-body">Plan</PlanTitle>
           <PlanDescription className="text-meta">{planProgress(items)}</PlanDescription>
         </div>
         <PlanTrigger className="size-7" />

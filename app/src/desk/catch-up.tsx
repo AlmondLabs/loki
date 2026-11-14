@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { useLook } from "../theme";
 import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
 import { inLane, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
@@ -15,20 +14,7 @@ import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-wi
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import {
-  BADGE,
-  CardActions,
-  CardHeader,
-  CaughtUp,
-  ChatItemActions,
-  ChatItemHeader,
-  DeckHeader,
-  KeysHint,
-  cameBackIn,
-  deckKey,
-  liveWaitingCount,
-  needsYou,
-} from "./catch-up-parts";
+import { BADGE, CaughtUp, ChatItemHeader, DeckHeader, cameBackIn, deckKey, liveWaitingCount } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
@@ -40,7 +26,6 @@ import { LabelPicker } from "./label-picker";
 import type { DeckMoveApi } from "./deck-moves";
 import type { MoveResult } from "../../../core/attention/use-attention.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
-import { useThreadPreview } from "../item/preview";
 
 /**
  * The Inbox: every chat you have not archived, one at a time, highest score first (core/attention/priority.ts):
@@ -143,7 +128,6 @@ type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
   const { onClose, items, lane, loadHistory, onOpenDesk } = props;
-  const glass = useLook() === "glass";
   /** The cards the active lane holds: only they come up (R13). */
   const shown = useMemo(() => laneItems(items, lane), [items, lane]);
   /** Going through the cards Next rested, asked for at the end of the pass. */
@@ -340,11 +324,7 @@ function CatchUpDeck(props: DeckProps) {
             onEverything={lane ? () => pickLane(null) : undefined}
           />
         ) : current.outside ? (
-          <div
-            key={idOf(current)}
-            className="loki-flow-card"
-            style={cardFrame(needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color, actions.dir, glass)}
-          >
+          <div key={idOf(current)} className="loki-flow-card" style={cardFrame(actions.dir)}>
             <OutsideCard
               current={current}
               facts={current.outside}
@@ -395,8 +375,6 @@ function CatchUpDeck(props: DeckProps) {
             picker={picker}
           />
         )}
-        {/* Under Liquid Glass the keys live in the Flow menu and the buttons' tooltips, not in a line of their own (KTD7). */}
-        {!glass && <KeysHint typing={typing} current={current} />}
       </div>
     </div>
   );
@@ -436,9 +414,6 @@ function Card({
   /** The return-time picker, when the second later asks (R7), under the card's moves. */
   picker: ReactNode;
 }) {
-  const glass = useLook() === "glass";
-  // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
-  const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agent_id: agentId, id } = current;
   // The card reads its chat itself, so a streamed piece redraws the card and not the deck around it (plan 032).
   const thread = useConversation(deck.chats, agentId, id);
@@ -450,12 +425,10 @@ function Card({
   // The same draft as the chat's own pane and the phone (shared/drafts.ts): a reply begun here waits there, and a saved
   // draft for this chat (plan 049) shows in the box while nothing is typed.
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
-  // The new chat pane's preview draws the card's header and moves with the item components (plan 097, U8).
-  const [preview] = useThreadPreview();
   const cameBack = cameBackIn(decided, current);
   const moves = { typing, read: actions.read, later: actions.later, archive: actions.archive, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
   return (
-    <div className="loki-flow-card" style={cardFrame(badgeColor, actions.dir, glass)}>
+    <div className="loki-flow-card" style={cardFrame(actions.dir)}>
       {/* A chip naming another chat opens it, as O opens the card's own. */}
       <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
         <Conversation
@@ -488,29 +461,17 @@ function Card({
           models={deck.models ?? null}
           layout={layout}
           agentName={current.agent_name}
+          // The moves are the header's toolbar (U16), so the box has no row of buttons under it.
           header={
-            preview === "on" ? (
-              <ChatItemHeader
-                current={current}
-                cameBack={cameBack}
-                flash={actions.flash}
-                suggestions={waitingCount(deck.chats, current.runtime)}
-                onSuggestions={onSuggestions}
-                moves={glass ? { current, ...moves } : undefined}
-              />
-            ) : (
-              <CardHeader
-                current={current}
-                cameBack={cameBack}
-                flash={actions.flash}
-                labelList={deck.labelList}
-                suggestions={waitingCount(deck.chats, current.runtime)}
-                onSuggestions={onSuggestions}
-              />
-            )
+            <ChatItemHeader
+              current={current}
+              cameBack={cameBack}
+              flash={actions.flash}
+              suggestions={waitingCount(deck.chats, current.runtime)}
+              onSuggestions={onSuggestions}
+              moves={{ current, ...moves }}
+            />
           }
-          // Under Liquid Glass the moves are the header's toolbar (U16), so the box has no row of buttons under it.
-          footer={preview === "on" ? glass ? undefined : <ChatItemActions current={current} {...moves} /> : <CardActions current={current} {...moves} />}
           hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
           draft={{ value: draft, onChange: setDraft }}
           inputRef={replyRef}
@@ -552,17 +513,19 @@ function deckMoveApi(
   };
 }
 
-/** The card's frame, a chat's or an outside thread's: its border in the badge's colour, entering from the last move's side. */
-function cardFrame(borderColor: string, dir: "next" | "back", glass = false): CSSProperties {
+/**
+ * The card's frame, a chat's or an outside thread's, entering from the last move's side. A card is the page it holds:
+ * solid, no coloured rule; its badge says where it stands (plan 2026-11-12-1505, U6).
+ */
+function cardFrame(dir: "next" | "back"): CSSProperties {
   return {
     flex: 1,
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
-    // Under Liquid Glass a card is the page it holds: solid, no coloured rule; its badge says where it stands (U6).
-    position: glass ? "relative" : undefined,
-    background: glass ? "var(--loki-bg)" : "var(--loki-panel)",
-    border: glass ? "1px solid var(--loki-border)" : `1px solid ${borderColor}`,
+    position: "relative",
+    background: "var(--loki-bg)",
+    border: "1px solid var(--loki-border)",
     borderRadius: "var(--loki-radius-lg)",
     boxShadow: "var(--loki-shadow-sheet)",
     overflow: "hidden",

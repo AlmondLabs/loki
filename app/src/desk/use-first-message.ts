@@ -23,7 +23,7 @@ export function firstMessageStep(waiting: FirstMessage, scope: string, connectio
 }
 
 /**
- * The first message of a chat made by sending it (⌘N under Liquid Glass, plan 2026-11-12-1505 U20): `queue` holds it
+ * The first message of a chat made by sending it (⌘N, plan 2026-11-12-1505 U20): `queue` holds it
  * while the pane switches to the new chat, and `send` gets it once that chat's link is open.
  */
 export function useFirstMessage(scope: string, connection: string, send: (m: FirstMessage) => void): (m: Omit<FirstMessage, "left">) => void {

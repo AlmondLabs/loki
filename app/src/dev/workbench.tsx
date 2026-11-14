@@ -144,8 +144,7 @@ export function Workbench() {
   // The page drives the root's look itself, as the theme provider does in the app, and puts it back on the way out.
   useEffect(() => {
     const root = document.documentElement;
-    const before = { palette: root.getAttribute("data-palette"), theme: root.getAttribute("data-theme"), glass: root.getAttribute("data-glass") };
-    root.setAttribute("data-palette", "apple");
+    const before = { theme: root.getAttribute("data-theme"), glass: root.getAttribute("data-glass") };
     root.setAttribute("data-theme", night ? "dark" : "light");
     root.style.colorScheme = night ? "dark" : "light";
     if (solid) root.setAttribute("data-glass", "solid");

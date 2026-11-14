@@ -1,7 +1,6 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Meta } from "../components";
 import { caretOffset, fitLeft } from "../shared/caret-offset";
-import { useLook } from "../theme";
 
 /**
  * Mentioning people in an outside card's reply (plan 082), as Slack and Gmail do: typing `@` and a few letters shows the
@@ -62,7 +61,6 @@ export function useMentions({
   const [highlight, setHighlight] = useState<{ query: string; at: number }>({ query: "", at: 0 });
   const pendingCaret = useRef<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const glass = useLook() === "glass";
 
   const token = source && caret !== null && caret <= text.length ? mentionAt(text, caret) : null;
   const active = token && token.start !== dismissed ? token : null;
@@ -95,18 +93,18 @@ export function useMentions({
     pendingCaret.current = null;
   }, [text, ref]);
 
-  // Under Liquid Glass the list hangs from the `@` being typed, as Messages' and Mail's do (plan 2026-11-12-1505, U20),
-  // kept inside the box's own width; today's look keeps it at the box's leading edge.
+  // The list hangs from the `@` being typed, as Messages' and Mail's do (plan 2026-11-12-1505, U20), kept inside the
+  // box's own width.
   const start = active?.start ?? null;
   const shown = list.length;
   useLayoutEffect(() => {
     const el = ref.current;
     const node = listRef.current;
     const host = node?.offsetParent;
-    if (!glass || !el || !node || !host || start === null) return;
+    if (!el || !node || !host || start === null) return;
     const want = el.getBoundingClientRect().left - host.getBoundingClientRect().left + caretOffset(el, start).left;
     node.style.left = `${fitLeft(want, node.offsetWidth, host.clientWidth)}px`;
-  }, [glass, ref, start, shown]);
+  }, [ref, start, shown]);
 
   const pick = (c: MentionChoice) => {
     if (!active || caret === null) return;
@@ -134,7 +132,7 @@ export function useMentions({
 
   const drawn =
     list.length === 0 ? null : (
-      <div ref={listRef} className="loki-mail-suggest loki-mention-list" role="listbox" aria-label={glass ? "People to Mention" : "people to mention"}>
+      <div ref={listRef} className="loki-mail-suggest loki-mention-list" role="listbox" aria-label="People to Mention">
         {list.map((c, i) => (
           <button
             key={c.key}

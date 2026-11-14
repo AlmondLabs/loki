@@ -111,19 +111,22 @@ loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, 
 
 ## The window
 
-The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
-window (double-click zooms). The window title still names what shows — the chat's name, "Flow · n waiting",
-"Agents", "Preferences" — for the Window menu and Mission Control. On the left, a rail of five sections, each icon
-with its label under it, a red count on what needs you and a quiet count of the cards due on Learn; beside it, for Chats, Agents and Learn, a **sidebar** listing
-that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
-sidebar (in Flow, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
-width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
+loki is drawn to Apple's Human Interface Guidelines with Liquid Glass: what floats and steers (the sidebar, toolbars,
+menus, sheets, decisions and the message box) is glass, and content is solid. Under Reduce Transparency or Increase
+Contrast, and on Linux, the glass is drawn solid with the same shapes. The native title bar is hidden: a thin strip
+along the top drags the window (double-click zooms). The window title still names what shows — the chat's name,
+"Flow · n waiting", "Agents", "Preferences" — for the Window menu and Mission Control. On the left, one **sidebar**
+on the Mac's own material, the traffic lights in its top row: its first rows are the places, **Chats**, **Flow**,
+**Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
+filled; under them, the place's own list. The chosen item fills the rest. ⌘⇧D (or the sidebar button beside the
+traffic lights, which stays while the sidebar is hidden) shows or hides it (in Flow ⌘⇧D is Deny); drag its edge (or
+focus it and use the arrows) for a width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
   with its face, the Mac it lives on and a "+" for a new chat with that agent), then **Archived**, folded. Each chat
   is one line, its name alone, the main chat included; the phone's Home draws it the same. A chat's name goes bold
-  when its agent wrote since you looked. On the right of each row, one thing: a red badge when it waits on you, else a
+  when its agent wrote since you looked. On the right of each row, one thing: a blue count when it waits on you, else a
   green dot that breathes while its agent is working, else when it last spoke ("5m", "3h", "2d"). Opening a chat (or having it open, the window in front, when a
   message arrives) marks it **viewed**, which clears the bold: the list shows what is new to you, nothing more. The
   Flow keeps the chat until it is **read**: what Flow's → does, a reply, an approval or an answer; by hand
@@ -134,10 +137,10 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
   most 80 characters. Its second line is the chat's **purpose**, one line on what the chat is for, which agents read
   (see [Suggestions](#suggestions)). An agent's main chat is named after the agent and cannot be renamed. A rename, an archive, a label or a purpose shows at once in every other window, on the phone and on a paired Mac. When a chat that waits on
-  you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
+  you is scrolled out of sight, a "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
-  word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header (**edit labels** once it has some), or with
+  word with its own colour. Add them from the row's **Labels…**, from **Label** in the chat's toolbar, or with
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
   the first match or makes the label when none matches. A chat's header and its card in Flow show its labels as chips;
   the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
@@ -145,49 +148,50 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   `label:` does on the Mac, and a second tap takes it off.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
-  Opening a chat — from the sidebar, ⌘K, Flow, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its purpose line under it, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
-  chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
-  conversation, the message box focused: each message with the author's face, name and time, a pill for each
-  day, a red **New** line before what came since you last looked (it stays put while the chat is open, as
-  Slack's does, and moves on the next open), a copy button on hover, and a line each time the agent
+  Opening a chat — from the sidebar, ⌘K, Flow, Agents or Learn — shows it with a Mac toolbar: its name over a grey
+  line of its agent, what the agent is doing, its folder and labels, then **Messages** and **Canvas** as a segmented
+  control and its moves as symbols (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
+  Canvas tab, a ⋯ menu to arrange, fit and toggle the chat; find is ⌘F). **Messages** is the conversation, the message
+  box focused: your messages as bubbles and the agent's turns as prose, the time told at gaps, a **New** line before
+  what came since you last looked (it stays put while the chat is open and moves on the next open), a copy button on
+  hover, and a line each time the agent
   adds, changes or removes a widget ("friday added Revenue chart"). Click that line and the **Canvas** tab opens
-  framed on the widget. The Canvas tab is the sheet edge to edge with the chat over it, the sidebar hidden, the
-  rail kept: the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
+  framed on the widget. The Canvas tab is the sheet edge to edge with the chat over it, the sidebar hidden: the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
   box, ⌘/ toggles it, ⌘W closes it; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget
   move). A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part,
   and opening or closing a left chat slides the sheet so nothing ends up under it. Esc (outside a text box) or
   the Messages tab goes back to the conversation where you left it. Both tabs are the same conversation with the
   same draft. ⌘L focuses the message box and ⌘F finds in the transcript, on whichever tab shows. A long thread
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
-  as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
-  box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
+  as you scroll up, keeping your place; find reaches the older ones too, and ↓ Latest folds it back. A conversation has
+  a **permission mode** (strict, standard, accept edits, unrestricted;
   ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking"; a shell command made only of
-  `ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd` counts as a read, so it asks only in strict) and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
+  `ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd` counts as a read, so it asks only in strict) and a **model** (⌘⇧M); on the phone they are two chips under the
+  message box. Select model has three steps: the harness as tabs at the top (loki, Claude Code,
   any agent added in Preferences › Engines; ←→ move between them), that harness's models (loki's lately used and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
   chosen runs with no reasoning, and says so). The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
-  per conversation; a main chat's model is the agent's. Under the Liquid Glass look on the desktop, Select model is
-  ⌘K's **Models** scope (the pill and ⌘⇧M open ⌘K on it, a "Models" chip in the field): type to filter every harness and provider at once, ↑↓ and
+  per conversation; a main chat's model is the agent's. On the desktop, Select model is
+  ⌘K's **Models** scope (⌘⇧M opens ⌘K on it, a "Models" chip in the field): type to filter every harness and provider at once, ↑↓ and
   Return to switch, ←→ (with nothing typed) or a click for the effort, Esc to close. It opens on the agent's **Usual**:
   the three model and effort settings you switch that agent's chats to most. Once a chat has started it lists only its
   own harness's models, since a chat stays on the harness it started on. A **new chat starts on the agent's most used
   setting**, harness included; with none yet, on the agent's own model. Only a switch counts toward Usual, from the
-  Mac or a phone, not each message you send. Cards in Flow carry the same chips in their actions row. Under
-  Liquid Glass on the desktop the message box is drawn as Messages draws its own: one line that grows with what you
+  Mac or a phone, not each message you send. On the desktop the message box is drawn as Messages draws its own: one line that grows with what you
   type, with **+** outside it; inside it, the microphone while it is empty and a blue up-arrow once there is something
   to send (a stop button while the agent works and nothing is typed); **+** attaches files. The two chips are gone:
-  the model and the permission mode change rarely, so ⌘K is their one home. ⌘⇧M opens it on **Models**, ⌘⇧P on
+  the model and the permission mode change rarely, so ⌘K is their one home (the phone keeps its two chips). ⌘⇧M opens it on **Models**, ⌘⇧P on
   **Permissions**, which lists the chat's modes with what each lets through, the current one checked and highlighted;
-  typing "mode " in ⌘K steps in too, and typing a mode's name or "permission" offers them among the results. When a tool call asks, its card
-  offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
+  typing "mode " in ⌘K steps in too, and typing a mode's name or "permission" offers them among the results. When a tool call asks,
+  loki asks "Allow friday to run “edit”?" above the box with **Deny**, **Always Allow…** and **Allow** (Return in the
+  empty box allows; on the phone, **Deny** and **Approve** under the box): Always Allow, after you confirm it, allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
-- **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the deck as a full view, see below. The rail icon carries
+- **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the deck as a full view, see below. Its row in the sidebar carries
   the waiting count, the same number the tray title and dock badge show.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
-  one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
+  one works, the last thing it said, a count of what waits on you — and the chosen agent fills the pane with
   a tab per page (a first visit lands on Memory); the "+" at the top of the sidebar makes a new agent. **Profile**: face, name, description and model
   (editable), effort and context, "★ favourite" when it is one, where it is working (its live chats, each a
   link, then **main chat** and **chats**), and delete at the bottom. **Memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
@@ -208,17 +212,16 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. **remove** takes a skill out of the
   agent's memory. The page is remembered for the window.
-- **Preferences** (⌘, or ⌘6, or the rail's gear): opens over the whole window: six groups down the
+- **Preferences** (⌘, or ⌘6, or the menu bar): in the Mac app a window of its own, elsewhere a sheet over the whole window: six groups down the
   left, and the chosen group's pages as tabs across its top, the last page remembered for the window. A filter over
   the groups finds a page by its name or what it holds ("pair" finds Your devices; Enter opens the first page that
   matched, Esc clears it). ⌘, closes Preferences again, Esc closes it, ⌘1, ⌘2, ⌘4 and ⌘5 close it and go to that section. ↑↓, Home
   and End in the list move between groups, ←→ in the tabs between a group's pages, and ⌘[ and ⌘] step every page in
   order. Each page is the same: settings in rows, the name and a line of help on the left, the control on the right; a
-  switch for on and off, a segmented control for a few choices, one green button for the page's main action, red only
+  switch for on and off, a segmented control for a few choices, one blue button for the page's main action, red only
   for what removes something. The groups and their pages:
   1. **General**
-     1. **Appearance**: system, light or dark (system follows macOS as it changes), the palette, loki or tokyo
-        night, and **New chat pane (preview)** (see [New chat pane](#new-chat-pane-preview)); kept per device.
+     1. **Appearance**: System, Light or Dark (System follows macOS as it changes); kept per device.
      2. **Chat**: where the panel sits on the Canvas tab (left, centre, right), its width at the side (narrow,
         wide), and the tools that are **always allowed**, each with take back.
      3. **Keyboard shortcuts**: the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the
@@ -276,7 +279,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
 places you visited last; ↑↓ move, ↵ opens the top result (a chat on Messages), Esc or ⌘K again closes it. `/chats`
 in a message box opens it too. ⌘K used to open the chats tree; the sidebar holds that list now. Typing "desk", the old word, still finds chats.
-Under the Liquid Glass look on the desktop, ⌘K is also the command panel: it floats with nothing dimmed behind it,
+On the desktop, ⌘K is also the command panel: it floats with nothing dimmed behind it,
 and as you type it adds **Commands** (the menu bar's actions that work on the screen you're on, each with its key) and,
 while a chat is open, the three best **Models** to switch it to. Tab on a model, or typing "model " and a space, steps
 into the Models scope, where all of the chat's models are listed with Usual first and the effort at the foot;
@@ -382,7 +385,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. The rail shows a green dot on the settings icon while the switch is on (a blue one when a newer loki is out). If the icon opens on
+locks it out. When a newer loki is out, the sidebar's foot says **Update Available**. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.
@@ -561,57 +564,49 @@ Vim-key extensions (Vimium, Surfingkeys) run inside installed apps too and bind
 plain `r` to reload, which also swallows loki's own shortcuts. Exclude the canvas
 in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:5173*`.
 
-## New chat pane (preview)
+## The chat pane and Flow's cards
 
-Preferences › General › Appearance › **New chat pane (preview)** draws the desktop chat pane and Flow's cards on loki's
-new components; off, they look as they always have. The phone is unchanged either way. Every item reads the same way,
-an agent's chat, a Slack thread, an email or a Jira ticket:
+The desktop chat pane and Flow's cards draw every item the same way, an agent's chat, a Slack thread, an email or a
+Jira ticket (plans 096 and 097, in Apple's language since plan 2026-11-12-1505). The phone keeps its own thread.
 
-- **The header**: the item's title on one line (the whole of it on hover), a flag for each state that holds now
-  (**unread**; **starred** for a starred Gmail thread; **mentions you** on Slack and Jira; **changed** on a ticket
-  that changed since you looked), then its facts as chips: the agent and how it stands, the folder and labels for a
-  chat; replies and people for Slack; the sender for a mail; status, assignee, priority and labels for a ticket. The
-  labels chip in the chat pane opens the labels picker.
-- **The moves**, in the row under the message or reply box: the one that finishes the item last and in full (archive
-  for a chat or a mail, read for Slack and Jira), the rest before it with Flow's keys, which work as before. The
-  chat pane has archive, and read while the chat is unread.
-- **The thread**, in turns: your messages stand alone, and everything the agent did until your next one is one turn,
-  with its name, how long it worked and, while it is not simply finished, where it stands: working, needs you, or
-  failed when its last step failed (a failure the agent got past is only counted on its work line). Coming back to a
-  chat mid-turn, the New line sits inside that turn. A stretch of tool calls is one line ("worked 2 min · 3
-  commands"); opened, each step opens to its input and output. An agent's **plan** shows as a card with how far it
-  is ("1 of 3 done"), opening to its entries; a later turn whose plan has not changed says "plan as before" on one line. What an agent **thought** shows folded
-  as "thought for 12 seconds" (or just "thought" when its time was not heard live), opening to the thought.
-- **Decisions** sit above the box: an approval (approve, always here, deny), a question, a reply the agent proposes
-  on an outside thread. While an approval or a question waits, archive under the box is drawn plain, so approve is
-  the one filled button.
-- **The box**: the same box, drawn new. Messages sent while the agent works wait above it, each with take back; the
-  model and its effort open in a dialog with a filter.
+- **The toolbar**: a chat's or a Flow card's name over a grey line of its facts (the agent and how it stands, the
+  folder and labels; then, on a Flow card, when and why it is here), and at the trailing edge its moves as symbols,
+  their names and keys in their tooltips: **Label**, **Mark as Read** while it is unread, and **Archive** (on a Flow
+  card **Later**, **Mark as Read** and **Archive**). An outside card's header names it the same way, with a flag for
+  each state that holds now (**Unread**; **Starred** for a starred Gmail thread; **Mentions You** on Slack and Jira;
+  **Changed** on a ticket that changed since you looked), and its moves sit in the row under its reply box, the one
+  that finishes it last and filled.
+- **The thread**: your messages are bubbles at the trailing edge, their time in their tooltip, with the time told
+  where a gap of a quarter of an hour or more opens; everything the agent did until your next message is one turn,
+  its header saying only how long it worked and, while it is not simply finished, where it stands (working, needs
+  you, or failed when its last step failed). A stretch of tool calls is one line ("Worked 2 min · 3 commands");
+  opened, each step opens to its input and output. An agent's **plan** shows as a card with how far it is ("1 of 3
+  done"); a later turn whose plan has not changed says "plan as before" on one line. What an agent **thought** shows
+  folded as "Thought for 12 seconds" (or "Thought" when its time was not heard live), opening to the thought.
+- **Decisions** sit above the box: an approval (Deny, Always Allow…, Allow), a question, a reply the agent proposes on
+  an outside thread.
+- **The box**: Messages' (see [The window](#the-window)). Messages sent while the agent works wait above it, each with
+  **Take Back**.
 - **Outside items**: a Slack thread or a Jira ticket draws its messages in the same rows (reactions on Slack only); an
   email folds every mail but the newest to a line. The reply box says where a reply goes and keeps everything the
   card's box does: its keys, a mail's recipients, signature and quoted mail.
 
-Not in the preview yet: asking the owning agent to write a reply from the box, posting a Slack reply to the channel as
-well, editing a proposed reply in the box (it edits in its card), and going back to a compaction.
+Not yet: asking the owning agent to write a reply from the box, posting a Slack reply to the channel as well, editing
+a proposed reply in the box (it edits in its card), and going back to a compaction.
 
 ## New chat
 
-Press ⌘N, or the "+" at the top of the Chats sidebar or beside an agent's section (that agent is then
-chosen for you). The sheet asks for the agent (chips),
-the folder (defaults to that agent's most recent one; recents, typed paths with
-completion, or **browse…** for the system's folder dialog; the git branch shows when the
-folder is a checkout) and an optional name. **start** creates the conversation
-and opens the empty chat on Messages with the message box focused.
-
-Under **Liquid Glass** there is no sheet: ⌘N (or either "+") shows an empty chat in place of the open one, as Messages
-opens a new message. Its **To:** line holds the agent (the one you were talking to, or the one whose "+" you pressed):
-click it for the list of agents, or with the caret on it type the start of a name. The folder the chat will work in
-is at the end of that line, chosen as the sheet chose it (the open chat's folder for its own agent, else the agent's most
-recent); click it for the same folder field. The chat runs on the agent's usual model. Nothing is created until you send
-the first message: Esc in the empty box, or opening another chat, leaves nothing behind.
+Press ⌘N, or the "+" at the top of the Chats sidebar or beside an agent's section: an empty chat shows in place of the
+open one, as Messages opens a new message, and the sidebar's list leads with a **New Chat** row while it is open. Its
+**To:** line holds the agent (the one you were talking to, or the one whose "+" you pressed): click it for the list of
+agents, or with the caret on it type the start of a name. The folder the chat will work in is at the end of that line
+(the open chat's folder for its own agent, else the agent's most recent); click it for the folder field (recents, typed
+paths with completion, or **Browse…** for the system's folder dialog; the git branch shows when the folder is a
+checkout). The chat runs on the agent's usual model. Nothing is created until you send the first message: Esc in the
+empty box, or opening another chat, leaves nothing behind.
 
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
-the same folder field, starting on the chat's folder (recents, completion, **browse…**); **move** needs a folder that
+the same folder field, starting on the chat's folder (recents, completion, **Browse…**); **move** needs a folder that
 exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders
 that agent has worked in. The daemon moves the chat, and its commands and file tools work in the new folder from
 the next turn.
@@ -746,9 +741,9 @@ recognition is available, so treat it like any other cloud dictation.
 
 A chat is not done until it is archived. Flow holds every chat you have not archived, except one whose agent
 is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you, and the Jira tickets you
-watch, are cards in it too, once you connect those accounts (see "Email, Slack and Jira" below). Flow's icon on the
-rail counts what needs you; click it, press
-⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
+watch, are cards in it too, once you connect those accounts (see "Email, Slack and Jira" below). Flow's row in the
+sidebar counts what needs you; click it, press
+⌘2, or ⌥Space from anywhere for a deck, one conversation per card with the recent thread inside it (newest at the bottom,
 tool calls as muted markers), highest score first (see "The order" below).
 
 Every card, a chat, an email, a Slack message or a Jira ticket, stays until it is done, and the same keys move each of
@@ -876,7 +871,7 @@ in Everything.
 
 **What a lane changes.** The deck holds only the lane's cards, in the usual order. Nothing from another lane breaks
 through, approvals and questions included; a quiet line says "4 waiting in other lanes" instead. That device's badges
-count only the lane: the rail, the window title ("Flow · Work · 3 waiting"), the tray and dock, the phone's Flow tab and
+count only the lane: the sidebar, the window title ("Flow · Work · 3 waiting"), the tray and dock, the phone's Flow tab and
 Home's "Needs your attention". The chat list, ⌘K and Search still show everything. An empty lane says you're caught up,
 with the count from other lanes and **back to everything**; an agent's lane stays on when it empties and leaves the
 switcher once you move on.
@@ -896,7 +891,7 @@ a question, ending in "?" or "let me know", counts until you have looked at it) 
 agent said something since you last looked) `+ 15 × focus`
 (the chat's share of what you have been doing lately) `− 0.1` an hour since the last message (`+ 0.1` for a
 blocked card, so the agent waiting longest comes first). A failed turn is not blocked: nothing waits on you,
-so it ranks like any other card. The badges (the rail's Flow count, the phone's tab, Home's **Needs your
+so it ranks like any other card. The badges (the sidebar's Flow count, the phone's tab, Home's **Needs your
 attention**, search's waiting group) count only what needs you: an approval, a question, a failed turn, or
 something new.
 

@@ -191,10 +191,16 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 
 **review**, with design.md's rules for colour and badges:
 
-- **Desktop controls and labels are lowercase** (`save as draft`, `confirm`, `sign in to cloud tracker`); the phone uses
-  **sentence case**, as iOS does (`Save as draft`, `Mark as read`). Headings are sentence case on both: titles of
-  sections are the names in the sidebar (`Chats`, `Learn`), and tabs, page titles and fold titles read the same way
-  (`Profile`, `MCP servers`, `What launch installed`).
+- **Words follow Apple's Human Interface Guidelines** (plan 2026-11-12-1505, R7). **Controls take title case**, on the
+  desktop and the phone: buttons, menu items, toolbar items and segmented controls (`Mark as Read`, `Always Allow…`,
+  `Reply All`, `New Chat`), with Apple's words for common commands (`Archive`, `Discard`, `Cancel`). `Button` capitalises
+  the first letter of a label written in lowercase, so a new label is written in title case rather than left to it.
+  **Everything else is a sentence**: headings, field labels, placeholders, help, tooltips, notices and errors
+  (`Reply, or press Return to allow`). Titles of sections are the names in the sidebar (`Chats`, `Flow`), and tabs,
+  page titles and fold titles read the same way (`Profile`, `MCP servers`). loki's own name stays lowercase.
+- **A decision is a question**: an approval asks `Allow friday to run “edit”?` with Deny, Always Allow… and Allow, the
+  default last, as a Mac alert's.
+- **Keys are not on a control's face**: they are in its tooltip (`Archive (⌘E)`), in the menu bar and in the keys sheet.
 - Plain words, no jargon: "the agent is waiting for you", not "pending HITL approval". Name what the person sees,
   never an internal id or a stack trace (those go behind a "details" disclosure).
 - Errors say what happened and what to do: "the chat this was for is gone: pick another chat", "needs a sign-in: Preferences › MCP servers".

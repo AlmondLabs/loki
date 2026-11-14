@@ -18,7 +18,6 @@ import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
 import { capitalChildren, capitalFirst } from "../kit/words";
-import { useLook } from "../theme";
 
 /**
  * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
@@ -67,15 +66,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). Under Liquid Glass its label
- * takes a capital and its key moves from the face into the tooltip (plan 2026-11-12-1505, R7 and R10).
+ * The button. Coloured text on a hairline, or filled for the affirmative (`positive`). Its label takes a capital and its
+ * key is in the tooltip, not on the face (plan 2026-11-12-1505, R7 and R10).
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", title, ...rest },
   ref,
 ) {
-  const glass = useLook() === "glass";
-  const keyTip = glass && kbd != null && typeof kbd === "string" ? kbd : null;
+  const keyTip = kbd != null && typeof kbd === "string" ? kbd : null;
   return (
     <button
       ref={ref}
@@ -84,8 +82,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       title={keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title}
       {...rest}
     >
-      {glass ? capitalChildren(children) : children}
-      {kbd != null && !glass && <Kbd>{kbd}</Kbd>}
+      {capitalChildren(children)}
     </button>
   );
 });
@@ -881,7 +878,7 @@ export interface PaneHeaderProps<T extends string = string> {
   panelId?: (id: T) => string;
   /** The title's id, so the pane can be labelled by it. */
   titleId?: string;
-  /** A whole line drawn in place of the lead, title, aside and actions: the new chat pane's item header (plan 097). */
+  /** A whole line drawn in place of the lead, title, aside and actions: the chat pane's item header (plan 097). */
   line?: ReactNode;
   /** After the tabs, at the trailing edge: Liquid Glass's toolbar items (plan 2026-11-12-1505, U13). */
   trailing?: ReactNode;

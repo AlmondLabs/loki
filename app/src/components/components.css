@@ -1144,11 +1144,6 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
 }
-/* The rail of sections down the window's left edge (shell/sidebar.tsx). */
-.loki-sections {
-  border-right: 1px solid var(--loki-border);
-  background: var(--loki-panel);
-}
 .loki-column-body {
   position: absolute;
   inset: 0;
@@ -1252,13 +1247,10 @@ button.loki-list-section-toggle {
   border-top: 1px solid var(--loki-border);
 }
 
-/* Liquid Glass, the window shell (plan 2026-11-12-1505, U3). The rail and the list column sit clear on one glass panel
-   inset from the window's edge (shell.tsx); the top strip and the pane header lose their fills and rules, and the
-   header's view tabs become a capsule of glass beside the title, as a Mac toolbar's segmented control. Every other
-   family keeps the rules above. */
-.loki-shell-glass {
-  display: none;
-}
+/* Liquid Glass, the window shell (plan 2026-11-12-1505, U3). The list column sits clear on one glass panel inset from
+   the window's edge (shell.tsx); the top strip and the pane header lose their fills and rules, and the header's view
+   tabs become a capsule of glass beside the title, as a Mac toolbar's segmented control. The block below lays these
+   over the plainer rules above. */
 /* The Settings window (shell/settings-window.tsx, U18): Settings fills it; its section list is the sidebar, on the window's
    material in the Mac app (styles.css) and on the panel colour elsewhere. */
 .loki-settings-window {
@@ -1339,11 +1331,7 @@ button.loki-list-section-toggle {
 .loki-sidebar-toggle[aria-pressed] {
   background: transparent;
 }
-/* The chat's dock of decisions, box and moves (chat/conversation.tsx): no box of its own outside Liquid Glass. */
-.loki-dock {
-  display: contents;
-}
-:root[data-palette="apple"] {
+:root {
   .loki-shell-glass {
     display: block;
   }
@@ -1351,7 +1339,6 @@ button.loki-list-section-toggle {
     display: none;
   }
   .loki-title-strip,
-  .loki-sections,
   .loki-column {
     background: transparent;
     border-right: 0;

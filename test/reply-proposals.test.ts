@@ -713,14 +713,14 @@ describe("the reply card (plan 067, U10)", () => {
   });
   const html = (props: Parameters<typeof ReplyProposalCards>[0]) => renderToStaticMarkup(createElement(ReplyProposalCards, props));
 
-  test("names the account, the thread and its people, holds the text to edit, and offers approve and reject: lowercase on the desktop, sentence case on the phone", () => {
+  test("names the account, the thread and its people, holds the text to edit, and offers Approve and Reject on the desktop and the phone alike", () => {
     const desk = html({ source: source([proposal]), rt });
     for (const words of [
       "Re: The plan · ada@acme.com",
       "to Grace Hopper &lt;grace@acme.com&gt; · cc Bob &lt;bob@acme.com&gt;",
       "Friday works.",
-      ">approve<",
-      ">reject<",
+      ">Approve<",
+      ">Reject<",
     ])
       expect(desk).toContain(words);
     const phone = html({ source: source([proposal]), rt, touch: true });
@@ -747,6 +747,6 @@ describe("the reply card (plan 067, U10)", () => {
   test("one being drafted says so and offers nothing to press", () => {
     const out = html({ source: source([{ ...proposal, status: "drafting" }]), rt });
     expect(out).toContain("writing the draft in Gmail");
-    expect(out).not.toContain(">approve<");
+    expect(out).not.toContain(">Approve<");
   });
 });

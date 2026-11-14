@@ -1,8 +1,7 @@
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import { Meta, Popover, Row, sentence } from "../components";
+import { Popover, Row, sentence } from "../components";
 import { keyboard, type Platform } from "../desk/env";
 import { formatKeys, keyFor } from "../shell/keymap";
-import { useLook } from "../theme";
 
 /** A command's line in the palette: its description, and its action's key when it asks for one (core names no keys). */
 export function commandText(c: SlashCommand, os: Platform = keyboard): string {
@@ -13,8 +12,8 @@ export function commandText(c: SlashCommand, os: Platform = keyboard): string {
  * The commands the box can run, hung above it while a "/name" is being typed: the name, its argument
  * hint, what it does, and where it runs. The box keeps focus and the keys; ↑↓ move the highlight
  * here, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
- * Under Liquid Glass (plan 2026-11-12-1505, U20) it reads as a Mac's completion list: the system font at menu sizes,
- * and no line of key hints under it, since the keys are the ones every such list has.
+ * It reads as a Mac's completion list (plan 2026-11-12-1505, U20): the system font at menu sizes, and no line of key
+ * hints under it, since the keys are the ones every such list has.
  */
 export function SlashPalette({
   matches,
@@ -29,10 +28,9 @@ export function SlashPalette({
   onHover: (i: number) => void;
   onPick: (c: SlashCommand) => void;
 }) {
-  const glass = useLook() === "glass";
   return (
     <Popover role="presentation" instant width={420} style={{ top: "auto", bottom: "calc(100% + 6px)", left: 12, maxWidth: "calc(100% - 24px)" }}>
-      <div id={listId} role="listbox" aria-label={glass ? "Commands" : "commands"} style={{ maxHeight: 260, overflowY: "auto", padding: 4 }}>
+      <div id={listId} role="listbox" aria-label="Commands" style={{ maxHeight: 260, overflowY: "auto", padding: 4 }}>
         {matches.map((c, i) => (
           <Row
             key={c.id}
@@ -48,8 +46,7 @@ export function SlashPalette({
           >
             <span
               style={{
-                ...(glass ? {} : { fontFamily: "var(--loki-mono)" }),
-                fontSize: glass ? "var(--loki-text-body)" : "var(--loki-text-meta)",
+                fontSize: "var(--loki-text-body)",
                 color: "var(--loki-fg)",
                 whiteSpace: "nowrap",
               }}
@@ -67,7 +64,7 @@ export function SlashPalette({
                 minWidth: 0,
               }}
             >
-              {glass ? sentence(commandText(c)) : commandText(c)}
+              {sentence(commandText(c))}
             </span>
             <span style={{ fontSize: "var(--loki-text-micro)", color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>
               {c.where === "loki" ? "loki" : "agent"}
@@ -76,15 +73,10 @@ export function SlashPalette({
         ))}
         {matches.length === 0 && (
           <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>
-            {glass ? `No command matches. ${formatKeys("enter")} sends it as a message.` : `no command matches — ${formatKeys("enter")} sends it as a message`}
+            {`No command matches. ${formatKeys("enter")} sends it as a message.`}
           </div>
         )}
       </div>
-      {!glass && (
-        <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
-          <Meta>{`↑↓ move · ${formatKeys("enter")} run · ${formatKeys("tab")} fill in · ${formatKeys("escape")}`}</Meta>
-        </div>
-      )}
     </Popover>
   );
 }

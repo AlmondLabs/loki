@@ -10,11 +10,8 @@ import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { Kbd } from "@/ui/kbd";
 import { Textarea } from "@/ui/textarea";
-import { Confirmation, ConfirmationActions, ConfirmationRequest } from "@/ui/ai-elements/confirmation";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
-import { Tool, ToolContent, ToolHeader, ToolInput } from "@/ui/ai-elements/tool";
 import { cn } from "@/lib/utils";
-import { useLook } from "../theme";
 import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
 
 /*
@@ -50,13 +47,17 @@ export function ProposalFrame({ kind, where, children, className }: { kind: Prop
   );
 }
 
-/** A button's key shown beside its words, as Flow's keys are. */
-const keyOf = (key: string | undefined) => (key ? <Kbd className="ml-1">{key}</Kbd> : null);
+/** The first line of a call's input, for the one-line summary under the approval's question. */
+const inputLine = (input: unknown): string =>
+  formatInput(input)
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l && l !== "{" && l !== "[") ?? "";
 
 /**
- * The tool call the agent is paused on (KTD6): AI Elements' Tool in its "awaiting approval" state with Confirmation
- * inside, its input, then approve, always allow (where the tool may be allowed for good) and deny. Flow's A and D are
- * shown on the buttons when the host gives them.
+ * The tool call the agent is paused on (KTD6; plan 2026-11-12-1505, U4): a question naming the agent and the step, the
+ * input's first line under it, then Deny, Always Allow and Allow, Allow the default as a Mac alert's is. The whole input
+ * opens from the summary. Keys show in the buttons' tooltips, not on their faces (KTD7).
  */
 export function ApprovalProposal({
   approval,
@@ -66,68 +67,9 @@ export function ApprovalProposal({
 }: {
   approval: PendingApproval;
   onApprove: (behavior: "allow" | "deny" | "always") => void;
+  /** Flow's A and D, shown in the buttons' tooltips when the host gives them. */
   hints?: { approve?: string; deny?: string };
-  /** The agent asking, for the question Liquid Glass puts it as. */
-  who?: string;
-}) {
-  const look = useLook();
-  if (look === "glass") return <GlassApproval approval={approval} onApprove={onApprove} hints={hints} who={who} />;
-  return (
-    <ProposalFrame kind="approval" where="the agent is paused on this step">
-      <Tool open className="mb-0 bg-background">
-        <ToolHeader chevron={false} title={approval.toolName} type={`tool-${approval.toolName}`} state="approval-requested" />
-        <ToolContent>
-          <ToolInput input={formatInput(approval.input)} />
-        </ToolContent>
-      </Tool>
-      <Confirmation approval={{ id: approval.requestId }} state="approval-requested" className="border-0 bg-transparent p-0">
-        <ConfirmationRequest>
-          <ConfirmationActions className="self-start">
-            <Button size="sm" onClick={() => onApprove("allow")} data-action="approve">
-              approve{keyOf(hints?.approve)}
-            </Button>
-            {offersAlways(approval) && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onApprove("always")}
-                title="allow this tool from now on, in every chat (Preferences › Chat takes it back)"
-                data-action="always"
-              >
-                always allow
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => onApprove("deny")} data-action="deny">
-              deny{keyOf(hints?.deny)}
-            </Button>
-          </ConfirmationActions>
-        </ConfirmationRequest>
-      </Confirmation>
-    </ProposalFrame>
-  );
-}
-
-/** The first line of a call's input, for the one-line summary under the approval's question. */
-const inputLine = (input: unknown): string =>
-  formatInput(input)
-    .split("\n")
-    .map((l) => l.trim())
-    .find((l) => l && l !== "{" && l !== "[") ?? "";
-
-/**
- * The approval under Liquid Glass (plan 2026-11-12-1505, U4): a question naming the agent and the step, the input's
- * first line under it, then Deny, Always Allow and Allow, Allow the default as a Mac alert's is. The whole input
- * opens from the summary. Keys show in the buttons' tooltips, not on their faces (KTD7).
- */
-function GlassApproval({
-  approval,
-  onApprove,
-  hints,
-  who,
-}: {
-  approval: PendingApproval;
-  onApprove: (behavior: "allow" | "deny" | "always") => void;
-  hints?: { approve?: string; deny?: string };
+  /** The agent asking, for the question the approval puts. */
   who?: string;
 }) {
   const [open, setOpen] = useState(false);

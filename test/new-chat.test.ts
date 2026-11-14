@@ -1,23 +1,12 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { NewChat, type NewChatProps } from "../app/src/desk/new-chat.tsx";
 
-// Plan 2026-11-12-1505, U20: ⌘N under Liquid Glass opens an empty chat in place, with a To: line holding the agent.
-// ThemeProvider reads the palette from storage, and the new chat pane's thread its switch, so both are put there.
+// Plan 2026-11-12-1505, U20: ⌘N opens an empty chat in place, with a To: line holding the agent.
 
 const noop = () => {};
-let saved: Storage | undefined;
-beforeEach(() => {
-  saved = globalThis.localStorage;
-  const stored: Record<string, string> = { "loki.palette": "apple", "loki.thread-preview": "on" };
-  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: (key: string) => stored[key] ?? null, setItem: noop } });
-});
-afterEach(() => {
-  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: saved });
-});
-
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 const props: NewChatProps = {
   agents: [
@@ -39,7 +28,7 @@ const props: NewChatProps = {
   focusTick: 0,
 };
 
-describe("a new chat under Liquid Glass", () => {
+describe("a new chat", () => {
   test("is titled New Chat, with a To: line holding the agent asked for as a token that opens a menu", () => {
     const out = html(createElement(NewChat, props));
     expect(out).toContain(">New Chat</h1>");

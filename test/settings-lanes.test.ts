@@ -113,9 +113,9 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
   test("while the lanes are not in yet the editor says it is loading, not that there are none", () => {
     const loading = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: null, set: () => {} }, accounts: noAccounts, agents: AGENTS })));
     expect(loading).toContain("asking loki…");
-    expect(loading).not.toContain("new lane");
+    expect(loading).not.toContain("New lane");
     const none = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: [], set: () => {} }, accounts: noAccounts, agents: AGENTS })));
-    expect(none).toContain("new lane");
+    expect(none).toContain("New lane");
     expect(none).toContain("No lanes yet");
   });
 
@@ -129,6 +129,6 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
       ),
     );
     expect(out.indexOf("Home")).toBeGreaterThan(-1);
-    expect(out.indexOf("new lane")).toBeLessThan(out.indexOf("Read rests a card for"));
+    expect(out.indexOf("New lane")).toBeLessThan(out.indexOf("Read rests a card for"));
   });
 });

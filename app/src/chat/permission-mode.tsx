@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Chip, Meta, Popover, Row } from "../components";
 import type { ChatEngineView } from "../../../core/models.ts";
 import type { ModelAndMode } from "./use-model-and-mode";
-import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
+import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 
 /**
  * The four permission modes loki's daemon knows, per conversation (daemon/approvals.ts). Set with chat_open { mode }
@@ -190,8 +190,8 @@ export function selectedMode(current: string | null, modes: ModeChoice[]): strin
 }
 
 /**
- * The mode menu as data (plan 2026-11-12-1505, U19): each mode, the current one checked, for the system's menu under
- * Liquid Glass in the Mac app. The chip's tooltip says what the current one lets through.
+ * The mode menu as data (plan 2026-11-12-1505, U19): each mode, the current one checked, for the system's menu in the
+ * Mac app. The chip's tooltip says what the current one lets through.
  */
 export function modeMenuEntries(current: string | null, modes: ModeChoice[], onPick: (m: string) => void): MenuEntry[] {
   const selected = selectedMode(current, modes);
@@ -200,13 +200,13 @@ export function modeMenuEntries(current: string | null, modes: ModeChoice[], onP
 
 /** The chip under the message box with its menu above it: the conversation's mode, loki's or its agent's. */
 export function ModeSwitch({ mode, modes, controls }: { mode: string | null; modes?: ModeChoice[]; controls: ModelAndMode }) {
-  const native = useNativeMenus();
+  const native = NATIVE_MENUS;
   const chip = useRef<HTMLSpanElement>(null);
   const latest = useRef({ mode, modes, controls });
   useEffect(() => {
     latest.current = { mode, modes, controls };
   });
-  // Under Liquid Glass in the Mac app the menu is the system's, from the chip, opened by a click or ⌘⇧P (U19).
+  // In the Mac app the menu is the system's, from the chip, opened by a click or ⌘⇧P (U19).
   const open = native && controls.modeOpen;
   useEffect(() => {
     const el = chip.current;

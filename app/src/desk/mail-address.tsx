@@ -1,9 +1,8 @@
 import type { MailAddressing, MailCompose, MailMode, MailPerson } from "../../../core/frame-types.ts";
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Chip, Field, Meta, sentence } from "../components";
-import { useLook } from "../theme";
 import { XIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /**
  * A mail card's recipients line (plan 076), as Gmail draws it: collapsed to whom the reply goes ("to Pinku Kumar, cc 2
@@ -149,10 +148,8 @@ function RecipientRow({
     }
   };
   const size = touch ? "var(--phone-text-body)" : 12;
-  // The phone's and Liquid Glass's words are capitalised, as iOS and macOS write them; today's desktop keeps lowercase.
-  const glass = useLook() === "glass";
-  const capital = touch || glass;
-  const label = capital ? { to: "To", cc: "Cc", bcc: "Bcc" }[row] : row;
+  // The words are capitalised, as iOS and macOS write them.
+  const label = { to: "To", cc: "Cc", bcc: "Bcc" }[row];
   return (
     <div className="loki-mail-row">
       <Meta style={{ width: 28, flex: "none" }}>{label}</Meta>
@@ -163,13 +160,11 @@ function RecipientRow({
             touch={touch}
             title={addressOf(entry)}
             onClick={() => onChange(list.filter((_, j) => j !== i))}
-            aria-label={`${capital ? "Remove" : "remove"} ${recipientName(entry)}`}
+            aria-label={`Remove ${recipientName(entry)}`}
           >
             {recipientName(entry)}{" "}
             <span aria-hidden>
-              <GlassIcon icon={XIcon} size={12} inline>
-                ×
-              </GlassIcon>
+              <Glyph icon={XIcon} size={12} inline />
             </span>
           </Chip>
         ))}
@@ -179,8 +174,8 @@ function RecipientRow({
             size={touch ? "touch" : "sm"}
             value={query}
             autoFocus={autoFocus}
-            aria-label={capital ? `Add someone to ${label}` : `add someone to ${row}`}
-            placeholder={list.length ? "" : capital ? "Name or address" : "name or address"}
+            aria-label={`Add someone to ${label}`}
+            placeholder={list.length ? "" : "Name or address"}
             onChange={(e) => {
               setQuery(e.target.value);
               setPick(0);
@@ -249,14 +244,13 @@ export function MailAddressLine({
   /** The mode, From and Bcc; the phone draws To and Cc only. */
   full?: boolean;
 }) {
-  const glass = useLook() === "glass";
-  if (!compose) return <Meta>{touch || glass ? "Reply to all" : "reply to all"}</Meta>;
+  if (!compose) return <Meta>Reply to all</Meta>;
   const a = value ?? startAddressing(compose);
   const taken = new Set([...a.to, ...a.cc, ...a.bcc].map(addressOf));
   const set = (patch: Partial<MailAddressing>) => onChange({ ...a, ...patch });
-  // Capitalised on the phone and under Liquid Glass; a control's own name is title case under Liquid Glass ("Reply All").
-  const word = (s: string) => (touch || glass ? sentence(s) : s);
-  const control = (s: string) => (glass && !touch ? s.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase()) : word(s));
+  // Capitalised; on the Mac a control's own name is title case ("Reply All"), on the phone a sentence.
+  const word = sentence;
+  const control = (s: string) => (touch ? sentence(s) : s.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase()));
   const selectStyle = {
     font: "inherit",
     fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-meta)",

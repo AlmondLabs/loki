@@ -138,8 +138,8 @@ describe("events", () => {
 
 describe("a chat's queued message", () => {
   const queued: TranscriptRow = { role: "user", text: "Also add week 14.", queued: true };
-  test("offers take back when it can be cancelled, and only then", () => {
-    expect(html(createElement(ChatMessage, { row: queued, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }))).toContain("take back");
-    expect(html(createElement(ChatMessage, { row: queued, last: true, streaming: false, arrived: false }))).not.toContain("take back");
+  test("offers Take Back when it can be cancelled, and only then", () => {
+    expect(html(createElement(ChatMessage, { row: queued, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }))).toContain("Take Back");
+    expect(html(createElement(ChatMessage, { row: queued, last: true, streaming: false, arrived: false }))).not.toContain("Take Back");
   });
 });

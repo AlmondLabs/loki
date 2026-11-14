@@ -1,280 +1,16 @@
-/* loki design tokens — Slack mode on the desktop (2026-09-23), day or night.
-   Neutral grey ground, raised panels a step lighter, near-white ink. Blue (--loki-accent) is for links,
-   focus and anything interactive; red (--loki-attention) is the unread / needs-you badge; green
-   (--loki-affirm) fills the affirmative button; --loki-positive and --loki-negative stay as status inks.
-   data-theme picks day or night; data-palette picks the family — loki's own (Slack's values, the default,
-   below) or Tokyo Night (further down), each with both sides and the same roles.
-   Type: one sans stack for everything the app presents (--loki-display and --loki-label are aliases of it,
-   kept so older call sites resolve); SF Mono only for code, data (diffs, file bodies) and key hints.
+/* loki design tokens — Liquid Glass (plan 2026-11-12-1505): loki on Apple's Human Interface Guidelines, day or night.
+   The roles are loki's, the colours Apple's semantic ones (label, secondary label, separators, fills, the system blue),
+   darkened where AA needs it. Blue (--loki-accent) is for links, focus, anything interactive and what waits on you;
+   the affirmative fill is the accent, as a Mac's default button is; --loki-positive and --loki-negative stay as status
+   inks. data-theme picks day or night. The glass tokens draw the translucent material (styles.css's glass utilities);
+   the media block below turns them solid under Reduce Transparency or Increase Contrast, or when the platform asks for
+   it (data-glass="solid").
+   Type: one sans stack for everything the app presents (--loki-display and --loki-label are aliases of it, kept so
+   older call sites resolve); SF Mono only for code, data (diffs, file bodies) and key hints. The size scale is the
+   Mac's, as AppKit sets it: body and list rows 13, secondary 11, the smallest 10, a window or section title 15, a
+   pane's large title 22, the largest 26.
    The phone redeclares these roles under .loki-phone (phone/phone.css). */
 :root {
-  color-scheme: dark;
-  /* The two backgrounds stay in hex because the manifest, native window and prepaint script repeat them. */
-  --loki-bg: #1a1d21;
-  --loki-panel: #222529;
-  --loki-panel-header: #27292d;
-  --loki-hover: #2c2f34;
-  --loki-selection: #34373c;
-  --loki-border: #35383d;
-  --loki-control-border: #72767d;
-  --loki-fg: #e8e8e8;
-  --loki-muted: #ababad;
-  /* Link / interactive blue. Its tints: accent-soft a pressed or chosen fill, brass-soft (name kept) the
-     quiet blue wash behind accent ink, brass-glow (name kept) the highlight halo. */
-  --loki-accent: #1d9bd1;
-  --loki-accent-soft: #163247;
-  --loki-brass-soft: #12293a;
-  --loki-positive: #2bac76;
-  --loki-negative: #f4738f;
-  /* The red badge (unread, waits on you) and the green affirmative fill, each with the ink that sits on it. */
-  --loki-attention: #e01e5a;
-  --loki-on-attention: #ffffff;
-  --loki-affirm: #007a5a;
-  --loki-on-affirm: #ffffff;
-  /* Where an Inbox card came from (plan 073): the mark on the face of a Slack, mail or Jira card's sender. */
-  --loki-mark-slack: #d4a0e0;
-  --loki-mark-mail: #f28b82;
-  --loki-mark-jira: #8ab4f8;
-  /* A Slack message that brought its card in (plan 077): Slack's mention wash and the bar at its left edge. */
-  --loki-mention: #2e2a1f;
-  --loki-mention-bar: #e8a33a;
-  --loki-grid: #2c2f34;
-  /* Wells, speech, inline code, veils and glows are the few surfaces outside the main elevation ramp. */
-  --loki-well: #222529;
-  --loki-bubble: #222529;
-  --loki-user-bubble: #1f2833;
-  --loki-code: #2c2f34;
-  --loki-veil: rgba(0, 0, 0, 0.6);
-  --loki-brass-glow: rgba(29, 155, 209, 0.25);
-  /* Elevation comes mostly from the surface ramp. These compact shadows only lift detached UI. */
-  --loki-shadow-sheet: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
-  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.24);
-  /*
-   * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
-   *   9.5 micro (kbd, rail)   10.5 fine print   11 tag   12 small, meta, label (.loki-label)
-   *   13.5 body   15 row title   17 card title   22 display   28 hero
-   * Weights carry the hierarchy: 400 reading, 600 labels and names, 700 titles. No tracking, no caps.
-   * Radii: sm 6 (fields, icon buttons, dense rows, code) · md 8 (buttons, rows, plates) ·
-   *        lg 12 (cards, sheets, popovers, panels) · pill 999 (chips, badges, toasts); circles use half their size.
-   */
-  --loki-radius: 12px;
-  --loki-radius-sm: 6px;
-  --loki-radius-md: 8px;
-  --loki-radius-lg: 12px;
-  --loki-radius-pill: 999px;
-  /* Type scale (px), by role: micro 9.5 · fine 10.5 · tag 11 · meta 12 · body 13.5 · row 15 · title 17 · display 22 ·
-     hero 28. Every desktop size reads one of these (styles.css names them for Tailwind), so Liquid Glass can move the
-     whole scale onto the Mac's (below) in one place. */
-  --loki-text-micro: 9.5px;
-  --loki-text-fine: 10.5px;
-  --loki-text-tag: 11px;
-  --loki-text-meta: 12px;
-  --loki-text-body: 13.5px;
-  --loki-text-row: 15px;
-  --loki-text-title: 17px;
-  --loki-text-display: 22px;
-  --loki-text-hero: 28px;
-  --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
-  --loki-display: var(--loki-font);
-  --loki-label: var(--loki-font);
-  --loki-mono: "SF Mono", ui-monospace, Menlo, monospace;
-  /* springs: written by scripts/springs.ts from kit/spring.ts — do not edit by hand */
-  /* prettier-ignore */
-  --spring-smooth: linear(0, 0.0193, 0.0673, 0.1324, 0.2064, 0.2836, 0.3601, 0.4333, 0.5018, 0.5648, 0.6217, 0.6728, 0.7181, 0.758, 0.7929, 0.8232, 0.8495, 0.8722, 0.8917, 0.9084, 0.9227, 0.9348, 0.9452, 0.9539, 0.9613, 0.9676, 0.9728, 0.9773, 0.981, 0.9841, 0.9868, 0.989, 0.9908, 0.9924, 0.9936, 0.9947, 0.9956, 0.9964, 0.997, 0.9975, 0.9979, 0.9983, 0.9986, 0.9988, 1);
-  --spring-smooth-ms: 516ms;
-  /* prettier-ignore */
-  --spring-snappy: linear(0, 0.026, 0.0905, 0.1773, 0.2746, 0.3741, 0.4702, 0.5594, 0.6397, 0.7102, 0.7708, 0.822, 0.8644, 0.899, 0.9268, 0.9486, 0.9656, 0.9784, 0.988, 0.9948, 0.9996, 1.0028, 1.0048, 1.0058, 1.0063, 1.0062, 1.0059, 1.0054, 1.0048, 1.0042, 1.0036, 1.003, 1.0025, 1.002, 1.0016, 1.0012, 1);
-  --spring-snappy-ms: 420ms;
-  /* prettier-ignore */
-  --spring-bouncy: linear(0, 0.0159, 0.0579, 0.1182, 0.1906, 0.2699, 0.352, 0.4338, 0.5127, 0.5872, 0.656, 0.7184, 0.7741, 0.8231, 0.8655, 0.9016, 0.9318, 0.9568, 0.9769, 0.9928, 1.0051, 1.0142, 1.0206, 1.0248, 1.0273, 1.0283, 1.0282, 1.0273, 1.0257, 1.0238, 1.0216, 1.0193, 1.017, 1.0147, 1.0125, 1.0105, 1.0087, 1.007, 1.0055, 1.0043, 1.0032, 1.0023, 1.0015, 1);
-  --spring-bouncy-ms: 512ms;
-  /* end springs */
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
-  --loki-label-0: oklch(72% 0.14 25);
-  --loki-label-1: oklch(72% 0.14 65);
-  --loki-label-2: oklch(72% 0.14 95);
-  --loki-label-3: oklch(72% 0.14 150);
-  --loki-label-4: oklch(72% 0.14 195);
-  --loki-label-5: oklch(72% 0.14 250);
-  --loki-label-6: oklch(72% 0.14 300);
-  --loki-label-7: oklch(72% 0.14 350);
-}
-/* Where linear() is missing (older WebKitGTK), the springs fall back to the eased curves they replaced. */
-@supports not (transition-timing-function: linear(0, 1)) {
-  :root {
-    --spring-smooth: cubic-bezier(0.2, 0, 0, 1);
-    --spring-snappy: cubic-bezier(0.2, 0, 0, 1);
-    --spring-bouncy: cubic-bezier(0.34, 1.3, 0.64, 1);
-  }
-}
-
-/* Daylight: Slack's light desktop — a pale grey ground, white panels, grey hairlines, near-black ink. */
-:root[data-theme="light"] {
-  color-scheme: light;
-  --loki-bg: #f8f8f8;
-  --loki-panel: #ffffff;
-  --loki-panel-header: #f8f8f8;
-  --loki-hover: #f0f0f0;
-  --loki-selection: #e8f5fa;
-  --loki-border: #e2e2e2;
-  --loki-control-border: #868686;
-  --loki-fg: #1d1c1d;
-  --loki-muted: #616061;
-  --loki-accent: #1264a3;
-  --loki-accent-soft: #d6ebf7;
-  --loki-brass-soft: #e8f5fa;
-  --loki-positive: #007a5a;
-  --loki-negative: #c7174b;
-  --loki-attention: #e01e5a;
-  --loki-on-attention: #ffffff;
-  --loki-affirm: #007a5a;
-  --loki-on-affirm: #ffffff;
-  --loki-mark-slack: #611f69;
-  --loki-mark-mail: #c5221f;
-  --loki-mark-jira: #1558bc;
-  --loki-mention: #fdf5e0;
-  --loki-mention-bar: #e8a33a;
-  --loki-grid: #ebebeb;
-  --loki-well: #ffffff;
-  --loki-bubble: #f8f8f8;
-  --loki-user-bubble: #eef6fb;
-  --loki-code: #f4f4f4;
-  --loki-veil: rgba(29, 28, 29, 0.4);
-  --loki-brass-glow: rgba(18, 100, 163, 0.16);
-  --loki-shadow-sheet: 0 8px 24px rgba(0, 0, 0, 0.14);
-  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
-  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.09);
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
-  --loki-label-0: oklch(54% 0.15 25);
-  --loki-label-1: oklch(54% 0.15 65);
-  --loki-label-2: oklch(54% 0.15 95);
-  --loki-label-3: oklch(54% 0.15 150);
-  --loki-label-4: oklch(54% 0.15 195);
-  --loki-label-5: oklch(54% 0.15 250);
-  --loki-label-6: oklch(54% 0.15 300);
-  --loki-label-7: oklch(54% 0.15 350);
-}
-
-/* Tokyo Night (enkia, MIT). Night by night, Day by day; the roles are loki's, the colours are the
-   palette's own: its blue takes the accent, its red the attention badge and the negative, its green the
-   affirmative fill, its teal the positive. Canonical values stay in hex. The few tints loki derives from the
-   accent (the soft washes, the user's speech, the glow) are OKLCH in the blue's hue, and the Day inks that
-   miss AA at their canonical values are darkened along their own hue — test/tokens.test.ts holds every
-   family to the same contrast. */
-:root[data-palette="tokyo-night"] {
-  color-scheme: dark;
-  --loki-bg: #1a1b26;
-  --loki-panel: #1f2335;
-  --loki-panel-header: #24283b;
-  --loki-hover: #292e42;
-  --loki-selection: #343a55;
-  --loki-border: #3b4261;
-  --loki-control-border: #737aa2;
-  --loki-fg: #c0caf5;
-  --loki-muted: #a9b1d6;
-  --loki-accent: #7aa2f7;
-  --loki-accent-soft: oklch(34% 0.07 268);
-  --loki-brass-soft: oklch(26% 0.04 268);
-  --loki-positive: #1abc9c;
-  --loki-negative: #f7768e;
-  --loki-attention: #f7768e;
-  --loki-on-attention: #1a1b26;
-  --loki-affirm: #9ece6a;
-  --loki-on-affirm: #1a1b26;
-  --loki-mark-slack: #d4a0e0;
-  --loki-mark-mail: #f28b82;
-  --loki-mark-jira: #8ab4f8;
-  --loki-mention: oklch(28% 0.03 85);
-  --loki-mention-bar: oklch(78% 0.13 80);
-  --loki-grid: #24283b;
-  --loki-well: #16161e;
-  --loki-bubble: #1f2335;
-  --loki-user-bubble: oklch(28% 0.04 268);
-  --loki-code: #292e42;
-  --loki-veil: oklch(10% 0.02 280 / 0.62);
-  --loki-brass-glow: oklch(72% 0.13 268 / 0.25);
-  --loki-shadow-sheet: 0 8px 24px oklch(5% 0.02 280 / 0.5);
-  --loki-shadow-float: 0 8px 24px oklch(5% 0.02 280 / 0.42);
-  --loki-shadow-panel: 0 4px 12px oklch(5% 0.02 280 / 0.28);
-  --loki-shadow-low: 0 2px 6px oklch(5% 0.02 280 / 0.24);
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
-  --loki-label-0: oklch(72% 0.14 25);
-  --loki-label-1: oklch(72% 0.14 65);
-  --loki-label-2: oklch(72% 0.14 95);
-  --loki-label-3: oklch(72% 0.14 150);
-  --loki-label-4: oklch(72% 0.14 195);
-  --loki-label-5: oklch(72% 0.14 250);
-  --loki-label-6: oklch(72% 0.14 300);
-  --loki-label-7: oklch(72% 0.14 350);
-}
-
-:root[data-palette="tokyo-night"][data-theme="light"] {
-  color-scheme: light;
-  --loki-bg: #e1e2e7;
-  --loki-panel: oklch(95.5% 0.006 270);
-  --loki-panel-header: oklch(92.5% 0.01 270);
-  --loki-hover: #d0d5e3;
-  --loki-selection: #c4c8da;
-  --loki-border: #a8aecb;
-  --loki-control-border: #68709a;
-  --loki-fg: #343b59;
-  --loki-muted: #565f89;
-  --loki-accent: oklch(47% 0.15 262);
-  --loki-accent-soft: oklch(89% 0.04 262);
-  --loki-brass-soft: oklch(94% 0.02 262);
-  --loki-positive: oklch(45% 0.1 170);
-  --loki-negative: oklch(48% 0.19 15);
-  --loki-attention: oklch(52% 0.2 10);
-  --loki-on-attention: #ffffff;
-  --loki-affirm: #587539;
-  --loki-on-affirm: #ffffff;
-  --loki-mark-slack: #611f69;
-  --loki-mark-mail: #c5221f;
-  --loki-mark-jira: #1558bc;
-  --loki-mention: oklch(96% 0.03 85);
-  --loki-mention-bar: oklch(70% 0.14 75);
-  --loki-grid: #d0d5e3;
-  --loki-well: oklch(98% 0.004 270);
-  --loki-bubble: oklch(93.5% 0.008 270);
-  --loki-user-bubble: oklch(92% 0.025 262);
-  --loki-code: #d0d5e3;
-  --loki-veil: oklch(25% 0.03 275 / 0.28);
-  --loki-brass-glow: oklch(47% 0.15 262 / 0.16);
-  --loki-shadow-sheet: 0 8px 24px oklch(30% 0.03 275 / 0.16);
-  --loki-shadow-float: 0 8px 24px oklch(30% 0.03 275 / 0.14);
-  --loki-shadow-panel: 0 4px 12px oklch(30% 0.03 275 / 0.1);
-  --loki-shadow-low: 0 2px 6px oklch(30% 0.03 275 / 0.09);
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
-  --loki-label-0: oklch(54% 0.15 25);
-  --loki-label-1: oklch(54% 0.15 65);
-  --loki-label-2: oklch(54% 0.15 95);
-  --loki-label-3: oklch(54% 0.15 150);
-  --loki-label-4: oklch(54% 0.15 195);
-  --loki-label-5: oklch(54% 0.15 250);
-  --loki-label-6: oklch(54% 0.15 300);
-  --loki-label-7: oklch(54% 0.15 350);
-}
-
-/* Liquid Glass (plan 2026-11-12-1505, U1): loki on Apple's Human Interface Guidelines. The roles are loki's, the colours
-   Apple's semantic ones (label, secondary label, separators, fills, the system blue), darkened where AA needs it. The
-   affirmative fill is the accent, as a Mac's default button is. The glass tokens are this family's alone: the glass
-   utilities in styles.css fall back to the solid panel in every other family, and the media block below turns them
-   solid under Reduce Transparency or Increase Contrast, or when the platform asks for it (data-glass="solid"). */
-:root[data-palette="apple"] {
-  /* The Mac's type scale (plan 2026-11-12-1505, U15), as AppKit sets it: body and list rows 13, secondary 11, the
-     smallest 10, a window or section title 15, a pane's large title 22, the largest 26. */
-  --loki-text-micro: 10px;
-  --loki-text-fine: 10px;
-  --loki-text-tag: 11px;
-  --loki-text-meta: 11px;
-  --loki-text-body: 13px;
-  --loki-text-row: 13px;
-  --loki-text-title: 15px;
-  --loki-text-display: 22px;
-  --loki-text-hero: 26px;
   color-scheme: dark;
   --loki-bg: #1c1c1e;
   --loki-panel: #232325;
@@ -322,6 +58,45 @@
   --loki-glass-blur: blur(28px) saturate(180%);
   /* The chosen segment of a segmented control, raised off its grey track as a Mac's is. */
   --loki-segment: #636366;
+  /*
+   * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
+   *   10 micro (kbd) and fine print   11 tag, small, meta, label (.loki-label)   13 body and row title
+   *   15 title   22 display   26 hero
+   * Weights carry the hierarchy: 400 reading, 600 labels and names, 700 titles. No tracking, no caps.
+   * Radii: sm 6 (fields, icon buttons, dense rows, code) · md 8 (buttons, rows, plates) ·
+   *        lg 12 (cards, sheets, popovers, panels) · pill 999 (chips, badges, toasts); circles use half their size.
+   */
+  --loki-radius: 12px;
+  --loki-radius-sm: 6px;
+  --loki-radius-md: 8px;
+  --loki-radius-lg: 12px;
+  --loki-radius-pill: 999px;
+  /* Type scale (px), by role: micro 10 · fine 10 · tag 11 · meta 11 · body 13 · row 13 · title 15 · display 22 ·
+     hero 26. Every desktop size reads one of these (styles.css names them for Tailwind). */
+  --loki-text-micro: 10px;
+  --loki-text-fine: 10px;
+  --loki-text-tag: 11px;
+  --loki-text-meta: 11px;
+  --loki-text-body: 13px;
+  --loki-text-row: 13px;
+  --loki-text-title: 15px;
+  --loki-text-display: 22px;
+  --loki-text-hero: 26px;
+  --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+  --loki-display: var(--loki-font);
+  --loki-label: var(--loki-font);
+  --loki-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  /* springs: written by scripts/springs.ts from kit/spring.ts — do not edit by hand */
+  /* prettier-ignore */
+  --spring-smooth: linear(0, 0.0193, 0.0673, 0.1324, 0.2064, 0.2836, 0.3601, 0.4333, 0.5018, 0.5648, 0.6217, 0.6728, 0.7181, 0.758, 0.7929, 0.8232, 0.8495, 0.8722, 0.8917, 0.9084, 0.9227, 0.9348, 0.9452, 0.9539, 0.9613, 0.9676, 0.9728, 0.9773, 0.981, 0.9841, 0.9868, 0.989, 0.9908, 0.9924, 0.9936, 0.9947, 0.9956, 0.9964, 0.997, 0.9975, 0.9979, 0.9983, 0.9986, 0.9988, 1);
+  --spring-smooth-ms: 516ms;
+  /* prettier-ignore */
+  --spring-snappy: linear(0, 0.026, 0.0905, 0.1773, 0.2746, 0.3741, 0.4702, 0.5594, 0.6397, 0.7102, 0.7708, 0.822, 0.8644, 0.899, 0.9268, 0.9486, 0.9656, 0.9784, 0.988, 0.9948, 0.9996, 1.0028, 1.0048, 1.0058, 1.0063, 1.0062, 1.0059, 1.0054, 1.0048, 1.0042, 1.0036, 1.003, 1.0025, 1.002, 1.0016, 1.0012, 1);
+  --spring-snappy-ms: 420ms;
+  /* prettier-ignore */
+  --spring-bouncy: linear(0, 0.0159, 0.0579, 0.1182, 0.1906, 0.2699, 0.352, 0.4338, 0.5127, 0.5872, 0.656, 0.7184, 0.7741, 0.8231, 0.8655, 0.9016, 0.9318, 0.9568, 0.9769, 0.9928, 1.0051, 1.0142, 1.0206, 1.0248, 1.0273, 1.0283, 1.0282, 1.0273, 1.0257, 1.0238, 1.0216, 1.0193, 1.017, 1.0147, 1.0125, 1.0105, 1.0087, 1.007, 1.0055, 1.0043, 1.0032, 1.0023, 1.0015, 1);
+  --spring-bouncy-ms: 512ms;
+  /* end springs */
   /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(72% 0.14 25);
   --loki-label-1: oklch(72% 0.14 65);
@@ -332,8 +107,17 @@
   --loki-label-6: oklch(72% 0.14 300);
   --loki-label-7: oklch(72% 0.14 350);
 }
+/* Where linear() is missing (older WebKitGTK), the springs fall back to the eased curves they replaced. */
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-smooth: cubic-bezier(0.2, 0, 0, 1);
+    --spring-snappy: cubic-bezier(0.2, 0, 0, 1);
+    --spring-bouncy: cubic-bezier(0.34, 1.3, 0.64, 1);
+  }
+}
 
-:root[data-palette="apple"][data-theme="light"] {
+/* Daylight: Apple's light Mac — a white ground, pale grey panels, grey hairlines, near-black ink. */
+:root[data-theme="light"] {
   color-scheme: light;
   --loki-bg: #ffffff;
   --loki-panel: #f5f5f7;
@@ -392,22 +176,22 @@
 /* Glass turns solid, same shapes, when the person asked for less transparency or more contrast (R3), or when the
    platform's budget says so: data-glass="solid" on the root. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root[data-palette="apple"],
-  :root[data-palette="apple"][data-theme="light"] {
+  :root,
+  :root[data-theme="light"] {
     --loki-glass: var(--loki-panel);
     --loki-glass-strong: var(--loki-panel);
     --loki-glass-blur: none;
   }
 }
-:root[data-palette="apple"][data-glass="solid"],
-:root[data-palette="apple"][data-glass="solid"][data-theme="light"] {
+:root[data-glass="solid"],
+:root[data-glass="solid"][data-theme="light"] {
   --loki-glass: var(--loki-panel);
   --loki-glass-strong: var(--loki-panel);
   --loki-glass-blur: none;
 }
 
-/* shadcn's names for loki's roles (plan 096). shadcn's components read these; each one is a loki token, so every
-   family, side and the phone follow without a second definition. They are declared on .loki-phone as well as :root
+/* shadcn's names for loki's roles (plan 096). shadcn's components read these; each one is a loki token, so day,
+   night and the phone follow without a second definition. They are declared on .loki-phone as well as :root
    because a custom property resolves where it is declared: on :root alone, the phone's own roles would never reach
    them. shadcn's "primary" is loki's affirmative fill (the one go button), "accent" its hover, "ring" the link blue.
    The layers repeat LAYER (kit/layers.ts) for the z-* utilities in styles.css; the tokens test keeps them equal. */
@@ -446,13 +230,7 @@
   --sidebar-ring: var(--loki-accent);
   --radius: var(--loki-radius-md);
 }
-/* The glass every family but Liquid Glass draws: the solid panel and its hairline, no blur (styles.css's glass utilities). */
 :root {
-  --loki-glass: var(--loki-panel);
-  --loki-glass-strong: var(--loki-panel);
-  --loki-glass-hi: transparent;
-  --loki-glass-edge: var(--loki-border);
-  --loki-glass-blur: none;
   /* What the chat pane's floating header and dock measure (shared/use-height-var.ts); 0 until measured. */
   --loki-header-height: 0px;
   --loki-dock-height: 0px;
@@ -466,13 +244,11 @@
   --loki-layer-toast: 300;
 }
 
-/* More contrast (the OS setting): the quiet hairlines take the controls' stronger edge, in every theme and palette.
+/* More contrast (the OS setting): the quiet hairlines take the controls' stronger edge, in day and night.
    The phone does the same for its own tokens (phone.css). */
 @media (prefers-contrast: more) {
   :root,
-  :root[data-theme],
-  :root[data-palette],
-  :root[data-palette][data-theme] {
+  :root[data-theme] {
     --loki-border: var(--loki-control-border);
   }
 }
@@ -594,17 +370,6 @@ a:focus-visible {
 @media (hover: hover) and (pointer: fine) {
   .loki-frame:hover .loki-frame-controls {
     opacity: 1;
-  }
-}
-
-/* The waiting badge ticks when its count goes up: the same small spring as a list's red badge (components.css),
-   by transform alone, so nothing is repainted while agents stream. */
-.loki-tick {
-  animation: loki-tick var(--spring-bouncy-ms) var(--spring-bouncy);
-}
-@keyframes loki-tick {
-  from {
-    transform: scale(0.9);
   }
 }
 

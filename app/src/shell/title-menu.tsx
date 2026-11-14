@@ -3,8 +3,7 @@ import { Kbd, Row } from "../components";
 import { keyboard, type Platform } from "../desk/env";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
 import { ChevronRightIcon, MenuIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
-import { useLook, type Look } from "../theme";
+import { Glyph } from "../shared/icons";
 
 /** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
 export interface TitleMenuEntry {
@@ -30,8 +29,8 @@ const HIDE_BINDING: Binding = (() => {
  * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
  * in Ctrl words. An item without an accelerator on the Mac shows none here either.
  */
-export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP, look: Look = "classic"): TitleMenuGroup[] {
-  return menuSpec(map, os, look).map((m) => ({
+export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP): TitleMenuGroup[] {
+  return menuSpec(map, os).map((m) => ({
     title: m.title,
     items: m.items.map((it) => {
       if ("separator" in it) return it;
@@ -82,11 +81,7 @@ export function TitleMenuPanel({
             onPointerEnter={() => onOpen(g.title)}
           >
             <span>{g.title}</span>
-            <GlassIcon icon={ChevronRightIcon} size={12}>
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-                <path d="M3.5 2l3 3-3 3" />
-              </svg>
-            </GlassIcon>
+            <Glyph icon={ChevronRightIcon} size={12} />
           </Row>
         ))}
         <hr className="loki-title-menu-sep" />
@@ -133,11 +128,7 @@ export function TitleMenu({ os = keyboard }: { os?: Platform }) {
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((v) => !v)}
       >
-        <GlassIcon icon={MenuIcon} size={16}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-            <path d="M3 4.5h10M3 8h10M3 11.5h10" />
-          </svg>
-        </GlassIcon>
+        <Glyph icon={MenuIcon} size={16} />
       </button>
       {menuOpen && (
         <TitleMenuPopover
@@ -158,8 +149,6 @@ function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: 
   const [open, setOpen] = useState<string | null>(null);
   /** Bumped when the keyboard opens a title: its menu's first item takes the focus once it shows. */
   const [enter, setEnter] = useState(0);
-  // Worded for the look showing, as the Mac's menu bar is.
-  const look = useLook();
   const closeRef = useRef(onClose);
   useEffect(() => {
     closeRef.current = onClose;
@@ -215,7 +204,7 @@ function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: 
         e.stopPropagation();
       }}
     >
-      <TitleMenuPanel groups={titleMenus(os, KEYMAP, look)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
+      <TitleMenuPanel groups={titleMenus(os, KEYMAP)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
     </div>
   );
 }

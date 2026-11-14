@@ -35,10 +35,9 @@ import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
-import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme, type Palette } from "../theme";
-import { useThreadPreview } from "../item/preview";
+import { THEME_PREFERENCES, useTheme } from "../theme";
 import { XIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
@@ -266,9 +265,7 @@ export function Settings({
           </h3>
           {onClose && (
             <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: "var(--loki-text-title)" }}>
-              <GlassIcon icon={XIcon} size={16}>
-                ×
-              </GlassIcon>
+              <Glyph icon={XIcon} size={16} />
             </IconButton>
           )}
         </div>
@@ -286,19 +283,12 @@ export function Settings({
   );
 }
 
-/** Appearance's values in Apple's words, under Liquid Glass (plan 2026-11-12-1505, U8). */
-const GLASS_THEME_LABEL: Record<(typeof THEME_PREFERENCES)[number], string> = { system: "System", light: "Light", dark: "Dark" };
-const GLASS_PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "Tokyo Night", apple: "Liquid Glass" };
+/** Appearance's values in Apple's words (plan 2026-11-12-1505, U8). */
+const THEME_LABEL: Record<(typeof THEME_PREFERENCES)[number], string> = { system: "System", light: "Light", dark: "Dark" };
 
-/** Preferences › Appearance: light or dark and the colour family, on this device only. */
+/** Preferences › Appearance: light or dark, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
-  const [preview, setPreview] = useThreadPreview();
-  const glass = theme.palette === "apple";
-  const pickPalette = (palette: Palette) => {
-    theme.setPalette(palette);
-    if (palette === "apple") setPreview("on");
-  };
   return (
     <Block>
       <Setting
@@ -307,30 +297,8 @@ function AppearancePage() {
           theme.preference === "system" ? `Follows ${systemName(keyboard)} as it changes: ${theme.resolved} now.` : "On this device, whatever the system does."
         }
       >
-        <Segmented
-          label="light or dark"
-          options={THEME_PREFERENCES}
-          value={theme.preference}
-          onPick={theme.setPreference}
-          labels={glass ? GLASS_THEME_LABEL : undefined}
-        />
+        <Segmented label="light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} labels={THEME_LABEL} />
       </Setting>
-      <Setting
-        label="Palette"
-        help={
-          glass
-            ? "Liquid glass is loki's new look, built one screen at a time; screens not yet moved keep today's shapes."
-            : "The colour family, in light and in dark."
-        }
-      >
-        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={pickPalette} labels={glass ? GLASS_PALETTE_LABEL : PALETTE_LABEL} />
-      </Setting>
-      {/* Liquid Glass draws only the new chat pane (plan 2026-11-12-1505, KTD2), so the switch steps aside while it is on. */}
-      {!glass && (
-        <Setting label="New chat pane (preview)" help="Draw the chat pane and Flow's cards on loki's new components. Turn it off to go back.">
-          <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new chat pane (preview)" hideLabel />
-        </Setting>
-      )}
     </Block>
   );
 }

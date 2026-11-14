@@ -31,7 +31,7 @@ function bindRef(ref: ForwardedRef<HTMLTextAreaElement>) {
 }
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
 
-/** What a message box takes, today's ChatInput and the new pane's Composer alike (plan 097, KTD5). */
+/** What a message box takes, the phone's ChatInput and the desktop's Composer alike (plan 097, KTD5). */
 export interface MessageBoxProps {
   value: string;
   onChange: (v: string) => void;

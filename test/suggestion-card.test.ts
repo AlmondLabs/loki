@@ -25,7 +25,7 @@ import { must } from "./fixtures/must.ts";
 /**
  * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were
  * made, behind a chip in the message box (plan 052), on the desktop and the phone; each one line until opened, then
- * the message with send now, save as draft, change chat and reject.
+ * the message with Send now, Save as draft, Change chat and Reject.
  */
 
 const suggestion = (over: Partial<Suggestion> = {}): Suggestion => ({
@@ -129,8 +129,9 @@ describe("where suggestions show", () => {
       const html = conversation(source(two).src, touch);
       expect(cards(html)).toEqual([]);
       const chip = html.indexOf("loki-suggestion-chip");
-      expect(chip).toBeGreaterThan(html.indexOf("loki-composer"));
-      expect(chip).toBeLessThan(html.indexOf("loki-composer-end"));
+      // The desktop's chat pane hangs the chip in its message box above the field; the phone's sits in its row.
+      expect(chip).toBeGreaterThan(html.indexOf(touch ? "loki-composer" : 'data-composer="messages"'));
+      expect(chip).toBeLessThan(html.indexOf(touch ? "loki-composer-end" : "loki-composer-act"));
       expect(html).toContain(`aria-label="2 suggestions"`);
     });
     test(`${touch ? "phone" : "desktop"}: the host's tick opens them, newest first, in a ${touch ? "bottom sheet" : "modal"} with a header (plan 056)`, () => {
@@ -190,11 +191,11 @@ describe("one card", () => {
     expect(html).not.toContain("fixture&#x27;s clock");
     expect(actionsOf(html)).toEqual([]);
   });
-  test("opened on the desktop: the message, then send now, save as draft, change chat and reject, lowercase", () => {
+  test("opened on the desktop: the message, then send now, save as draft, change chat and reject, in sentence case", () => {
     const html = card();
     expect(html).toContain("fixture&#x27;s clock is real");
     expect(actionsOf(html)).toEqual(["send", "draft", "change", "reject"]);
-    for (const words of ["send now", "save as draft", "change chat", "reject"]) expect(html).toContain(`>${words}<`);
+    for (const words of ["Send now", "Save as draft", "Change chat", "Reject"]) expect(html).toContain(`>${words}<`);
   });
   test("opened on the phone: the same actions in sentence case", () => {
     const html = card({ touch: true });

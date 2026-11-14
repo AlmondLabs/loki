@@ -61,7 +61,7 @@ export function useSharedModels(): SharedModels | null {
 }
 
 /**
- * Share a chat's model controls while `models` is given (Liquid Glass on the desktop); its switch is read through a
+ * Share a chat's model controls while `models` is given (the desktop); its switch is read through a
  * ref, so a fresh closure each render does not count as a change.
  */
 export function useShareModels(models: SharedModels | null): void {

@@ -14,7 +14,6 @@ import { fileSize } from "../chat/attachments";
 import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
 import { shownText } from "../chat/transcript";
 import { ContentParts } from "./content-parts";
-import { useLook } from "../theme";
 import type { ItemEntry, ItemSource } from "./item-view";
 import { Reactions } from "./reactions";
 
@@ -122,17 +121,16 @@ export const ChatMessage = memo(function ChatMessage({
   const text = shownText(m);
   const writing = last && streaming;
   const copyable = !!text && !writing;
-  // Under Liquid Glass (plan 2026-11-12-1505, U14) the thread reads as ChatGPT's and Claude's do on the Mac: your
-  // message is a bubble at the trailing edge with no label, its time in its tooltip; time is told at gaps (entries.ts).
-  const glass = useLook() === "glass";
-  if (m.role === "user" && glass)
+  // The thread reads as ChatGPT's and Claude's do on the Mac (plan 2026-11-12-1505, U14): your message is a bubble at
+  // the trailing edge with no label, its time in its tooltip; time is told at gaps (entries.ts).
+  if (m.role === "user")
     return (
       <Message from="user" data-row="user" data-queued={m.queued ? "true" : undefined} data-arrived={arrived || undefined} className="group/row max-w-[75%]">
         {/* Copy floats beside the bubble on hover and takes no room, so the thread keeps its rhythm. */}
         <div className="relative ml-auto w-fit max-w-full">
           {copyable && (
             <span className="absolute top-1/2 right-full mr-1 -translate-y-1/2">
-              <CopyAsMarkdown text={text} hidden />
+              <CopyAsMarkdown text={text} />
             </span>
           )}
           <MessageContent title={time ?? undefined} className={cn("rounded-[24px]! bg-accent! px-4! py-2.5!", m.queued && "border border-dashed border-ring")}>
@@ -148,48 +146,16 @@ export const ChatMessage = memo(function ChatMessage({
         )}
       </Message>
     );
-  if (m.role === "user")
-    return (
-      <Message from="user" data-row="user" data-queued={m.queued ? "true" : undefined} data-arrived={arrived || undefined} className="group/row max-w-full">
-        <MessageContent className={cn("w-full gap-1 bg-accent! px-3.5! py-2.5!", m.queued && "border border-dashed border-ring")}>
-          <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
-            <span className="font-semibold text-foreground">You</span>
-            {time && <time dateTime={m.at}>{time}</time>}
-            {m.queued && (
-              <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="h-auto px-0">
-                queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
-              </Button>
-            )}
-            {copyable && (
-              <span className="ml-auto">
-                <CopyAsMarkdown text={text} />
-              </span>
-            )}
-          </div>
-          <UserContent row={m} />
-        </MessageContent>
-      </Message>
-    );
   return (
-    <Message from="assistant" data-row={m.role} data-arrived={arrived || undefined} className={cn("group/row max-w-full", glass && "relative")}>
+    <Message from="assistant" data-row={m.role} data-arrived={arrived || undefined} className="group/row relative max-w-full">
       <MessageContent className="text-body">
         <MessageResponse className="loki-md" isAnimating={writing} animated components={MARKDOWN_COMPONENTS}>
           {text}
         </MessageResponse>
       </MessageContent>
-      {glass && copyable && (
+      {copyable && (
         <MessageActions title={time ?? undefined} className="absolute top-0 left-full ml-1">
-          <CopyAsMarkdown text={text} hidden />
-        </MessageActions>
-      )}
-      {!glass && (copyable || time) && (
-        <MessageActions>
-          {copyable && <CopyAsMarkdown text={text} />}
-          {time && (
-            <time dateTime={m.at} className="text-meta text-muted-foreground">
-              {time}
-            </time>
-          )}
+          <CopyAsMarkdown text={text} />
         </MessageActions>
       )}
     </Message>
@@ -197,10 +163,10 @@ export const ChatMessage = memo(function ChatMessage({
 });
 
 /**
- * The message's words as written (markdown, not the rendering) onto the clipboard; a check for a beat after. `hidden`
- * (Liquid Glass) keeps it out of sight until the row is hovered or the button has focus, as the Mac's chat apps do.
+ * The message's words as written (markdown, not the rendering) onto the clipboard; a check for a beat after. Out of
+ * sight until the row is hovered or the button has focus, as the Mac's chat apps do.
  */
-function CopyAsMarkdown({ text, hidden = false }: { text: string; hidden?: boolean }) {
+function CopyAsMarkdown({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -222,10 +188,7 @@ function CopyAsMarkdown({ text, hidden = false }: { text: string; hidden?: boole
       aria-label={copied ? "copied" : "copy as markdown"}
       title={copied ? "copied" : "copy as markdown"}
       onClick={() => void copy()}
-      className={cn(
-        "text-muted-foreground group-hover/row:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100",
-        hidden ? "opacity-0" : "opacity-40",
-      )}
+      className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100"
       data-copied={copied ? "true" : undefined}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}

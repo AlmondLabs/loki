@@ -69,11 +69,11 @@ describe("a thought on the thread", () => {
 });
 
 describe("the Thought line", () => {
-  test("folds to how long the agent thought, and says only 'thought' when that is not known", () => {
+  test("folds to how long the agent thought, and says only 'Thought' when that is not known", () => {
     const timed = renderToStaticMarkup(createElement(Thought, { rows: [{ role: "assistant", text: "ok", thought: "hm", thought_ms: 12_400 }] }));
-    expect(timed).toContain("thought for 12 seconds");
+    expect(timed).toContain("Thought for 12 seconds");
     const untimed = renderToStaticMarkup(createElement(Thought, { rows: [{ role: "assistant", text: "ok", thought: "hm" }] }));
-    expect(untimed).toContain(">thought<");
+    expect(untimed).toContain(">Thought<");
     expect(untimed).not.toContain("few seconds");
   });
 

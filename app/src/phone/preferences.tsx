@@ -11,7 +11,7 @@ import { standalone } from "./edge-swipe";
 
 /**
  * The pages behind More's utility rows, in Slack's Preferences grammar — groups of rows on hairlines:
- *   Preferences         appearance: System, Light or Dark (the desktop's palettes never reach the phone)
+ *   Preferences         appearance: System, Light or Dark
  *   Connection details  the paired Mac, its system, its two links and route, this phone, and unpairing
  *   About loki          the builds and versions, this screen, and what stays on the Mac
  * and the reload sheet More's Updates row opens. What used to be one Settings page, sorted by what it is for.
@@ -63,12 +63,6 @@ export function Preferences({ banner, backLabel = "more", onBack }: { banner?: R
       <p className="loki-phone-group-note">
         {theme.preference === "system" ? `Following this phone's setting: ${theme.resolved} now.` : `Always ${theme.resolved}.`} Kept on this phone only.
       </p>
-      {/* Liquid Glass, chosen per phone as the desktop's look is chosen per Mac (plan 2026-11-12-1505, U9). */}
-      <RowGroup title="Look" radio>
-        <MenuRow icon="desk" label="Today's look" checked={theme.palette !== "apple"} onClick={() => theme.setPalette("loki")} />
-        <MenuRow icon="widget" label="Liquid Glass" checked={theme.palette === "apple"} onClick={() => theme.setPalette("apple")} />
-      </RowGroup>
-      <p className="loki-phone-group-note">Liquid Glass is loki's new look, in iOS's colours and materials. Kept on this phone only.</p>
     </Page>
   );
 }

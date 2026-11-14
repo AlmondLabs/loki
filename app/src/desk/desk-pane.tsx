@@ -12,7 +12,6 @@ import {
   type RefObject,
 } from "react";
 import { useHeightVar } from "../shared/use-height-var";
-import { useLook } from "../theme";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, type Tab } from "../components";
 import { Icon } from "../shared/icons";
@@ -24,7 +23,7 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
-import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
+import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 import { PopoverMenu } from "../shell/menu-items";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
@@ -38,12 +37,9 @@ import { useInlineWidgets } from "../chat/use-inline-widgets";
 import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
-import { ItemHeader } from "../item/item-header";
 import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
-import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
 import { chatItem } from "../item/item-view";
-import { useThreadPreview } from "../item/preview";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
 const TABS: ReadonlyArray<Tab<DeskTab>> = [
@@ -161,8 +157,7 @@ export function DeskPane(props: DeskPaneProps) {
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
-  const glass = useLook() === "glass";
-  // Under Liquid Glass the header floats over the thread, which pads itself by its height (shared/use-height-var.ts).
+  // The header floats over the thread, which pads itself by its height (shared/use-height-var.ts).
   const header = useCallback(() => paneRef.current?.querySelector<HTMLElement>(":scope > .loki-pane-header") ?? null, []);
   useHeightVar(header, "--loki-header-height");
   const threadFocus = useRef<HTMLElement | null>(null);
@@ -170,37 +165,15 @@ export function DeskPane(props: DeskPaneProps) {
   useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Chat";
-  // The new chat pane's preview draws the header as the item's (plan 097, U8), once the chat is in the list.
-  const [preview] = useThreadPreview();
   const links = view.links?.length ? (
     <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
   ) : null;
-  const itemView = preview === "on" && item ? chatItem({ item, live: null, turns: [] }) : null;
-  // Under Liquid Glass the header is a Mac toolbar (plan 2026-11-12-1505, U13): the title over a grey line of the
-  // chat's facts, no face and no Unread chip (the sidebar shows unread); its moves are toolbar symbols, not a row.
-  const toolbar = glass && itemView && item;
-  const itemLine = toolbar ? (
-    <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" />
-  ) : itemView && item ? (
-    <ItemHeader
-      view={itemView.header}
-      titleAs="h1"
-      className="flex-1 px-0 py-2"
-      lead={<AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={28} />}
-      onProperty={runtime ? { labels: () => setLabeling(true) } : {}}
-      meta={
-        <>
-          {runtime && !chatLabels.length && (
-            <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
-              {glass ? "Add Label" : "+ label"}
-            </button>
-          )}
-          {links}
-        </>
-      }
-      actions={tab === "desk" ? <DeskActions /> : undefined}
-    />
-  ) : undefined;
+  // Once the chat is in the list its header is a Mac toolbar (plan 097, U8; plan 2026-11-12-1505, U13): the title over a
+  // grey line of the chat's facts, no face and no Unread chip (the sidebar shows unread); its moves are toolbar
+  // symbols, not a row under the box.
+  const itemView = item ? chatItem({ item, live: null, turns: [] }) : null;
+  const toolbar = itemView && item;
+  const itemLine = toolbar ? <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" /> : undefined;
   const toolbarItems = toolbar ? (
     <>
       {tab === "desk" && <DeskActions />}
@@ -222,24 +195,6 @@ export function DeskPane(props: DeskPaneProps) {
       />
     </>
   ) : undefined;
-  // Its moves, under the box (plan 097, U8): read while something is new, and archive. Under Liquid Glass they are the
-  // toolbar's (above), so the box has no row under it.
-  const itemMoves =
-    !toolbar && itemView && item ? (
-      <ActionBar
-        className={COMPOSER_COLUMN}
-        view={itemView.actions}
-        quiet={itemView.proposals.some((p) => p.kind === "approval" || p.kind === "question")}
-        verbs={{
-          ...(item.unread ? { mark_read: { run: () => markDone(catchUp, item), keys: keyFor(DONE), title: "mark it read: what is new is cleared" } } : {}),
-          archive: {
-            run: () => void catchUp.archive(item, "click"),
-            disabled: item.id === "default",
-            title: item.id === "default" ? "a main chat cannot be archived" : "done with this chat: it leaves the list and Flow",
-          },
-        }}
-      />
-    ) : undefined;
 
   return (
     <div className="loki-desk-pane" ref={paneRef}>
@@ -261,7 +216,7 @@ export function DeskPane(props: DeskPaneProps) {
               <span className="loki-desk-pane-labels">
                 <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
                 <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
-                  {glass ? (chatLabels.length ? "Edit Labels" : "Add Label") : chatLabels.length ? "edit labels" : "+ label"}
+                  {chatLabels.length ? "Edit Labels" : "Add Label"}
                 </button>
               </span>
             )}
@@ -312,7 +267,6 @@ export function DeskPane(props: DeskPaneProps) {
               modeMenuTick={tickFor(mode, "messages")}
               suggestionsTick={tickFor(suggest, "messages")}
               prefill={prefillFor("messages")}
-              footer={itemMoves}
               suggestions={runtime ? { source: catchUp, rt: runtime } : null}
             />
           </div>
@@ -443,7 +397,7 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
  */
 function DeskActions() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const native = useNativeMenus();
+  const native = NATIVE_MENUS;
   const action = (id: string, label: string, icon: LucideIcon): MenuEntry => ({ type: "item", id, label, icon, keys: specFor(id), run: () => runAction(id) });
   const entries: MenuEntry[] = [
     action("desk.arrange", "Arrange Widgets", LayoutGridIcon),
@@ -459,7 +413,7 @@ function DeskActions() {
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         onClick={(e) => {
-          // Under Liquid Glass in the Mac app the system's menu hangs from the button (U19).
+          // In the Mac app the system's menu hangs from the button (U19).
           if (native) void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: pane menu", err));
           else setMenuOpen((v) => !v);
         }}

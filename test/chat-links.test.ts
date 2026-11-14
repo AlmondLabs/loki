@@ -395,7 +395,7 @@ describe("the link card and the header", () => {
     expect(html).toContain("wants to message another chat");
     expect(html).toContain("infra (Bo on studio)");
     expect(html).toContain("Is the cert renewed?");
-    for (const words of ["one way", "both ways", "1 hour", "1 day", "until I close it", "allow", "deny"]) expect(html).toContain(words);
+    for (const words of ["one way", "both ways", "1 hour", "1 day", "until I close it", ">Allow</button>", ">Deny</button>"]) expect(html).toContain(words);
     // It starts on one way and on the default duration Preferences set.
     expect(html).toMatch(/aria-checked="true"[^>]*aria-label="direction: one way"/);
     expect(html).toMatch(/aria-checked="true"[^>]*aria-label="for: 1 day"/);

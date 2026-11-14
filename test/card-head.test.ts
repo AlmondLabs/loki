@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideReach } from "../core/frame-types.ts";
 import { REACH_LABEL, REACH_LEVEL, mailReach, slackReach } from "../core/outside-reach.ts";
-import { CardFace, CardHead, ReachTag } from "../app/src/desk/card-head.tsx";
+import { CardFace } from "../app/src/desk/card-head.tsx";
 
 /** Every Inbox card's header (plan 073): who, where or what, and how directly it is meant for the person. */
 
@@ -34,24 +34,11 @@ describe("how directly a card is meant for the person", () => {
   });
 });
 
-describe("the header", () => {
-  const head = (reach: OutsideReach) =>
-    renderToStaticMarkup(
-      createElement(CardHead, {
-        face: createElement(CardFace, { name: "Grace Hopper", src: null, mark: "slack" }),
-        who: "Grace Hopper",
-        line: "#general",
-        right: createElement(ReachTag, { reach }),
-      }),
-    );
-
-  test("shows who, where, the mark of where it came from and the tag", () => {
-    const html = head("channel");
-    expect(html).toContain("Grace Hopper");
-    expect(html).toContain("#general");
+describe("the face", () => {
+  test("a Slack card's face carries the mark of where it came from", () => {
+    const html = renderToStaticMarkup(createElement(CardFace, { name: "Grace Hopper", src: null, mark: "slack" }));
     expect(html).toContain('class="loki-card-mark loki-card-mark--slack"');
     expect(html).toContain('aria-label="from Slack"');
-    expect(html).toContain("@channel");
   });
 
   test("a Jira card's face carries its own mark", () => {
@@ -59,11 +46,5 @@ describe("the header", () => {
     expect(html).toContain('class="loki-card-mark loki-card-mark--jira"');
     expect(html).toContain('aria-label="from Jira"');
     expect(html).toContain("◆");
-  });
-
-  test("only the top of the scale takes the attention dot, and the bottom steps back", () => {
-    expect(head("dm")).toContain("loki-reach--direct");
-    expect(head("mention")).not.toMatch(/loki-reach--(direct|quiet)/);
-    expect(head("automated")).toContain("loki-reach--quiet");
   });
 });

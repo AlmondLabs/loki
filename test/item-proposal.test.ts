@@ -1,11 +1,10 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PendingApproval } from "../core/attention/model.ts";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView, replyEdit } from "../app/src/item/proposal.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
-import { threadPreview } from "../app/src/item/preview.ts";
 
 // Plan 097, U5: what the agent asks the person to decide, as one Proposal frame. Pressing is checked in the app.
 
@@ -35,17 +34,16 @@ const reply = (over: Partial<ReplyProposal> = {}): ReplyProposal => ({
 const decide = () => Promise.resolve({ done: true, message: null, replace: false, proposal: null });
 
 describe("an approval", () => {
-  test("is the paused tool call: its name, awaiting approval, its input, and approve, always allow and deny", () => {
+  test("is the paused tool call: a question naming it, its input, and deny, always allow and allow", () => {
     const out = html(createElement(ApprovalProposal, { approval: approval(), onApprove: () => {}, hints: { approve: "A", deny: "D" } }));
     expect(out).toContain('data-proposal="approval"');
-    expect(out).toContain("write_file");
-    expect(out).toContain("awaiting approval");
+    expect(out).toContain("Allow the agent to run “write_file”?");
     expect(out).toContain("reports/weekly-signups.md");
-    expect(out).toContain('data-action="approve"');
-    expect(out).toContain('data-action="always"');
-    expect(out).toContain('data-action="deny"');
-    // Flow's keys are shown on their buttons.
-    expect(out).toMatch(/approve<kbd[^>]*>A<\/kbd>/);
+    expect([...out.matchAll(/data-action="(\w+)"/g)].map((m) => m[1])).toEqual(["deny", "always", "approve"]);
+    // Flow's keys are in the buttons' tooltips, not on their faces.
+    expect(out).toContain('title="Allow (A)"');
+    expect(out).toContain('title="Deny (D)"');
+    expect(out).not.toContain("<kbd");
   });
 
   test("is a plain card with the attention dot, never a red panel", () => {
@@ -108,7 +106,6 @@ describe("quick replies", () => {
 });
 
 describe("the pane's seam", () => {
-  afterEach(() => threadPreview.set("off"));
   const pane = (touch = false) =>
     html(
       createElement(Conversation, {
@@ -119,18 +116,15 @@ describe("the pane's seam", () => {
       }),
     );
 
-  test("today's approval card and footer by default; the Proposal, with no footer buttons, when the preview is on", () => {
-    const today = pane();
-    expect(today).toContain("data-approval");
-    expect(today).not.toContain("data-proposal");
-    threadPreview.set("on");
-    const preview = pane();
-    expect(preview).toContain('data-proposal="approval"');
-    expect(preview).not.toContain("loki-approve");
+  test("the desktop draws the Proposal, with no footer buttons", () => {
+    const out = pane();
+    expect(out).toContain('data-proposal="approval"');
+    expect(out).not.toContain("loki-approve");
   });
 
-  test("the phone keeps today's card whatever the preview says", () => {
-    threadPreview.set("on");
-    expect(pane(true)).not.toContain("data-proposal");
+  test("the phone keeps its own card", () => {
+    const out = pane(true);
+    expect(out).toContain("data-approval");
+    expect(out).not.toContain("data-proposal");
   });
 });

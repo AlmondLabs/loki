@@ -1,21 +1,19 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
 import { keyboard } from "../desk/env";
-import { useLook, type Look } from "../theme";
 
 /**
  * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
  * then the ones that work everywhere — and closes on `?` or Escape. The rows are the keymap's (keymap.ts), so
  * the sheet cannot drift from the handler or the menu; the full table with the global key lives in Preferences › Keys.
- * Under Liquid Glass (plan 2026-11-12-1505, U20) it is a plain panel that dims nothing behind it: the menu bar carries
- * the keys, and this is the list of them for the view, named as the sidebar names it.
+ * It is a plain panel that dims nothing behind it (plan 2026-11-12-1505, U20): the menu bar carries the keys, and this is
+ * the list of them for the view, named as the sidebar names it.
  */
 export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; onClose: () => void; onSettings: () => void }) {
-  const glass = useLook() === "glass";
-  const groups = keysFor(segment, KEYMAP, keyboard, glass ? "glass" : "classic");
-  const place = glass ? (PLACE[segment] ?? sentence(segment)) : segment;
+  const groups = keysFor(segment, KEYMAP, keyboard);
+  const place = PLACE[segment] ?? sentence(segment);
   return (
-    <Sheet label={glass ? `Keys for ${place}` : `keys for ${segment}`} onClose={onClose} width={620} clear={glass}>
+    <Sheet label={`Keys for ${place}`} onClose={onClose} width={620} clear>
       <div
         // The card caps its height and clips; the list scrolls inside it, so a view with many keys shows them all.
         style={{ display: "grid", gap: 16, padding: "18px 22px 16px", maxHeight: "inherit", boxSizing: "border-box", overflowY: "auto" }}
@@ -30,7 +28,6 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
           <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>Keys</span>
           <Meta>{place}</Meta>
           <span style={{ flex: 1 }} />
-          {!glass && <Meta>? or esc closes</Meta>}
         </div>
         {groups.map((g) => (
           <section key={g.where} aria-label={g.title} style={{ display: "grid", gap: 4 }}>
@@ -43,10 +40,10 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                   ))}
                 </span>
                 <span style={{ color: "var(--loki-fg)" }}>
-                  {glass ? sentence(b.label) : b.label}
+                  {sentence(b.label)}
                   {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && (
                     <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>
-                      {glass ? "Not while typing" : "not while typing"}
+                      Not while typing
                     </span>
                   )}
                   {b.was && (
@@ -60,17 +57,11 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
           </section>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Meta wrap>{glass ? sentence(keysSheetNote()) : keysSheetNote()}</Meta>
+          <Meta wrap>{sentence(keysSheetNote())}</Meta>
           <span style={{ flex: 1 }} />
-          {glass ? (
-            <Button size="sm" onClick={onSettings} title={`Open Keys (${keyFor("segment.settings", keyboard, 1)})`}>
-              Open
-            </Button>
-          ) : (
-            <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", keyboard, 1)}>
-              open
-            </Button>
-          )}
+          <Button size="sm" onClick={onSettings} title={`Open Keys (${keyFor("segment.settings", keyboard, 1)})`}>
+            Open
+          </Button>
         </div>
       </div>
     </Sheet>
@@ -87,12 +78,7 @@ export function keysSheetNote(os: Platform = keyboard): string {
  * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar). The rows carry
  * the system's own keys (keysOf).
  */
-export function keysFor(
-  segment: Segment,
-  map: Binding[] = KEYMAP,
-  os: Platform = keyboard,
-  look: Look = "classic",
-): Array<{ where: Where; title: string; rows: Binding[] }> {
+export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
     const own = keysOf(b, os);
@@ -105,7 +91,7 @@ export function keysFor(
           )
         : new Set<string>();
     const keys = own.filter((k) => !taken.has(k));
-    const label = labelOf(b, os, look);
+    const label = labelOf(b, os);
     return keys.length === 0 ? null : own === b.keys && keys.length === own.length && label === b.label ? b : { ...b, keys, label };
   };
   return wheres
@@ -113,7 +99,7 @@ export function keysFor(
     .filter((g) => g.rows.length > 0);
 }
 
-/** A section as the Liquid Glass sidebar names it, where that differs from its id. */
+/** A section as the sidebar names it, where that differs from its id. */
 const PLACE: Partial<Record<Segment, string>> = { desk: "Chats", inbox: "Flow" };
 
 const TITLE: Partial<Record<Where, string>> = {

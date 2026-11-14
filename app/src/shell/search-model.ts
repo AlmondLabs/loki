@@ -35,8 +35,8 @@ import type { LabelView } from "../../../core/labels.ts";
 export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
 
 /**
- * ⌘K's foot line: what plain ⌘K finds. Under Liquid Glass it also runs this screen's commands (U23) and, with a chat
- * open, offers its models and permission modes (U21), and says so.
+ * ⌘K's foot line: what plain ⌘K finds. It also runs this screen's commands (U23) and, with a chat open, offers its
+ * models and permission modes (U21), and says so.
  */
 export function coverageLine({ commands, chat }: { commands: boolean; chat: boolean }): string {
   if (!commands && !chat) return COVERAGE;

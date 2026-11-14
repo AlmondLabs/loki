@@ -3,11 +3,10 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { LucideIcon } from "lucide-react";
 import { inTauri, platform } from "../desk/env";
-import { useLook } from "../theme";
 
 /**
- * A menu described once (plan 2026-11-12-1505, U19): under Liquid Glass in the Mac app it pops up as a real macOS
- * menu at the control or the pointer, drawn by AppKit (U22); everywhere else the same entries draw as loki's own menu.
+ * A menu described once (plan 2026-11-12-1505, U19): in the Mac app it pops up as a real macOS menu at the control or the
+ * pointer, drawn by AppKit (U22); everywhere else the same entries draw as loki's own menu.
  * Either way an action shows the same Lucide icon it has in the rest of the app.
  */
 export type MenuEntry =
@@ -35,13 +34,8 @@ export type MenuEntry =
   | { type: "separator" }
   | { type: "submenu"; id: string; label: string; items: MenuEntry[]; disabled?: boolean };
 
-/** Whether this window can pop up native menus: the Mac app only. */
+/** Whether this window pops up native menus: the Mac app only. */
 export const NATIVE_MENUS = inTauri && platform === "macos";
-
-/** Whether menus pop up natively here: Liquid Glass in the Mac app (today's look keeps loki's own menus). */
-export function useNativeMenus(): boolean {
-  return useLook() === "glass" && NATIVE_MENUS;
-}
 
 /** Separators only between groups: none leading, trailing or doubled, which an item left out can leave behind. */
 export function tidyEntries(entries: MenuEntry[]): MenuEntry[] {

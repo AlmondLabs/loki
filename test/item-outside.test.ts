@@ -41,9 +41,9 @@ const SLACK = [
 const read = (messages: OutsideMessage[]) => ({ kind: "read" as const, messages });
 
 describe("the outside thread's seam", () => {
-  test("today's Slack rows by default, the item's rows with items on", () => {
-    const today = html(createElement(OutsideThread, { facts: facts(), state: read(SLACK) }));
-    expect(today).not.toContain("data-row-item");
+  test("the plain Slack rows without items, the item's rows with items on", () => {
+    const plain = html(createElement(OutsideThread, { facts: facts(), state: read(SLACK) }));
+    expect(plain).not.toContain("data-row-item");
     const items = html(createElement(OutsideThread, { facts: facts(), state: read(SLACK), items: true }));
     expect(items).toContain("data-row-item");
     expect(items).toContain('data-row="person"');
@@ -72,7 +72,7 @@ describe("the outside thread's seam", () => {
     expect(html(createElement(OutsideThread, { facts: facts(), state: read(SLACK), touch: true, items: true }))).not.toContain("data-row-item");
   });
 
-  test("while the thread is read, the card's last lines stand in, as today", () => {
+  test("while the thread is read, the card's last lines stand in", () => {
     expect(html(createElement(OutsideThread, { facts: facts(), state: { kind: "loading" }, items: true }))).toContain("reading the whole thread");
   });
 });
@@ -122,9 +122,9 @@ describe("the outside reply box on the Composer", () => {
     people: [],
   };
 
-  test("today's box by default; the Composer with items, saying where a Slack reply goes, with the card's moves under it", () => {
-    const today = html(createElement(OutsideReply, { facts: facts(), box: box(), actions: createElement("span", null, "the moves") }));
-    expect(today).not.toContain("data-reply-box");
+  test("the plain box without items (the phone's); the Composer with items, saying where a Slack reply goes, with the card's moves under it", () => {
+    const plain = html(createElement(OutsideReply, { facts: facts(), box: box(), actions: createElement("span", null, "the moves") }));
+    expect(plain).not.toContain("data-reply-box");
     const items = html(
       createElement(OutsideReply, {
         facts: facts({ thread_id: "C1:1.0" }),
@@ -134,15 +134,15 @@ describe("the outside reply box on the Composer", () => {
       }),
     );
     expect(items).toContain("data-reply-box");
-    expect(items).toMatch(/data-target[^>]*>reply in the thread</);
+    expect(items).toMatch(/data-target[^>]*>Reply in the thread</);
     expect(items).toContain("Thursday works.");
-    expect(items).toContain('aria-label="send"');
+    expect(items).toContain('aria-label="Send"');
     expect(items).toContain("the moves");
   });
 
   test("send waits for words, and a failed send says why", () => {
     const empty = html(createElement(OutsideReply, { facts: facts(), box: box(), items: true }));
-    expect(empty).toMatch(/aria-label="send"[^>]*disabled|disabled[^>]*aria-label="send"/);
+    expect(empty).toMatch(/aria-label="Send"[^>]*disabled|disabled[^>]*aria-label="Send"/);
     expect(html(createElement(OutsideReply, { facts: facts(), box: box({ text: "x", error: "Slack refused it" }), items: true }))).toContain(
       "Slack refused it",
     );
@@ -161,8 +161,8 @@ describe("the outside reply box on the Composer", () => {
     );
     expect(out).toContain("billing@northwind.example");
     expect(out).toContain("Example Co");
-    expect(out).toContain('aria-label="show the quoted mail"');
-    expect(out).toContain(">discard<");
+    expect(out).toContain('aria-label="Show the Quoted Mail"');
+    expect(out).toContain(">Discard<");
     expect(out).not.toContain("the moves");
   });
 });

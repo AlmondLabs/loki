@@ -107,18 +107,6 @@ export const SEND_NOTE: Record<AccountProvider, string> = {
 /** The mark on a card's face for where it came from. */
 export const MARK: Record<AccountProvider, CardMark> = { gmail: "mail", slack: "slack", jira: "jira" };
 
-/** What the header's second line names first: a mail's sender, a Slack channel or DM, or a Jira ticket's key and title. */
-export function headWhat(facts: OutsideFacts): string | null {
-  switch (facts.provider) {
-    case "gmail":
-      return senderName(facts.sender);
-    case "slack":
-      return facts.place ?? (facts.reach === "dm" ? "direct message" : null);
-    case "jira":
-      return ticketLine(facts) || null;
-  }
-}
-
 /** Where a card came from, as the header says it when more than one account of its service is connected. */
 export const CAME_FROM: Record<AccountProvider, string> = {
   gmail: "the mailbox it came to",

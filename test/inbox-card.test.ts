@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
 import { Card, CardConversation, Decisions, takeSeeds, type CardActions } from "../app/src/phone/inbox.tsx";
-import { CardHeader } from "../app/src/desk/catch-up-parts.tsx";
+import { ChatItemHeader } from "../app/src/desk/catch-up-parts.tsx";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
@@ -121,9 +121,11 @@ describe("the Inbox card's suggestions (plan 049)", () => {
     expect(html).toContain("New chat with friday in work");
   });
   test("the desktop card's head says how many wait, beside draft, as a button", () => {
-    const html = inPage(createElement(CardHeader, { current: item(), cameBack: false, flash: null, suggestions: 2, onSuggestions: () => {} }));
+    const noop = () => {};
+    const moves = { current: item(), typing: false, read: noop, later: noop, archive: noop, onOpenDesk: noop, onClose: noop };
+    const html = inPage(createElement(ChatItemHeader, { current: item(), cameBack: false, flash: null, suggestions: 2, onSuggestions: noop, moves }));
     expect(html).toMatch(/<button[^>]*loki-chip--tag[^>]*>2 suggestions<\/button>/);
-    expect(inPage(createElement(CardHeader, { current: item(), cameBack: false, flash: null }))).not.toContain("suggestion");
+    expect(inPage(createElement(ChatItemHeader, { current: item(), cameBack: false, flash: null, moves }))).not.toContain("suggestion");
   });
   test("/suggestions opens them, as ⌘⇧S does", () => {
     expect(LOKI_COMMANDS.find((c) => c.id === "suggestions")?.action).toBe("chat.suggestions");

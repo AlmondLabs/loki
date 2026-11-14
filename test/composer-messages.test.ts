@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeProvider } from "../app/src/theme.tsx";
@@ -6,19 +6,11 @@ import { Composer, type ComposerProps } from "../app/src/item/composer.tsx";
 import { matchModes } from "../app/src/shell/search-sheet.tsx";
 import type { SharedModes } from "../app/src/shell/command-center.ts";
 
-// Plan 2026-11-12-1505, U21: under Liquid Glass on the desktop the message box is Messages': "+" outside a one-line
-// capsule, one round button inside it, no pills. The model and the permission mode change rarely, so ⌘K is their one
-// home (⌘⇧M, ⌘⇧P), with no second control in the box or the toolbar. ThemeProvider reads the palette from storage, so the apple family is
-// put there for the glass cases and left out for today's look. Typing, the menus and the keys are checked in the app.
+// Plan 2026-11-12-1505, U21: on the desktop the message box is Messages': "+" outside a one-line capsule, one round
+// button inside it, no pills. The model and the permission mode change rarely, so ⌘K is their one home (⌘⇧M, ⌘⇧P),
+// with no second control in the box or the toolbar. Typing, the menus and the keys are checked in the app.
 
 const noop = () => {};
-let saved: Storage | undefined;
-const withPalette = (palette: string | null) => {
-  Object.defineProperty(globalThis, "localStorage", {
-    configurable: true,
-    value: { getItem: (key: string) => (key === "loki.palette" ? palette : null), setItem: noop },
-  });
-};
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 const box = (over: Partial<ComposerProps> = {}) =>
   createElement(Composer, {
@@ -33,16 +25,8 @@ const box = (over: Partial<ComposerProps> = {}) =>
     ...over,
   });
 
-beforeEach(() => {
-  saved = globalThis.localStorage;
-});
-afterEach(() => {
-  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: saved });
-});
-
-describe("the message box under Liquid Glass", () => {
+describe("the message box", () => {
   test("is one capsule with + outside it, and draws no pills in it", () => {
-    withPalette("apple");
     const out = html(box());
     expect(out).toContain('data-composer="messages"');
     expect(out).toContain("loki-composer-capsule");
@@ -54,7 +38,6 @@ describe("the message box under Liquid Glass", () => {
   });
 
   test("shows send, the up-arrow, only once there is something to send", () => {
-    withPalette("apple");
     expect(html(box())).not.toContain('data-kind="send"');
     const typed = html(box({ value: "hello", canSend: true }));
     expect(typed).toMatch(/data-kind="send"[^>]*aria-label="Send"/);
@@ -62,16 +45,8 @@ describe("the message box under Liquid Glass", () => {
   });
 
   test("shows stop while the agent works and nothing is typed, and send again once something is", () => {
-    withPalette("apple");
     expect(html(box({ onStop: noop }))).toMatch(/data-kind="stop"[^>]*aria-label="Stop"/);
     expect(html(box({ onStop: noop, value: "wait", canSend: true }))).toContain('data-kind="send"');
-  });
-
-  test("keeps today's box in today's look, pills and all", () => {
-    withPalette(null);
-    const out = html(box());
-    expect(out).not.toContain('data-composer="messages"');
-    expect(out).toContain("data-pill");
   });
 });
 

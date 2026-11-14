@@ -22,7 +22,7 @@ describe("AgentTurn", () => {
     expect(working).toContain("working");
     const done = html(createElement(AgentTurn, { agentName: "friday", state: "done", failed: 0, took: "2 min", parts: [], draw: () => null }));
     expect(done).not.toContain("animate-spin");
-    expect(done).toContain("worked 2 min");
+    expect(done).toContain("Worked 2 min");
   });
 
   test("a done turn has no state badge; the others keep theirs", () => {

@@ -13,7 +13,6 @@ import {
 } from "react";
 import "./chat.css";
 import { useHeightVar } from "../shared/use-height-var";
-import { useLook } from "../theme";
 import { offersAlways, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -21,7 +20,6 @@ import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { Button, Chip, Title, sentence } from "../components";
 import { AgentChip, AgentFace } from "../desk/agent-chip";
 import { avatarUrl } from "../desk/env";
-import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
 import { LinkCard } from "./link-card";
@@ -47,9 +45,7 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
-import { useThreadPreview } from "../item/preview";
 import { Composer } from "../item/composer";
-import { ModelDialog } from "../item/model-dialog";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposals } from "../item/proposal";
 import { Timeline } from "../item/timeline";
 
@@ -78,7 +74,7 @@ export interface ConversationView {
   home?: string | null;
   /** The chat's live links to other chats (plan 067), as its header shows them. */
   links?: LinkSeen[];
-  /** A chat not started yet (⌘N under Liquid Glass): its empty thread says nothing, as a new message in Messages. */
+  /** A chat not started yet (⌘N): its empty thread says nothing, as a new message in Messages. */
   blank?: boolean;
 }
 
@@ -129,7 +125,6 @@ export function Conversation({
   usualModels,
   agentName,
   header,
-  footer,
   hints,
   inputRef: inputRefProp,
   prefill = null,
@@ -160,8 +155,6 @@ export function Conversation({
   agentName?: string | null;
   /** Above the thread: a ConversationHeader, or the host's own. */
   header?: ReactNode;
-  /** The right side of the last row, after the switchers and approve / deny. */
-  footer?: ReactNode;
   /** Key legends on approve / deny (the inbox's A / D, ⌘↵ / ⌘⇧D while typing). */
   hints?: { approve?: string; deny?: string };
   /** The message box, when the host needs to focus it (the inbox's R). */
@@ -192,7 +185,7 @@ export function Conversation({
   layout?: MessageLayout;
   /** A line between the thread and the box: "atlas is waiting for your reply", the link state. */
   notice?: ReactNode;
-  /** The empty box's words, in place of composerPlaceholder's. */
+  /** The empty box's words, in place of boxPlaceholder's. */
   placeholder?: string;
   /**
    * False keeps only the header, find and the thread: a view that is hidden but must keep its scroll (the
@@ -210,9 +203,8 @@ export function Conversation({
   // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
   // would be drawn again with each one (plan 032).
   const status = view.status;
-  // The new chat pane (plan 097, U5) draws what the agent asks of the person as Proposals; the phone keeps today's cards.
-  const [preview] = useThreadPreview();
-  const proposals = preview === "on" && !touch;
+  // The desktop draws what the agent asks of the person as Proposals (plan 097, U5); the phone keeps its cards.
+  const proposals = !touch;
   // The new pane shows what waits to send in the Composer's queue rather than at the end of the thread.
   const queuedRows = proposals ? (view.rows ?? EMPTY).filter((r) => r.queued) : EMPTY;
   const approval = view.approval ?? null;
@@ -271,7 +263,7 @@ export function Conversation({
   const hasModeMenu = !!actions.onPickMode && (!modes || modes.length > 0);
   const onApprove = approval ? actions.onApprove : undefined;
   const canApprove = !!onApprove;
-  const hasFooter = (canApprove && !proposals) || !!footer;
+  const hasFooter = canApprove && !proposals;
   const hasContent = !!draft.trim() || images.length > 0;
   // Stop, asked for and not yet ended: the button waits until the harness says the turn is over.
   const running = status !== "idle";
@@ -292,12 +284,11 @@ export function Conversation({
     actions.onSend(text);
     onSent?.();
   };
-  const glass = useLook() === "glass";
   const onBoxKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (palette.onKeyDown(e)) return true;
-    // Liquid Glass (plan 2026-11-12-1505, R11): Return on an empty box answers the approval with Allow, its default
-    // button; with words in the box it sends them as the reply and the approval stays open.
-    if (glass && approval && onApprove && !hasContent && e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
+    // Return on an empty box answers the approval with Allow, its default button (plan 2026-11-12-1505, R11); with words
+    // in the box it sends them as the reply and the approval stays open.
+    if (!touch && approval && onApprove && !hasContent && e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       onApprove("allow");
       return true;
@@ -308,11 +299,11 @@ export function Conversation({
     sendReply(option);
     return true;
   };
-  // Under Liquid Glass on the desktop the model and the permission mode are changed in ⌘K (plan 2026-11-12-1505, U19,
-  // U21, U23), their one home: the chat shares its controls, and ⌘⇧M and ⌘⇧P open ⌘K on the Models or Permissions scope.
-  // The new pane otherwise picks a model in AI Elements' ModelSelector dialog; today's box keeps its popover (plan 097, U6).
-  const inCommand = glass && !touch && hasModelPicker;
-  const modesInCommand = glass && !touch && hasModeMenu;
+  // On the desktop the model and the permission mode are changed in ⌘K (plan 2026-11-12-1505, U19, U21, U23), their one
+  // home: the chat shares its controls, and ⌘⇧M and ⌘⇧P open ⌘K on the Models or Permissions scope. The phone keeps its
+  // popover (plan 097, U6).
+  const inCommand = !touch && hasModelPicker;
+  const modesInCommand = !touch && hasModeMenu;
   const modeList = modes ?? MODES;
   useShareModels(
     inCommand || modesInCommand
@@ -334,23 +325,12 @@ export function Conversation({
         }
       : null,
   );
-  // Under Liquid Glass the box is Messages' (plan 2026-11-12-1505, U21): no pills in it, and "+" only attaches files.
-  const messages = glass && !touch && proposals;
+  // On the desktop the box is Messages' (plan 2026-11-12-1505, U21): no pills in it, and "+" only attaches files; the
+  // model is picked in ⌘K. The phone's pills open its sheet.
   const picker =
     hasModelPicker &&
     (inCommand ? (
       <OpenScope scope="models" open={controls.pickerOpen} onOpened={controls.closePicker} />
-    ) : proposals ? (
-      <ModelDialog
-        open={controls.pickerOpen}
-        current={model}
-        currentEffort={reasoningEffort}
-        entries={models}
-        started={started}
-        loading={!models}
-        onPick={(selection) => void controls.pickModel(selection)}
-        onClose={controls.closePicker}
-      />
     ) : (
       <ModelPicker
         open={controls.pickerOpen}
@@ -385,7 +365,7 @@ export function Conversation({
       <StepsTouch.Provider value={touch}>
         <Thread
           ref={threadRef}
-          previewable={!touch}
+          phone={touch}
           rows={view.rows}
           status={status}
           error={view.error ?? null}
@@ -415,8 +395,8 @@ export function Conversation({
       </StepsTouch.Provider>
 
       {composer && (
-        // The dock: decisions, the box and the moves. Under Liquid Glass it floats over the thread, which scrolls on
-        // beneath it (components.css); elsewhere it is display: contents and changes nothing.
+        // The dock: decisions, the box and the moves. It floats over the thread, which scrolls on beneath it
+        // (components.css).
         <div ref={dockRef} className="loki-dock">
           {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
           <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 empty:hidden" : "contents"}>
@@ -463,7 +443,7 @@ export function Conversation({
                 return proposals ? <div className="relative mx-auto w-full max-w-3xl px-6">{list}</div> : list;
               })()}
             {(() => {
-              // The new pane's Composer takes the same props as today's box, plus the queue it shows above the field.
+              // The desktop's Composer takes the same props as the phone's box, plus the queue it shows above the field.
               const Box = proposals ? Composer : ChatInput;
               return (
                 <Box
@@ -480,10 +460,10 @@ export function Conversation({
                   onBlur={() => onTyping?.(false)}
                   images={images}
                   onImages={setImages}
-                  placeholder={placeholder ?? (glass ? glassPlaceholder : composerPlaceholder)({ status, approval, question }, agentName)}
+                  placeholder={placeholder ?? boxPlaceholder({ status, approval, question }, agentName, touch)}
                   touch={touch}
                   tools={
-                    !messages &&
+                    touch &&
                     (hasModelPicker || hasModeMenu || suggestions) && (
                       <>
                         {hasModelPicker && (
@@ -496,8 +476,6 @@ export function Conversation({
                             onClick={controls.togglePicker}
                           />
                         )}
-                        {/* The desktop's popover hangs above the box; the phone's sheet is drawn outside it (below), over the whole screen. */}
-                        {!touch && picker}
                         {/* The permission mode beside the model: both say how this conversation's agent works. */}
                         {hasModeMenu && <ModeSwitch mode={currentMode} modes={modes} controls={controls} />}
                         {/* After the chat's own pills, never beside send: it shows only while suggestions wait, and must not move send. */}
@@ -512,55 +490,47 @@ export function Conversation({
                   sendTitle={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
                   {...palette.aria}
                   {...(proposals ? { queued: queuedRows, onCancelQueued: actions.onCancelQueued } : {})}
-                  {...(messages ? { extras: suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} /> } : {})}
+                  {...(proposals ? { extras: suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} /> } : {})}
                 />
               );
             })()}
           </div>
-          {(touch || messages) && picker}
-          {messages && modesInCommand && <OpenScope scope="permissions" open={controls.modeOpen} onOpened={controls.closeMode} />}
+          {/* The phone's sheet is drawn outside the box, over the whole screen; the desktop's opens ⌘K. */}
+          {picker}
+          {modesInCommand && <OpenScope scope="permissions" open={controls.modeOpen} onOpened={controls.closeMode} />}
 
-          {hasFooter && (
+          {/* The phone's approve and deny, under the box; the desktop's approval is a Proposal above it. */}
+          {onApprove && !proposals && (
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
-              {onApprove &&
-                !proposals &&
-                (() => {
-                  const approve = (
-                    <Button
-                      key="approve"
-                      size={touch ? "touch" : "sm"}
-                      tone="positive"
-                      className="loki-approve"
-                      onClick={() => onApprove("allow")}
-                      kbd={hints?.approve}
-                    >
-                      approve
-                    </Button>
-                  );
-                  const deny = (
-                    <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => onApprove("deny")} kbd={hints?.deny}>
-                      deny
-                    </Button>
-                  );
-                  // Allows this call and every later one of the same tool, in any chat, until taken back in Preferences › Chat (not in strict mode).
-                  const always = (
-                    <Button
-                      key="always"
-                      size={touch ? "touch" : "sm"}
-                      tone="paper"
-                      className="loki-approve-always"
-                      onClick={() => onApprove("always")}
-                      title="allow this tool from now on, in every chat (Preferences › Chat takes it back)"
-                    >
-                      always allow
-                    </Button>
-                  );
-                  // A script's card has no "always allow": each script is new code (offersAlways).
-                  const more = approval && offersAlways(approval) ? [always] : [];
-                  // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
-                  return touch ? [deny, ...more, approve] : [approve, ...more, deny];
-                })()}
-              {footer}
+              {(() => {
+                const approve = (
+                  <Button key="approve" size="touch" tone="positive" className="loki-approve" onClick={() => onApprove("allow")} kbd={hints?.approve}>
+                    approve
+                  </Button>
+                );
+                const deny = (
+                  <Button key="deny" size="touch" tone="negative" className="loki-deny" onClick={() => onApprove("deny")} kbd={hints?.deny}>
+                    deny
+                  </Button>
+                );
+                // Allows this call and every later one of the same tool, in any chat, until taken back in Preferences › Chat (not in strict mode).
+                const always = (
+                  <Button
+                    key="always"
+                    size="touch"
+                    tone="paper"
+                    className="loki-approve-always"
+                    onClick={() => onApprove("always")}
+                    title="allow this tool from now on, in every chat (Preferences › Chat takes it back)"
+                  >
+                    always allow
+                  </Button>
+                );
+                // A script's card has no "always allow": each script is new code (offersAlways).
+                const more = approval && offersAlways(approval) ? [always] : [];
+                // Deny comes first, in reading order as on screen (the phone's two wide buttons).
+                return [deny, ...more, approve];
+              })()}
             </div>
           )}
         </div>
@@ -570,25 +540,14 @@ export function Conversation({
 }
 
 /**
- * What the empty box says under Liquid Glass (plan 2026-11-12-1505, U4–U5): plain words with no keys in them, the keys
- * living in the menu and the tooltips; while an approval waits, that Return allows it.
+ * What the empty box says (plan 2026-11-12-1505, U4–U5): plain words with no keys in them, the keys living in the menu
+ * and the tooltips; while an approval waits, that Return allows it on the desktop.
  */
-export function glassPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined): string {
+export function boxPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined, touch = false): string {
   if (view.question) return "Answer in your own words, or pick above";
-  if (view.approval) return "Reply, or press Return to allow";
+  if (view.approval) return touch ? "Reply, or approve or deny the step" : "Reply, or press Return to allow";
   const who = agentName ?? "the agent";
   return view.status === "idle" ? `Message ${who}` : `Message ${who} — sends when this turn ends`;
-}
-
-/** What the empty box says: answer the open question, decide the approval, or message the agent — with a note when it will queue. */
-export function composerPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined): string {
-  if (view.question) return view.question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…";
-  // The old thread draws the approval under the box, the new pane above it, so the words name no side.
-  if (view.approval) return "reply, or approve or deny the step…";
-  const who = agentName ?? "the agent";
-  return view.status === "idle"
-    ? `message ${who}… (${keyFor("chat.send")} send · ${keyFor("chat.newline")} new line)`
-    : `message ${who}… it goes when this turn ends`;
 }
 
 /**
@@ -653,7 +612,7 @@ export interface ThreadHandle {
   reveal: (query: string) => void;
 }
 
-/** What a thread draws and how it reaches its host; today's thread and the new one take the same (plan 096, KTD7). */
+/** What a thread draws and how it reaches its host; the phone's thread and the Timeline take the same (plan 096, KTD7). */
 export interface ThreadProps {
   rows: TranscriptRow[] | undefined;
   status?: ChatStatus;
@@ -678,17 +637,13 @@ export interface ThreadProps {
    */
   tail?: ReactNode;
   style?: CSSProperties;
-  /** False where the thread must stay today's whatever Preferences say: the phone, until its own plan. */
-  previewable?: boolean;
+  /** The phone's thread, which keeps its own rows until its own plan; the desktop draws the Timeline. */
+  phone?: boolean;
 }
 
-/**
- * The thread, today's or the one on loki's new components, by Preferences › Appearance › New chat pane (preview). The chat
- * pane and the Flow card switch together; a host that passes `previewable={false}` keeps today's.
- */
-export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ previewable = true, ...props }, ref) {
-  const [preview] = useThreadPreview();
-  return preview === "on" && previewable ? <Timeline ref={ref} {...props} /> : <TodayThread ref={ref} {...props} />;
+/** The thread: the Timeline on loki's new components on the desktop (plan 097), the phone's own on the phone. */
+export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ phone = false, ...props }, ref) {
+  return phone ? <PhoneThread ref={ref} {...props} /> : <Timeline ref={ref} {...props} />;
 });
 
 /**
@@ -696,7 +651,7 @@ export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ pr
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function TodayThread(
+const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(function PhoneThread(
   {
     rows,
     status = "idle",

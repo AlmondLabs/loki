@@ -1732,17 +1732,6 @@ button.loki-label-chip:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* How directly a card is meant for the person: the top of the scale reads in full ink, the bottom steps back. */
-.loki-reach {
-  white-space: nowrap;
-}
-.loki-reach--direct {
-  color: var(--loki-fg);
-  font-weight: 600;
-}
-.loki-reach--quiet {
-  color: var(--loki-muted);
-}
 .loki-chat-purpose {
   margin-top: 2px;
   font-size: var(--loki-text-meta);

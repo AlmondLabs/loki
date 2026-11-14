@@ -12,8 +12,8 @@ import { useShellAttention } from "./use-shell-attention";
 import { preferencesProps } from "./views";
 
 /**
- * Whether Preferences can open as a window of its own (plan 2026-11-12-1505, U18): the Mac app only. The shell opens it
- * under Liquid Glass; today's look, Windows, Linux and a browser tab keep the sheet.
+ * Whether Preferences opens as a window of its own (plan 2026-11-12-1505, U18): the Mac app only. Windows, Linux and a
+ * browser tab keep the sheet.
  */
 export const SETTINGS_WINDOW = inTauri && platform === "macos";
 
@@ -49,7 +49,7 @@ function closeThisWindow(): void {
  */
 export function SettingsWindow() {
   const desk = useDesk();
-  const { catchUp } = useShellAttention(desk, desk.attention.capture);
+  const catchUp = useShellAttention(desk, desk.attention.capture);
   const daemon = useDaemonStatus();
   const recall = useRecall(desk, "settings", (m) => void notify(m));
   const update = useLokiUpdate();

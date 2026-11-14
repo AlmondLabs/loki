@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { clampColumn, columnShown, columnStore, hasColumn, loadColumn, saveColumn, toggleColumn, type ColumnPref } from "./column";
+import { clampColumn, columnShown, columnStore, loadColumn, saveColumn, toggleColumn, type ColumnPref } from "./column";
 import type { Segment } from "./keymap";
 
 /**
  * The list column's state for the shell: the kept width and collapse (localStorage, column.ts), the
  * window's width for the fold below 1100, and the narrow window's peek. `shown` is for the showing
- * segment; `everywhere` gives every section one (Liquid Glass's sidebar); `setWidth(w, commit)` moves the edge live and keeps it when `commit` (the drag's end).
+ * segment; `setWidth(w, commit)` moves the edge live and keeps it when `commit` (the drag's end).
  */
-export function useColumn(segment: Segment, everywhere = false) {
+export function useColumn(segment: Segment) {
   const [pref, setPref] = useState<ColumnPref>(() => loadColumn(columnStore()));
   const [peek, setPeek] = useState(false);
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
@@ -34,7 +34,7 @@ export function useColumn(segment: Segment, everywhere = false) {
     [pref],
   );
   const open = columnShown(pref, windowWidth, peek);
-  // Liquid Glass's sidebar (U12) carries the places, so it stands beside every section, Flow included.
-  const has = everywhere ? segment !== "settings" : hasColumn(segment);
+  // The sidebar (U12) carries the places, so it stands beside every section, Flow included.
+  const has = segment !== "settings";
   return { width: pref.width, open, shown: has && open, has, toggle, setWidth };
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
@@ -9,8 +9,8 @@ import { ChatMessage } from "../app/src/item/message-entry.tsx";
 import { NewMarker } from "../app/src/item/event-entry.tsx";
 import { WidgetArtifact } from "../app/src/item/content-parts.tsx";
 import { Thread } from "../app/src/chat/conversation.tsx";
-import { threadPreview } from "../app/src/item/preview.ts";
 import type { WidgetMark } from "../app/src/chat/transcript.tsx";
+import { clockLabel } from "../app/src/shared/thread.ts";
 
 // Plan 096, U5: the new thread on shadcn. Its reading order is a pure function (entries.ts); its pieces render without a
 // browser. Scrolling, following and anchoring are MessageScroller's and are checked by hand in the app.
@@ -176,12 +176,13 @@ describe("the new thread's pieces", () => {
     expect(html).not.toContain("failed</button>");
   });
 
-  test("your message is a block labelled You with its time and copy; the agent's words carry their copy and time", () => {
+  test("your message is a bubble with no label, its time in its tooltip, and copy; the agent's words carry their copy and time", () => {
     const mine = renderToStaticMarkup(
       createElement(ChatMessage, { row: user("hello", "2026-11-11T09:00:00Z"), last: false, streaming: false, arrived: false }),
     );
     expect(mine).toContain('data-row="user"');
-    expect(mine).toContain(">You<");
+    expect(mine).not.toContain(">You<");
+    expect(mine).toContain(`title="${clockLabel("2026-11-11T09:00:00Z")}"`);
     expect(mine).toContain("copy as markdown");
     const theirs = renderToStaticMarkup(createElement(ChatMessage, { row: agent("hi", "2026-11-11T09:01:00Z"), last: true, streaming: false, arrived: false }));
     expect(theirs).toContain('data-row="assistant"');
@@ -194,19 +195,19 @@ describe("the new thread's pieces", () => {
     const queued = renderToStaticMarkup(
       createElement(ChatMessage, { row: { ...user("later"), queued: true }, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }),
     );
-    expect(queued).toContain("queued · sends when this turn ends · take back");
+    expect(queued).toContain("Sends when this turn ends · Take Back");
   });
 
-  test("a turn's header names the agent, how long it worked and where it stands", () => {
+  test("a turn's header says how long it worked and where it stands, and names the agent to a screen reader", () => {
     const html = renderToStaticMarkup(
       createElement(AgentTurn, { agentName: "friday", state: "failed", failed: 1, took: "4 min", parts: [], draw: () => null }),
     );
-    expect(html).toContain("friday");
-    expect(html).toContain("worked 4 min");
+    expect(html).toContain('aria-label="friday&#x27;s turn, 1 failed"');
+    expect(html).toContain("Worked 4 min");
     expect(html).toContain("1 failed");
     expect(
       renderToStaticMarkup(createElement(AgentTurn, { agentName: "friday", state: "needs you", failed: 0, took: null, parts: [], draw: () => null })),
-    ).toContain("needs you");
+    ).toContain("Needs you");
   });
 
   test("the New line and a widget row read as today's", () => {
@@ -219,17 +220,13 @@ describe("the new thread's pieces", () => {
 });
 
 describe("the thread seam", () => {
-  afterEach(() => threadPreview.set("off"));
   const rows = [user("hello"), agent("hi")];
 
-  test("today's thread by default, the new one when the preview is on", () => {
-    expect(renderToStaticMarkup(createElement(Thread, { rows }))).not.toContain("data-new-thread");
-    threadPreview.set("on");
+  test("the desktop draws the new thread", () => {
     expect(renderToStaticMarkup(createElement(Thread, { rows }))).toContain("data-new-thread");
   });
 
-  test("a host that is not previewable keeps today's thread", () => {
-    threadPreview.set("on");
-    expect(renderToStaticMarkup(createElement(Thread, { rows, previewable: false }))).not.toContain("data-new-thread");
+  test("the phone keeps its own thread", () => {
+    expect(renderToStaticMarkup(createElement(Thread, { rows, phone: true }))).not.toContain("data-new-thread");
   });
 });

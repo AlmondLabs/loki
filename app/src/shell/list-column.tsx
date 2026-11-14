@@ -27,13 +27,13 @@ export function ListColumn({
   width: number;
   onWidth: (w: number, commit: boolean) => void;
   sections: Partial<Record<Segment, ReactNode>>;
-  /** Where the column starts, in px: past the rail in today's look, at the glass sidebar's inset in Liquid Glass. */
+  /** Where the column starts, in px: the glass sidebar's inset. */
   left: number;
-  /** The column's top, in px: under the top strip, or under the glass sidebar's row of lights. */
+  /** The column's top, in px: under the glass sidebar's row of lights. */
   top: number;
-  /** Rows above every section's body: Liquid Glass's places (U12). */
+  /** Rows above every section's body: the places (U12). */
   head?: ReactNode;
-  /** Rows under every section's body: Liquid Glass's update notice. */
+  /** Rows under every section's body: the update notice. */
   foot?: ReactNode;
 }) {
   // Which bodies have mounted: set during render (the React pattern for state derived from a prop), so the showing one mounts on the same pass.

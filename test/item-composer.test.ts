@@ -1,11 +1,10 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { createElement, type KeyboardEvent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { useMessageBox, type MessageBoxProps } from "../app/src/chat/chat-input.tsx";
 import { Composer } from "../app/src/item/composer.tsx";
 import { Conversation, Thread } from "../app/src/chat/conversation.tsx";
-import { threadPreview } from "../app/src/item/preview.ts";
 
 // Plan 097, U6: the Composer draws today's message box behaviour (useMessageBox) with AI Elements' PromptInput parts,
 // and shows what waits to send in a Queue above the field. Typing and pasting for real is checked in the app.
@@ -76,47 +75,44 @@ describe("the message box's behaviour", () => {
 });
 
 describe("the Composer", () => {
-  test("is a field named message with send, disabled while there is nothing to send", () => {
+  test("is a field named message with send only once there is something to send", () => {
     const out = html(createElement(Composer, props()));
-    expect(out).toContain("data-composer");
+    expect(out).toContain('data-composer="messages"');
     expect(out).toContain('name="message"');
-    expect(out).toMatch(/aria-label="Send"[^>]*disabled|disabled[^>]*aria-label="Send"/);
+    expect(out).not.toContain('aria-label="Send"');
+    expect(html(createElement(Composer, props({ value: "hello", canSend: true })))).toMatch(/data-kind="send"[^>]*aria-label="Send"/);
   });
 
   test("offers attach only when the host takes files, and stop in send's place while the agent works with nothing typed", () => {
-    expect(html(createElement(Composer, props()))).not.toContain("attach files");
-    expect(html(createElement(Composer, props({ onImages: () => {} })))).toContain("attach files");
+    expect(html(createElement(Composer, props()))).not.toContain("Attach Files");
+    expect(html(createElement(Composer, props({ onImages: () => {} })))).toContain("Attach Files");
     const working = html(createElement(Composer, props({ onStop: () => {} })));
-    expect(working).toContain('aria-label="stop"');
+    expect(working).toContain('aria-label="Stop"');
     expect(working).not.toContain('aria-label="Send"');
   });
 
-  test("shows what waits to send in a queue, each with take back; none, no queue", () => {
+  test("shows what waits to send in a queue, each with Take Back; none, no queue", () => {
     const queued: TranscriptRow[] = [
       { role: "user", text: "Also add week 14.", queued: true },
       { role: "user", text: "And label the peak.", queued: true },
     ];
     const out = html(createElement(Composer, { ...props(), queued, onCancelQueued: () => {} }));
-    expect(out).toContain('aria-label="queued messages"');
+    expect(out).toContain('aria-label="Queued messages"');
     expect(out).toContain("Also add week 14.");
-    expect(out).toContain('aria-label="take back &quot;And label the peak.&quot;"');
-    expect(html(createElement(Composer, props()))).not.toContain("queued messages");
+    expect(out).toContain('aria-label="Take back &quot;And label the peak.&quot;"');
+    expect(html(createElement(Composer, props()))).not.toContain("Queued messages");
   });
 });
 
 describe("the pane's seam", () => {
-  afterEach(() => threadPreview.set("off"));
   const pane = () => html(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {} }, agentName: "friday" }));
 
-  test("today's box by default, the Composer when the preview is on", () => {
-    expect(pane()).toContain("loki-composer-box");
-    expect(pane()).not.toContain("data-composer");
-    threadPreview.set("on");
+  test("the desktop's pane draws the Composer, not the phone's box", () => {
     expect(pane()).toContain("data-composer");
+    expect(pane()).not.toContain("loki-composer-box");
   });
 
-  test("with the preview on, queued messages leave the end of the thread for the queue", () => {
-    threadPreview.set("on");
+  test("queued messages leave the end of the thread for the queue", () => {
     const rows: TranscriptRow[] = [
       { role: "user", text: "chart signups" },
       { role: "assistant", text: "On it." },
