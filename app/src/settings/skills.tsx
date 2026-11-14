@@ -66,8 +66,8 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
     }
   };
   return (
-    <div style={{ display: "grid", gap: 4, padding: "12px 0" }}>
-      <div style={{ display: "flex", gap: 6 }}>
+    <div className="grid gap-1" style={{ padding: "12px 0" }}>
+      <div className="flex gap-1.5">
         <Field
           size="sm"
           mono
@@ -77,7 +77,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
           placeholder="/path/to/skill"
           autoComplete="off"
           data-form-type="other"
-          style={{ flex: 1 }}
+          className="flex-1"
         />
         <Button size="sm" onClick={() => void go()} disabled={busy || !path.trim()}>
           {busy ? "Enabling…" : "Enable"}

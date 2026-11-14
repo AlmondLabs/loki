@@ -85,11 +85,11 @@ function Pair({ macs }: { macs: MacsApi }) {
         </Setting>
         {macs.lastCode && <PairCode code={macs.lastCode} />}
       </div>
-      <div style={{ display: "grid", gap: 12, paddingBottom: 12 }}>
+      <div className="grid gap-3" style={{ paddingBottom: 12 }}>
         <Setting label="From the other Mac" help="Pick it on your tailnet, or type its address, then the code it shows." />
         <TailnetList devices={macs.view?.tailnet ?? []} picked={host} onPick={setHost} />
         <form
-          style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             if (host.trim() && code.trim() && !busy) join();
@@ -102,7 +102,7 @@ function Pair({ macs }: { macs: MacsApi }) {
             placeholder="The other Mac's address"
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            style={{ flex: "1 1 220px", minWidth: 0 }}
+            className="flex-[1_1_220px] min-w-0"
           />
           <Field size="sm" mono aria-label="Its pairing code" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: 96 }} />
           <Button size="sm" type="submit" disabled={busy || !host.trim() || !code.trim()}>
@@ -122,9 +122,9 @@ function Pair({ macs }: { macs: MacsApi }) {
 function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice & { paired: boolean }>; picked: string; onPick: (address: string) => void }) {
   if (devices.length === 0) return null;
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <div className="grid gap-1">
       <span className="loki-meta">On your tailnet · pick the other Mac, then type the code it shows</span>
-      <div role="radiogroup" aria-label="Computers on your tailnet" style={{ display: "grid", gap: 4 }}>
+      <div role="radiogroup" aria-label="Computers on your tailnet" className="grid gap-1">
         {devices.map((d) => {
           const chosen = picked.trim().toLowerCase() === d.address;
           return (
@@ -145,7 +145,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
               }}
             >
               <Dot aria-hidden size={8} color={d.online ? "var(--loki-positive)" : "var(--loki-border)"} ring={!d.online} />
-              <span style={{ display: "grid", minWidth: 0, flex: 1 }}>
+              <span className="grid min-w-0 flex-1">
                 <span style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{d.name}</span>
                 <span className="loki-meta loki-mono">{d.address}</span>
               </span>
@@ -164,7 +164,7 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   const left = countdown(code.expires_at, now);
   const expired = left === "expired";
   return (
-    <div style={{ display: "grid", gap: 4, paddingBottom: 12 }}>
+    <div className="grid gap-1" style={{ paddingBottom: 12 }}>
       <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
         {code.code}
       </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button, sentence } from "../components";
 
 /**
@@ -7,13 +8,13 @@ import { Button, sentence } from "../components";
  */
 export function Fact({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 24, padding: "12px 0" }}>
-      <div style={{ flex: "none", minWidth: 120, fontSize: "var(--loki-text-body)", fontWeight: 600, color: "var(--loki-fg)" }}>{label}</div>
+    <div className="flex items-baseline gap-6" style={{ padding: "12px 0" }}>
+      <div className="flex-none" style={{ minWidth: 120, fontSize: "var(--loki-text-body)", fontWeight: 600, color: "var(--loki-fg)" }}>
+        {label}
+      </div>
       <div
-        className={mono ? "loki-mono" : undefined}
+        className={cn(mono && "loki-mono", "flex-1 min-w-0")}
         style={{
-          flex: 1,
-          minWidth: 0,
           textAlign: "right",
           color: "var(--loki-fg)",
           fontSize: mono ? "var(--loki-text-meta)" : "var(--loki-text-body)",
@@ -35,7 +36,7 @@ export function Fact({ label, value, mono = false }: { label: string; value: Rea
  */
 export function Block({ title, help, children }: { title?: string; help?: string; children: React.ReactNode }) {
   return (
-    <section style={{ display: "grid" }}>
+    <section className="grid">
       {title && (
         <h4 className="loki-title" style={{ margin: 0, fontSize: "var(--loki-text-row)" }}>
           {title}
@@ -54,8 +55,8 @@ export function Block({ title, help, children }: { title?: string; help?: string
 /** One setting: its name, and its help in muted type under it, on the left; its control on the right. A mono name is an id (a tool's). */
 export function Setting({ label, help, mono = false, children }: { label: string; help?: React.ReactNode; mono?: boolean; children?: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 24, padding: "12px 0", minHeight: 32 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <div className="flex items-center gap-6" style={{ padding: "12px 0", minHeight: 32 }}>
+      <div className="flex-1 min-w-0">
         <div
           className={mono ? "loki-mono" : undefined}
           style={
@@ -72,7 +73,7 @@ export function Setting({ label, help, mono = false, children }: { label: string
           </div>
         )}
       </div>
-      {children !== undefined && <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 8 }}>{children}</div>}
+      {children !== undefined && <div className="flex-none flex items-center gap-2">{children}</div>}
     </div>
   );
 }
@@ -107,9 +108,9 @@ export function Segmented<T extends string>({
 export function Fold({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
-    <section style={{ display: "grid" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <h4 className="loki-title" style={{ margin: 0, fontSize: "var(--loki-text-row)", flex: 1 }}>
+    <section className="grid">
+      <div className="flex items-center gap-2">
+        <h4 className="loki-title flex-1" style={{ margin: 0, fontSize: "var(--loki-text-row)" }}>
           {title}
         </h4>
         <Button size="sm" bare onClick={() => setOpen(!open)} aria-expanded={open}>

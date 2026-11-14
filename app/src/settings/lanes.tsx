@@ -170,8 +170,8 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
       title="Lanes"
       help="A lane is the part of your work Flow shows while you are in it: chats from some agents, mail and Slack from some accounts. Switch lanes from Flow's title, on each device on its own."
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 180px) 1fr", gap: 24, padding: "12px 0", alignItems: "start" }}>
-        <div role="group" aria-label="Lanes" style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+      <div className="grid grid-cols-[minmax(120px,180px)_1fr] items-start gap-6" style={{ padding: "12px 0" }}>
+        <div role="group" aria-label="Lanes" className="grid justify-items-start gap-1">
           {lanes.length === 0 && <span className="loki-meta loki-meta--wrap">No lanes yet</span>}
           {lanes.map((l) => (
             <Button key={l.id} size="sm" bare={draft?.id !== l.id} aria-pressed={draft?.id === l.id} onClick={() => open(draftOf(l))}>
@@ -240,7 +240,7 @@ export function LaneEditor({
   return (
     <form
       aria-label={`Edit ${title}`}
-      style={{ display: "grid", gap: 8 }}
+      className="grid gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         onSave();
@@ -301,7 +301,7 @@ export function LaneEditor({
             empty="No accounts yet: connect one in Preferences › Accounts."
           />
         ))}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" tone="positive" type="submit">
           Save
         </Button>
@@ -341,11 +341,11 @@ function Picks({
 }) {
   if (!items.length) return <span className="loki-meta loki-meta--wrap">{empty}</span>;
   return (
-    <div role="group" aria-label={label} style={{ display: "grid", gap: 4 }}>
+    <div role="group" aria-label={label} className="grid gap-1">
       {items.map((i) => (
-        <label key={i.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 8, alignItems: "baseline", cursor: "pointer" }}>
+        <label key={i.id} className="grid grid-cols-[auto_1fr] items-baseline gap-2" style={{ cursor: "pointer" }}>
           <input type="checkbox" checked={ids.includes(i.id)} onChange={(e) => onTick(i.id, e.target.checked)} aria-label={`Pick ${i.label}`} />
-          <span style={{ minWidth: 0, fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
+          <span className="min-w-0" style={{ fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
             {i.label}
             {i.detail && (
               <span className="loki-meta" style={{ marginLeft: 8 }}>

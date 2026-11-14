@@ -130,11 +130,7 @@ function EngineRow({
             <Dot color={TONE[e.status]} style={{ marginRight: 6, verticalAlign: "middle" }} />
             {sentence(WORDS[e.status])}
             {e.builtin ? (e.changed ? ", started your way" : ", built in") : ""}.
-            {e.detail && (
-              <span className={`loki-meta--wrap${bad ? " loki-meta--negative" : ""}`} style={{ display: "block" }}>
-                {e.detail}
-              </span>
-            )}
+            {e.detail && <span className={`loki-meta--wrap${bad ? " loki-meta--negative" : ""} block`}>{e.detail}</span>}
           </>
         }
       >
@@ -202,7 +198,7 @@ function EngineForm({
     }
   };
   return (
-    <div style={{ display: "grid", gap: 8, padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
+    <div className="grid gap-2" style={{ padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>
@@ -225,7 +221,7 @@ function EngineForm({
         spellCheck={false}
       />
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-      <div style={{ display: "flex", gap: 6 }}>
+      <div className="flex gap-1.5">
         <Button size="sm" tone="positive" onClick={() => void save()} disabled={busy}>
           {busy ? "Saving…" : "Save"}
         </Button>

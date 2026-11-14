@@ -25,7 +25,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
   const stop = groups.some((r) => r.g === current) ? current : groups[0]?.g;
   return (
     // The heading and the filter stay; the list under them scrolls when the window is short.
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
+    <div className="flex flex-col gap-3 flex-1" style={{ minHeight: 0 }}>
       <Field
         size="sm"
         type="search"
@@ -51,7 +51,8 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
         role="tablist"
         aria-label="Preferences sections"
         aria-orientation="vertical"
-        style={{ display: "grid", alignContent: "start", gap: 2, flex: 1, minHeight: 0, overflowY: "auto", scrollbarGutter: "stable", paddingBottom: 16 }}
+        className="grid content-start gap-0.5 flex-1"
+        style={{ minHeight: 0, overflowY: "auto", scrollbarGutter: "stable", paddingBottom: 16 }}
         onKeyDown={(e) => {
           if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
           const next = pageAfterKey(page, e.key, shown);

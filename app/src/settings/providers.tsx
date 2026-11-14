@@ -41,8 +41,8 @@ export function Providers({
   const connectedCount = providers.filter(isConnected).length;
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div className="grid gap-1.5">
+      <div className="flex items-center gap-2">
         <Field
           size="sm"
           type="search"
@@ -53,11 +53,11 @@ export function Providers({
           autoComplete="off"
           data-1p-ignore
           data-form-type="other"
-          style={{ flex: 1 }}
+          className="flex-1"
         />
         <span className="loki-meta">{connectedCount === 0 ? "None connected" : `${connectedCount} connected`}</span>
       </div>
-      <div style={{ display: "grid", gap: 2 }}>
+      <div className="grid gap-0.5">
         {shown.map((p) => (
           <ProviderRow
             key={p.id}
@@ -76,7 +76,7 @@ export function Providers({
         )}
       </div>
       {!more && !filter && sorted.length > shown.length && (
-        <Button size="sm" onClick={() => setMore(true)} style={{ justifySelf: "start" }}>
+        <Button size="sm" onClick={() => setMore(true)} className="justify-self-start">
           {sorted.length - shown.length} More Providers
         </Button>
       )}
@@ -132,7 +132,7 @@ export function ProviderSettings({
       </Block>
       <Block title="Add a provider">
         {adding ? (
-          <div style={{ display: "grid", gap: 6, paddingTop: 10 }}>
+          <div className="grid gap-1.5" style={{ paddingTop: 10 }}>
             <Field
               size="sm"
               type="search"
@@ -152,7 +152,7 @@ export function ProviderSettings({
               data-1p-ignore
               data-form-type="other"
             />
-            <div style={{ display: "grid", gap: 2, maxHeight: 380, overflowY: "auto" }}>
+            <div className="grid gap-0.5" style={{ maxHeight: 380, overflowY: "auto" }}>
               {others.map(row)}
               {others.length === 0 && (
                 <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
@@ -259,7 +259,7 @@ function ProviderRow({
     >
       <Row onClick={onToggle} aria-expanded={open}>
         <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
-        <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
+        <span className="grid gap-px min-w-0 flex-1">
           <span style={{ fontSize: "var(--loki-text-body)", fontWeight: 600 }}>{p.display_name}</span>
           {p.description && !open && <span className="loki-meta">{p.description}</span>}
         </span>
@@ -270,7 +270,7 @@ function ProviderRow({
         )}
       </Row>
       {open && (
-        <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
+        <div className="grid gap-2" style={{ padding: "2px 10px 10px 24px" }}>
           {p.description && <div className="loki-meta loki-meta--wrap">{p.description}</div>}
           <ConnectForm p={p} connected={connected} state={state} />
         </div>
@@ -303,7 +303,8 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         <label
           key={f.key}
           htmlFor={`${fieldId}-${f.key}`}
-          style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 12, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
+          className="grid grid-cols-[140px_1fr] items-center gap-3"
+          style={{ fontSize: "var(--loki-text-meta)" }}
         >
           <span style={{ color: "var(--loki-muted)" }}>
             {f.label}
@@ -325,7 +326,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
           />
         </label>
       ))}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div className="flex items-center gap-2">
         <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
           {signIn
             ? busy
@@ -347,10 +348,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       </div>
       {signIn && busy && (
-        <label
-          htmlFor={`${fieldId}-address`}
-          style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 12, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
-        >
+        <label htmlFor={`${fieldId}-address`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3" style={{ fontSize: "var(--loki-text-meta)" }}>
           <span style={{ color: "var(--loki-muted)" }}>Browser didn't come back?</span>
           <Field
             id={`${fieldId}-address`}

@@ -63,7 +63,7 @@ function SpendSection({
       <Fact
         label="Estimated"
         value={
-          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
+          <span className="inline-flex items-baseline gap-2">
             <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>{money(summary.cost.total)}</span>
             <span className="loki-meta">{tokenCount(summary.tokens.total)} tokens</span>
           </span>
@@ -130,15 +130,12 @@ function Breakdown({
   // A line of tokens with no cost at all was spent on models with no known price (an agent on a local model, say).
   const known = (l: UsageLine) => priced(l.key) && (l.cost > 0 || l.tokens === 0);
   return (
-    <div style={{ display: "grid", gap: 2 }}>
+    <div className="grid gap-0.5">
       {lines.map((l) => (
         <Row key={l.key} dense onClick={() => onPick(l.key)} title={`Show only ${name(l.key)}`}>
           <span
+            className="grid grid-cols-[minmax(0,1fr)_80px_72px_64px] items-center gap-3"
             style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) 80px 72px 64px",
-              gap: 12,
-              alignItems: "center",
               width: "100%",
               fontSize: "var(--loki-text-body)",
             }}
@@ -148,8 +145,8 @@ function Breakdown({
             </span>
             <span aria-hidden style={{ height: 6, borderRadius: "var(--loki-radius-pill)", background: "var(--loki-hover)" }}>
               <span
+                className="block"
                 style={{
-                  display: "block",
                   height: "100%",
                   width: `${Math.round(l.share * 100)}%`,
                   borderRadius: "var(--loki-radius-pill)",
