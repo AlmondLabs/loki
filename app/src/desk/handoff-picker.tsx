@@ -82,12 +82,7 @@ export function HandoffPicker({
   const owner = item.outside?.owner_name ?? "its agent";
 
   return (
-    <div
-      role="dialog"
-      aria-label={`Hand off to ${owner}`}
-      onKeyDown={onKey}
-      style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 6 }}
-    >
+    <div role="dialog" aria-label={`Hand off to ${owner}`} onKeyDown={onKey} className="flex flex-col" style={{ gap: touch ? "var(--phone-space-2)" : 6 }}>
       <Meta>{busy ? `Handing off to ${owner}…` : `Hand off to ${owner}`}</Meta>
       {proposal?.note && <Meta wrap>{sentence(proposal.note)}</Meta>}
       {!proposal && !error && <Meta>Asking for its chats…</Meta>}
@@ -98,7 +93,8 @@ export function HandoffPicker({
           tabIndex={0}
           aria-label="Chats"
           aria-activedescendant={`handoff-option-${String(hi)}`}
-          style={{ display: "flex", flexDirection: "column", maxHeight: 200, overflow: "auto" }}
+          className="flex flex-col"
+          style={{ maxHeight: 200, overflow: "auto" }}
         >
           {options.map((o, i) => (
             <Row

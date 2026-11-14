@@ -30,7 +30,7 @@ function LinkCardFor({ ask, onAnswer }: { ask: LinkAsk; onAnswer: (answers: Reco
   );
   return (
     <div data-link className="loki-question">
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+      <div className="flex flex-wrap items-baseline gap-2">
         <span className="loki-label loki-question-kicker">Wants to message another chat</span>
         <span className="loki-question-text">{to}</span>
       </div>
@@ -47,7 +47,7 @@ function LinkCardFor({ ask, onAnswer }: { ask: LinkAsk; onAnswer: (answers: Reco
         </div>
       </div>
       <div className="loki-link-row">
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Button size="sm" onClick={() => answer(false)}>
           Deny
         </Button>

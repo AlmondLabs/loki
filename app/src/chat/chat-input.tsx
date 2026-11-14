@@ -299,17 +299,17 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
                 </button>
               </span>
             ) : (
-              <span key={a.id} style={{ position: "relative", display: "inline-block" }}>
+              <span key={a.id} className="inline-block" style={{ position: "relative" }}>
                 <img
                   src={a.url}
                   alt=""
+                  className="block"
                   style={{
                     height: 56,
                     maxWidth: 120,
                     objectFit: "cover",
                     borderRadius: "var(--loki-radius-sm)",
                     border: "1px solid var(--loki-border)",
-                    display: "block",
                   }}
                 />
                 <button

@@ -153,11 +153,11 @@ function ReplyFiles({
 }) {
   if (files.length === 0) return null;
   return (
-    <ul aria-label="Files" data-attachments style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
+    <ul aria-label="Files" data-attachments className="grid gap-1" style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {files.map((f) => {
         const on = kept.includes(f);
         return (
-          <li key={f.name} className="loki-suggestion-note" data-file={f.name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <li key={f.name} className="loki-suggestion-note flex flex-wrap items-center gap-2" data-file={f.name}>
             <span style={{ textDecoration: on ? undefined : "line-through" }}>{fileText(f)}</span>
             {attached.includes(f.name) ? (
               <span>Already on the ticket</span>

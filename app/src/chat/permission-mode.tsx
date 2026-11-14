@@ -162,10 +162,10 @@ export function ModeMenu({
           onClick={() => onPick(m.id)}
           style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8 }}
         >
-          <span style={{ color: isOpenDoor(m.id) ? "var(--loki-negative)" : "var(--loki-muted)", display: "grid", placeItems: "center" }}>
+          <span className="grid place-items-center" style={{ color: isOpenDoor(m.id) ? "var(--loki-negative)" : "var(--loki-muted)" }}>
             <Shield fill={m.fill} />
           </span>
-          <span style={{ display: "grid" }}>
+          <span className="grid">
             <span style={{ fontSize: "var(--loki-text-body)" }}>{m.label}</span>
             <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
               {m.description}

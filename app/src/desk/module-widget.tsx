@@ -193,8 +193,8 @@ export function ModuleWidget({
         title={entry.title}
         referrerPolicy="no-referrer"
         data-widget-frame={entry.id}
+        className="block"
         style={{
-          display: "block",
           border: 0,
           background: "transparent",
           width: fill ? "100%" : (size?.width ?? 0),

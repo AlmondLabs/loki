@@ -84,7 +84,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
 
   const sheet = (
     <Sheet label="Rename chat" onClose={onClose} width={440} top="18vh">
-      <div style={{ padding: "16px 18px 4px", display: "grid", gap: 12 }}>
+      <div className="grid gap-3" style={{ padding: "16px 18px 4px" }}>
         <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)" }}>Rename chat</div>
         <Field
           ref={fieldRef}
@@ -131,7 +131,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
           </div>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, padding: "12px 18px 16px", justifyContent: "flex-end" }}>
+      <div className="flex justify-end gap-2" style={{ padding: "12px 18px 16px" }}>
         <Button size="sm" onClick={onClose}>
           Cancel
         </Button>

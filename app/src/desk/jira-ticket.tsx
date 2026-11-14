@@ -192,7 +192,7 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
         <Quiet touch={touch}>No description</Quiet>
       )}
       {folds && (
-        <Button size={touch ? "touch" : "sm"} bare aria-expanded={open} onClick={() => setOpen(!open)} style={{ alignSelf: "flex-start" }}>
+        <Button size={touch ? "touch" : "sm"} bare aria-expanded={open} onClick={() => setOpen(!open)} className="self-start">
           {open ? "Show Less" : "Show More"}
         </Button>
       )}

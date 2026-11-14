@@ -181,7 +181,7 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
   );
   if (!folds) return page;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div className="flex flex-col gap-1.5">
       {page}
       <button
         type="button"

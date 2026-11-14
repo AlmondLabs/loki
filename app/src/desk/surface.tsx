@@ -198,16 +198,13 @@ function MinimisedTray({
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
+      className="flex flex-wrap items-center gap-1.5"
       // Moved by transform as the chat opens or closes beside it, so the move never lays the sheet out again.
       style={{
         position: "absolute",
         bottom: 16,
         left: 0,
         transform: `translateX(${left}px)`,
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        flexWrap: "wrap",
         maxWidth: "60%",
         transition: "transform 220ms ease-out",
       }}
@@ -229,7 +226,7 @@ function MinimisedTray({
 function EmptyDesk({ show, agentName, scope }: { show: boolean; agentName: string | null; scope: string }) {
   if (!show) return null;
   return (
-    <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
+    <div data-empty-desk className="grid place-items-center" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5 }}>
       <Empty title="Nothing on this canvas yet.">
         <p>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</p>
         <div className="loki-label" style={{ marginTop: 14 }}>

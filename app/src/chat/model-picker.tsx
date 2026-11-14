@@ -570,7 +570,7 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
     // The Sheet draws itself at the phone shell's root, out of the Inbox card's transform. React still bubbles a
     // portal's events through the tree it came from: without this a drag in the sheet would swipe the card underneath.
     return (
-      <div style={{ display: "contents" }} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
+      <div className="contents" onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
         {sheet}
       </div>
     );

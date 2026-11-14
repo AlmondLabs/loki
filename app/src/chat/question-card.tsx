@@ -65,8 +65,8 @@ function QuestionCardFor({
         const sel = picked[q.question] ?? [];
         const shown = q.options.find((o) => o.label === peek) ?? q.options.find((o) => sel.includes(o.label));
         return (
-          <div key={qi} style={{ display: "grid", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <div key={qi} className="grid gap-1.5">
+            <div className="flex flex-wrap items-baseline gap-2">
               <span className="loki-label loki-question-kicker">
                 {qi === 0 ? (many ? `Asks you · ${question.questions.length}` : "Asks you") : `${qi + 1}`}
               </span>
@@ -76,7 +76,7 @@ function QuestionCardFor({
             <div
               role={q.multiSelect ? "group" : "radiogroup"}
               aria-label={q.question}
-              style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}
+              className="flex flex-wrap items-center gap-1.5"
               onMouseLeave={() => setPeek(null)}
             >
               {q.options.map((o) => {
@@ -124,12 +124,13 @@ function QuestionCardFor({
                   placeholder="Or your own…"
                   aria-label={`Other answer: ${q.question}`}
                   autoComplete="off"
-                  style={{ flex: "1 1 140px", minWidth: 120 }}
+                  className="flex-[1_1_140px]"
+                  style={{ minWidth: 120 }}
                 />
               )}
               {qi === question.questions.length - 1 && (
                 <>
-                  <span style={{ flex: 1 }} />
+                  <span className="flex-1" />
                   <Button
                     size="sm"
                     tone="positive"
