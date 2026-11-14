@@ -19,9 +19,10 @@ import { withMentions } from "./slack-people.ts";
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
  * desktop app's session. It reads, lists activity and counts, marks a DM read, writes and deletes drafts, and posts the
- * person's own reply (plan 068), and nothing more: no call that edits, deletes or schedules a message exists here, and
- * every request names one of SLACK_METHODS. Agents never send (R18): no agent tool is given `postReply`, which only the
- * reply frame the person's own devices send reaches (mod/outside-threads.ts).
+ * person's own reply (plan 068), with files when it has them (plan 2026-11-14-1134), and nothing more: no call that edits,
+ * deletes or schedules a message exists here, and every request names one of SLACK_METHODS, besides a file's bytes,
+ * which go only to files.slack.com. Agents never send (R18): no agent tool is given `postReply` or `postWithFiles`, which
+ * only the person's own Send reaches (mod/outside-threads.ts).
  *
  * Slack refusing the session gets one fresh read of the desktop app's session; when that is refused too, the account
  * says "Slack signed out" (R22). A rate limit holds calls back for as long as Slack asks and never counts as a sign-out.
@@ -46,6 +47,8 @@ export const SLACK_METHODS = [
   "drafts.create",
   "drafts.delete",
   "chat.postMessage",
+  "files.getUploadURLExternal",
+  "files.completeUploadExternal",
   "reactions.add",
   "reactions.remove",
 ] as const;
@@ -58,6 +61,12 @@ const AUTH_ERRORS = ["invalid_auth", "not_authed", "token_revoked", "token_expir
 /** How long to hold back after a rate limit that names no wait. */
 const DEFAULT_RETRY_MS = 60_000;
 const TIMEOUT_MS = 20_000;
+
+/**
+ * How long a file's upload may take (plan 2026-11-14-1134, KTD11): the usual 20 seconds and one more for every 170 KB,
+ * so a file at the 17 MB cap gets over two minutes on a slow line rather than failing at 20 seconds.
+ */
+export const uploadTimeoutMs = (bytes: number): number => TIMEOUT_MS + Math.ceil(bytes / 170);
 
 /** The largest thumbnail loki keeps (plan 080); Slack's 360-pixel ones are tens of kilobytes. */
 const PREVIEW_MAX_BYTES = 1_000_000;
@@ -278,6 +287,22 @@ function parseDraft(v: unknown): SlackDraft {
   };
 }
 
+/**
+ * The person's text as Slack should show it: Slack reads <, > and & as its markup, so they are escaped to arrive as
+ * typed, and only an @handle loki knows becomes Slack's mention (plan 082).
+ */
+const replyText = (text: string, mentions: ReadonlyMap<string, string> | undefined): string =>
+  withMentions(text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), mentions ?? new Map());
+
+/** Whether an address is on files.slack.com over https: the only place outside the API that the session is sent. */
+const isFilesHost = (url: string): boolean => url.startsWith("https://files.slack.com/");
+
+/** How files.slack.com knows the person: the token as a bearer and the desktop app's `d` cookie. */
+const filesHeaders = (session: SlackSession): Record<string, string> => ({
+  authorization: `Bearer ${session.token}`,
+  cookie: `d=${encodeURIComponent(session.cookie)}`,
+});
+
 /** Where a workspace's calls go: its own address when that is on slack.com, else slack.com itself, so a token never leaves Slack. */
 function apiBase(url: string): string {
   try {
@@ -488,11 +513,34 @@ export class SlackClient {
    * person's reply frame calls this; no agent tool is given it.
    */
   async postReply(input: SlackDraftInput & { mentions?: ReadonlyMap<string, string> }): Promise<{ ts: string }> {
-    // Slack reads <, > and & as its markup, so the person's own text is escaped to arrive as they typed it; only an
-    // @handle loki knows becomes Slack's mention (plan 082).
-    const text = withMentions(input.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), input.mentions ?? new Map());
+    const text = replyText(input.text, input.mentions);
     const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
     return { ts: typeof r.ts === "string" ? r.ts : "" };
+  }
+
+  /**
+   * Post the person's reply with files (plan 2026-11-14-1134, KTD7) as one message: each file's bytes, as the caller
+   * read and checked them (KTD5), go to the address Slack gives for it, then one completion shares them all in the
+   * conversation or thread with the text as their comment. An address off files.slack.com is refused before anything
+   * is sent there, so the session never leaves Slack. Nothing is retried: Slack takes a completion only once.
+   */
+  async postWithFiles(
+    input: SlackDraftInput & { mentions?: ReadonlyMap<string, string>; files: ReadonlyArray<{ name: string; data: Uint8Array }> },
+  ): Promise<void> {
+    const uploaded: Array<{ id: string; title: string }> = [];
+    for (const file of input.files) {
+      const r = await this.call("files.getUploadURLExternal", { filename: file.name, length: file.data.length });
+      const uploadUrl = str(r.upload_url);
+      if (!isFilesHost(uploadUrl)) throw new SlackError("Slack gave an upload address off files.slack.com, so loki sent nothing there", "upload_host");
+      await this.upload(uploadUrl, file.data);
+      uploaded.push({ id: str(r.file_id), title: file.name });
+    }
+    await this.call("files.completeUploadExternal", {
+      files: uploaded,
+      channel_id: input.channel,
+      ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}),
+      initial_comment: replyText(input.text, input.mentions),
+    });
   }
 
   /**
@@ -514,13 +562,10 @@ export class SlackClient {
    * PREVIEW_MAX_BYTES, or a refusal, is null and never marks the account signed out.
    */
   async fileThumb(url: string): Promise<{ data: Buffer; type: string } | null> {
-    if (!url.startsWith("https://files.slack.com/")) return null;
+    if (!isFilesHost(url)) return null;
     const session = this.current ?? (await this.readSession(false));
     if (!session) return null;
-    const res = await (this.opts.fetch ?? fetch)(url, {
-      headers: { authorization: `Bearer ${session.token}`, cookie: `d=${encodeURIComponent(session.cookie)}` },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+    const res = await (this.opts.fetch ?? fetch)(url, { headers: filesHeaders(session), signal: AbortSignal.timeout(TIMEOUT_MS) });
     const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
     if (!res.ok || !type.startsWith("image/")) return null;
     const data = Buffer.from(await res.arrayBuffer());
@@ -528,6 +573,24 @@ export class SlackClient {
   }
 
   // --- the session and requests ------------------------------------------------------------------------------------
+
+  /**
+   * Send one file's bytes to the files.slack.com address Slack just gave for it, as the person. Slack answers a good
+   * upload with plain text, not JSON, so only the status is read.
+   */
+  private async upload(url: string, data: Uint8Array): Promise<void> {
+    // The call that gave this address has just kept the session it used.
+    const session = this.current;
+    if (!session) return this.signedOut("the session went away between asking for an upload address and uploading");
+    const res = await (this.opts.fetch ?? fetch)(url, {
+      method: "POST",
+      headers: { ...filesHeaders(session), "content-type": "application/octet-stream" },
+      // A copy on its own ArrayBuffer, which fetch's types ask for; one copy of at most 17 MB is cheap.
+      body: new Uint8Array(data),
+      signal: AbortSignal.timeout(uploadTimeoutMs(data.length)),
+    });
+    if (!res.ok) throw new SlackError(`Slack refused a file upload: http_${res.status}`, `http_${res.status}`);
+  }
 
   private now(): number {
     return (this.opts.now?.() ?? new Date()).getTime();

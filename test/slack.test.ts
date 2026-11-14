@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { AccountStatus } from "../core/frame-types.ts";
-import { SlackClient, SlackError } from "../mod/slack.ts";
+import { SlackClient, SlackError, uploadTimeoutMs } from "../mod/slack.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
 
 /** A session as the desktop app gives it; every value is made up. */
@@ -400,13 +400,111 @@ describe("a shared picture's thumbnail (plan 080)", () => {
   });
 });
 
+describe("a reply with files (plan 2026-11-14-1134, U3)", () => {
+  interface Asked {
+    url: string;
+    headers: Record<string, string>;
+    params: Record<string, string>;
+    bytes: number[] | null;
+  }
+  /** A fake Slack that hands out an upload address per file and records every request, its form or its bytes. */
+  const uploads = (opts: { uploadUrl?: (n: number) => string; complete?: { ok: boolean; error?: string } } = {}) => {
+    const asked: Asked[] = [];
+    let n = 0;
+    const c = new SlackClient({
+      session: () => Promise.resolve(SESSION),
+      setStatus: () => undefined,
+      fetch: (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const body = init?.body;
+        asked.push({
+          url,
+          headers: (init?.headers ?? {}) as Record<string, string>,
+          params: typeof body === "string" ? Object.fromEntries(new URLSearchParams(body)) : {},
+          bytes: ArrayBuffer.isView(body) ? Array.from(new Uint8Array(body.buffer, body.byteOffset, body.byteLength)) : null,
+        });
+        if (url.endsWith("/api/files.getUploadURLExternal")) {
+          n++;
+          const uploadUrl = opts.uploadUrl?.(n) ?? `https://files.slack.com/upload/v1/up${n}`;
+          return Promise.resolve(Response.json({ ok: true, upload_url: uploadUrl, file_id: `F${n}` }));
+        }
+        if (url.endsWith("/api/files.completeUploadExternal")) return Promise.resolve(Response.json(opts.complete ?? { ok: true, files: [] }));
+        // The upload address answers with plain text, not JSON.
+        return Promise.resolve(new Response("OK - 3"));
+      },
+    });
+    return { c, asked };
+  };
+  const FILES = [
+    { name: "plan.pdf", data: new Uint8Array([1, 2, 3]) },
+    { name: "notes <draft>.txt", data: new Uint8Array([4, 5]) },
+  ];
+
+  test("each file is uploaded to files.slack.com as the person, then one completion posts the text in the thread", async () => {
+    const { c, asked } = uploads();
+    await c.postWithFiles({
+      channel: "C0GEN",
+      thread_ts: "1.0",
+      text: "@ravi.kumar see <these> & those",
+      mentions: new Map([["ravi.kumar", "U1"]]),
+      files: FILES,
+    });
+    expect(asked.map((a) => a.url)).toEqual([
+      "https://acme.slack.com/api/files.getUploadURLExternal",
+      "https://files.slack.com/upload/v1/up1",
+      "https://acme.slack.com/api/files.getUploadURLExternal",
+      "https://files.slack.com/upload/v1/up2",
+      "https://acme.slack.com/api/files.completeUploadExternal",
+    ]);
+    expect([asked[0]?.params, asked[2]?.params]).toEqual([
+      { token: SESSION.token, filename: "plan.pdf", length: "3" },
+      { token: SESSION.token, filename: "notes <draft>.txt", length: "2" },
+    ]);
+    const sentBytes = asked.filter((a) => a.url.startsWith("https://files.slack.com/"));
+    expect(sentBytes.map((a) => [a.bytes, a.headers.authorization, a.headers.cookie])).toEqual([
+      [[1, 2, 3], `Bearer ${SESSION.token}`, `d=${encodeURIComponent(SESSION.cookie)}`],
+      [[4, 5], `Bearer ${SESSION.token}`, `d=${encodeURIComponent(SESSION.cookie)}`],
+    ]);
+    const done = asked[4]?.params ?? {};
+    expect(JSON.parse(done.files)).toEqual([
+      { id: "F1", title: "plan.pdf" },
+      { id: "F2", title: "notes <draft>.txt" },
+    ]);
+    expect(done).toMatchObject({ channel_id: "C0GEN", thread_ts: "1.0", initial_comment: "<@U1> see &lt;these&gt; &amp; those" });
+  });
+
+  test("without a thread the completion names only the conversation", async () => {
+    const { c, asked } = uploads();
+    await c.postWithFiles({ channel: "D0DM", text: "here", files: [{ name: "a.txt", data: new Uint8Array([1]) }] });
+    expect(asked.at(-1)?.params).not.toHaveProperty("thread_ts");
+    expect(asked.at(-1)?.params.channel_id).toBe("D0DM");
+  });
+
+  test("an upload address anywhere but files.slack.com is refused: nothing goes there and nothing is completed", async () => {
+    const { c, asked } = uploads({ uploadUrl: () => "https://files.slack.com.example.test/upload/v1/up1" });
+    await expect(c.postWithFiles({ channel: "C0GEN", text: "x", files: FILES })).rejects.toMatchObject({ code: "upload_host" });
+    expect(asked.map((a) => new URL(a.url).pathname)).toEqual(["/api/files.getUploadURLExternal"]);
+  });
+
+  test("a refused completion reports Slack's error and is not tried again", async () => {
+    const { c, asked } = uploads({ complete: { ok: false, error: "channel_not_found" } });
+    await expect(c.postWithFiles({ channel: "C0GEN", text: "x", files: FILES })).rejects.toMatchObject({ code: "channel_not_found" });
+    expect(asked.filter((a) => a.url.endsWith("files.completeUploadExternal"))).toHaveLength(1);
+  });
+
+  test("an upload's timeout grows with its size, two minutes at least for 17 MB", () => {
+    expect(uploadTimeoutMs(1000)).toBeGreaterThanOrEqual(20_000);
+    expect(uploadTimeoutMs(17 * 1024 * 1024)).toBeGreaterThanOrEqual(120_000);
+  });
+});
+
 describe("only the person's own reply posts on Slack (plan 068)", () => {
   const SEND = /send|post|update|delete|schedule|share|chat\./i;
   /**
-   * Deleting one of the person's own drafts touches no message anyone sees; posting the person's own reply is the one
-   * send, reached only from the reply frame.
+   * Deleting one of the person's own drafts touches no message anyone sees; posting the person's own reply, with or
+   * without files, is the one send, reached only from the person's own Send.
    */
-  const ALLOWED = ["draftsDelete", "/api/drafts.delete", "postReply"];
+  const ALLOWED = ["draftsDelete", "/api/drafts.delete", "postReply", "postWithFiles"];
 
   test("the person's reply posts in its thread, with Slack's markup characters escaped so it arrives as typed", async () => {
     const { c, sent } = client(() => ({ body: { ok: true, ts: "2.0" } }));
@@ -421,9 +519,13 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     expect(names.filter((n) => SEND.test(n) && !ALLOWED.includes(n))).toEqual([]);
   });
 
-  test("every call the client makes goes to a method that reads, marks a DM read or writes a draft", async () => {
+  test("every call the client makes goes to a method that reads, marks a DM read, writes a draft or uploads the person's files", async () => {
     const { c, sent } = client((method) =>
-      method === "conversations.info" ? { body: { ok: true, channel: { id: "D0DM", is_im: true } } } : { body: { ok: true, draft: {} } },
+      method === "conversations.info"
+        ? { body: { ok: true, channel: { id: "D0DM", is_im: true } } }
+        : method === "files.getUploadURLExternal"
+          ? { body: { ok: true, upload_url: "https://files.slack.com/upload/v1/up1", file_id: "F1" } }
+          : { body: { ok: true, draft: {} } },
     );
     await c.authTest();
     await c.clientCounts();
@@ -436,9 +538,14 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     await c.draftsList();
     await c.draftsCreate({ channel: "D0DM", text: "x" });
     await c.draftsDelete("Dr1");
+    await c.postWithFiles({ channel: "D0DM", text: "x", files: [{ name: "a.txt", data: new Uint8Array([1]) }] });
+    expect([...new Set(sent.map((s) => new URL(s.url).host))].sort()).toEqual(["acme.slack.com", "files.slack.com"]);
     const paths = [...new Set(sent.map((s) => new URL(s.url).pathname))].sort();
     expect(paths).toEqual(
       [
+        "/upload/v1/up1",
+        "/api/files.completeUploadExternal",
+        "/api/files.getUploadURLExternal",
         "/api/activity.feed",
         "/api/auth.test",
         "/api/client.counts",
