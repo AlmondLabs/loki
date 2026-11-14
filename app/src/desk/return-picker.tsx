@@ -76,7 +76,7 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
   };
 
   return (
-    <div role="dialog" aria-label="When should it come back" onKeyDown={onKey} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div role="dialog" aria-label="When should it come back" onKeyDown={onKey} className="flex flex-col gap-1.5">
       <Meta>When should it come back</Meta>
       <div
         ref={listRef}
@@ -84,7 +84,7 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
         tabIndex={0}
         aria-label="Return times"
         aria-activedescendant={`return-option-${choices[hi].id}`}
-        style={{ display: "flex", flexDirection: "column" }}
+        className="flex flex-col"
       >
         {choices.map((c, i) => (
           <Row
@@ -104,7 +104,7 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
           </Row>
         ))}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="flex items-center gap-2">
         <Meta>A date</Meta>
         <Field
           type="date"

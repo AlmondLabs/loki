@@ -31,6 +31,7 @@ import {
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { sentKey, type SentReplies, type SentReply, type SentSnapshot } from "../../../core/attention/sent-replies.ts";
+import { cn } from "@/lib/utils";
 import { Button, Meta, TextArea, sentence } from "../components";
 import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
@@ -58,7 +59,7 @@ import { SEND_NOTE, SEND_TITLE, disconnectedText, replyPlace } from "./outside-w
 /** The thread's last messages, one paragraph each, as plain text; the phone draws the same inside its card. */
 export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; touch?: boolean }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
+    <div className="flex flex-col" style={{ gap: touch ? "var(--phone-space-3)" : 12 }}>
       {facts.lines.map((line, i) => (
         <p
           key={i}
@@ -441,8 +442,8 @@ function MessageRow({ m, folded }: { m: OutsideMessage; folded: boolean }) {
       </button>
     );
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+    <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 items-baseline gap-2">
         {who}
         {m.at && <Meta>{ago(m.at)}</Meta>}
       </div>
@@ -543,7 +544,7 @@ function ThreadStandIn({ facts, state, touch }: { facts: OutsideFacts; state: Th
   // A disconnected account's card already says why above the thread (Disconnected): a failed read says it only once.
   const said = failed !== null && !!facts.disconnected;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
+    <div className="flex flex-col" style={{ gap: touch ? "var(--phone-space-3)" : 12 }}>
       {!said && (
         <Meta wrap negative={failed !== null}>
           {failed !== null ? `Could not read the whole thread: ${failed}` : "Reading the whole thread…"}
@@ -574,9 +575,9 @@ function ThreadList({
   const earlier = jira && w && controls && w.more_before !== false && w.more_before !== 0 ? controls : null;
   const earlierLabel = earlier ? loadLabel("before", true, earlier.busy === "before") : "";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--phone-space-4)" }}>
+    <div className="flex flex-col" style={{ gap: "var(--phone-space-4)" }}>
       {earlier && (
-        <Button size="touch" bare disabled={earlier.busy !== null} onClick={() => earlier.load("before")} style={{ alignSelf: "center" }}>
+        <Button size="touch" bare disabled={earlier.busy !== null} onClick={() => earlier.load("before")} className="self-center">
           {`${earlierLabel[0].toUpperCase()}${earlierLabel.slice(1)}`}
         </Button>
       )}
@@ -868,7 +869,7 @@ export function OutsideReply({
           />
         </div>
       )}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column" }}>
+      <div className="flex flex-col" style={{ position: "relative" }}>
         {mentions.list}
         <TextArea
           ref={(el) => {
@@ -897,20 +898,19 @@ export function OutsideReply({
         />
       </div>
       {isMail && compose && (hasSignature || quote) && (
-        <div className={framed ? "loki-mail-compose-extra" : undefined} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div className={cn(framed && "loki-mail-compose-extra", "flex flex-col gap-1")}>
           {hasSignature && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+            <div className="flex min-w-0 items-baseline gap-2">
               {signature ? (
-                <span style={{ fontSize: size, color: "var(--loki-muted)", whiteSpace: "pre-wrap", overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>
+                <span className="min-w-0 flex-1" style={{ fontSize: size, color: "var(--loki-muted)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {`-- \n${signature}`}
                 </span>
               ) : (
-                <Meta style={{ flex: 1 }}>No signature</Meta>
+                <Meta className="flex-1">No signature</Meta>
               )}
               <button
                 type="button"
-                className="loki-mail-line-who"
-                style={{ flex: "none" }}
+                className="loki-mail-line-who flex-none"
                 disabled={off}
                 onClick={() => shown && setMail({ ...shown, signature: !signature })}
               >
@@ -945,7 +945,7 @@ export function OutsideReply({
           )}
         </div>
       )}
-      <div className={framed ? "loki-mail-compose-foot" : undefined} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className={cn(framed && "loki-mail-compose-foot", "flex items-center gap-2")}>
         <Button
           size={touch ? "touch" : "sm"}
           tone="positive"
@@ -963,7 +963,7 @@ export function OutsideReply({
         )}
         {touch && !error && !busy && <Meta wrap>{SEND_NOTE[facts.provider]}</Meta>}
         {framed && error && (
-          <Meta negative wrap style={{ flex: 1 }}>
+          <Meta negative wrap className="flex-1">
             {error}
           </Meta>
         )}
@@ -1024,12 +1024,12 @@ function NotSentLine({
   };
   const size = touch ? "touch" : "sm";
   return (
-    <div role="alert" style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-1)" : 4 }}>
+    <div role="alert" className="flex flex-col" style={{ gap: touch ? "var(--phone-space-1)" : 4 }}>
       <Meta negative wrap>
         Not sent: {error ?? note.reason}
       </Meta>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <Meta style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={note.text}>
+      <div className="flex min-w-0 items-center gap-2">
+        <Meta className="min-w-0 flex-1" title={note.text}>
           “{firstLine(note.text)}”
         </Meta>
         {onUnsent && (
@@ -1183,10 +1183,10 @@ export function OutsideCard({
     />
   ) : null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div className="flex flex-1 flex-col" style={{ minHeight: 0 }}>
       <OutsideItemHeader facts={facts} unread={current.unread} flash={flash} went={went} cameBack={cameBack} thread={thread} actions={actions} />
       {/* The thread at the readable width, as a chat's is (max-w-3xl), centred in the detail. */}
-      <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <div data-thread-scroll className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
         <div className="mx-auto w-full max-w-3xl" style={{ padding: facts.provider === "slack" ? "8px 24px 16px" : "16px 24px" }}>
           {facts.disconnected && <Disconnected facts={facts} cause={facts.disconnected} />}
           <OutsideThread facts={facts} state={thread} own={own} items />

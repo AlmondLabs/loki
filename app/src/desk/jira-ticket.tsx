@@ -77,9 +77,7 @@ export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket:
           ◆
         </span>
         {/* The key is an id, so it is mono, as task ids are. */}
-        <span className="loki-jira-key" style={{ fontFamily: "var(--loki-mono)" }}>
-          {ticket.key}
-        </span>
+        <span className="loki-jira-key loki-mono">{ticket.key}</span>
         {kind && <span className="loki-jira-kind">· {kind}</span>}
         {change && <NewMark title={sentence(`${HEAD_FIELDS.get(change.field) ?? change.field} changed · ${byWhen(change)}`)} />}
       </div>
@@ -194,7 +192,7 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
         <Quiet touch={touch}>No description</Quiet>
       )}
       {folds && (
-        <Button size={touch ? "touch" : "sm"} bare aria-expanded={open} onClick={() => setOpen(!open)} style={{ alignSelf: "flex-start" }}>
+        <Button size={touch ? "touch" : "sm"} bare aria-expanded={open} onClick={() => setOpen(!open)} className="self-start">
           {open ? "Show Less" : "Show More"}
         </Button>
       )}

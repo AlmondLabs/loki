@@ -62,6 +62,15 @@ phone held closer. One face: the system sans (`--loki-font`); `--loki-display` a
 are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
 Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
 
+Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 6 · 8 · 12 · 16 · 24**, Tailwind's steps `0`, `px`,
+`0.5`, `1`, `1.5`, `2`, `3`, `4` and `6`. `styles.css` sets one step to 4px (`--spacing`); Tailwind's default is a
+quarter rem, and the page's root is 15px, which made a step 3.75px. Fixed layout is written as Tailwind classes on
+this scale (`flex items-center gap-2`), with padding, sizes and colour left in `style`. A value computed from state or
+props stays inline, and so does layout on an element whose own `loki-*` class sets the same property: loki's
+stylesheets sit outside Tailwind's cascade layers, so their rules beat a utility class (a `<Row>` keeps its inline
+grid over `.loki-row`'s flex). Two classes carry text: `loki-mono` for code, paths, hosts and keys, and `loki-truncate`
+for one line cut with an ellipsis. Both sit after `.loki-meta`, so a meta line can take either.
+
 Radii: `--loki-radius-sm` **6** fields, icon buttons, dense rows · `--loki-radius-md` **8** buttons, rows,
 plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-radius-pill` **999** chips, badges,
 toasts; circles use half their size. A radius with a role is written as its token (`"var(--loki-radius-md)"`), never
@@ -134,8 +143,9 @@ row's input and output (`core/attention/transcript.ts`), and the row fetches the
 `test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines). The radius check
 allows the scale and the geometric radii for circles and hairlines it lists (1, 3, 4, 9, 24); the shadow check covers
-inline `boxShadow` only. The desktop has no spacing scale to check; the phone has its own, `--phone-space-1` to
-`--phone-space-6`. It fails a Mac key symbol (⌘, ⌥, ⇧ …) in any app string outside `MAC_SYMBOL` in
+inline `boxShadow` only. Gaps stay on the spacing scale, inline and in a gap or space class (shadcn's own files in `ui/` keep
+theirs), and views set mono and an ellipsis with their classes, never inline; the phone has its own scale,
+`--phone-space-1` to `--phone-space-6`. It fails a Mac key symbol (⌘, ⌥, ⇧ …) in any app string outside `MAC_SYMBOL` in
 `shell/keymap.ts`, so keys are formatted for the viewer's system. It checks that
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
 and the native window carry `--loki-bg`, that both sides define the attention and affirm roles with AA ink, that the

@@ -245,11 +245,8 @@ function FrameTitleBar({
       onPointerMove={onDragMove}
       onPointerUp={onDragEnd}
       onPointerCancel={onDragEnd}
+      className="flex items-center justify-between gap-2"
       style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
         padding: "8px 12px",
         cursor: "grab",
         background: "var(--loki-panel-header)",
@@ -257,12 +254,12 @@ function FrameTitleBar({
         touchAction: "none",
       }}
     >
-      <span style={{ fontSize: "var(--loki-text-meta)", fontWeight: 700, color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
+      <span className="flex items-center gap-2" style={{ fontSize: "var(--loki-text-meta)", fontWeight: 700, color: "var(--loki-fg)" }}>
         {entry.error && <Dot size={7} color="var(--loki-negative)" title={entry.error} />}
         {entry.title}
       </span>
-      <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
-        <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", marginRight: 6 }}>
+      <span className="loki-frame-controls flex items-center gap-0.5">
+        <span className="loki-meta loki-meta--wrap loki-mono" style={{ marginRight: 6 }}>
           {entry.name}
         </span>
         <FrameButton label={`Focus ${entry.title}`} title="Focus" onClick={() => onFocus?.(entry.id)}>

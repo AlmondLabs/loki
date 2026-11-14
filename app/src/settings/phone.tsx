@@ -63,16 +63,8 @@ function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
         help={
           <>
             The inbox and your chats on a phone, over Tailscale or this Wi‑Fi; nothing to install.
-            {status.error && (
-              <span className="loki-meta--negative" style={{ display: "block" }}>
-                {status.error}
-              </span>
-            )}
-            {on && !status.app_served && (
-              <span className="loki-meta--negative" style={{ display: "block" }}>
-                The canvas build is missing; run npm run build:app.
-              </span>
-            )}
+            {status.error && <span className="loki-meta--negative block">{status.error}</span>}
+            {on && !status.app_served && <span className="loki-meta--negative block">The canvas build is missing; run npm run build:app.</span>}
           </>
         }
       >
@@ -140,11 +132,12 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
   const ts = status.tailscale;
   const running = !!ts?.running;
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div className="grid gap-1.5">
       <div
         role="radiogroup"
         aria-label="Route"
-        style={{ display: "grid", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", overflow: "hidden" }}
+        className="grid"
+        style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", overflow: "hidden" }}
       >
         {(ts?.installed || running) && (
           <RouteRow
@@ -167,7 +160,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
 /** Under a lit Tailscale row: the `tailscale serve` switch, and the mod's error when serve would not start. */
 function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: boolean) => void }) {
   return (
-    <div style={{ display: "grid", gap: 2, paddingLeft: 2 }}>
+    <div className="grid gap-0.5" style={{ paddingLeft: 2 }}>
       <Switch on={!!ts.serve_url} onToggle={() => onServe(!ts.serve_url)} label="HTTPS on the tailnet" small />
       {ts.error && (
         <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ overflowWrap: "anywhere" }}>
@@ -183,7 +176,7 @@ function NoTailscale() {
   return (
     <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
       Tailscale is not on this Mac. With it on the Mac and the phone, signed in to one account, this works from any network —{" "}
-      <span style={{ fontFamily: "var(--loki-mono)" }}>tailscale.com/download</span>
+      <span className="loki-mono">tailscale.com/download</span>
     </span>
   );
 }
@@ -215,15 +208,15 @@ function RouteRow({
       style={{ padding: "8px 12px", cursor: disabled ? "default" : undefined, opacity: disabled ? 0.5 : 1 }}
     >
       <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 5 }} />
-      <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
-        <span style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+      <span className="grid gap-px min-w-0 flex-1">
+        <span className="flex flex-wrap items-baseline gap-2">
           <span style={{ fontSize: "var(--loki-text-body)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{sentence(ROUTE_NAME[via])}</span>
           <span className="loki-meta loki-meta--wrap">{hint}</span>
         </span>
         {address && (
           <span
+            className="loki-mono"
             style={{
-              fontFamily: "var(--loki-mono)",
               fontSize: "var(--loki-text-meta)",
               color: lit ? "var(--loki-fg)" : "var(--loki-muted)",
               overflowWrap: "anywhere",
@@ -255,18 +248,19 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
   const left = countdown(code.expiresAt, now);
   const expired = left === "expired";
   return (
-    <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", paddingBottom: 12 }}>
+    <div className="flex flex-wrap items-start gap-4" style={{ paddingBottom: 12 }}>
       <div
         aria-label={`QR code for ${url}`}
         role="img"
-        style={{ width: 168, height: 168, borderRadius: "var(--loki-radius-md)", overflow: "hidden", flex: "0 0 auto", opacity: expired ? 0.35 : 1 }}
+        className="flex-none"
+        style={{ width: 168, height: 168, borderRadius: "var(--loki-radius-md)", overflow: "hidden", opacity: expired ? 0.35 : 1 }}
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
-      <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
-        <div style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+      <div className="grid gap-1.5 min-w-0 flex-1">
+        <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
           {code.code}
         </div>
-        <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
+        <div className="loki-meta loki-meta--wrap loki-mono" style={{ overflowWrap: "anywhere" }}>
           {url}
         </div>
         <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>

@@ -51,8 +51,8 @@ export function ProfilePage({
 }) {
   const myDesks = useMemo(() => desks.filter((x) => x.agent_id === selected && x.status === "live"), [desks, selected]);
   return (
-    <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
-      <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
+    <div className="min-w-0" style={{ minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
+      <div className="grid gap-6" style={{ maxWidth: 760 }}>
         <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} macs={macs} />
         <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
@@ -81,22 +81,21 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
           No live chats
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
         {myDesks.map((x) => (
           <Row
             dense
             key={x.scope}
             onClick={() => onOpen(x.conversation_id ?? "default")}
-            style={{ justifyContent: "space-between", fontSize: "var(--loki-text-body)" }}
+            className="justify-between"
+            style={{ fontSize: "var(--loki-text-body)" }}
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "Main chat"}</span>
-            <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
-              {x.active ? "Active" : x.last_active ? ago(x.last_active) : ""}
-            </span>
+            <span className="loki-truncate">{x.title ?? "Main chat"}</span>
+            <span className="loki-meta loki-meta--wrap flex-none">{x.active ? "Active" : x.last_active ? ago(x.last_active) : ""}</span>
           </Row>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
+      <div className="flex gap-2" style={{ padding: "8px 8px 0" }}>
         <Button tone="brass" onClick={() => onOpen("default")}>
           Main Chat
         </Button>
@@ -135,9 +134,8 @@ function ConfirmDelete({
     <div
       role="alertdialog"
       aria-label={`Delete ${d.agent.name}`}
+      className="grid gap-2"
       style={{
-        display: "grid",
-        gap: 8,
         padding: "10px 12px",
         border: "1px solid var(--loki-negative)",
         borderRadius: "var(--loki-radius-md)",
@@ -156,7 +154,7 @@ function ConfirmDelete({
           : ""}
       </span>
       {accounts && <OwnedAccounts api={accounts.api} agentId={d.agent.id} agents={accounts.agents} asked={asked} onOwned={setOwned} />}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <Button tone="negative" disabled={owned > 0} onClick={() => void remove()}>
           Delete {d.agent.name}
         </Button>
@@ -197,9 +195,9 @@ function Identity({
     settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null,
   ].filter(Boolean);
   return (
-    <section style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 14, alignItems: "start" }}>
+    <section className="grid grid-cols-[64px_1fr] items-start gap-3">
       <AgentFace name={d.agent.name} src={avatar} size={64} />
-      <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+      <div className="grid min-w-0 gap-1">
         <Field
           inline
           value={name}
@@ -219,7 +217,7 @@ function Identity({
           aria-label="Agent description"
           style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)" }}
         />
-        <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+        <div className="loki-meta loki-meta--wrap flex flex-wrap items-center gap-2" style={{ marginTop: 4 }}>
           <Field
             inline
             mono
@@ -243,7 +241,7 @@ function Identity({
           {d.agent.favourite && <span style={{ color: "var(--loki-accent)" }}>· ★ favourite</span>}
         </div>
         {macs.length > 1 && (
-          <label className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <label className="loki-meta loki-meta--wrap flex items-center gap-2">
             Lives on
             <select
               aria-label="The Mac this agent lives on"
@@ -289,11 +287,11 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
           {error}
         </div>
       )}
-      <div style={{ display: "grid", gap: 6, padding: "0 8px" }}>
+      <div className="grid gap-1.5" style={{ padding: "0 8px" }}>
         {view?.servers.map((s) => {
           const on = !s.off_for.includes(agentId);
           return (
-            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div key={s.name} className="flex items-center gap-2">
               <Switch on={on} onToggle={() => void mcp.agent(agentId, s.name, !on).then(apply)} label={s.entry} small />
               <span className="loki-meta">{s.state === "connected" ? `${s.tools.length} tools` : s.state}</span>
             </div>

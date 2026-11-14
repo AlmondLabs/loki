@@ -565,24 +565,20 @@ export function ConversationHeader({
 }) {
   return (
     <div
+      className="flex flex-none items-center justify-between gap-3"
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
         padding: "14px 18px",
         borderBottom: "1px solid var(--loki-border)",
-        flex: "0 0 auto",
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
+      <div className="min-w-0">
+        <Title className="loki-truncate">{title}</Title>
         {purpose && (
           <div className="loki-chat-purpose" title={purpose}>
             {purpose}
           </div>
         )}
-        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <div className="flex min-w-0 items-center gap-2" style={{ marginTop: 4 }}>
           <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
           <AgentChip name={agentName} />
           {children}
@@ -691,7 +687,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
   const stableLoadStep = useCallback((row: number) => loadStepRef.current?.(row) ?? Promise.resolve(null), []);
   const who = agentName ?? "the agent";
   return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div className="flex flex-1 flex-col" style={{ position: "relative", minHeight: 0 }}>
       <div
         ref={scrollRef}
         onScroll={onScroll}

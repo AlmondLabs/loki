@@ -276,11 +276,6 @@
   text-align: left;
   cursor: pointer;
 }
-.loki-steps-failure span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .loki-steps-open {
   margin: 4px 0 8px;
   padding: 6px 10px;
@@ -340,11 +335,6 @@
 }
 .loki-steps-failed {
   color: var(--loki-negative);
-}
-.loki-steps-target {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .loki-steps-detail {
   display: grid;
@@ -555,12 +545,6 @@
   align-items: baseline;
   gap: 8px;
   width: 100%;
-}
-.loki-suggestion-hit-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .loki-suggestion-hit-line {
   color: var(--loki-muted);

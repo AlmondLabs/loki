@@ -151,23 +151,19 @@ function ServerRow({
   const loaded = s.tools.filter((t) => t.always_load).map((t) => t.name);
   const toggleAlways = (name: string, on: boolean) => void api.alwaysLoad(s.entry, on ? [...loaded, name] : loaded.filter((n) => n !== name)).then(apply);
   return (
-    <div style={{ display: "grid", gap: 6, padding: "6px 0" }}>
+    <div className="grid gap-1.5" style={{ padding: "6px 0" }}>
       <Row
         dense
         selected={open}
         onClick={onToggle}
         aria-expanded={open}
         aria-label={`${s.entry}, ${s.kind} server, ${s.state === "connected" ? `${s.tools.length} tools` : s.state === "signin" ? "needs sign-in" : s.state}`}
-        style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}
+        style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12 }}
       >
         <Dot color={STATE_TONE[s.state]} />
-        <span style={{ minWidth: 0 }}>
+        <span className="min-w-0">
           <strong>{s.entry}</strong>
-          {s.purpose && (
-            <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
-              {s.purpose}
-            </span>
-          )}
+          {s.purpose && <span className="loki-meta loki-meta--wrap block">{s.purpose}</span>}
         </span>
         <span className="loki-meta">
           {s.state === "connected"
@@ -178,21 +174,23 @@ function ServerRow({
         </span>
       </Row>
       {open && (
-        <div style={{ display: "grid", gap: 8, padding: "4px 8px 10px 28px" }}>
+        <div className="grid gap-2" style={{ padding: "4px 8px 10px 28px" }}>
           {s.error && s.state !== "signin" && <div className="loki-meta loki-meta--negative loki-meta--wrap">{s.error}</div>}
           {s.sign_in && <SignIn s={s} signIn={s.sign_in} onSignOut={() => void api.signOut(s.name).then(apply)} />}
           {s.tools.length > 0 && (
-            <div role="group" aria-label={`${s.name} tools`} style={{ display: "grid", gap: 4 }}>
+            <div role="group" aria-label={`${s.name} tools`} className="grid gap-1">
               {s.tools.map((t) => (
-                <label key={t.name} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 8, alignItems: "start", cursor: "pointer" }}>
+                <label key={t.name} className="grid grid-cols-[auto_1fr_auto] items-start gap-2" style={{ cursor: "pointer" }}>
                   <input
                     type="checkbox"
                     checked={t.always_load}
                     onChange={(e) => toggleAlways(t.name, e.target.checked)}
                     aria-label={`Always load ${t.name}`}
                   />
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)" }}>{t.name}</span>
+                  <span className="min-w-0">
+                    <span className="loki-mono" style={{ fontSize: "var(--loki-text-meta)" }}>
+                      {t.name}
+                    </span>
                     {t.read_only && (
                       <Chip static tag style={{ marginLeft: 6 }}>
                         Read-only
@@ -203,11 +201,7 @@ function ServerRow({
                         Destructive
                       </Chip>
                     )}
-                    {t.description && (
-                      <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
-                        {t.description.split("\n")[0]}
-                      </span>
-                    )}
+                    {t.description && <span className="loki-meta loki-meta--wrap block">{t.description.split("\n")[0]}</span>}
                   </span>
                   <span className="loki-meta">{tokenLabel(t.tokens)}</span>
                 </label>
@@ -215,7 +209,7 @@ function ServerRow({
               <span className="loki-meta loki-meta--wrap">Checked: always loaded, skipping the search (keep it to the few used all the time)</span>
             </div>
           )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => void api.restart(s.name).then(apply)}>
               Restart
             </Button>
@@ -252,12 +246,12 @@ function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullabl
   const url = signIn.url;
   if (s.state === "signin")
     return (
-      <div style={{ display: "grid", gap: 6 }}>
+      <div className="grid gap-1.5">
         <span className="loki-meta loki-meta--wrap">
           {s.entry} needs you to sign in before its tools can be used. Your browser opens its sign-in page and comes back to loki.
         </span>
         {url ? (
-          <Button size="sm" tone="positive" onClick={() => openExternal(url)} style={{ justifySelf: "start" }}>
+          <Button size="sm" tone="positive" onClick={() => openExternal(url)} className="justify-self-start">
             Sign In to {s.entry}
           </Button>
         ) : (
@@ -267,7 +261,7 @@ function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullabl
     );
   if (signIn.signed_in)
     return (
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div className="flex items-center gap-2">
         <span className="loki-meta">Signed in</span>
         <Button size="sm" onClick={onSignOut}>
           Sign Out
@@ -373,7 +367,7 @@ function ServerForm({
   };
 
   return (
-    <div style={{ display: "grid", gap: 8, padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
+    <div className="grid gap-2" style={{ padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>
@@ -396,14 +390,14 @@ function ServerForm({
         />
       </span>
       {form.kind === "local" ? <LocalFields uid={uid} form={form} set={set} /> : <RemoteFields uid={uid} form={form} set={set} />}
-      <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+      <label className="flex items-center gap-2" style={{ cursor: "pointer" }}>
         <input type="checkbox" checked={keychain} onChange={(e) => setKeychain(e.target.checked)} />
         <span className="loki-meta loki-meta--wrap">
           Keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them
         </span>
       </label>
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <Button size="sm" tone="positive" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save"}
         </Button>
@@ -412,7 +406,7 @@ function ServerForm({
         </Button>
       </div>
       <div className="loki-meta loki-meta--wrap">
-        Written to <span style={{ fontFamily: "var(--loki-mono)" }}>{configPath}</span>, which loki's daemon follows.
+        Written to <span className="loki-mono">{configPath}</span>, which loki's daemon follows.
       </div>
     </div>
   );

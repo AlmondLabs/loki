@@ -57,16 +57,16 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
   const renamed = labelName(name);
   const chats = `${label.chats} ${label.chats === 1 ? "chat" : "chats"}`;
   return (
-    <div role="group" aria-label={`${label.name}, ${chats}`} style={{ display: "grid", gap: 8, padding: "12px 0" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
+    <div role="group" aria-label={`${label.name}, ${chats}`} className="grid gap-2" style={{ padding: "12px 0" }}>
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
         <span aria-hidden className="loki-label-dot" style={{ "--label-tone": labelColor(label.name, list) } as CSSProperties} />
-        <span style={{ minWidth: 0 }}>
+        <span className="min-w-0">
           <strong>{label.name}</strong>
           <span className="loki-meta" style={{ marginLeft: 8 }}>
             {chats}
           </span>
         </span>
-        <span style={{ display: "flex", gap: 6 }}>
+        <span className="flex gap-1.5">
           <Button size="sm" onClick={() => (setName(label.name), setMode(mode === "rename" ? "show" : "rename"))} aria-label={`Rename ${label.name}`}>
             Rename…
           </Button>
@@ -80,7 +80,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
       </div>
       {mode === "rename" && (
         <form
-          style={{ display: "flex", gap: 6 }}
+          className="flex gap-1.5"
           onSubmit={(e) => {
             e.preventDefault();
             if (renamed && renamed !== label.name) void run({ name: label.name, rename: renamed });
@@ -95,7 +95,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
             maxLength={LABEL_MAX + 8}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{ flex: 1 }}
+            className="flex-1"
           />
           <Button size="sm" tone="positive" type="submit" disabled={busy || !renamed || renamed === label.name}>
             {busy ? "Saving…" : renamed && renamed !== name.trim() ? `Save as ${renamed}` : "Save"}
@@ -103,7 +103,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
         </form>
       )}
       {mode === "color" && (
-        <div role="radiogroup" aria-label={`Colour of ${label.name}`} style={{ display: "flex", gap: 6 }}>
+        <div role="radiogroup" aria-label={`Colour of ${label.name}`} className="flex gap-1.5">
           {Array.from({ length: LABEL_COLORS }, (_, color) => (
             <button
               key={color}
@@ -120,7 +120,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
         </div>
       )}
       {mode === "remove" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="flex items-center gap-2">
           <span className="loki-meta loki-meta--wrap">
             Take {label.name} off {chats}? The chats stay.
           </span>

@@ -20,7 +20,7 @@ function asText(v: unknown): string {
 export function InfoCard({ data }: KitProps) {
   const lines = (data.lines as string[] | undefined) ?? [];
   return (
-    <div className="loki-widget-body" style={{ display: "grid", gap: 6 }}>
+    <div className="loki-widget-body grid gap-1.5">
       {lines.map((line, i) => (
         <div key={i}>{line}</div>
       ))}
@@ -33,8 +33,10 @@ export function Stat({ data }: KitProps) {
   const delta = typeof data.delta === "number" ? data.delta : null;
   return (
     <div className="loki-widget-body">
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: "var(--loki-text-hero)", fontWeight: 600, fontFamily: "var(--loki-mono)" }}>{asText(data.value ?? "—")}</span>
+      <div className="flex items-baseline gap-1.5">
+        <span className="loki-mono" style={{ fontSize: "var(--loki-text-hero)", fontWeight: 600 }}>
+          {asText(data.value ?? "—")}
+        </span>
         {typeof data.unit === "string" && <span className="loki-muted">{data.unit}</span>}
         {delta !== null && (
           <span
@@ -70,10 +72,10 @@ export function SliderControl({ data, onSet }: KitProps) {
     setLive(null);
   };
   return (
-    <div className="loki-widget-body" style={{ display: "grid", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
+    <div className="loki-widget-body grid gap-2">
+      <div className="flex justify-between">
         <span>{asText(data.label ?? "value")}</span>
-        <span style={{ fontFamily: "var(--loki-mono)" }}>
+        <span className="loki-mono">
           {shown}
           {typeof data.unit === "string" ? ` ${data.unit}` : ""}
         </span>
@@ -116,9 +118,9 @@ export function SliderControl({ data, onSet }: KitProps) {
 export function ListCard({ data, onSet }: KitProps) {
   const items = (data.items as Array<{ text: string; done?: boolean }> | undefined) ?? [];
   return (
-    <div className="loki-widget-body" style={{ display: "grid", gap: 6 }}>
+    <div className="loki-widget-body grid gap-1.5">
       {items.map((item, i) => (
-        <label key={i} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+        <label key={i} className="flex items-center gap-2" style={{ cursor: "pointer" }}>
           <input
             type="checkbox"
             checked={!!item.done}

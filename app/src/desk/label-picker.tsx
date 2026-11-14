@@ -96,15 +96,7 @@ export function LabelPicker({
   };
 
   return (
-    <div
-      ref={boxRef}
-      role="dialog"
-      tabIndex={-1}
-      aria-label="Add a Label"
-      className="loki-popover loki-label-menu"
-      onKeyDown={onKey}
-      style={{ display: "flex", flexDirection: "column", gap: 0 }}
-    >
+    <div ref={boxRef} role="dialog" tabIndex={-1} aria-label="Add a Label" className="loki-popover loki-label-menu flex flex-col gap-0" onKeyDown={onKey}>
       {busy && <Meta>Adding the label…</Meta>}
       {!labels && !error && <Meta>Loading labels…</Meta>}
       {labels?.length === 0 && <Meta wrap>This account has no labels of its own yet. Make them in Gmail.</Meta>}
@@ -115,7 +107,8 @@ export function LabelPicker({
           tabIndex={0}
           aria-label="Labels"
           aria-activedescendant={`label-option-${String(hi)}`}
-          style={{ display: "flex", flexDirection: "column", maxHeight: 200, overflow: "auto" }}
+          className="flex flex-col"
+          style={{ maxHeight: 200, overflow: "auto" }}
         >
           {labels.map((l, i) => (
             <Row
@@ -129,7 +122,8 @@ export function LabelPicker({
               disabled={busy}
               onMouseEnter={() => setHi(i)}
               onClick={() => choose(l.id)}
-              style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--loki-text-body)" }}
+              className="loki-truncate"
+              style={{ fontSize: "var(--loki-text-body)" }}
             >
               {l.name}
             </Row>

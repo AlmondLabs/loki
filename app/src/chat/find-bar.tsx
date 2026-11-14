@@ -42,10 +42,8 @@ export function FindBar({
   };
   return (
     <div
+      className="flex items-center gap-1.5"
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
         padding: "6px 10px",
         borderBottom: "1px solid var(--loki-border)",
         background: "var(--loki-panel-header)",
@@ -73,7 +71,7 @@ export function FindBar({
         }}
         placeholder={`Find in transcript… (${formatKeys("enter")} next · ${formatKeys("shift+enter")} previous · ${formatKeys("escape")})`}
         aria-label="Find in transcript"
-        style={{ flex: 1 }}
+        className="flex-1"
       />
       <IconButton size={24} onClick={() => findNext(true)} label="Previous match">
         <Glyph icon={ChevronUpIcon} />

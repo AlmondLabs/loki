@@ -11,12 +11,16 @@ export function ApprovalCard({ approval, actions }: { approval: PendingApproval;
     <div data-approval className="loki-approval">
       <div className="loki-label loki-approval-kicker">
         Needs your approval ·{" "}
-        <code className="loki-approval-tool" style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)" }}>
+        <code className="loki-approval-tool loki-mono" style={{ color: "var(--loki-fg)" }}>
           {approval.toolName}
         </code>
       </div>
       <pre className="loki-approval-input">{formatInput(approval.input)}</pre>
-      {actions && <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

@@ -316,7 +316,7 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
     <div className="loki-suggestion-modal-head">
       <span className="loki-suggestion-modal-title">Suggestions</span>
       {count > 0 && <Meta>{`${count} waiting`}</Meta>}
-      <span style={{ flex: 1 }} />
+      <span className="flex-1" />
       {!touch && <Meta>Esc closes</Meta>}
       <IconButton size={touch ? 36 : 28} label="Close" onClick={onClose}>
         <Icon name="close" size={touch ? 20 : 16} />
@@ -327,7 +327,7 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
     // The Sheet draws itself at the phone shell's root; React still bubbles its events through the Inbox card, which
     // would take a drag in the sheet for a swipe of the card underneath.
     return (
-      <div style={{ display: "contents" }} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
+      <div className="contents" onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
         <Sheet label="Suggestions" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-suggestion-sheet">
           {head}
           {children}
@@ -548,7 +548,7 @@ function ChatPicker({
         {choices.map((c) => (
           <li key={c.key}>
             <Row dense={!touch} touch={touch} disabled={disabled} onClick={() => choose(c)} className="loki-suggestion-hit">
-              <span className="loki-suggestion-hit-title">{c.title}</span>
+              <span className="loki-truncate">{c.title}</span>
               {c.line && <span className="loki-suggestion-hit-line">{c.line}</span>}
             </Row>
           </li>

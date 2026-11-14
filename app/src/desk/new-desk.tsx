@@ -324,7 +324,7 @@ export function ChangeFolder({
           {agentName ? ` · ${agentName}` : ""}
         </div>
       </div>
-      <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
+      <div className="grid gap-4" style={{ padding: "14px 18px" }}>
         <FolderPicker
           inputRef={field.inputRef}
           folder={folder}
@@ -346,9 +346,9 @@ export function ChangeFolder({
         </div>
         {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>{error}</div>}
       </div>
-      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
+      <div className="flex items-center gap-2" style={{ padding: 12, borderTop: "1px solid var(--loki-border)" }}>
         <span className="loki-label">Enter move · esc close</span>
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Button size="sm" onClick={onClose}>
           Cancel
         </Button>
@@ -441,7 +441,7 @@ export function FolderPicker({
   const [hi, setHi] = useState(0);
   return (
     <div style={{ position: "relative" }}>
-      <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+      <div className="loki-label flex justify-between" style={{ marginBottom: 6 }}>
         <span>
           Folder
           {source && (
@@ -450,7 +450,7 @@ export function FolderPicker({
         </span>
         <FolderVerdict status={status} />
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <Field
           ref={inputRef}
           mono
@@ -550,9 +550,7 @@ function FolderList({
               style={{ display: "grid", gap: 0 }}
             >
               <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{label}</div>
-              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>
-                {o.path}
-              </div>
+              <div className="loki-meta loki-mono">{o.path}</div>
             </Row>
           </div>
         );

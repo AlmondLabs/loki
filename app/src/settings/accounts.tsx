@@ -371,16 +371,18 @@ function AccountLine({
   const [confirm, setConfirm] = useState(false);
   const { reconnect, more } = row;
   return (
-    <div style={{ display: "grid", gap: 6, padding: "12px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div className="grid gap-1.5" style={{ padding: "12px 0" }}>
+      <div className="flex items-center gap-2">
         <Dot color={row.problem ? "var(--loki-negative)" : "var(--loki-positive)"} />
-        <strong style={{ fontSize: "var(--loki-text-body)", minWidth: 0, overflowWrap: "anywhere" }}>{row.label}</strong>
+        <strong className="min-w-0" style={{ fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
+          {row.label}
+        </strong>
         <span className="loki-meta">
           {row.service} · {row.owner}
         </span>
       </div>
       <div className={row.problem ? "loki-meta loki-meta--negative loki-meta--wrap" : "loki-meta loki-meta--wrap"}>{sentence(row.state)}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <div className="flex flex-wrap items-center gap-2">
         {reconnect && (
           <Button tone="positive" onClick={() => onReconnect(reconnect)}>
             {`Reconnect ${row.service}`}
@@ -391,7 +393,7 @@ function AccountLine({
             {`Sign In Again for ${more.services}`}
           </Button>
         )}
-        <label className="loki-meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label className="loki-meta flex items-center gap-2">
           Move to
           <AgentPicker
             agents={agents}
@@ -454,14 +456,16 @@ export function OwnedAccounts({
   }, [asked]);
   if (!owned.length && !error) return null;
   return (
-    <div role="group" aria-label="Accounts this agent owns" style={{ display: "grid", gap: 8 }}>
+    <div role="group" aria-label="Accounts this agent owns" className="grid gap-2">
       {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       {owned.length > 0 && <span>It owns these accounts: move each to another agent or disconnect it first.</span>}
       {accountRows(owned, agents).map((row) => (
-        <div key={row.account_id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{row.label}</strong>
+        <div key={row.account_id} className="flex flex-wrap items-center gap-2">
+          <strong className="min-w-0" style={{ overflowWrap: "anywhere" }}>
+            {row.label}
+          </strong>
           <span className="loki-meta">{row.service}</span>
-          <label className="loki-meta" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+          <label className="loki-meta flex items-center gap-2" style={{ marginLeft: "auto" }}>
             Move to
             <AgentPicker
               agents={moveTargets(agents, agentId)}

@@ -47,12 +47,12 @@ export function CommitView({ commit, reading, onRevert }: { commit: MemoryCommit
   const { content, loadingView } = reading;
   return (
     <>
-      <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      <div className="loki-label flex items-center gap-2" style={{ marginBottom: 12 }}>
         <span style={{ color: "var(--loki-fg)" }}>
-          Commit <span style={{ fontFamily: "var(--loki-mono)" }}>{commit.sha.slice(0, 8)}</span>
+          Commit <span className="loki-mono">{commit.sha.slice(0, 8)}</span>
         </span>
         {loadingView && <span>Loading…</span>}
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         {commit.files.length > 0 && (
           <Button size="sm" tone="paper" onClick={() => onRevert(commit.sha)} title="Undo this change with a new commit">
             Revert
@@ -69,9 +69,9 @@ export function CommitView({ commit, reading, onRevert }: { commit: MemoryCommit
 export function Diff({ text }: { text: string }) {
   return (
     <pre
+      className="loki-mono"
       style={{
         margin: 0,
-        fontFamily: "var(--loki-mono)",
         fontSize: "var(--loki-text-meta)",
         lineHeight: 1.5,
         whiteSpace: "pre-wrap",

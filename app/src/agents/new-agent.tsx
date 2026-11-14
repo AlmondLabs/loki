@@ -47,10 +47,11 @@ export function NewAgent({
   };
   return (
     <div
-      style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }}
+      className="flex-1"
+      style={{ minHeight: 0, overflowY: "auto", padding: "24px 28px" }}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void submit()}
     >
-      <div style={{ maxWidth: 640, display: "grid", gap: 14 }}>
+      <div className="grid gap-4" style={{ maxWidth: 640 }}>
         <Labelled label="Name">
           <Field
             autoFocus
@@ -90,9 +91,9 @@ export function NewAgent({
           </datalist>
         </Labelled>
         <Labelled label="">
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="flex items-center gap-2">
             {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
-            <span style={{ flex: 1 }} />
+            <span className="flex-1" />
             {canCancel && <Button onClick={onCancel}>Cancel</Button>}
             <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>
               {busy ? "Creating…" : "Create Agent"}
@@ -110,11 +111,11 @@ export function NewAgent({
  */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "96px minmax(0, 1fr)", alignItems: "start", columnGap: 16, padding: "0 8px" }}>
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4" style={{ padding: "0 8px" }}>
       <span className="loki-label" style={{ paddingTop: 9, lineHeight: "18px" }}>
         {label}
       </span>
-      <div style={{ minWidth: 0 }}>{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

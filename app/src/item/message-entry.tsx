@@ -69,7 +69,7 @@ export function MessageEntry({
     <div
       data-row="person"
       data-mentions={m.mentions_you || undefined}
-      className={cn("grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5", m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
+      className={cn("grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2", m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
     >
       {first ? <Avatar who={m.who} src={m.avatar} /> : <span aria-hidden />}
       <div className="flex min-w-0 flex-col gap-1">

@@ -113,7 +113,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
         {face}
         <span className="loki-mail-msg-name">{name}</span>
         <span className="loki-mail-fold-line">{snippet(m.text)}</span>
-        {when && <Meta style={{ flex: "none" }}>{when}</Meta>}
+        {when && <Meta className="flex-none">{when}</Meta>}
       </button>
     );
   const address = addressIn(m.sender);
@@ -122,15 +122,15 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
     <div className="loki-mail-msg">
       <div className="loki-mail-msg-head">
         {face}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-baseline gap-1.5">
             <span className="loki-mail-msg-name">{name}</span>
-            {address && address !== name && <Meta style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>&lt;{address}&gt;</Meta>}
+            {address && address !== name && <Meta>&lt;{address}&gt;</Meta>}
           </div>
-          {sentTo && <Meta style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sentTo}</Meta>}
+          {sentTo && <Meta className="block">{sentTo}</Meta>}
         </div>
         {when && (
-          <Meta style={{ flex: "none" }} title={new Date(m.at).toLocaleString()}>
+          <Meta className="flex-none" title={new Date(m.at).toLocaleString()}>
             {when} ({ago(m.at)})
           </Meta>
         )}
