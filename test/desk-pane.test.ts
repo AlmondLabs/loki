@@ -11,7 +11,6 @@ import {
   openTab,
   paneView,
   routeTick,
-  sidebarHidden,
   tabOf,
   tickFor,
 } from "../app/src/desk/pane.ts";
@@ -63,10 +62,10 @@ describe("desk pane: Esc", () => {
 });
 
 describe("desk pane: the sidebar", () => {
-  test("the Desk tab hides the sidebar; Messages and other sections keep it (AE6)", () => {
-    expect(sidebarHidden("desk", "desk")).toBe(true);
-    expect(sidebarHidden("desk", "messages")).toBe(false);
-    expect(sidebarHidden("agents", "desk")).toBe(false);
+  test("no tab hides the sidebar: the Canvas tab keeps it, as Finder keeps its sidebar in every view (plan 2026-11-14-1130, 2)", () => {
+    const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
+    expect(shell).not.toMatch(/sidebarHidden|immersive/);
+    expect(shell).toMatch(/const columnShown = column\.shown;/);
   });
 });
 

@@ -12,8 +12,12 @@ export const COLUMN_MIN = 220;
 export const COLUMN_MAX = 420;
 /** The column's width in px until the person drags it. */
 export const COLUMN_DEFAULT = 260;
-/** Windows narrower than this fold the column away until asked for. */
-export const NARROW_BELOW = 1100;
+/**
+ * Windows narrower than this fold the column away until asked for. At 800 the pane keeps about 520 beside the
+ * narrowest column, which a thread still reads in; macOS folds a sidebar only when both panes no longer fit
+ * (plan 2026-11-14-1130, 3).
+ */
+export const NARROW_BELOW = 800;
 /** The localStorage key the column's width and fold are kept under. */
 export const COLUMN_KEY = "loki.desktop.column";
 

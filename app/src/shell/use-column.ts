@@ -4,7 +4,7 @@ import type { Segment } from "./keymap";
 
 /**
  * The list column's state for the shell: the kept width and collapse (localStorage, column.ts), the
- * window's width for the fold below 1100, and the narrow window's peek. `shown` is for the showing
+ * window's width for the fold below NARROW_BELOW, and the narrow window's peek. `shown` is for the showing
  * segment; `setWidth(w, commit)` moves the edge live and keeps it when `commit` (the drag's end).
  */
 export function useColumn(segment: Segment) {

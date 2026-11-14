@@ -8,11 +8,12 @@ import { NewChat } from "../desk/new-chat";
 import { useFirstMessage } from "../desk/use-first-message";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { useDeskPane } from "../desk/use-desk-pane";
-import { chatKeyTarget, sidebarHidden } from "../desk/pane";
+import { chatKeyTarget } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
 import { avatarUrl, inTauri } from "../desk/env";
 import { AgentsColumn } from "../agents/agents-column";
 import { LearnColumn } from "../recall/learn-column";
+import { FlowColumn } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
@@ -279,9 +280,9 @@ export function Shell() {
   // A chat not started yet shows in place of the open one, which stays mounted behind it and takes no keys meanwhile.
   const drafting = newChat !== null && segment === "desk";
   const onChat = segment === "desk" && !drafting;
-  // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept).
-  const immersive = sidebarHidden(segment, pane.tab);
-  const columnShown = column.shown && !immersive;
+  // The sidebar stays on every tab, the Canvas one too, as Finder's does whatever the view (plan 2026-11-14-1130, 2);
+  // ⌃⌘S folds it for a wider canvas.
+  const columnShown = column.shown;
   // The sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
   const paneLeft = columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36;
   // In the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); elsewhere the sheet.
@@ -319,7 +320,7 @@ export function Shell() {
       "desk.prev": () => stepDesk(-1),
       "desk.next": () => stepDesk(1),
       "column.toggle": () => {
-        if (column.has && !immersive) column.toggle();
+        if (column.has) column.toggle();
       },
       "window.hide": () => {
         if (inTauri) hideCurrentWindow();
@@ -385,7 +386,7 @@ export function Shell() {
           }}
         />
         <TitleStrip />
-        {column.has && !immersive && (
+        {column.has && (
           <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }}>
             <ColumnToggle open={column.open} onToggle={column.toggle} />
           </span>
@@ -415,6 +416,15 @@ export function Shell() {
             ),
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
             learn: <LearnColumn recall={recall} />,
+            inbox: (
+              <FlowColumn
+                items={catchUp.items}
+                lane={catchUp.flow.lane}
+                lanes={catchUp.flow.lanes}
+                onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
+                onNewLane={() => showPreferences("inbox")}
+              />
+            ),
           }}
         />
 

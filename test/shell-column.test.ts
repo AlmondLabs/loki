@@ -15,7 +15,7 @@ import {
 
 /**
  * The list column beside the main pane (plan 013 U3): its width is clamped and kept, its
- * collapse is kept, and below 1100 wide it folds away on its own until asked for.
+ * collapse is kept, and below 800 wide it folds away on its own until asked for.
  */
 
 const memory = (seed: Record<string, string> = {}) => {
@@ -77,7 +77,7 @@ describe("list column: persistence", () => {
   });
 });
 
-describe("list column: collapse below 1100 wide", () => {
+describe("list column: collapse below 800 wide (plan 2026-11-14-1130, 3)", () => {
   const open = { width: 260, collapsed: false };
   test("wide windows follow the saved collapse", () => {
     expect(columnShown(open, 1280, false)).toBe(true);
@@ -85,11 +85,14 @@ describe("list column: collapse below 1100 wide", () => {
     expect(columnShown(open, NARROW_BELOW, false)).toBe(true);
   });
   test("narrow windows fold it away until asked, and asking does not touch the saved preference", () => {
-    expect(columnShown(open, 1099, false)).toBe(false);
-    expect(columnShown(open, 1000, true)).toBe(true);
-    const asked = toggleColumn(open, 1000, false);
+    expect(NARROW_BELOW).toBe(800);
+    // A 1000-wide window, beside another app on a 13-inch Mac, keeps its sidebar.
+    expect(columnShown(open, 1000, false)).toBe(true);
+    expect(columnShown(open, 799, false)).toBe(false);
+    expect(columnShown(open, 700, true)).toBe(true);
+    const asked = toggleColumn(open, 700, false);
     expect(asked).toEqual({ pref: open, peek: true });
-    expect(toggleColumn(open, 1000, true)).toEqual({ pref: open, peek: false });
+    expect(toggleColumn(open, 700, true)).toEqual({ pref: open, peek: false });
   });
   test("on a wide window the toggle flips the saved collapse and drops any peek", () => {
     expect(toggleColumn(open, 1280, false)).toEqual({ pref: { ...open, collapsed: true }, peek: false });
