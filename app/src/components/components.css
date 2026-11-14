@@ -1151,6 +1151,16 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
 }
+/* The list column (shell/shell.tsx, plan 2026-11-14-1330 KTD1): a place's items between the sidebar and the detail, on the
+   detail's ground with a hairline before it, as Mail's message list. */
+.loki-list-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+  border-right: 1px solid var(--loki-border);
+  background: var(--loki-bg);
+}
 .loki-column-body {
   position: absolute;
   inset: 0;

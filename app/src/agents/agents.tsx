@@ -11,7 +11,7 @@ import type { ItemProperty } from "../item/item-view";
 
 /** One line of words as a toolbar's grey line, or none. */
 const said = (line: string | null | undefined): ItemProperty[] => (line ? [{ key: "status", label: line, editable: false }] : []);
-import { COLUMN_DEFAULT } from "../shell/column";
+import { LIST_MIN } from "../shell/columns";
 
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_LABEL, type AgentPage } from "./pages";
 import { readingFor, shownShaOf, shownSkillOf } from "./reading";
@@ -268,7 +268,7 @@ function Frame({ column, children }: { column?: React.ReactNode; children?: Reac
       {column && (
         <div
           className="loki-column-body"
-          style={{ position: "relative", width: COLUMN_DEFAULT, flex: "none", borderRight: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}
+          style={{ position: "relative", width: LIST_MIN, flex: "none", borderRight: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}
         >
           {column}
         </div>

@@ -13,9 +13,9 @@ const sidebar = readFileSync(join(APP, "shell", "sidebar.tsx"), "utf8");
 const glass = must(/\n:root \{([\s\S]*)\n\}\s*$/.exec(css), "the glass block")[1];
 
 describe("the window shell on Liquid Glass", () => {
-  test("one glass panel sits under the list column, hidden while the column is", () => {
+  test("one glass panel sits under the sidebar, hidden while the sidebar is", () => {
     expect(shell).toMatch(/className="loki-shell-glass glass"/);
-    expect(shell).toContain('data-empty={!columnShown ? "" : undefined}');
+    expect(shell).toContain('data-empty={!sidebarShown ? "" : undefined}');
     expect(glass).toMatch(/\.loki-shell-glass \{\s*display: block;/);
     expect(glass).toMatch(/\.loki-shell-glass\[data-empty\] \{\s*display: none;/);
   });

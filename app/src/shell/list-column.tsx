@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { COLUMN_MAX, COLUMN_MIN } from "./column";
+import { SIDEBAR_MAX, SIDEBAR_MIN } from "./columns";
 import type { Segment } from "./keymap";
 
 /** One arrow press on the resize handle, in px. */
@@ -21,6 +21,7 @@ export function ListColumn({
   top,
   head = null,
   foot = null,
+  layer,
 }: {
   segment: Segment;
   shown: boolean;
@@ -35,6 +36,8 @@ export function ListColumn({
   head?: ReactNode;
   /** Rows under every section's body: the update notice. */
   foot?: ReactNode;
+  /** Its stacking while a folded sidebar shows over the list and the detail (columns.ts); none while it sits beside them. */
+  layer?: number;
 }) {
   // Which bodies have mounted: set during render (the React pattern for state derived from a prop), so the showing one mounts on the same pass.
   const [mounted, setMounted] = useState<ReadonlySet<Segment>>(() => new Set(shown ? [segment] : []));
@@ -66,9 +69,9 @@ export function ListColumn({
         : e.key === "ArrowRight"
           ? width + KEY_STEP
           : e.key === "Home"
-            ? COLUMN_MIN
+            ? SIDEBAR_MIN
             : e.key === "End"
-              ? COLUMN_MAX
+              ? SIDEBAR_MAX
               : null;
     if (next === null) return;
     e.preventDefault();
@@ -81,7 +84,7 @@ export function ListColumn({
       aria-label="Sidebar"
       aria-hidden={!shown}
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ top, left, width, visibility: shown ? "visible" : "hidden" }}
+      style={{ top, left, width, zIndex: layer, visibility: shown ? "visible" : "hidden" }}
     >
       {head}
       <div className="loki-column-bodies">
@@ -96,8 +99,8 @@ export function ListColumn({
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
-        aria-valuemin={COLUMN_MIN}
-        aria-valuemax={COLUMN_MAX}
+        aria-valuemin={SIDEBAR_MIN}
+        aria-valuemax={SIDEBAR_MAX}
         aria-valuenow={width}
         tabIndex={shown ? 0 : -1}
         className="loki-column-edge"

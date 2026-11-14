@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
@@ -30,6 +30,7 @@ import { useShellKeys } from "./use-shell-keys";
 import { KeysSheet } from "./keys-sheet";
 import { useColumn } from "./use-column";
 import { ListColumn } from "./list-column";
+import { PlaceSlotsProvider } from "./place-columns";
 import { DeskSidebarView } from "./desk-sidebar";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
@@ -313,9 +314,17 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // The list column is the window's one sidebar (U12), beside every section, its places on top; the pane starts where it
-  // ends.
-  const column = useColumn(segment);
+  // A place moved onto the three columns draws its list and its detail from one owner component, which goes here
+  // (plan 2026-11-14-1330, KTD1); a place without one keeps its body in the sidebar and has no list column.
+  const placeOwners: Partial<Record<Segment, ReactNode>> = {};
+  const placeOwner = placeOwners[segment];
+  const hasList = placeOwner !== undefined;
+  const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
+  const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
+  // The sidebar is the window's one place list (U12), beside every section, its places on top; the list column and the
+  // detail start where columns.ts puts them.
+  const column = useColumn(segment, hasList);
+  const { layout } = column;
   /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
   const showLabel = (name: string) => {
     setSidebarQuery(`label:${name}`);
@@ -330,9 +339,9 @@ export function Shell() {
   const noChat = desk.scope === SHARED_SCOPE;
   // The sidebar stays on every tab, the Canvas one too, as Finder's does whatever the view (plan 2026-11-14-1130, 2);
   // ⌃⌘S folds it for a wider canvas.
-  const columnShown = column.shown;
-  // The sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
-  const paneLeft = columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36;
+  const sidebarShown = layout.sidebarShown;
+  // A folded sidebar asked for shows over the list and the detail rather than moving them.
+  const sidebarLayer = layout.sidebarOver ? 1 : undefined;
   // In the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); elsewhere the sheet.
   const settingsWindow = SETTINGS_WINDOW;
   const showPreferences = (page?: string | null) => {
@@ -436,13 +445,14 @@ export function Shell() {
         <div
           aria-hidden
           className="loki-shell-glass glass"
-          data-empty={!columnShown ? "" : undefined}
+          data-empty={!sidebarShown ? "" : undefined}
           style={{
             position: "absolute",
+            zIndex: sidebarLayer,
             left: GLASS_INSET,
             top: GLASS_INSET,
             bottom: GLASS_INSET,
-            width: columnShown ? column.width : 0,
+            width: sidebarShown ? column.sidebar : 0,
             borderRadius: "var(--loki-radius-lg)",
           }}
         />
@@ -455,9 +465,10 @@ export function Shell() {
 
         <ListColumn
           segment={segment}
-          shown={columnShown}
-          width={column.width}
-          onWidth={column.setWidth}
+          shown={sidebarShown}
+          width={column.sidebar}
+          onWidth={column.setSidebar}
+          layer={sidebarLayer}
           left={GLASS_INSET}
           top={GLASS_INSET + GLASS_HEAD}
           head={<Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} />}
@@ -488,8 +499,20 @@ export function Shell() {
           }}
         />
 
+        {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. */}
+        {hasList && (
+          <section
+            ref={setListSlot}
+            className="loki-list-column"
+            aria-label="List"
+            style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.listLeft, width: layout.list, bottom: 0 }}
+          />
+        )}
+
         {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
-        <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
+        <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.detailLeft, right: 0, bottom: 0 }}>
+          {hasList && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
+          <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>{placeOwner}</PlaceSlotsProvider>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
             <DeskPane

@@ -33,6 +33,10 @@ export const GLASS_LIGHTS = { x: 20, y: 22 };
 export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
   return shell && os === "macos" ? 92 : 16;
 }
+/** Where the list starts while the sidebar is folded, in px: past the toggle (28 px and a gap), so 128 on the Mac and 52 elsewhere (columns.ts). */
+export function sidebarClearance(shell: boolean = inTauri, os: Platform = platform): number {
+  return sidebarToggleLeft(shell, os) + 36;
+}
 /** The toggle's top, in px: its 28 px box centred on the lights' row (14 pt buttons), or near the panel's top elsewhere. */
 export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
   return shell && os === "macos" ? GLASS_LIGHTS.y + 7 - 14 : GLASS_INSET + 8;
