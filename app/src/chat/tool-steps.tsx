@@ -148,7 +148,7 @@ function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: 
         {first}
         {stepFailed(row) && <span className="loki-steps-failed">Failed</span>}
       </span>
-      {second && <span className="loki-truncate">{second}</span>}
+      {second && <span className="loki-steps-target loki-truncate">{second}</span>}
     </span>
   );
 }
