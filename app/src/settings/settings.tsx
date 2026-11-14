@@ -31,7 +31,7 @@ export interface ReturnTimesApi {
   set: (times: ReturnTimes) => void;
 }
 import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
-import { PageList } from "./page-list";
+import { NAV_TEXT_INSET, PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
@@ -47,8 +47,11 @@ const HOME = "~/.loki";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
 
-/** The window's toolbar height: the pane header matches it, and the nav's top padding clears the traffic lights by it. */
+/** The window's toolbar height: the nav's top padding clears the traffic lights by it, as the pane header's 52px line does. */
 const TOOLBAR_HEIGHT = 52;
+
+/** The pane's left edge for its title, tab track and cards: the detail panes' 20px inset (plan 2026-11-14-2224, R1, R8). */
+export const PANE_INSET = 20;
 
 /** The daemon's chat link (useAttention's status, "off" shown as connecting). */
 type ChatLink = "connecting" | "open" | "closed";
@@ -229,12 +232,13 @@ export function Settings({
         data-tauri-drag-region={windowed ? "deep" : undefined}
         style={{
           minHeight: 0,
-          padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "16px 8px 0",
+          // In the sheet the title sits on the pane title's line, centred in the 52px bar beside it.
+          padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "8px 8px 0",
           borderRight: windowed ? undefined : "1px solid var(--loki-border)",
         }}
       >
         {!windowed && (
-          <h2 className="loki-title" style={{ margin: 0, padding: "4px 8px 12px" }}>
+          <h2 className="loki-title" style={{ margin: 0, padding: `4px ${NAV_TEXT_INSET}px 12px` }}>
             Preferences
           </h2>
         )}
@@ -249,12 +253,12 @@ export function Settings({
         />
       </nav>
       <div className="flex flex-col min-w-0" style={{ minHeight: 0, background: "var(--loki-bg)" }}>
+        {/* The detail panes' title line (KTD4): 52 high and 20 in. Its one-line title stays centred with the close
+            button, on the same line as the nav's "Preferences". */}
         <div
           data-tauri-drag-region={windowed ? "deep" : undefined}
-          className="flex-none flex items-center gap-2"
+          className="loki-pane-header-line flex-none"
           style={{
-            minHeight: windowed ? TOOLBAR_HEIGHT : 48,
-            padding: "0 12px 0 28px",
             // A group with tabs draws its rule under them instead.
             borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",
           }}
@@ -269,12 +273,12 @@ export function Settings({
           )}
         </div>
         {group.pages.length > 1 && (
-          <div className="flex-none" style={{ padding: "0 8px", borderBottom: "1px solid var(--loki-border)" }}>
+          <div className="flex-none" style={{ padding: `0 ${PANE_INSET}px`, borderBottom: "1px solid var(--loki-border)" }}>
             <TabRow label={group.title} tabs={group.pages.map((p) => ({ id: p, label: pageTitle(p) }))} current={page} onChange={pick} />
           </div>
         )}
         {/* Keyed by page so a new page starts at its top. */}
-        <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: "24px 28px 40px" }}>
+        <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: `24px ${PANE_INSET}px 40px` }}>
           {pageBody[page]()}
         </div>
       </div>
