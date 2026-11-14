@@ -753,8 +753,12 @@ textarea.loki-field {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* On the name line, at its right edge: the name truncates first, and the time keeps its width and the row's 8px from
+   the words before it (ListRow). */
 .loki-list-row-time {
   flex: none;
+  margin-left: auto;
+  padding-left: 4px;
   font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
