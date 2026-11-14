@@ -97,6 +97,7 @@ describe("the frame table", () => {
         "account_people_search",
         "account_thread_move",
         "reply_decide",
+        "reply_people_find",
       ].sort(),
     );
   });
@@ -617,6 +618,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "history_get",
       "history_step_get",
       "reply_decide",
+      "reply_people_find",
       "suggestion_add",
       "suggestion_decide",
       "suggestion_retarget",

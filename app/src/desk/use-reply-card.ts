@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReplyOutcome } from "../../../core/attention/chat-store.ts";
-import type { ReplyAttachment, ReplyProposal } from "../../../core/frame-types.ts";
+import type { ReplyAttachment, ReplyMention, ReplyProposal } from "../../../core/frame-types.ts";
+import { liveMentions } from "../../../core/mentions.ts";
 import type { ReplyAction, ReplyDecideOptions } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
 import { osWords } from "../shell/os-words";
@@ -27,11 +28,31 @@ export function replyEdit(edited: string | null, proposed: string): string | nul
 }
 
 /**
- * What pressing Send asks for: the person's edit, and the names of exactly the files the card shows as kept, so nothing
- * goes that the card did not show.
+ * What pressing Send asks for: the person's edit, the names of exactly the files the card shows as kept, so nothing
+ * goes that the card did not show, and the people they picked whose names are still in the text (plan 2026-11-14-1530,
+ * KTD6).
  */
-export function replySend(edited: string | null, p: Pick<ReplyProposal, "text" | "attachments">, removed: ReadonlySet<string>): ReplyDecideOptions {
-  return { text: replyEdit(edited, p.text), files: (p.attachments ?? []).filter((f) => !removed.has(f.name)).map((f) => f.name) };
+export function replySend(
+  edited: string | null,
+  p: Pick<ReplyProposal, "text" | "attachments">,
+  removed: ReadonlySet<string>,
+  picked: readonly ReplyMention[] = [],
+): ReplyDecideOptions {
+  const mentions = liveMentions(edited ?? p.text, picked);
+  return {
+    text: replyEdit(edited, p.text),
+    files: (p.attachments ?? []).filter((f) => !removed.has(f.name)).map((f) => f.name),
+    ...(mentions.length ? { mentions } : {}),
+  };
+}
+
+/** The people a card's text mentions now: the agent's and those the person picked, each once, while their names are in it. */
+export function cardMentions(text: string, p: Pick<ReplyProposal, "mentions">, picked: readonly ReplyMention[]): ReplyMention[] {
+  const all = [
+    ...(p.mentions ?? []),
+    ...picked.filter((m) => !(p.mentions ?? []).some((x) => x.display === m.display && x.id === m.id && x.address === m.address)),
+  ];
+  return liveMentions(text, all);
 }
 
 /** The proposal's status and reason in one string, so a last action's message can be tied to the state it answered. */
@@ -67,6 +88,10 @@ export interface ReplyCard {
   kept: ReplyAttachment[];
   /** Take a file off the reply, or put it back. */
   toggleFile: (name: string) => void;
+  /** The people the text mentions now, the agent's and those picked on the card (KTD3). */
+  mentions: ReplyMention[];
+  /** The person picked someone from the card's `@` list. */
+  pick: (mention: ReplyMention) => void;
   /** Held after Send until the hold ends or Undo. */
   sending: boolean;
   /** An action is waiting on its answer. */
@@ -84,6 +109,7 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
   // Null until the person changes the text: until then the text follows the proposal, and Send carries no edit.
   const [edited, setEdited] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
+  const [picked, setPicked] = useState<readonly ReplyMention[]>([]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<FailedAction | null>(null);
   // Set by Send, so Undo takes the focus when it appears, and only then: a card opened mid-send leaves the focus alone.
@@ -107,8 +133,9 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
     [focusUndo],
   );
   const sending = p.status === "sending";
+  const text = edited ?? p.text;
   return {
-    text: edited ?? p.text,
+    text,
     setText: setEdited,
     kept: (p.attachments ?? []).filter((f) => !removed.has(f.name)),
     toggleFile: (name) =>
@@ -117,12 +144,14 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
         if (!next.delete(name)) next.add(name);
         return next;
       }),
+    mentions: cardMentions(text, p, picked),
+    pick: (m) => setPicked((was) => [...was, m]),
     sending,
     busy,
     reason: cardReason(p, failed),
     send: () => {
       setFocusUndo(true);
-      void act("approve", replySend(edited, p, removed));
+      void act("approve", replySend(edited, p, removed, picked));
     },
     undo: () => {
       setFocusUndo(false);

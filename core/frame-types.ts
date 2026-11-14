@@ -710,6 +710,14 @@ export interface ReplyProposal {
 }
 
 /**
+ * Someone the card's `@` picker offers (plan 2026-11-14-1530, R18): the mention a pick stores, and one detail that tells
+ * them apart from others of the same name (an address, a title, a handle), or null.
+ */
+export interface ReplyPersonChoice extends ReplyMention {
+  detail: string | null;
+}
+
+/**
  * A person a reply mentions (plan 2026-11-14-1530, KTD3): the full name the text shows them by, and who they are in the
  * service, a Slack user id or a Jira account id, or for Gmail the address a mention adds to cc.
  */

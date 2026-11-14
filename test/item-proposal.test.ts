@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { PendingApproval } from "../core/attention/model.ts";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView } from "../app/src/item/proposal.tsx";
-import { replyEdit } from "../app/src/desk/use-reply-card.ts";
+import { replyEdit, replySend } from "../app/src/desk/use-reply-card.ts";
+import { replyPeopleSource } from "../app/src/desk/reply-proposal-card.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 
 // Plan 097, U5: what the agent asks the person to decide, as one Proposal frame. Pressing is checked in the app.
@@ -33,6 +34,11 @@ const reply = (over: Partial<ReplyProposal> = {}): ReplyProposal => ({
   ...over,
 });
 const decide = () => Promise.resolve({ done: true, message: null, proposal: null });
+/** A value the test needs, or a failure naming it. */
+function must<T>(v: T | undefined, what: string): T {
+  if (v === undefined) throw new Error(`no ${what}`);
+  return v;
+}
 
 describe("an approval", () => {
   test("is the paused tool call: a question naming it, its input, and deny, always allow and allow", () => {
@@ -111,6 +117,36 @@ describe("a reply proposal", () => {
     expect(out).not.toContain("data-destination-note");
   });
 
+  test("draws each mention still in its text by the person's full name, in the mention look (plan 2026-11-14-1530, R12)", () => {
+    const out = html(
+      createElement(ReplyProposalView, {
+        proposal: reply({ text: "@Grace Lee and @grace, look", mentions: [{ display: "Grace Lee", id: "U5", address: null }] }),
+        blocked: null,
+        onDecide: decide,
+      }),
+    );
+    expect(out).toContain('<span class="loki-mention" data-mention="U5">@Grace Lee</span> and @grace, look');
+  });
+
+  test("says whom a Gmail mention adds to cc and whom a Slack mention will not reach (R11, R22)", () => {
+    const notes = (over: Partial<ReplyProposal>) =>
+      [
+        ...html(createElement(ReplyProposalView, { proposal: reply(over), blocked: null, onDecide: decide })).matchAll(
+          /data-destination-note="true">([^<]*)</g,
+        ),
+      ].map((m) => m[1]);
+    const ana = { display: "Ana Ruiz", id: null, address: "ana@example.com" };
+    expect(notes({ provider: "gmail", place: null, to: ["Bo <bo@x.com>"], text: "cc @Ana Ruiz", mentions: [ana] })).toEqual([
+      "Adds Ana Ruiz (ana@example.com) to cc.",
+    ]);
+    // Already on the thread, or deleted from the text: no line.
+    expect(notes({ provider: "gmail", place: null, cc: ["Ana Ruiz <ana@example.com>"], text: "cc @Ana Ruiz", mentions: [ana] })).toEqual([]);
+    expect(notes({ provider: "gmail", place: null, text: "cc Ana", mentions: [ana] })).toEqual([]);
+    expect(notes({ text: "@Ravi Kumar look", mentions: [{ display: "Ravi Kumar", id: "U9", address: null, not_member: true }] })).toEqual([
+      "Ravi Kumar is not in #web-launch and will not be notified.",
+    ]);
+  });
+
   test("while it is sending it says so and offers Undo alone; a refusal says why", () => {
     const sending = html(createElement(ReplyProposalView, { proposal: reply({ status: "sending" }), blocked: null, onDecide: decide }));
     expect(sending).toMatch(/role="status"[^>]*>Sending…/);
@@ -128,6 +164,57 @@ describe("sending a reply proposal", () => {
     expect(replyEdit(null, "Thursday at 3pm works.")).toBeNull();
     expect(replyEdit("Thursday at 3pm works.", "Thursday at 3pm works.")).toBeNull();
     expect(replyEdit("Friday instead.", "Thursday at 3pm works.")).toBe("Friday instead.");
+  });
+});
+
+describe("the card's @ list (plan 2026-11-14-1530, R18)", () => {
+  test("offers the account's people by full name; a pick writes the name and keeps the mention, without its detail", async () => {
+    const picked: unknown[] = [];
+    const source = replyPeopleSource(
+      () =>
+        Promise.resolve({
+          people: [
+            { display: "Grace Lee", id: "U5", address: null, detail: "@grace" },
+            { display: "Ravi Kumar", id: "U9", address: null, detail: null, not_member: true },
+          ],
+          notice: null,
+        }),
+      (m) => picked.push(m),
+    );
+    const found = await must(source.later, "later")("gr");
+    expect(found.list.map((c) => [c.label, c.sub, c.insert])).toEqual([
+      ["Grace Lee", "@grace", "Grace Lee"],
+      ["Ravi Kumar", "Not in this conversation", "Ravi Kumar"],
+    ]);
+    found.list[0]?.onPick?.();
+    expect(picked).toEqual([{ display: "Grace Lee", id: "U5", address: null }]);
+  });
+
+  test("a search that fails throws its reason for the list to say; a Gmail account without contacts brings its line", async () => {
+    await expect(
+      must(
+        replyPeopleSource(
+          () => Promise.resolve("offline"),
+          () => {},
+        ).later,
+        "later",
+      )("gr"),
+    ).rejects.toThrow("offline");
+    const notice = await must(
+      replyPeopleSource(
+        () => Promise.resolve({ people: [], notice: "reconnect ada@acme.com" }),
+        () => {},
+      ).later,
+      "later",
+    )("an");
+    expect(notice).toEqual({ list: [], notice: "reconnect ada@acme.com" });
+  });
+
+  test("Send carries the people picked whose names are still in the text, and only those", () => {
+    const grace = { display: "Grace Lee", id: "U5", address: null };
+    const ravi = { display: "Ravi Kumar", id: "U9", address: null };
+    expect(replySend("@Grace Lee look", reply(), new Set(), [grace, ravi])).toMatchObject({ mentions: [grace] });
+    expect(replySend("look", reply(), new Set(), [grace])).not.toHaveProperty("mentions");
   });
 });
 

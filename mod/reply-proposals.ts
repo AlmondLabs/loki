@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyPersonChoice, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
 import { liveMentions, mentionSpans, writeMentions } from "../core/mentions.ts";
 import { replyMentionOf, type ChatState, type ReplyAction, type ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -50,7 +50,7 @@ export interface ReplyProposalsOptions {
   /** An account's reads of where a reply goes (plan 2026-11-14-1530, U1): the card's facts come from the service. */
   clientFor(account: AccountRecord): ReplyReads;
   /** The people in each account, by name (mod/people.ts, KTD4); without it, a reply mentions no one. */
-  people?: Pick<People, "resolve">;
+  people?: Pick<People, "resolve" | "find">;
   /** Who is in a Slack conversation, by user id (R22): a mention of anyone else notifies no one. */
   members?(accountId: string, channel: string): Promise<ReadonlySet<string>>;
   /** The person's send path (KTD1): the hold, its undo, and what the outbox still has and whether a reply went. */
@@ -83,6 +83,9 @@ export interface ReplyInput {
    */
   mentions?: string[];
 }
+
+/** The most people the card's `@` picker lists at once. */
+const PICKER_MAX = 8;
 
 /** The most files one reply carries (R8). */
 export const MAX_REPLY_FILES = 10;
@@ -377,6 +380,30 @@ export class ReplyProposals implements AgentReplyReports {
       return { text: out, mentions: mentions.map((m) => (m.id && !members.has(m.id) ? { ...m, not_member: true } : m)) };
     }
     return { text: out, mentions };
+  }
+
+  /**
+   * The people the card's `@` picker offers for a proposal (R18, KTD4): the same search an agent's mentions resolve
+   * through, so the two never disagree; on Jira those who can see the ticket, on Slack each marked when they are not
+   * in the conversation (R22). A Gmail account that cannot search by name says so in `notice`.
+   */
+  async findPeople(chat: ChatKey, id: string, query: string): Promise<{ people: ReplyPersonChoice[]; notice: string | null }> {
+    const p = this.record(chat).proposals.find((x) => x.id === id);
+    if (!p) throw new Error(`no reply ${id} in this chat`);
+    const people = this.opts.people;
+    if (!people) return { people: [], notice: "people cannot be found on this Mac" };
+    const scope = p.provider === "jira" && p.place ? { jira: { kind: "ticket" as const, ticket: p.place } } : {};
+    const found = await people.find(p.account_id, query, scope);
+    const choices = found.people
+      .slice(0, PICKER_MAX)
+      .map((f): ReplyPersonChoice =>
+        f.provider === "gmail"
+          ? { display: f.display, id: null, address: f.address, detail: f.detail }
+          : { display: f.display, id: f.id, address: null, detail: f.detail },
+      );
+    if (p.provider !== "slack" || !this.opts.members || choices.length === 0) return { people: choices, notice: found.notice };
+    const members = await this.opts.members(p.account_id, slackPlace(p.thread_id).channel);
+    return { people: choices.map((c) => (c.id && !members.has(c.id) ? { ...c, not_member: true } : c)), notice: found.notice };
   }
 
   /** A chat's proposals, settled ones included, oldest first. */

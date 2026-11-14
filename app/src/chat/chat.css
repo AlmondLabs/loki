@@ -2305,3 +2305,26 @@ img.loki-emoji,
   color: var(--loki-muted);
   font-size: var(--loki-text-meta);
 }
+/* The marks under a reply card's mentions (plan 2026-11-14-1530, KTD9): a layer over the text box with its words
+   invisible, a bar under each name, so the box stays a plain text box and the person's words are never covered. */
+.loki-mention-field {
+  position: relative;
+}
+.loki-mention-marks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-style: solid;
+  border-color: transparent;
+  color: transparent;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  pointer-events: none;
+}
+.loki-mention-mark {
+  color: transparent;
+  background: none;
+  border-bottom: 2px solid var(--loki-mention-bar);
+}

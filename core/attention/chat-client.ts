@@ -573,7 +573,11 @@ export class FrameChatClient {
         action,
         ...(opts.text ? { text: opts.text } : {}),
         ...(opts.files ? { files: [...opts.files] } : {}),
+        ...(opts.mentions?.length ? { mentions: [...opts.mentions] } : {}),
       }),
+    /** The people the reply card's `@` picker offers for `query` (plan 2026-11-14-1530, R18), from the chat's Mac. */
+    findPeople: (rt: Runtime, proposalId: string, query: string) =>
+      this.call("reply_people_find", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, proposal_id: proposalId, query }),
   };
 
   /**

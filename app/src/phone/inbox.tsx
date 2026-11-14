@@ -960,6 +960,7 @@ function Stack({
                       composeOutside: chats.composeOutside,
                       unsendOutside: chats.unsendOutside,
                       searchPeople: chats.searchPeople,
+                      pickPerson: chats.pickPerson,
                       sentReplies: chats.sentReplies,
                     }
                   : null
@@ -1211,6 +1212,7 @@ function OutsideBody({
   const unsend = outside?.unsendOutside;
   const settle = outside?.settleUnsent;
   const people = outside?.searchPeople;
+  const pick = outside?.pickPerson;
   return (
     <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
       {banner}
@@ -1233,6 +1235,7 @@ function OutsideBody({
             compose={compose}
             quote={quoteOf(facts, thread)}
             searchPeople={people ? (q) => people(item, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
+            onPickPerson={pick ? (p) => pick(item, p) : undefined}
             inThread={thread.kind === "read" && !!thread.opened}
             onUnsent={settle ? (outboxId, action) => settle(item, outboxId, action) : undefined}
             onUndo={

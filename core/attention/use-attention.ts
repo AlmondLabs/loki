@@ -225,6 +225,8 @@ export interface OutsideSource {
   searchEmoji?: (item: AttentionItem, query: string) => Promise<EmojiChoice[] | string>;
   /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why not. */
   searchPeople?: (item: AttentionItem, query: string) => Promise<SlackPerson[] | string>;
+  /** The person picked someone from a Slack card's @ list (plan 2026-11-14-1530, R23), whom its send then mentions. */
+  pickPerson?: (item: AttentionItem, person: SlackPerson) => void;
 }
 
 /**
@@ -854,7 +856,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. */
   const suggestions = useMemo(() => ({ decide: store.decideSuggestion, retarget: store.retargetSuggestion }), [store]);
   /** The person's Send, Undo or Reject on a reply its agent proposed (plan 2026-11-14-1134), carried out by the Mac the chat lives on. */
-  const replies = useMemo(() => ({ decide: store.decideReply }), [store]);
+  const replies = useMemo(() => ({ decide: store.decideReply, findPeople: store.findReplyPeople }), [store]);
   /** Chat links (plan 067): closing one, and Preferences' list and default duration. */
   const links = useMemo(() => ({ close: store.closeLink, list: store.listLinks, setDefault: store.setLinkDefault }), [store]);
   // The saved drafts follow the list; a box emptied of one clears it on the daemon (chat_update draft null).
@@ -1000,6 +1002,7 @@ export function useAttention(opts: UseAttentionOptions) {
     sentReplies: store.sent,
     searchEmoji: store.searchEmoji,
     searchPeople: store.searchPeople,
+    pickPerson: store.pickPerson,
     replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,

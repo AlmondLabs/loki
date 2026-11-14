@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { Meta } from "../components";
+import { Meta, sentence } from "../components";
 import { caretOffset, fitLeft } from "../shared/caret-offset";
 
 /**
@@ -17,15 +17,21 @@ export interface MentionChoice {
   onPick?: () => void;
 }
 
-/** Where people come from: at once from what the card holds (mail), or asked of the account's Mac (Slack). */
+/**
+ * Where people come from: at once from what the card holds (mail), or asked of the account's Mac (Slack, a reply
+ * card's account), with a line to show when the account cannot search by name (plan 2026-11-14-1530, R15).
+ */
 export interface MentionSource {
   now?: (query: string) => MentionChoice[];
-  later?: (query: string) => Promise<MentionChoice[]>;
+  later?: (query: string) => Promise<{ list: MentionChoice[]; notice?: string | null }>;
 }
 
-/** The `@` being typed before the caret and the letters after it; null when the caret is not in one. */
+/**
+ * The `@` being typed before the caret and what follows it, spaces included, since a full name has them (plan
+ * 2026-11-14-1530, R18): the list stays open while someone matches; null when the caret is not in one.
+ */
 export function mentionAt(text: string, caret: number): { start: number; query: string } | null {
-  const m = /(^|[\s(])@([^\s@]{1,40})$/.exec(text.slice(0, caret));
+  const m = /(^|[\s(])@([^\s@][^\n@]{0,39})$/.exec(text.slice(0, caret));
   if (!m) return null;
   return { start: caret - m[2].length - 1, query: m[2] };
 }
@@ -57,7 +63,12 @@ export function useMentions({
   const [caret, setCaret] = useState<number | null>(null);
   // The `@` the person put away with Esc, so the list stays away until they type another.
   const [dismissed, setDismissed] = useState<number | null>(null);
-  const [found, setFound] = useState<{ query: string; list: MentionChoice[] }>({ query: "", list: [] });
+  const [found, setFound] = useState<{ query: string; list: MentionChoice[]; notice: string | null; failed: boolean }>({
+    query: "",
+    list: [],
+    notice: null,
+    failed: false,
+  });
   const [highlight, setHighlight] = useState<{ query: string; at: number }>({ query: "", at: 0 });
   const pendingCaret = useRef<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -65,16 +76,21 @@ export function useMentions({
   const token = source && caret !== null && caret <= text.length ? mentionAt(text, caret) : null;
   const active = token && token.start !== dismissed ? token : null;
   const query = active?.query ?? "";
-  const later = useEffectEvent((q: string) => source?.later?.(q) ?? Promise.resolve([]));
+  const later = useEffectEvent(
+    (q: string): Promise<{ list: MentionChoice[]; notice?: string | null }> => source?.later?.(q.trim()) ?? Promise.resolve({ list: [] }),
+  );
   const asksLater = !!source?.later;
   useEffect(() => {
     if (!query || !asksLater) return;
     let live = true;
     const timer = setTimeout(() => {
       void later(query)
-        .catch(() => [])
-        .then((list) => {
-          if (live) setFound({ query, list });
+        .then(
+          (r) => ({ list: r.list, notice: r.notice ?? null, failed: false }),
+          () => ({ list: [], notice: null, failed: true }),
+        )
+        .then((r) => {
+          if (live) setFound({ query, ...r });
         });
     }, SEARCH_WAIT_MS);
     return () => {
@@ -108,6 +124,8 @@ export function useMentions({
 
   const pick = (c: MentionChoice) => {
     if (!active || caret === null) return;
+    // The name just written stays a name: the list does not open again on it.
+    setDismissed(active.start);
     const next = insertMention(text, active.start, caret, c.insert);
     pendingCaret.current = next.caret;
     setCaret(next.caret);
@@ -130,8 +148,28 @@ export function useMentions({
 
   const onCaret = (el: HTMLTextAreaElement | null) => setCaret(el && el.selectionStart === el.selectionEnd ? el.selectionStart : null);
 
+  // What the list says instead of people (plan 2026-11-14-1530, U4): while it searches, when the search failed or the
+  // account cannot search by name, and when nobody matches one word; past a space, nobody matching closes it.
+  const answered = !asksLater || found.query === query;
+  const status = !active
+    ? null
+    : !answered
+      ? "Searching…"
+      : found.failed && asksLater
+        ? "People could not be searched just now."
+        : asksLater && found.notice && list.length === 0
+          ? sentence(found.notice)
+          : list.length === 0 && !/\s/.test(query.trim())
+            ? "No one found"
+            : null;
   const drawn =
-    list.length === 0 ? null : (
+    list.length === 0 ? (
+      status && (
+        <div ref={listRef} className="loki-mail-suggest loki-mention-list" role="status">
+          <Meta>{status}</Meta>
+        </div>
+      )
+    ) : (
       <div ref={listRef} className="loki-mail-suggest loki-mention-list" role="listbox" aria-label="People to Mention">
         {list.map((c, i) => (
           <button

@@ -24,7 +24,7 @@ import { jiraOutsideSource } from "../mod/jira-sync.ts";
 import { OutsideThreads, type SendClient, type SendSlack } from "../mod/outside-threads.ts";
 import { MAX_REPLY_BYTES, MAX_REPLY_FILES, MAY_HAVE_GONE, ReplyProposals, registerReplyTools } from "../mod/reply-proposals.ts";
 import type { ReplySlackReads } from "../mod/account-ops/slack.ts";
-import type { PeopleOptions, PersonResolution } from "../mod/people.ts";
+import type { FoundPerson, PeopleFound, PeopleOptions, PersonResolution } from "../mod/people.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
@@ -155,6 +155,16 @@ function resolvePerson(accountId: string, name: string, opts?: PeopleOptions): P
   if (accountId === MAIL && (n === "ana ruiz" || n === "ana@example.com"))
     return { ok: true, person: { provider: "gmail", display: "Ana Ruiz", address: "ana@example.com" } };
   return { ok: false, why: `nobody matched "${name}"` };
+}
+
+/** The people the fixture's picker finds: Slack's workspace by any part of a name. */
+function findPeople(accountId: string, query: string): PeopleFound {
+  const slack: FoundPerson[] = [
+    { provider: "slack", display: "Grace Lee", id: "U5", token: "grace", detail: null },
+    { provider: "slack", display: "Ravi Kumar", id: "U9", token: "ravi", detail: null },
+  ];
+  const q = query.toLowerCase();
+  return { people: accountId === SLACK ? slack.filter((p) => p.display.toLowerCase().includes(q)) : [], notice: null };
 }
 
 /** The reply tools loaded as a mod, so a test calls them as a chat would, with the notices and prompt line they add. */
@@ -362,7 +372,10 @@ async function fixture() {
             ? { provider: "slack", client: slack.client }
             : { provider: "jira", client: { ticketFacts: (idOrKey: string) => jiraClient.ticketFacts(idOrKey), linkHost: () => Promise.resolve(null) } },
       push: (_agent, conversationId, events) => pushed.push({ chat: conversationId, events }),
-      people: { resolve: (accountId: string, name: string, opts?: PeopleOptions) => Promise.resolve(resolvePerson(accountId, name, opts)) },
+      people: {
+        resolve: (accountId: string, name: string, opts?: PeopleOptions) => Promise.resolve(resolvePerson(accountId, name, opts)),
+        find: (accountId: string, query: string) => Promise.resolve(findPeople(accountId, query)),
+      },
       members: () => Promise.resolve(new Set(["U5"])),
       now,
     });
@@ -1116,6 +1129,21 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     await f.sendAndWait(f.only().id);
     expect(f.slack.mentioned.at(-1)).toEqual(["U5", "U9"]);
     expect(f.only().status).toBe("sent");
+  });
+
+  test("the card's picker finds the account's people, marking anyone outside the conversation (AE7, R22)", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "Deploying at 9." });
+    expect(await f.replies.findPeople(f.chat, f.only().id, "a")).toEqual({
+      people: [
+        { display: "Grace Lee", id: "U5", address: null, detail: null },
+        { display: "Ravi Kumar", id: "U9", address: null, detail: null, not_member: true },
+      ],
+      notice: null,
+    });
+    // A pick arrives through the decide options and goes as the agent's mentions do.
+    await f.sendAndWait(f.only().id, { text: "@Grace Lee deploying at 9.", mentions: [{ display: "Grace Lee", id: "U5", address: null }] });
+    expect(f.slack.mentioned.at(-1)).toEqual(["U5"]);
   });
 
   test("a stored proposal with mentions survives a restart; one from before mentions parses with none", async () => {

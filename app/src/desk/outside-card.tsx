@@ -101,14 +101,17 @@ export interface ThreadControls {
 }
 
 /** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
-export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople" | "sentReplies" | "settleUnsent">;
+export type OutsideThreadSource = Pick<
+  OutsideSource,
+  "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople" | "pickPerson" | "sentReplies" | "settleUnsent"
+>;
 
 /**
  * What a card's thread is read and reacted through, taken from everything the Inbox holds; null when it cannot read
  * threads. Each is passed on, so a card offers reacting (plan 079) and mentioning (plan 082) wherever its source can.
  */
 export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThreadSource | null {
-  const { readOutside, reactOutside, searchEmoji, searchPeople, sentReplies, settleUnsent } = chats;
+  const { readOutside, reactOutside, searchEmoji, searchPeople, pickPerson, sentReplies, settleUnsent } = chats;
   if (!readOutside) return null;
   return {
     readOutside,
@@ -116,6 +119,7 @@ export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThre
     ...(reactOutside ? { reactOutside } : {}),
     ...(searchEmoji ? { searchEmoji } : {}),
     ...(searchPeople ? { searchPeople } : {}),
+    ...(pickPerson ? { pickPerson } : {}),
     ...(settleUnsent ? { settleUnsent } : {}),
   };
 }
@@ -650,6 +654,7 @@ export function OutsideReply({
   onUndo,
   keep,
   searchPeople,
+  onPickPerson,
   inThread = false,
   items = false,
   onUnsent,
@@ -668,6 +673,8 @@ export function OutsideReply({
   keep?: string;
   /** The people a Slack card's workspace can mention whose handle or name holds `query` (plan 082); absent, no list. */
   searchPeople?: (query: string) => Promise<SlackPerson[]>;
+  /** The person picked someone from the Slack list (plan 2026-11-14-1530, R23), whom the send then mentions by name. */
+  onPickPerson?: (person: SlackPerson) => void;
   /**
    * The box's own send, when the deck does not hold it: resolves whether the reply was sent and why what failed did; a
    * sent reply clears the box so it is not sent twice, and an undone one keeps it.
@@ -706,7 +713,8 @@ export function OutsideReply({
   const isMail = facts.provider === "gmail";
   const shown = compose ? (mail ?? startAddressing(compose)) : null;
   // Mentioning (plan 082): a mail pick writes the name and adds them to To, as Gmail does; a Slack pick writes the
-  // handle, which the account's Mac sends as Slack's mention. A Jira comment is plain text, so it offers no one.
+  // person's name and is kept, so the send makes it Slack's mention (plan 2026-11-14-1530, R23). A Jira comment is
+  // plain text, so it offers no one.
   const ownRef = useRef<HTMLTextAreaElement | null>(null);
   const mentionSource: MentionSource | null =
     isMail && shown && compose
@@ -724,7 +732,10 @@ export function OutsideReply({
         }
       : facts.provider === "slack" && searchPeople
         ? {
-            later: (q) => searchPeople(q).then((people) => people.map((p) => ({ key: p.id, label: p.name, sub: `@${p.handle}`, insert: p.handle }))),
+            later: (q) =>
+              searchPeople(q).then((people) => ({
+                list: people.map((p) => ({ key: p.id, label: p.name, sub: `@${p.handle}`, insert: p.name, onPick: () => onPickPerson?.(p) })),
+              })),
           }
         : null;
   const mentions = useMentions({ text, setText, source: off ? null : mentionSource, ref: ownRef });
@@ -1075,6 +1086,7 @@ function DeckReply({
   compose: MailCompose | null;
 }) {
   const people = source?.searchPeople;
+  const pick = source?.pickPerson;
   const settle = source?.settleUnsent;
   return (
     <OutsideReply
@@ -1087,6 +1099,7 @@ function DeckReply({
       compose={compose}
       quote={quoteOf(facts, thread)}
       searchPeople={people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
+      onPickPerson={pick ? (p) => pick(current, p) : undefined}
       inThread={thread.kind === "read" && !!thread.opened}
       items={items}
       onUnsent={settle ? (outboxId, action) => settle(current, outboxId, action) : undefined}

@@ -54,6 +54,7 @@ import type {
   ReflectionState,
   RefreshOutcome,
   ReplyMention,
+  ReplyPersonChoice,
   ReplyProposal,
   SavedDraft,
   Suggestion,
@@ -348,6 +349,8 @@ export interface Replies {
    * says why not. A Send answers as sending; what became of the reply comes as the chat's `reply_proposals` event.
    */
   reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null };
+  /** The people a reply card's `@` picker offers, and a line to show instead when the account cannot search by name. */
+  reply_people_found: { people: ReplyPersonChoice[]; notice: string | null };
   /**
    * The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. A list
    * also carries each paired Mac's accounts as it last said (plan 087, KTD9); a mod from before that leaves them out.
@@ -860,6 +863,19 @@ export const FRAMES = {
     BY_CHAT,
   ),
   // Reply proposals (plan 067, KTD9), carried out by the Mac the chat lives on, which holds the account.
+  reply_people_find: request(
+    "reply_people_found",
+    "the people of a proposed reply's account whose names match `query` (plan 2026-11-14-1530, R18), for the card's @ picker: on Jira those who can see the ticket, on Slack marked when they are not in the conversation; answered by the Mac the chat lives on, which holds the account",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      if (!str(m.proposal_id) || !m.proposal_id) return "proposal_id required";
+      if (!str(m.query) || !m.query.trim() || m.query.length > 100) return "query required";
+      return { ...c, proposal_id: m.proposal_id, query: m.query };
+    },
+    PHONE,
+    BY_CHAT,
+  ),
   reply_decide: request(
     "reply_decided",
     "send a reply its agent proposed in this chat (`approve`, with `text` as edited and `files`, the names of the files kept; all of them when left out), held 10 seconds before it goes in its thread; `undo` it while it is held; or reject it; the first action wins, and the answer comes at once, with the reply's fate pushed as the chat's `reply_proposals` event (plan 2026-11-14-1134)",
