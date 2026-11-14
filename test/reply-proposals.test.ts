@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ReplyProposalCards } from "../app/src/desk/reply-proposal-card.tsx";
+import { ReplyProposalCards, sentText } from "../app/src/desk/reply-proposal-card.tsx";
+import { SENT_MS, justSent, replySend, revealLabel } from "../app/src/desk/use-reply-card.ts";
+import { ReplyProposalView } from "../app/src/item/proposal.tsx";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { buildItems, type ConversationInfo } from "../core/attention/model.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
@@ -1042,7 +1044,7 @@ describe("the reply frame (plan 2026-11-14-1134, KTD3)", () => {
   });
 });
 
-describe("the reply card (plan 067, U10)", () => {
+describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
   const proposal: ReplyProposal = {
     id: "reply-1",
     account_id: MAIL,
@@ -1058,56 +1060,149 @@ describe("the reply card (plan 067, U10)", () => {
     reason: null,
     created_at: "2026-11-04T10:00:00.000Z",
   };
+  const files = [
+    { name: "invoice.pdf", path: join("work", "invoice.pdf"), size: 482 * 1024, md5: "a" },
+    { name: "hours.csv", path: join("work", "hours.csv"), size: 300, md5: "b" },
+  ];
   const rt = { agent_id: WORK, conversation_id: CHAT };
   const source = (proposals: ReplyProposal[]) => ({
     conversation: () => ({ replyProposals: proposals }),
     replies: { decide: () => Promise.resolve({ done: true, message: null, proposal: null }) },
   });
-  const html = (props: Parameters<typeof ReplyProposalCards>[0]) => renderToStaticMarkup(createElement(ReplyProposalCards, props));
+  const html = (props: Parameters<typeof ReplyProposalCards>[0]) => renderToStaticMarkup(createElement(ReplyProposalCards, { reveal: null, ...props }));
+  const desktop = (p: ReplyProposal, blocked: string | null = null) =>
+    renderToStaticMarkup(createElement(ReplyProposalView, { proposal: p, blocked, reveal: () => {}, onDecide: source([]).replies.decide }));
+  const actions = (out: string) => [...out.matchAll(/data-action="([\w-]+)"/g)].map((m) => m[1]);
 
-  test("names the account, the thread and its people, holds the text to edit, and offers Approve and Reject on the desktop and the phone alike", () => {
+  test("names the account, the thread and its people, holds the text to edit, and offers Send and Reject on the desktop and the phone alike", () => {
     const desk = html({ source: source([proposal]), rt });
     for (const words of [
       "Re: The plan · ada@acme.com",
       "to Grace Hopper &lt;grace@acme.com&gt; · cc Bob &lt;bob@acme.com&gt;",
       "Friday works.",
-      ">Approve<",
+      ">Send<",
       ">Reject<",
     ])
       expect(desk).toContain(words);
+    expect(desk).not.toContain("Approve");
     const phone = html({ source: source([proposal]), rt, touch: true });
-    expect(phone).toContain(">Approve<");
+    expect(phone).toContain(">Send<");
     expect(phone).toContain(">Reject<");
+    expect(phone).toContain("loki-btn--touch");
     const slack = html({ source: source([{ ...proposal, provider: "slack", to: [], cc: [], place: "the thread in #ops" }]), rt });
     expect(slack).toContain("in the thread in #ops");
   });
 
-  test("names each file a reply carries, with its size, and nothing for a reply with none", () => {
-    const files = [
-      { name: "invoice.pdf", path: "/work/invoice.pdf", size: 482 * 1024, md5: "a" },
-      { name: "hours.csv", path: "/work/hours.csv", size: 300, md5: "b" },
-    ];
-    expect(html({ source: source([{ ...proposal, attachments: files }]), rt })).toContain("Attached: invoice.pdf (482 KB), hours.csv (300 B)");
-    expect(html({ source: source([proposal]), rt })).not.toContain("Attached");
+  test("a pending Gmail card shows Send and Reject, its files with sizes, Show in Finder and Remove on each, and says it goes with your signature", () => {
+    const out = desktop({ ...proposal, attachments: files });
+    expect(out).toContain("invoice.pdf (482 KB)");
+    expect(out).toContain("hours.csv (300 B)");
+    expect(actions(out)).toEqual(["reveal", "remove-file", "reveal", "remove-file", "approve", "edit", "reject"]);
+    expect(out).toContain(`>${revealLabel("macos")}<`);
+    expect(revealLabel("macos")).toBe("Show in Finder");
+    expect(revealLabel("windows")).toBe("Show in File Explorer");
+    expect(revealLabel("linux")).toBe("Show in Folder");
+    expect(out).toContain('aria-label="Remove invoice.pdf"');
+    expect(out).toContain("Sends from your account with your signature");
+    expect(out).not.toContain("draft");
+    // The other look, on the desktop with the opener, draws the same controls.
+    const cards = html({ source: source([{ ...proposal, attachments: files }]), rt, reveal: () => {} });
+    expect(actions(cards)).toEqual(["reveal", "remove-file", "reveal", "remove-file", "approve", "reject"]);
   });
 
-  test("a Jira comment says it goes on the ticket and waits in the card's box for the person to post", () => {
-    const jira = { ...proposal, provider: "jira" as const, to: [], cc: [], place: "OPS-7", subject: "Rotate the keys" };
+  test("the phone card shows file names and sizes without Show in Finder, its Remove at touch size", () => {
+    const phone = html({ source: source([{ ...proposal, attachments: files }]), rt, touch: true, reveal: () => {} });
+    expect(phone).toContain("invoice.pdf (482 KB)");
+    expect(phone).toContain("hours.csv (300 B)");
+    expect(phone).not.toContain("Show in");
+    expect(phone).toMatch(/loki-btn--touch[^>]*data-action="remove-file"/);
+    expect(html({ source: source([proposal]), rt })).not.toContain("data-attachments");
+  });
+
+  test("a Jira comment says it posts on the ticket with its files attached, and lists a file already there without Remove", () => {
+    const jira = {
+      ...proposal,
+      provider: "jira" as const,
+      to: [],
+      cc: [],
+      place: "OPS-7",
+      subject: "Rotate the keys",
+      attachments: files,
+      attached: ["invoice.pdf"],
+    };
     const desk = html({ source: source([jira]), rt });
     expect(desk).toContain("on OPS-7");
     expect(desk).toContain(">Comment<");
-    expect(desk).toContain("Goes in the ticket&#x27;s comment box in Flow; you post it from there");
-    expect(html({ source: source([{ ...jira, status: "sending" }]), rt })).toContain("Putting the comment on the card");
+    expect(desk).toContain("Posts on the ticket from your account with its files attached");
+    expect(desk).toContain("Already on the ticket");
+    expect(desk).not.toContain('aria-label="Remove invoice.pdf"');
+    expect(desk).toContain('aria-label="Remove hours.csv"');
+  });
+
+  test("a sending card says so as a status and offers Undo, with no Send or Reject, on both looks", () => {
+    for (const out of [html({ source: source([{ ...proposal, status: "sending" }]), rt }), desktop({ ...proposal, status: "sending" })]) {
+      expect(out).toMatch(/role="status"[^>]*>Sending…/);
+      expect(actions(out)).toContain("undo");
+      expect(actions(out)).not.toContain("approve");
+      expect(actions(out)).not.toContain("reject");
+    }
+  });
+
+  test("a card refused because the thread's people changed marks who was added and removed in words, and says why as an alert", () => {
+    const refused = {
+      ...proposal,
+      to: ["Grace Hopper <grace@acme.com>", "Carol <carol@acme.com>"],
+      people_added: ["carol@acme.com"],
+      people_removed: ["alan@acme.com"],
+      reason: "the thread's people changed: check who it goes to and press Send again",
+    };
+    for (const out of [html({ source: source([refused]), rt }), desktop(refused)]) {
+      expect(out).toContain("Carol &lt;carol@acme.com&gt; (added)");
+      expect(out).toContain("alan@acme.com (removed)");
+      expect(out).not.toContain("Grace Hopper &lt;grace@acme.com&gt; (added)");
+      expect(out).toMatch(/role="alert"[^>]*>the thread&#x27;s people changed/);
+    }
+  });
+
+  test("with the Mac out of reach, Undo is disabled and the card says the reply still goes, not that it waits", () => {
+    const away = "Mac unreachable: these wait until it is back";
+    for (const out of [
+      html({ source: source([{ ...proposal, status: "sending" }]), rt, blocked: away, touch: true }),
+      desktop({ ...proposal, status: "sending" }, away),
+    ]) {
+      // "these wait" would contradict a reply that goes anyway, so only the line that is true shows.
+      expect(out).not.toContain(away);
+      expect(out).toMatch(/disabled=""[^>]*data-action="undo"|data-action="undo"[^>]*disabled=""/);
+      expect(out).toContain("Undo needs your Mac: the reply still goes when its 10 seconds are up.");
+    }
+    // Waiting, it says only why nothing can be pressed.
+    const pending = html({ source: source([proposal]), rt, blocked: away });
+    expect(pending).toContain(away);
+    expect(pending).toMatch(/disabled=""[^>]*data-action="approve"|data-action="approve"[^>]*disabled=""/);
+    expect(pending).not.toContain("still goes");
+  });
+
+  test("a reply that was sending and leaves the push shows Sent, with where it went, before it leaves", () => {
+    const sending = { ...proposal, status: "sending" as const };
+    const went = justSent([sending], []);
+    expect(went.map((p) => p.status)).toEqual(["sent"]);
+    expect(sentText(must(went[0], "the sent reply"))).toBe("Sent to Grace Hopper <grace@acme.com> · cc Bob <bob@acme.com>");
+    // Undo, or a send that did not go, brings it back pending: nothing says sent.
+    expect(justSent([sending], [{ ...proposal }])).toEqual([]);
+    // A pending one that leaves was rejected or withdrawn, never sent.
+    expect(justSent([proposal], [])).toEqual([]);
+    expect(SENT_MS).toBe(3000);
+  });
+
+  test("pressing Send asks for approve with the edit and exactly the files the card shows as kept", () => {
+    const p = { ...proposal, attachments: files };
+    expect(replySend(null, p, new Set())).toEqual({ text: null, files: ["invoice.pdf", "hours.csv"] });
+    expect(replySend("Friday at 3.", p, new Set(["hours.csv"]))).toEqual({ text: "Friday at 3.", files: ["invoice.pdf"] });
+    expect(replySend("Friday works.", proposal, new Set())).toEqual({ text: null, files: [] });
   });
 
   test("shows nothing without replies waiting, or on a host whose source has no way to decide them", () => {
     expect(html({ source: source([]), rt })).toBe("");
     expect(html({ source: { conversation: () => ({ replyProposals: [proposal] }) }, rt })).toBe("");
-  });
-
-  test("one being drafted says so and offers nothing to press", () => {
-    const out = html({ source: source([{ ...proposal, status: "sending" }]), rt });
-    expect(out).toContain("Writing the draft in Gmail");
-    expect(out).not.toContain(">Approve<");
   });
 });

@@ -3,7 +3,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PendingApproval } from "../core/attention/model.ts";
 import type { ReplyProposal } from "../core/frame-types.ts";
-import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView, replyEdit } from "../app/src/item/proposal.tsx";
+import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView } from "../app/src/item/proposal.tsx";
+import { replyEdit } from "../app/src/desk/use-reply-card.ts";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 
 // Plan 097, U5: what the agent asks the person to decide, as one Proposal frame. Pressing is checked in the app.
@@ -31,7 +32,7 @@ const reply = (over: Partial<ReplyProposal> = {}): ReplyProposal => ({
   created_at: "",
   ...over,
 });
-const decide = () => Promise.resolve({ done: true, message: null, replace: false, proposal: null });
+const decide = () => Promise.resolve({ done: true, message: null, proposal: null });
 
 describe("an approval", () => {
   test("is the paused tool call: a question naming it, its input, and deny, always allow and allow", () => {
@@ -68,26 +69,29 @@ describe("a question", () => {
 });
 
 describe("a reply proposal", () => {
-  test("quotes its text with where it goes, and offers approve, edit and reject", () => {
+  test("quotes its text with where it goes, and offers Send, Edit and Reject", () => {
     const out = html(createElement(ReplyProposalView, { proposal: reply(), blocked: null, onDecide: decide }));
     expect(out).toContain('data-proposal="reply"');
     expect(out).toContain("in the thread in #web-launch");
     expect(out).toContain("<blockquote");
     expect(out).toContain("Thursday at 3pm works.");
     for (const a of ["approve", "edit", "reject"]) expect(out).toContain(`data-action="${a}"`);
+    expect(out).toContain(">Send<");
+    expect(out).not.toContain(">Approve<");
   });
 
-  test("while its draft is written it says so and offers nothing; a refusal says why", () => {
-    const drafting = html(createElement(ReplyProposalView, { proposal: reply({ status: "sending" }), blocked: null, onDecide: decide }));
-    expect(drafting).toContain("writing the draft in Slack");
-    expect(drafting).not.toContain('data-action="approve"');
+  test("while it is sending it says so and offers Undo alone; a refusal says why", () => {
+    const sending = html(createElement(ReplyProposalView, { proposal: reply({ status: "sending" }), blocked: null, onDecide: decide }));
+    expect(sending).toMatch(/role="status"[^>]*>Sending…/);
+    expect(sending).toContain('data-action="undo"');
+    expect(sending).not.toContain('data-action="approve"');
     const refused = html(createElement(ReplyProposalView, { proposal: reply({ reason: "the thread is gone" }), blocked: null, onDecide: decide }));
     expect(refused).toContain('role="alert"');
     expect(refused).toContain("the thread is gone");
   });
 });
 
-describe("approving a reply proposal", () => {
+describe("sending a reply proposal", () => {
   test("sends no edit unless the person changed the text, whatever the agent wrote since the card opened", () => {
     // Opened while drafting, finished since: approving untouched sends the agent's text, not the early draft.
     expect(replyEdit(null, "Thursday at 3pm works.")).toBeNull();
