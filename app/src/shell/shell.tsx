@@ -564,7 +564,8 @@ export function Shell() {
               drafting={drafting}
             />
           </div>
-          <div ref={setListSlot} className="loki-list-column-slot" style={{ position: "absolute", inset: 0 }} />
+          {/* The owner's portal slot covers the column; with no owner showing it must not swallow clicks meant for Chats' list underneath. */}
+          <div ref={setListSlot} className="loki-list-column-slot" style={{ position: "absolute", inset: 0, pointerEvents: placeOwner ? undefined : "none" }} />
           {hasList && <ColumnEdge label="Resize list" min={LIST_MIN} max={LIST_MAX} width={layout.list} onWidth={column.setList} />}
         </div>
 

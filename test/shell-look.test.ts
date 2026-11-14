@@ -269,3 +269,10 @@ describe("blue for what waits on you, grey for counts and faces (U17)", () => {
     expect(out).not.toMatch(/hsl\(\d+ 60% 78%\)/);
   });
 });
+
+describe("the list column's slots (plan 2026-11-14-1330, U1 and U3)", () => {
+  test("the owner's portal slot lets clicks through to Chats' list while no place owns it", () => {
+    const slot = must(/<div ref=\{setListSlot\}[^>]*\/>/.exec(shell), "the owner's list slot")[0];
+    expect(slot).toContain('pointerEvents: placeOwner ? undefined : "none"');
+  });
+});
