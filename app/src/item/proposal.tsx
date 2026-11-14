@@ -2,16 +2,16 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { PendingApproval } from "../../../core/attention/model.ts";
 import { offersAlways } from "../../../core/attention/model.ts";
 import { formatInput } from "../../../core/attention/format.ts";
-import type { ReplyProposal } from "../../../core/frame-types.ts";
-import type { ReplyAction } from "../../../core/frames.ts";
-import type { ReplyOutcome } from "../../../core/attention/chat-store.ts";
-import { messageOf } from "../../../core/errors.ts";
+import type { ReplyAttachment, ReplyProposal } from "../../../core/frame-types.ts";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { Textarea } from "@/ui/textarea";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { cn } from "@/lib/utils";
-import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+import { STILL_GOES, fileText, peopleChanged, recipientsText, sendNote, sentText, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply } from "../desk/use-reply-card";
+import { inTauri } from "../desk/env";
+import { sentence } from "../components";
 import { replyKeyDown } from "../chat/quick-replies";
 
 /*
@@ -153,65 +153,142 @@ export function QuestionProposal({ children, where }: { children: ReactNode; whe
 }
 
 /**
- * The replies the agent proposed from this chat for outside threads (plan 067), each a Proposal: where it goes, its
- * text, approve (loki writes it as a draft there, or for Jira puts it in the ticket's comment box) and reject. The text
- * is edited in place until the Composer can take a reply's target (plan 097, R10, U7).
+ * The replies the agent proposed from this chat for outside threads (plan 067; plan 2026-11-14-1134, U7), each a
+ * Proposal: where it goes, its text and files, then Send (from the person's account, after a 10-second hold with Undo)
+ * and Reject. A reply just sent stays for a moment saying where it went. The text is edited in place until the Composer
+ * can take a reply's target (plan 097, R10, U7).
  */
-export function ReplyProposals({ source, rt, blocked = null }: Omit<ReplyProposalsProps, "touch">) {
+export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? revealFile : null }: Omit<ReplyProposalsProps, "touch">) {
   const decide = source.replies?.decide;
-  const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? [];
-  if (!decide || proposals.length === 0) return null;
+  const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? NONE;
+  const sent = useSentReplies(proposals);
+  if (!decide || proposals.length + sent.length === 0) return null;
   return (
     <div className="flex flex-col gap-2">
       {proposals.map((p) => (
-        <ReplyProposalView key={p.id} proposal={p} blocked={blocked} onDecide={(action, opts) => decide(rt, p.id, action, opts)} />
+        <ReplyProposalView key={p.id} proposal={p} blocked={blocked} reveal={reveal} onDecide={(action, opts) => decide(rt, p.id, action, opts)} />
+      ))}
+      {sent.map((p) => (
+        <ProposalFrame
+          key={p.id}
+          kind="reply"
+          where={
+            <>
+              {p.subject || "a thread"} · {p.account_label}
+            </>
+          }
+        >
+          <p role="status" data-sent className="m-0 text-meta text-muted-foreground">
+            {sentText(p)}
+          </p>
+        </ProposalFrame>
       ))}
     </div>
   );
 }
 
+/** No proposals, as one array, so the list a host without any gives reads the same each render. */
+const NONE: ReplyProposal[] = [];
+
 /**
- * What approving a reply proposal sends as the person's edit: their text when they changed it, else none, so the
- * proposal goes as the agent wrote it last, even when it was still being drafted when the card opened.
+ * A reply's files on the desktop card: each with its size, Show in Finder where it can be shown, and Remove or Put
+ * Back; a file already on a Jira ticket says so and cannot be taken off. Its own component, so the card stays readable.
  */
-export function replyEdit(edited: string | null, proposed: string): string | null {
-  return edited === null || edited === proposed ? null : edited;
+function ReplyFiles({
+  files,
+  kept,
+  attached,
+  disabled,
+  reveal,
+  onToggle,
+}: {
+  files: readonly ReplyAttachment[];
+  kept: readonly ReplyAttachment[];
+  attached: readonly string[];
+  disabled: boolean;
+  reveal: ((path: string) => void) | null;
+  onToggle: (name: string) => void;
+}) {
+  if (files.length === 0) return null;
+  return (
+    <ul aria-label="Files" data-attachments className="m-0 flex list-none flex-col gap-1 p-0 text-meta text-muted-foreground">
+      {files.map((f) => {
+        const on = kept.includes(f);
+        return (
+          <li key={f.name} data-file={f.name} className="flex flex-wrap items-center gap-2">
+            <span className={cn(!on && "line-through")}>{fileText(f)}</span>
+            {attached.includes(f.name) ? (
+              <span>Already on the ticket</span>
+            ) : (
+              <>
+                {!on && <span>Taken off</span>}
+                {reveal && (
+                  <Button size="sm" variant="ghost" onClick={() => reveal(f.path)} data-action="reveal" aria-label={`${revealLabel()}: ${f.name}`}>
+                    {revealLabel()}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => onToggle(f.name)}
+                  data-action={on ? "remove-file" : "keep-file"}
+                  aria-label={on ? `Remove ${f.name}` : `Put Back ${f.name}`}
+                >
+                  {on ? "Remove" : "Put Back"}
+                </Button>
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
-/** One reply proposal: a quiet quote of its text until edit opens it, then approve or reject; a refusal says why. */
+/**
+ * What the desktop card says under its files: that it is sending, why the last try did not go, and why nothing can
+ * be pressed, or that the reply still goes when the Mac is out of reach mid-hold. Its own component, so the card stays readable.
+ */
+function ReplyNotes({ sending, reason, blocked }: { sending: boolean; reason: string | null; blocked: string | null }) {
+  return (
+    <>
+      {sending && (
+        <p role="status" className="m-0 text-meta text-muted-foreground">
+          Sending…
+        </p>
+      )}
+      {reason && (
+        <p role="alert" className="m-0 text-meta text-destructive">
+          {reason}
+        </p>
+      )}
+      {blocked && <p className="m-0 text-meta text-muted-foreground">{sending ? STILL_GOES : blocked}</p>}
+    </>
+  );
+}
+
+/**
+ * One reply proposal: a quiet quote of its text until Edit opens it, its files, then Send and Reject; while sending,
+ * Undo. A refusal says why, and a change in the thread's people is spelled out.
+ */
 export function ReplyProposalView({
   proposal: p,
   blocked,
+  reveal = null,
   onDecide,
 }: {
   proposal: ReplyProposal;
   blocked: string | null;
-  onDecide: (action: ReplyAction, opts: { text?: string | null; replace?: boolean }) => Promise<ReplyOutcome>;
+  /** Shows a file in its folder; null where that cannot be done. */
+  reveal?: ((path: string) => void) | null;
+  onDecide: DecideReply;
 }) {
-  // The person's own edit, null until they change the text: until then the text is the proposal's as it is now, so a
-  // proposal still being drafted keeps following the agent, and approving it sends no edit.
-  const [edited, setEdited] = useState<string | null>(null);
-  const text = edited ?? p.text;
+  const { undoRef, ...card } = useReplyCard(p, onDecide);
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [refused, setRefused] = useState<{ message: string | null; replace: boolean } | null>(null);
-  const drafting = p.status === "drafting";
-  const off = busy || drafting || !!blocked;
-  const words = REPLY_WORDS[p.provider];
-  const act = async (action: "approve" | "reject") => {
-    setBusy(true);
-    try {
-      const out = await onDecide(action, action === "approve" ? { text: replyEdit(edited, p.text), replace: refused?.replace === true } : {});
-      setRefused(out.done ? null : { message: out.message, replace: out.replace });
-    } catch (err: unknown) {
-      setRefused({ message: messageOf(err), replace: false });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const off = card.busy || card.sending || !!blocked;
   // Flow's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
-  const reason = refused?.message ?? p.reason;
   return (
     <ProposalFrame
       kind="reply"
@@ -222,38 +299,40 @@ export function ReplyProposalView({
       }
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
+        {peopleChanged(p) && (
+          <p className="m-0 text-meta" data-people="changed">
+            {sentence(recipientsText(p))}
+          </p>
+        )}
         {editing ? (
-          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="Reply text" />
+          <Textarea value={card.text} rows={4} disabled={off} onChange={(e) => card.setText(e.target.value)} onKeyDown={keys} aria-label="Reply text" />
         ) : (
-          <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{text}</blockquote>
+          <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{card.text}</blockquote>
         )}
-        {drafting && (
-          <p role="status" className="m-0 text-meta text-muted-foreground">
-            {words.writing}
-          </p>
-        )}
-        {!drafting && reason && (
-          <p role="alert" className="m-0 text-meta text-destructive">
-            {reason}
-          </p>
-        )}
-        {blocked && <p className="m-0 text-meta text-muted-foreground">{blocked}</p>}
-        {!drafting && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" disabled={off || !text.trim()} onClick={() => void act("approve")} data-action="approve">
-              {refused?.replace ? "replace the draft" : "approve"}
+        <ReplyFiles files={p.attachments ?? []} kept={card.kept} attached={p.attached ?? []} disabled={off} reveal={reveal} onToggle={card.toggleFile} />
+        <ReplyNotes sending={card.sending} reason={card.reason} blocked={blocked} />
+        <div className="flex flex-wrap items-center gap-2">
+          {card.sending ? (
+            <Button ref={undoRef} size="sm" variant="outline" disabled={card.busy || !!blocked} onClick={card.undo} data-action="undo">
+              Undo
             </Button>
-            {!editing && (
-              <Button size="sm" variant="outline" disabled={off} onClick={() => setEditing(true)} data-action="edit">
-                Edit
+          ) : (
+            <>
+              <Button size="sm" disabled={off || !card.text.trim()} onClick={card.send} data-action="approve">
+                Send
               </Button>
-            )}
-            <Button size="sm" variant="ghost" disabled={off} onClick={() => void act("reject")} data-action="reject">
-              Reject
-            </Button>
-            <span className="text-meta text-muted-foreground">{words.after}</span>
-          </div>
-        )}
+              {!editing && (
+                <Button size="sm" variant="outline" disabled={off} onClick={() => setEditing(true)} data-action="edit">
+                  Edit
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" disabled={off} onClick={card.reject} data-action="reject">
+                Reject
+              </Button>
+              <span className="text-meta text-muted-foreground">{sendNote(p)}</span>
+            </>
+          )}
+        </div>
       </div>
     </ProposalFrame>
   );

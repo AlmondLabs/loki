@@ -174,8 +174,8 @@ export interface ChatFace {
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
   /**
-   * The replies its agent proposed that wait on the person or are being drafted (plan 067), live or as the list has
-   * them; absent from a face made elsewhere (the site's demo), which has none.
+   * The replies its agent proposed that wait on the person or are held and being sent after their Send (plan 067; plan
+   * 2026-11-14-1134), live or as the list has them; absent from a face made elsewhere (the site's demo), which has none.
    */
   replyProposals?: ReplyProposal[];
   /** The chat's live links to other chats (plan 067), for its header. */
@@ -853,7 +853,7 @@ export function useAttention(opts: UseAttentionOptions) {
   const reflection = useMemo(() => ({ get: store.getPasses, set: store.setPasses, run: store.reflect }), [store]);
   /** The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. */
   const suggestions = useMemo(() => ({ decide: store.decideSuggestion, retarget: store.retargetSuggestion }), [store]);
-  /** The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. */
+  /** The person's Send, Undo or Reject on a reply its agent proposed (plan 2026-11-14-1134), carried out by the Mac the chat lives on. */
   const replies = useMemo(() => ({ decide: store.decideReply }), [store]);
   /** Chat links (plan 067): closing one, and Preferences' list and default duration. */
   const links = useMemo(() => ({ close: store.closeLink, list: store.listLinks, setDefault: store.setLinkDefault }), [store]);

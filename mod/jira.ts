@@ -9,8 +9,9 @@ import { log } from "./log.ts";
  * A thin Jira Cloud client over fetch for one connected site (plan 2026-11-10-1451, U2), calling as the person with
  * their email and a classic API token as basic auth against the site's own API host (KTD3). It reads who the token
  * belongs to, where the site lives, the tickets the person watches, and a ticket's fields, comments and history, and it posts
- * the person's own comment, and it reads a ticket's attachment list and a picture's thumbnail (plan 093). Nothing else
- * here can change a ticket (R20): `postComment` is the only request that is not a GET, and no agent tool is given it.
+ * the person's own comment with its files, and it reads a ticket's attachment list and a picture's thumbnail (plan 093).
+ * Nothing else here can change a ticket (R20): `postComment` and `attachFiles` are the only requests that are not a GET,
+ * and no agent tool is given either.
  *
  * Every call goes through one wrapper that tells three answers apart (KTD5). Jira rejecting the token marks the
  * account as needing a new one (R3). A rate limit holds every call back for as long as Jira asks and is never a
@@ -61,6 +62,11 @@ const LOGIN_FAILED = "AUTHENTICATED_FAILED";
 /** How long to hold back after a rate limit that names no wait. */
 const DEFAULT_RETRY_MS = 60_000;
 const TIMEOUT_MS = 20_000;
+/**
+ * The slowest upload speed an attach is given time for, in bytes a millisecond (about 150 KB/s), on top of the usual
+ * timeout, so a 17 MB attach has well over two minutes (plan 2026-11-14-1134, KTD11).
+ */
+const UPLOAD_BYTES_PER_MS = 150;
 /** The largest thumbnail kept, as for Slack's previews: anything larger is not a thumbnail worth a card's space. */
 const THUMBNAIL_MAX_BYTES = 1_000_000;
 /** How many tickets a search page asks for unless told. */
@@ -76,9 +82,21 @@ const SPRINT_NAME = "Sprint";
 /** The digits a Jira id is padded to inside an event id, so ids compare as text the way their numbers do. */
 const ID_DIGITS = 12;
 
+/** How long an attach of `bytes` in all may take before it is given up: the usual timeout, and more as the files grow. */
+export function jiraUploadTimeoutMs(bytes: number): number {
+  return TIMEOUT_MS + Math.ceil(bytes / UPLOAD_BYTES_PER_MS);
+}
+
+/** A file to attach to a ticket: the name it goes by and its bytes, read and checked by the caller (KTD5). */
+export interface JiraFile {
+  name: string;
+  data: Uint8Array;
+}
+
 /**
  * A Jira call that failed. `code` says how: `rejected` (Jira did not accept the token), `rate_limited` (Jira asked for
- * a wait), `not_found` (the ticket is gone or the person may not see it), or `http_<status>` for anything else.
+ * a wait), `not_found` (the ticket is gone or the person may not see it), `timeout` (an attach got no answer in time,
+ * so its files may be on the ticket), or `http_<status>` for anything else.
  */
 export class JiraError extends Error {
   readonly code: string;
@@ -462,11 +480,30 @@ export class JiraClient {
 
   /**
    * Post the person's own comment on a ticket, as plain text (R17), and return the new comment's Jira id. Only the
-   * person's own send reaches this; it is the one call here that changes anything in Jira.
+   * person's own send reaches this; with `attachFiles`, it is one of the two calls here that change anything in Jira.
    */
   async postComment(ticket: string, text: string): Promise<{ id: string }> {
     const r = await this.call("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, undefined, { body: textToAdf(text) });
     return { id: str(r.id) };
+  }
+
+  /**
+   * Attach files to a ticket in one request, before the comment that names them is posted (KTD8), and return the
+   * names Jira gave them, or the names sent when its answer gives none. The bytes are the ones the caller checked
+   * (KTD5); no path is read here. An attach is never asked again by itself: a second one would put the files on the
+   * ticket twice, so one that got no answer in time says the files may already be there.
+   */
+  async attachFiles(ticket: string, files: JiraFile[]): Promise<string[]> {
+    const form = new FormData();
+    // A Blob takes only bytes over a plain ArrayBuffer, and a caller's view may sit over a shared one, so each is copied.
+    for (const f of files) form.append("file", new Blob([new Uint8Array(f.data)]), f.name);
+    const size = files.reduce((n, f) => n + f.data.byteLength, 0);
+    const answer = await this.request("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/attachments`, undefined, undefined, true, {
+      form,
+      timeoutMs: jiraUploadTimeoutMs(size),
+    });
+    const names = list(answer).flatMap((a) => (str(rec(a).filename) ? [str(rec(a).filename)] : []));
+    return names.length ? names : files.map((f) => f.name);
   }
 
   // --- requests ----------------------------------------------------------------------------------------------------
@@ -517,22 +554,42 @@ export class JiraClient {
     return rec(await this.request(method, path, query, body, withToken));
   }
 
-  /** One request to the site, and the one place that decides whether an answer is a rejection, a wait or a failure. */
-  private async request(method: "GET" | "POST", path: string, query?: Record<string, string>, body?: unknown, withToken = true): Promise<unknown> {
+  /**
+   * One request to the site, and the one place that decides whether an answer is a rejection, a wait or a failure.
+   * An `upload` goes as a multipart body, whose content type and boundary fetch writes, with Jira's header that lets a
+   * non-browser post files and the time its size needs.
+   */
+  private async request(
+    method: "GET" | "POST",
+    path: string,
+    query?: Record<string, string>,
+    body?: unknown,
+    withToken = true,
+    upload?: { form: FormData; timeoutMs: number },
+  ): Promise<unknown> {
     const wait = this.holdUntil - this.now();
     if (wait > 0) throw new JiraError(`Jira asked loki to wait ${Math.ceil(wait / 1000)} s`, "rate_limited", 0, wait);
     const secret = await this.opts.secret();
     if (!secret) return this.rejected("the account keeps no token", 0);
-    const res = await (this.opts.fetch ?? fetch)(`https://${secret.site}${path}${query ? `?${new URLSearchParams(query).toString()}` : ""}`, {
+    const sent = (this.opts.fetch ?? fetch)(`https://${secret.site}${path}${query ? `?${new URLSearchParams(query).toString()}` : ""}`, {
       method,
       headers: {
         accept: "application/json",
         ...(withToken ? { authorization: basicAuth(secret) } : {}),
         ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(upload ? { "x-atlassian-token": "no-check" } : {}),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      ...(upload ? { body: upload.form } : body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(upload?.timeoutMs ?? TIMEOUT_MS),
     });
+    const res = upload
+      ? await sent.catch((err: unknown) => {
+          // Jira may have taken the files before the answer was lost, so the person is told to look before sending again.
+          if (err instanceof Error && err.name === "TimeoutError")
+            throw new JiraError("Jira did not answer in time: the files may be on the ticket: check before sending again", "timeout", 0);
+          throw err;
+        })
+      : await sent;
     if (res.status === 429) return this.rateLimited(res.headers.get("retry-after"));
     if (res.status === 401 || (res.headers.get(LOGIN_REASON_HEADER) ?? "").includes(LOGIN_FAILED)) return this.rejected(`answered ${res.status}`, res.status);
     const answer: unknown = await res.json().catch(() => ({}));

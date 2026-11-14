@@ -63,7 +63,10 @@ export class ChatListing {
     readAgent?: (agentId: string) => LocalAgent | null;
     /** The connected accounts' open threads as outside cards (mod/account-threads.ts, plan 067); none when left out. */
     outside?: () => InboxRow[];
-    /** A chat's reply proposals that wait on the person or are being drafted (mod/reply-proposals.ts, plan 067). */
+    /**
+     * A chat's reply proposals that wait on the person or are being sent on the person's Send (mod/reply-proposals.ts,
+     * plan 067).
+     */
     replies?: (agentId: string, conversationId: string) => ReplyProposal[];
   };
 

@@ -453,22 +453,32 @@ describe("frames: suggestions (plan 049)", () => {
     expect(parse("suggestion_decide", { ...chat, action: "send" })).toBe("suggestion_id required");
   });
 
-  test("a reply decision (plan 067) is approve, with the text as edited and whether to replace, or reject", () => {
-    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", text: "edited", replace: true })).toEqual({
+  test("a reply decision (plan 2026-11-14-1134) is Send (approve), with the text as edited and the files kept, Undo, or reject", () => {
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", text: "edited", files: ["a.pdf"] })).toEqual({
       ...chat,
       proposal_id: "reply-1",
       action: "approve",
       text: "edited",
-      replace: true,
+      files: ["a.pdf"],
     });
+    // A client from before Send still sends `replace`, which goes nowhere now.
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", replace: true })).toEqual({
+      ...chat,
+      proposal_id: "reply-1",
+      action: "approve",
+      text: null,
+      files: null,
+    });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "undo" })).toMatchObject({ action: "undo", files: null });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "reject" })).toEqual({
       ...chat,
       proposal_id: "reply-1",
       action: "reject",
       text: null,
-      replace: false,
+      files: null,
     });
-    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "send" })).toBe("action must be approve or reject");
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "send" })).toBe("action must be approve, undo or reject");
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", files: [1] })).toBe("files must be a list of file names");
     expect(parse("reply_decide", { ...chat, action: "approve" })).toBe("proposal_id required");
   });
 

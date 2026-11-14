@@ -21,7 +21,25 @@ import { log } from "./log.ts";
  * entry something else put in the file is passed over. Without a keychain nothing is sent after a restart.
  */
 
-/** One held reply: everything its send needs, and when it goes (ISO). */
+/** A file a held reply carries, from the chat's folder: read again, and checked by its MD5, only when it goes. */
+export interface HeldFile {
+  name: string;
+  path: string;
+  size: number;
+  md5: string;
+}
+
+/** The agent's reply proposal a held reply sends (plan 2026-11-14-1134): where its outcome is reported. */
+export interface HeldProposal {
+  agent_id: string;
+  conversation_id: string;
+  proposal_id: string;
+}
+
+/**
+ * One held reply: everything its send needs, and when it goes (ISO). A Slack reply may name the thread it goes into,
+ * and an agent's reply carries its files and the proposal it came from (plan 2026-11-14-1134).
+ */
 export interface HeldReply {
   outbox_id: string;
   account_id: string;
@@ -30,6 +48,9 @@ export interface HeldReply {
   then: ReplyThen;
   mail: MailAddressing | null;
   send_at: string;
+  thread_ts?: string | null;
+  files?: HeldFile[];
+  proposal?: HeldProposal | null;
 }
 
 /** What MailOutbox is built from; the clock and the timer are injected so tests own them. */
@@ -50,9 +71,14 @@ export interface MailOutboxOptions {
    * Whether the reply is in its thread already, by its header: asked before it is sent a second time. Left out, a reply
    * whose send was cut short is never sent again from loki.
    */
-  wentOut?: (held: HeldReply) => Promise<boolean>;
+  wentOut?: (held: HeldReply) => Promise<boolean | null>;
   /** A reply stopped going (`note`, with why and when) or is settled after all (null): its card says so, or stops saying it. */
   onNotSent?: (held: HeldReply, note: { reason: string; at: string } | null) => void;
+  /**
+   * An agent's reply went (or a restart found it had gone before its proposal heard): told again after each restart
+   * until the proposal calls `acknowledge`, so a crash between the send and the proposal's save never loses the news.
+   */
+  onSent?: (held: HeldReply) => void;
 }
 
 /**
@@ -97,6 +123,23 @@ export class MailOutbox {
     return waited;
   }
 
+  /**
+   * An agent's proposal has saved what became of its reply: the entry kept for it, sent or failed, leaves the file.
+   * Anything still waiting or being sent is left alone.
+   */
+  acknowledge(outboxId: string): void {
+    const held = this.read().find((h) => h.outbox_id === outboxId);
+    if (held?.proposal && (held.state === "sent" || held.state === "failed")) this.remove(outboxId);
+  }
+
+  /**
+   * Whether the outbox still has a reply by this id: waiting, being sent, or kept with an outcome its proposal has not
+   * acknowledged. An agent's proposal stored as sending with no entry here was cut short with no outcome saved.
+   */
+  has(outboxId: string): boolean {
+    return this.waiting.has(outboxId) || this.read().some((h) => h.outbox_id === outboxId);
+  }
+
   /** Stop a held reply before it goes; false when it already went, or was never held here. */
   undo(accountId: string, outboxId: string): boolean {
     const w = this.waiting.get(outboxId);
@@ -125,6 +168,10 @@ export class MailOutbox {
         }
         if (held.state === "failed") {
           this.opts.onNotSent?.(held, { reason: held.reason ?? "not sent", at: held.failed_at ?? held.send_at });
+          continue;
+        }
+        if (held.state === "sent") {
+          this.opts.onSent?.(held);
           continue;
         }
         if (held.state === "sending") {
@@ -158,7 +205,9 @@ export class MailOutbox {
       this.mark(outboxId, { state: "sending" });
       let went: boolean;
       try {
-        went = this.opts.wentOut ? await this.opts.wentOut(held) : false;
+        const found = this.opts.wentOut ? await this.opts.wentOut(held) : false;
+        if (found === null) throw new Error("its thread cannot be searched for it");
+        went = found;
       } catch (err) {
         // Not knowing whether it went is never a reason to send it: it stays as it was.
         this.mark(outboxId, { state: "failed" });
@@ -197,7 +246,10 @@ export class MailOutbox {
     const went = this.opts.wentOut ? await this.opts.wentOut(held).catch(() => null) : null;
     if (went === true) {
       log("outside:cut-short-went", {});
-      this.settled(held);
+      if (held.proposal) {
+        this.mark(held.outbox_id, { state: "sent" });
+        this.opts.onSent?.(held);
+      } else this.settled(held);
       return;
     }
     this.fail(
@@ -233,7 +285,11 @@ export class MailOutbox {
     await this.keep(w.held, { state: "sending" });
     try {
       const r = await this.opts.send(w.held);
-      this.remove(outboxId);
+      // An agent's reply stays, marked sent, until its proposal has saved that; the person's own leaves at once.
+      if (w.held.proposal) {
+        this.mark(outboxId, { state: "sent" });
+        this.opts.onSent?.(w.held);
+      } else this.remove(outboxId);
       w.settle(r);
     } catch (err) {
       const e = err instanceof Error ? err : new Error(messageOf(err));
@@ -302,11 +358,16 @@ export class MailOutbox {
  * A held reply as the file keeps it: with its seal, when there was a key to make one, and how its send stands. No state
  * is a reply still waiting out its hold; `sending` one whose send began; `failed` one that did not go, with why.
  */
-type Stored = HeldReply & { seal?: unknown; state?: "sending" | "failed"; reason?: string; failed_at?: string };
+type Stored = HeldReply & { seal?: unknown; state?: "sending" | "sent" | "failed"; reason?: string; failed_at?: string };
 
-/** The seal of a held reply: an HMAC over every field its send reads, in one fixed order. */
+/**
+ * The seal of a held reply: an HMAC over every field its send reads, in one fixed order. The Slack thread, files and
+ * proposal are sealed only when a reply has any, so a reply held before they existed keeps the seal it was written with.
+ */
 function sealOf(key: string, h: HeldReply): string {
-  const fields = [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
+  const base: unknown[] = [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
+  const more = h.thread_ts != null || h.files !== undefined || h.proposal != null;
+  const fields = more ? [...base, h.thread_ts ?? null, h.files ?? null, h.proposal ?? null] : base;
   return createHmac("sha256", key).update(JSON.stringify(fields)).digest("hex");
 }
 
@@ -350,8 +411,23 @@ function isHeld(v: unknown): v is Stored {
     typeof h.account_id === "string" &&
     typeof h.thread_id === "string" &&
     typeof h.text === "string" &&
-    (h.then === "read" || h.then === "later" || h.then === "archive") &&
+    (h.then === "read" || h.then === "later" || h.then === "archive" || h.then === "stay") &&
     typeof h.send_at === "string" &&
-    typeof h.mail === "object"
+    typeof h.mail === "object" &&
+    (h.thread_ts === undefined || h.thread_ts === null || typeof h.thread_ts === "string") &&
+    (h.files === undefined || (Array.isArray(h.files) && h.files.every(isFile))) &&
+    (h.proposal === undefined || h.proposal === null || isProposal(h.proposal))
   );
+}
+
+function isFile(v: unknown): v is HeldFile {
+  if (typeof v !== "object" || v === null) return false;
+  const f = v as Record<string, unknown>;
+  return typeof f.name === "string" && typeof f.path === "string" && typeof f.size === "number" && typeof f.md5 === "string";
+}
+
+function isProposal(v: unknown): v is HeldProposal {
+  if (typeof v !== "object" || v === null) return false;
+  const p = v as Record<string, unknown>;
+  return typeof p.agent_id === "string" && typeof p.conversation_id === "string" && typeof p.proposal_id === "string";
 }

@@ -646,16 +646,17 @@ export type Suggestion = {
 };
 
 /**
- * Where a reply proposal stands (plan 067, KTD9): waiting on the person, its draft being written, or settled by a
- * draft written out there, the person rejecting it, or its agent (or a move of the account) taking it back.
+ * Where a reply proposal stands (plan 067; plan 2026-11-14-1134, KTD3): waiting on the person, held for its undo and
+ * being sent after their Send, or settled: sent, rejected by the person, or taken back (a move of the account).
+ * `drafted` is settled from before replies were sent, when approving wrote a draft; nothing new becomes it.
  */
-export type ReplyProposalStatus = "pending" | "drafting" | "drafted" | "rejected" | "withdrawn";
+export type ReplyProposalStatus = "pending" | "sending" | "sent" | "drafted" | "rejected" | "withdrawn";
 
 /**
- * A reply an agent proposes in a thread handed to its chat (plan 067, R18, KTD9), kept on that chat until the person
- * acts. Approved, loki writes it as a draft in the same thread for the person to send; loki never sends it. The
- * people it goes to come from the thread, never from the agent: Gmail's reply-all to the newest message, or Slack's
- * same conversation and thread (`place`).
+ * A reply an agent proposes in a thread of its account (plan 067, R18; plan 2026-11-14-1134), kept on its chat until
+ * the person acts. Only their Send sends it, held 10 seconds with Undo, as the person, in that same thread. The people
+ * it goes to come from the thread, never from the agent: Gmail's reply-all to the newest message, Slack's same
+ * conversation and thread (`place`), or the Jira ticket.
  */
 export interface ReplyProposal {
   id: string;
@@ -666,20 +667,43 @@ export interface ReplyProposal {
   thread_id: string;
   /** The thread's subject, or a Slack thread's first line. */
   subject: string;
-  /** Gmail: who the draft is addressed to and copied to, as the newest message names them; empty for Slack. */
+  /** Gmail: who the reply goes to and is copied to, as the card shows them; empty for Slack and Jira. */
   to: string[];
   cc: string[];
-  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); Jira: the ticket's key; null for Gmail. */
+  /** Slack: where the reply goes, in words ("the DM with Grace", "the thread in #ops"); Jira: the ticket's key; null for Gmail. */
   place: string | null;
+  /** The text as the agent wrote it, or as the person last edited it on a Send. */
   text: string;
   status: ReplyProposalStatus;
-  /** Why an action was refused or failed, shown on the card; null when nothing went wrong. */
+  /** Why an action was refused or a send did not go, shown on the card; null when nothing went wrong. */
   reason: string | null;
   created_at: string;
+  /** Who pressed Send (while sending, and once sent), rejected it, or withdrew it, and when it settled. */
   decided_by?: string | null;
   decided_at?: string | null;
-  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack, for Jira (the card's box) or before. */
-  draft_url?: string | null;
+  /** The files it carries, from the chat's folder, as they were when proposed; the ones the person took off are gone. */
+  attachments?: ReplyAttachment[];
+  /**
+   * The outbox entry of its Send: the one held while sending, or the last one that did not go, which the next Send of a
+   * Gmail reply looks for in the thread first, so it never goes twice (KTD9).
+   */
+  outbox_id?: string | null;
+  /** Gmail, after a Send refused because the thread's people changed (R7): the bare addresses that joined and left. */
+  people_added?: string[];
+  people_removed?: string[];
+  /** Jira: the names of its files already on the ticket from an earlier Send, which a later one does not attach again (KTD8). */
+  attached?: string[];
+}
+
+/**
+ * A file on a proposed reply (plan 2026-11-14-1134, R8): where it is in the chat's folder, and its size and MD5 when
+ * the reply was proposed, so a Send sends the file the card named or refuses (R10). Its bytes are never kept.
+ */
+export interface ReplyAttachment {
+  name: string;
+  path: string;
+  size: number;
+  md5: string;
 }
 
 /**

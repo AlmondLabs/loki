@@ -154,7 +154,7 @@ export const rec = (v: unknown): Record<string, unknown> => (typeof v === "objec
  * A path in the chat's folder (R20): relative paths start there, and a path that leads out of it is refused, so a
  * script moves files only where the chat works.
  */
-export function inChatFolder(ctx: ToolContext, path: string): string {
+export function inChatFolder(ctx: Pick<ToolContext, "cwd">, path: string): string {
   if (!ctx.cwd) throw new Error("this chat has no folder to keep files in: set one for the chat first");
   const full = resolve(ctx.cwd, path);
   const rel = relative(resolve(ctx.cwd), full);
@@ -177,6 +177,30 @@ export async function readInChat(ctx: ToolContext, path: string): Promise<{ full
     throw new Error(`there is no file ${path} in this chat's folder`);
   });
   return { full, data: new Uint8Array(data) };
+}
+
+/**
+ * A guess at a file's type from its name, for an upload to Drive or a file on a mail (plan 2026-11-14-1134, R11) that
+ * names none, so a PDF opens in place; anything else is raw bytes.
+ */
+export function fileTypeOf(name: string): string {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  const types: Record<string, string> = {
+    pdf: "application/pdf",
+    csv: "text/csv",
+    txt: "text/plain",
+    md: "text/markdown",
+    json: "application/json",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    zip: "application/zip",
+  };
+  return types[ext] ?? "application/octet-stream";
 }
 
 /** A file's MD5, as Drive reports its own (`md5Checksum`). */

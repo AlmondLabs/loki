@@ -512,7 +512,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    other people's text for the model, and `script-tools.ts` gives scripts `slack_read`, `jira_read` and `flow_list`
    and the prompt's list of the owner's accounts (plan 097, which removed `account_list`, `account_read` and
    `account_search`); and
-   `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
+   `reply-proposals.ts` holds `reply_propose`, and on the person's Send hands the reply to `outside-threads.ts`, whose outbox holds it 10 seconds and sends it.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),
    `harness.ts` (recognising harness markup in transcripts), `ws-auth.ts` (the token in the socket's subprotocol),

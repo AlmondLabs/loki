@@ -190,9 +190,17 @@ const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; sug
   if (typeof c === "string") return c;
   return str(m.suggestion_id) && m.suggestion_id ? { ...c, suggestion_id: m.suggestion_id } : "suggestion_id required";
 };
-/** What the person does with a reply an agent proposed (plan 067, KTD9): approve it, so loki drafts it, or reject it. */
-export type ReplyAction = "approve" | "reject";
-const REPLY_ACTIONS: readonly string[] = ["approve", "reject"] satisfies ReplyAction[];
+/**
+ * What the person does with a reply an agent proposed (plan 2026-11-14-1134, KTD3): Send it (`approve` on the wire, the
+ * name clients already send), Undo it while it is held, or reject it.
+ */
+export type ReplyAction = "approve" | "undo" | "reject";
+const REPLY_ACTIONS: readonly string[] = ["approve", "undo", "reject"] satisfies ReplyAction[];
+/** What a Send carries beside its action: the text as the person edited it, and the names of the files they kept (all when left out). */
+export interface ReplyDecideOptions {
+  text?: string | null;
+  files?: readonly string[] | null;
+}
 /** One end of a link as a frame names it: a chat, with its name. */
 const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title: string | null } | null => {
   const e = typeof v === "object" && v !== null ? (v as Raw) : {};
@@ -322,10 +330,10 @@ export interface Replies {
   /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
   suggestion_added: { suggestion: Suggestion };
   /**
-   * A reply proposal as it stands after an action (plan 067, KTD9): `done` when it took, else `message` says why not;
-   * `replace` asks the person whether to replace a draft already waiting in that place.
+   * A reply proposal as it stands after an action (plan 2026-11-14-1134, KTD3): `done` when it took, else `message`
+   * says why not. A Send answers as sending; what became of the reply comes as the chat's `reply_proposals` event.
    */
-  reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
+  reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null };
   /**
    * The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. A list
    * also carries each paired Mac's accounts as it last said (plan 087, KTD9); a mod from before that leaves them out.
@@ -840,13 +848,15 @@ export const FRAMES = {
   // Reply proposals (plan 067, KTD9), carried out by the Mac the chat lives on, which holds the account.
   reply_decide: request(
     "reply_decided",
-    "approve a reply its agent proposed in this chat, so loki writes it as a draft in its thread (`text` as edited; `replace` a draft already there), or reject it; the first action wins",
+    "send a reply its agent proposed in this chat (`approve`, with `text` as edited and `files`, the names of the files kept; all of them when left out), held 10 seconds before it goes in its thread; `undo` it while it is held; or reject it; the first action wins, and the answer comes at once, with the reply's fate pushed as the chat's `reply_proposals` event (plan 2026-11-14-1134)",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
       if (!str(m.proposal_id) || !m.proposal_id) return "proposal_id required";
-      if (!str(m.action) || !REPLY_ACTIONS.includes(m.action)) return "action must be approve or reject";
-      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, replace: m.replace === true };
+      if (!str(m.action) || !REPLY_ACTIONS.includes(m.action)) return "action must be approve, undo or reject";
+      if (m.files !== undefined && m.files !== null && !allStrings(m.files)) return "files must be a list of file names";
+      const files = allStrings(m.files) ? m.files : null;
+      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, files };
     },
     PHONE,
     BY_CHAT,

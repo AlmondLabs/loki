@@ -15,16 +15,17 @@ import type {
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { OUTBOX_HEADER, type GmailAttachment, type GmailClient, type GmailMessage, type GmailSendAs } from "./gmail.ts";
-import type { JiraClient } from "./jira.ts";
+import { JiraError, type JiraClient } from "./jira.ts";
 import { mailAttachments, mailParts } from "./account-ops/gmail.ts";
 import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
 import { forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
-import { MailOutbox, type HeldReply, type MailOutboxOptions } from "./mail-outbox.ts";
+import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type MailOutboxOptions } from "./mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
-import { headerOf, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
+import { fileTypeOf } from "./google-tools/core.ts";
+import { MAY_HAVE_GONE, checkedFiles, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
 import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
 import type { SlackPeople } from "./slack-people.ts";
@@ -32,7 +33,12 @@ import type { SlackPeople } from "./slack-people.ts";
 /**
  * An outside card's thread for the person (plan 068): the whole thread to read on the card, and the person's own
  * reply, sent in it. This is the only place loki sends anything, and it is reached only by the reply frame the
- * person's own devices send (mod/frames/accounts.ts); no agent tool is built on it, so agents still never send (R18).
+ * person's own devices send (mod/frames/accounts.ts) and by the person's Send on an agent's reply card
+ * (mod/reply-proposals.ts, plan 2026-11-14-1134); no agent tool is built on it, so an agent never sends by itself.
+ *
+ * An agent's reply takes the person's own path (KTD1): it is held in the outbox for its undo on every service, then
+ * sent as the card showed it, with no move after it (R15). The send reads its files once and sends the bytes it
+ * checked (KTD5), and a Gmail reply goes only when the thread's people are still the ones the card showed (KTD4).
  */
 
 /**
@@ -41,14 +47,56 @@ import type { SlackPeople } from "./slack-people.ts";
  */
 export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment">;
 
-/** What the person's own Slack moves need: the post, a reaction, and the workspace's emoji to pick one from (plan 079). */
-export type SendSlack = Pick<SlackClient, "postReply" | "react" | "emojiList" | "frequentEmoji">;
+/**
+ * What the person's own Slack moves need: the post, with files for an agent's reply (KTD7), a reaction, and the
+ * workspace's emoji to pick one from (plan 079).
+ */
+export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji">;
 
-/** What the person's comment on a Jira card needs (plan 2026-11-10-1451, U7): the post, Jira's only write. */
-export type SendJira = Pick<JiraClient, "postComment">;
+/** What a comment on a Jira ticket needs (plan 2026-11-10-1451, U7): the post, and the attach before it (KTD8). */
+export type SendJira = Pick<JiraClient, "postComment" | "attachFiles">;
 
 /** One account's sending client. */
 export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: "slack"; client: SendSlack } | { provider: "jira"; client: SendJira };
+
+/**
+ * An agent's reply the person pressed Send on (plan 2026-11-14-1134, KTD1): the thread it answers, its text as the
+ * card last had it, the files to send, and the proposal its outcome is reported to. A Gmail reply goes to `people`,
+ * the To and Cc the card showed; a Jira comment names `attached`, the reply's files already on the ticket from an
+ * earlier Send (KTD8), beside the `files` attached now.
+ */
+export interface AgentReply {
+  outbox_id: string;
+  account_id: string;
+  thread_id: string;
+  text: string;
+  files: HeldFile[];
+  attached: string[];
+  people: { to: string[]; cc: string[] } | null;
+  proposal: HeldProposal;
+}
+
+/**
+ * The people a Gmail reply would reach at the end of its hold, when they differ from those its card showed (KTD4): the
+ * new To and Cc as reply-all writes them, and who was added and removed, by bare address.
+ */
+export interface PeopleChanged {
+  to: string[];
+  cc: string[];
+  added: string[];
+  removed: string[];
+}
+
+/**
+ * Where an agent's reply reports what became of it (KTD9): the proposals, bound once they exist, since this is built
+ * before them. `notSent` carries the changed people when that was the reason; `attached` comes as soon as a Jira
+ * ticket took the files, so a comment that fails after still leaves them recorded.
+ */
+export interface AgentReplyReports {
+  sent(held: HeldReply): void;
+  notSent(held: HeldReply, note: { reason: string; at: string }, people: PeopleChanged | null): void;
+  attached(proposal: HeldProposal, names: string[]): void;
+}
 
 /** What the thread reader and the reply are built from; the clients and readers are injected so tests own them. */
 export interface OutsideThreadsOptions {
@@ -105,6 +153,13 @@ export class OutsideThreads {
   private readonly ownEmoji = new Map<string, Promise<Record<string, string>>>();
   /** Each workspace's most-used emoji (plan 084) and when they were read, read again after FREQUENT_TTL_MS. */
   private readonly frequent = new Map<string, { at: number; names: Promise<string[]> }>();
+  /** Where agents' replies report, once the proposals exist. */
+  private reports: AgentReplyReports | null = null;
+  /**
+   * The changed people of a Gmail reply its send just refused, by outbox id: the outbox reports a failure with its
+   * reason alone, and the proposal needs the people too, so they wait here for that report.
+   */
+  private readonly changedPeople = new Map<string, PeopleChanged>();
 
   constructor(opts: OutsideThreadsOptions) {
     this.opts = opts;
@@ -113,15 +168,87 @@ export class OutsideThreads {
           ...opts.outbox,
           send: (held) => this.sendNow(held),
           wentOut: (held) => this.wentOut(held),
-          onNotSent: (held, note) =>
-            void opts.threads.markNotSent?.(held.account_id, held.thread_id, held.outbox_id, note && { outbox_id: held.outbox_id, text: held.text, ...note }),
+          // An agent's reply is reported to its proposal, the person's own to its thread's card.
+          onNotSent: (held, note) => {
+            if (!held.proposal) {
+              void opts.threads.markNotSent?.(held.account_id, held.thread_id, held.outbox_id, note && { outbox_id: held.outbox_id, text: held.text, ...note });
+              return;
+            }
+            const people = this.changedPeople.get(held.outbox_id) ?? null;
+            this.changedPeople.delete(held.outbox_id);
+            if (note) this.reports?.notSent(held, note, people);
+          },
+          onSent: (held) => {
+            if (held.proposal) this.reports?.sent(held);
+          },
         })
       : null;
+  }
+
+  /**
+   * Where agents' replies report from now on (KTD9). Bound before `resume`, so a reply a restart finds sent or failed
+   * reaches its proposal.
+   */
+  reportAgentRepliesTo(reports: AgentReplyReports): void {
+    this.reports = reports;
   }
 
   /** Send the mail replies a daemon that stopped left held (plan 076), each when its time comes. */
   resume(): void {
     this.outbox?.resume();
+  }
+
+  /**
+   * Hold an agent's reply the person pressed Send on (KTD1), on every service, for the outbox's 10 seconds; it then
+   * goes with no move after it (R15), and its outcome reaches the proposal through `reportAgentRepliesTo`, so nothing
+   * here waits for it. Throws why when it cannot be held at all: no outbox on this Mac, or an account not connected.
+   */
+  holdAgentReply(reply: AgentReply): void {
+    if (!this.outbox) throw new Error("replies are not held on this Mac");
+    const body = reply.text.trim();
+    if (!body && reply.files.length + reply.attached.length === 0) throw new Error("the reply is empty");
+    if (body.length > MAX_REPLY) throw new Error("that reply is too long to send");
+    const account = this.need(reply.account_id);
+    if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
+    if (account.provider === "gmail" && !reply.people) throw new Error("a mail reply needs the people its card showed");
+    // A Jira comment names every file of the reply, those an earlier Send attached and those attached now (KTD8).
+    const named = [...reply.attached, ...reply.files.map((f) => f.name)];
+    const text = account.provider === "jira" && named.length ? [body, `Attached: ${named.join(", ")}`].filter(Boolean).join("\n\n") : body;
+    const mail: MailAddressing | null =
+      account.provider === "gmail" && reply.people
+        ? { mode: "reply_all", to: reply.people.to, cc: reply.people.cc, bcc: [], from: null, signature: true }
+        : null;
+    const held = this.outbox.hold({
+      outbox_id: reply.outbox_id,
+      account_id: reply.account_id,
+      thread_id: reply.thread_id,
+      text,
+      then: "stay",
+      mail,
+      thread_ts: null,
+      files: reply.files,
+      proposal: reply.proposal,
+    });
+    // Sent, refused or undone, the proposal hears it from the outbox's reports; the answer here is for no one.
+    void held.catch(() => undefined);
+  }
+
+  /** Whether the outbox still has a reply by this id (KTD9): waiting, being sent, or kept until its proposal saves its outcome. */
+  holds(outboxId: string): boolean {
+    return this.outbox?.has(outboxId) ?? false;
+  }
+
+  /** An agent's proposal saved what became of its reply: the outbox lets the entry go (KTD9). */
+  acknowledge(outboxId: string): void {
+    this.outbox?.acknowledge(outboxId);
+  }
+
+  /**
+   * Whether a reply by this outbox id is in its thread already (KTD9, step 3): Gmail by the header it was sent with,
+   * null for Slack and Jira, which cannot tell.
+   */
+  wentOutIn(accountId: string, threadId: string, outboxId: string): Promise<boolean | null> {
+    return this.wentOut({ outbox_id: outboxId, account_id: accountId, thread_id: threadId });
   }
 
   /**
@@ -233,10 +360,13 @@ export class OutsideThreads {
     return this.outbox?.discard(accountId, outboxId) ?? false;
   }
 
-  /** Whether a held reply is in its thread already, found by the header it was sent with. */
-  private async wentOut(held: HeldReply): Promise<boolean> {
+  /**
+   * Whether a held reply is in its thread already, found by the header it was sent with. Slack and Jira carry no such
+   * header, so they cannot tell (KTD9, step 1): a send cut short there is never tried again by itself.
+   */
+  private async wentOut(held: Pick<HeldReply, "outbox_id" | "account_id" | "thread_id">): Promise<boolean | null> {
     const sender = this.opts.clientFor(this.need(held.account_id));
-    if (sender.provider !== "gmail") return false;
+    if (sender.provider !== "gmail") return null;
     const thread = await sender.client.getThread(held.thread_id, "metadata");
     return thread.messages.some((m) => headerOf(m, OUTBOX_HEADER) === held.outbox_id);
   }
@@ -319,44 +449,74 @@ export class OutsideThreads {
     if (mail && account.provider !== "gmail") throw new Error("only a mail reply has recipients");
     if (threadTs && account.provider !== "slack") throw new Error("only a Slack reply goes into a thread the card opened");
     if (mail && mail.to.length + mail.cc.length + mail.bcc.length === 0) throw new Error("add someone to send it to");
-    const held = { outbox_id: outboxId ?? "", account_id: accountId, thread_id: threadId, text: body, then, mail };
+    const held = { outbox_id: outboxId ?? "", account_id: accountId, thread_id: threadId, text: body, then, mail, thread_ts: threadTs };
     if (this.outbox && outboxId && account.provider === "gmail") return this.outbox.hold(held);
-    return this.sendNow(held, threadTs);
+    return this.sendNow(held);
   }
 
-  /** The send itself and the move after it, at once or once a hold is over. */
-  private async sendNow(held: Omit<HeldReply, "send_at">, threadTs: string | null = null): Promise<OutsideReplied> {
+  /**
+   * The send itself and the move after it, at once or once a hold is over. An agent's reply (one with a proposal) reads
+   * its files here, once, and sends the bytes it checked (KTD5); it makes no move and marks nothing on a card (R15).
+   */
+  private async sendNow(held: Omit<HeldReply, "send_at">): Promise<OutsideReplied> {
     const { account_id: accountId, thread_id: threadId, text: body, then, mail } = held;
     const account = this.need(accountId);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     const sender = this.opts.clientFor(account);
+    const agent = held.proposal != null;
+    const files = held.files?.length ? await checkedFiles(held.files) : [];
     // Replying is dealing with what came before, whichever key follows (plan 077, R5). A Jira comment is not: the
-    // ticket's events stay new until the person reads the card (KTD11, AE1).
-    let deals = true;
+    // ticket's events stay new until the person reads the card (KTD11, AE1). An agent's reply is no move of the
+    // person's on the card at all.
+    let deals = !agent;
     switch (sender.provider) {
       case "gmail":
-        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null);
+        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files);
         break;
       case "slack": {
         // A thread the person opened on the card (plan 085) is where they are writing, else the card's own place.
         const place = slackPlace(threadId);
         const { channel } = place;
-        const ts = threadTs ?? place.ts;
+        const ts = held.thread_ts ?? place.ts;
         // People who cannot be read leave each @handle as typed; the reply still goes.
         const mentions = (await this.opts.slackPeople?.mentions(accountId, body).catch(() => null)) ?? new Map<string, string>();
-        await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions });
+        const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions };
+        // With files, the text rides with them as one message (KTD7).
+        try {
+          if (files.length) await sender.client.postWithFiles({ ...where, files });
+          else await sender.client.postReply(where);
+        } catch (err) {
+          if (agent) throw unclearPost(err, "Slack");
+          throw err;
+        }
         break;
       }
       case "jira":
+        // The files go on the ticket first, and the proposal hears so at once, so a comment that fails after them
+        // never attaches them a second time (KTD8). Neither is tried again by itself.
+        if (files.length) {
+          await sender.client.attachFiles(threadId, files);
+          if (held.proposal)
+            this.reports?.attached(
+              held.proposal,
+              files.map((f) => f.name),
+            );
+        }
         // Posted once: a post that fails or times out is reported and never tried again, since a retry could post the
         // comment twice (plan 2026-11-10-1451, KTD11). The thread id is the ticket's own id.
-        await sender.client.postComment(threadId, body);
+        try {
+          await sender.client.postComment(threadId, body);
+        } catch (err) {
+          if (agent) throw unclearPost(err, "Jira");
+          throw err;
+        }
         deals = false;
-        // The box held any comment the person approved, so what they sent is it, as they left it (KTD18).
-        this.opts.threads.clearSeeds(accountId, threadId);
+        // The box held any comment the person approved, so what they sent is it, as they left it (KTD18). An agent's
+        // comment is not what the box held, so the box keeps it.
+        if (!agent) this.opts.threads.clearSeeds(accountId, threadId);
         break;
     }
-    log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null });
+    log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null, agent });
     if (deals) this.opts.threads.markDealt(accountId, threadId);
     try {
       return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then) };
@@ -376,11 +536,22 @@ export class OutsideThreads {
     body: string,
     mail: MailAddressing | null,
     outboxId: string | null,
+    agent = false,
+    files: ReadonlyArray<{ name: string; data: Buffer }> = [],
   ): Promise<void> {
     const [thread, sendAs] = await Promise.all([client.getThread(threadId, "full"), client.sendAs()]);
     const newest = replyTarget(thread.messages);
     if (!newest) throw new Error("that thread is empty in Gmail now");
     const own = ownAddresses(account, sendAs);
+    // An agent's reply goes only to the people its card showed (KTD4): someone added to the thread, or gone from it,
+    // since then stops it, and the card shows the new people for the person to send to again.
+    if (agent && mail) {
+      const change = peopleChange(newest, own, mail);
+      if (change.added.length || change.removed.length) {
+        if (outboxId) this.changedPeople.set(outboxId, { ...replyAllOf(newest, own), ...change });
+        throw new Error(peopleWords(change));
+      }
+    }
     const fromAddress = (mail?.from ?? defaultFrom(newest, sendAs, account.address)).toLowerCase();
     const from = sendAs.find((s) => s.address.toLowerCase() === fromAddress);
     if (!from) throw new Error("that is not an address you send from in Gmail");
@@ -417,6 +588,7 @@ export class OutsideThreads {
       body: out.text,
       html: out.html,
       ...(forward ? { attachments: await forwarded(client, newest) } : {}),
+      ...(files.length ? { attachments: files.map((f) => ({ filename: f.name, mimeType: fileTypeOf(f.name), data: f.data })) } : {}),
       ...(outboxId ? { outboxId } : {}),
     });
     // Whoever the person writes to comes first in their suggestions after this.
@@ -440,6 +612,26 @@ export class OutsideThreads {
     if (!account) throw new Error("that account is not connected on this Mac");
     return account;
   }
+}
+
+/**
+ * What an agent's Slack or Jira post that failed tells its card (KTD9, R13). A refusal names a Slack error code or an
+ * HTTP status, so nothing went and it is passed on as it is. A post cut off by its time running out or by a lost
+ * connection may have reached the thread before the answer was lost, and only Gmail can be searched for it, so the
+ * card says to look in the thread before sending again.
+ */
+function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
+  const timedOut = (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) || (err instanceof JiraError && err.code === "timeout");
+  if (timedOut) return new Error(`${service} did not answer in time: ${MAY_HAVE_GONE}`);
+  // fetch throws a TypeError when the connection fails, which may be after the request reached the service.
+  if (err instanceof TypeError) return new Error(`the connection to ${service} was lost: ${MAY_HAVE_GONE}`);
+  return err instanceof Error ? err : new Error(messageOf(err));
+}
+
+/** Why an agent's Gmail reply did not go when its thread's people changed, in the person's words. */
+function peopleWords(change: { added: string[]; removed: string[] }): string {
+  const parts = [change.added.length ? `${change.added.join(", ")} joined` : "", change.removed.length ? `${change.removed.join(", ")} left` : ""];
+  return `the thread's people changed since the card showed them (${parts.filter(Boolean).join("; ")}): check who it goes to and send it again`;
 }
 
 /** The person's addresses in an account: the one it signed in with and every one they send from. */

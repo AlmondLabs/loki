@@ -196,11 +196,11 @@ to the message handed, unless a newer one came meanwhile (`AccountThreads.archiv
 hand-off sends the whole ticket and keeps the card, open and unread. Not the
 Handoff above, which is a history page taking over tail rows. _Avoid_: forward, delegate.
 
-**Reply proposal** (`mod/reply-proposals.ts`, plans 067 and 071): a reply the owner writes with `reply_propose` in any
-thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as a card in Flow, in every permission mode; approved,
-perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. On a
-Jira ticket it is a comment, and approved it waits in the ticket card's comment box until the person sends it. A reply
-proposal never sends; a script may send from a Google account (Script). _Avoid_: sent reply, outgoing message.
+**Reply proposal** (`mod/reply-proposals.ts`, plans 067, 071 and 2026-11-14-1134): a reply the owner writes with
+`reply_propose` in any thread of its accounts, handed to its chat or found by search, with any files from the chat's
+folder. It waits for the person, in the chat and as a card in Flow, in every permission mode; the person may edit it
+or take files off, and **Send** sends it as them in that thread, on Gmail, Slack or Jira, after a 10-second hold they
+can undo. Only the person's Send sends it. _Avoid_: draft, approved reply.
 
 **Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program any agent runs with its
 `codemode` tool (plan 099), or loki's `script` tool in an ACP chat, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools

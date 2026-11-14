@@ -104,6 +104,8 @@ export interface Call {
   agent: { id: string; name: string };
   /** The turn's stop: a call waiting on the person ends with it. */
   signal?: AbortSignal;
+  /** The chat's folder, where a tool finds the chat's files; absent when it has none (ToolContext.cwd). */
+  cwd?: string;
 }
 /** One of loki's own tools as this mod writes it; `run` returning `{ status: "error", content }` fails the call. */
 export interface LokiTool {
@@ -142,7 +144,13 @@ export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () =
         ...(tool.callers ? { callers: tool.callers } : {}),
         ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
         execute: async (args, c) => {
-          const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName }, signal: c.signal });
+          const out = await tool.run({
+            args,
+            conversation: { id: c.chatId },
+            agent: { id: c.agentId, name: c.agentName },
+            signal: c.signal,
+            ...(c.cwd === undefined ? {} : { cwd: c.cwd }),
+          });
           if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") {
             const content = (out as { content?: unknown }).content;
             throw new Error(content === undefined || content === null ? "the tool failed" : typeof content === "string" ? content : JSON.stringify(content));

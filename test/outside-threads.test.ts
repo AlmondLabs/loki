@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -36,9 +36,11 @@ import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
 import { accountFrames } from "../mod/frames/accounts.ts";
 import type { GmailDraftInput, GmailMessage, GmailSendAs } from "../mod/gmail.ts";
 import type { ThreadMessage } from "../mod/account-ops/thread.ts";
-import { OutsideThreads } from "../mod/outside-threads.ts";
+import { OutsideThreads, type AgentReply, type PeopleChanged } from "../mod/outside-threads.ts";
+import { md5 } from "../mod/google-tools/core.ts";
+import type { HeldFile, HeldProposal, HeldReply } from "../mod/mail-outbox.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
-import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
+import { SlackError, type SlackPostInput } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { JIRA_ADA, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
@@ -94,6 +96,8 @@ function threads(
     record?: { dealt_message_id?: string | null; brought_ids?: string[] };
     gmail?: GmailMessage[];
     sendFails?: string;
+    /** Why a Jira comment fails to post, after any attach went (KTD8). */
+    commentFails?: string;
     thenFails?: string;
     sendAs?: GmailSendAs[];
     extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
@@ -108,9 +112,15 @@ function threads(
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
   const frequentReads = { n: 0 };
-  const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
+  const posted: Array<SlackPostInput & { mentions?: ReadonlyMap<string, string> }> = [];
   /** Each Jira comment posted, as `[ticket, text]`. */
   const commented: Array<[string, string]> = [];
+  /** Each Slack message posted with files: where, the text, and each file's name and bytes as text. */
+  const postedFiles: Array<{ channel: string; thread_ts?: string; text: string; files: Array<[string, string]> }> = [];
+  /** Each Jira attach, as `[ticket, [name, bytes as text][]]`. */
+  const attachedFiles: Array<[string, Array<[string, string]>]> = [];
+  /** Every send call of any service, in order, as `<call> <where>`. */
+  const calls: string[] = [];
   const archived: string[] = [];
   /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
   const moves: string[] = [];
@@ -157,9 +167,16 @@ function threads(
             provider: "jira",
             client: {
               postComment: (ticket: string, text: string) => {
-                if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
+                calls.push(`postComment ${ticket}`);
+                if (opts.sendFails ?? opts.commentFails) return Promise.reject(new Error(opts.sendFails ?? opts.commentFails));
                 commented.push([ticket, text]);
                 return Promise.resolve({ id: "30009" });
+              },
+              attachFiles: (ticket: string, files: Array<{ name: string; data: Uint8Array }>) => {
+                calls.push(`attachFiles ${ticket}`);
+                if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
+                attachedFiles.push([ticket, files.map((f) => [f.name, Buffer.from(f.data).toString("utf8")])]);
+                return Promise.resolve(files.map((f) => f.name));
               },
             },
           }
@@ -177,6 +194,7 @@ function threads(
                   ),
                 attachment: (messageId: string, attachmentId: string) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
                 sendReply: (r) => {
+                  calls.push(`sendReply ${r.threadId}`);
                   if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
                   sentMail.push(r);
                   return Promise.resolve({ id: "s1" });
@@ -187,9 +205,21 @@ function threads(
               provider: "slack",
               client: {
                 postReply: (r) => {
+                  calls.push(`postReply ${r.channel}`);
                   if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
                   posted.push(r);
                   return Promise.resolve({ ts: "2.0" });
+                },
+                postWithFiles: (r) => {
+                  calls.push(`postWithFiles ${r.channel}`);
+                  if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
+                  postedFiles.push({
+                    channel: r.channel,
+                    ...(r.thread_ts ? { thread_ts: r.thread_ts } : {}),
+                    text: r.text,
+                    files: r.files.map((f) => [f.name, Buffer.from(f.data).toString("utf8")]),
+                  });
+                  return Promise.resolve();
                 },
                 react: (r) => {
                   reacted.push(r);
@@ -207,7 +237,7 @@ function threads(
             },
     ...opts.extra,
   });
-  return { t, sentMail, posted, commented, archived, moves, viewed, reacted, emojiReads, frequentReads };
+  return { t, sentMail, posted, postedFiles, commented, attachedFiles, calls, archived, moves, viewed, reacted, emojiReads, frequentReads };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -368,6 +398,7 @@ describe("reading a card's whole thread", () => {
         provider: "slack",
         client: {
           postReply: () => Promise.resolve({ ts: "1" }),
+          postWithFiles: () => Promise.resolve(),
           react: () => Promise.resolve(),
           emojiList: () => Promise.resolve({}),
           frequentEmoji: () => Promise.resolve([]),
@@ -868,7 +899,284 @@ describe("the reply frames", () => {
   });
 });
 
-describe("only the person's reply and a script's Gmail tool send (plan 2026-11-11 scripts, KTD15)", () => {
+/** A timer the test fires itself. */
+function timers() {
+  const due: Array<{ fn: () => void; ms: number; live: boolean }> = [];
+  return {
+    after: (fn: () => void, ms: number) => {
+      const t = { fn, ms, live: true };
+      due.push(t);
+      return () => (t.live = false);
+    },
+    fire: () => {
+      for (const t of due.splice(0)) if (t.live) t.fn();
+    },
+    pending: () => due.filter((t) => t.live).map((t) => t.ms),
+  };
+}
+
+/** Wait for a condition, yielding to the event loop between looks, for at most a second. */
+async function until(check: () => boolean): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error("timed out waiting");
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U5)", () => {
+  const PROPOSAL: HeldProposal = { agent_id: "agent-work", conversation_id: "conv-1", proposal_id: "reply-1" };
+  /** Grace's mail to Ada and Alan, copied to Bob: the thread an agent's Gmail reply answers. */
+  const grace = (): GmailMessage => ({
+    ...message("m1", 1, {
+      From: "Grace Hopper <grace@acme.com>",
+      To: "ada@acme.com, Alan Turing <alan@acme.com>",
+      Cc: "Bob <bob@acme.com>",
+      Subject: "The plan",
+      "Message-ID": "<m1@acme.com>",
+    }),
+    snippet: "Can we meet Friday?",
+  });
+  const CARD = { to: ["Grace Hopper <grace@acme.com>", "Alan Turing <alan@acme.com>"], cc: ["Bob <bob@acme.com>"] };
+
+  /**
+   * OutsideThreads with an outbox on a temporary file and a timer the test fires, reporting to a stand-in for the
+   * proposals that records each report and acknowledges as the proposals do once they have saved it.
+   */
+  function held(opts: Parameters<typeof threads>[0] & { file?: string; now?: () => Date } = {}) {
+    const dir = mkdtempSync(join(tmpdir(), "loki-agent-reply-"));
+    dirs.push(dir);
+    const tm = timers();
+    const file = opts.file ?? join(dir, "outbox.json");
+    // The options are filled in place rather than copied, so a test may change what a fake does between two sends.
+    opts.sendAs ??= [{ address: "ada@acme.com", name: "Ada Lovelace", signature: "<div>Ada<br>Acme</div>", isDefault: true }];
+    // The outbox's clock is always the test's: with the real one, a millisecond passing between holding a reply and
+    // setting its timer made the hold read 9999 ms on a slow CI runner.
+    const fixed = new Date("2026-11-14T10:00:00.000Z");
+    opts.extra = { outbox: { file, key: Promise.resolve("the daemon's key"), after: tm.after, now: opts.now ?? (() => fixed) }, ...opts.extra };
+    const made = threads(opts);
+    const sent: HeldReply[] = [];
+    const notSent: Array<{ held: HeldReply; reason: string; people: PeopleChanged | null }> = [];
+    const attached: Array<[string, string[]]> = [];
+    made.t.reportAgentRepliesTo({
+      sent: (h) => {
+        sent.push(h);
+        made.t.acknowledge(h.outbox_id);
+      },
+      notSent: (h, note, people) => {
+        notSent.push({ held: h, reason: note.reason, people });
+        made.t.acknowledge(h.outbox_id);
+      },
+      attached: (p, names) => attached.push([p.proposal_id, names]),
+    });
+    /** A file in the chat's folder, as a proposal keeps it. */
+    const put = (name: string, text: string): HeldFile => {
+      const path = join(dir, name);
+      writeFileSync(path, text);
+      return { name, path, size: Buffer.byteLength(text), md5: md5(Buffer.from(text)) };
+    };
+    const reply = (over: Partial<AgentReply>): AgentReply => ({
+      outbox_id: "o-agent-1",
+      account_id: MAIL,
+      thread_id: "t1",
+      text: "Friday works.",
+      files: [],
+      attached: [],
+      people: null,
+      proposal: PROPOSAL,
+      ...over,
+    });
+    const outbox = (): Array<Record<string, unknown>> => {
+      try {
+        return (JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> }).held;
+      } catch {
+        return [];
+      }
+    };
+    return { ...made, tm, file, sent, notSent, attached, put, reply, outbox };
+  }
+
+  test("a Gmail reply with a file goes after its 10 seconds to the card's people, with the file, the signature and the quote, and nothing on the thread moves", async () => {
+    const h = held({ gmail: [grace()] });
+    const invoice = h.put("invoice.pdf", "%PDF-1.4 invoice");
+    h.t.holdAgentReply(h.reply({ files: [invoice], people: CARD }));
+    await until(() => h.tm.pending().length === 1);
+    expect(h.tm.pending()).toEqual([10_000]);
+    expect(h.t.holds("o-agent-1")).toBe(true);
+    expect(h.sentMail).toEqual([]);
+    h.tm.fire();
+    await until(() => h.sent.length === 1);
+    const m = must(h.sentMail[0], "the mail");
+    expect(m).toMatchObject({ from: '"Ada Lovelace" <ada@acme.com>', ...CARD, bcc: [], subject: "Re: The plan", inReplyTo: "<m1@acme.com>" });
+    expect(m.body).toMatch(/^Friday works\.\n\n-- \nAda\nAcme\n\nOn .* Grace Hopper <grace@acme\.com> wrote:\n> Can we meet Friday\?$/);
+    expect(m.attachments?.map((a) => [a.filename, a.mimeType, a.data.toString()])).toEqual([["invoice.pdf", "application/pdf", "%PDF-1.4 invoice"]]);
+    // Sent alone (R15): no move, no dealt mark, and the outbox lets the entry go once the proposal acknowledged it.
+    expect(h.moves).toEqual([]);
+    expect(h.sent.map((x) => x.proposal)).toEqual([PROPOSAL]);
+    expect(h.notSent).toEqual([]);
+    expect(h.outbox()).toEqual([]);
+    expect(h.t.holds("o-agent-1")).toBe(false);
+  });
+
+  test("a Slack reply goes into its thread with its files as one message; one without files is a plain post", async () => {
+    const h = held();
+    const shot = h.put("shot.png", "png bytes");
+    h.t.holdAgentReply(h.reply({ outbox_id: "o-s1", account_id: SLACK, thread_id: "C9:1700.1", text: "Deployed, see the graph.", files: [shot] }));
+    h.t.holdAgentReply(h.reply({ outbox_id: "o-s2", account_id: SLACK, thread_id: "D1", text: "On it." }));
+    await until(() => h.tm.pending().length === 2);
+    h.tm.fire();
+    await until(() => h.sent.length === 2);
+    expect(h.postedFiles).toEqual([{ channel: "C9", thread_ts: "1700.1", text: "Deployed, see the graph.", files: [["shot.png", "png bytes"]] }]);
+    expect(h.posted).toEqual([{ channel: "D1", text: "On it.", mentions: new Map() }]);
+    expect(h.calls.sort()).toEqual(["postReply D1", "postWithFiles C9"]);
+    expect(h.moves).toEqual([]);
+  });
+
+  test("a Jira reply attaches its files, tells the proposal at once, then posts its comment naming them", async () => {
+    const h = held({ accounts: [account(JIRA)] });
+    const files = [h.put("a.pdf", "a"), h.put("b.csv", "b")];
+    h.t.holdAgentReply(h.reply({ account_id: JIRA, thread_id: "10001", text: "Rotated.", files }));
+    await until(() => h.tm.pending().length === 1);
+    h.tm.fire();
+    await until(() => h.sent.length === 1);
+    expect(h.calls).toEqual(["attachFiles 10001", "postComment 10001"]);
+    expect(h.attachedFiles).toEqual([
+      [
+        "10001",
+        [
+          ["a.pdf", "a"],
+          ["b.csv", "b"],
+        ],
+      ],
+    ]);
+    expect(h.attached).toEqual([["reply-1", ["a.pdf", "b.csv"]]]);
+    expect(h.commented).toEqual([["10001", "Rotated.\n\nAttached: a.pdf, b.csv"]]);
+    expect(h.moves).toEqual([]);
+  });
+
+  test("Covers AE3. a file edited during the hold refuses the send with its name, and nothing goes", async () => {
+    const h = held({ gmail: [grace()] });
+    const invoice = h.put("invoice.pdf", "first");
+    h.t.holdAgentReply(h.reply({ files: [invoice], people: CARD }));
+    await until(() => h.tm.pending().length === 1);
+    writeFileSync(invoice.path, "second");
+    h.tm.fire();
+    await until(() => h.notSent.length === 1);
+    expect(h.notSent[0]?.reason).toMatch(/^invoice\.pdf changed since this reply was proposed/);
+    expect(h.calls).toEqual([]);
+    expect(h.sent).toEqual([]);
+  });
+
+  test("Covers AE1. someone new in the Gmail thread during the hold refuses the send with the new people", async () => {
+    const thread = [grace()];
+    const h = held({ gmail: thread });
+    h.t.holdAgentReply(h.reply({ people: CARD }));
+    await until(() => h.tm.pending().length === 1);
+    thread.push(
+      message("m2", 2, {
+        From: "Alan Turing <alan@acme.com>",
+        To: "Grace Hopper <grace@acme.com>, ada@acme.com",
+        Cc: "Bob <bob@acme.com>, Carol <carol@acme.com>",
+        Subject: "Re: The plan",
+        "Message-ID": "<m2@acme.com>",
+      }),
+    );
+    h.tm.fire();
+    await until(() => h.notSent.length === 1);
+    const refused = must(h.notSent[0], "the refusal");
+    expect(refused.reason).toMatch(/carol@acme\.com joined/);
+    expect(refused.people).toEqual({
+      to: ["Alan Turing <alan@acme.com>", "Grace Hopper <grace@acme.com>"],
+      cc: ["Bob <bob@acme.com>", "Carol <carol@acme.com>"],
+      added: ["carol@acme.com"],
+      removed: [],
+    });
+    expect(h.sentMail).toEqual([]);
+  });
+
+  test("Covers AE5. a reply held when loki stops goes after a restart within the lateness limit, and reports sent to its proposal once", async () => {
+    const thread = [grace()];
+    let now = new Date("2026-11-14T12:00:00Z");
+    const first = held({ gmail: thread, now: () => now });
+    first.t.holdAgentReply(first.reply({ people: CARD }));
+    await until(() => first.outbox().length === 1);
+    // loki stops three seconds in: nothing went, and the entry waits in the file.
+    now = new Date("2026-11-14T12:00:03Z");
+    const second = held({ gmail: thread, now: () => now, file: first.file });
+    second.t.resume();
+    await until(() => second.tm.pending().length === 1);
+    second.tm.fire();
+    await until(() => second.sent.length === 1);
+    expect([first.sentMail.length, second.sentMail.length]).toEqual([0, 1]);
+    expect(second.sent.map((x) => [x.outbox_id, x.proposal])).toEqual([["o-agent-1", PROPOSAL]]);
+    // Acknowledged, it is gone: a third start sends and reports nothing.
+    const third = held({ gmail: thread, now: () => now, file: first.file });
+    third.t.resume();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect([third.tm.pending(), third.sent, third.sentMail]).toEqual([[], [], []]);
+  });
+
+  test("Covers AE6. a Jira post that fails is reported with its reason and never posted again, not even after a restart", async () => {
+    const o = { accounts: [account(JIRA)], commentFails: "Jira answered 500" };
+    const h = held(o);
+    h.t.holdAgentReply(h.reply({ account_id: JIRA, thread_id: "10001", text: "Rotated." }));
+    await until(() => h.tm.pending().length === 1);
+    h.tm.fire();
+    await until(() => h.notSent.length === 1);
+    expect(h.notSent[0]?.reason).toBe("Jira answered 500");
+    const again = held({ accounts: [account(JIRA)], file: h.file });
+    again.t.resume();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect([h.calls, again.calls, again.tm.pending()]).toEqual([["postComment 10001"], [], []]);
+  });
+
+  test("a Jira comment that failed after its files went, then a second Send: one set of attachments and one comment on the ticket", async () => {
+    const o: Parameters<typeof held>[0] = { accounts: [account(JIRA)], commentFails: "Jira answered 500" };
+    const h = held(o);
+    const file = h.put("a.pdf", "a");
+    h.t.holdAgentReply(h.reply({ account_id: JIRA, thread_id: "10001", text: "Rotated.", files: [file] }));
+    await until(() => h.tm.pending().length === 1);
+    h.tm.fire();
+    await until(() => h.notSent.length === 1);
+    expect(h.attached).toEqual([["reply-1", ["a.pdf"]]]);
+    // The second Send carries the file as already attached (KTD8), so only the comment goes.
+    o.commentFails = undefined;
+    h.t.holdAgentReply(h.reply({ outbox_id: "o-agent-2", account_id: JIRA, thread_id: "10001", text: "Rotated.", attached: ["a.pdf"] }));
+    await until(() => h.tm.pending().length === 1);
+    h.tm.fire();
+    await until(() => h.sent.length === 1);
+    expect(h.attachedFiles).toHaveLength(1);
+    expect(h.commented).toEqual([["10001", "Rotated.\n\nAttached: a.pdf"]]);
+  });
+
+  test("undone while held, nothing goes and nothing is reported; Slack and Jira cannot tell whether a reply went, Gmail can by its header", async () => {
+    const h = held({
+      gmail: [grace(), message("m9", 9, { From: "ada@acme.com", To: "grace@acme.com", "X-Loki-Outbox": "o-gone" })],
+      accounts: [account(MAIL), account(SLACK), account(JIRA)],
+    });
+    h.t.holdAgentReply(h.reply({ account_id: SLACK, thread_id: "D1" }));
+    await until(() => h.tm.pending().length === 1);
+    expect(h.t.unsend(SLACK, "o-agent-1")).toBe(true);
+    h.tm.fire();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect([h.calls, h.sent, h.notSent, h.t.holds("o-agent-1")]).toEqual([[], [], [], false]);
+    expect(await h.t.wentOutIn(MAIL, "t1", "o-gone")).toBe(true);
+    expect(await h.t.wentOutIn(MAIL, "t1", "o-other")).toBe(false);
+    expect(await h.t.wentOutIn(SLACK, "D1", "o-gone")).toBeNull();
+    expect(await h.t.wentOutIn(JIRA, "10001", "o-gone")).toBeNull();
+  });
+
+  test("a held agent reply needs an outbox and a connected account; the person's own Slack and Jira replies still go at once", async () => {
+    expect(() => threads().t.holdAgentReply({ ...held().reply({ account_id: SLACK, thread_id: "D1" }) })).toThrow("replies are not held on this Mac");
+    const h = held({ accounts: [account(SLACK, { status: { disconnected: "sign_in_again" } }), account(JIRA)] });
+    expect(() => h.t.holdAgentReply(h.reply({ account_id: SLACK, thread_id: "D1" }))).toThrow("not connected now");
+    expect(() => h.t.holdAgentReply(h.reply({ account_id: MAIL }))).toThrow("not connected on this Mac");
+    await h.t.reply(JIRA, "10001", "mine", "stay", null, "o-mine");
+    expect([h.commented, h.tm.pending()]).toEqual([[["10001", "mine"]], []]);
+  });
+});
+
+describe("only the person's reply, their Send on an agent's reply, and a script's Gmail tool send (plan 2026-11-11 scripts, KTD15)", () => {
   test("the person's Jira comment is posted from the reply module alone (plan 2026-11-10-1451, U7)", () => {
     expect(readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8")).toMatch(/\.postComment\(/);
   });
@@ -876,12 +1184,29 @@ describe("only the person's reply and a script's Gmail tool send (plan 2026-11-1
     const dir = join(import.meta.dirname, "..", "mod");
     const callers = readdirSync(dir, { recursive: true, encoding: "utf8" })
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /\.(sendReply|postReply|postComment)\(/.test(readFileSync(join(dir, f), "utf8")))
+      .filter((f) => /\.(sendReply|postReply|postWithFiles|postComment|attachFiles)\(/.test(readFileSync(join(dir, f), "utf8")))
       .map((f) => f.split("\\").join("/"))
       .sort();
     expect(callers).toEqual(["google-tools/gmail.ts", "outside-threads.ts"]);
     // The scripts' tool sends Gmail only: Slack and Jira still post nothing an agent wrote.
-    expect(readFileSync(join(dir, "google-tools", "gmail.ts"), "utf8")).not.toMatch(/\.(postReply|postComment)\(/);
+    expect(readFileSync(join(dir, "google-tools", "gmail.ts"), "utf8")).not.toMatch(/\.(postReply|postWithFiles|postComment|attachFiles)\(/);
+  });
+  test("an agent's reply reaches a send only through the outbox: its hold calls no send, and the proposals only hold and undo", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8");
+    const hold = src.slice(src.indexOf("  holdAgentReply("), src.indexOf("  holds(outboxId"));
+    expect(hold).toMatch(/this\.outbox\.hold\(/);
+    expect(hold).not.toMatch(/\.(sendReply|postReply|postWithFiles|postComment|attachFiles|sendNow|sendMail)\(/);
+    // The outbox is the one caller of the send itself, after its hold.
+    expect([...src.matchAll(/this\.sendNow\(/g)].length).toBe(2);
+    expect(src).toMatch(/send: \(held\) => this\.sendNow\(held\)/);
+    const proposals = readFileSync(join(import.meta.dirname, "..", "mod", "reply-proposals.ts"), "utf8");
+    expect([...proposals.matchAll(/this\.opts\.outside\.(\w+)\(/g)].map((m) => m[1]).sort()).toEqual([
+      "acknowledge",
+      "holdAgentReply",
+      "holds",
+      "unsend",
+      "wentOutIn",
+    ]);
   });
 });
 

@@ -132,6 +132,16 @@ export function fakeWorkspace() {
         return json(200, { id: `s${state.sent.length}`, threadId: m.threadId ?? `new${state.sent.length}` });
       }
     }
+    // A message with files comes through Gmail's upload route (plan 2026-11-14-1134, KTD6): a JSON part with its
+    // thread, then the message itself. It is kept as the JSON route keeps one, so a test reads both alike.
+    if (url.host === "gmail.googleapis.com" && p === "/upload/gmail/v1/users/me/messages/send") {
+      const text = req.bytes ? Buffer.from(req.bytes).toString("utf8") : req.body;
+      const meta = JSON.parse(/\{.*\}/.exec(text)?.[0] ?? "{}") as { threadId?: string };
+      const message = /message\/rfc822\r\n\r\n([\s\S]*)\r\n--[^\r\n]+--/.exec(text)?.[1] ?? "";
+      const m = { raw: Buffer.from(message, "utf8").toString("base64url"), ...(meta.threadId ? { threadId: meta.threadId } : {}) };
+      state.sent.push(m);
+      return json(200, { id: `s${state.sent.length}`, threadId: m.threadId ?? `new${state.sent.length}` });
+    }
     if (url.host === "www.googleapis.com" && p.startsWith("/upload/drive/v3/files")) {
       const id = `up${state.nextId++}`;
       const text = req.bytes ? Buffer.from(req.bytes).toString("latin1") : req.body;

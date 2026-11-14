@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import type { GoogleAuth } from "../google-auth.ts";
-import { count, flag, listing, md5, optText, readInChat, rec, str, textArg, writeInChat, type GoogleCall, type GoogleToolDef } from "./core.ts";
+import { count, fileTypeOf, flag, listing, md5, optText, readInChat, rec, str, textArg, writeInChat, type GoogleCall, type GoogleToolDef } from "./core.ts";
 
 /**
  * Drive for scripts (plan 2026-11-11 scripts, U7): list, download or export to the chat's folder, upload from it, and
@@ -89,27 +89,6 @@ export async function uploadToDrive(
   const file = fileOf(stored);
   const sent = md5(input.data);
   return { ...file, sent_md5: sent, ...(typeof file.md5 === "string" ? { md5_matches: file.md5 === sent } : {}) };
-}
-
-/** A guess at a file's type from its name, for an upload the script names none for. */
-function typeOf(name: string): string {
-  const ext = name.toLowerCase().split(".").pop() ?? "";
-  const types: Record<string, string> = {
-    pdf: "application/pdf",
-    csv: "text/csv",
-    txt: "text/plain",
-    md: "text/markdown",
-    json: "application/json",
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    gif: "image/gif",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    zip: "application/zip",
-  };
-  return types[ext] ?? "application/octet-stream";
 }
 
 const list: GoogleToolDef = {
@@ -217,7 +196,7 @@ const upload: GoogleToolDef = {
     const name = optText(call.args, "name") ?? basename(full);
     const folder = optText(call.args, "folder");
     const convertTo = optText(call.args, "convert_to");
-    return uploadToDrive(call.auth, { data, name, mimeType: typeOf(full), ...(folder ? { folder } : {}), ...(convertTo ? { convertTo } : {}) });
+    return uploadToDrive(call.auth, { data, name, mimeType: fileTypeOf(full), ...(folder ? { folder } : {}), ...(convertTo ? { convertTo } : {}) });
   },
 };
 

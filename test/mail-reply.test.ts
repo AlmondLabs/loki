@@ -4,14 +4,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import type { MailAddressing, OutsideChange } from "../core/frame-types.ts";
 import { FRAMES } from "../core/frames.ts";
-import type { AccountRecord } from "../mod/accounts.ts";
-import { rfc2822, type GmailDraftInput, type GmailMessage, type GmailMessagePart, type GmailSendAs } from "../mod/gmail.ts";
+import { memorySecrets } from "../daemon/credentials.ts";
+import { Accounts, type AccountRecord } from "../mod/accounts.ts";
+import { GmailClient, rfc2822, type GmailDraftInput, type GmailMessage, type GmailMessagePart, type GmailSendAs } from "../mod/gmail.ts";
 import { forwardSubject, fromHeader, mailBody, mailDate } from "../mod/mail-compose.ts";
 import { MailOutbox, RESUME_MAX_MS } from "../mod/mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import { MailPeople } from "../mod/mail-people.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
-import { replyOf } from "../mod/reply-proposals.ts";
+import { peopleChange, replyOf } from "../mod/reply-proposals.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OutsideReply } from "../app/src/desk/outside-card.tsx";
@@ -602,6 +603,26 @@ describe("a mail reply that did not go (plan 096)", () => {
     expect(late.notes[0]?.reason).toMatch(/loki was closed when it was due/);
   });
 
+  test("a held reply with no move after it (stay) survives a restart and goes when due", async () => {
+    const file = join(scratch(), "outbox.json");
+    const closed = new MailOutbox({
+      file,
+      holdMs: 10_000,
+      now: () => new Date(AT),
+      key: Promise.resolve("the daemon's key"),
+      after: () => () => {},
+      send: () => Promise.reject(new Error("never")),
+    });
+    void closed.hold({ ...reply, then: "stay" });
+    await settle();
+    const after = box(file, AT + 20_000);
+    after.state.fails = null;
+    after.outbox.resume();
+    await settle();
+    await settle();
+    expect(after.sent).toEqual(["o3-abcdefgh"]);
+  });
+
   test("every held reply carries its id in a header, which is how its thread is searched for it", () => {
     const base = { threadId: "t1", inReplyTo: "", references: [], to: ["p@x.example"], cc: [], subject: "s", body: "b" };
     expect(rfc2822({ ...base, outboxId: "o3-abcdefgh" })).toContain("\r\nX-Loki-Outbox: o3-abcdefgh\r\n");
@@ -750,5 +771,217 @@ describe("the mail reply box as drawn", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }));
     expect(html).toContain("Reply to all");
     expect(html).not.toContain("•••");
+  });
+});
+
+describe("the outbox holds any service's reply (plan 2026-11-14-1134, U1)", () => {
+  const AT = Date.parse("2026-11-14T10:00:00Z");
+  const KEY = "the daemon's key";
+  const proposal = { agent_id: "agent-work", conversation_id: "conv-1", proposal_id: "reply-1" };
+  const slackReply = {
+    outbox_id: "slack-0001",
+    account_id: "slack:T1:U1",
+    thread_id: "C9:1700.1",
+    text: "Deploying at 9.",
+    then: "stay" as const,
+    mail: null,
+    thread_ts: "1700.1",
+    files: [{ name: "plan.pdf", path: "/work/plan.pdf", size: 12, md5: "abc" }],
+    proposal,
+  };
+  const soon = (fn: () => void) => {
+    queueMicrotask(fn);
+    return () => {};
+  };
+  /** An outbox over `file` at `at`, with what it sent and what each proposal was told. */
+  const box = (file: string, at = AT, went: boolean | null = false) => {
+    const sent: string[] = [];
+    const told: Array<{ id: string; outcome: string }> = [];
+    const state = { fails: null as string | null, hang: false };
+    const outbox = new MailOutbox({
+      file,
+      holdMs: 0,
+      now: () => new Date(at),
+      key: Promise.resolve(KEY),
+      after: soon,
+      send: (held) => {
+        if (state.hang) return new Promise(() => {});
+        if (state.fails) return Promise.reject(new Error(state.fails));
+        sent.push(held.outbox_id);
+        return Promise.resolve({ sent: true, then_error: null, change: null });
+      },
+      wentOut: () => Promise.resolve(went),
+      onNotSent: (held, note) => told.push({ id: held.outbox_id, outcome: note ? `failed: ${note.reason}` : "settled" }),
+      onSent: (held) => told.push({ id: held.outbox_id, outcome: "sent" }),
+    });
+    const kept = () => (JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> }).held;
+    return { outbox, sent, told, state, kept };
+  };
+
+  test("an agent's Slack reply goes after its hold, stays in the file as sent until its proposal takes it, and is reported again after a restart", async () => {
+    const file = join(scratch(), "outbox.json");
+    const before = box(file);
+    await expect(before.outbox.hold(slackReply)).resolves.toMatchObject({ sent: true });
+    expect(before.sent).toEqual(["slack-0001"]);
+    expect(before.told).toEqual([{ id: "slack-0001", outcome: "sent" }]);
+    expect(before.kept()).toMatchObject([{ outbox_id: "slack-0001", state: "sent" }]);
+    // loki stops before the proposal saved it: the next start reports it again, and sends nothing.
+    const after = box(file, AT + 60_000);
+    after.outbox.resume();
+    await settle();
+    expect(after.sent).toEqual([]);
+    expect(after.told).toEqual([{ id: "slack-0001", outcome: "sent" }]);
+    after.outbox.acknowledge("slack-0001");
+    expect(after.kept()).toEqual([]);
+  });
+
+  test("a failed agent reply is reported until its proposal takes it, then never again", async () => {
+    const file = join(scratch(), "outbox.json");
+    const b = box(file);
+    b.state.fails = "Slack is unreachable";
+    await expect(b.outbox.hold(slackReply)).rejects.toThrow("Slack is unreachable");
+    await settle();
+    expect(b.told).toEqual([{ id: "slack-0001", outcome: "failed: Slack is unreachable" }]);
+    b.outbox.acknowledge("slack-0001");
+    const after = box(file, AT + 60_000);
+    after.outbox.resume();
+    await settle();
+    expect(after.told).toEqual([]);
+    expect(after.sent).toEqual([]);
+  });
+
+  test("a Slack reply cut short while sending is never sent again: it may have gone, so the person looks first", async () => {
+    const file = join(scratch(), "outbox.json");
+    const before = box(file);
+    before.state.hang = true;
+    void before.outbox.hold(slackReply);
+    await settle();
+    const after = box(file, AT + 60_000, null);
+    after.outbox.resume();
+    await settle();
+    await settle();
+    expect(after.sent).toEqual([]);
+    expect(after.told[0]?.outcome).toMatch(/look in the thread before sending it again/);
+  });
+
+  test("an entry whose thread, files or proposal was changed in the file is dropped unsent", async () => {
+    for (const change of [{ thread_ts: "1800.2" }, { files: [] }, { proposal: { ...proposal, proposal_id: "reply-9" } }]) {
+      const file = join(scratch(), "outbox.json");
+      const closed = new MailOutbox({
+        file,
+        holdMs: 10_000,
+        now: () => new Date(AT),
+        key: Promise.resolve(KEY),
+        after: () => () => {},
+        send: () => Promise.reject(new Error("never")),
+      });
+      void closed.hold(slackReply);
+      await settle();
+      const held = (JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> }).held;
+      writeFileSync(file, JSON.stringify({ version: 1, held: held.map((h) => ({ ...h, ...change })) }));
+      const after = box(file, AT + 20_000);
+      after.outbox.resume();
+      await settle();
+      await settle();
+      expect(after.sent).toEqual([]);
+      expect(after.kept()).toEqual([]);
+    }
+  });
+
+  test("a person's own reply, with no proposal, is still removed once sent", async () => {
+    const file = join(scratch(), "outbox.json");
+    const b = box(file);
+    await b.outbox.hold({ ...slackReply, outbox_id: "own-00001", proposal: null });
+    expect(b.kept()).toEqual([]);
+    expect(b.told).toEqual([]);
+  });
+});
+
+describe("Gmail sends files through its upload route (plan 2026-11-14-1134, U2)", () => {
+  const SIGNED_IN = JSON.stringify({ access_token: "access-1", refresh_token: "refresh-1", expires_at: "2099-01-01T00:00:00.000Z" });
+  /** A connected Gmail account whose client answers every send from a fake Gmail that keeps each request. */
+  const gmail = async () => {
+    const now = () => new Date("2026-11-14T10:00:00Z");
+    const accounts = new Accounts({ file: join(scratch(), "accounts.json"), secrets: memorySecrets(), agentExists: () => true, now });
+    await accounts.add({ account_id: MAIL, provider: "gmail", address: "ada@acme.com", owner_agent_id: "agent-work" }, SIGNED_IN);
+    const requests: Array<{ url: string; type: string; body: string }> = [];
+    const fetchFn = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const headers = new Headers(init?.headers);
+      const body = init?.body;
+      requests.push({
+        url: input instanceof Request ? input.url : input instanceof URL ? input.href : input,
+        type: headers.get("content-type") ?? "",
+        body: typeof body === "string" ? body : body instanceof Uint8Array ? Buffer.from(body).toString("utf8") : "",
+      });
+      return Promise.resolve(new Response(JSON.stringify({ id: "sent-1", threadId: "t1" }), { status: 200 }));
+    };
+    return { client: new GmailClient({ accounts, account_id: MAIL, fetch: fetchFn, now }), requests };
+  };
+  const reply: GmailDraftInput = {
+    threadId: "t1",
+    inReplyTo: "<p1@shop.example>",
+    references: [],
+    to: ["Pinku Kumar <pinku@shop.example>"],
+    cc: [],
+    subject: "Re: App will not open",
+    body: "The report is attached.",
+  };
+
+  test("a reply with a 3 MB file goes to the upload route as multipart, the file an attachment part, and stays in its thread", async () => {
+    const { client, requests } = await gmail();
+    const file = Buffer.alloc(3 * 1024 * 1024, 7);
+    await expect(client.sendReply({ ...reply, attachments: [{ filename: "report.pdf", mimeType: "application/pdf", data: file }] })).resolves.toEqual({
+      id: "sent-1",
+      threadId: "t1",
+    });
+    expect(requests).toHaveLength(1);
+    const sent = must(requests[0], "the upload");
+    expect(sent.url).toBe("https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=multipart");
+    const boundary = /^multipart\/related; boundary="?([^";]+)"?$/.exec(sent.type)?.[1];
+    expect(boundary).toBeTruthy();
+    const parts = sent.body.split(`--${boundary ?? ""}`);
+    // The metadata first, then the message itself, then the closing boundary.
+    expect(parts).toHaveLength(4);
+    expect(parts[1]).toContain("Content-Type: application/json");
+    expect(JSON.parse((parts[1] ?? "").split("\r\n\r\n")[1] ?? "")).toEqual({ threadId: "t1" });
+    expect(parts[2]).toContain("Content-Type: message/rfc822");
+    expect(parts[2]).toContain("Content-Disposition: attachment; filename*=UTF-8''report.pdf");
+    expect((parts[2] ?? "").replace(/\r\n/g, "")).toContain(file.toString("base64"));
+    expect(parts[3]).toBe("--\r\n");
+  });
+
+  test("a reply without files goes as JSON to the send route, as before", async () => {
+    const { client, requests } = await gmail();
+    await client.sendReply(reply);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe("https://gmail.googleapis.com/gmail/v1/users/me/messages/send");
+    expect(requests[0]?.type).toBe("application/json");
+    const json = JSON.parse(requests[0]?.body ?? "") as { raw: string; threadId: string };
+    expect(json.threadId).toBe("t1");
+    expect(json.raw).toBe(Buffer.from(rfc2822(reply), "utf8").toString("base64url"));
+  });
+
+  /** The newest message of a thread, from Grace to Ada and Alan, cc Bob and whoever else `cc` adds. */
+  const newest = (headers: Record<string, string>): GmailMessage => ({
+    ...PINKU,
+    payload: { mimeType: "text/plain", filename: "", body: { size: 0 }, parts: [], headers: Object.entries(headers).map(([name, value]) => ({ name, value })) },
+  });
+  const proposed = { to: ["Grace Hopper <grace@acme.com>", "Alan Turing <alan@acme.com>"], cc: ["Bob <bob@acme.com>"] };
+  const own = ["ada@acme.com"];
+
+  test("covers AE1: a thread that gained Carol since the proposal names her as added", () => {
+    const now = newest({
+      From: "Carol <carol@acme.com>",
+      To: "Ada <ada@acme.com>, Grace Hopper <grace@acme.com>, Alan Turing <alan@acme.com>",
+      Cc: "Bob <bob@acme.com>",
+    });
+    expect(peopleChange(now, own, proposed)).toEqual({ added: ["carol@acme.com"], removed: [] });
+    const fewer = newest({ From: "Grace Hopper <grace@acme.com>", To: "Ada <ada@acme.com>" });
+    expect(peopleChange(fewer, own, proposed)).toEqual({ added: [], removed: ["alan@acme.com", "bob@acme.com"] });
+  });
+
+  test("the same people in another order, or under another name, are no change", () => {
+    const reordered = newest({ From: "Grace H. <GRACE@acme.com>", To: "Alan Turing <alan@acme.com>, Ada <ada@acme.com>", Cc: "bob@acme.com" });
+    expect(peopleChange(reordered, own, proposed)).toEqual({ added: [], removed: [] });
   });
 });

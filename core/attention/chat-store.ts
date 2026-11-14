@@ -20,7 +20,7 @@ import {
   type Live,
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
-import type { ReplyAction, SuggestionAction } from "../frames.ts";
+import type { ReplyAction, ReplyDecideOptions, SuggestionAction } from "../frames.ts";
 import type {
   AccountLabel,
   HandoffProposal,
@@ -118,13 +118,12 @@ export interface SuggestionOutcome {
 }
 
 /**
- * What a person's action on a reply proposal came to (plan 067): whether it took, why not, whether to ask about
- * replacing a draft already there, and the proposal as it then stands, when known.
+ * What a person's action on a reply proposal came to (plan 067; plan 2026-11-14-1134): whether it took, why not, and
+ * the proposal as it then stands, when known. A Send takes as sending; how the reply went comes as the chat's event.
  */
 export interface ReplyOutcome {
   done: boolean;
   message: string | null;
-  replace: boolean;
   proposal: ReplyProposal | null;
 }
 
@@ -676,12 +675,13 @@ export class ChatStore {
     this.outcome((c) => c.suggestions.retarget(rt, suggestionId, target));
 
   /**
-   * The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. The
-   * new state reaches every client as the chat's `reply_proposals` event, as a suggestion's does.
+   * The person's action on a reply its agent proposed (plan 2026-11-14-1134, KTD3): Send with the text as edited and
+   * the files kept, Undo, or reject, carried out by the Mac the chat lives on. The new state, and a sent reply's fate,
+   * reach every client as the chat's `reply_proposals` event, as a suggestion's does.
    */
-  decideReply = async (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}): Promise<ReplyOutcome> => {
+  decideReply = async (rt: Runtime, proposalId: string, action: ReplyAction, opts: ReplyDecideOptions = {}): Promise<ReplyOutcome> => {
     const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
-    return typeof out === "string" ? { done: false, message: out, replace: false, proposal: null } : out;
+    return typeof out === "string" ? { done: false, message: out, proposal: null } : out;
   };
   /** Close a link of a chat (plan 067), on its Mac and the other chat's: null, or why not. */
   closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
