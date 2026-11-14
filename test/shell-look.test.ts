@@ -168,6 +168,32 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
   });
 });
 
+describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
+  test("a header with tab views centres them between two equal sides, the trailing one never narrower than its symbols", () => {
+    const centred = must(/\.loki-pane-header:has\(> \.loki-tabs\) \{([^}]*)\}/.exec(glass), "the centred rule")[1];
+    // equal sides centre the tabs; when the symbols need more than half, the tabs fall in line before them
+    expect(centred).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr)");
+  });
+
+  test("every toolbar keeps a trailing side, which leaves room for the Update button over the detail's top right", async () => {
+    const trailing = must(/\.loki-pane-header-trailing \{([^}]*)\}/.exec(glass), "the trailing rule")[1];
+    expect(trailing).toContain("padding-right: var(--loki-toolbar-room)");
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { PaneHeader } = await import("../app/src/components/index.tsx");
+    const out = renderToStaticMarkup(createElement(PaneHeader, { title: "t" }));
+    expect(out).toContain('<div class="loki-pane-header-trailing"></div>');
+    const flow = readFileSync(join(APP, "desk", "catch-up-parts.tsx"), "utf8");
+    expect(flow).toContain('<div className="loki-pane-header-trailing" />');
+  });
+
+  test("Messages and Canvas sit in the chat toolbar's centred slot", () => {
+    const pane = readFileSync(join(APP, "desk", "desk-pane.tsx"), "utf8");
+    expect(pane).toContain("tabs={TABS}");
+    expect(glass).toMatch(/\.loki-pane-header \.loki-tabs \{[^}]*grid-area: tabs;/);
+  });
+});
+
 describe("the Mac's type scale (U15)", () => {
   const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
   const scale = (block: string) => Object.fromEntries([...block.matchAll(/--loki-text-(\w+): ([\d.]+)px;/g)].map((m) => [m[1], Number(m[2])]));

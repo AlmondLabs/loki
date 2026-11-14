@@ -77,6 +77,8 @@ export function DeckHeader({ needYou, chats, others, ...lane }: LaneSwitchProps 
       <div className="loki-pane-header-line" data-tauri-drag-region="deep">
         <ToolbarTitle title={laneTitle(lane.lane)} menu={<LaneSwitch {...lane} />} facts={facts} titleAs="h1" />
       </div>
+      {/* No symbols of its own; the side keeps the Update button's room, as every toolbar's does (PaneHeader). */}
+      <div className="loki-pane-header-trailing" />
     </header>
   );
 }

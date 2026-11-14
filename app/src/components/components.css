@@ -1564,6 +1564,12 @@ button.loki-list-section-toggle {
       0 0 0 0.5px var(--loki-glass-edge),
       var(--loki-shadow-low);
   }
+  /* Tab views are centred in the toolbar (plan 2026-11-14-1330, KTD11): two equal sides hold them in the middle, and
+     the trailing side never shrinks below its symbols, so on a narrow detail the tabs fall in line just before them and
+     the title gives way. */
+  .loki-pane-header:has(> .loki-tabs) {
+    grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  }
   .loki-pane-header .loki-tab {
     min-height: 28px;
     padding: 0 12px;
@@ -1584,11 +1590,14 @@ button.loki-list-section-toggle {
     padding: 0 10px;
     font-size: var(--loki-text-meta);
   }
+  /* The symbols, and room for the Update button the shell lays over the detail's top right (shell/update-button.tsx). */
   .loki-pane-header-trailing {
     grid-area: tools;
+    justify-self: end;
     display: flex;
     align-items: center;
     gap: 8px;
+    padding-right: var(--loki-toolbar-room);
   }
   .loki-toolbar-title {
     display: flex;
@@ -1813,6 +1822,36 @@ button.loki-list-section-toggle {
     width: 16px;
     height: 16px;
     stroke-width: 1.75;
+  }
+  /* A newer loki (shell/update-button.tsx, plan 2026-11-14-1330 R18): a glass group over the detail's top right, the
+     same spot in every place, centred on the toolbar's 52px line; Update… in words, then the menu that holds Later. */
+  .loki-update-slot {
+    position: absolute;
+    top: 0;
+    right: 12px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    height: 52px;
+  }
+  /* The menu that holds Later hangs from the group, not from the taller slot. */
+  .loki-update-slot > .loki-toolbar-group {
+    position: relative;
+  }
+  .loki-toolbar-item--text {
+    width: auto;
+    padding: 0 10px;
+    font-family: var(--loki-font);
+    font-size: var(--loki-text-meta);
+    font-weight: 600;
+    color: var(--loki-accent);
+  }
+  .loki-toolbar-item--menu {
+    width: 24px;
+  }
+  .loki-toolbar-item--menu svg {
+    width: 14px;
+    height: 14px;
   }
 
   /* The chat pane (U4): the header and the dock float, and the thread scrolls on beneath both, padded by their

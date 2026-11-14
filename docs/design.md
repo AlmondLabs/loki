@@ -224,7 +224,9 @@ window title is still set, for the Window menu, Mission Control and screen reade
 "· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead: a chat's is a Mac toolbar
 (plan 2026-11-12-1505, U13), its name over a grey line of its facts, Messages and Canvas as a glass segmented control
-and its moves as a glass group of symbols; other panes keep a name line with a quiet aside and a tab row. The name line drags the window too, so anything clickable in it is a real
+centred in the toolbar and its moves as a glass group of symbols at the trailing edge (plan 2026-11-14-1330, KTD11: one
+band, as Mail's; where the detail is too narrow to centre them, the tabs fall in line just before the symbols and the
+title gives way); other panes keep a name line with a quiet aside and a tab row. The name line drags the window too, so anything clickable in it is a real
 button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), and on the
 Canvas tab a "More chat actions" menu of the sheet's own actions with their keys (arrange, fit, the chat toggle).
 What works on the chat as a whole (rename, folder, pin) lives on the sidebar row, with Label, Mark as Read and
@@ -267,8 +269,10 @@ Internals keep the name desk.
 - **Places.** The sidebar's first rows (plan 2026-11-12-1505, U12) are Chats, Flow, Agents and Learn, each a symbol
   in the accent, its name and a grey count (what waits in Flow, the cards due in Learn), the one showing filled and
   never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A newer loki is
-  said once per version as a notice with **Update…** and **Later** (it sat as a row at the sidebar's foot until
-  2026-11-14); Preferences › loki keeps saying it while it is newer. The pane is the window's one `main`; the places
+  an **Update…** button at the detail toolbar's trailing edge (plan 2026-11-14-1330, R18), laid over the detail's top
+  right by the shell so it sits in the same spot in every place, with each toolbar's trailing side leaving it room; its
+  menu holds **Later**, which hides it until the next version. It sat as a row at the sidebar's foot until 2026-11-14,
+  then was a notice over the content; Preferences › loki keeps saying it while it is newer. The pane is the window's one `main`; the places
   are its navigation. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
   (plan 2026-11-14-1330, R1): the same rows in every place, so changing place moves only the selection. Each source is
   a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands

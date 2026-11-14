@@ -161,7 +161,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   file the chat under; only you set them.
   Opening a chat — from the list, ⌘K, Flow, Agents or Learn — shows it with a Mac toolbar: its name over a grey
   line of its agent, what the agent is doing, its folder and labels, then **Messages** and **Canvas** as a segmented
-  control and its moves as symbols (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
+  control in the middle of the toolbar and its moves as symbols at its right edge (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
   Canvas tab, a ⋯ menu to arrange, fit and toggle the chat; find is ⌘F). **Messages** is the conversation, the message
   box focused: your messages as bubbles and the agent's turns as prose, the time told at gaps, a **New** line before
   what came since you last looked (it stays put while the chat is open and moves on the next open), a copy button on
@@ -396,7 +396,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. When a newer loki is out, a notice says so once, with **Update…** (Preferences › loki) and **Later**. If the icon opens on
+locks it out. When a newer loki is out, the Mac's window shows an **Update…** button at the top right of its main pane; it opens Preferences › loki, and its menu's **Later** hides it until the next version. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.

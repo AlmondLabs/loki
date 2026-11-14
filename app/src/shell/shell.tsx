@@ -25,6 +25,7 @@ import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome"
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
 import { useLokiUpdate } from "./use-loki-update";
+import { UpdateButton, offeredVersion, readLater, saveLater } from "./update-button";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useShellKeys } from "./use-shell-keys";
 import { KeysSheet } from "./keys-sheet";
@@ -54,20 +55,6 @@ const SEGMENT_KEY = "loki.segment";
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
   return s === "inbox" || s === "agents" || s === "learn" ? s : "desk";
-}
-
-/** The key the last version announced is kept under, so a newer loki is said once, not at every launch. */
-const ANNOUNCED_KEY = "loki.update.announced";
-
-/** Whether `version` has yet to be announced on this Mac; it is marked announced. Without storage, it is said each time. */
-function announceOnce(version: string): boolean {
-  try {
-    if (localStorage.getItem(ANNOUNCED_KEY) === version) return false;
-    localStorage.setItem(ANNOUNCED_KEY, version);
-  } catch {
-    // Blocked storage only costs saying it again next launch.
-  }
-  return true;
 }
 
 /** First launch: nothing to talk to yet. Only while the daemon could not start, or has answered and lists no agents. */
@@ -379,20 +366,14 @@ export function Shell() {
     if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
     setPrefsOpen(true);
   };
-  // A newer loki is said once per version, as a notice with the way to it (plan 2026-11-14-1300, 4), not a row kept at
-  // the sidebar's foot: Preferences › loki has it for as long as it is newer.
-  const newer = update.newer ? update.latest : null;
-  const announce = useEffectEvent((version: string) => {
-    if (!announceOnce(version)) return;
-    notify(`loki ${version} is available`, {
-      duration: Infinity,
-      action: { label: "Update…", onClick: () => showPreferences("loki") },
-      cancel: { label: "Later", onClick: () => {} },
-    });
-  });
-  useEffect(() => {
-    if (newer) announce(newer);
-  }, [newer]);
+  // A newer loki is an Update button at the detail toolbar's trailing edge until Later puts that version off (plan
+  // 2026-11-14-1330, R18), not a notice over the content; Preferences › loki has it for as long as it is newer.
+  const [laterVersion, setLaterVersion] = useState(readLater);
+  const offered = offeredVersion(update, laterVersion);
+  const putOffUpdate = (version: string) => {
+    saveLater(version);
+    setLaterVersion(version);
+  };
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -695,6 +676,8 @@ export function Shell() {
               onDone={(agentId) => openDesk(agentId, "default", { chat: true })}
             />
           )}
+          {/* Over the detail's top right, the same spot in every place; each toolbar's trailing side leaves it room. */}
+          {offered && <UpdateButton version={offered} onUpdate={() => showPreferences("loki")} onLater={() => putOffUpdate(offered)} />}
         </main>
       </div>
 
