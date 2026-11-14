@@ -205,11 +205,13 @@ mode would not have asked.
 The Inbox can show the mail, Slack threads and Jira tickets waiting for you (plan 067, plan 2026-11-10-1451). An account is connected in Preferences ›
 Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Only you and the owner's scripts
 send.** Your own reply on an outside card (plan 068) goes through the `account_thread_reply` frame, which only your
-own devices send, to `mod/outside-threads.ts`. The owner's scripts may send mail and calendar invites from a Google
-account (plan 2026-11-11 scripts, see Scripts below), through `mod/google-tools/gmail.ts`. Those two are the only
-callers of each client's send call (`GmailClient.sendReply`, `SlackClient.postReply`; a test checks there is no
-other). No tool the model calls directly sends: a reply proposal reaches Gmail or Slack only as a draft you approved,
-and nothing an agent writes is posted to Slack or Jira.
+own devices send, to `mod/outside-threads.ts`. An agent's reply proposal goes only when you press Send on its card
+(plan 2026-11-14-1134): `reply_decide`, which your devices send, hands it to the same `mod/outside-threads.ts`
+through its outbox, and it goes as you after a 10-second hold you can undo. The owner's scripts may send mail and
+calendar invites from a Google account (plan 2026-11-11 scripts, see Scripts below), through
+`mod/google-tools/gmail.ts`. Those are the only callers of each client's send calls (`GmailClient.sendReply`,
+`SlackClient.postReply` and `postWithFiles`, `JiraClient.postComment` and `attachFiles`; tests check there is no
+other). No tool the model calls directly sends: an agent's reply reaches Gmail, Slack or Jira only by your Send.
 
 - **Google sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
@@ -235,9 +237,11 @@ and nothing an agent writes is posted to Slack or Jira.
   copy is removed at once. The session stays in the daemon's memory and is never written anywhere; loki reads it again
   when Slack refuses it.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
-  activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), listing, writing and deleting drafts, and `chat.postMessage` for your own
-  reply, which no agent tool reaches; nothing edits, deletes or schedules a message. Calls go only to
-  `https://slack.com` or a workspace's own `https://<name>.slack.com` address, so the token never goes anywhere else.
+  activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), listing, writing and deleting drafts, and `chat.postMessage` and the file upload
+  (`files.getUploadURLExternal`, `files.completeUploadExternal`) for a reply you send, your own or an agent's on your
+  Send; no agent tool reaches them, and nothing edits, deletes or schedules a message. Calls go only to
+  `https://slack.com` or a workspace's own `https://<name>.slack.com` address, and a file's bytes only to the
+  `https://files.slack.com` address Slack hands back, which loki checks, so the token never goes anywhere else.
 - **Jira token.** A Jira Cloud site is connected with your Atlassian email and a classic API token you make yourself
   (plan 2026-11-10-1451). loki first asks the address you typed, without the token, where the site's API lives, and
   then sends the token only to that host over `https`, as basic authentication, and only when it is an
@@ -250,10 +254,11 @@ and nothing an agent writes is posted to Slack or Jira.
   with `redirect=false` and with redirects not followed, so the token goes only to the site and never to Jira's media
   host; a refused thumbnail is none and never marks the account as wanting a new token. The thumbnail is kept with your
   chats' pictures in `~/.loki/chat-images/`, as Slack's are (plan 093, `mod/jira.ts`, `mod/outside-previews.ts`).
-  It writes one thing: a comment you type yourself on a Jira card, posted through `account_thread_reply` and
-  `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` (a test checks there is no other). Read, later,
-  undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other
-  comments. An agent's proposed comment, once you approve it, waits in the card's box for you to send.
+  It writes two things, both only when you send: a comment, and files attached to the ticket with it. Your own
+  comment on a Jira card goes through `account_thread_reply`, and an agent's proposed comment, with its files,
+  through your Send on its card; both reach `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` and
+  `JiraClient.attachFiles` (a test checks there is no other). Read, later, undo and a hand-off write nothing to Jira,
+  and nothing changes a ticket's status, fields, watchers or other comments.
 - **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
   owner (`mod/handoff.ts`), or when an owner's script returns or prints what it read from Google, Slack, Jira or Flow
   with the script-only reads, which only the owner's chats are offered and which check ownership on every call. In a
@@ -272,18 +277,22 @@ and nothing an agent writes is posted to Slack or Jira.
   sender, subject, the kind of mail and what you did) stay on the account's Mac, mode 0600, and go to no model or
   server. So do the people each mailbox has mail with (`state/mail-people.json`, plan 076: names and addresses from
   the From, To and Cc headers loki already reads, for the recipients line's suggestions, forgotten when the account is
-  disconnected) and a mail reply waiting out its 10-second undo (`state/outbox.json`, mode 0600, which holds it only
-  until it is sent). They are under `~/.loki`, which an agent with file tools can read and write. So each held reply
+  disconnected) and a reply waiting out its 10-second undo (`state/outbox.json`, mode 0600, which holds it only
+  until it is sent, or, for an agent's reply, until its card has saved what became of it). An agent's reply there
+  names its files by path, size and MD5, never their bytes, which are read once when it goes and checked against
+  that MD5. They are under `~/.loki`, which an agent with file tools can read and write. So each held reply
   carries a seal made with a key kept in the keychain (`outbox-key`), and a restart sends only replies whose seal
   holds: an entry written into the file by anything else is dropped unsent, and without a keychain no held reply is
   sent after a restart. One due more than 10 minutes before the restart is not sent by itself either (plan 096). A
   reply that fails stays in the file, marked failed, until you send it again or discard it on its card; sending it
-  again also needs its seal. Each held reply carries its id in an `X-Loki-Outbox` header, and before a second try loki
-  reads the thread for it, so a reply Gmail took is never sent twice.
+  again also needs its seal. Each held mail reply carries its id in an `X-Loki-Outbox` header, and before a second try
+  loki reads the thread for it, so a reply Gmail took is never sent twice. Slack and Jira have no such header, so a
+  Slack or Jira reply cut short while it was being sent is never sent again by itself: its card says it may have gone.
 - **Recipients, forward and From (plan 076).** They ride on `account_thread_reply`, the frame only your devices send.
   The mod checks each address is one line, refuses more than 100 people, and sends only from an address Gmail lists
   as one you send from. A forward reads the forwarded mail's own files from Gmail and attaches them, refusing more
-  than 17 MB. Agents get none of this: an approved agent draft still goes to the thread's own people.
+  than 17 MB. Agents get none of this: an agent's mail reply goes to exactly the people its card showed, and when the
+  thread's people changed before it went, it does not go and the card shows who was added or removed.
 - **Residual risks.** A fence asks the model to treat text as content; it cannot make it. A fence covers what a
   script answers, not what it leaves behind: text it writes to a file, an attachment it saves, or the whole of an
   answer too long for the model, which goes to a file, reaches the model unfenced when the agent later reads that file.
@@ -291,8 +300,10 @@ and nothing an agent writes is posted to Slack or Jira.
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
   are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. An owner may
   propose a reply in any thread of its accounts (plan 071), not only one you handed it, so mail could steer it to
-  propose a reply somewhere you did not ask; the approval card, which names the thread and who the reply goes to, is
-  the gate, and an approved reply is still only a draft to that thread's own people. Account
+  propose a reply somewhere you did not ask; its card, which names the thread, who the reply goes to and its files,
+  is the gate, and your Send on it is the only thing that sends. Mail can also steer an owner to attach any file it
+  can read, under any name, so a private file could ride a reply as `invoice.pdf`: show a file in Finder from the
+  card before you send a reply that carries it. Account
   secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain
   entries may read the others.
 

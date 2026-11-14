@@ -1143,7 +1143,7 @@ box:
 The box clears once the reply is sent. If the move after it fails, the card says so and the reply is not sent again
 when you press the key once more. A send that fails keeps your text, moves nothing, and says why. Undo after a reply
 takes back the move only; the reply stays sent. On the phone, **Send** sends the reply alone too, and the card waits for
-your swipe. Only you send this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
+your swipe. Only you send this way: no agent can, and an agent's own reply goes only when you press Send on its card.
 
 **Mention people.** Type @ and a few letters in the reply box to see the people who match; ↑ and ↓ move, Enter or Tab
 takes one, and Esc puts the list away. On a Slack card the list is your workspace's people, and a pick writes their
@@ -1269,22 +1269,30 @@ chat with a different agent cannot read or draft there even if you ask it to. Un
 reads were three tools of their own, `account_list`, `account_read` and `account_search`; old chats show those calls as
 they were. For a Google account the owner's scripts can do more, sending included.
 
-**Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
-one it found or read with a script, so you can simply ask it to draft a reply in a chat.
-The reply always asks you first, in every permission
-mode: it shows in its chat and as a card in Flow, and you can edit it before you approve. Approved, loki writes it as a
-draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. A reply card
-never sends; an owner's script may send mail and calendar invites from a Google account (see Scripts).
-When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
-A Gmail reply can carry files from the chat's folder, up to 10 and 25 MB together: the card names each one with its
-size ("Attached: invoice.pdf (482 KB)"), and the draft holds them. If a file changed or went away after the reply was
-proposed, approving is refused with which file, so the draft never holds something the card did not name; reject it
-and ask again. To leave a file out, take it off the draft in Gmail before you send. A file from another mail reaches
-the folder through a script first. Slack and Jira replies carry no files.
-On a Jira ticket the proposal is a comment, and Jira has no drafts: once you approve it, the text waits in the ticket
-card's comment box (a card that had ended comes back, unread) until you send it yourself; nothing is posted on
-approval. The owner can propose a comment only on a ticket that has had a card in Flow. The agent cannot take a
-proposal back: you reject the card, or clear an approved comment from the ticket card's box.
+**You send an agent's reply from its card.** The owner may propose a reply in any thread of its accounts: one you
+handed to its chat, or one it found or read with a script, so you can simply ask it to write a reply in a chat. The
+reply always waits for you, in every permission mode: it shows in its chat and as a card in Flow, on the Mac and the
+phone. Read it, edit its words if you like, and press **Send**; it goes as you, in the same thread and to that
+thread's own people, after 10 seconds in which **Undo** takes it back with your edits kept. The agent cannot send it.
+**Reject** writes nothing and tells the agent.
+
+1. **Gmail** replies to everyone on the thread's newest message, with your signature and the message quoted under it,
+   as your own reply does. If someone joined or left the thread before it went, it does not go: the card shows who was
+   added or removed, and you press Send again.
+2. **Slack** posts in the same conversation, or the same thread.
+3. **Jira** posts a comment on the ticket; the owner can propose one only on a ticket that has had a card in Flow.
+
+A reply can carry files from the chat's folder, up to 10 and 17 MB together, on all three: attached to the mail,
+posted with the Slack message, or attached to the Jira ticket with the comment naming them. The card names each file
+with its size ("Attached: invoice.pdf (482 KB)"). On the Mac, **Show in Finder** shows you the file itself before you
+send it: mail can steer an agent to attach a private file under an innocent name, so look before a reply with files
+goes. Take a file off and it does not go. If a file changed or went away after the reply was proposed, Send is
+refused with which file; reject it and ask again. A file from another mail reaches the folder through a script first.
+
+A reply that does not go says why on its card and waits for you to send it again or reject it; loki never sends it
+again by itself. If loki was closed while a reply was going, its card says it may have gone: look in the thread before
+you send it again. On Jira, a comment that failed after its files were attached leaves them on the ticket, and
+sending again posts only the comment.
 
 **When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines,
 with a button that opens Preferences › Accounts where a sign-in or a token mends it:
