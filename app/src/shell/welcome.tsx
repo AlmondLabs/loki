@@ -184,7 +184,7 @@ function AgentForm({
           list="loki-welcome-models"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder={models === null ? "loading the model list…" : models.length ? "the default, or pick one" : "no models yet — connect a provider first"}
+          placeholder={models === null ? "Loading the model list…" : models.length ? "The default, or pick one" : "No models yet — connect a provider first"}
           autoComplete="off"
           data-form-type="other"
         />

@@ -220,6 +220,46 @@ export function formatKeys(spec: string, os: Platform = keyboard): string {
     .join(os === "macos" ? "" : " ");
 }
 
+/** Each key's name in `aria-keyshortcuts`, by the keymap's name for it. */
+const ARIA_NAME: Record<string, string> = {
+  cmd: "Meta",
+  shift: "Shift",
+  alt: "Alt",
+  ctrl: "Control",
+  enter: "Enter",
+  backspace: "Backspace",
+  tab: "Tab",
+  escape: "Escape",
+  space: "Space",
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  up: "ArrowUp",
+  down: "ArrowDown",
+};
+
+/**
+ * A shortcut as a button shows it ("⌘E" on the Mac, "Ctrl Shift D" elsewhere) in `aria-keyshortcuts`' form ("Meta+E",
+ * "Control+Shift+D"), so a screen reader can say the key of a button whose tooltip carries it. Read back through the
+ * same tables `formatKeys` writes with, so the two never disagree.
+ */
+export function ariaShortcut(shown: string): string {
+  const aria = new Map<string, string>();
+  for (const table of [MAC_SYMBOL, WORD]) for (const [name, said] of Object.entries(table)) aria.set(said, ARIA_NAME[name] ?? said);
+  const modifiers = new Set(["cmd", "shift", "alt", "ctrl"].map((m) => MAC_SYMBOL[m]));
+  // Words are spaced apart; on the Mac the modifiers' symbols lead and the key is what is left.
+  const parts: string[] = [];
+  let rest = shown;
+  if (shown.includes(" ")) parts.push(...shown.split(" "));
+  else {
+    while (rest.length > 1 && modifiers.has(rest.charAt(0))) {
+      parts.push(rest.charAt(0));
+      rest = rest.slice(1);
+    }
+    parts.push(rest);
+  }
+  return parts.map((p) => aria.get(p) ?? (p.length === 1 ? p.toUpperCase() : p)).join("+");
+}
+
 /** A binding's keys on a system: the Mac's, unless the system keeps one of them for itself (keysOn). */
 export function keysOf(b: Binding, os: Platform = keyboard): string[] {
   return (os === "macos" ? undefined : b.keysOn?.[os]) ?? b.keys;

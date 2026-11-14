@@ -34,7 +34,7 @@ export function ProposalFrame({ kind, where, children, className }: { kind: Prop
   return (
     <section
       data-proposal={kind}
-      aria-label={kind === "approval" ? "needs your approval" : kind === "question" ? "a question for you" : "a reply waiting for you"}
+      aria-label={kind === "approval" ? "Needs your approval" : kind === "question" ? "A question for you" : "A reply waiting for you"}
       className={cn("flex flex-col gap-2 rounded-lg border bg-card p-3 text-body", kind === "reply" && "border-dashed border-ring", className)}
     >
       <header className="flex min-w-0 items-center gap-2 text-meta">

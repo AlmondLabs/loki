@@ -348,7 +348,7 @@ describe("select model", () => {
       ["claude-code", true],
       ["codex", true],
     ]);
-    expect(html).toContain('title="fixed once the chat has started; start a new chat to change"');
+    expect(html).toContain('title="Fixed once the chat has started; start a new chat to change"');
     (
       must(
         elements(tree).find((e) => e.props["data-harness"] === "codex"),

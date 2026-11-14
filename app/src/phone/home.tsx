@@ -324,7 +324,7 @@ function DeskSections({
             open={filtered || !folded.includes(g.id)}
             onToggle={filtered ? undefined : () => onToggle(g.id)}
           >
-            <ul className="loki-phone-list" aria-label={pinned ? "pinned chats" : `${g.title}'s chats`}>
+            <ul className="loki-phone-list" aria-label={pinned ? "Pinned chats" : `${g.title}'s chats`}>
               {g.rows.map((r) => (
                 <DeskRow
                   key={r.desk.scope}

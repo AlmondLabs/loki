@@ -419,7 +419,7 @@ export function CardActions({
         size="sm"
         onClick={archive}
         disabled={main}
-        title={main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow"}
+        title={main ? "A main chat cannot be archived" : "Done with this chat: it leaves Flow"}
         kbd={deckKey("inbox.archive", typing)}
       >
         Archive

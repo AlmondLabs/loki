@@ -309,7 +309,7 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
       />
       <ToolContent>
         {t?.description && <p className="m-0 px-4 pt-3 text-meta text-muted-foreground">{t.description}</p>}
-        {t?.input && <ToolInput input={t.input} label={shell ? "command" : "input"} />}
+        {t?.input && <ToolInput input={t.input} label={shell ? "Command" : "Input"} />}
         {t?.output ? (
           <ToolOutput output={failed ? undefined : t.output} errorText={failed ? t.output : undefined} />
         ) : (

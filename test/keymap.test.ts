@@ -568,3 +568,21 @@ describe("the Go menu", () => {
     expect(labelOf(n, "macos")).toBe("New Chat");
   });
 });
+
+describe("keymap: a button's key for a screen reader (plan 2026-11-14-1300, 2)", () => {
+  test("a shown key reads in aria-keyshortcuts' form, the Mac's symbols and the other systems' words alike", async () => {
+    const { ariaShortcut } = await import("../app/src/shell/keymap.ts");
+    expect(["⌘E", "⌃⌘S", "⌘⇧↵", "E", "←", "Ctrl Shift D", "Ctrl B", "esc", "⌘[", "?"].map(ariaShortcut)).toEqual([
+      "Meta+E",
+      "Control+Meta+S",
+      "Meta+Shift+Enter",
+      "E",
+      "ArrowLeft",
+      "Control+Shift+D",
+      "Control+B",
+      "Escape",
+      "Meta+[",
+      "?",
+    ]);
+  });
+});

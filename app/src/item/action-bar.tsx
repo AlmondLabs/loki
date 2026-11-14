@@ -1,5 +1,6 @@
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
+import { ariaShortcut } from "../shell/keymap";
 import type { ItemActionsView, ItemVerb } from "./item-view";
 
 /** How each move reads on its button, in Apple's words (plan 2026-11-12-1505, U4). */
@@ -72,6 +73,7 @@ function VerbButton({ verb, control, quiet, muted = false }: { verb: ItemVerb; c
       data-muted={muted || undefined}
       disabled={control.disabled}
       title={tip}
+      aria-keyshortcuts={control.keys ? ariaShortcut(control.keys) : undefined}
       onClick={control.run}
     >
       {word}

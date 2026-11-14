@@ -3,7 +3,7 @@ import { SEGMENTS } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { Dot, countText } from "../components";
 import { inTauri, platform, type Platform } from "../desk/env";
-import { keyFor, type Segment } from "./keymap";
+import { ariaShortcut, keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
 import { PanelLeftIcon } from "lucide-react";
 import { Glyph, Icon, type IconName } from "../shared/icons";
@@ -145,6 +145,7 @@ export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: 
             aria-current={segment === s.id ? "page" : undefined}
             aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
             title={`${s.label} (${s.key})`}
+            aria-keyshortcuts={ariaShortcut(s.key)}
             onClick={() => onSelect(s.id)}
           >
             <span className="loki-place-icon">
@@ -181,6 +182,7 @@ export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () =
       aria-label={open ? "Hide sidebar" : "Show sidebar"}
       aria-pressed={open}
       title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
+      aria-keyshortcuts={ariaShortcut(keyFor("column.toggle"))}
       className="loki-rail loki-sidebar-toggle"
       style={{
         marginTop: 0,

@@ -183,15 +183,15 @@ describe("the new thread's pieces", () => {
     expect(mine).toContain('data-row="user"');
     expect(mine).not.toContain(">You<");
     expect(mine).toContain(`title="${clockLabel("2026-11-11T09:00:00Z")}"`);
-    expect(mine).toContain("copy as markdown");
+    expect(mine).toContain("Copy as Markdown");
     const theirs = renderToStaticMarkup(createElement(ChatMessage, { row: agent("hi", "2026-11-11T09:01:00Z"), last: true, streaming: false, arrived: false }));
     expect(theirs).toContain('data-row="assistant"');
-    expect(theirs).toContain("copy as markdown");
+    expect(theirs).toContain("Copy as Markdown");
   });
 
   test("a streaming reply offers no copy until it is done, and a queued message offers its take-back", () => {
     const live = renderToStaticMarkup(createElement(ChatMessage, { row: agent("writing"), last: true, streaming: true, arrived: false }));
-    expect(live).not.toContain("copy as markdown");
+    expect(live).not.toContain("Copy as Markdown");
     const queued = renderToStaticMarkup(
       createElement(ChatMessage, { row: { ...user("later"), queued: true }, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }),
     );

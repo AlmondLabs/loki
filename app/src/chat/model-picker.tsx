@@ -355,7 +355,7 @@ export function ModelChoices({
                   data-harness={t.id ?? "loki"}
                   {...(on ? { "data-model-item": "" } : {})}
                   className="loki-model-tab"
-                  title={t.locked ? "fixed once the chat has started; start a new chat to change" : undefined}
+                  title={t.locked ? "Fixed once the chat has started; start a new chat to change" : undefined}
                   onClick={() => !t.locked && onHarness(t.id)}
                 >
                   {t.name}

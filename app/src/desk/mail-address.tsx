@@ -301,7 +301,7 @@ export function MailAddressLine({
           className="loki-mail-line-who"
           disabled={disabled}
           onClick={() => onOpen(true)}
-          title={touch ? undefined : "who it goes to: press to change"}
+          title={touch ? undefined : "Who it goes to: press to change"}
         >
           {word(addressSummary(a))}
         </button>
