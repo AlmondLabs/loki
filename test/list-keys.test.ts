@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { COMMIT_REST_MS, createListSelection, heldRows, listKeyOf, moveFor, type Schedule } from "../app/src/shell/list-keys.ts";
+import { COMMIT_REST_MS, createListSelection, heldRows, listKeyOf, moveFor, stepRow, type Schedule } from "../app/src/shell/list-keys.ts";
 import { ContentList, NothingSelected, onListKeyDown } from "../app/src/shell/content-list.tsx";
 
 /**
@@ -56,7 +56,11 @@ function selection(start: string | null = "a") {
     onHighlight: () => {},
     schedule: clock.schedule,
   });
-  return { sel, clock, log, committed: () => committed };
+  /** A selection made elsewhere (⌘K, a notification, landing): the place's committed row changes without the list. */
+  const selectElsewhere = (id: string) => {
+    committed = id;
+  };
+  return { sel, clock, log, committed: () => committed, selectElsewhere };
 }
 
 describe("the keys a list takes", () => {
@@ -137,12 +141,65 @@ describe("a selection over time", () => {
     sel.click("c");
     expect(log).toEqual(["commit c"]);
   });
+  test("a row selected elsewhere during the rest drops the pending highlight, so the timer does not commit over it", () => {
+    const { sel, clock, log, committed, selectElsewhere } = selection("a");
+    sel.press(IDS, "down");
+    selectElsewhere("c");
+    clock.advance(COMMIT_REST_MS);
+    expect(log).toEqual([]);
+    expect(committed()).toBe("c");
+    expect(sel.pending()).toBeNull();
+    // the arrows then move from the row selected elsewhere
+    sel.press(IDS, "up");
+    expect(sel.pending()).toBe("b");
+  });
+  test("an action after a row was selected elsewhere acts on that row, not the stale highlight", () => {
+    const { sel, log, selectElsewhere } = selection("a");
+    sel.press(IDS, "down");
+    selectElsewhere("c");
+    sel.act((id) => log.push(`archive ${id}`));
+    expect(log).toEqual(["archive c"]);
+  });
+  test("the row the person sees: the pending highlight, else the committed one", () => {
+    const { sel } = selection("a");
+    expect(sel.current()).toBe("a");
+    sel.press(IDS, "down");
+    expect(sel.current()).toBe("b");
+  });
   test("arrowing back to the committed row before the rest commits nothing", () => {
     const { sel, clock, log } = selection("a");
     sel.press(IDS, "down");
     sel.press(IDS, "up");
     clock.advance(COMMIT_REST_MS);
     expect(log).toEqual([]);
+  });
+});
+
+describe("⌘[ and ⌘] step the rows the list draws (R16)", () => {
+  test("⌘] goes to the next row, round from either end; with no row selected, the first or the last", () => {
+    expect(stepRow(IDS, "a", 1)).toBe("b");
+    expect(stepRow(IDS, "c", 1)).toBe("a");
+    expect(stepRow(IDS, "a", -1)).toBe("c");
+    expect(stepRow(IDS, null, 1)).toBe("a");
+    expect(stepRow(IDS, "gone", -1)).toBe("c");
+    expect(stepRow([], null, 1)).toBeNull();
+  });
+  test("⌘] during an arrow's rest steps from the highlighted row and commits once, the timer committing nothing after", () => {
+    const { sel, clock, log } = selection("a");
+    sel.press(IDS, "down");
+    sel.step(IDS, 1);
+    expect(log).toEqual(["commit c"]);
+    clock.advance(COMMIT_REST_MS);
+    expect(log).toEqual(["commit c"]);
+  });
+  test("⌘] from a selected row held after it left the source goes to its neighbour, not the top", () => {
+    const row = (id: string) => ({ id });
+    // c is archived while selected: the source's rows lose it, the list still draws it in place
+    const held = heldRows(["a", "b", "d"].map(row), ["a", "b", "c", "d"].map(row), "c").map((r) => r.id);
+    expect(held).toEqual(["a", "b", "c", "d"]);
+    const { sel, log } = selection("c");
+    sel.step(held, 1);
+    expect(log).toEqual(["commit d"]);
   });
 });
 
@@ -172,7 +229,7 @@ describe("rows that change under the selection", () => {
 
 describe("the list element's keys", () => {
   /** A keydown on a row: whether it was stopped, and whether a window listener (bubbling after the list) would see it. */
-  const press = (k: string, mods: Parameters<typeof key>[1] = {}) => {
+  const press = (k: string, mods: Parameters<typeof key>[1] = {}, start: string | null = "a") => {
     let stopped = false;
     let prevented = false;
     const e = {
@@ -184,7 +241,7 @@ describe("the list element's keys", () => {
         prevented = true;
       },
     };
-    const { sel } = selection("a");
+    const { sel } = selection(start);
     onListKeyDown(e, IDS, sel, () => {});
     return { reachesWindow: !stopped, prevented };
   };
@@ -192,6 +249,12 @@ describe("the list element's keys", () => {
     expect(press("ArrowDown")).toEqual({ reachesWindow: false, prevented: true });
     expect(press("Enter")).toEqual({ reachesWindow: false, prevented: true });
     expect(press("ArrowUp").reachesWindow).toBe(false); // even staying put on the first row, so Learn's ↑ never sees it
+  });
+  test("with nothing selected, Return and Tab are left to the row and the browser, so Tab leaves the list", () => {
+    expect(press("Tab", {}, null)).toEqual({ reachesWindow: true, prevented: false });
+    expect(press("Enter", {}, null)).toEqual({ reachesWindow: true, prevented: false });
+    expect(press("Tab")).toEqual({ reachesWindow: false, prevented: true });
+    expect(press("ArrowDown", {}, null)).toEqual({ reachesWindow: false, prevented: true });
   });
   test("a key the list leaves alone (E, ⌘↓) goes on to the window", () => {
     expect(press("e")).toEqual({ reachesWindow: true, prevented: false });

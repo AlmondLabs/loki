@@ -11,13 +11,13 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type Ref } from "react";
 import { IconButton, ListIcon } from "../components";
 import { ago } from "../shared/ago";
 import { Icon, Glyph } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
-import { ContentList, type ContentRow } from "./content-list";
+import { ContentList, type ContentListHandle, type ContentRow } from "./content-list";
 import { keyFor } from "./keymap";
 import {
   ALL_CHATS,
@@ -83,8 +83,11 @@ export interface ChatListProps {
   connected: boolean;
   /** Commit a chat: an arrow's rest, a click, or ⌘[ ⌘]. It shows in the detail; focus stays in the list (KTD4). */
   onSelect: (scope: string) => void;
-  /** Return or Tab on the selected chat, or Open from its menu: focus goes into its message box. */
-  onEnter: (scope: string) => void;
+  /**
+   * Return or Tab on the selected chat, or Open from its menu: focus goes into its message box. Null is the New Chat
+   * row while one is being started: focus goes into the draft's box.
+   */
+  onEnter: (scope: string | null) => void;
   /** Start a new chat, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
   onNew?: (agentId: string | null) => void;
   /**
@@ -116,6 +119,8 @@ export interface ChatListProps {
   homes?: { here: string; of: (agentId: string) => { mac: string; name: string } | null };
   /** This Mac and the Macs paired with it, and moving a chat to one (plan 023, addendum A1); left out, no Move to. */
   macs?: { view: Pushes["peers"] | null; move: (desk: DeskSummary, to: MoveTarget) => void };
+  /** The list's handle, for the window's ⌘[ ⌘] to step the rows it draws. */
+  ref?: Ref<ContentListHandle>;
 }
 
 /**
@@ -149,6 +154,7 @@ export function ChatList({
   labels,
   macs,
   homes,
+  ref,
 }: ChatListProps) {
   const [menu, setMenu] = useState<{ desk: DeskSummary; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<DeskSummary | null>(null);
@@ -269,6 +275,7 @@ export function ChatList({
     <>
       <div ref={wrapRef} className="loki-sidebar-body" onScrollCapture={measure}>
         <ContentList
+          ref={ref}
           key={source.id}
           label={source.title}
           title={source.title}
@@ -277,9 +284,7 @@ export function ChatList({
           onSelect={(id) => {
             if (id !== NEW_ROW) onSelect(id);
           }}
-          onEnter={(id) => {
-            if (id !== NEW_ROW) onEnter(id);
-          }}
+          onEnter={(id) => onEnter(id === NEW_ROW ? null : id)}
           onMenu={(id, e) => {
             if (id !== NEW_ROW) openMenu(id, e);
           }}
@@ -506,7 +511,7 @@ export function ChatListView({
   notice,
   onNew,
   ...list
-}: Pick<ChatListProps, "rows" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting"> & {
+}: Pick<ChatListProps, "rows" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"> & {
   desk: Desk;
   catchUp: CatchUp;
   notice: (m: string) => void;

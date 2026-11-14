@@ -287,14 +287,6 @@ export function openIn(
   return { source, query: shows ? at.query : "" };
 }
 
-/** ⌘[ (-1) and ⌘] (1) through the rows the list shows, round from either end; with no row selected, the first or the last. */
-export function stepChat(ids: readonly string[], current: string | null, dir: 1 | -1): string | null {
-  if (ids.length === 0) return null;
-  const at = current === null ? -1 : ids.indexOf(current);
-  if (at < 0) return dir > 0 ? ids[0] : ids[ids.length - 1];
-  return ids[(at + dir + ids.length) % ids.length];
-}
-
 /**
  * The "needs you" pills, Slack's "Unread mentions": given where each waiting row sits (in the scroll
  * content's coordinates) and the visible band, the nearest one wholly above the band and the nearest one

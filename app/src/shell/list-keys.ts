@@ -58,6 +58,14 @@ export function heldRows<T extends { id: string }>(rows: readonly T[], previous:
   return [...rows.slice(0, at), previous[at], ...rows.slice(at)];
 }
 
+/** ⌘[ (-1) and ⌘] (1) through rows `ids`, round from either end; from no row, or one not among `ids`, the first or the last. */
+export function stepRow(ids: readonly string[], current: string | null, dir: 1 | -1): string | null {
+  if (ids.length === 0) return null;
+  const at = current === null ? -1 : ids.indexOf(current);
+  if (at < 0) return dir > 0 ? ids[0] : ids[ids.length - 1];
+  return ids[(at + dir + ids.length) % ids.length];
+}
+
 /** Runs `run` after `ms` and returns its cancel: setTimeout in the app, a hand-moved clock in tests. */
 export type Schedule = (run: () => void, ms: number) => () => void;
 
@@ -83,10 +91,14 @@ export interface ListSelectionOptions {
 export interface ListSelection {
   /** The highlighted row waiting out its rest, or null. */
   pending: () => string | null;
+  /** The row the person sees: the pending highlight, else the committed row. */
+  current: () => string | null;
   /** A key on rows `ids`; returns the row to focus when the highlight moved, else null. */
   press: (ids: readonly string[], key: ListKey) => string | null;
   /** A click on a row: commits it at once. */
   click: (id: string) => void;
+  /** ⌘[ (-1) or ⌘] (1) over rows `ids`, the ones drawn: commits the row beside the one the person sees, at once. */
+  step: (ids: readonly string[], dir: 1 | -1) => void;
   /** Commit the pending highlight now, then run `act` on the selected row, if there is one. */
   act: (act: (id: string) => void) => void;
   /** Drop a pending highlight and its timer, as the list goes away. */
@@ -97,6 +109,9 @@ export interface ListSelection {
 export function createListSelection(options: ListSelectionOptions): ListSelection {
   const schedule = options.schedule ?? timeout;
   let pending: string | null = null;
+  // The committed row when the highlight began: a different one now was selected from outside the list (⌘K, a
+  // notification, landing), and the stale highlight must not commit over it.
+  let base: string | null = null;
   let cancel: (() => void) | null = null;
   const commit = (id: string) => {
     if (id !== options.committed()) options.commit(id);
@@ -108,16 +123,27 @@ export function createListSelection(options: ListSelectionOptions): ListSelectio
     pending = null;
     options.onHighlight(null);
   };
+  /** Drop a pending highlight the place's selection has moved away from since it began. */
+  const dropStale = () => {
+    if (pending !== null && options.committed() !== base) drop();
+  };
   /** Commit a pending highlight now; the selected row after it, pending or committed. */
   const flush = (): string | null => {
+    dropStale();
     const id = pending;
     drop();
     if (id !== null) commit(id);
     return id ?? options.committed();
   };
+  const current = (): string | null => {
+    dropStale();
+    return pending ?? options.committed();
+  };
   return {
     pending: () => pending,
+    current,
     press(ids, key) {
+      dropStale();
       const move = moveFor(ids, pending ?? options.committed(), key);
       if (move.commit === "now") {
         const id = flush();
@@ -126,6 +152,7 @@ export function createListSelection(options: ListSelectionOptions): ListSelectio
       }
       if (move.commit !== "rest" || move.highlight === null) return null;
       cancel?.();
+      if (pending === null) base = options.committed();
       pending = move.highlight;
       options.onHighlight(pending);
       cancel = schedule(() => {
@@ -137,6 +164,12 @@ export function createListSelection(options: ListSelectionOptions): ListSelectio
     click(id) {
       drop();
       commit(id);
+    },
+    step(ids, dir) {
+      const to = stepRow(ids, current(), dir);
+      if (to === null) return;
+      drop();
+      commit(to);
     },
     act(act) {
       const id = flush();

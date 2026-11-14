@@ -19,7 +19,6 @@ import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
 import { OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
-import { scopeFor } from "../../../core/desk-core.ts";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
@@ -79,6 +78,11 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   onFrameWidget?: (widgetId: string) => void;
   /** A header chip clicked: the sidebar filtered to that label's chats (plan 022, R4). */
   onShowLabel?: (name: string) => void;
+  /**
+   * A chat named in this one (a chip on a suggestion's message) opened: the window's openDesk, so the list moves to a
+   * source that holds the chat and selects its row, as every way into a chat from outside the list does (KTD8, R7).
+   */
+  onOpenChat: (agentId: string, conversationId: string) => void;
 }
 
 /** A host counter routed to the view that showed when it was bumped (desk/pane.ts), as React state derived during render. */
@@ -235,7 +239,7 @@ export function DeskPane(props: DeskPaneProps) {
       />
       {/* The showing panel inherits its visibility, never sets "visible": the shell hides the whole pane behind other sections, and a child marked visible would show through them. */}
       {/* A chip naming another chat (a message sent from a suggestion) switches the pane to that chat. */}
-      <OpenChat.Provider value={(agent, conversation) => desk.desks.switchTo(scopeFor(conversation, agent))}>
+      <OpenChat.Provider value={props.onOpenChat}>
         <div className="loki-desk-pane-body">
           <div
             id={panelId("messages")}

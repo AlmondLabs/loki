@@ -130,3 +130,11 @@ export function toggleSidebar(pref: ColumnsPref, fits: boolean, peek: boolean): 
   if (!fits) return { pref, peek: !peek };
   return { pref: { ...pref, collapsed: !pref.collapsed }, peek: false };
 }
+
+/**
+ * A folded sidebar's peek, kept only while the sidebar does not fit: once the window widens to fit it the peek is
+ * spent, so narrowing the window again does not bring the sidebar back over the content unasked.
+ */
+export function keptPeek(peek: boolean, fits: boolean): boolean {
+  return peek && !fits;
+}

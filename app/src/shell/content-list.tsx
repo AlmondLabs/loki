@@ -14,6 +14,11 @@ export interface ContentRow extends Omit<ListRowProps, "onOpen" | "current" | "o
 /** What a place's owner can do to its list: act on the selected row once a pending highlight has committed (KTD3). */
 export interface ContentListHandle {
   act: (act: (id: string) => void) => void;
+  /**
+   * ⌘[ (-1) or ⌘] (1), R16: commit the row beside the one the person sees, over the rows drawn, a selected row held
+   * after it left the source included, so the step goes to its neighbour rather than the top.
+   */
+  step: (dir: 1 | -1) => void;
 }
 
 /** The props of `ContentList`: the source, its rows and selection, and the place's New and Search. */
@@ -46,8 +51,9 @@ export interface ContentListProps {
 /**
  * A list's own keys on a row (KTD3): ↑ ↓ Return and Tab are the list's, so they stop here, both their default and
  * their propagation. The shell's keymap is a bubbling window listener that ignores `defaultPrevented`
- * (use-shell-keys.ts), so without the stop ↓ in Learn's list would also reveal the card. `focusRow` is given the row
- * the highlight moved to.
+ * (use-shell-keys.ts), so without the stop ↓ in Learn's list would also reveal the card. With no row selected or
+ * highlighted, Return and Tab have nothing to go into, so they are left alone: Tab moves focus on out of the list, and
+ * Return presses the focused row, which selects it. `focusRow` is given the row the highlight moved to.
  */
 export function onListKeyDown(
   e: KeyPress & Pick<Event, "preventDefault" | "stopPropagation">,
@@ -57,6 +63,7 @@ export function onListKeyDown(
 ): void {
   const key = listKeyOf(e);
   if (key === null) return;
+  if ((key === "enter" || key === "tab") && selection.current() === null) return;
   e.preventDefault();
   e.stopPropagation();
   const to = selection.press(ids, key);
@@ -97,7 +104,9 @@ export function ContentList({
   onQuery,
   ref,
 }: ContentListProps) {
-  const [highlight, setHighlight] = useState<string | null>(null);
+  // The pending highlight, with the row committed when it was made: once the place selects another row from outside
+  // the list (⌘K, a notification), the highlight is stale and not drawn, and the selection drops it (list-keys.ts).
+  const [highlight, setHighlight] = useState<{ id: string; over: string | null } | null>(null);
   // The selection outlives renders (its timer does); it reads the place's latest selection and callbacks through a ref.
   const latest = useRef({ selectedId, onSelect, onEnter });
   useEffect(() => {
@@ -110,12 +119,11 @@ export function ContentList({
       committed: () => latest.current.selectedId,
       commit: (id) => latest.current.onSelect(id),
       focusDetail: (id) => latest.current.onEnter(id),
-      onHighlight: setHighlight,
+      onHighlight: (id) => setHighlight(id === null ? null : { id, over: latest.current.selectedId }),
     }));
   useEffect(() => () => selectionRef.current?.stop(), []);
-  useImperativeHandle(ref, () => ({ act: (act) => selection().act(act) }));
 
-  const current = highlight ?? selectedId;
+  const current = highlight !== null && highlight.over === selectedId ? highlight.id : selectedId;
   // The rows drawn, a departed selected row held in place: kept in state and moved on during render, when the rows,
   // the selection or the Search change (the React pattern for state derived from props).
   const searching = query.trim() !== "";
@@ -127,6 +135,7 @@ export function ContentList({
   }
   const ids = shown.map((r) => r.id);
   const tabStop = current !== null && ids.includes(current) ? current : (ids.at(0) ?? null);
+  useImperativeHandle(ref, () => ({ act: (act) => selection().act(act), step: (dir) => selection().step(ids, dir) }));
 
   const rowsRef = useRef<HTMLDivElement>(null);
   const focusRow = (id: string) => {

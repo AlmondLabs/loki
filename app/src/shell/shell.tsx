@@ -34,7 +34,8 @@ import { ColumnEdge, ListColumn } from "./list-column";
 import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
 import { ChatListView } from "./desk-sidebar";
-import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows, stepChat } from "./sidebar-model";
+import type { ContentListHandle } from "./content-list";
+import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows } from "./sidebar-model";
 import { AgentFace } from "../desk/agent-chip";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
@@ -336,6 +337,7 @@ export function Shell() {
    * else the detail says "No Chat Selected", and nothing switches until a row is picked.
    */
   const chooseSource = (id: string) => {
+    column.dismiss();
     setChatSource(id);
     setPrefsOpen(false);
     setSegment("desk");
@@ -392,15 +394,11 @@ export function Shell() {
     setUnselected(false);
   };
   const enterChat = () => setFocusChat((n) => n + 1);
-  /** ⌘[ ⌘]: the rows the list shows, not every chat (R16). */
-  const stepDesk = (dir: 1 | -1) => {
-    const next = stepChat(
-      chatRows.map((r) => r.desk.scope),
-      listSelected,
-      dir,
-    );
-    if (next) selectChat(next);
-  };
+  /**
+   * The Chats list, for ⌘[ ⌘] (R16): it steps the rows it draws, a held row included, from the row the person sees, a
+   * pending arrow highlight included, and commits through `selectChat`.
+   */
+  const chatList = useRef<ContentListHandle>(null);
 
   /** ⌘1-6 and ⌘,: ⌘, (⌘6) toggles Preferences over the section; the others close it and go (settings/preferences.ts). */
   const segmentKey = (id: string) => {
@@ -420,8 +418,8 @@ export function Shell() {
       "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
       "desk.new": () => startNewChat(null),
       "keys.sheet": () => setKeysOpen((v) => !v),
-      "desk.prev": () => stepDesk(-1),
-      "desk.next": () => stepDesk(1),
+      "desk.prev": () => chatList.current?.step(-1),
+      "desk.next": () => chatList.current?.step(1),
       "column.toggle": () => {
         if (column.has) column.toggle();
       },
@@ -498,7 +496,10 @@ export function Shell() {
           head={
             <Places
               segment={segment}
-              onSelect={setSegment}
+              onSelect={(s) => {
+                column.dismiss();
+                setSegment(s);
+              }}
               waiting={waiting}
               dueCards={recall.due}
               sources={{
@@ -549,6 +550,7 @@ export function Shell() {
         >
           <div className="loki-list-column-slot" style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? undefined : "hidden" }}>
             <ChatListView
+              ref={chatList}
               desk={desk}
               catchUp={catchUp}
               notice={notice}
@@ -577,6 +579,7 @@ export function Shell() {
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
             <DeskPane
               desk={desk}
+              onOpenChat={openDesk}
               catchUp={catchUp}
               active={onChat && !unselected}
               tab={pane.tab}
@@ -630,7 +633,7 @@ export function Shell() {
                 requirements={desk.attention.requirements}
                 onStart={startChat}
                 onClose={() => setNewChat(null)}
-                focusTick={newChat.n}
+                focusTick={newChat.n + focusChat}
               />
             </div>
           )}

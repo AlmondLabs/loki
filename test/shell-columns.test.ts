@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   COLUMNS_KEY,
   DETAIL_MIN,
@@ -9,6 +10,7 @@ import {
   SIDEBAR_MIN,
   clampSidebar,
   columnsLayout,
+  keptPeek,
   columnsStore,
   loadColumns,
   saveColumns,
@@ -91,6 +93,18 @@ describe("columns: the toggle", () => {
     expect(toggleSidebar(DEFAULTS, fits, false)).toEqual({ pref: DEFAULTS, peek: true });
     expect(toggleSidebar(DEFAULTS, fits, true)).toEqual({ pref: DEFAULTS, peek: false });
     expect(columnsLayout(DEFAULTS, mac(900, { peek: true }))).toEqual({ sidebarShown: true, sidebarOver: true, listLeft: 128, list: 292, detailLeft: 420 });
+  });
+  test("a peek lasts only while the sidebar does not fit: widened to fit, it is spent, so narrowing again does not bring it back", () => {
+    expect(keptPeek(true, false)).toBe(true);
+    expect(keptPeek(true, true)).toBe(false);
+    expect(keptPeek(false, false)).toBe(false);
+  });
+  test("a peeked sidebar goes once a place or a source is chosen in it, or on a press outside it", () => {
+    const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
+    expect(shell).toMatch(/const chooseSource = \(id: string\) => \{\n\s+column\.dismiss\(\);/);
+    expect(shell).toMatch(/<Places[^>]*onSelect=\{\(s\) => \{\n\s+column\.dismiss\(\);/);
+    const hook = readFileSync(new URL("../app/src/shell/use-column.ts", import.meta.url), "utf8");
+    expect(hook).toContain('window.addEventListener("pointerdown", onPress, true)');
   });
   test("where the sidebar fits it flips the saved fold and drops any peek", () => {
     expect(toggleSidebar(DEFAULTS, true, false)).toEqual({ pref: { ...DEFAULTS, collapsed: true }, peek: false });

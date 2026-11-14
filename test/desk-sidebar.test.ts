@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   DESK_NAME_MAX,
   SIDEBAR_KEY,
@@ -20,10 +21,10 @@ import {
   chatSources,
   sourceRows,
   openIn,
-  stepChat,
   sourceHolds,
 } from "../app/src/shell/sidebar-model.ts";
 
+import { stepRow } from "../app/src/shell/list-keys.ts";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
@@ -223,14 +224,33 @@ describe("⌘[ and ⌘] step the list's visible rows (R16)", () => {
     ];
     const ids = scopes(sourceRows(chats, [], { source: "agent:a1", query: "label:infra" }));
     expect(ids).toEqual(["deploy", "ops"]);
-    expect(stepChat(ids, "deploy", 1)).toBe("ops");
-    expect(stepChat(ids, "ops", 1)).toBe("deploy");
-    expect(stepChat(ids, "deploy", -1)).toBe("ops");
+    expect(stepRow(ids, "deploy", 1)).toBe("ops");
+    expect(stepRow(ids, "ops", 1)).toBe("deploy");
+    expect(stepRow(ids, "deploy", -1)).toBe("ops");
   });
-  test("with nothing selected ⌘] takes the first row and ⌘[ the last; an empty list goes nowhere", () => {
-    expect(stepChat(["x", "y", "z"], null, 1)).toBe("x");
-    expect(stepChat(["x", "y", "z"], "gone", -1)).toBe("z");
-    expect(stepChat([], null, 1)).toBeNull();
+  test("the window steps through the Chats list's handle, over the rows it draws, not the source's rows", () => {
+    const src = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
+    expect(src).toMatch(/"desk\.prev": \(\) => chatList\.current\?\.step\(-1\)/);
+    expect(src).toMatch(/"desk\.next": \(\) => chatList\.current\?\.step\(1\)/);
+  });
+});
+
+describe("chat links inside a chat open through the window (KTD8, R7)", () => {
+  test("the chat pane's OpenChat goes through the shell's openDesk, so the list follows to the chat's source", () => {
+    const pane = readFileSync(new URL("../app/src/desk/desk-pane.tsx", import.meta.url), "utf8");
+    expect(pane).toContain("<OpenChat.Provider value={props.onOpenChat}>");
+    expect(pane).not.toMatch(/OpenChat\.Provider value=\{[^}]*switchTo/);
+    const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
+    expect(shell).toMatch(/<DeskPane[^>]*onOpenChat=\{openDesk\}/);
+  });
+});
+
+describe("Return and Tab on the New Chat row (R15)", () => {
+  test("go into the draft's message box: the row's enter reaches the window, and the draft's focus follows it", () => {
+    const list = readFileSync(new URL("../app/src/shell/desk-sidebar.tsx", import.meta.url), "utf8");
+    expect(list).toMatch(/onEnter=\{\(id\) => onEnter\(id === NEW_ROW \? null : id\)\}/);
+    const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
+    expect(shell).toMatch(/focusTick=\{newChat\.n \+ focusChat\}/);
   });
 });
 
