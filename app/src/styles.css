@@ -7,14 +7,14 @@
 @source "../../node_modules/streamdown/dist/*.js";
 /* The agent's widget files live outside the repo; the loki:desks Vite plugin fills in the path. */
 @source "__LOKI_WIDGETS_DIR__";
+/* Tailwind writes a theme variable only when its sources use it. chat.css, shell/*.css and phone.css are imported from
+   JS, outside those sources, and say var(--text-xs) … var(--text-2xl), so the four sizes are always generated. */
+@source inline("text-xs text-sm text-base text-2xl");
 @import "./kit/tokens.css";
 @import "./components/components.css";
 
 /* Tailwind utilities that resolve to the loki tokens: bg-loki-panel, text-loki-muted, … */
 @theme inline {
-  /* One spacing step is 4px, loki's grid, so gap-2 is 8px. Tailwind's default is 0.25rem, and the page's root is 15px
-     (index.html), which made a step 3.75px. */
-  --spacing: 4px;
   --color-loki-bg: var(--loki-bg);
   --color-loki-panel: var(--loki-panel);
   --color-loki-panel-header: var(--loki-panel-header);
@@ -39,9 +39,9 @@
   --radius-loki: var(--loki-radius);
 }
 
-/* shadcn's utilities (plan 096): its colour names read the roles in tokens.css, and loki's scales get names of their
-   own so a component says text-body, not a size. Tailwind's defaults stay, because the agents' widgets are told
-   Tailwind classes work and receive this stylesheet; loki's own source is held to these names by tokens.test.ts. */
+/* shadcn's utilities (plan 096): its colour names read the roles in tokens.css, and loki's radii and shadows get names
+   of their own. Text sizes and the spacing step are Tailwind's own, unchanged (plan 2026-11-15-0030), the same ones the
+   agents' widgets are told work; tokens.test.ts holds loki's source to text-xs, text-sm, text-base and text-2xl. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -80,15 +80,6 @@
   --radius-xl: var(--loki-radius-lg);
   --font-sans: var(--loki-font);
   --font-mono: var(--loki-mono);
-  --text-micro: var(--loki-text-micro);
-  --text-fine: var(--loki-text-fine);
-  --text-tag: var(--loki-text-tag);
-  --text-meta: var(--loki-text-meta);
-  --text-body: var(--loki-text-body);
-  --text-row: var(--loki-text-row);
-  --text-title: var(--loki-text-title);
-  --text-display: var(--loki-text-display);
-  --text-hero: var(--loki-text-hero);
   --shadow-sheet: var(--loki-shadow-sheet);
   --shadow-float: var(--loki-shadow-float);
   --shadow-panel: var(--loki-shadow-panel);

@@ -18,7 +18,7 @@ import type { ItemPart, ItemSource } from "./item-view";
  */
 export function ContentParts({ parts, source, title }: { parts: readonly ItemPart[]; source: ItemSource; title: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2 text-body">
+    <div className="flex min-w-0 flex-col gap-2 text-sm">
       {parts.map((p, k) => (
         // A message's parts never reorder, so their place is their key.
         <div key={k} className="min-w-0">
@@ -96,7 +96,7 @@ export function WidgetArtifact({
       <ArtifactHeader className="gap-3 px-3 py-2">
         <div className="flex min-w-0 flex-col">
           <ArtifactTitle className="loki-truncate">{w.title}</ArtifactTitle>
-          <ArtifactDescription className="text-meta">
+          <ArtifactDescription className="text-xs">
             {w.who} {w.change}
             {time && (
               <>

@@ -114,7 +114,7 @@ export function HandoffPicker({
               <span
                 className="loki-truncate"
                 style={{
-                  fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)",
+                  fontSize: touch ? "var(--phone-text-body)" : "var(--text-sm)",
                 }}
               >
                 {o.label}

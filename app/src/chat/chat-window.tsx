@@ -109,7 +109,7 @@ export function ChatWindow({
                       <Glyph icon={width === "wide" ? PanelLeftIcon : PanelRightIcon} />
                     </IconButton>
                   )}
-                  <IconButton size={24} onClick={onClose} label="Close chat" style={{ fontSize: "var(--loki-text-body)" }}>
+                  <IconButton size={24} onClick={onClose} label="Close chat" style={{ fontSize: "var(--text-sm)" }}>
                     <Glyph icon={XIcon} />
                   </IconButton>
                 </div>
@@ -210,7 +210,7 @@ export function ChatBubble({
         border: "1px solid var(--loki-border)",
         background: open ? "var(--loki-accent)" : "var(--loki-panel)",
         color: "var(--loki-fg)",
-        fontSize: "var(--loki-text-title)",
+        fontSize: "var(--text-base)",
         cursor: "pointer",
         boxShadow: "var(--loki-shadow-panel)",
         zIndex: LAYER.bubble,

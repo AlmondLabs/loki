@@ -326,7 +326,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
                     border: "1px solid var(--loki-border)",
                     background: "var(--loki-panel)",
                     color: "var(--loki-fg)",
-                    fontSize: "var(--loki-text-fine)",
+                    fontSize: "var(--text-xs)",
                     lineHeight: "16px",
                     cursor: "pointer",
                     padding: 0,

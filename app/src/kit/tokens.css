@@ -72,17 +72,6 @@
   --loki-radius-md: 8px;
   --loki-radius-lg: 12px;
   --loki-radius-pill: 999px;
-  /* Type scale (px), by role: micro 10 · fine 10 · tag 11 · meta 11 · body 13 · row 13 · title 15 · display 22 ·
-     hero 26. Every desktop size reads one of these (styles.css names them for Tailwind). */
-  --loki-text-micro: 10px;
-  --loki-text-fine: 10px;
-  --loki-text-tag: 11px;
-  --loki-text-meta: 11px;
-  --loki-text-body: 13px;
-  --loki-text-row: 13px;
-  --loki-text-title: 15px;
-  --loki-text-display: 22px;
-  --loki-text-hero: 26px;
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
   --loki-label: var(--loki-font);
@@ -261,7 +250,7 @@
 /* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */
 .loki-label {
   font-family: var(--loki-font);
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--loki-muted);
 }
@@ -479,7 +468,7 @@ a:focus-visible {
 .loki-widget-body {
   font-family: var(--loki-font);
   color: var(--loki-fg);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 

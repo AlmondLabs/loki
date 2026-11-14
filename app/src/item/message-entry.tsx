@@ -54,7 +54,7 @@ export function MessageEntry({
     return (
       <Message from="user" data-row="user" className="max-w-full">
         <MessageContent className="w-full gap-1 bg-accent! px-4! py-2!">
-          <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
+          <div className="flex min-h-6 items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">You</span>
             {time && <time dateTime={m.at}>{time}</time>}
             {status && <span>· {status}</span>}
@@ -74,8 +74,8 @@ export function MessageEntry({
       {first ? <Avatar who={m.who} src={m.avatar} /> : <span aria-hidden />}
       <div className="flex min-w-0 flex-col gap-1">
         {first && (
-          <div className="flex items-baseline gap-2 text-meta text-muted-foreground">
-            <span className="text-body font-semibold text-foreground">{m.who}</span>
+          <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
+            <span className="text-sm font-semibold text-foreground">{m.who}</span>
             {time && <time dateTime={m.at}>{time}</time>}
             {note && <span>{note}</span>}
           </div>
@@ -92,7 +92,7 @@ export function MessageEntry({
 function Avatar({ who, src }: { who: string; src: string | null }) {
   if (src) return <img src={src} alt="" className="size-8 rounded-md object-cover" />;
   return (
-    <span aria-hidden className="grid size-8 place-items-center rounded-md bg-muted text-meta font-semibold text-muted-foreground">
+    <span aria-hidden className="grid size-8 place-items-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
       {who.trim().charAt(0).toUpperCase() || "?"}
     </span>
   );
@@ -140,7 +140,7 @@ export const ChatMessage = memo(function ChatMessage({
           </MessageContent>
         </div>
         {m.queued && (
-          <MessageActions className="justify-end text-meta text-muted-foreground">
+          <MessageActions className="justify-end text-xs text-muted-foreground">
             <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="h-auto px-0">
               Queued · sends when this turn ends{onCancelQueued ? " · Take Back" : ""}
             </Button>
@@ -150,7 +150,7 @@ export const ChatMessage = memo(function ChatMessage({
     );
   return (
     <Message from="assistant" data-row={m.role} data-arrived={arrived || undefined} className="group/row relative max-w-full">
-      <MessageContent className="text-body">
+      <MessageContent className="text-sm">
         <MessageResponse className="loki-md" isAnimating={writing} animated components={MARKDOWN_COMPONENTS}>
           {text}
         </MessageResponse>

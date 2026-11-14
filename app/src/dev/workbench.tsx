@@ -38,12 +38,10 @@ const ROLES: Array<[string, string]> = [
 ];
 
 const TYPE: Array<[string, string]> = [
-  ["text-hero", "Hero 28"],
-  ["text-display", "Display 22"],
-  ["text-row", "Row title 15"],
-  ["text-body", "Body 13.5"],
-  ["text-meta", "Meta 12"],
-  ["text-tag", "Tag 11"],
+  ["text-2xl", "Large title 24"],
+  ["text-base", "Title 16"],
+  ["text-sm", "Body 14"],
+  ["text-xs", "Meta 12"],
 ];
 
 const tool = (name: string, input: string, output: string, over: Partial<NonNullable<TranscriptRow["tool"]>> = {}): TranscriptRow => ({
@@ -160,8 +158,8 @@ export function Workbench() {
   return (
     <div className="min-h-full bg-background text-foreground">
       <header className="sticky top-0 z-panel flex items-center gap-3 px-6 py-3 glass">
-        <h1 className="m-0 text-row font-semibold">Liquid Glass workbench</h1>
-        <span className="text-meta text-muted-foreground">made-up data · plan 2026-11-12-1505</span>
+        <h1 className="m-0 text-sm font-semibold">Liquid Glass workbench</h1>
+        <span className="text-xs text-muted-foreground">made-up data · plan 2026-11-12-1505</span>
         <div className="ml-auto flex items-center gap-2">
           <Toggle on={night} onClick={() => setNight((n) => !n)}>
             {night ? "Night" : "Day"}
@@ -176,7 +174,7 @@ export function Workbench() {
         <Section title="Glass over content" note="The bar, the view switch, the approval and the composer are glass; the page under them is solid.">
           <div className="relative h-[480px] overflow-hidden rounded-lg border bg-background">
             <div className="absolute inset-0 overflow-auto px-10 pt-20 pb-56">
-              <div className="mx-auto flex max-w-2xl flex-col gap-4 text-body">
+              <div className="mx-auto flex max-w-2xl flex-col gap-4 text-sm">
                 {LOREM.map((line) => (
                   <p key={line} className="m-0">
                     {line}
@@ -186,8 +184,8 @@ export function Workbench() {
             </div>
             <div className="absolute inset-x-4 top-4 flex items-center justify-between">
               <div className="flex h-10 items-center gap-2 rounded-full px-4 glass">
-                <span className="text-body font-semibold">Signups by week</span>
-                <span className="text-meta text-muted-foreground">friday</span>
+                <span className="text-sm font-semibold">Signups by week</span>
+                <span className="text-xs text-muted-foreground">friday</span>
               </div>
               <div className="flex h-10 items-center gap-1 rounded-full px-1 glass">
                 <Button size="sm" variant="secondary" className="rounded-full">
@@ -212,8 +210,8 @@ export function Workbench() {
                 <Button size="icon-sm" variant="ghost" className="rounded-full" aria-label="Attach">
                   <PlusIcon />
                 </Button>
-                <span className="flex-1 text-body text-muted-foreground">Message friday</span>
-                <span className="text-meta text-muted-foreground">Medium</span>
+                <span className="flex-1 text-sm text-muted-foreground">Message friday</span>
+                <span className="text-xs text-muted-foreground">Medium</span>
                 <Button size="icon-sm" className="rounded-full" aria-label="Send">
                   <ArrowUpIcon />
                 </Button>
@@ -227,7 +225,7 @@ export function Workbench() {
             {ROLES.map(([cls, name]) => (
               <div key={name} className="flex items-center gap-3 rounded-lg border bg-card p-3">
                 <span aria-hidden className={cn("size-8 rounded-md border", cls)} />
-                <span className="text-body">{name}</span>
+                <span className="text-sm">{name}</span>
               </div>
             ))}
           </div>
@@ -272,7 +270,7 @@ export function Workbench() {
                 ) : p.kind === "message" ? (
                   <>
                     <Thought rows={[p.row]} />
-                    <p className="m-0 text-body">{p.row.text}</p>
+                    <p className="m-0 text-sm">{p.row.text}</p>
                   </>
                 ) : null
               }
@@ -368,9 +366,9 @@ function ListBench() {
             onQuery={setQuery}
           />
         </div>
-        <div className="relative flex-1">{title ? <p className="m-0 p-6 text-body">{title}</p> : <NothingSelected noun="Chat" />}</div>
+        <div className="relative flex-1">{title ? <p className="m-0 p-6 text-sm">{title}</p> : <NothingSelected noun="Chat" />}</div>
       </div>
-      <div className="flex items-center gap-3 text-meta text-muted-foreground">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span>window saw: {windowKey}</span>
         <span>{log.join(" · ")}</span>
         <Button size="sm" variant="outline" onClick={() => setRows((r) => r.filter((x) => x.id !== selected))}>
@@ -388,8 +386,8 @@ function Section({ title, note, children }: { title: string; note: string; child
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <h2 className="m-0 text-row font-semibold text-foreground">{title}</h2>
-        <p className="m-0 text-meta text-muted-foreground">{note}</p>
+        <h2 className="m-0 text-sm font-semibold text-foreground">{title}</h2>
+        <p className="m-0 text-xs text-muted-foreground">{note}</p>
       </div>
       {children}
     </section>

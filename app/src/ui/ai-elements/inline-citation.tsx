@@ -99,7 +99,7 @@ export const InlineCitationCarouselIndex = ({ children, className, ...props }: I
   const count = useSyncExternalStore(subscribe, () => (api ? api.scrollSnapList().length : 0));
 
   return (
-    <div className={cn("flex flex-1 items-center justify-end px-3 py-1 text-muted-foreground text-meta", className)} {...props}>
+    <div className={cn("flex flex-1 items-center justify-end px-3 py-1 text-muted-foreground text-xs", className)} {...props}>
       {children ?? `${current}/${count}`}
     </div>
   );
@@ -149,9 +149,9 @@ export type InlineCitationSourceProps = ComponentProps<"div"> & {
 
 export const InlineCitationSource = ({ title, url, description, className, children, ...props }: InlineCitationSourceProps) => (
   <div className={cn("space-y-1", className)} {...props}>
-    {title && <h4 className="truncate font-semibold text-body leading-tight">{title}</h4>}
-    {url && <p className="truncate break-all text-muted-foreground text-meta">{url}</p>}
-    {description && <p className="line-clamp-3 text-muted-foreground text-body leading-relaxed">{description}</p>}
+    {title && <h4 className="truncate font-semibold text-sm leading-tight">{title}</h4>}
+    {url && <p className="truncate break-all text-muted-foreground text-xs">{url}</p>}
+    {description && <p className="line-clamp-3 text-muted-foreground text-sm leading-relaxed">{description}</p>}
     {children}
   </div>
 );
@@ -159,7 +159,7 @@ export const InlineCitationSource = ({ title, url, description, className, child
 export type InlineCitationQuoteProps = ComponentProps<"blockquote">;
 
 export const InlineCitationQuote = ({ children, className, ...props }: InlineCitationQuoteProps) => (
-  <blockquote className={cn("border-muted border-l-2 pl-3 text-muted-foreground text-body italic", className)} {...props}>
+  <blockquote className={cn("border-muted border-l-2 pl-3 text-muted-foreground text-sm italic", className)} {...props}>
     {children}
   </blockquote>
 );

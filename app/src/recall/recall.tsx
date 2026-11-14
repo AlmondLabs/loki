@@ -473,7 +473,7 @@ function Deck({
         <>
           <div
             style={{
-              fontSize: "var(--loki-text-display)",
+              fontSize: "var(--text-2xl)",
               fontWeight: 600,
               lineHeight: 1.3,
               color: "var(--loki-fg)",
@@ -489,7 +489,7 @@ function Deck({
               style={{
                 borderTop: "1px solid var(--loki-border)",
                 paddingTop: 12,
-                fontSize: "var(--loki-text-row)",
+                fontSize: "var(--text-sm)",
                 lineHeight: 1.55,
                 color: "var(--loki-fg)",
                 whiteSpace: "pre-wrap",
@@ -521,7 +521,7 @@ function Deck({
         <div className="grid grid-cols-[repeat(2,1fr)] gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
           {ANSWERS.map(({ grade, label, key }) => (
             <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`Next in ${gaps[grade]}`}>
-              {label} <span style={{ fontSize: "var(--loki-text-fine)", opacity: 0.75 }}>{gaps[grade]}</span>
+              {label} <span style={{ fontSize: "var(--text-xs)", opacity: 0.75 }}>{gaps[grade]}</span>
             </Button>
           ))}
         </div>

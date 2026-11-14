@@ -146,7 +146,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
             >
               <Dot aria-hidden size={8} color={d.online ? "var(--loki-positive)" : "var(--loki-border)"} ring={!d.online} />
               <span className="grid min-w-0 flex-1">
-                <span style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{d.name}</span>
+                <span style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)" }}>{d.name}</span>
                 <span className="loki-meta loki-mono">{d.address}</span>
               </span>
               <span className="loki-meta">{d.paired ? "Paired" : d.online ? d.os : "Offline"}</span>
@@ -165,7 +165,7 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   const expired = left === "expired";
   return (
     <div className="grid gap-1" style={{ paddingBottom: 12 }}>
-      <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+      <div className="loki-mono" style={{ fontSize: "var(--text-2xl)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
         {code.code}
       </div>
       {code.host && (
@@ -173,7 +173,7 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
           {code.host}
         </div>
       )}
-      <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
+      <div style={{ fontSize: "var(--text-xs)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
         {expired ? "Expired" : `${left} left`} · type both on the other Mac's Preferences › Macs
       </div>
     </div>

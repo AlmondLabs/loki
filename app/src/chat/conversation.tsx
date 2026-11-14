@@ -701,14 +701,14 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
           // The thread keeps the row being read in place itself (use-transcript-scroll.ts); the browser's own would move it twice.
           overflowAnchor: "none",
           padding: "16px 20px",
-          fontSize: "var(--loki-text-body)",
+          fontSize: "var(--text-sm)",
           lineHeight: 1.5,
           color: "var(--loki-fg)",
           ...style,
         }}
       >
         {!rows && !loadFailed && (
-          <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>{home ? `Loading from ${home}…` : "Loading the thread…"}</div>
+          <div style={{ color: "var(--loki-muted)", fontSize: "var(--text-xs)" }}>{home ? `Loading from ${home}…` : "Loading the thread…"}</div>
         )}
         {!rows && loadFailed && (
           <div className="loki-thread-error" role="alert">
@@ -719,9 +719,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
           </div>
         )}
         {rows?.length === 0 && !blank && (
-          <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>
-            Nothing here yet — everything you send lands in {who}'s transcript
-          </div>
+          <div style={{ color: "var(--loki-muted)", fontSize: "var(--text-xs)" }}>Nothing here yet — everything you send lands in {who}'s transcript</div>
         )}
         {rows && (
           <StepsLoad.Provider value={stableLoadStep}>

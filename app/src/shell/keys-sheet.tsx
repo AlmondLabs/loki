@@ -26,7 +26,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
         }}
       >
         <div className="flex items-baseline gap-3">
-          <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>Keys</span>
+          <span style={{ fontSize: "var(--text-2xl)", fontWeight: 700 }}>Keys</span>
           <Meta>{place}</Meta>
           <span className="flex-1" />
         </div>
@@ -34,7 +34,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
           <section key={g.where} aria-label={g.title} className="grid gap-1">
             <div className="loki-label">{g.title}</div>
             {g.rows.map((b) => (
-              <div key={b.id} className="grid grid-cols-[170px_1fr] items-baseline gap-3" style={{ fontSize: "var(--loki-text-body)" }}>
+              <div key={b.id} className="grid grid-cols-[170px_1fr] items-baseline gap-3" style={{ fontSize: "var(--text-sm)" }}>
                 <span className="inline-flex flex-wrap gap-2">
                   {b.keys.map((k) => (
                     <Kbd key={k}>{formatKeys(k)}</Kbd>

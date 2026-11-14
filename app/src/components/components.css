@@ -59,17 +59,17 @@
 .loki-btn--sm {
   min-height: 28px;
   padding: 0 12px;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
 }
 .loki-btn--md {
   min-height: 36px;
   padding: 0 12px;
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
 }
 .loki-btn--touch {
   min-height: 44px;
   padding: 0 12px;
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
 }
 .loki-btn--paper {
   color: var(--loki-fg);
@@ -120,7 +120,7 @@
 .loki-btn--icon {
   padding: 0;
   border-radius: var(--loki-radius-sm);
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
 }
 /* Fills its row; the label sits left. */
 .loki-btn--block {
@@ -141,7 +141,7 @@
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   cursor: pointer;
   transition:
     background-color 120ms ease-out,
@@ -173,7 +173,7 @@
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -232,7 +232,7 @@
 .loki-chip--tag {
   min-height: 0;
   padding: 1px 8px;
-  font-size: var(--loki-text-tag);
+  font-size: var(--text-xs);
 }
 /* Floating over the sheet or the transcript: opaque, with the low shadow. */
 .loki-chip--float {
@@ -263,7 +263,7 @@
   background: var(--loki-well);
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   line-height: 1.4;
   transition: border-color 120ms ease-out;
 }
@@ -285,13 +285,13 @@
 .loki-field--sm {
   min-height: 28px;
   padding: 4px 12px;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
 }
 /* 15px so iOS does not zoom in on focus; 44 tall for a thumb. */
 .loki-field--touch {
   min-height: 44px;
   padding: 12px;
-  font-size: var(--loki-text-row);
+  font-size: var(--text-sm);
 }
 /* The first line of a sheet (search, a title): no box, a hairline below. */
 .loki-field--bare {
@@ -491,7 +491,7 @@ textarea.loki-field {
   font-family: var(--loki-font);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] {
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   box-shadow: var(--loki-shadow-float);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] [data-description] {
@@ -519,13 +519,13 @@ textarea.loki-field {
   border-bottom: 1px solid var(--loki-border);
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
 }
 
 /* ---- Text ---------------------------------------------------------------------------------------- */
 .loki-kbd {
   font-family: var(--loki-mono);
-  font-size: var(--loki-text-micro);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
   margin-left: 4px;
   border: 1px solid var(--loki-border);
@@ -537,7 +537,7 @@ textarea.loki-field {
 }
 .loki-meta {
   font-family: var(--loki-font);
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -570,12 +570,12 @@ textarea.loki-field {
 }
 .loki-title {
   font-family: var(--loki-font);
-  font-size: var(--loki-text-title);
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--loki-fg);
 }
 .loki-title--page {
-  font-size: var(--loki-text-display);
+  font-size: var(--text-2xl);
 }
 .loki-empty {
   text-align: center;
@@ -591,11 +591,11 @@ textarea.loki-field {
   padding: 32px;
 }
 .loki-empty > .loki-title {
-  font-size: var(--loki-text-display);
+  font-size: var(--text-2xl);
   line-height: 1.25;
 }
 .loki-empty > p {
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   margin: 8px 0 0;
   line-height: 1.6;
 }
@@ -653,7 +653,7 @@ textarea.loki-field {
   /* Full ink, as Mail titles every message: what is new is told by weight and its mark, never by greying the rest. */
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
@@ -746,7 +746,7 @@ textarea.loki-field {
   white-space: nowrap;
 }
 .loki-list-row-preview {
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
   overflow: hidden;
@@ -759,7 +759,7 @@ textarea.loki-field {
   flex: none;
   margin-left: auto;
   padding-left: 4px;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -772,7 +772,7 @@ textarea.loki-field {
   border-radius: var(--loki-radius-pill);
   background: var(--loki-attention);
   color: var(--loki-on-attention);
-  font-size: var(--loki-text-tag);
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.4;
   text-align: center;
@@ -844,7 +844,7 @@ textarea.loki-field {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   font-weight: 600;
   text-align: left;
 }
@@ -864,7 +864,7 @@ button.loki-list-section-toggle {
   transform: rotate(-90deg);
 }
 .loki-list-section-count {
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -874,7 +874,7 @@ button.loki-list-section-toggle {
   align-items: center;
   gap: 4px;
   flex: none;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
 }
 .loki-list-section-actions {
@@ -980,7 +980,7 @@ button.loki-list-section-toggle {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
 }
 /* A drawn menu's icon column (U22): the action's Lucide icon, at the toolbar's size and stroke, in the label's colour. */
 .loki-menu-label {
@@ -1045,7 +1045,7 @@ button.loki-list-section-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--loki-font);
-  font-size: var(--loki-text-title);
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--loki-fg);
 }
@@ -1054,7 +1054,7 @@ button.loki-list-section-toggle {
 }
 .loki-pane-header-subtitle {
   padding: 0 12px 8px 20px;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1085,7 +1085,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -1102,7 +1102,7 @@ button.loki-list-section-toggle {
   border-bottom-color: var(--loki-fg);
 }
 .loki-tab-count {
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -1225,13 +1225,13 @@ button.loki-list-section-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--loki-font);
-  font-size: var(--loki-text-row);
+  font-size: var(--text-sm);
   font-weight: 700;
   color: var(--loki-fg);
 }
 .loki-content-list-count {
   flex: none;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1245,7 +1245,7 @@ button.loki-list-section-toggle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
 }
 /* The list column has two edges: the search field's box and the row highlight at 4, and the title, its line, the
@@ -1272,7 +1272,7 @@ button.loki-list-section-toggle {
   gap: 12px;
   padding: 32px 16px;
   text-align: center;
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   color: var(--loki-muted);
 }
 .loki-content-list-empty-title {
@@ -1362,14 +1362,14 @@ button.loki-list-section-toggle {
 /* A card whose account needs mending: a muted mark after the sender, never red. */
 .loki-flow-row-mark {
   flex: none;
-  font-size: var(--loki-text-tag);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
 }
 /* The visit's summary in Flow's detail: what it did, then the way back to Everything in a lane. */
 .loki-empty-pane-summary {
   margin: 0 0 4px;
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--loki-fg);
 }
@@ -1418,7 +1418,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -1484,7 +1484,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: var(--loki-text-body);
+  font-size: var(--text-sm);
   font-weight: 400;
   text-align: left;
   cursor: default;
@@ -1517,7 +1517,7 @@ button.loki-list-section-toggle {
   white-space: nowrap;
 }
 .loki-place-count {
-  font-size: var(--loki-text-meta);
+  font-size: var(--text-xs);
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1663,7 +1663,7 @@ button.loki-list-section-toggle {
   .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
     min-height: 22px;
     padding: 0 12px;
-    font-size: var(--loki-text-meta);
+    font-size: var(--text-xs);
   }
   /* The symbols, and room for the Update button the shell lays over the detail's top right (shell/update-button.tsx). */
   .loki-pane-header-trailing {
@@ -1687,7 +1687,7 @@ button.loki-list-section-toggle {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--loki-text-title);
+    font-size: var(--text-base);
     font-weight: 600;
     color: var(--loki-fg);
   }
@@ -1741,7 +1741,7 @@ button.loki-list-section-toggle {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--loki-text-tag);
+    font-size: var(--text-xs);
     color: var(--loki-muted);
   }
   /* A chat's link to another (chat/link-header.tsx) reads as more of the grey line, not a pill that grows the toolbar. */
@@ -1754,7 +1754,7 @@ button.loki-list-section-toggle {
     min-height: 0;
     padding: 0;
     border: 0;
-    font-size: var(--loki-text-tag);
+    font-size: var(--text-xs);
     font-weight: 400;
   }
   /* A chat not started yet (U20): under its title, a To: line as Messages draws one, with the agent as a token and
@@ -1767,7 +1767,7 @@ button.loki-list-section-toggle {
     padding: 0 12px 0 20px;
     border-top: 0.5px solid var(--loki-border);
     border-bottom: 0.5px solid var(--loki-border);
-    font-size: var(--loki-text-body);
+    font-size: var(--text-sm);
     color: var(--loki-fg);
   }
   .loki-new-chat > .loki-pane-header {
@@ -1817,7 +1817,7 @@ button.loki-list-section-toggle {
     background: transparent;
     color: var(--loki-muted);
     font: inherit;
-    font-size: var(--loki-text-meta);
+    font-size: var(--text-xs);
     cursor: default;
   }
   .loki-new-chat-folder:hover {
@@ -1918,7 +1918,7 @@ button.loki-list-section-toggle {
     width: auto;
     padding: 0 8px;
     font-family: var(--loki-font);
-    font-size: var(--loki-text-meta);
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--loki-accent);
   }
@@ -2091,7 +2091,7 @@ button.loki-list-section-toggle {
      the arrow a menu has, not a link's hand. */
   .loki-mail-suggest-row {
     padding: 4px 8px;
-    font-size: var(--loki-text-body);
+    font-size: var(--text-sm);
     cursor: default;
   }
   .loki-mail-suggest-name {

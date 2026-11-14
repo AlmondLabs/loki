@@ -80,7 +80,7 @@ export const ReasoningTrigger = memo(({ className, children, getThinkingMessage 
   const { isStreaming, isOpen, duration } = useReasoning();
 
   return (
-    <CollapsibleTrigger className={cn("flex w-full items-center gap-2 text-muted-foreground text-body hover:text-foreground", className)} {...props}>
+    <CollapsibleTrigger className={cn("flex w-full items-center gap-2 text-muted-foreground text-sm hover:text-foreground", className)} {...props}>
       {children ?? (
         <>
           <BrainIcon className="size-4" />
@@ -99,7 +99,7 @@ export type ReasoningContentProps = ComponentProps<typeof CollapsibleContent> & 
 export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => (
   <CollapsibleContent
     className={cn(
-      "mt-4 text-body",
+      "mt-4 text-sm",
       "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground data-[state=closed]:animate-out data-[state=open]:animate-in",
       className,
     )}

@@ -64,7 +64,7 @@ function SpendSection({
         label="Estimated"
         value={
           <span className="inline-flex items-baseline gap-2">
-            <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>{money(summary.cost.total)}</span>
+            <span style={{ fontSize: "var(--text-2xl)", fontWeight: 700 }}>{money(summary.cost.total)}</span>
             <span className="loki-meta">{tokenCount(summary.tokens.total)} tokens</span>
           </span>
         }
@@ -137,7 +137,7 @@ function Breakdown({
             className="grid grid-cols-[minmax(0,1fr)_80px_72px_64px] items-center gap-3"
             style={{
               width: "100%",
-              fontSize: "var(--loki-text-body)",
+              fontSize: "var(--text-sm)",
             }}
           >
             <span className="loki-truncate" title={l.key}>

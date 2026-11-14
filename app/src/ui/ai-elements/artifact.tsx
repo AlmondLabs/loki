@@ -30,13 +30,13 @@ export const ArtifactClose = ({ className, children, size = "sm", variant = "gho
 export type ArtifactTitleProps = HTMLAttributes<HTMLParagraphElement>;
 
 export const ArtifactTitle = ({ className, ...props }: ArtifactTitleProps) => (
-  <p className={cn("font-semibold text-foreground text-body", className)} {...props} />
+  <p className={cn("font-semibold text-foreground text-sm", className)} {...props} />
 );
 
 export type ArtifactDescriptionProps = HTMLAttributes<HTMLParagraphElement>;
 
 export const ArtifactDescription = ({ className, ...props }: ArtifactDescriptionProps) => (
-  <p className={cn("text-muted-foreground text-body", className)} {...props} />
+  <p className={cn("text-muted-foreground text-sm", className)} {...props} />
 );
 
 export type ArtifactActionsProps = HTMLAttributes<HTMLDivElement>;

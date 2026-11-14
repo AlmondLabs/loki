@@ -24,8 +24,8 @@ export function AgentPlan({ items }: { items: readonly PlanItem[] }) {
     <Plan data-plan defaultOpen={false} className="gap-2 py-3">
       <PlanHeader className="px-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <PlanTitle className="text-body">Plan</PlanTitle>
-          <PlanDescription className="text-meta">{planProgress(items)}</PlanDescription>
+          <PlanTitle className="text-sm">Plan</PlanTitle>
+          <PlanDescription className="text-xs">{planProgress(items)}</PlanDescription>
         </div>
         <PlanTrigger className="size-7" />
       </PlanHeader>
@@ -34,7 +34,7 @@ export function AgentPlan({ items }: { items: readonly PlanItem[] }) {
           {items.map((item, i) => {
             const mark = MARK[item.status];
             return (
-              <li key={i} data-status={item.status} className={cn("flex items-start gap-2 text-body", item.status === "completed" && "text-muted-foreground")}>
+              <li key={i} data-status={item.status} className={cn("flex items-start gap-2 text-sm", item.status === "completed" && "text-muted-foreground")}>
                 <mark.Icon aria-label={mark.word} className={cn("mt-0.5 size-4 shrink-0", mark.className)} />
                 <span className="min-w-0">{item.content}</span>
               </li>

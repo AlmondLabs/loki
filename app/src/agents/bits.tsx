@@ -27,10 +27,7 @@ export function Prose({ content, loadingView, empty }: { content: string | null;
     <>
       {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">{empty}</div>}
       {content !== null && (
-        <div
-          className="loki-md"
-          style={{ fontSize: "var(--loki-text-body)", lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}
-        >
+        <div className="loki-md" style={{ fontSize: "var(--text-sm)", lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
           <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
             {stripFrontmatter(content)}
           </Markdown>

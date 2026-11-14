@@ -53,14 +53,14 @@ export function ItemReplyBox({
   return (
     <div data-composer data-reply-box className="flex flex-col gap-2">
       <InputGroup className="h-auto flex-col items-stretch rounded-xl bg-card">
-        <div data-target className="min-w-0 px-3 pt-2 text-meta text-muted-foreground">
+        <div data-target className="min-w-0 px-3 pt-2 text-xs text-muted-foreground">
           {typeof target === "string" ? WORDS.line(target) : target}
         </div>
         <div className="relative flex flex-col">
           {mentions}
           <InputGroupTextarea
             rows={isMail ? 4 : 2}
-            className="max-h-48 min-h-12 px-3 pt-2 text-body"
+            className="max-h-48 min-h-12 px-3 pt-2 text-sm"
             {...field}
             placeholder={field.placeholder && WORDS.line(field.placeholder)}
           />
@@ -94,7 +94,7 @@ export function ItemReplyBox({
         </PromptInputFooter>
       </InputGroup>
       {error && (
-        <p role="alert" className="m-0 text-meta text-destructive">
+        <p role="alert" className="m-0 text-xs text-destructive">
           {error}
         </p>
       )}
@@ -143,7 +143,7 @@ function SignatureAndQuote({
   const [quoteOpen, setQuoteOpen] = useState(false);
   if (signature === null && quote === null) return null;
   return (
-    <div className="flex flex-col gap-1 px-3 text-meta text-muted-foreground">
+    <div className="flex flex-col gap-1 px-3 text-xs text-muted-foreground">
       {signature && (
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 flex-1 whitespace-pre-wrap">{signature.text ? `-- \n${signature.text}` : WORDS.noSignature}</span>

@@ -195,49 +195,22 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
   });
 });
 
-describe("the Mac's type scale (U15)", () => {
-  const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
-  const scale = (block: string) => Object.fromEntries([...block.matchAll(/--loki-text-(\w+): ([\d.]+)px;/g)].map((m) => [m[1], Number(m[2])]));
-  test("the desktop's sizes are AppKit's; the phone keeps a step larger scale for a phone held closer", () => {
-    expect(scale(must(/\n:root \{([\s\S]*?)\n\}/.exec(tokens), "the root block")[1])).toEqual({
-      micro: 10,
-      fine: 10,
-      tag: 11,
-      meta: 11,
-      body: 13,
-      row: 13,
-      title: 15,
-      display: 22,
-      hero: 26,
-    });
-    const phone = readFileSync(join(APP, "phone", "phone.css"), "utf8");
-    expect(scale(must(/\n\.loki-phone \{([\s\S]*?)\n\}/.exec(phone), "the phone's root")[1])).toEqual({
-      micro: 9.5,
-      fine: 10.5,
-      tag: 11,
-      meta: 12,
-      body: 13.5,
-      row: 15,
-      title: 17,
-      display: 22,
-      hero: 28,
-    });
+describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
+  // The ban on --loki-text-* and on literal font sizes lives in tokens.test.ts, which reads every file.
+  const styles = readFileSync(join(APP, "styles.css"), "utf8");
+  const index = readFileSync(join(APP, "..", "index.html"), "utf8");
+
+  test("loki's theme names no text sizes of its own", () => {
+    expect(styles).not.toMatch(/^\s*--text-[\w-]+:/m);
   });
 
-  test("every desktop size reads a token: no literal font-size or fontSize outside the token files", async () => {
-    const { readdirSync, statSync } = await import("node:fs");
-    const walk = (dir: string): string[] =>
-      readdirSync(dir).flatMap((n) => {
-        const p = join(dir, n);
-        return statSync(p).isDirectory() ? (n === "phone" ? [] : walk(p)) : /\.(tsx|ts|css)$/.test(n) ? [p] : [];
-      });
-    const hits = walk(APP).flatMap((p) => {
-      const text = readFileSync(p, "utf8");
-      return [...text.matchAll(/font-size: [\d.]+px|fontSize: [\d.]+\b/g)].map((m) => `${p.slice(APP.length + 1)}: ${m[0]}`);
-    });
-    expect(hits).toEqual([]);
-    const styles = readFileSync(join(APP, "styles.css"), "utf8");
-    expect(styles).toContain("--text-body: var(--loki-text-body);");
+  test("the page keeps Tailwind's root and spacing step: no px root in index.html and no --spacing in styles.css", () => {
+    expect(index).not.toMatch(/html \{[^}]*font:\s*[\d.]+px/);
+    expect(styles).not.toMatch(/--spacing:/);
+  });
+
+  test("the four sizes are always emitted, for the stylesheets that read them outside Tailwind's graph", () => {
+    expect(styles).toContain('@source inline("text-xs text-sm text-base text-2xl");');
   });
 });
 

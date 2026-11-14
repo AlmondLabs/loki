@@ -345,7 +345,7 @@ function Picks({
       {items.map((i) => (
         <label key={i.id} className="grid grid-cols-[auto_1fr] items-baseline gap-2" style={{ cursor: "pointer" }}>
           <input type="checkbox" checked={ids.includes(i.id)} onChange={(e) => onTick(i.id, e.target.checked)} aria-label={`Pick ${i.label}`} />
-          <span className="min-w-0" style={{ fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
+          <span className="min-w-0" style={{ fontSize: "var(--text-sm)", overflowWrap: "anywhere" }}>
             {i.label}
             {i.detail && (
               <span className="loki-meta" style={{ marginLeft: 8 }}>

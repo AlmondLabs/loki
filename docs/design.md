@@ -55,18 +55,18 @@ selects dark or light values, and the saved `system` preference follows the oper
 An inline initializer applies it before first paint; the grounds are repeated in `index.html`, the web manifest and
 the native window (`src-tauri`).
 
-Type scale, the Mac's as AppKit sets it, read through `--loki-text-*` (Tailwind's `text-micro` to `text-hero`):
-**10** micro and fine print · **11** tag, meta, label (`.loki-label`) · **13** body and list rows · **15** a window or
-section title · **22** a pane's large title · **26** hero. The phone keeps a step larger scale (9.5 to 28) for a
-phone held closer. One face: the system sans (`--loki-font`); `--loki-display` and `--loki-label`
-are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
+Type scale, Tailwind's own four sizes as Tailwind ships them, at the browser's default 16px root: **`text-xs` 12**
+meta, tags, labels (`.loki-label`) and fine print · **`text-sm` 14** body and list rows · **`text-base` 16** a window
+or section title · **`text-2xl` 24** a pane's large title. A stylesheet reads the same sizes as `var(--text-xs)` and so
+on. loki defines no sizes of its own, so the views and the agents' widgets share one vocabulary; a class also sets
+Tailwind's paired line height. Phone-only rules keep the phone's scale (`--phone-text-*`). One face: the system
+sans (`--loki-font`); `--loki-display` and `--loki-label` are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
 Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
 
 Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48**,
 Tailwind's steps `0`, `px`, `0.5`, `1`, `2`, `3`, `4`, `5`, `6`, `8` and `12`. Every padding, margin and
-gap takes one, in the stylesheets and in the views; a tie goes to the step the same control already uses. `styles.css`
-sets one step to 4px (`--spacing`); Tailwind's default is a quarter rem, and the page's root is 15px, which made a step
-3.75px.
+gap takes one, in the stylesheets and in the views; a tie goes to the step the same control already uses. One step is
+Tailwind's default quarter rem, 4px at the 16px root; loki sets no `--spacing` of its own.
 
 Every pane's content starts 20px from its edge, the same inset as its title, as Mail lines a message up under its
 header: the transcript, the composer, an outside item's thread, the agents' pages, Learn's items and Preferences. A
@@ -212,9 +212,9 @@ and Vercel's [AI Elements](https://ai-sdk.dev/elements) live in `app/src/ui/` an
 in and owned: no `ai` runtime, icons from Lucide. Tailwind v4's `@theme inline` maps shadcn's names (`background`,
 `muted-foreground`, `primary`, …) onto loki's tokens, so day, night and the phone follow. Each piece is bent to
 the rules here: focus is loki's flash, motion stops under reduced motion and uses only transform and opacity, overlays
-take loki's layers rather than numbered z values, and type stays on loki's scale (`text-micro` to `text-hero`), never
-Tailwind's defaults. `cn` (`app/src/lib/utils.ts`) knows those sizes and loki's shadows, so a size beside a colour
-never drops the colour. `test/tokens.test.ts` fences all of it: off-scale classes, `outline-none`, focus rings,
+take loki's layers rather than numbered z values, and type uses Tailwind's own `text-xs`, `text-sm`, `text-base` and
+`text-2xl`, as upstream shadcn does. `cn` (`app/src/lib/utils.ts`) knows loki's shadow names, so a shadow beside
+a colour never drops the colour. `test/tokens.test.ts` fences all of it: off-scale classes, `outline-none`, focus rings,
 numbered layers, default sizes, tracking and hard-coded keys fail the build.
 
 **One item.** A chat, a Slack thread, an email and a Jira ticket draw with the same components in
@@ -404,8 +404,10 @@ box is one for both, its sizes set by `touch`.
   (text 11 · 13 · 15 · 17 · 20 · 28, radii 8 · 12 · 24 · pill, space 4–24, the 44 touch size, layers, durations).
   On a touch screen the text follows the size set in iOS, as Dynamic Type does: `-apple-system-body` sets the
   document's rem and the text scale keeps its proportions to it (the default draws the px above), clamped from a step
-  below to about half again above so rows built around 44px still hold; spacing, touch sizes and the tab bar's
-  labels and badge (`--phone-text-tab`) stay fixed, as iOS keeps its tab bar.
+  below to about half again above so rows built around 44px still hold; the phone's own spacing, touch sizes and
+  the tab bar's labels and badge (`--phone-text-tab`) stay fixed, as iOS keeps its tab bar. The shared parts the phone
+  draws (chat items, rows, shadcn's controls) use Tailwind's sizes and spacing in rem, so they follow Text Size
+  without a cap.
 - **The dock is a material.** The floating navigation, search and compose buttons are iOS's bar material with
   `blur(20px) saturate(180%)` behind, so the list shows through as it scrolls under; the badge's ring is solid panel,
   so it never shows the list. The accent is the system blue, the unread badge is red as iOS's are, affirmative is the
