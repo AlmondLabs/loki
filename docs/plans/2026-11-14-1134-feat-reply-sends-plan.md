@@ -14,7 +14,7 @@ execution: code
 
 - **Objective:** When an agent proposes a reply in a thread, the person reads it once, presses one button, and the reply reaches the thread's people on Gmail, Slack or Jira with its files. Nothing goes anywhere, or to anyone, the card did not show.
 - **Means:** Send on the agent's reply card hands the reply to the path the person's own replies take, held 10 seconds with Undo (KTD1).
-- **Product authority:** the person, in the session of 2026-11-14. This plan supersedes [2026-11-14-1500-feat-reply-attachments-plan.md](2026-11-14-1500-feat-reply-attachments-plan.md) (files on Gmail drafts, built on this branch and not merged); its file checks carry over.
+- **Product authority:** the person, in the session of 2026-11-14. This plan replaces an earlier plan on this branch for files on Gmail drafts (2026-11-14-1500, removed); its file checks carry over.
 - **Open blockers:** none. Slack's file upload is an assumption checked by hand before merging (see Dependencies / Assumptions).
 - **Stop conditions:** stop and ask the person if Slack will not take text and files as one message in a thread, or if any real send during the by-hand check would reach someone other than the person.
 - **Execution profile:** one branch (`feat/reply-attachments`, to be renamed for this work), one PR; the person merges.

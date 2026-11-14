@@ -180,7 +180,7 @@ export async function readInChat(ctx: ToolContext, path: string): Promise<{ full
 }
 
 /**
- * A guess at a file's type from its name, for an upload to Drive or a file on a mail (plan 2026-11-14-1500, R5) that
+ * A guess at a file's type from its name, for an upload to Drive or a file on a mail (plan 2026-11-14-1134, R11) that
  * names none, so a PDF opens in place; anything else is raw bytes.
  */
 export function fileTypeOf(name: string): string {
