@@ -202,23 +202,27 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 - **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the cards that wait on
   you as a list beside the selected card, see below. Its row in the sidebar carries the waiting count, the same number
   the tray title and dock badge show, and its lanes are listed under it.
-- **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
-  one works, the last thing it said, a count of what waits on you — and the chosen agent fills the pane with
-  a tab per page (a first visit lands on Memory); the "+" at the top of the sidebar makes a new agent. **Profile**: face, name, description and model
+- **Agents** (⌘4): your agents are listed under Agents in the sidebar — face, name, a green dot while one works, a
+  count of what waits on you — and choosing one keeps the page that was showing. The pages are tabs in the middle of
+  the detail's toolbar (a first visit lands on Memory); the list beside it holds the page's items, and the detail the
+  one chosen in it. **New Agent** ("+") sits in the list's toolbar. ⌘[ and ⌘] step the list. **Profile** has no
+  items, so its form takes the list's room too: face, name, description and model
   (editable), effort and context, "★ favourite" when it is one, where it is working (its live chats, each a
-  link, then **main chat** and **chats**), and delete at the bottom. **Memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
-  this". **Changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a commit by
-  reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
+  link, then **main chat** and **chats**), and delete at the bottom; deleting the agent shows the first one left.
+  **Memory**: the files in the list, under the folder each sits in, and the one you chose read beside it, with "ask
+  <agent> to update this". **Changes**: what it learned as memory commits in the list, newest first, the diff beside
+  it; a commit by reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
   as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **Reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
   every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
-  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
-  one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
+  compacted); the list holds reflection's runs among the latest changes, and the one you choose is read under the
+  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
+  one row each in the list, in two groups — **self**, the ones the agent (or you) wrote ("write" over the skill adds one, "install" takes a
   source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
-  CLI recorded, a source you typed once). Pick a skill and it opens on the right with its origin, whether the agent has
+  CLI recorded, a source you typed once). Choose a skill and it opens beside the list with its origin, whether the agent has
   edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is replaced
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
@@ -300,7 +304,7 @@ Backspace in the empty field, or the chip's ×, steps back out.
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
-(where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
+(where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange

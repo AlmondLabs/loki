@@ -174,8 +174,9 @@ export const KEYMAP: Binding[] = [
 
   // --- agents / settings: the tabs across the top, the pages down the left ------------------------------
   // "settings" is Preferences, a sheet over the section showing: its keys resolve there while it is up (keySegment).
-  { id: "agents.prev", keys: ["cmd+["], where: "agents", label: "previous agent", typing: true },
-  { id: "agents.next", keys: ["cmd+]"], where: "agents", label: "next agent", typing: true },
+  // Agents' ⌘[ ⌘] step the page's list, as every place's do (plan 2026-11-14-1330, R16); the agents are the sidebar's.
+  { id: "agents.prev", keys: ["cmd+["], where: "agents", label: "previous item in the list", typing: true },
+  { id: "agents.next", keys: ["cmd+]"], where: "agents", label: "next item in the list", typing: true },
   { id: "settings.prevPage", keys: ["cmd+["], where: "settings", label: "previous page", typing: true },
   { id: "settings.nextPage", keys: ["cmd+]"], where: "settings", label: "next page", typing: true },
 

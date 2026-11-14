@@ -58,7 +58,7 @@ describe("agent reading pane", () => {
   });
 });
 
-/** The chosen agent and page, shared by the Agents column and pane (app/src/agents/selection.ts, plan 013 U10). */
+/** The chosen agent and page, shared by the sidebar's Agents sources and the place (app/src/agents/selection.ts, plan 013 U10). */
 describe("agents selection", () => {
   const memory = (seed: Record<string, string> = {}) => {
     const m = new Map(Object.entries(seed));
@@ -127,16 +127,15 @@ describe("agents selection", () => {
   });
 });
 
-/** The Agents column as Slack DMs (app/src/agents/rows.ts, AgentsColumn). */
-describe("agents column", () => {
-  const item = (agentId: string, id: string, status: string, extra = {}) => ({
+/** The agents as the Agents place's sources in the sidebar (app/src/agents/agents-column.tsx, plan 2026-11-14-1330 KTD9). */
+describe("agents as sources", () => {
+  const item = (agentId: string, id: string, status: string) => ({
     id,
     agent_id: agentId,
     status,
     lastAssistantText: null,
     last_message_at: null,
     archived: false,
-    ...extra,
   });
   const agents = [
     { id: "a1", name: "ira" },
@@ -145,60 +144,142 @@ describe("agents column", () => {
   const desks = [
     { agent_id: "a1", status: "live" },
     { agent_id: "a2", status: "live" },
-    { agent_id: "a2", status: "live" },
   ];
-  const items = [
-    item("a1", "c1", "approval", { lastAssistantText: "Can I run the migration?\nIt drops a table.", last_message_at: "2026-09-23T10:00:00Z" }),
-    item("a1", "c2", "question", { lastAssistantText: "older", last_message_at: "2026-09-22T10:00:00Z" }),
-    item("a2", "c3", "running"),
-  ] as never;
+  const items = [item("a1", "c1", "approval"), item("a1", "c2", "question"), item("a2", "c3", "running")] as never;
 
-  test("each agent a row in the daemon's order: waiting count, running, and the newest reply's first line as the preview", async () => {
-    const { agentDmRows } = await import("../app/src/agents/rows.ts");
-    const rows = agentDmRows(agents, desks, items);
-    expect(rows.map((r) => r.id)).toEqual(["a1", "a2"]);
-    expect(rows[0]).toMatchObject({ waiting: 2, running: false, preview: "Can I run the migration?" });
-    // nothing said yet: the live desks stand in
-    expect(rows[1]).toMatchObject({ waiting: 0, running: true, preview: "2 chats live" });
-  });
-
-  test("rows with faces, the waiting badge with its count in words, the shown agent current, and + new agent in the header", async () => {
-    const { createElement } = await import("react");
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { AgentsColumn } = await import("../app/src/agents/agents-column.tsx");
+  test("each agent a source in the daemon's order: its face, its name, the waiting count and the working dot", async () => {
+    const { agentSources } = await import("../app/src/agents/agents-column.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
-    selection.pickAgent("a2");
-    const html = renderToStaticMarkup(createElement(AgentsColumn, { agents, desks, items, avatar: () => "", initialAgentId: null, selection } as never));
-    expect(html).toContain(">Agents</h2>");
-    expect(html).toContain('aria-label="New agent"');
-    expect(html).toContain(">2 waiting</span>");
-    expect(html).toContain("loki-list-badge");
-    expect(html).toContain("working");
-    expect(html).toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*friday/);
-    expect(html).not.toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*ira/);
+    const sources = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: (id) => `face:${id}` });
+    expect(sources.items.map((x) => [x.id, x.title, x.face, x.count, x.live])).toEqual([
+      ["a1", "ira", "face:a1", 2, false],
+      ["a2", "friday", "face:a2", 0, true],
+    ]);
+    expect(sources.selected).toBe("a1");
   });
 
-  test("while the new-agent form is open no row is current", async () => {
-    const { createElement } = await import("react");
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { AgentsColumn } = await import("../app/src/agents/agents-column.tsx");
+  test("choosing an agent source selects it and keeps the page that was showing", async () => {
+    const { agentSources } = await import("../app/src/agents/agents-column.tsx");
+    const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
+    const selection = createAgentsSelection(null);
+    selection.pickPage("skills");
+    agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null }).onSelect("a2");
+    expect(selection.get()).toMatchObject({ agent: "a2", page: "skills" });
+    const after = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null });
+    expect(after.selected).toBe("a2");
+    // The place's own row stands for no one agent: choosing it keeps the agent shown.
+    after.onSelect(after.all);
+    expect(selection.get().agent).toBe("a2");
+  });
+
+  test("deleting the selected agent selects the first remaining one", async () => {
+    const { agentSources } = await import("../app/src/agents/agents-column.tsx");
+    const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
+    const selection = createAgentsSelection(null);
+    selection.pickAgent("a1");
+    // What the delete does once the daemon has removed it (use-agent-details.ts onDeleted): the pick is dropped.
+    selection.pickAgent(null);
+    const left = [{ id: "a2", name: "friday" }];
+    expect(agentSources({ agents: left, desks, items, initialAgentId: "a1", state: selection.get(), selection, face: () => null }).selected).toBe("a2");
+  });
+
+  test("while the new-agent form is open no agent is selected", async () => {
+    const { agentSources } = await import("../app/src/agents/agents-column.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
     selection.setCreating(true);
-    const html = renderToStaticMarkup(createElement(AgentsColumn, { agents, desks, items, avatar: () => "", initialAgentId: null, selection } as never));
-    expect(html).not.toContain('aria-current="page"');
+    const sources = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null });
+    expect(sources.selected).toBe(sources.all);
+  });
+
+  test("a source's working dot and count in the sidebar", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { Places } = await import("../app/src/shell/sidebar.tsx");
+    const html = renderToStaticMarkup(
+      createElement(Places, {
+        segment: "agents",
+        onSelect: () => {},
+        waiting: 0,
+        sources: { agents: { items: [{ id: "a2", title: "friday", count: 2, live: true }], selected: "a2", all: "", onSelect: () => {} } },
+      }),
+    );
+    expect(html).toContain('aria-label="friday, working, 2 waiting"');
+    expect(html).toContain("loki-list-row-live");
   });
 });
 
-/** The Agents pane (agents.tsx) with its column outside, in the Shell's ListColumn. */
-describe("agents pane", () => {
+/** Which Agents pages have a list (selection.ts agentsHasList): Profile's form spans the list and detail columns (R13). */
+describe("agents list column", () => {
+  test("Profile spans the list and detail; the list returns on Memory and the other pages", async () => {
+    const { agentsHasList } = await import("../app/src/agents/selection.ts");
+    expect(agentsHasList({ agent: "a1", page: "profile", creating: false }, 2)).toBe(false);
+    for (const page of ["memory", "changes", "reflection", "skills"] as const) expect(agentsHasList({ agent: "a1", page, creating: false }, 2)).toBe(true);
+  });
+  test("the new-agent form and the invitation before the first agent span them too", async () => {
+    const { agentsHasList } = await import("../app/src/agents/selection.ts");
+    expect(agentsHasList({ agent: "a1", page: "memory", creating: true }, 2)).toBe(false);
+    expect(agentsHasList({ agent: undefined, page: "memory", creating: false }, 0)).toBe(false);
+  });
+});
+
+/** Each page's items as the list's rows (the page files), and what choosing one shows in the detail (reading.ts). */
+describe("agents page lists", () => {
+  test("Memory lists the agent's files, flat under their folders, skills and the face left out; choosing one reads it", async () => {
+    const { memoryRows } = await import("../app/src/agents/memory-page.tsx");
+    const at = "2026-11-14T10:00:00Z";
+    const rows = memoryRows([
+      { path: "system/persona.md", bytes: 10, modified_at: at },
+      { path: "system/human.md", bytes: 10, modified_at: at },
+      { path: "notes.md", bytes: 10, modified_at: at },
+      { path: "skills/notes/SKILL.md", bytes: 10, modified_at: at },
+      { path: "profile.png", bytes: 10, modified_at: at },
+    ]);
+    expect(rows.map((r) => [r.id, r.title, r.section])).toEqual([
+      ["system/persona.md", "persona.md", "system"],
+      ["system/human.md", "human.md", "system"],
+      ["notes.md", "notes.md", undefined],
+    ]);
+    expect(readingFor("memory", rows[1].id, null, null)).toEqual({ kind: "file", path: "system/human.md" });
+  });
+  test("Changes lists the commits newest first, a pass's marked; Reflection lists only reflection's", async () => {
+    const { changeRows } = await import("../app/src/agents/changes-page.tsx");
+    const { reflectionRuns } = await import("../app/src/agents/reflection-page.tsx");
+    const at = "2026-11-14T10:00:00Z";
+    const log = [
+      { sha: "c3", message: "learn the deploy", at, files: ["notes.md"], author: "Reflection Subagent" },
+      { sha: "c2", message: "fix a typo", at, files: ["a.md", "b.md"], author: "ira" },
+    ];
+    const rows = changeRows(log);
+    expect(rows.map((r) => [r.id, r.title, r.preview])).toEqual([
+      ["c3", "learn the deploy", "notes.md"],
+      ["c2", "fix a typo", "2 files"],
+    ]);
+    expect(reflectionRuns(log).map((c) => c.sha)).toEqual(["c3"]);
+    expect(readingFor("reflection", "system/persona.md", null, null, "c3")).toEqual({ kind: "commit", sha: "c3" });
+    expect(readingFor("reflection", "system/persona.md", null, null, null)).toBeNull();
+  });
+  test("Skills lists the agent's own, then the installed ones, each under its group", async () => {
+    const { skillRows } = await import("../app/src/agents/skills-page.tsx");
+    const skills = [
+      { name: "stocks", path: "skills/stocks/SKILL.md", origin: "other", source: { label: "acme/skills" } },
+      { name: "notes", path: "skills/notes/SKILL.md", origin: "self", description: "Keep notes" },
+    ] as unknown as MemorySkillInfo[];
+    expect(skillRows(skills as never).map((r) => [r.id, r.section, r.preview])).toEqual([
+      ["notes", "Self", "Keep notes"],
+      ["stocks", "Other", "acme/skills"],
+    ]);
+  });
+});
+
+/** The Agents place's owner (agents.tsx): its list and its detail, from one state. */
+describe("agents place", () => {
   const props = (agents: Array<{ id: string; name: string }>) => ({
     agents,
-    api: {},
+    api: { get: () => new Promise(() => {}), log: () => Promise.resolve([]) },
     avatar: () => "",
     desks: [],
-    items: [],
     initialAgentId: null,
     onOpenDesk: () => {},
     onAskToUpdate: () => {},
@@ -208,24 +289,31 @@ describe("agents pane", () => {
     listModels: () => Promise.resolve([]),
     onShowDesks: () => {},
   });
-  test("no agents: the invitation, as an empty pane, with its new agent button", async () => {
-    const { createElement } = await import("react");
+  const render = async (p: object) => {
+    const { createElement, Fragment } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { Agents } = await import("../app/src/agents/agents.tsx");
+    const { useAgentsPlace } = await import("../app/src/agents/agents.tsx");
+    function Both(q: Parameters<typeof useAgentsPlace>[0]) {
+      const { list, detail } = useAgentsPlace(q);
+      return createElement(Fragment, null, createElement("div", { id: "list" }, list), createElement("div", { id: "detail" }, detail));
+    }
+    return renderToStaticMarkup(createElement(Both, p as never));
+  };
+  test("no agents: the invitation fills the detail, with no list", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
-    const html = renderToStaticMarkup(createElement(Agents, { ...props([]), columnOutside: true, selection: createAgentsSelection(null) } as never));
-    expect(html).toContain("loki-empty-pane");
+    const html = await render({ ...props([]), selection: createAgentsSelection(null) });
+    expect(html).toContain('<div id="list"></div>');
     expect(html).toContain("No agents yet<");
     expect(html).toContain(">New Agent</button>");
-    expect(html).not.toContain(">Agents</h2>");
   });
-  test("with the column inside (no Shell column), the list sits beside the pane", async () => {
-    const { createElement } = await import("react");
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { Agents } = await import("../app/src/agents/agents.tsx");
+  test("Memory has its list with New Agent in its toolbar and the pages centred in the detail's; Profile has no list", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
-    const html = renderToStaticMarkup(createElement(Agents, { ...props([]), selection: createAgentsSelection(null) } as never));
-    expect(html).toContain(">Agents</h2>");
-    expect(html).toContain("No agents yet<");
+    const selection = createAgentsSelection(null);
+    const memory = await render({ ...props([{ id: "a1", name: "ira" }]), selection });
+    expect(memory).toContain("loki-content-list");
+    expect(memory).toContain('aria-label="New Agent"');
+    selection.pickPage("profile");
+    const profile = await render({ ...props([{ id: "a1", name: "ira" }]), selection });
+    expect(profile).toContain('<div id="list"></div>');
   });
 });

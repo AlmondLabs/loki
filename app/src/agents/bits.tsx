@@ -12,20 +12,9 @@ export function Head({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The reading pane's shell: a scrolling column beside the list. */
+/** The detail's reading pane: a scrolling column beside the list. */
 export function Pane({ children }: { children: React.ReactNode }) {
   return <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 28px 24px" }}>{children}</div>;
-}
-
-/** The list beside the reading pane: a scrolling column with a rule down its right. */
-export function ListPane({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}
-    >
-      {children}
-    </div>
-  );
 }
 
 /** A memory file as prose: the frontmatter dropped, the markdown rendered; a line instead when there is nothing to show. */

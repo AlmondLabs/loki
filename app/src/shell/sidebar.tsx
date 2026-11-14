@@ -139,9 +139,11 @@ export interface PlaceSource {
   /** A face in place of the symbol: an agent's. */
   face?: ReactNode;
   count: number;
+  /** An agent at work: Slack's green dot at the face's corner. */
+  live?: boolean;
 }
 
-/** A place's sources under its row (plan 2026-11-14-1330, R1): Chats' Pinned, one per agent, and Archived. */
+/** A place's sources under its row (plan 2026-11-14-1330, R1): Chats' Pinned, one per agent, and Archived; Flow's lanes; the agents. */
 export interface PlaceSources {
   items: readonly PlaceSource[];
   /** The source showing in the list. */
@@ -240,10 +242,13 @@ export function Places({
                       type="button"
                       className="loki-place loki-place--source"
                       aria-current={here && own.selected === it.id ? "page" : undefined}
-                      aria-label={it.count > 0 ? `${it.title}, ${it.count} waiting` : it.title}
+                      aria-label={[it.title, it.live && "working", it.count > 0 && `${it.count} waiting`].filter(Boolean).join(", ")}
                       onClick={() => own.onSelect(it.id)}
                     >
-                      <span className="loki-place-icon">{it.face ?? (it.icon && <Icon name={it.icon} size={16} />)}</span>
+                      <span className="loki-place-icon">
+                        {it.face ?? (it.icon && <Icon name={it.icon} size={16} />)}
+                        {it.live && <span aria-hidden className="loki-list-row-live" />}
+                      </span>
                       <span className="loki-place-label">{it.title}</span>
                       {it.count > 0 && (
                         <span aria-hidden className="loki-place-count">

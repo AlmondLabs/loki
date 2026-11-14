@@ -279,15 +279,16 @@ Internals keep the name desk.
   a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
   for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
   hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
-  (Pinned, each agent, Archived), and Flow its lanes; the other places keep their lists under the places until they
-  move.
+  (Pinned, each agent, Archived), Flow its lanes, and Agents its agents (face, name, a green dot while one works, the
+  count of what waits in Flow; the Agents row stands for no one agent, so choosing it keeps the agent shown); Learn
+  keeps its list under the places until it moves.
 - **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
   edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden.
   A window under 800 wide folds it away until asked for, without touching the saved choice (1100 until 2026-11-14, which folded it in most windows beside another app; plan 2026-11-14-1130). Each section's
   list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. Each list's heading
   is a source-list heading under the places, small and grey, with its "+", except where it would repeat the place
-  above it (Chats, Agents): there it is said to a screen reader only and its "+" keeps the trailing edge, as Mail
+  above it (Chats until it moved to the list column): there it is said to a screen reader only and its "+" keeps the trailing edge, as Mail
   never names a mailbox twice; Learn's list starts at its Views.
 - **Chats list.** Chats on the three columns (plan 2026-11-14-1330, U3): the sidebar's source chosen, its chats in the
   list column on `ContentList`, the chat in the detail. The toolbar names the source, with New Chat (an agent's starts
@@ -314,9 +315,14 @@ Internals keep the name desk.
   Only the view on screen draws the composer. Each chat remembers its tab for ⌘[ ⌘]; an open always lands on
   Messages. The pane stays mounted, hidden, behind the other sections, so the mod link, the camera and the
   thread's scroll keep their state; its panels inherit that hiding and never set themselves visible.
-- **Agents** lists agents as Messages lists people (face, name, live dot, the last thing it said, a count of what
-  waits in Flow); the pane shows the chosen agent with a tab row for its pages (Profile, Memory,
-  Changes, Reflection, Skills). **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick. A window that opens with no chat remembered
+- **Agents** on the three columns (plan 2026-11-14-1330, KTD9): the agents are the sidebar's sources, the list column
+  holds the chosen page's items on `ContentList` (Memory's files flat under their folders, Changes' commits,
+  Reflection's runs, Skills under Self and Other) with New Agent in its toolbar, and the detail the item chosen, under
+  a toolbar with the agent's name and the pages (Profile, Memory, Changes, Reflection, Skills) as centred tab views.
+  Profile has no items, so its form spans the list and detail columns, and the list comes back on the other pages; so
+  do the new-agent form and the invitation before the first agent. One owner (`agents/agents.tsx`) holds the file,
+  the commit, the run and the skill chosen, so the list and the detail read the same choice. Each page's empty list
+  says so in a sentence. Until 2026-11-14 the agents were a list under the places, with the last thing each said. **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick. A window that opens with no chat remembered
   lands on Flow when something waits, else the latest chat, else "No Chat Selected" with **New Chat** (plan
   2026-11-14-1300); the desk's shared scope is never drawn as a chat. Every pane's header is the chat's toolbar: its
   name over a grey line of facts (Flow's lane and what needs you, an agent's page, Learn's counts), its controls at

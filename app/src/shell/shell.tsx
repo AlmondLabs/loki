@@ -12,7 +12,7 @@ import { useDeskPane } from "../desk/use-desk-pane";
 import { chatKeyTarget } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
 import { avatarUrl, inTauri } from "../desk/env";
-import { AgentsColumn } from "../agents/agents-column";
+import { agentSources } from "../agents/agents-column";
 import { LearnColumn } from "../recall/learn-column";
 import { flowSources } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
@@ -41,7 +41,7 @@ import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
-import { agentsSelection } from "../agents/selection";
+import { agentsHasList, agentsSelection, useAgentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
@@ -332,9 +332,24 @@ export function Shell() {
         onPass={(pass) => capture("inbox_pass_completed", pass)}
       />
     ),
+    // Drawn only while Agents shows; the chosen agent and page live in the selection store, so they outlast it.
+    agents: (
+      <AgentsView
+        desk={desk}
+        catchUp={catchUp}
+        onOpenDesk={openDesk}
+        onAskToUpdate={(agentId, text) => {
+          openDesk(agentId, "default", { chat: true });
+          setChatPrefill({ text, tick: Date.now() });
+        }}
+        onShowDesks={() => setSegment("desk")}
+      />
+    ),
   };
   const placeOwner = placeOwners[segment];
-  const hasList = segment === "desk" || placeOwner !== undefined;
+  /** The agent and page chosen in Agents: Profile has no items, so its form spans the list and detail columns (R13). */
+  const agentsState = useAgentsSelection();
+  const hasList = segment === "desk" || (segment === "agents" ? agentsHasList(agentsState, agentList.length) : placeOwner !== undefined);
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
   const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
   // The sidebar is the window's one place list (U12), beside every section, its places on top; the list column and the
@@ -374,6 +389,21 @@ export function Shell() {
     setPrefsOpen(false);
     setSegment("inbox");
     lanes.onSelect(id);
+  };
+  /** The agents as Agents' sources (plan 2026-11-14-1330, KTD9): choosing one shows it on the page that was showing. */
+  const agentPlaces = agentSources({
+    agents: agentList,
+    desks: deskList,
+    items: catchUp.items,
+    initialAgentId: desk.agentId,
+    state: agentsState,
+    face: (agentId, name) => <AgentFace name={name} src={avatarUrl(agentId)} size={16} />,
+  });
+  const chooseAgent = (id: string) => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("agents");
+    agentPlaces.onSelect(id);
   };
   /** A label's chats: every chat's list, searched for the label. */
   const showLabel = (name: string) => {
@@ -547,11 +577,11 @@ export function Shell() {
                   onSelect: chooseSource,
                 },
                 inbox: { ...lanes, onSelect: chooseLane },
+                agents: { ...agentPlaces, onSelect: chooseAgent },
               }}
             />
           }
           sections={{
-            agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
             learn: <LearnColumn recall={recall} />,
           }}
         />
@@ -596,7 +626,8 @@ export function Shell() {
 
         {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.detailLeft, right: 0, bottom: 0 }}>
-          {hasList && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
+          {/* A place's owner draws its detail here, with or without its list (Agents' Profile spans both). */}
+          {(hasList || placeOwner !== undefined) && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
           <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>{placeOwner}</PlaceSlotsProvider>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
@@ -662,19 +693,6 @@ export function Shell() {
           )}
 
           {segment === "learn" && <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
-
-          {segment === "agents" && (
-            <AgentsView
-              desk={desk}
-              catchUp={catchUp}
-              onOpenDesk={openDesk}
-              onAskToUpdate={(agentId, text) => {
-                openDesk(agentId, "default", { chat: true });
-                setChatPrefill({ text, tick: Date.now() });
-              }}
-              onShowDesks={() => setSegment("desk")}
-            />
-          )}
 
           {welcome && !prefsOpen && (
             <WelcomeView
