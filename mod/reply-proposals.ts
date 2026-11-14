@@ -163,6 +163,23 @@ export function replyAllOf(message: GmailMessage | undefined, own: readonly stri
 }
 
 /**
+ * Who a reply to all of `message` would reach now that the proposal did not name, and whom it named that it would no
+ * longer reach (KTD4), by bare address in lower case, To and Cc together: a new display name or another order is not a
+ * change. Both lists are empty when the people are the same, and the send at the end of the hold goes only then.
+ */
+export function peopleChange(
+  message: GmailMessage | undefined,
+  own: readonly string[],
+  proposal: { to: readonly string[]; cc: readonly string[] },
+): { added: string[]; removed: string[] } {
+  const bare = (list: readonly string[]) => new Set(list.flatMap((t) => people(t).map((p) => p.address)));
+  const { to, cc } = replyAllOf(message, own);
+  const now = bare([...to, ...cc]);
+  const was = bare([...proposal.to, ...proposal.cc]);
+  return { added: [...now].filter((a) => !was.has(a)), removed: [...was].filter((a) => !now.has(a)) };
+}
+
+/**
  * Who a reply to the sender alone goes to (plan 076): whom the message asks replies to go to (Reply-To), else its
  * sender; a message the person wrote themselves is answered to whom it went, as Gmail does.
  */

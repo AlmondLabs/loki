@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { headerMailboxes } from "../core/mail-header.ts";
 import type { Accounts } from "./accounts.ts";
 import type { GoogleApp } from "./google-app.ts";
-import { GoogleAuth, GoogleError } from "./google-auth.ts";
+import { GOOGLE_TIMEOUT_MS, GoogleAuth, GoogleError } from "./google-auth.ts";
 
 /**
  * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, labels and label changes,
@@ -13,6 +14,16 @@ import { GoogleAuth, GoogleError } from "./google-auth.ts";
  */
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
+/** Gmail's upload route for a send, which takes a message up to Gmail's 25 MB where the JSON route stops far sooner. */
+const UPLOAD_SEND = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send";
+/** The files a reply may carry together (R8): Gmail's 25 MB counts the encoded message, which grows about a third. */
+const UPLOAD_CAP_BYTES = 17 * 1024 * 1024;
+
+/**
+ * How long a send through the upload route may take (KTD11): 120 seconds for a message at the files' cap, in proportion
+ * below it, and never less than an ordinary call's 20 seconds.
+ */
+const uploadTimeoutMs = (bytes: number): number => Math.max(GOOGLE_TIMEOUT_MS, Math.ceil((120_000 * bytes) / UPLOAD_CAP_BYTES));
 
 /** One message header, as Gmail names it. */
 export interface GmailHeader {
@@ -432,13 +443,43 @@ export class GmailClient {
   /**
    * Send a message now: the person's own reply in its thread (plan 068), the message `createDraft` would keep, or a
    * script's mail (mod/google-tools/gmail.ts, plan 2026-11-11 scripts). Those two are its only callers; no tool the model
-   * calls directly sends. Answers with the sent message's id and the thread Gmail put it in.
+   * calls directly sends. A message with files goes through the upload route, one without as JSON. Answers with the
+   * sent message's id and the thread Gmail put it in.
    */
   async sendReply(reply: GmailDraftInput): Promise<{ id: string; threadId?: string }> {
-    const raw = Buffer.from(rfc2822(reply), "utf8").toString("base64url");
     // A new message (a script's, plan 2026-11-11) has no thread yet: Gmail starts one.
-    const r = rec(await this.call("POST", "/messages/send", undefined, { raw, ...(reply.threadId ? { threadId: reply.threadId } : {}) }));
+    const thread = reply.threadId ? { threadId: reply.threadId } : {};
+    const r = rec(
+      reply.attachments?.length
+        ? await this.upload(rfc2822(reply), thread)
+        : await this.call("POST", "/messages/send", undefined, { raw: Buffer.from(rfc2822(reply), "utf8").toString("base64url"), ...thread }),
+    );
     return { id: str(r.id), ...(typeof r.threadId === "string" ? { threadId: r.threadId } : {}) };
+  }
+
+  /**
+   * Send a message with files through Gmail's upload route (KTD6), as a multipart upload: the thread in a JSON part,
+   * since the message alone cannot say which thread it joins, then the message itself as RFC 822.
+   */
+  private upload(message: string, thread: { threadId?: string }): Promise<unknown> {
+    // The boundary must not occur in the message, whose own boundaries start "loki-" and whose files are base64.
+    const boundary = `upload-${randomUUID()}`;
+    const body = Buffer.from(
+      [
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(thread)}`,
+        `--${boundary}\r\nContent-Type: message/rfc822\r\n\r\n${message}`,
+        `--${boundary}--\r\n`,
+      ].join("\r\n"),
+      "utf8",
+    );
+    return this.auth.json({
+      service: "gmail",
+      method: "POST",
+      url: UPLOAD_SEND,
+      query: { uploadType: "multipart" },
+      body: { data: new Uint8Array(body), type: `multipart/related; boundary=${boundary}` },
+      timeoutMs: uploadTimeoutMs(body.length),
+    });
   }
 
   /** A Gmail call through the account's sign-in (GoogleAuth): its JSON answer, `{}` for an empty one. */
