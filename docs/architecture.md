@@ -113,7 +113,7 @@ every chat gets, the chats, then the mods.
    runs those with `bash`, whose read-only commands the gate weighs as reads (`daemon/read-only-command.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
    read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
-   compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one
+   compacted (`daemon/history-tools.ts`, plan 062). The history and schedule tools are script-only (plan 099). `daemon/extensions.ts` installs the built-in extensions in one
    ordered list, the permission gate first among them (`loki.mcp` is installed earlier, but has no hooks), and each of
    loki's tools declares its kind (read, edit or command) on its own definition (`daemon/tool-kinds.ts`). The memory,
    history, schedule and question tools, and the mods' tools, are written once as `ChatTool`s (`daemon/chat-tools.ts`),
@@ -133,7 +133,9 @@ every chat gets, the chats, then the mods.
    sandbox, with its limits as constants there (time, memory, scripts at once, the section's listing budget). The
    `loki.scripts` extension wraps the `codemode` tool so a script sees only the script-only tools (`callers:
    ["tools"]`) and the file tools, runs one at a time in a round, and always has a deadline; its section shows only
-   where the tool is offered. The mod registry hides `codemode` from an agent with no script-only tool. The release
+   where the tool is offered. Every chat that does not name its tools outright is offered `codemode` (plan 099), whose
+   description is loki's own, shorter than Code Mode's; the history, schedule, canvas and `chat_list` tools are
+   script-only, so every agent has tools for it. The release
    bundle carries the sandbox's worker (`codemode-worker.mjs`) and the QuickJS wasm beside `daemon.mjs`, and
    `daemon.mjs --check-scripts` runs one script for the smoke test.
 8. **Background and scheduled tasks (`daemon/background.ts`, `daemon/schedule.ts`).** A background bash command
@@ -204,8 +206,9 @@ every chat gets, the chats, then the mods.
     usage goes into `pi.usage` for the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona,
     memory and skills go in its system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts`
     (plan 044): one MCP endpoint on a random loopback port for the whole daemon, with a key per chat, kept in memory,
-    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`); an agent
-    with script-only tools is served one `script` tool instead of them, run by `scripts.ts` in the daemon's sandbox
+    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`); every
+    agent's script-only tools (plan 099) are served as one `script` tool instead of them, listed as read-only for the
+    agent so it runs without asking first, run by `scripts.ts` in the daemon's sandbox
     with the same one card a run and the same fence (plan 097, U5). The MCP servers the agent has on are
     handed over as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in
     asks for its page (a URL elicitation), shown as a card and opened in this computer's default browser (`open-url.ts`:
@@ -238,7 +241,8 @@ so each bundle has its own copy and both see the same files. Anything that holds
    transform.
 3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
    `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
-   links), `suggestion_create` and `chat_message`. These are marked
+   links), `suggestion_create` and `chat_message`. The first three are scripts' only (plan 099); a `canvas` prompt
+   section tells every chat that widgets are files it writes. These are marked
    read-only and listed in `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a
    background pass fails; `chat_message` asks on its own link card instead.
 4. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,

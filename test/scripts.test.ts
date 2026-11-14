@@ -14,7 +14,7 @@ import type { ModApi } from "../daemon/mods/api.ts";
 import { fileToolsExtension } from "../daemon/tools.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
 import { chatEnvs } from "../daemon/tool-results.ts";
-import { scriptExtensions, scriptSandbox, SCRIPT_TOOL, withTimeLimit } from "../daemon/scripts.ts";
+import { SCRIPT_DESCRIPTION, scriptExtensions, scriptSandbox, SCRIPT_TOOL, withTimeLimit } from "../daemon/scripts.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const OWNER = "agent-local-owner";
@@ -122,7 +122,7 @@ function folder(): string {
 }
 
 describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
-  test("AE2: an agent with a script-only tool is offered the script tool and a section listing it; one without is offered neither", async () => {
+  test("AE2 and plan 099: every agent is offered the script tool; only the one offered a namespace's tools sees that namespace", async () => {
     const d = await daemon();
     const dir = folder();
     const owner = await chatOf(d, OWNER, dir);
@@ -130,7 +130,7 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     const offered = async (chat: typeof owner) => (await chat.agent(ctx)).tools.map((t) => t.name);
     expect(await offered(owner)).toContain(SCRIPT_TOOL);
     expect(await offered(owner)).not.toContain("google_echo");
-    expect(await offered(other)).not.toContain(SCRIPT_TOOL);
+    expect(await offered(other)).toContain(SCRIPT_TOOL);
 
     sent.length = 0;
     d.faux.setResponses([reply(fauxAssistantMessage("hi")), reply(fauxAssistantMessage("hi"))]);
@@ -140,8 +140,19 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     expect(ownerRequest).toContain("<codemode>");
     // The section names the namespace the tool is in; a script finds the tool itself with searchTools().
     expect(ownerRequest).toContain("Gmail, Drive, Sheets, Docs and Calendar");
-    expect(otherRequest).not.toContain("<codemode>");
+    expect(otherRequest).toContain("<codemode>");
+    expect(otherRequest).not.toContain("Gmail, Drive, Sheets, Docs and Calendar");
     expect(otherRequest).not.toContain("google_echo");
+  });
+
+  test("plan 099, KTD6: the script tool carries loki's own description, under 250 tokens, naming how to find and call tools", async () => {
+    const d = await daemon();
+    const chat = await chatOf(d, OTHER, folder());
+    const tool = (await chat.agent(ctx)).tools.find((t) => t.name === SCRIPT_TOOL);
+    expect(tool?.description).toBe(SCRIPT_DESCRIPTION);
+    expect(Math.ceil(JSON.stringify({ name: tool?.name, description: tool?.description, parameters: tool?.parameters }).length / 4)).toBeLessThan(250);
+    for (const words of ["tools.<name>", "searchTools", "describeTool", "console.log", "store(key, value)", "// @options:"])
+      expect(SCRIPT_DESCRIPTION).toContain(words);
   });
 
   test("AE6: a script sees the script-only tools and the file tools, and has no bash, helpers, fetch or require", async () => {
@@ -254,13 +265,15 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     expect(result).toMatch(/out of memory/i);
   });
 
-  test("a script past the daemon's cap on scripts at once is refused with the reason", async () => {
-    const sandbox = scriptSandbox({ atOnce: 1, timeoutMs: 1000 });
+  test("a script past the daemon's cap on scripts at once is refused with the reason, and the refusal is told once (plan 099, R8)", async () => {
+    const refusals: number[] = [];
+    const sandbox = scriptSandbox({ atOnce: 1, timeoutMs: 1000 }, (running) => refusals.push(running));
     open.push(() => sandbox.close());
     const spinning = sandbox.execute("while (true) {}");
     const refused = await sandbox.execute("return 1");
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error.message).toContain("1 scripts are already running");
+    expect(refusals).toEqual([1]);
     expect((await spinning).ok).toBe(false);
   });
 

@@ -78,8 +78,9 @@ describe("per-agent mod tools on loki's engine (plan 067, U1)", () => {
     try {
       await s.b.chat.configure({ tools: { remove: [{ name: "mcp__fake__list_issues" } as never] } }, ctx);
       await s.offered(s.b);
-      // The script tool is hidden too: none of this agent's tools is script-only (daemon/scripts.ts).
-      expect(await s.b.store.agentSettings(s.b.chat.id, ctx)).toMatchObject({ tools: { remove: ["mcp__fake__list_issues", "account_read", "codemode"] } });
+      // The script tool is every chat's (plan 099), so it is not hidden here, though none of this agent's mod tools is
+      // script-only.
+      expect(await s.b.store.agentSettings(s.b.chat.id, ctx)).toMatchObject({ tools: { remove: ["mcp__fake__list_issues", "account_read"] } });
     } finally {
       await s.close();
     }

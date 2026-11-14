@@ -39,11 +39,13 @@ interface Called {
   name: string;
   description: string;
   annotations: ModTool["annotations"];
+  callers: ModTool["callers"];
   run: (c: { args?: Record<string, unknown>; conversation?: { id: string }; agent?: { id: string; name: string } }) => Promise<unknown>;
 }
 
 function harness(deps?: Partial<ToolDeps>) {
   const tools = new Map<string, Called>();
+  const sections = new Map<string, () => string | undefined>();
   const api = {
     tools: {
       register: (t: ModTool) => {
@@ -51,6 +53,7 @@ function harness(deps?: Partial<ToolDeps>) {
           name: t.name,
           description: t.description,
           annotations: t.annotations,
+          callers: t.callers,
           run: async (c) =>
             await t.execute(c.args ?? {}, {
               chatId: c.conversation?.id ?? "",
@@ -61,6 +64,12 @@ function harness(deps?: Partial<ToolDeps>) {
             }),
         });
         return () => tools.delete(t.name);
+      },
+    },
+    prompt: {
+      section: (key: string, render: () => string | undefined) => {
+        sections.set(key, render);
+        return () => sections.delete(key);
       },
     },
   } as unknown as ModApi;
@@ -85,7 +94,7 @@ function harness(deps?: Partial<ToolDeps>) {
     broadcast: (m, s) => broadcasts.push([m, s]),
     ...deps,
   });
-  return { tools, broadcasts };
+  return { tools, broadcasts, sections };
 }
 
 /** What canvas_read answers, as the tests read it. */
@@ -128,6 +137,12 @@ describe("canvas_read", () => {
     expect(explicit.desk).toBe("shared");
   });
 
+  test("an agent's main chat, whose id is `default`, reads its own desk, `default-<agent>`, not one named `default`", async () => {
+    const { tools } = harness();
+    const out = await deskState(tools, { args: {}, conversation: { id: "default" }, agent: { id: "agent-local-ada", name: "Ada" } });
+    expect(out.desk).toBe("default-agent-local-ada");
+  });
+
   test("explicit desk=shared returns only the shared desk", async () => {
     const { tools } = harness();
     const out = await deskState(tools, { args: { desk: "shared" } });
@@ -135,10 +150,22 @@ describe("canvas_read", () => {
     expect(out.shared).toBeUndefined();
     expect(out.widgets.map((w: { id: string }) => w.id)).toEqual(["shared/welcome"]);
   });
-  test("description tells the agent to write files, not to look for a render tool", () => {
-    const { tools } = harness();
-    expect(must(tools.get("canvas_read"), "canvas_read").description).toMatch(/write a file/);
-    expect(must(tools.get("canvas_read"), "canvas_read").description).toMatch(/@loki\/kit/);
+  test("the canvas section tells every chat to write files, not to look for a render tool, since canvas_read is a script's (plan 099)", () => {
+    const { tools, sections } = harness();
+    const section = must(sections.get("canvas"), "the canvas section")() ?? "";
+    expect(section).toMatch(/writing files, never through a tool/);
+    expect(section).toMatch(/@loki\/kit/);
+    expect(section).toContain("/proj/app/src/widgets/<desk>/<name>.json");
+    expect(must(tools.get("canvas_read"), "canvas_read").description).not.toMatch(/@loki\/kit/);
+  });
+
+  test("the canvas tools and chat_list are for scripts only; the tools whose card is the person's are the model's (plan 099)", () => {
+    const { tools } = harness({
+      chats: { suggestions: { add: () => Promise.reject(new Error("not called")) }, agents: () => [], chats: () => [], passChat: () => false },
+    });
+    const scriptOnly = [...tools.values()].filter((t) => t.callers?.includes("model") === false).map((t) => t.name);
+    expect(scriptOnly.sort()).toEqual(["canvas_focus", "canvas_read", "chat_list"]);
+    expect(tools.get("suggestion_create")?.callers).toBeUndefined();
   });
 });
 

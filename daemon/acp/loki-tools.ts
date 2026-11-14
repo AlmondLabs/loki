@@ -110,12 +110,15 @@ export class LokiTools {
     return tools.map((t) => `mcp__${LOKI_TOOLS_SERVER}__${t}`);
   }
 
-  /** loki's tools that only read, as the agent names them: it runs them without asking, as loki's engine does. */
+  /**
+   * loki's tools that only read, as the agent names them: it runs them without asking, as loki's engine does. A
+   * script-only tool is not served, so it is not named; the script tool is, when scripts run here, since a script asks
+   * loki's own card at its first change (plan 097, U5) and reading the canvas or history with one should not ask
+   * (plan 099).
+   */
   readOnly(): string[] {
-    return this.deps
-      .tools()
-      .filter((t) => t.kind === "read")
-      .map((t) => `mcp__${LOKI_TOOLS_SERVER}__${t.name}`);
+    const served = this.deps.tools().filter((t) => t.kind === "read" && (!t.callers || t.callers.includes("model")));
+    return LokiTools.named([...(this.deps.scripts ? [ACP_SCRIPT_TOOL] : []), ...served.map((t) => t.name)]);
   }
 
   private async serve(req: IncomingMessage, res: ServerResponse): Promise<void> {

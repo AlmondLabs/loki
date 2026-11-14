@@ -90,6 +90,9 @@ changing that would make reading mail worse. Changing it makes one path good eno
     or Jira owner without Google went from about 556 to 1,050, since it now pays for the script tool and its section.
     R7 holds for Google owners and not for the others; the person accepted that cost on 2026-11-13 over offering such
     agents direct tools again, which would bring back two ways to the same reads.
+  - Corrected on 2026-11-14 (plan 099, U1): the measurement counted every tool definition twice, once in the tool list
+    and once in the system message that carries it, so these figures are about twice the real cost of the script tool.
+    Counted once, a Google owner paid 606 tokens a turn more than an agent with no account, and a Slack owner 559.
 
 ### Scope Boundaries
 

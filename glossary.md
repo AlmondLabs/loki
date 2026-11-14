@@ -118,7 +118,7 @@ beads-backed task list, in October 2026. _Avoid_: task, proposal, recommendation
 
 **History tools** (`daemon/history-tools.ts`, plans 062 and 063): `history_search` and `history_read`, which let an
 agent find and read the turns of its own chat that a compaction summarized away. They read the ChatProjection, and
-number rows as the thread does. ACP chats have them too.
+number rows as the thread does. They are script-only tools (plan 099), in every chat, ACP chats included.
 
 **Canvas** and **widget** (`mod/widgets-fs.ts`): the canvas is the space beside a chat where its widgets sit, plus a
 shared canvas every chat sees. A widget is one file under `~/.loki/widgets/<desk>/` (`shared/` for the shared one):
@@ -202,14 +202,15 @@ perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and 
 Jira ticket it is a comment, and approved it waits in the ticket card's comment box until the person sends it. A reply
 proposal never sends; a script may send from a Google account (Script). _Avoid_: sent reply, outgoing message.
 
-**Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program an agent on loki's engine runs
-with its `codemode` tool, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools
+**Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program any agent runs with its
+`codemode` tool (plan 099), or loki's `script` tool in an ACP chat, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools
 scripts may call. It asks by what it does, once a run, at its first call that would ask (plan 097), never "always
 allow", and resumes after a restart. _Avoid_: code
 execution, exec.
 
 **Script-only tool** (`callers: ["tools"]` on a tool, `ModTool.callers`): a tool only scripts call, never offered to the
-model or to an ACP chat, grouped under a namespace the script section names (the `google_*` tools, in `google`). A
+model or to an ACP chat, grouped under a namespace the script section names (the `google_*` tools in `google`;
+loki's own history, schedule, canvas and `chat_list` tools in `history`, `schedule`, `canvas` and `chat`, plan 099). A
 script finds one with `searchTools()` and reads it with `describeTool()`. _Avoid_: hidden tool, internal tool.
 
 **Item** (`app/src/item/`, plan 097): one thing the new chat pane draws, whatever its source: a chat, a Slack thread,

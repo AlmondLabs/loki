@@ -56,8 +56,9 @@ export const SCRIPTS_AT_ONCE = 4;
 /**
  * Estimated tokens the prompt's script section may spend listing tools one by one: none. The section names each
  * namespace and what it is for, and a script finds a tool with `searchTools()` and reads it with `describeTool()`.
- * Measured on 2026-11-11 (test/scripts-prompt.test.ts): an owning agent's prompt gains about 991 tokens a turn with
- * this (582 the section, 409 the script tool), 1,119 with 150 and 1,460 with 600, against a 1,000-token target.
+ * Measured on 2026-11-11 as 991 tokens a turn with this, 1,119 with 150 and 1,460 with 600; those figures counted
+ * the script tool's definition twice (plan 099, U1). Counted once, a Google owner paid about 606 a turn more than an
+ * agent with no account on 2026-11-14: the script tool's definition (409) and the script and accounts sections.
  */
 export const SCRIPT_LISTING_TOKENS = 0;
 
@@ -75,7 +76,25 @@ export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
   { name: "slack", prefix: "slack_", description: "Read the Slack workspaces this agent owns." },
   { name: "jira", prefix: "jira_", description: "Read tickets on the Jira sites this agent owns." },
   { name: "flow", prefix: "flow_", description: "The threads waiting in Flow for this agent's accounts." },
+  // loki's own tools, for every agent (plan 099). `chat_` also prefixes chat_message, which is the model's, not a script's.
+  { name: "history", prefix: "history_", description: "Search and read this chat's whole history, compacted turns included." },
+  { name: "schedule", prefix: "schedule_", description: "List, create and cancel this chat's scheduled prompts." },
+  { name: "canvas", prefix: "canvas_", description: "Read the canvas beside this chat, and move the person's view to widgets." },
+  { name: "chat", prefix: "chat_", description: "List the person's agents and open chats." },
 ];
+
+/**
+ * The script tool's description, loki's own (plan 099, KTD6): every chat pays for it each turn, so it says only what a
+ * script needs to run correctly. Code Mode's own text also explains its output format, `image()`, `exit()`,
+ * `ALL_TOOLS`, `describeNamespace()` and how a script resumes after a restart; those still hold, unmentioned. Kept under 250 tokens (test/scripts.test.ts).
+ */
+export const SCRIPT_DESCRIPTION = [
+  "Run JavaScript that calls loki's tools, in a sandbox with no files, network, timers or programs of its own. The input is raw JavaScript (no JSON, no code fence), run as an async function body: top-level `await` and `return` work.",
+  "- `await tools.<name>({ ...args })` resolves to a string, or an object when the tool's declaration says so, and rejects with an Error on failure. Calls still running when the script ends are cancelled.",
+  "- The `codemode` section names the namespaces. Find a tool with `await searchTools(query)` and read how to call it with `await describeTool(name)`.",
+  "- `return`, `text(value)` and `console.log(...)` give output. `store(key, value)` and `load(key)` keep JSON values between scripts.",
+  '- An optional first line sets limits: `// @options: {"timeout_ms": 60000, "max_output_tokens": 10000}`.',
+].join("\n");
 
 /** Whether only scripts may call a tool: it names scripts as callers and not the model. */
 export function isScriptOnly(tool: Pick<ToolRegistration, "callers">): boolean {
@@ -100,9 +119,13 @@ function bundledWorker(): URL | undefined {
 /**
  * The daemon's one sandbox, holding only defaults: each script gets its own worker and VM. Admission counts workers
  * until they exit, so a script that timed out still holds its place while its thread winds down. `limits` default to
- * the constants above; tests pass small ones.
+ * the constants above; tests pass small ones. Each refused script is told to `refused` with how many were running
+ * (plan 099, R8): the daemon logs it, so the cap can be judged by how often every chat's scripts meet it.
  */
-export function scriptSandbox(limits: { timeoutMs?: number; memoryLimitBytes?: number; atOnce?: number } = {}): CodemodeSandbox {
+export function scriptSandbox(
+  limits: { timeoutMs?: number; memoryLimitBytes?: number; atOnce?: number } = {},
+  refused: (running: number) => void = () => {},
+): CodemodeSandbox {
   const atOnce = limits.atOnce ?? SCRIPTS_AT_ONCE;
   let running = 0;
   const workerUrl = bundledWorker();
@@ -111,7 +134,10 @@ export function scriptSandbox(limits: { timeoutMs?: number; memoryLimitBytes?: n
     memoryLimitBytes: limits.memoryLimitBytes ?? SCRIPT_MEMORY_BYTES,
     ...(workerUrl ? { workerUrl } : {}),
     acquireWorker: () => {
-      if (running >= atOnce) throw new Error(`${atOnce} scripts are already running in other chats: run this one again when one finishes`);
+      if (running >= atOnce) {
+        refused(running);
+        throw new Error(`${atOnce} scripts are already running in other chats: run this one again when one finishes`);
+      }
       running++;
       let released = false;
       return () => {
@@ -206,6 +232,7 @@ export function scriptExtensions(
     wraps: [
       wrapTool(tool, (t) => ({
         ...t,
+        description: SCRIPT_DESCRIPTION,
         executionMode: "sequential",
         execute: async (args, api, context) =>
           fencedIfRead(

@@ -125,8 +125,14 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect(tools.readOnly()).toEqual(["mcp__loki__whoami"]);
   });
 
-  test("covers plan 063: the history tools search the ACP chat's own stored turns, by the thread's rows, without asking", async () => {
+  test("covers plan 063 and plan 099: the history tools search the ACP chat's own stored turns from a script, without asking", async () => {
     const chats = new ChatProjection(ctx, () => null);
+    const scripts: AcpScripts = {
+      sandbox: scriptSandbox(),
+      timeoutMs: 30_000,
+      strangerText: () => false,
+      ask: () => Promise.reject(new Error("a read never asks")),
+    };
     const { tools, conversationId } = await setup(async (store, chatId) => {
       await store.setAgent({ id: "ada", name: "Ada" }, ctx);
       const chat = await store.chat(chatId, ctx);
@@ -134,13 +140,15 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
       await store.importEntries(chat, sampleEntries(), ctx);
       await chats.attach("ada", store);
       return historyTools(chats);
-    });
+    }, scripts);
     const asked = chats.thread(conversationId, "ada").findIndex((r) => r.role === "user" && r.text.includes("readme"));
     expect(asked).toBeGreaterThanOrEqual(0);
     const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));
-    const found = await loki.callTool({ name: "history_search", arguments: { query: "readme" } });
+    expect((await loki.listTools()).tools.map((t) => t.name)).toEqual(["script"]);
+    const found = await loki.callTool({ name: "script", arguments: { code: "return await tools.history_search({ query: 'readme' })" } });
     expect(JSON.stringify(found.content)).toContain(`#${asked} person`);
-    expect(tools.readOnly()).toEqual(["mcp__loki__history_search", "mcp__loki__history_read"]);
+    // The script tool runs without the agent asking; the history tools are not served, so they are not named.
+    expect(tools.readOnly()).toEqual(["mcp__loki__script"]);
   });
 
   test("covers plan 061: a pass's chat is served only its job's tools, and the calls it ran are taken once", async () => {
@@ -328,6 +336,8 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     });
     expect(JSON.stringify(out.content)).toContain("sugg-1");
     expect([...stored.values()].flat()).toMatchObject([{ id: "sugg-1", status: "pending", target: { agent_id: "agent-local-ira", folder: "/work/site" } }]);
-    expect(tools.readOnly()).toEqual(expect.arrayContaining(["mcp__loki__chat_list", "mcp__loki__suggestion_create"]));
+    // chat_list is a script's now (plan 099), so it is not served or named; suggestion_create still runs unasked.
+    expect(tools.readOnly()).toContain("mcp__loki__suggestion_create");
+    expect(tools.readOnly()).not.toContain("mcp__loki__chat_list");
   });
 });
