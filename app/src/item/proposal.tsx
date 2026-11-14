@@ -2,7 +2,7 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { PendingApproval } from "../../../core/attention/model.ts";
 import { offersAlways } from "../../../core/attention/model.ts";
 import { formatInput } from "../../../core/attention/format.ts";
-import type { ReplyProposal } from "../../../core/frame-types.ts";
+import type { ReplyAttachment, ReplyProposal } from "../../../core/frame-types.ts";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { Textarea } from "@/ui/textarea";
@@ -191,6 +191,62 @@ export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? 
 const NONE: ReplyProposal[] = [];
 
 /**
+ * A reply's files on the desktop card: each with its size, Show in Finder where it can be shown, and Remove or Put
+ * Back; a file already on a Jira ticket says so and cannot be taken off. Its own component, so the card stays readable.
+ */
+function ReplyFiles({
+  files,
+  kept,
+  attached,
+  disabled,
+  reveal,
+  onToggle,
+}: {
+  files: readonly ReplyAttachment[];
+  kept: readonly ReplyAttachment[];
+  attached: readonly string[];
+  disabled: boolean;
+  reveal: ((path: string) => void) | null;
+  onToggle: (name: string) => void;
+}) {
+  if (files.length === 0) return null;
+  return (
+    <ul aria-label="Files" data-attachments className="m-0 flex list-none flex-col gap-1 p-0 text-meta text-muted-foreground">
+      {files.map((f) => {
+        const on = kept.includes(f);
+        return (
+          <li key={f.name} data-file={f.name} className="flex flex-wrap items-center gap-2">
+            <span className={cn(!on && "line-through")}>{fileText(f)}</span>
+            {attached.includes(f.name) ? (
+              <span>Already on the ticket</span>
+            ) : (
+              <>
+                {!on && <span>Taken off</span>}
+                {reveal && (
+                  <Button size="sm" variant="ghost" onClick={() => reveal(f.path)} data-action="reveal" aria-label={`${revealLabel()}: ${f.name}`}>
+                    {revealLabel()}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => onToggle(f.name)}
+                  data-action={on ? "remove-file" : "keep-file"}
+                  aria-label={on ? `Remove ${f.name}` : `Put Back ${f.name}`}
+                >
+                  {on ? "Remove" : "Put Back"}
+                </Button>
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
  * One reply proposal: a quiet quote of its text until Edit opens it, its files, then Send and Reject; while sending,
  * Undo. A refusal says why, and a change in the thread's people is spelled out.
  */
@@ -209,7 +265,6 @@ export function ReplyProposalView({
   const { undoRef, ...card } = useReplyCard(p, onDecide);
   const [editing, setEditing] = useState(false);
   const off = card.busy || card.sending || !!blocked;
-  const attached = new Set(p.attached ?? []);
   // Flow's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
   return (
@@ -232,40 +287,7 @@ export function ReplyProposalView({
         ) : (
           <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{card.text}</blockquote>
         )}
-        {(p.attachments?.length ?? 0) > 0 && (
-          <ul aria-label="Files" data-attachments className="m-0 flex list-none flex-col gap-1 p-0 text-meta text-muted-foreground">
-            {(p.attachments ?? []).map((f) => {
-              const kept = card.kept.includes(f);
-              return (
-                <li key={f.name} data-file={f.name} className="flex flex-wrap items-center gap-2">
-                  <span className={cn(!kept && "line-through")}>{fileText(f)}</span>
-                  {attached.has(f.name) ? (
-                    <span>Already on the ticket</span>
-                  ) : (
-                    <>
-                      {!kept && <span>Taken off</span>}
-                      {reveal && (
-                        <Button size="sm" variant="ghost" onClick={() => reveal(f.path)} data-action="reveal" aria-label={`${revealLabel()}: ${f.name}`}>
-                          {revealLabel()}
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={off}
-                        onClick={() => card.toggleFile(f.name)}
-                        data-action={kept ? "remove-file" : "keep-file"}
-                        aria-label={kept ? `Remove ${f.name}` : `Put Back ${f.name}`}
-                      >
-                        {kept ? "Remove" : "Put Back"}
-                      </Button>
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <ReplyFiles files={p.attachments ?? []} kept={card.kept} attached={p.attached ?? []} disabled={off} reveal={reveal} onToggle={card.toggleFile} />
         {card.sending && (
           <p role="status" className="m-0 text-meta text-muted-foreground">
             Sending…

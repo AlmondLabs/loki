@@ -130,6 +130,64 @@ const NONE: ReplyProposal[] = [];
 /** The phone's Inbox card takes a drag for a swipe; a drag or a tap inside the reply's text is the text's. */
 const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
+/**
+ * A reply's files on the touch card: each with its size, Show in Finder where it can be shown, and Remove or Put Back;
+ * a file already on a Jira ticket says so and cannot be taken off. Its own component, so the card stays readable.
+ */
+function ReplyFiles({
+  files,
+  kept,
+  attached,
+  disabled,
+  reveal,
+  onToggle,
+  size,
+}: {
+  files: readonly ReplyAttachment[];
+  kept: readonly ReplyAttachment[];
+  attached: readonly string[];
+  disabled: boolean;
+  reveal: ((path: string) => void) | null;
+  onToggle: (name: string) => void;
+  size: "touch" | "sm";
+}) {
+  if (files.length === 0) return null;
+  return (
+    <ul aria-label="Files" data-attachments style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
+      {files.map((f) => {
+        const on = kept.includes(f);
+        return (
+          <li key={f.name} className="loki-suggestion-note" data-file={f.name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <span style={{ textDecoration: on ? undefined : "line-through" }}>{fileText(f)}</span>
+            {attached.includes(f.name) ? (
+              <span>Already on the ticket</span>
+            ) : (
+              <>
+                {!on && <span>Taken off</span>}
+                {reveal && (
+                  <Button size={size} bare onClick={() => reveal(f.path)} data-action="reveal" aria-label={`${revealLabel()}: ${f.name}`}>
+                    {revealLabel()}
+                  </Button>
+                )}
+                <Button
+                  size={size}
+                  bare
+                  disabled={disabled}
+                  onClick={() => onToggle(f.name)}
+                  data-action={on ? "remove-file" : "keep-file"}
+                  aria-label={on ? `Remove ${f.name}` : `Put Back ${f.name}`}
+                >
+                  {on ? "Remove" : "Put Back"}
+                </Button>
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** One reply: where it goes, its text and files to edit, then Send and Reject, or Undo while it is sending. */
 function ReplyProposalCard({
   proposal: p,
@@ -147,7 +205,6 @@ function ReplyProposalCard({
   const { undoRef, ...card } = useReplyCard(p, onDecide);
   const off = card.busy || card.sending || !!blocked;
   const size = touch ? "touch" : "sm";
-  const attached = new Set(p.attached ?? []);
   // The Inbox's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
   return (
@@ -171,45 +228,15 @@ function ReplyProposalCard({
           onKeyDown={keys}
           aria-label="Reply text"
         />
-        {(p.attachments?.length ?? 0) > 0 && (
-          <ul aria-label="Files" data-attachments style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
-            {(p.attachments ?? []).map((f) => {
-              const kept = card.kept.includes(f);
-              return (
-                <li
-                  key={f.name}
-                  className="loki-suggestion-note"
-                  data-file={f.name}
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}
-                >
-                  <span style={{ textDecoration: kept ? undefined : "line-through" }}>{fileText(f)}</span>
-                  {attached.has(f.name) ? (
-                    <span>Already on the ticket</span>
-                  ) : (
-                    <>
-                      {!kept && <span>Taken off</span>}
-                      {reveal && (
-                        <Button size={size} bare onClick={() => reveal(f.path)} data-action="reveal" aria-label={`${revealLabel()}: ${f.name}`}>
-                          {revealLabel()}
-                        </Button>
-                      )}
-                      <Button
-                        size={size}
-                        bare
-                        disabled={off}
-                        onClick={() => card.toggleFile(f.name)}
-                        data-action={kept ? "remove-file" : "keep-file"}
-                        aria-label={kept ? `Remove ${f.name}` : `Put Back ${f.name}`}
-                      >
-                        {kept ? "Remove" : "Put Back"}
-                      </Button>
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <ReplyFiles
+          files={p.attachments ?? []}
+          kept={card.kept}
+          attached={p.attached ?? []}
+          disabled={off}
+          reveal={reveal}
+          onToggle={card.toggleFile}
+          size={size}
+        />
         {card.sending && (
           <div className="loki-suggestion-note" role="status">
             Sending…
