@@ -9,7 +9,7 @@ import { chatImageUrl, inTauri } from "../desk/env";
 import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/agent-chip";
-import { Icon, GlassIcon } from "../shared/icons";
+import { Icon, Glyph } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
@@ -586,28 +586,7 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
       data-copied={copied ? "true" : undefined}
       onClick={() => void copy()}
     >
-      <GlassIcon icon={copied ? CheckIcon : CopyIcon} size={13}>
-        {copied ? (
-          <svg
-            viewBox="0 0 16 16"
-            width="13"
-            height="13"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M3 8.5l3 3 7-7" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden>
-            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-            <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
-          </svg>
-        )}
-      </GlassIcon>
+      <Glyph icon={copied ? CheckIcon : CopyIcon} size={13} />
     </IconButton>
   );
 }

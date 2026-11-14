@@ -38,20 +38,17 @@ const flat = (text: string) => text.replace(/\s+/g, " ").replace(/\( /g, "(").re
 
 type Rgb = [number, number, number];
 type Theme = "dark" | "light";
-/** The colour families in tokens.css; loki's own is the bare :root, the others sit under data-palette. */
-const PALETTES = ["loki", "tokyo-night", "apple"] as const;
-type Palette = (typeof PALETTES)[number];
+/** Liquid Glass, loki's one look (plan 2026-11-12-1505): night is the bare :root, day sits under data-theme="light". */
 const THEMES: Theme[] = ["dark", "light"];
-const selectorFor = (palette: Palette, theme: Theme) =>
-  `:root${palette === "loki" ? "" : `[data-palette="${palette}"]`}${theme === "light" ? '[data-theme="light"]' : ""}`;
-const themeBlock = (palette: Palette, theme: Theme) => {
-  const start = tokens.indexOf(`${selectorFor(palette, theme)} {`);
-  if (start < 0) throw new Error(`no block for ${selectorFor(palette, theme)}`);
+const selectorFor = (theme: Theme) => `:root${theme === "light" ? '[data-theme="light"]' : ""}`;
+const themeBlock = (theme: Theme) => {
+  const start = tokens.indexOf(`${selectorFor(theme)} {`);
+  if (start < 0) throw new Error(`no block for ${selectorFor(theme)}`);
   return tokens.slice(start, tokens.indexOf("\n}", start));
 };
-const themeColor = (palette: Palette, theme: Theme, name: string): Rgb => {
-  const raw = new RegExp(`--loki-${name}:\\s*([^;]+)`).exec(themeBlock(palette, theme))?.[1].trim();
-  if (!raw) throw new Error(`missing --loki-${name} in ${palette} ${theme}`);
+const themeColor = (theme: Theme, name: string): Rgb => {
+  const raw = new RegExp(`--loki-${name}:\\s*([^;]+)`).exec(themeBlock(theme))?.[1].trim();
+  if (!raw) throw new Error(`missing --loki-${name} in ${theme}`);
   return parseColor(raw);
 };
 const parseColor = (raw: string): Rgb => {
@@ -209,23 +206,20 @@ describe("design tokens: definitions and uses agree", () => {
     const ruled = new Set(files.flatMap((f) => [...f.text.matchAll(/\.(loki-[a-z0-9-]+)/g)].map((m) => m[1])));
     expect([...named].filter((c) => !ruled.has(c))).toEqual([]);
   });
-  test("the page's own colour is --loki-bg in index.html, the manifest and the native window, for every family and both sides", () => {
-    const ground = (palette: Palette, theme: Theme) =>
-      must(/--loki-bg:\s*(#[0-9a-fA-F]{6})/.exec(themeBlock(palette, theme)), `--loki-bg in ${palette} ${theme}`)[1];
-    const bg = ground("loki", "dark");
+  test("the page's own colour is --loki-bg in index.html, the manifest and the native window, on both sides", () => {
+    const ground = (theme: Theme) => must(/--loki-bg:\s*(#[0-9a-fA-F]{6})/.exec(themeBlock(theme)), `--loki-bg in ${theme}`)[1];
+    const bg = ground("dark");
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     const manifest = readFileSync(join(APP, "..", "public", "manifest.webmanifest"), "utf8");
     const rust = readFileSync(join(APP, "..", "..", "src-tauri", "src", "lib.rs"), "utf8");
     expect(/name="theme-color" content="(#[0-9a-fA-F]{6})"/.exec(html)?.[1]).toBe(bg);
-    for (const palette of PALETTES) {
-      // the prepaint script picks the theme-color per family and theme, before any stylesheet
-      const grounds = new RegExp(`"${palette}": \\{ dark: "(#[0-9a-fA-F]{6})", light: "(#[0-9a-fA-F]{6})" \\}`).exec(html);
-      expect(grounds?.slice(1)).toEqual([ground(palette, "dark"), ground(palette, "light")]);
-      // the fallback stylesheet's ground, for a page whose CSS never arrived
-      for (const theme of THEMES) {
-        const selector = `html${palette === "loki" ? "" : `\\[data-palette="${palette}"\\]`}${theme === "light" ? '\\[data-theme="light"\\]' : ""}`;
-        expect(new RegExp(`${selector} \\{ background: (#[0-9a-fA-F]{6})`).exec(html)?.[1]).toBe(ground(palette, theme));
-      }
+    // the prepaint script picks the theme-color per theme, before any stylesheet
+    const grounds = /var grounds = \{ dark: "(#[0-9a-fA-F]{6})", light: "(#[0-9a-fA-F]{6})" \}/.exec(html);
+    expect(grounds?.slice(1)).toEqual([ground("dark"), ground("light")]);
+    // the fallback stylesheet's ground, for a page whose CSS never arrived
+    for (const theme of THEMES) {
+      const selector = `html${theme === "light" ? '\\[data-theme="light"\\]' : ""}`;
+      expect(new RegExp(`${selector} \\{ background: (#[0-9a-fA-F]{6})`).exec(html)?.[1]).toBe(ground(theme));
     }
     expect([...manifest.matchAll(/"(?:background_color|theme_color)":\s*"(#[0-9a-fA-F]{6})"/g)].map((m) => m[1])).toEqual([bg, bg]);
     // the window is created in the dark ground; the page applies the saved preference after it loads
@@ -234,8 +228,8 @@ describe("design tokens: definitions and uses agree", () => {
   });
 });
 
-describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
-  const root = themeBlock("loki", "dark");
+describe("design tokens: the desktop's faces, focus and radii", () => {
+  const root = themeBlock("dark");
   const rule = (selector: string) => {
     const hit = new RegExp(`(?:^|\\n)${selector.replace(/[.[\]()*+?^$|\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(tokens);
     if (!hit) throw new Error(`no rule for ${selector}`);
@@ -250,7 +244,7 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
     }
     expect(tokens.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(RETIRED_FACE);
   });
-  test(".loki-label is sentence-case sans: no caps, no tracking, 12px semibold muted", () => {
+  test(".loki-label is sentence-case sans: no caps, no tracking, the meta size, semibold muted", () => {
     const label = rule(".loki-label");
     expect(label).not.toMatch(/text-transform:\s*uppercase/);
     expect(label).not.toMatch(/letter-spacing/);
@@ -292,22 +286,22 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
   });
 });
 
-describe("design tokens: every family remains readable on both sides", () => {
-  const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
+describe("design tokens: Liquid Glass stays readable on both sides", () => {
+  const colourTokens = [...themeBlock("dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
     .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t));
-  /** Slack's roles beside the accent: the red unread / needs-you badge and the green affirmative fill, each with its ink. */
+  /** The roles beside the accent: what waits on you (blue, as Mail's unread dot) and the affirmative fill, each with its ink. */
   const ROLES = ["attention", "on-attention", "affirm", "on-affirm"];
-  for (const palette of PALETTES) {
+  {
     for (const theme of THEMES) {
-      const color = (name: string) => themeColor(palette, theme, name);
+      const color = (name: string) => themeColor(theme, name);
 
-      test(`${palette} ${theme}: defines every colour token the default does`, () => {
-        const defined = new Set([...themeBlock(palette, theme).matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]));
+      test(`${theme}: defines every colour token night does`, () => {
+        const defined = new Set([...themeBlock(theme).matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]));
         expect([...colourTokens, ...ROLES].filter((t) => !defined.has(t))).toEqual([]);
       });
 
-      test(`${palette} ${theme}: the badge and the affirmative fill carry AA ink and stand off the ground (3:1)`, () => {
+      test(`${theme}: the badge and the affirmative fill carry AA ink and stand off the ground (3:1)`, () => {
         expect(contrast(color("on-attention"), color("attention"))).toBeGreaterThanOrEqual(4.5);
         expect(contrast(color("on-affirm"), color("affirm"))).toBeGreaterThanOrEqual(4.5);
         for (const surface of ["bg", "panel"]) expect(contrast(color("attention"), color(surface))).toBeGreaterThanOrEqual(3);
@@ -318,7 +312,7 @@ describe("design tokens: every family remains readable on both sides", () => {
         expect(b).toBeGreaterThan(g * 0.9);
       });
 
-      test(`${palette} ${theme}: text and semantic colors meet AA on working surfaces`, () => {
+      test(`${theme}: text and semantic colors meet AA on working surfaces`, () => {
         const surfaces = ["bg", "panel", "panel-header", "well"];
         const inks = ["fg", "muted", "accent", "positive", "negative"];
         const failures = inks
@@ -327,7 +321,7 @@ describe("design tokens: every family remains readable on both sides", () => {
         expect(failures).toEqual([]);
       });
 
-      test(`${palette} ${theme}: controls and special surfaces keep their intended contrast`, () => {
+      test(`${theme}: controls and special surfaces keep their intended contrast`, () => {
         expect(contrast(color("control-border"), color("panel"))).toBeGreaterThanOrEqual(3);
         expect(contrast(color("control-border"), color("well"))).toBeGreaterThanOrEqual(3);
         for (const surface of ["bubble", "user-bubble", "hover", "selection"]) {
@@ -336,7 +330,7 @@ describe("design tokens: every family remains readable on both sides", () => {
         expect(contrast(color("accent"), color("brass-soft"))).toBeGreaterThanOrEqual(4.5);
       });
 
-      test(`${palette} ${theme}: every label colour reads as a mark on the surfaces chips sit on`, () => {
+      test(`${theme}: every label colour reads as a mark on the surfaces chips sit on`, () => {
         const failures = Array.from({ length: 8 }, (_, i) => `label-${i}`)
           .flatMap((label) => ["bg", "panel", "well"].map((surface) => ({ pair: `${label}/${surface}`, ratio: contrast(color(label), color(surface)) })))
           .filter(({ ratio }) => ratio < 3);
@@ -347,36 +341,32 @@ describe("design tokens: every family remains readable on both sides", () => {
 });
 
 /**
- * The phone's Slack-mode system (app/src/phone/phone.css): the same --loki-* roles, redeclared on the
- * phone root element so everything inside inherits them — whatever :root's data-palette says, since an
- * element's own declaration beats an inherited one regardless of specificity. Night is the bare root
- * class; day is the root class under data-theme="light".
+ * The phone's Liquid Glass system (app/src/phone/phone.css): the same --loki-* roles in iOS's colours, redeclared on
+ * the phone root element so everything inside inherits them, since an element's own declaration beats an inherited
+ * one regardless of specificity. Night is the bare root class; day is the root class under data-theme="light".
  */
-describe("phone tokens: one Slack-like system under the phone root", () => {
+describe("phone tokens: one system under the phone root", () => {
   const PHONE = join(APP, "phone", "phone.css");
   const phone = existsSync(PHONE) ? readFileSync(PHONE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "") : "";
   const PHONE_SELECTOR: Record<Theme, string> = { dark: ".loki-phone", light: ':root[data-theme="light"] .loki-phone' };
-  /** The phone's own Liquid Glass family (plan 2026-11-12-1505, U9), chosen on the phone: held to the same rules. */
-  const GLASS_SELECTOR: Record<Theme, string> = {
-    dark: ':root[data-palette="apple"] .loki-phone',
-    light: ':root[data-palette="apple"][data-theme="light"] .loki-phone',
-  };
-  const FAMILIES = { slack: PHONE_SELECTOR, glass: GLASS_SELECTOR };
   const blockOf = (selector: string) => {
     const start = phone.indexOf(`\n${selector} {`);
     if (start < 0) throw new Error(`no phone block for ${selector}`);
     return phone.slice(start, phone.indexOf("\n}", start + 1));
   };
-  const phoneBlock = (theme: Theme, family: keyof typeof FAMILIES = "slack") => blockOf(FAMILIES[family][theme]);
-  const raw = (theme: Theme, name: string, family: keyof typeof FAMILIES = "slack") => {
-    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme, family))?.[2].trim();
-    if (!hit) throw new Error(`missing ${name} in phone ${family} ${theme}`);
+  const phoneBlock = (theme: Theme) => blockOf(PHONE_SELECTOR[theme]);
+  const raw = (theme: Theme, name: string) => {
+    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme))?.[2].trim();
+    if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
     return hit;
   };
-  const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
+  // The glass material, the monogram and the segmented control's chosen segment are the desktop's; the phone inherits
+  // them from :root rather than restating them.
+  const DESKTOP_ONLY = /^(glass|monogram|on-monogram|segment)/;
+  const desktopColours = [...themeBlock("dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
-    .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t));
-  /** Slack's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
+    .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t) && !DESKTOP_ONLY.test(t));
+  /** The phone's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
   const PHONE_ROLES = ["link", "unread", "on-unread", "presence", "affirm", "on-affirm"];
 
   test("phone.css exists and is imported by the phone shell, not injected", () => {
@@ -387,34 +377,33 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(ui).not.toContain("<style>");
   });
 
-  for (const family of ["slack", "glass"] as const)
-    for (const theme of THEMES) {
-      const color = (_theme: Theme, name: string) => parseColor(raw(theme, name, family));
-      test(`${family} ${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
-        const block = phoneBlock(theme, family);
-        const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
-        expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
-      });
+  for (const theme of THEMES) {
+    const color = (_theme: Theme, name: string) => parseColor(raw(theme, name));
+    test(`${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
+      const block = phoneBlock(theme);
+      const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
+      expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
+    });
 
-      test(`${family} ${theme}: text, links and states meet AA on every working surface`, () => {
-        const surfaces = ["bg", "panel", "panel-header", "well"];
-        const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
-        const failures = inks
-          .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
-          .filter(({ ratio }) => ratio < 4.5);
-        expect(failures).toEqual([]);
-        for (const surface of ["bubble", "user-bubble", "hover", "selection"])
-          expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
-      });
+    test(`${theme}: text, links and states meet AA on every working surface`, () => {
+      const surfaces = ["bg", "panel", "panel-header", "well"];
+      const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
+      const failures = inks
+        .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
+        .filter(({ ratio }) => ratio < 4.5);
+      expect(failures).toEqual([]);
+      for (const surface of ["bubble", "user-bubble", "hover", "selection"])
+        expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
+    });
 
-      test(`${family} ${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
-        for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
-        for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
-      });
-    }
+    test(`${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
+      for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
+      for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
+    });
+  }
 
   test("the display and label faces are the sans stack for both sides — no serif, condensed or mono presentation", () => {
     // declared once on the root class; the day block only changes colours
@@ -422,10 +411,10 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(phoneBlock("light")).not.toMatch(/--loki-(font|display|label):/);
   });
 
-  test("the phone keys on data-palette only for its own Liquid Glass, and its tokens sit on the phone element rather than :root", () => {
-    expect([...phone.matchAll(/data-palette="([^"]+)"/g)].map((m) => m[1]).filter((p) => p !== "apple")).toEqual([]);
+  test("the phone keys on nothing but day or night, and its tokens sit on the phone element rather than :root", () => {
+    expect(phone).not.toContain("data-palette");
     const declaring = [...phone.matchAll(/(?:^|\n)([^\n{}@]+?)\s*\{[^}]*--loki-bg:/g)].map((m) => m[1].trim());
-    expect(declaring.sort()).toEqual([...Object.values(PHONE_SELECTOR), ...Object.values(GLASS_SELECTOR)].sort());
+    expect(declaring.sort()).toEqual(Object.values(PHONE_SELECTOR).sort());
   });
 
   test("the gates and the paired shell all carry the phone root class", () => {
@@ -575,10 +564,10 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     ["--sidebar-primary-foreground", "--sidebar-primary"],
     ["--sidebar-accent-foreground", "--sidebar-accent"],
   ];
-  for (const palette of PALETTES) {
+  {
     for (const theme of THEMES) {
-      test(`${palette} ${theme}: every shadcn ink meets AA on its surface`, () => {
-        const color = (name: string) => themeColor(palette, theme, must(shadcn.get(name), name));
+      test(`${theme}: every shadcn ink meets AA on its surface`, () => {
+        const color = (name: string) => themeColor(theme, must(shadcn.get(name), name));
         const failures = PAIRS.map(([ink, surface]) => ({ pair: `${ink} on ${surface}`, ratio: contrast(color(ink), color(surface)) })).filter(
           ({ ratio }) => ratio < 4.5,
         );
@@ -649,16 +638,19 @@ describe("Liquid Glass: the material and its solid fallback (plan 2026-11-12-150
     }
   });
 
-  test("every other family draws the solid panel: the glass defaults are the panel with no blur", () => {
-    const defaults = tokens.slice(tokens.indexOf(":root {\n  --loki-glass:"));
-    expect(solid(defaults.slice(0, defaults.indexOf("\n}")))).toBe(true);
+  test("night and day draw glass: a translucent material with its blur", () => {
+    for (const theme of THEMES) {
+      const block = themeBlock(theme);
+      expect(block).toMatch(/--loki-glass:\s*rgba\(/);
+      expect(block).toMatch(/--loki-glass-blur:\s*blur\(/);
+    }
   });
 
-  test("Reduce Transparency, Increase Contrast and data-glass=solid each turn Liquid Glass solid", () => {
+  test("Reduce Transparency, Increase Contrast and data-glass=solid each turn the glass solid", () => {
     const media = must(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{([\s\S]*?)\n\}/.exec(tokens), "the media block")[1];
-    expect(media).toContain(':root[data-palette="apple"]');
+    expect(media).toContain(':root[data-theme="light"]');
     expect(solid(media)).toBe(true);
-    const forced = must(/:root\[data-palette="apple"\]\[data-glass="solid"\],[^{]*\{([^}]*)\}/.exec(tokens), "the data-glass block")[1];
+    const forced = must(/:root\[data-glass="solid"\],[^{]*\{([^}]*)\}/.exec(tokens), "the data-glass block")[1];
     expect(solid(forced)).toBe(true);
   });
 });

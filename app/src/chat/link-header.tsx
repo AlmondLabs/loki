@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { timeLeft, type LinkSeen } from "../../../core/chat-links.ts";
 import { Chip, IconButton, Popover, sentence } from "../components";
 import { ArrowRightIcon, ArrowLeftIcon, ArrowLeftRightIcon, XIcon, type LucideIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /** How often the time left is read again: it is shown in minutes. */
 const TICK_MS = 30_000;
 
-/** Which way messages go along a link, from this chat. */
-const ARROW: Record<LinkSeen["way"], string> = { out: "→", in: "←", both: "⇄" };
-/** The same ways as Lucide's arrows, under Liquid Glass. */
+/** Which way messages go along a link, from this chat, as Lucide's arrows. */
 const ARROW_ICON: Record<LinkSeen["way"], LucideIcon> = { out: ArrowRightIcon, in: ArrowLeftIcon, both: ArrowLeftRightIcon };
 /** The same in words, for a screen reader and the chip's title. */
 const WAY_WORDS: Record<LinkSeen["way"], string> = { out: "this chat may message", in: "may message this chat,", both: "linked both ways with" };
@@ -27,9 +25,7 @@ function LinkLine({ link: l, now, onClose, touch }: { link: LinkSeen; now: numbe
   return (
     <>
       <span aria-hidden>
-        <GlassIcon icon={ARROW_ICON[l.way]} inline>
-          {ARROW[l.way]}
-        </GlassIcon>
+        <Glyph icon={ARROW_ICON[l.way]} inline />
       </span>
       <span className="loki-chat-link-name" title={linkWords(l, now)}>
         {name}
@@ -37,7 +33,7 @@ function LinkLine({ link: l, now, onClose, touch }: { link: LinkSeen; now: numbe
       <span className="loki-meta">{timeLeft(l, new Date(now))}</span>
       {onClose && (
         <IconButton size={24} label={touch ? sentence(`close link to ${name}`) : `close link to ${name}`} onClick={() => onClose(l.id)}>
-          <GlassIcon icon={XIcon}>×</GlassIcon>
+          <Glyph icon={XIcon} />
         </IconButton>
       )}
     </>

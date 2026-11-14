@@ -1,5 +1,3 @@
-import type { Segment } from "./keymap";
-
 /**
  * The list column between the rail and the main pane, Slack's second column (plan 013 U3). Pure, so the
  * rules are tested without a window: which sections have one, its width range, what is kept across
@@ -23,11 +21,6 @@ export const COLUMN_KEY = "loki.desktop.column";
 export interface ColumnPref {
   width: number;
   collapsed: boolean;
-}
-
-/** Inbox is its own full-width pass and Settings a page of its own; the rest list their items. */
-export function hasColumn(segment: Segment): boolean {
-  return segment === "desk" || segment === "agents" || segment === "learn";
 }
 
 /** A width the column may take, in px: rounded and kept within COLUMN_MIN and COLUMN_MAX; anything not a number is the default. */

@@ -20,7 +20,7 @@ import type { ThreadControls } from "./outside-card";
 import { keyFor, registerActions } from "../shell/keymap";
 import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
 import { SmilePlusIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
@@ -319,24 +319,7 @@ const BAR_QUICK = 3;
 
 /** Slack's add-reaction mark: a face with a plus, drawn in the text's colour. */
 function AddReactionMark() {
-  return (
-    <GlassIcon icon={SmilePlusIcon} size={18}>
-      <AddReactionDrawing />
-    </GlassIcon>
-  );
-}
-
-/** Today's look's add-reaction drawing. */
-function AddReactionDrawing() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-      <path d="M16.5 9.5a7 7 0 1 1-6-6.9" />
-      <path d="M7 12.5c.8 1 1.8 1.5 3 1.5s2.2-.5 3-1.5" />
-      <circle cx="7.5" cy="8.5" r=".6" fill="currentColor" />
-      <circle cx="12.5" cy="8.5" r=".6" fill="currentColor" />
-      <path d="M15.5 1.5v5M13 4h5" />
-    </svg>
-  );
+  return <Glyph icon={SmilePlusIcon} size={18} />;
 }
 
 /** The bar that shows on the message under the pointer, as Slack's does: the person's quick reactions and the picker. */
@@ -364,7 +347,7 @@ export interface SlackRowAt {
   jira: boolean;
 }
 
-/** The Slack card's own row, today's look. */
+/** The Slack card's own row, as the phone draws it. */
 const defaultRow = (m: OutsideMessage, at: SlackRowAt) => <SlackRow m={m} {...at} />;
 
 function SlackRow({
@@ -625,7 +608,7 @@ export function SlackThread({
   controls?: ThreadControls | null;
   jira?: boolean;
   stays?: boolean;
-  /** How one message draws; the new chat pane draws it with its item components (plan 097, U7), keeping all else here. */
+  /** How one message draws; the desktop draws it with its item components (plan 097, U7), keeping all else here. */
   row?: (m: OutsideMessage, at: SlackRowAt) => ReactNode;
 }) {
   const pinned = window?.view === "thread" && messages[0]?.id === window.thread_ts ? messages[0] : null;

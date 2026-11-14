@@ -8,14 +8,13 @@ import {
   clampColumn,
   columnShown,
   columnStore,
-  hasColumn,
   loadColumn,
   saveColumn,
   toggleColumn,
 } from "../app/src/shell/column.ts";
 
 /**
- * The list column between the rail and the main pane (plan 013 U3): its width is clamped and kept, its
+ * The list column beside the main pane (plan 013 U3): its width is clamped and kept, its
  * collapse is kept, and below 1100 wide it folds away on its own until asked for.
  */
 
@@ -23,12 +22,6 @@ const memory = (seed: Record<string, string> = {}) => {
   const m = new Map(Object.entries(seed));
   return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m };
 };
-
-describe("list column: which sections have one", () => {
-  test("desk, agents and learn; not inbox or settings", () => {
-    expect((["desk", "inbox", "agents", "learn", "settings"] as const).filter(hasColumn)).toEqual(["desk", "agents", "learn"]);
-  });
-});
 
 describe("list column: width", () => {
   test("clamped to the range, rounded, and a junk value falls back to the default", () => {

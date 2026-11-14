@@ -115,9 +115,11 @@ describe("the reply box", () => {
 
   test("on the desktop a mail's box is one frame with send and discard, and leaves the card's moves to the card", () => {
     const moves = createElement("span", null, "the moves");
-    const html = renderToStaticMarkup(createElement(OutsideReply, { facts, box, compose, actions: moves }));
-    expect(html).toContain("loki-mail-compose");
-    expect(html).toContain("discard");
+    const html = renderToStaticMarkup(createElement(OutsideReply, { facts, box, compose, actions: moves, items: true }));
+    expect(html).toContain("data-reply-box");
+    expect(html.match(/data-slot="input-group"/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Send"');
+    expect(html).toContain(">Discard<");
     expect(html).not.toContain("the moves");
   });
 

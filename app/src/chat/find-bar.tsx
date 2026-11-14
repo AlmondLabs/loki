@@ -2,7 +2,7 @@ import { useState, type RefObject } from "react";
 import { Field, IconButton } from "../components";
 import { formatKeys } from "../shell/keymap";
 import { ChevronUpIcon, ChevronDownIcon, XIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /**
  * Find in the transcript, on the browser's own text search (window.find) so matches are wherever
@@ -76,13 +76,13 @@ export function FindBar({
         style={{ flex: 1 }}
       />
       <IconButton size={24} onClick={() => findNext(true)} label="previous match">
-        <GlassIcon icon={ChevronUpIcon}>↑</GlassIcon>
+        <Glyph icon={ChevronUpIcon} />
       </IconButton>
       <IconButton size={24} onClick={() => findNext(false)} label="next match">
-        <GlassIcon icon={ChevronDownIcon}>↓</GlassIcon>
+        <Glyph icon={ChevronDownIcon} />
       </IconButton>
       <IconButton size={24} onClick={onClose} label="close find">
-        <GlassIcon icon={XIcon}>×</GlassIcon>
+        <Glyph icon={XIcon} />
       </IconButton>
     </div>
   );

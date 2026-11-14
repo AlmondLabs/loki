@@ -314,6 +314,15 @@ flowchart TB
 - No reference to `data-palette` or the old tokens remains.
 - The token fence passes on the single look.
 **Verification:** every check in AGENTS.md passes; the person has used the new look for a week.
+**Changed when built (2026-11-14):** the person asked for U11 on 2026-11-14, before a full week. The old thread is not
+deleted outright: the phone still draws its own thread, cards, message box and approve / deny row (`PhoneThread`,
+`ChatInput`, `touch`), which move with the phone's own plan; what went is every desktop path the old look reached (the
+rail, the old chat and Flow headers and moves, the key legend, the New chat sheet, the model dialog, the preview
+switch, loki's hand-drawn icons, the palettes and `data-palette`). The phone takes the new look's tokens and words
+(title case, Lucide) with it, as it did under the switch. The native window's first ground (`src-tauri/src/lib.rs`,
+Windows and Linux) moves to the new dark ground. The Slack look's CSS rules that the glass block already overrides stay
+under it for now, since removing them needs each to be checked by eye; the computed styles of every desktop screen on
+demo data are the same as main's under Liquid Glass.
 
 ### U12. One sidebar in place of the rail
 

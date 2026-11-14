@@ -3,7 +3,7 @@ import { Kbd, Meta, Popover, Row } from "../components";
 import { formatKeys } from "./keymap";
 import { tidyEntries, type MenuEntry } from "./native-menu";
 import { CheckIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /** The focusable rows of a drawn menu, in order. */
 export const menuRows = (node: Element | null | undefined) => [...(node?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
@@ -26,8 +26,8 @@ export function menuKey(e: KeyboardEvent, node: Element | null, onClose: () => v
 }
 
 /**
- * A menu's entries drawn by loki (plan 2026-11-12-1505, U19), where it cannot pop up a native one: today's look,
- * Windows, Linux and the browser. The same items, order, checks and separators as the native menu, the key on the
+ * A menu's entries drawn by loki (plan 2026-11-12-1505, U19), where it cannot pop up a native one: Windows, Linux and
+ * the browser. The same items, order, checks and separators as the native menu, the key on the
  * right; a submenu draws as its label over its items. `onPicked` runs before an item's action (to close the menu).
  */
 export function MenuItems({ entries, onPicked }: { entries: MenuEntry[]; onPicked: () => void }) {
@@ -69,7 +69,7 @@ export function MenuItems({ entries, onPicked }: { entries: MenuEntry[]; onPicke
         </span>
         {choice && e.checked ? (
           <span aria-hidden className="loki-menu-check">
-            <GlassIcon icon={CheckIcon}>✓</GlassIcon>
+            <Glyph icon={CheckIcon} />
           </span>
         ) : (
           e.keys && <Kbd>{formatKeys(e.keys)}</Kbd>

@@ -1289,7 +1289,7 @@ function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews
   const view = useConversation(chats, item.agent_id, item.id);
   return (
     <Thread
-      previewable={false}
+      phone
       rows={view.rows}
       status={view.status}
       agentName={item.agent_name}

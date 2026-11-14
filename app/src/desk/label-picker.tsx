@@ -2,7 +2,6 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Keyb
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 import { Meta, Row } from "../components";
-import { useLook } from "../theme";
 
 /**
  * The labels an email card offers (plan 070, R12): the account's own, by name. Gmail's system labels (Inbox, Unread,
@@ -15,8 +14,8 @@ export function pickableLabels(labels: readonly AccountLabel[]): AccountLabel[] 
 /**
  * The label picker L opens on an email card: the account's labels, asked for once when it opens. Arrows move, Enter
  * or a click adds the label to the thread, and the card stays for the next key; Esc closes with nothing added. Drawn
- * in the card above its moves, as the hand-off picker is. Under Liquid Glass (plan 2026-11-12-1505, U20) it is a menu
- * hung over the card from its Label move, dimming nothing, and a press outside it closes it as Esc does.
+ * as a menu hung over the card from its Label move (plan 2026-11-12-1505, U20), dimming nothing, and a press outside it
+ * closes it as Esc does.
  */
 export function LabelPicker({
   item,
@@ -59,13 +58,12 @@ export function LabelPicker({
     if (ready) listRef.current?.focus({ preventScroll: true });
   }, [ready]);
 
-  // Under Liquid Glass the menu lines up with the Label move it opened from, and a press anywhere else puts it away.
-  const glass = useLook() === "glass";
+  // The menu lines up with the Label move it opened from, and a press anywhere else puts it away.
   const cancel = useEffectEvent(onCancel);
   useLayoutEffect(() => {
     const box = boxRef.current;
     const slot = box?.parentElement;
-    if (!glass || !box || !slot) return;
+    if (!box || !slot) return;
     const move = slot.parentElement?.querySelector('[data-verb="label"]');
     if (move) box.style.right = `${Math.max(0, slot.getBoundingClientRect().right - move.getBoundingClientRect().right)}px`;
     const away = (e: PointerEvent) => {
@@ -74,7 +72,7 @@ export function LabelPicker({
     // capture phase: the card stops pointerdown from bubbling, and a press there must still close the menu
     window.addEventListener("pointerdown", away, true);
     return () => window.removeEventListener("pointerdown", away, true);
-  }, [glass]);
+  }, []);
 
   const options = labels ?? [];
   const choose = (id: string) => {
@@ -102,24 +100,20 @@ export function LabelPicker({
       ref={boxRef}
       role="dialog"
       tabIndex={-1}
-      aria-label={glass ? "Add a Label" : "add a label"}
-      className={glass ? "loki-popover loki-label-menu" : undefined}
+      aria-label="Add a Label"
+      className="loki-popover loki-label-menu"
       onKeyDown={onKey}
-      style={{ display: "flex", flexDirection: "column", gap: glass ? 0 : 6 }}
+      style={{ display: "flex", flexDirection: "column", gap: 0 }}
     >
-      {glass ? busy && <Meta>Adding the label…</Meta> : <Meta>{busy ? "adding the label…" : "add a label"}</Meta>}
-      {!labels && !error && <Meta>{glass ? "Loading labels…" : "asking for its labels…"}</Meta>}
-      {labels?.length === 0 && (
-        <Meta wrap>
-          {glass ? "This account has no labels of its own yet. Make them in Gmail." : "this account has no labels of its own yet: make them in Gmail"}
-        </Meta>
-      )}
+      {busy && <Meta>Adding the label…</Meta>}
+      {!labels && !error && <Meta>Loading labels…</Meta>}
+      {labels?.length === 0 && <Meta wrap>This account has no labels of its own yet. Make them in Gmail.</Meta>}
       {labels && labels.length > 0 && (
         <div
           ref={listRef}
           role="listbox"
           tabIndex={0}
-          aria-label={glass ? "Labels" : "labels"}
+          aria-label="Labels"
           aria-activedescendant={`label-option-${String(hi)}`}
           style={{ display: "flex", flexDirection: "column", maxHeight: 200, overflow: "auto" }}
         >

@@ -14,11 +14,11 @@ Loki gives each agent conversation a chat with a persistent canvas of live widge
 
 ## Brand Personality
 
-Quiet, precise, and personal. The interface wears Slack's familiar look and layout on the desktop and the phone, so it reads at a glance and can stay open all day: agents are the people you message, chats are the channels, and the red badge is only for what waits on you. It stays specific to the person and agents using it.
+Quiet, precise, and personal. loki is designed to Apple's Human Interface Guidelines with Liquid Glass, so on a Mac it sits beside Mail, Notes and Messages as one of them, in day and night, and on the phone as an iOS app: agents are the people you message, Flow gathers what waits on you, and blue marks it, as Mail's unread dot does. It stays specific to the person and agents using it.
 
 ## Anti-references
 
-Avoid generic dark SaaS dashboards, decorative control-room chrome, glass panels, ornamental accent colour, and visual structure that does not carry information. Do not make the canvas look like a metrics dashboard or turn agent activity into spectacle.
+Avoid borrowing another product's identity (loki wore Slack's look until 2026-11-14), generic dark SaaS dashboards, decorative control-room chrome, glass on content (glass is only for what floats and steers: the sidebar, toolbars, menus, sheets, decisions and the composer), ornamental accent colour, and visual structure that does not carry information. Do not make the canvas look like a metrics dashboard or turn agent activity into spectacle.
 
 ## Design Principles
 

@@ -1,22 +1,9 @@
 import { Button } from "@/ui/button";
-import { Kbd } from "@/ui/kbd";
 import { cn } from "@/lib/utils";
 import type { ItemActionsView, ItemVerb } from "./item-view";
-import { useLook } from "../theme";
 
-/** How each move reads on its button: lowercase desktop words, as Flow's buttons say them today. */
+/** How each move reads on its button, in Apple's words (plan 2026-11-12-1505, U4). */
 const VERB_WORDS: Record<ItemVerb, string> = {
-  archive: "archive",
-  mark_read: "read",
-  later: "later",
-  label: "label",
-  handoff: "hand off",
-  open: "open chat",
-  open_out: "open in jira",
-};
-
-/** The same moves in Apple's words, under Liquid Glass (plan 2026-11-12-1505, U4). */
-const GLASS_WORDS: Record<ItemVerb, string> = {
   archive: "Archive",
   mark_read: "Mark as Read",
   later: "Later",
@@ -25,9 +12,6 @@ const GLASS_WORDS: Record<ItemVerb, string> = {
   open: "Open Chat",
   open_out: "Open in Jira",
 };
-
-/** The Composer's column (composer.tsx), for an ActionBar under it. */
-export const COMPOSER_COLUMN = "mx-auto max-w-3xl px-6";
 
 /** One move as the surface makes it: what it does, its key in the grammar that applies, why it is off. */
 export interface VerbControl {
@@ -74,20 +58,15 @@ export function ActionBar({
   );
 }
 
-/**
- * One move. Under Liquid Glass it takes Apple's words and a capsule, and its key moves from the face into the tooltip
- * (plan 2026-11-12-1505, KTD7); today's look keeps the lowercase word with the key beside it.
- */
+/** One move: Apple's words on a capsule, its key in the tooltip rather than on the face (plan 2026-11-12-1505, KTD7). */
 function VerbButton({ verb, control, quiet, muted = false }: { verb: ItemVerb; control: VerbControl; quiet: boolean; muted?: boolean }) {
-  const glass = useLook() === "glass";
-  const filled = !quiet && !muted;
-  const word = (glass ? GLASS_WORDS : VERB_WORDS)[verb];
-  const tip = glass && control.keys ? `${control.title ?? word} (${control.keys})` : control.title;
+  const word = VERB_WORDS[verb];
+  const tip = control.keys ? `${control.title ?? word} (${control.keys})` : control.title;
   return (
     <Button
       size="sm"
       variant={quiet ? "ghost" : muted ? "outline" : "default"}
-      className={glass ? "rounded-full" : undefined}
+      className="rounded-full"
       data-verb={verb}
       data-main={quiet ? undefined : "true"}
       data-muted={muted || undefined}
@@ -96,7 +75,6 @@ function VerbButton({ verb, control, quiet, muted = false }: { verb: ItemVerb; c
       onClick={control.run}
     >
       {word}
-      {!glass && control.keys && <Kbd className={filled ? "bg-primary-foreground/15 text-primary-foreground" : undefined}>{control.keys}</Kbd>}
     </Button>
   );
 }

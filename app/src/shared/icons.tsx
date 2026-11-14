@@ -1,4 +1,4 @@
-import type { ReactNode, SVGProps } from "react";
+import type { SVGProps } from "react";
 import {
   ArchiveIcon,
   CheckIcon,
@@ -43,227 +43,13 @@ import {
   XIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useLook } from "../theme";
-
 /**
- * loki's one icon family, the phone's and the desktop's Slack chrome: outlined, a 24-unit box, one 1.8
- * stroke, round caps and joins, drawn in currentColor so a control's text colour is its icon colour.
- * Controls use these, never text glyphs or emoji. Loki's own drawings; nothing here is a copied product
- * asset. Plain SVG with one class (.loki-icon, components.css); the phone adds its own (phone/icons.tsx).
+ * loki's one icon set, Lucide's (plan 2026-11-12-1505, R8; the person's choice, 2026-11-13), the one its toolbars,
+ * composer and menus use: outlined at a 1.75 stroke in currentColor, so a control's text colour is its icon colour.
+ * Controls use these, never text glyphs or emoji. Each name maps to Lucide's drawing of the idea; a chat is a speech
+ * bubble. One class (.loki-icon, components.css); the phone adds its own (phone/icons.tsx).
  */
-const PATHS = {
-  home: (
-    <>
-      <path d="M3 10.5 12 3l9 7.5" />
-      <path d="M5 9v11h5v-6h4v6h5V9" />
-    </>
-  ),
-  inbox: (
-    <>
-      <path d="M3 13h5l1.5 2.5h5L16 13h5" />
-      <path d="M5.5 5h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5z" />
-    </>
-  ),
-  agents: (
-    <>
-      <circle cx="9" cy="8" r="3.5" />
-      <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
-      <path d="M16 4.5a3.5 3.5 0 0 1 0 7" />
-      <path d="M18 14.2c2.1.6 3.5 2.6 3.5 5.8" />
-    </>
-  ),
-  person: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-    </>
-  ),
-  // the three dots are filled: at this size a stroked ring reads as a smudge
-  more: (
-    <>
-      <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
-    </>
-  ),
-  search: (
-    <>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-4-4" />
-    </>
-  ),
-  back: <path d="M15 5 8 12l7 7" />,
-  "chevron-right": <path d="m9 5 7 7-7 7" />,
-  "chevron-down": <path d="m5 9 7 7 7-7" />,
-  close: <path d="M6 6l12 12M18 6 6 18" />,
-  plus: <path d="M12 5v14M5 12h14" />,
-  send: (
-    <>
-      <path d="M21 3 3 10.5l7 2.5 2.5 7z" />
-      <path d="M21 3 10 13" />
-    </>
-  ),
-  clock: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  check: <path d="m5 12.5 4.5 4.5L19 7" />,
-  archive: (
-    <>
-      <rect x="3" y="4" width="18" height="4" rx="1" />
-      <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
-      <path d="M10 12h4" />
-    </>
-  ),
-  learn: (
-    <>
-      <path d="M9 18h6M10 21h4" />
-      <path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9v.2h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3z" />
-    </>
-  ),
-  settings: (
-    <>
-      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
-      <circle cx="16" cy="7" r="2" />
-      <circle cx="10" cy="17" r="2" />
-    </>
-  ),
-  link: (
-    <>
-      <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" />
-      <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />
-    </>
-  ),
-  info: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5M12 8h.01" />
-    </>
-  ),
-  pin: (
-    <>
-      <path d="M9 4h6l-1 6 4 3v2H6v-2l4-3z" />
-      <path d="M12 15v6" />
-    </>
-  ),
-  /** A widget on the desk: four tiles (the thread's widget rows). */
-  widget: (
-    <>
-      <rect x="4" y="4" width="7" height="7" rx="1.5" />
-      <rect x="13" y="4" width="7" height="7" rx="1.5" />
-      <rect x="4" y="13" width="7" height="7" rx="1.5" />
-      <rect x="13" y="13" width="7" height="7" rx="1.5" />
-    </>
-  ),
-  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
-  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-  refresh: (
-    <>
-      <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" />
-      <path d="M4 4v4h4" />
-      <path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" />
-      <path d="M20 20v-4h-4" />
-    </>
-  ),
-  mic: (
-    <>
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-    </>
-  ),
-  compose: (
-    <>
-      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
-      <path d="m13.5 6.5 4 4" />
-    </>
-  ),
-  desk: <path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18" />,
-  laptop: (
-    <>
-      <rect x="4" y="5" width="16" height="11" rx="1.5" />
-      <path d="M2 19h20" />
-    </>
-  ),
-  sun: (
-    <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </>
-  ),
-  moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />,
-  // an agent's memory: a page with its corner folded, and the folder that holds pages
-  // a prompt in a window: the shell, for the commands an agent ran
-  terminal: (
-    <>
-      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-      <path d="m7 10 3 2.5L7 15" />
-      <path d="M12.5 15H17" />
-    </>
-  ),
-  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor" />,
-  copy: (
-    <>
-      <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />
-      <path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" />
-    </>
-  ),
-  select: (
-    <>
-      <path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2" />
-      <path d="M8 9h8M8 12h8M8 15h5" />
-    </>
-  ),
-  // rename: a pencil
-  /** A suggestion for another chat: a spark, for a thought an agent hands on. */
-  suggest: (
-    <>
-      <path d="M11 4c.6 4 1.9 5.4 6 6-4.1.6-5.4 2-6 6-.6-4-1.9-5.4-6-6 4.1-.6 5.4-2 6-6z" />
-      <path d="M18.5 15.5c.2 1.4.6 1.8 2 2-1.4.2-1.8.6-2 2-.2-1.4-.6-1.8-2-2 1.4-.2 1.8-.6 2-2z" />
-    </>
-  ),
-  pencil: (
-    <>
-      <path d="M4 20h4L19 9l-4-4L4 16z" />
-      <path d="m13.5 6.5 4 4" />
-    </>
-  ),
-  file: (
-    <>
-      <path d="M6 3h8l4 4v14H6z" />
-      <path d="M14 3v4h4M9 12h6M9 16h6" />
-    </>
-  ),
-  folder: <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" />,
-  // a skill: a four-point spark
-  skill: <path d="M12 3c.8 4.6 2.4 6.2 7 7-4.6.8-6.2 2.4-7 7-.8-4.6-2.4-6.2-7-7 4.6-.8 6.2-2.4 7-7z" />,
-  // memory commits: a clock with the arrow that turns it back
-  history: (
-    <>
-      <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
-      <path d="M3 4v4h4M12 8v4l3 2" />
-    </>
-  ),
-  // leaving the pairing: the link's two halves pulled apart, with the break marked
-  unlink: (
-    <>
-      <path d="M13 5.6 13.9 4.6a4.5 4.5 0 0 1 6.4 6.4l-2.4 2.4" />
-      <path d="M11 18.4l-.9 1a4.5 4.5 0 0 1-6.4-6.4l2.4-2.4" />
-      <path d="M4 4l16 16" />
-    </>
-  ),
-} satisfies Record<string, ReactNode>;
-
-/** The name of one of loki's icons. */
-export type IconName = keyof typeof PATHS;
-
-/**
- * Each icon under Liquid Glass: Lucide's drawing of the same idea, so the whole new look uses one icon set, the one its
- * toolbars, composer and menus use (plan 2026-11-12-1505, R8; the person's choice, 2026-11-13). A chat is a speech
- * bubble there, where today's look draws Slack's # for a channel. Today's look keeps loki's own drawings until U11.
- */
-const GLASS: Record<IconName, LucideIcon> = {
+const ICONS = {
   home: HouseIcon,
   inbox: InboxIcon,
   agents: UsersIcon,
@@ -305,17 +91,19 @@ const GLASS: Record<IconName, LucideIcon> = {
   skill: SparkleIcon,
   history: HistoryIcon,
   unlink: UnlinkIcon,
-};
-/** The icons drawn filled in loki's set, so a small mark reads as solid; Lucide's draws them filled too. */
+} satisfies Record<string, LucideIcon>;
+
+/** The name of one of loki's icons. */
+export type IconName = keyof typeof ICONS;
+
+/** The icons drawn filled, so a small mark reads as solid. */
 const FILLED: ReadonlySet<IconName> = new Set(["stop"]);
 
 /**
- * A mark that today's look draws as a glyph or a drawing of its own ("×", "✓", a hand-drawn SVG), and Liquid Glass as
- * Lucide's icon, so the new look has one icon set (plan 2026-11-12-1505, R8). `children` is today's mark, shown as it
- * was; `inline` sits the icon in a line of text rather than alone in a control.
+ * A Lucide icon given directly rather than by name, at loki's stroke (plan 2026-11-12-1505, R8); `inline` sits it in a
+ * line of text rather than alone in a control.
  */
-export function GlassIcon({ icon: Drawn, size = 14, inline = false, children }: { icon: LucideIcon; size?: number; inline?: boolean; children?: ReactNode }) {
-  if (useLook() !== "glass") return <>{children}</>;
+export function Glyph({ icon: Drawn, size = 14, inline = false }: { icon: LucideIcon; size?: number; inline?: boolean }) {
   return <Drawn aria-hidden size={size} strokeWidth={1.75} className={inline ? "loki-icon loki-icon--inline" : "loki-icon"} />;
 }
 
@@ -330,44 +118,20 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name" | "child
 
 /** One icon from the registry. The control around it owns the 44px target and the accessible name. */
 export function Icon({ name, size = 24, title, className, ...rest }: IconProps) {
-  const glass = useLook() === "glass";
-  if (glass) {
-    const Drawn = GLASS[name];
-    return (
-      <Drawn
-        size={size}
-        strokeWidth={1.75}
-        className={className ? `loki-icon ${className}` : "loki-icon"}
-        role={title ? "img" : undefined}
-        aria-hidden={title ? undefined : true}
-        aria-label={title}
-        focusable="false"
-        {...(FILLED.has(name) ? { fill: "currentColor" } : {})}
-        {...rest}
-      >
-        {title && <title>{title}</title>}
-      </Drawn>
-    );
-  }
+  const Drawn = ICONS[name];
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <Drawn
+      size={size}
+      strokeWidth={1.75}
       className={className ? `loki-icon ${className}` : "loki-icon"}
       role={title ? "img" : undefined}
       aria-hidden={title ? undefined : true}
       aria-label={title}
       focusable="false"
+      {...(FILLED.has(name) ? { fill: "currentColor" } : {})}
       {...rest}
     >
       {title && <title>{title}</title>}
-      {PATHS[name]}
-    </svg>
+    </Drawn>
   );
 }

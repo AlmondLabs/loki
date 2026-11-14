@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useLook } from "../theme";
 import { Field, NavButton } from "../components";
 import { GROUPS, groupOf, pageAfterKey, pagesMatching, type SettingsGroup, type SettingsPage } from "./pages";
 
@@ -13,7 +12,6 @@ import { GROUPS, groupOf, pageAfterKey, pagesMatching, type SettingsGroup, type 
 export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: (p: SettingsPage) => void; extra?: (g: SettingsGroup) => ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const glass = useLook() === "glass";
   const shown = pagesMatching(query);
   const groups = GROUPS.map((g) => ({ g, pages: g.pages.filter((p) => shown.includes(p)) })).filter((r) => r.pages.length > 0);
   const current = groupOf(page);
@@ -31,7 +29,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
       <Field
         size="sm"
         type="search"
-        placeholder={glass ? "Search" : "filter"}
+        placeholder="Search"
         aria-label="Filter preferences"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

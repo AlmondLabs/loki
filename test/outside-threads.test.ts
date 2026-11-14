@@ -17,7 +17,8 @@ import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentLanes } from "../core/attention/lanes.ts";
 import {
   OutsideCard,
-  OutsideHeader,
+  OutsideItemActions,
+  OutsideItemHeader,
   OutsideReply,
   OutsideThread,
   ticketAsk,
@@ -27,8 +28,8 @@ import {
 } from "../app/src/desk/outside-card.tsx";
 import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import { outsideTitle, replyPlace } from "../app/src/desk/outside-words.ts";
-import { KeysHint } from "../app/src/desk/catch-up-parts.tsx";
 import { Decisions } from "../app/src/phone/inbox.tsx";
+import { keyFor } from "../app/src/shell/keymap.ts";
 import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
@@ -963,9 +964,23 @@ const JIRA_FACTS: OutsideFacts = {
   only_account: false,
 };
 
+/** An outside card's header, as the deck draws it over what the read gave. */
+const itemHeader = (facts: OutsideFacts, thread: ThreadState) =>
+  renderToStaticMarkup(createElement(OutsideItemHeader, { facts, unread: false, flash: null, went: null, cameBack: false, thread }));
+/** An outside card's moves, as the deck draws them in the reply box's row. */
+const itemActions = (facts: OutsideFacts, thread: ThreadState) =>
+  renderToStaticMarkup(
+    createElement(OutsideItemActions, {
+      facts,
+      thread,
+      typing: false,
+      moves: { read: () => {}, later: () => {}, archive: () => {}, label: () => {} },
+      picking: false,
+    }),
+  );
+
 describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
-  const header = (link: string | null = null) =>
-    renderToStaticMarkup(createElement(OutsideHeader, { facts: JIRA_FACTS, badge: null, went: null, cameBack: false, link }));
+  const read = (link: string | null = null): ThreadState => ({ kind: "read", messages: [], ticket: jiraTicket(), link });
   const events = [
     { id: "e1", sender: "Bob Stone", at: "", text: "status: To Do → In Progress", mine: false },
     { id: "e2", sender: "Mina Example", at: "", text: "On it", mine: true },
@@ -977,19 +992,17 @@ describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
     expect(outsideTitle(JIRA_FACTS)).toBe("OPS-7 · Rotate the keys");
     expect(replyPlace(JIRA_FACTS)).toBe("comment on the ticket");
   });
-  test("its header shows the Jira mark, who, the key and title, the tag and the link to the ticket, and names the site", () => {
-    const html = header();
+  test("its header shows the Jira mark, the key and title, and names the site; its moves link to the ticket", () => {
+    const html = itemHeader(JIRA_FACTS, read());
     expect(html).toContain('aria-label="from Jira"');
     expect(html).toContain("◆");
-    expect(html).toContain("Ada Lovelace");
     expect(html).toContain("OPS-7 · Rotate the keys");
-    expect(html).toContain(">watching<");
-    expect(html).toMatch(/<a [^>]*href="https:\/\/acme\.atlassian\.net\/browse\/OPS-7"[^>]*>open in jira<\/a>/);
     expect(html).toContain('title="the site it came from"');
     expect(html).not.toContain("workspace");
+    expect(itemActions(JIRA_FACTS, read())).toMatch(/data-verb="open_out" title="https:\/\/acme\.atlassian\.net\/browse\/OPS-7"[^>]*>Open in Jira</);
   });
   test("a site with a custom domain links to that domain, as the read gave it", () => {
-    expect(header("https://jira.acme.example/browse/OPS-7")).toContain('href="https://jira.acme.example/browse/OPS-7"');
+    expect(itemActions(JIRA_FACTS, read("https://jira.acme.example/browse/OPS-7"))).toContain('title="https://jira.acme.example/browse/OPS-7"');
   });
   test("its thread draws each event, the person's own as you, with the New line before the first unread one", () => {
     const html = renderToStaticMarkup(createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: events } }));
@@ -1019,31 +1032,18 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     ...over,
   });
   const thread = (state: ThreadState = read(), facts: OutsideFacts = JIRA_FACTS) => renderToStaticMarkup(createElement(OutsideThread, { facts, state }));
-  const head = (ticket = jiraTicket(), facts: OutsideFacts = JIRA_FACTS) =>
-    renderToStaticMarkup(createElement(OutsideHeader, { facts, badge: null, went: null, cameBack: false, ticket }));
+  const head = (ticket = jiraTicket(), facts: OutsideFacts = JIRA_FACTS) => itemHeader(facts, read({ ticket }));
 
-  test("its header names the type, key and project, keeps the tag and the link, and is titled by the summary", () => {
-    const html = head();
+  test("its header is titled by the key and summary, with the ticket's fields beside it", () => {
+    const html = head(jiraTicket({ changed: [] }));
     expect(html).toContain('aria-label="from Jira"');
-    expect(html).toMatch(/class="loki-jira-key"[^>]*>OPS-7</);
-    expect(html).toContain("· Task · Operations");
-    expect(html).toMatch(/class="loki-card-head-who"[^>]*>Rotate the keys</);
-    expect(html).toContain(">watching<");
-    expect(html).toContain(">open in jira<");
-    expect(html.indexOf("OPS-7")).toBeLessThan(html.indexOf("Rotate the keys"));
-    expect(html).not.toContain("loki-jira-new");
+    expect(html).toContain(">OPS-7 · Rotate the keys<");
+    expect(html).toContain('data-property="status" title="In review"');
+    expect(html).not.toContain('data-flag="changed"');
   });
-  test("a summary someone else changed marks the header new", () => {
+  test("a ticket someone else changed marks the header changed", () => {
     const changed = [{ field: "summary", from: "Rotate keys", to: "Rotate the keys", by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
-    expect(head(jiraTicket({ changed }))).toContain(">new<");
-  });
-  test("the header's new mark says in plain words what changed: the type, the project or the summary", () => {
-    const by = { by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" };
-    const said = (field: string) => head(jiraTicket({ changed: [{ field, from: "a", to: "b", ...by }] }));
-    expect(said("issuetype")).toContain('title="type changed · Ada Lovelace · ');
-    expect(said("project")).toContain('title="project changed · Ada Lovelace · ');
-    expect(said("summary")).toContain('title="summary changed · Ada Lovelace · ');
-    expect(said("issuetype")).not.toContain("issuetype");
+    expect(head(jiraTicket({ changed }))).toMatch(/data-flag="changed"[^>]*>Changed</);
   });
   test("the fields show what the ticket has, the changed status marked new with what it was and who changed it", () => {
     const html = thread();
@@ -1081,9 +1081,9 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     expect(html).toContain(">Description<");
     expect(html).toContain("line 6");
     expect(html).not.toContain("line 7");
-    expect(html).toContain(">show more<");
+    expect(html).toContain(">Show more<");
     const short = thread(read({ ticket: jiraTicket({ description: ["one line"] }) }));
-    expect(short).not.toContain("show more");
+    expect(short).not.toContain("Show more");
   });
   test("an edited description is marked under its heading", () => {
     const changed = [{ field: "description", from: null, to: null, by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
@@ -1110,9 +1110,7 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     expect(html).not.toContain("Comments ·");
     expect(html).not.toContain("loki-jira");
     expect(html).toContain("New since you last read");
-    expect(renderToStaticMarkup(createElement(OutsideHeader, { facts: JIRA_FACTS, badge: null, went: null, cameBack: false }))).toContain(
-      "OPS-7 · Rotate the keys",
-    );
+    expect(itemHeader(JIRA_FACTS, { kind: "read", messages: JIRA_COMMENTS })).toContain(">Rotate the keys<");
   });
   test("a Gmail and a Slack card draw no ticket parts", () => {
     const mail = must(outsideItem("Lunch").outside, "mail facts");
@@ -1120,7 +1118,7 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
       const html = thread(read(), facts);
       expect(html).not.toContain("loki-jira");
       expect(html).not.toContain("Comments ·");
-      expect(head(jiraTicket(), facts)).not.toContain("loki-jira");
+      expect(itemHeader(facts, read())).not.toContain("loki-jira");
     }
   });
   test("a Jira card's opening read asks for the ticket, and so does a load while it shows one; Gmail and Slack ask nothing new", () => {
@@ -1278,33 +1276,18 @@ describe("the moves a Jira card offers (plan 2026-11-10-1451, U6)", () => {
       }),
     );
 
-  test("on the desktop: hand off, later and read, with no archive or label, and hand off says the card stays", () => {
+  test("on the desktop: Hand Off, Later and Mark as Read, with no Archive or Label, and hand off says the card stays", () => {
     const html = card(JIRA_FACTS);
-    expect(html).toContain(">hand off<");
-    expect(html).toContain(">later<");
-    expect(html).toContain(">read<");
-    expect(html).not.toContain(">archive<");
-    expect(html).not.toContain(">label<");
+    expect(html).toContain(">Hand Off<");
+    expect(html).toContain(">Later<");
+    expect(html).toContain(">Mark as Read<");
+    expect(html).not.toContain(">Archive<");
+    expect(html).not.toContain(">Label<");
     expect(html).toContain("give the whole ticket to friday in one of its chats; the card stays until you read it");
     // A Slack card keeps its archive and its hand-off words.
     const slack = card(FACTS);
-    expect(slack).toContain(">archive<");
+    expect(slack).toContain(">Archive<");
     expect(slack).toContain("the card leaves until someone writes again");
-  });
-
-  test("the key legend names only a Jira card's moves, and a comment rather than a reply", () => {
-    const legend = (typing: boolean, current: Parameters<typeof KeysHint>[0]["current"]) => renderToStaticMarkup(createElement(KeysHint, { typing, current }));
-    const jira = legend(false, jiraItem());
-    expect(jira).not.toContain("archive");
-    expect(jira).not.toContain("label");
-    expect(jira).toContain(" comment");
-    const typing = legend(true, jiraItem());
-    expect(typing).toContain("enter comment (the card stays)");
-    expect(typing).toContain("(a comment goes first)");
-    expect(typing).not.toContain("archive");
-    // Mail keeps its own.
-    expect(legend(false, outsideItem("Lunch"))).toContain("archive");
-    expect(legend(false, outsideItem("Lunch"))).toContain("label");
   });
 
   test("on the phone: Later and Read under a Jira card, and no Archive", () => {
@@ -1322,7 +1305,8 @@ describe("a Jira card's comment box (plan 2026-11-10-1451, U7)", () => {
   test("on the desktop it comments on the ticket, sends on Enter, and says the card stays unread", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts: JIRA_FACTS, box }));
     expect(html).toContain('placeholder="comment on the ticket"');
-    expect(html).toContain('title="post it on the ticket as you; the card stays, unread, for your next move"');
+    // Enter sends: its key is in the send button's tooltip.
+    expect(html).toContain(`title="post it on the ticket as you; the card stays, unread, for your next move (${keyFor("chat.send")})"`);
     expect(html).not.toContain("loki-mail-compose");
   });
   test("on the phone it says the comment posts as the person and the card stays; Slack's and mail's lines are as they were", () => {

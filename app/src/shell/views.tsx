@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
+import { scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
 import { saveLabels } from "../desk/desk-conversation";
@@ -7,7 +7,6 @@ import { runAction } from "./keymap";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/catch-up";
-import { NewDesk } from "../desk/new-desk";
 import { Agents } from "../agents/agents";
 import { Recall } from "../recall/recall";
 import type { Recall as RecallModel } from "./use-recall";
@@ -306,40 +305,6 @@ export function WelcomeView({
       daemon={daemon}
       onRetryDaemon={onRetryDaemon}
       onDone={onDone}
-    />
-  );
-}
-
-/** The new-desk dialog inherits the open desk's working folder when the mod knows it. */
-export function NewDeskSheet({
-  state,
-  inheritCurrentDesk,
-  onClose,
-  desk,
-  catchUp,
-  onCreate,
-}: {
-  state: { open: boolean; name: string; agentId: string | null };
-  inheritCurrentDesk: boolean;
-  onClose: () => void;
-  desk: Desk;
-  catchUp: CatchUp;
-  onCreate: (agent: string, folder: string, name: string, home?: string) => Promise<void>;
-}) {
-  const currentConversationKey = inheritCurrentDesk && desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null;
-  return (
-    <NewDesk
-      open={state.open}
-      onClose={onClose}
-      agents={catchUp.agents}
-      defaultAgentId={state.agentId ?? desk.agentId}
-      currentAgentId={inheritCurrentDesk ? desk.agentId : null}
-      currentConversationKey={currentConversationKey}
-      initialName={state.name}
-      folders={desk.attention.folders}
-      macs={desk.macs.view}
-      requirements={desk.attention.requirements}
-      onCreate={onCreate}
     />
   );
 }

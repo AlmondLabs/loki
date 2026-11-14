@@ -83,8 +83,9 @@ describe("the title switcher", () => {
         .replace(/\s+/g, " ")
         .trim(),
     );
-    expect(rows).toEqual(["Everything", "Work ✓", "Home", "Ada 2", "Bo 1", "New Lane…"]);
+    expect(rows).toEqual(["Everything", "Work", "Home", "Ada 2", "Bo 1", "New Lane…"]);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
+    expect(html.match(/loki-menu-check/g)).toHaveLength(1);
     expect(html).toMatch(/aria-checked="true"[^>]*>.*?Work/);
   });
 
@@ -165,11 +166,11 @@ describe("an emptied lane", () => {
   test("the caught-up state shows the other lanes' count and a way back to everything", () => {
     const html = renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0, others: 2, onEverything: noop }));
     expect(html).toContain("2 waiting in other lanes");
-    expect(html).toContain("back to everything");
+    expect(html).toContain("Back to everything");
     const none = renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0, others: 0, onEverything: noop }));
     expect(none).not.toContain("other lanes");
-    expect(none).toContain("back to everything");
-    expect(renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0 }))).not.toContain("back to everything");
+    expect(none).toContain("Back to everything");
+    expect(renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0 }))).not.toContain("Back to everything");
   });
 
   test("an emptied agent lane stays in the menu while on and leaves it once the person switches away", () => {

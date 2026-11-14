@@ -163,7 +163,6 @@ window.addEventListener("message", (e) => {
         el.dataset.theme = m.theme;
         el.style.colorScheme = m.theme;
       }
-      if (typeof m.palette === "string") el.dataset.palette = m.palette;
       return;
     }
     case "layout":

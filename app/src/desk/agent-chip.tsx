@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLook } from "../theme";
 
 /**
  * The agent's face: its profile.png from the memory filesystem, served by the mod. Falls back to a
@@ -7,8 +6,7 @@ import { useLook } from "../theme";
  */
 export function AgentFace({ name, src, size = 20 }: { name: string | null | undefined; src: string | null; size?: number }) {
   const [broken, setBroken] = useState(false);
-  // Under Liquid Glass an agent with no picture is Messages' grey monogram, not a coloured tile (plan 2026-11-12-1505, U17).
-  const glass = useLook() === "glass";
+  // An agent with no picture is Messages' grey monogram, not a coloured tile (plan 2026-11-12-1505, U17).
   const hue = agentHue(name ?? "agent");
   const style: React.CSSProperties = {
     width: size,
@@ -24,13 +22,13 @@ export function AgentFace({ name, src, size = 20 }: { name: string | null | unde
     return (
       <span
         aria-hidden
-        data-monogram={glass || undefined}
+        data-monogram
         style={{
           ...style,
-          ...(glass ? MONOGRAM : null),
+          ...MONOGRAM,
           display: "inline-grid",
           placeItems: "center",
-          color: glass ? "var(--loki-on-monogram)" : `hsl(${hue} 60% 78%)`,
+          color: "var(--loki-on-monogram)",
           fontWeight: 700,
           fontSize: Math.max(9, Math.round(size * 0.5)),
           lineHeight: 1,

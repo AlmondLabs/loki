@@ -21,6 +21,8 @@ const key = (k: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altK
   ...mods,
 });
 
+/** Both the desktop's chips and the phone's row are named "quick replies". */
+const OFFERED = 'aria-label="quick replies"';
 const draw = (rows: TranscriptRow[], status: ChatStatus = "idle", question: PendingQuestion | null = null, touch = false) =>
   renderToStaticMarkup(createElement(Conversation, { touch, view: { rows, status, question }, actions: { onSend: () => {}, onAnswer: () => {} } }));
 
@@ -33,25 +35,31 @@ describe("quick replies (plan 066)", () => {
     expect(lastReplies(undefined)).toBeNull();
   });
 
-  test("the buttons show under a finished reply, the block's words never do", () => {
-    const html = draw([reply]);
-    expect(html).toContain("loki-quick-replies");
-    expect(html).toContain(">run the migration<");
-    expect(html).toContain(">show me the diff first<");
-    expect(html).not.toContain("loki-replies&gt;");
-    expect(html).toContain("Ready to migrate.");
-  });
+  for (const touch of [false, true]) {
+    test(`${touch ? "phone" : "desktop"}: the buttons show under a finished reply, the block's words never do`, () => {
+      const html = draw([reply], "idle", null, touch);
+      expect(html).toContain(OFFERED);
+      expect(html).toMatch(/>run the migration</);
+      expect(html).toMatch(/>show me the diff first</);
+      expect(html).not.toContain("loki-replies&gt;");
+      expect(html).toContain("Ready to migrate.");
+    });
+  }
 
   test("none while the agent is still at it, or waiting on a question", () => {
-    expect(draw([reply], "streaming")).not.toContain("loki-quick-replies");
-    expect(draw([reply], "thinking")).not.toContain("loki-quick-replies");
+    expect(draw([reply], "streaming")).not.toContain(OFFERED);
+    expect(draw([reply], "thinking")).not.toContain(OFFERED);
     const question: PendingQuestion = { requestId: "q1", questions: [{ question: "which?", options: [{ label: "a" }, { label: "b" }] }] } as PendingQuestion;
-    expect(draw([reply], "idle", question)).not.toContain("loki-quick-replies");
+    expect(draw([reply], "idle", question)).not.toContain(OFFERED);
+    expect(draw([reply], "streaming", null, true)).not.toContain(OFFERED);
   });
 
   test("the Mac shows each one's key; the phone does not", () => {
-    expect(draw([reply])).toMatch(/run the migration<\/span><span [^>]*class="loki-kbd">1<\/span>/);
-    expect(draw([reply], "idle", null, true)).not.toContain("loki-kbd");
+    expect(draw([reply])).toMatch(/run the migration<kbd[^>]*>1<\/kbd>/);
+    const phone = draw([reply], "idle", null, true);
+    expect(phone).toContain(OFFERED);
+    expect(phone).not.toContain("<kbd");
+    expect(phone).not.toContain("loki-kbd");
   });
 
   test("a click sends the option word for word", () => {

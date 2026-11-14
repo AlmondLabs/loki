@@ -147,7 +147,7 @@ async fn open_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>, page: Option
             .build(),
     );
     #[cfg(not(target_os = "macos"))]
-    let window = window.background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff));
+    let window = window.background_color(tauri::window::Color(0x1c, 0x1c, 0x1e, 0xff));
     window.build().map(|_| ()).map_err(|e| e.to_string())
 }
 
@@ -516,7 +516,7 @@ pub fn run() {
             );
             // Elsewhere it starts on loki's dark ground; the page applies the saved light/dark preference after it loads.
             #[cfg(not(target_os = "macos"))]
-            let window = window.background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff));
+            let window = window.background_color(tauri::window::Color(0x1c, 0x1c, 0x1e, 0xff));
             // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
             // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
             #[cfg(not(target_os = "macos"))]

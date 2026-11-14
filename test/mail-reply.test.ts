@@ -15,6 +15,7 @@ import { replyOf } from "../mod/reply-proposals.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OutsideReply } from "../app/src/desk/outside-card.tsx";
+import { formatKeys } from "../app/src/shell/keymap.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
 import { addressSummary, addressingFor, recipientName, startAddressing, suggest, typedRecipient } from "../app/src/desk/mail-address.tsx";
@@ -715,39 +716,39 @@ describe("the mail reply box as drawn", () => {
     people: [],
   };
   const facts = must(outsideItem("Help").outside, "an outside card");
+  const onSend = () => Promise.resolve({ sent: true, error: null });
+  // The desktop's card draws its box with the item components (items); the phone keeps its own.
   test("the recipients line, the box, the signature under it and the folded quote; send names ⌘Enter", () => {
-    const html = renderToStaticMarkup(
-      createElement(OutsideReply, { facts, compose, quote: "Please update", onSend: () => Promise.resolve({ sent: true, error: null }) }),
-    );
-    expect(html).toContain("to Pinku, cc Ops");
-    expect(html).toContain('placeholder="reply"');
+    const html = renderToStaticMarkup(createElement(OutsideReply, { facts, compose, quote: "Please update", onSend, items: true }));
+    expect(html).toContain("To Pinku, cc Ops");
+    expect(html).toContain('placeholder="Reply"');
     expect(html).toContain("-- \nAda\nAcme support");
     expect(html).toContain("•••");
-    expect(html).toContain("reply all");
+    expect(html).toContain("Reply All");
+    expect(html).toMatch(new RegExp(`aria-label="Send" title="[^"]*\\(${formatKeys("cmd+enter")}\\)"`));
   });
-  test("a reply that did not go: its words, why, and send again and discard, lowercase here and sentence case on the phone", () => {
+  test("a reply that did not go: its words, why, and Send again and Discard; the line lowercase here and sentence case on the phone", () => {
     const note = { outbox_id: "o3-abcdefgh", text: "Thanks, I will look tomorrow\nAda", reason: "Gmail is unreachable", at: "2026-11-12T10:00:00Z" };
     const draw = (touch: boolean, onUnsent?: () => Promise<null>) =>
-      renderToStaticMarkup(
-        createElement(OutsideReply, { facts: { ...facts, not_sent: note }, touch, onUnsent, onSend: () => Promise.resolve({ sent: true, error: null }) }),
-      );
+      renderToStaticMarkup(createElement(OutsideReply, { facts: { ...facts, not_sent: note }, touch, onUnsent, onSend, items: !touch }));
     const desk = draw(false, () => Promise.resolve(null));
     expect(desk).toContain('role="alert"');
     expect(desk).toContain("not sent: Gmail is unreachable");
     expect(desk).toContain("“Thanks, I will look tomorrow”");
-    expect(desk).toContain(">send again<");
-    expect(desk).toContain(">discard<");
+    expect(desk).toContain(">Send again<");
+    expect(desk).toMatch(/title="let it go; the card stops saying it was not sent"[^>]*>Discard</);
     const phone = draw(true, () => Promise.resolve(null));
     expect(phone).toContain("Not sent: Gmail is unreachable");
     expect(phone).toContain(">Send again<");
     // With nothing to settle it by, it still says so, and offers nothing.
     expect(draw(false)).toContain("not sent: Gmail is unreachable");
-    expect(draw(false)).not.toContain("send again");
-    expect(renderToStaticMarkup(createElement(OutsideReply, { facts, onSend: () => Promise.resolve({ sent: true, error: null }) }))).not.toContain("not sent");
+    expect(draw(false)).not.toContain("Send again");
+    expect(draw(false)).not.toContain("let it go");
+    expect(renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }))).not.toContain("not sent");
   });
   test("before the line is read it says the reply goes to all, as before", () => {
-    const html = renderToStaticMarkup(createElement(OutsideReply, { facts, onSend: () => Promise.resolve({ sent: true, error: null }) }));
-    expect(html).toContain("reply to all");
+    const html = renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }));
+    expect(html).toContain("Reply to all");
     expect(html).not.toContain("•••");
   });
 });

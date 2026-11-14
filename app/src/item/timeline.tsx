@@ -27,7 +27,6 @@ import { chatEntries, type ItemEntry } from "./item-view";
 import { ChatMessage } from "./message-entry";
 import { Work, samePlan, stretchPlan } from "./work";
 import { AgentTurn } from "./agent-turn";
-import { useLook } from "../theme";
 
 /** Liquid Glass tells the time before your message when this long has passed since the row before (entries.ts, U14). */
 const TIME_GAP = 15 * 60_000;
@@ -38,10 +37,10 @@ const EMPTY: TranscriptRow[] = [];
  * The Timeline (plan 097; plan 096, U5): every entry of the item in order, as Turns for a chat. shadcn's MessageScroller follows the bottom while you are there,
  * holds what you read when something above changes height or older rows arrive, and offers the way back to the latest.
  * Around it, loki's own window: a long thread mounts its newest rows and reveals older ones as you near the top, then
- * asks the Mac for older pages; find mounts what it needs before it searches. Behind Preferences › Appearance › New
- * chat pane (preview); today's thread stays the default.
+ * asks the Mac for older pages; find mounts what it needs before it searches. The desktop's thread; the phone keeps its
+ * own (chat/conversation.tsx PhoneThread).
  */
-export const Timeline = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function Timeline(props, ref) {
+export const Timeline = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(function Timeline(props, ref) {
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <ThreadBody {...props} handle={ref} />
@@ -67,9 +66,8 @@ function ThreadBody({
   tail,
   style,
   handle,
-}: Omit<ThreadProps, "previewable"> & { handle: Ref<ThreadHandle> }) {
+}: Omit<ThreadProps, "phone"> & { handle: Ref<ThreadHandle> }) {
   const list = rows ?? EMPTY;
-  const glass = useLook() === "glass";
   const arrivedFrom = useArrivedFrom(rows);
   const dividerAt = layout?.dividerAt ?? null;
   const widgets = layout?.widgets ?? [];
@@ -85,7 +83,7 @@ function ThreadBody({
     }),
     [reveal],
   );
-  // Stable handlers for the memoised rows and the step loader, as today's thread keeps them.
+  // Stable handlers for the memoised rows and the step loader, as the phone's thread keeps them.
   const cancelRef = useRef(onCancelQueued);
   const stepRef = useRef(loadStep);
   useEffect(() => {
@@ -111,7 +109,7 @@ function ThreadBody({
             widgets,
             busy: status !== "idle",
             arrivedFrom,
-            gaps: glass ? TIME_GAP : undefined,
+            gaps: TIME_GAP,
           }),
           { busy: status !== "idle", waiting },
         ),
@@ -230,8 +228,8 @@ function ThreadBody({
         aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"}
       >
         <ArrowDownIcon data-icon="inline-start" />
-        {/* Title case under Liquid Glass, as a Mac button says it (U19). */}
-        {fresh > 0 ? `${fresh} ${glass ? "New" : "new"}` : glass ? "Latest" : "latest"}
+        {/* Title case, as a Mac button says it (U19). */}
+        {fresh > 0 ? `${fresh} New` : "Latest"}
       </MessageScrollerButton>
     </MessageScroller>
   );
@@ -292,7 +290,7 @@ function useFresh(list: TranscriptRow[], above: number): number {
 }
 
 /**
- * Sending re-pins the thread to the bottom, as today's does, wherever the reader was. MessageScroller's own answer to a
+ * Sending re-pins the thread to the bottom, as the phone's does, wherever the reader was. MessageScroller's own answer to a
  * send (scrolling your message to the top) counts every message it has not yet seen on screen as new, and a thread opens
  * at the bottom, so it jumped to the oldest one; no row is a scroll anchor, and this follows your message instead.
  */

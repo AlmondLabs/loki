@@ -10,7 +10,7 @@ import { resolve } from "../app/src/shell/keymap.ts";
 import { must } from "./fixtures/must.ts";
 
 /**
- * The one message box (phone and desktop, 2026-09-24): the text on top and a row inside the same field —
+ * The phone's message box (2026-09-24): the text on top and a row inside the same field —
  * "+", the model pill (name, then effort), the mic where dictation works, send. The pill opens "Select
  * model": the harnesses as tabs, the chosen one's models with a check on the current one, More models ›, then the
  * current model's effort levels (plan 021).
@@ -40,48 +40,44 @@ const barLabels = (html: string) => {
   return [...bar.matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
 };
 
-const conversation = (touch: boolean, draft = "") =>
+/** The accessible names of the desktop box's own buttons ("+" and the one round button), in order. */
+const boxLabels = (html: string) => [...html.matchAll(/<button[^>]*class="loki-composer-(?:plus|round)"[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
+
+const conversation = (touch: boolean, draft = "", over: { mode?: string; onStop?: () => Promise<string | null>; status?: "idle" | "streaming" } = {}) =>
   renderToStaticMarkup(
     createElement(Conversation, {
       touch,
-      view: { rows: [], status: "idle", model: CURRENT, reasoningEffort: "medium" },
-      actions: { onSend: () => {}, onPickModel: async () => {} },
+      view: { rows: [], status: over.status ?? "idle", model: CURRENT, reasoningEffort: "medium", ...(over.mode ? { mode: over.mode } : {}) },
+      actions: {
+        onSend: () => {},
+        onPickModel: async () => {},
+        ...(over.mode ? { onPickMode: async () => {} } : {}),
+        ...(over.onStop ? { onStop: over.onStop } : {}),
+      },
       models: MODELS,
       draft: { value: { text: draft, images: [] }, onChange: () => {} },
     }),
   );
 
-describe("the message box's bottom row", () => {
-  for (const touch of [false, true]) {
-    test(`${touch ? "phone" : "desktop"}: +, the model pill with its name and effort, then send, inside the one field`, () => {
-      const html = conversation(touch);
-      expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Send"]);
-      // the text and the row share the one rounded field
-      expect(html.indexOf('class="loki-composer-box')).toBeLessThan(html.indexOf("loki-composer-text"));
-      expect(html.indexOf("loki-composer-text")).toBeLessThan(html.indexOf('class="loki-composer-bar'));
-      // the model in the foreground, the effort after it in the muted colour
-      expect(html).toMatch(/class="loki-model-pill-name">Opus 5\.5<\/span><span class="loki-model-pill-effort">Medium<\/span>/);
-      // the old placement is gone: no model or effort chip in the row under the box
-      expect(html).not.toContain('aria-label="model"');
-      expect(html).not.toContain("reasoning effort:");
-    });
-  }
+describe("the phone's message box's bottom row", () => {
+  test("+, the model pill with its name and effort, then send, inside the one field", () => {
+    const html = conversation(true);
+    expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Send"]);
+    // the text and the row share the one rounded field
+    expect(html.indexOf('class="loki-composer-box')).toBeLessThan(html.indexOf("loki-composer-text"));
+    expect(html.indexOf("loki-composer-text")).toBeLessThan(html.indexOf('class="loki-composer-bar'));
+    // the model in the foreground, the effort after it in the muted colour
+    expect(html).toMatch(/class="loki-model-pill-name">Opus 5\.5<\/span><span class="loki-model-pill-effort">Medium<\/span>/);
+    // the old placement is gone: no model or effort chip in the row under the box
+    expect(html).not.toContain('aria-label="model"');
+    expect(html).not.toContain("reasoning effort:");
+  });
 
-  for (const touch of [false, true]) {
-    test(`${touch ? "phone" : "desktop"}: the permission mode sits beside the model pill, inside the box, not in the row under it`, () => {
-      const html = renderToStaticMarkup(
-        createElement(Conversation, {
-          touch,
-          view: { rows: [], status: "idle", model: CURRENT, reasoningEffort: "medium", mode: "standard" },
-          actions: { onSend: () => {}, onPickModel: async () => {}, onPickMode: async () => {} },
-          models: MODELS,
-          draft: { value: { text: "", images: [] }, onChange: () => {} },
-        }),
-      );
-      expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "permission mode", "Send"]);
-      expect(html).not.toContain("loki-conversation-footer");
-    });
-  }
+  test("the permission mode sits beside the model pill, inside the box, not in the row under it", () => {
+    const html = conversation(true, "", { mode: "standard" });
+    expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "permission mode", "Send"]);
+    expect(html).not.toContain("loki-conversation-footer");
+  });
 
   test("the mic sits between the pill and send, only where dictation works", () => {
     const bar = (dictation: boolean) =>
@@ -104,34 +100,55 @@ describe("the message box's bottom row", () => {
 
   test("send is disabled while the box is empty and live once there is text", () => {
     const send = (html: string) => must(/<button[^>]*aria-label="Send"[^>]*>/.exec(html), "the Send button")[0];
-    expect(send(conversation(false))).toContain('disabled=""');
-    expect(send(conversation(false, "ship it"))).not.toContain("disabled");
+    expect(send(conversation(true))).toContain('disabled=""');
     expect(send(conversation(true, "ship it"))).not.toContain("disabled");
   });
 
   test("while the agent works, an empty box's send is Stop; typing brings send back (it queues); no handler, no Stop", () => {
-    const working = (text: string, onStop?: () => Promise<string | null>) =>
-      barLabels(
-        renderToStaticMarkup(
-          createElement(Conversation, {
-            view: { rows: [], status: "streaming" },
-            actions: { onSend: () => {}, ...(onStop ? { onStop } : {}) },
-            draft: { value: { text, images: [] }, onChange: () => {} },
-          }),
-        ),
-      );
     const stop = () => Promise.resolve(null);
-    expect(working("", stop)).toEqual(["Attach files", "Stop"]);
-    expect(working("and also this", stop)).toEqual(["Attach files", "Queue: sends when this turn ends"]);
-    expect(working("")).toEqual(["Attach files", "Queue: sends when this turn ends"]);
+    const working = (text: string, onStop?: () => Promise<string | null>) => barLabels(conversation(true, text, { status: "streaming", onStop }));
+    expect(working("", stop)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Stop"]);
+    expect(working("and also this", stop)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Queue: sends when this turn ends"]);
+    expect(working("")).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Queue: sends when this turn ends"]);
     // idle: never Stop
-    const idle = renderToStaticMarkup(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {}, onStop: stop } }));
-    expect(barLabels(idle)).toEqual(["Attach files", "Send"]);
+    expect(barLabels(conversation(true, "", { onStop: stop }))).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Send"]);
   });
 
   test("without a model handler there is no pill", () => {
-    const html = renderToStaticMarkup(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {} } }));
+    const html = renderToStaticMarkup(createElement(Conversation, { touch: true, view: { rows: [], status: "idle" }, actions: { onSend: () => {} } }));
     expect(barLabels(html)).toEqual(["Attach files", "Send"]);
+  });
+});
+
+// The desktop's box is Messages' (plan 2026-11-12-1505, U21): the model and the permission mode live in ⌘K, so the box
+// has neither pill, and its one round button shows only when there is something to send or a turn to stop.
+describe("the desktop's message box", () => {
+  test("+ outside the capsule and no pills; send once there is text, live", () => {
+    const html = conversation(false);
+    expect(html).toContain('data-composer="messages"');
+    expect(boxLabels(html)).toEqual(["Attach Files"]);
+    expect(html).not.toContain("loki-model-pill");
+    expect(html).not.toContain("loki-composer-bar");
+    const typed = conversation(false, "ship it");
+    expect(boxLabels(typed)).toEqual(["Attach Files", "Send"]);
+    expect(must(/<button[^>]*aria-label="Send"[^>]*>/.exec(typed), "the Send button")[0]).not.toContain("disabled");
+  });
+
+  test("the permission mode is not in the box, nor in a row under it", () => {
+    const html = conversation(false, "", { mode: "standard" });
+    expect(boxLabels(html)).toEqual(["Attach Files"]);
+    expect(html).not.toContain("permission mode");
+    expect(html).not.toContain("loki-conversation-footer");
+  });
+
+  test("while the agent works, an empty box shows Stop; typing brings send back (it queues); no handler, no Stop", () => {
+    const stop = () => Promise.resolve(null);
+    const working = (text: string, onStop?: () => Promise<string | null>) => boxLabels(conversation(false, text, { status: "streaming", onStop }));
+    expect(working("", stop)).toEqual(["Attach Files", "Stop"]);
+    expect(working("and also this", stop)).toEqual(["Attach Files", "Queue: sends when this turn ends"]);
+    expect(working("")).toEqual(["Attach Files"]);
+    // idle: never Stop
+    expect(boxLabels(conversation(false, "", { onStop: stop }))).toEqual(["Attach Files"]);
   });
 });
 

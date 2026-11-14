@@ -16,20 +16,7 @@ import { LearnColumn } from "../recall/learn-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
-import {
-  ColumnToggle,
-  GLASS_HEAD,
-  GLASS_INSET,
-  Places,
-  Sidebar,
-  SIDEBAR_WIDTH,
-  sidebarToggleLeft,
-  sidebarToggleTop,
-  TitleStrip,
-  TITLEBAR_HEIGHT,
-  UpdateRow,
-} from "./sidebar";
-import { useLook } from "../theme";
+import { ColumnToggle, GLASS_HEAD, GLASS_INSET, Places, sidebarToggleLeft, sidebarToggleTop, TitleStrip, TITLEBAR_HEIGHT, UpdateRow } from "./sidebar";
 import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
@@ -42,7 +29,7 @@ import { KeysSheet } from "./keys-sheet";
 import { useColumn } from "./use-column";
 import { ListColumn } from "./list-column";
 import { DeskSidebarView } from "./desk-sidebar";
-import { AgentsView, InboxView, NewDeskSheet, SettingsView, WelcomeView, RecallView } from "./views";
+import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
@@ -90,8 +77,8 @@ export function Shell() {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
-  // This Mac's lane (plan 087): Flow, the rail, the window title, the dock and the tray count only its cards.
-  const { catchUp, laneId } = useShellAttention(desk, capture);
+  // This Mac's lane (plan 087): Flow, the sidebar, the window title, the dock and the tray count only its cards.
+  const catchUp = useShellAttention(desk, capture);
   /** A line at the bottom of the window for four seconds (Notices). */
   const notice = (m: string) => void notify(m);
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
@@ -128,9 +115,8 @@ export function Shell() {
   useEffect(() => {
     capture("desk_switched", { desk: desk.scope });
   }, [desk.scope, capture]);
-  const [newDesk, setNewDesk] = useState<{ open: boolean; name: string; agentId: string | null }>({ open: false, name: "", agentId: null });
   /**
-   * ⌘N under Liquid Glass (plan 2026-11-12-1505, U20): a chat not started yet, shown in place of the open one. `n` counts
+   * ⌘N (plan 2026-11-12-1505, U20): a chat not started yet, shown in place of the open one. `n` counts
    * the asks, so asking again starts over on the agent asked for and puts the caret back in its box.
    */
   const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
@@ -239,17 +225,9 @@ export function Shell() {
   const shortcut = useGlobalShortcut();
   /** The `?` cheat sheet for the view showing. */
   const [keysOpen, setKeysOpen] = useState(false);
-  const createDesk = async (agent: string, folder: string, name: string, home?: string) => {
-    const rt = await catchUp.createDesk(agent, folder, name, home);
-    setNewDesk({ open: false, name: "", agentId: null });
-    openDesk(rt.agent_id, rt.conversation_id, { chat: true });
-  };
 
-  // Under Liquid Glass there is no rail (U12): the list column is the window's one sidebar, beside every section.
-  const glass = useLook() === "glass";
-  // Under Liquid Glass a new chat opens in place and is created by its first message; today's look asks in the dialog.
+  // A new chat opens in place and is created by its first message (plan 2026-11-12-1505, U20).
   const startNewChat = (agentId: string | null) => {
-    if (!glass) return setNewDesk({ open: true, name: "", agentId });
     setNewChat((was) => ({ agentId, n: (was?.n ?? 0) + 1 }));
     setPrefsOpen(false);
     setSegment("desk");
@@ -266,22 +244,6 @@ export function Shell() {
 
   // The badges count the active lane's cards (R15); search, the sidebar and agents keep every card (R16).
   const waiting = catchUpQueue(catchUp.flow.laneItems).length;
-  // The inbox badge ticks when something new starts waiting.
-  const [tick, setTick] = useState(false);
-  const prevWaiting = useRef(waiting);
-  // A lane switch changes the count without anything new coming, so it does not tick.
-  const prevLane = useRef(laneId);
-  useEffect(() => {
-    const switched = prevLane.current !== laneId;
-    prevLane.current = laneId;
-    if (!switched && waiting > prevWaiting.current) {
-      setTick(true);
-      const t = setTimeout(() => setTick(false), 500);
-      prevWaiting.current = waiting;
-      return () => clearTimeout(t);
-    }
-    prevWaiting.current = waiting;
-  }, [waiting, laneId]);
   const toggleInbox = useCallback(() => setSegmentRaw((s) => (s === "inbox" ? "desk" : "inbox")), []);
   useTray(waiting, toggleInbox);
   useEffect(() => {
@@ -304,9 +266,9 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // The list column between the rail and the main pane (Desk, Agents, Learn); the pane starts where it ends. Under
-  // Liquid Glass there is no rail (U12): the column is the window's one sidebar, beside every section, its places on top.
-  const column = useColumn(segment, glass);
+  // The list column is the window's one sidebar (U12), beside every section, its places on top; the pane starts where it
+  // ends.
+  const column = useColumn(segment);
   /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
   const showLabel = (name: string) => {
     setSidebarQuery(`label:${name}`);
@@ -315,15 +277,15 @@ export function Shell() {
     if (!column.open) column.toggle();
   };
   // A chat not started yet shows in place of the open one, which stays mounted behind it and takes no keys meanwhile.
-  const drafting = glass && newChat !== null && segment === "desk";
+  const drafting = newChat !== null && segment === "desk";
   const onChat = segment === "desk" && !drafting;
-  // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
+  // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept).
   const immersive = sidebarHidden(segment, pane.tab);
   const columnShown = column.shown && !immersive;
-  // Glass: the sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
-  const paneLeft = glass ? (columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36) : SIDEBAR_WIDTH + (columnShown ? column.width : 0);
-  // Under Liquid Glass in the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); else the sheet.
-  const settingsWindow = glass && SETTINGS_WINDOW;
+  // The sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
+  const paneLeft = columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36;
+  // In the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); elsewhere the sheet.
+  const settingsWindow = SETTINGS_WINDOW;
   const showPreferences = (page?: string | null) => {
     if (settingsWindow) return openSettingsWindow(page);
     if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
@@ -407,38 +369,26 @@ export function Shell() {
   return (
     <div className="loki-shell" style={{ position: "relative", height: "100%", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0 }}>
-        {/* Liquid Glass's sidebar (plan 2026-11-12-1505, U3): one glass panel, inset from the window's edge, under the rail
-            and the list column; components.css shows it only in that family, where the rail and column go clear over it. */}
+        {/* The sidebar (plan 2026-11-12-1505, U3): one glass panel, inset from the window's edge, under the list column,
+            which goes clear over it (components.css). */}
         <div
           aria-hidden
           className="loki-shell-glass glass"
-          data-empty={glass && !columnShown ? "" : undefined}
+          data-empty={!columnShown ? "" : undefined}
           style={{
             position: "absolute",
             left: GLASS_INSET,
             top: GLASS_INSET,
             bottom: GLASS_INSET,
-            width: glass ? (columnShown ? column.width : 0) : Math.max(0, paneLeft - 12),
+            width: columnShown ? column.width : 0,
             borderRadius: "var(--loki-radius-lg)",
           }}
         />
         <TitleStrip />
-        {glass && column.has && !immersive && (
+        {column.has && !immersive && (
           <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }}>
-            <ColumnToggle open={column.open} onToggle={column.toggle} floating />
+            <ColumnToggle open={column.open} onToggle={column.toggle} />
           </span>
-        )}
-        {!glass && (
-          <Sidebar
-            segment={segment}
-            onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))}
-            waiting={waiting}
-            tick={tick}
-            dueCards={recall.due}
-            lanOn={desk.phone.status?.enabled === true}
-            updateReady={update.newer}
-            column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null}
-          />
         )}
 
         <ListColumn
@@ -446,10 +396,10 @@ export function Shell() {
           shown={columnShown}
           width={column.width}
           onWidth={column.setWidth}
-          left={glass ? GLASS_INSET : SIDEBAR_WIDTH}
-          top={glass ? GLASS_INSET + GLASS_HEAD : TITLEBAR_HEIGHT}
-          head={glass ? <Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} /> : null}
-          foot={glass && update.newer ? <UpdateRow onOpen={openPrefs} /> : null}
+          left={GLASS_INSET}
+          top={GLASS_INSET + GLASS_HEAD}
+          head={<Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} />}
+          foot={update.newer ? <UpdateRow onOpen={openPrefs} /> : null}
           sections={{
             desk: (
               <DeskSidebarView
@@ -468,7 +418,7 @@ export function Shell() {
           }}
         />
 
-        {/* The main pane: one main landmark for whichever section shows; the rail is the navigation, the list column the sidebar. */}
+        {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: onChat ? "visible" : "hidden" }} aria-hidden={!onChat}>
@@ -575,7 +525,7 @@ export function Shell() {
           scope={searchScope}
           onScope={setSearchScope}
           models={sharedModels}
-          commands={glass ? commandsFor(segment) : []}
+          commands={commandsFor(segment)}
           onCommand={(id) => void runAction(id)}
         />
       )}
@@ -599,15 +549,6 @@ export function Shell() {
       )}
       <Notices />
       <RestartNotice due={desk.daemon.restartDue} restart={desk.daemon.restart} />
-
-      <NewDeskSheet
-        state={newDesk}
-        inheritCurrentDesk={segment === "desk"}
-        onClose={() => setNewDesk({ open: false, name: "", agentId: null })}
-        desk={desk}
-        catchUp={catchUp}
-        onCreate={createDesk}
-      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import type { Draft } from "../shared/drafts";
 import { useHeightVar } from "../shared/use-height-var";
 import { ToolbarTitle } from "../item/toolbar";
 import { PopoverMenu } from "../shell/menu-items";
-import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
+import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 import { osWords } from "../shell/os-words";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { messageOf } from "../../../core/errors.ts";
@@ -42,9 +42,9 @@ export interface NewChatProps {
 }
 
 /**
- * ⌘N under Liquid Glass (plan 2026-11-12-1505, U20): an empty chat in place of the open one, as Messages opens a new
+ * ⌘N (plan 2026-11-12-1505, U20): an empty chat in place of the open one, as Messages opens a new
  * message. A To: line holds the agent, with the folder the chat will work in at its trailing edge; both default as
- * the New chat dialog's did. Nothing is created until the first message is sent, so leaving it leaves nothing behind.
+ * the New chat dialog's did before it. Nothing is created until the first message is sent, so leaving it leaves nothing behind.
  */
 export function NewChat({
   agents,
@@ -164,7 +164,7 @@ function ToLine({
   /** The folder was chosen: focus goes back to the message box. */
   onDone: () => void;
 }) {
-  const native = useNativeMenus();
+  const native = NATIVE_MENUS;
   const [menuOpen, setMenuOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
   const typed = useRef({ text: "", at: 0 });

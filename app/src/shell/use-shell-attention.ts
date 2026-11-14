@@ -34,5 +34,5 @@ export function useShellAttention(desk: Desk, capture: (event: string, propertie
     activity: pageActivity,
     visibility: pageVisibility,
   });
-  return { catchUp, laneId };
+  return catchUp;
 }

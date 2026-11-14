@@ -1,5 +1,4 @@
 import { capitalFirst } from "../kit/words";
-import { useLook } from "../theme";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/ui/ai-elements/reasoning";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 
@@ -13,10 +12,10 @@ export function thoughtOf(rows: readonly TranscriptRow[]): { text: string; secon
 }
 
 /** The trigger's words: how long it thought when that is known, never a guess (KTD8). */
-const words = (seconds: number | undefined, glass: boolean) => {
+const words = (seconds: number | undefined) => {
   const line = seconds === undefined ? "thought" : `thought for ${seconds} ${seconds === 1 ? "second" : "seconds"}`;
-  // Under Liquid Glass the line takes a capital, as every label there does (plan 2026-11-12-1505, R7).
-  return <span>{glass ? capitalFirst(line) : line}</span>;
+  // The line takes a capital, as every label does (plan 2026-11-12-1505, R7).
+  return <span>{capitalFirst(line)}</span>;
 };
 
 /**
@@ -25,12 +24,11 @@ const words = (seconds: number | undefined, glass: boolean) => {
  * turn with none shows no line.
  */
 export function Thought({ rows }: { rows: readonly TranscriptRow[] }) {
-  const glass = useLook() === "glass";
   const t = thoughtOf(rows);
   if (!t) return null;
   return (
     <Reasoning data-thought duration={t.seconds} defaultOpen={false} className="mb-2">
-      <ReasoningTrigger getThinkingMessage={(_streaming, seconds) => words(seconds, glass)} className="text-meta" />
+      <ReasoningTrigger getThinkingMessage={(_streaming, seconds) => words(seconds)} className="text-meta" />
       <ReasoningContent className="mt-2 text-meta">{t.text}</ReasoningContent>
     </Reasoning>
   );

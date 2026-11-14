@@ -594,7 +594,7 @@ export function updateState(served: string | null | undefined, current: string |
   return needsReload(served, current) ? "ready" : "current";
 }
 
-/** Appearance on the phone: the global light/dark preference only; the desktop's palettes never recolour the phone. */
+/** Appearance on the phone: the light/dark preference only. */
 export const PHONE_APPEARANCE: ReadonlyArray<{ value: ThemePreference; label: string }> = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },

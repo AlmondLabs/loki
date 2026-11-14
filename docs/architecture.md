@@ -520,24 +520,24 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
    `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
    `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the batches of older items).
-4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K search,
+4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (the sidebar with its places, ⌘K,
    keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames) and the
    Inbox deck, whose `deck-moves.ts` makes read, later, archive, label and undo the same on every card and sends a
    typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
    phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
-   primitives; `kit/` the tokens and the widget kit (`@loki/kit`). The new chat pane (plans 096 and 097, behind
-   Preferences › New chat pane (preview)) adds three: `ui/` holds shadcn's components on Base UI and, in
+   primitives; `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night) and the widget kit
+   (`@loki/kit`). The desktop's chat pane and Flow's cards (plans 096 and 097) add three: `ui/` holds shadcn's components on Base UI and, in
    `ui/ai-elements/`, Vercel's AI Elements, both copied in and bent to loki's rules, imported as `@/ui/…`; `lib/utils.ts`
    is the one `cn`, which knows loki's type sizes and shadows; `item/` draws one item (a chat, a Slack thread, an email,
    a Jira ticket) from the `ItemView` its pure adapter `item-view.ts` builds, with the header, the moves, the timeline,
-   the agent's turns, work, plan and thoughts, proposals and the Composer. The seams that choose old or new are three,
-   each reading `useThreadPreview()` and leaving the phone alone: the thread in `chat/conversation.tsx`, the outside
-   card in `desk/outside-card.tsx`, and the header and moves in `desk/desk-pane.tsx` and `desk/catch-up.tsx`.
+   the agent's turns, work, plan and thoughts, proposals and the Composer. The phone keeps its own thread and cards:
+   `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `desk/outside-card.tsx`
+   draws an outside thread with the item components only when asked (`items`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
    `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
-   Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus under Liquid Glass, built in AppKit so an
+   Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus, built in AppKit so an
    action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight
    (the page sends the menu as data, `shell/native-menu.ts`, and gets back the index of the item chosen).
 6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),

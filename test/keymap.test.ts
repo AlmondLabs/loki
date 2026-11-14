@@ -545,20 +545,18 @@ describe("reacting on a Slack card (plan 079)", () => {
   });
 });
 
-describe("the menus under Liquid Glass", () => {
-  const goItems = (look: "glass" | "classic") =>
-    menuSpec(KEYMAP, "macos", look)
+describe("the Go menu", () => {
+  test("⌘N reads New Chat, with no ellipsis, since it opens a chat in place rather than asking", () => {
+    const goItems = menuSpec(KEYMAP, "macos")
       .find((m) => m.title === "Go")
       ?.items.flatMap((it) => ("separator" in it ? [] : [it.label]));
-
-  test("⌘N reads New Chat, with no ellipsis, since it opens a chat in place rather than asking", () => {
-    expect(goItems("glass")).toContain("New Chat");
-    expect(goItems("classic")).toContain("New Chat…");
+    expect(goItems).toContain("New Chat");
+    expect(goItems).not.toContain("New Chat…");
     const n = must(
       KEYMAP.find((b) => b.id === "desk.new"),
       "the new chat binding",
     );
-    expect(labelOf(n, "windows", "glass")).toBe("New Chat");
-    expect(labelOf(n, "macos")).toBe("New Chat…");
+    expect(labelOf(n, "windows")).toBe("New Chat");
+    expect(labelOf(n, "macos")).toBe("New Chat");
   });
 });

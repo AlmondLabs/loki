@@ -36,7 +36,7 @@ function pageCss(): string {
 
 const themeOf = () => {
   const d = document.documentElement.dataset;
-  return { theme: d.theme ?? "dark", palette: d.palette ?? "loki" };
+  return { theme: d.theme ?? "dark" };
 };
 
 /**
@@ -137,7 +137,7 @@ export function ModuleWidget({
     if (!boot) return;
     send({ type: "style", css: pageCss(), ...themeOf() });
     const mo = new MutationObserver(() => send({ type: "style", css: pageCss(), ...themeOf() }));
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette"] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => mo.disconnect();
   }, [boot]);
 

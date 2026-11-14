@@ -11,7 +11,6 @@
  * is swapped for another in `keysOn`, so matching, the menu and every listing use the same key (plan 014 U2).
  */
 import { keyboard, type Platform } from "../desk/env";
-import type { Look } from "../theme";
 
 export type { Platform };
 /** The sections of the desktop, as the keymap scopes bindings: "desk" is Chats, the code's older name. */
@@ -31,11 +30,6 @@ export interface Binding {
   label: string;
   /** The label on Windows or Linux where the Mac's names what the key does only there (labelOf). */
   labelOn?: Partial<Record<"windows" | "linux", string>>;
-  /**
-   * The label under Liquid Glass, where the command does something else (labelOf): ⌘N opens a chat in place there,
-   * so its label drops the ellipsis that promises a dialog (plan 2026-11-12-1505, U20).
-   */
-  labelGlass?: string;
   /** Fires while a text box has focus? Default false. */
   typing?: boolean;
   /** Menu placement: "<menu>" or "<menu>/<group>" for a separator group. Absent: not in the menu. */
@@ -61,7 +55,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
-  { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat…", labelGlass: "New Chat", typing: true, menu: "Go" },
+  { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat", typing: true, menu: "Go" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
   { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
   // Off the Mac there is no hidden window to bring back from the dock: the key minimises (useWindowChrome).
@@ -130,7 +124,7 @@ export const KEYMAP: Binding[] = [
     where: "chat",
     label: "allow the step",
     typing: true,
-    note: "the empty box, while an approval waits (Liquid Glass)",
+    note: "the empty box, while an approval waits",
   },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
   { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply", typing: true, note: "the empty box" },
@@ -227,9 +221,9 @@ export function keysOf(b: Binding, os: Platform = keyboard): string[] {
   return (os === "macos" ? undefined : b.keysOn?.[os]) ?? b.keys;
 }
 
-/** A binding's label on a system and in a look: the Mac's, unless the key does something else there (labelOn, labelGlass). */
-export function labelOf(b: Binding, os: Platform = keyboard, look: Look = "classic"): string {
-  return (look === "glass" ? b.labelGlass : undefined) ?? (os === "macos" ? undefined : b.labelOn?.[os]) ?? b.label;
+/** A binding's label on a system: the Mac's, unless the key does something else there (labelOn). */
+export function labelOf(b: Binding, os: Platform = keyboard): string {
+  return (os === "macos" ? undefined : b.labelOn?.[os]) ?? b.label;
 }
 
 /** A binding's key spec by id on a system, unformatted ("cmd+e"), for a native menu's accelerator; null when it has none. */
@@ -427,9 +421,9 @@ export function tauriAccelerator(spec: string): string {
 
 /**
  * The menu bar as the Rust side builds it from the keymap: MENUS in order, each binding's group a separated block, empty
- * menus left out; worded for the look showing.
+ * menus left out.
  */
-export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard, look: Look = "classic"): MenuSpec[] {
+export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): MenuSpec[] {
   return MENUS.map((title) => {
     const mine = map.filter((b): b is Binding & { menu: string } => b.menu?.split("/")[0] === title);
     const items: MenuSpec["items"] = [];
@@ -439,7 +433,7 @@ export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard, look:
       if (items.length && group !== lastGroup) items.push({ separator: true });
       lastGroup = group;
       const key = keysOf(b, os)[0];
-      items.push({ id: b.id, label: labelOf(b, os, look), accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
+      items.push({ id: b.id, label: labelOf(b, os), accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);
@@ -523,7 +517,6 @@ export function commandsFor(segment: Segment, os: Platform = keyboard, map: Bind
     .filter((b) => b.menu && b.id !== "search.open" && here.includes(b.where) && actions.has(b.id))
     .map((b) => {
       const key = keysOf(b, os).at(0);
-      // ⌘K lists commands only under Liquid Glass (U23), so its labels are that look's.
-      return { id: b.id, label: labelOf(b, os, "glass"), keys: key ? formatKeys(key, os) : null };
+      return { id: b.id, label: labelOf(b, os), keys: key ? formatKeys(key, os) : null };
     });
 }

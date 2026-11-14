@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Plan 2026-11-12-1505, U18: Settings in a window of its own on the Mac, under Liquid Glass. The window itself is the
+// Plan 2026-11-12-1505, U18: Settings in a window of its own on the Mac. The window itself is the
 // shell's (a browser cannot open one), so these read what opens it, what it loads and how the two windows keep step.
 
 const ROOT = join(import.meta.dirname, "..");
@@ -21,13 +21,13 @@ describe("the Settings window", () => {
     expect(caps.windows).toEqual(["main", "settings"]);
   });
 
-  test("the page boots the settings-only root in that window, and the shell sends Preferences there under Liquid Glass on the Mac", () => {
+  test("the page boots the settings-only root in that window, and the shell sends Preferences there on the Mac", () => {
     expect(read(APP, "boot.tsx")).toMatch(/window\.__LOKI__\?\.window === "settings"\s*\? \(await import\("\.\/shell\/settings-window"\)\)\.SettingsWindow/);
     const win = read(APP, "shell", "settings-window.tsx");
     expect(win).toContain('export const SETTINGS_WINDOW = inTauri && platform === "macos";');
     expect(win).toContain("<Settings key={opening.n} {...preferencesProps(sources)} windowed initialPage={opening.page} />");
     const shell = read(APP, "shell", "shell.tsx");
-    expect(shell).toContain("const settingsWindow = glass && SETTINGS_WINDOW;");
+    expect(shell).toContain("const settingsWindow = SETTINGS_WINDOW;");
     expect(shell).toContain("if (settingsWindow) return openSettingsWindow(page);");
     expect(shell).toContain('if (settingsWindow && id === "segment.settings") return openSettingsWindow();');
     expect(shell).toContain('if (t.kind === "preferences") return showPreferences(t.page);');

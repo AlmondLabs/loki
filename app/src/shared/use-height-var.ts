@@ -4,8 +4,7 @@ import { useLayoutEffect } from "react";
 export type HeightVar = "--loki-header-height" | "--loki-dock-height";
 
 /**
- * Keeps an element's height in a custom property on its parent (plan 2026-11-12-1505, U4): under Liquid Glass the
- * chat pane's header and its dock of decisions, box and moves float over the thread, which pads itself by these so
+ * Keeps an element's height in a custom property on its parent (plan 2026-11-12-1505, U4): the chat pane's header and its dock of decisions, box and moves float over the thread, which pads itself by these so
  * its first and last rows are never hidden beneath them. Measured by a ResizeObserver, so it follows the box growing
  * or an approval arriving without a render of its own; the property is removed when the element goes.
  */

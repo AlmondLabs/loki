@@ -129,9 +129,9 @@ describe("folders", () => {
           browser,
         }),
       );
-    expect(html("dialog")).toContain("browse…");
-    expect(html("mod")).toContain("browse…");
-    expect(html(null)).not.toContain("browse…");
+    expect(html("dialog")).toContain("Browse…");
+    expect(html("mod")).toContain("Browse…");
+    expect(html(null)).not.toContain("Browse…");
     expect(html(null)).toContain('aria-label="folder"'); // typing and completion still work
   });
 

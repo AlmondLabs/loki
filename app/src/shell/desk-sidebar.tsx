@@ -14,7 +14,7 @@ import {
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Button, Field, IconButton, ListIcon, ListRow, ListSection } from "../components";
 import { ago } from "../shared/ago";
-import { Icon, GlassIcon } from "../shared/icons";
+import { Icon, Glyph } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { AgentFace } from "../desk/agent-chip";
@@ -44,7 +44,7 @@ import { conversationDirName } from "../../../core/desk-core.ts";
 import { HomeMark } from "./home-mark";
 import { prefersReducedMotion } from "../kit/motion";
 import "./desk-sidebar.css";
-import { popUpMenu, useNativeMenus, type MenuEntry } from "./native-menu";
+import { popUpMenu, NATIVE_MENUS, type MenuEntry } from "./native-menu";
 import { MenuItems, menuKey } from "./menu-items";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
@@ -85,7 +85,7 @@ export interface DeskSidebarProps {
   /** Start a new desk, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
   onNew?: (agentId: string | null) => void;
   /**
-   * A chat not started yet shows in the pane (⌘N under Liquid Glass, U20): the list leads with a New Chat row, the
+   * A chat not started yet shows in the pane (⌘N, U20): the list leads with a New Chat row, the
    * current one, as Messages leads with a new message, and no chat below it is current.
    */
   drafting?: boolean;
@@ -245,8 +245,8 @@ export function DeskSidebar({
 
   // The rows' handlers stay the same functions from render to render and look the chat up when called, so a row
   // redraws only when what it shows changed (plan 051): one chat moving no longer redraws the whole list.
-  const native = useNativeMenus();
-  // Under Liquid Glass in the Mac app the row's menu is the system's, popped up at the pointer (U19).
+  const native = NATIVE_MENUS;
+  // In the Mac app the row's menu is the system's, popped up at the pointer (U19).
   const popRow = (d: DeskSummary, x: number, y: number) =>
     void popUpMenu(
       rowMenuEntries({
@@ -455,9 +455,7 @@ export function DeskSidebar({
             aria-label="Scroll up to a chat that needs you"
           >
             <span aria-hidden>
-              <GlassIcon icon={ArrowUpIcon} size={12} inline>
-                ↑
-              </GlassIcon>
+              <Glyph icon={ArrowUpIcon} size={12} inline />
             </span>{" "}
             Needs you
           </button>
@@ -470,9 +468,7 @@ export function DeskSidebar({
             aria-label="Scroll down to a chat that needs you"
           >
             <span aria-hidden>
-              <GlassIcon icon={ArrowDownIcon} size={12} inline>
-                ↓
-              </GlassIcon>
+              <Glyph icon={ArrowDownIcon} size={12} inline />
             </span>{" "}
             Needs you
           </button>
@@ -528,7 +524,7 @@ export function DeskSidebar({
   );
 }
 
-/** What a row's menu offers, as data (U19): drawn by RowMenu, or popped up natively under Liquid Glass in the Mac app. */
+/** What a row's menu offers, as data (U19): drawn by RowMenu, or popped up natively in the Mac app. */
 interface RowMenuProps {
   desk: DeskSummary;
   item: AttentionItem | null;
@@ -677,7 +673,7 @@ export function DeskSidebarView({
   onNew: (agentId: string | null) => void;
   query: string;
   onQuery: (query: string) => void;
-  /** A chat not started yet shows in the pane (⌘N under Liquid Glass): no row is the open one. */
+  /** A chat not started yet shows in the pane (⌘N): no row is the open one. */
   drafting?: boolean;
 }) {
   const connected = catchUp.status === "open";

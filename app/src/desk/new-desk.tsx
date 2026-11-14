@@ -1,14 +1,11 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { AgentFace } from "./agent-chip";
-import { avatarUrl, inTauri, platform, type Platform } from "./env";
-import { Button, Chip, Field, Row, Sheet } from "../components";
+import { inTauri, platform, type Platform } from "./env";
+import { Button, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
-import { useLook } from "../theme";
 import type { Pushes } from "../../../core/frames.ts";
-import { messageOf } from "../../../core/errors.ts";
 import { GitBranchIcon } from "lucide-react";
-import { GlassIcon } from "../shared/icons";
+import { Glyph } from "../shared/icons";
 
 /**
  * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
@@ -20,16 +17,6 @@ export interface FolderApi {
   complete: (prefix: string, home?: string) => Promise<string[]>;
   check: (path: string, home?: string) => Promise<{ ok: boolean; path: string; branch: string | null; reason?: string }>;
   pick: (defaultPath?: string) => Promise<string | null>;
-}
-
-/**
- * "New desk": a fresh conversation under an agent, in a folder. Agent first,
- * folder second (defaults follow the agent), name optional. Enter starts.
- */
-export function NewDesk({ open, ...props }: NewDeskProps & { open: boolean }) {
-  // Closed: nothing mounted, so each opening starts from the desk you are on (agent, folder, name).
-  if (!open) return null;
-  return <NewDeskSheet {...props} />;
 }
 
 /** An agent a new chat can be for. `home_mac` is the Mac it lives on (plan 023). */
@@ -242,111 +229,6 @@ export function useFolderField({
   return { folder, source, touched, currentFolder, ready, status, options, listOpen, setListOpen, inputRef, picking, choose, type, browse, browser };
 }
 
-function NewDeskSheet({
-  onClose,
-  agents,
-  macs,
-  defaultAgentId,
-  currentAgentId,
-  currentConversationKey,
-  initialName = "",
-  folders,
-  onCreate,
-  requirements,
-}: NewDeskProps) {
-  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents.at(0)?.id ?? null);
-  const [name, setName] = useState(initialName);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const where = useChatHome(agents, agentId, macs, requirements);
-  const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey, home: where.remote?.mac_id });
-  const { folder, status, listOpen, setListOpen } = field;
-  const busy: false | "creating" | "picking" = creating ? "creating" : field.picking ? "picking" : false;
-  const nameRef = useRef<HTMLInputElement>(null);
-
-  // Open: the caret in the first field still to fill.
-  const focusFirst = useEffectEvent(() => (initialName ? field.inputRef : nameRef).current?.focus());
-  useEffect(() => {
-    const t = setTimeout(() => focusFirst(), 0);
-    return () => clearTimeout(t);
-  }, []);
-
-  const canStart = !!agentId && !!folder.trim() && status?.ok === true && !busy;
-  const start = async () => {
-    if (!canStart || !agentId) return;
-    setCreating(true);
-    setError(null);
-    try {
-      await onCreate(agentId, folder.trim(), name.trim(), where.home);
-    } catch (err) {
-      setError(messageOf(err));
-      setCreating(false);
-    }
-  };
-
-  const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-
-  return (
-    // Escape is the card's: it closes the folder list first, then the sheet.
-    <Sheet
-      label="new chat"
-      onClose={onClose}
-      width={560}
-      top="72px"
-      escape={false}
-      cardProps={{ onKeyDown: sheetKeys(listOpen, setListOpen, onClose, () => void start()) }}
-    >
-      <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
-        <div className="loki-label">New chat</div>
-        <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
-          A fresh conversation{agentName ? ` with ${agentName}` : ""}
-        </div>
-      </div>
-
-      <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
-        <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
-
-        <ChatHome where={where} here={macs?.me.name ?? null} />
-
-        <FolderPicker
-          inputRef={field.inputRef}
-          folder={folder}
-          onType={field.type}
-          onChoose={field.choose}
-          status={status}
-          options={field.options}
-          listOpen={listOpen}
-          setListOpen={setListOpen}
-          busy={busy}
-          onBrowse={() => void field.browse()}
-          agentName={agentName}
-          source={field.source}
-          canBrowse={field.ready || field.touched}
-          browser={field.browser}
-        />
-
-        <div>
-          <div className="loki-label" style={{ marginBottom: 6 }}>
-            Name <span style={{ fontWeight: 400 }}>· optional, named from the first exchange otherwise</span>
-          </div>
-          <Field
-            ref={nameRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="what this chat is about"
-            aria-label="chat name"
-            autoComplete="off"
-          />
-        </div>
-
-        {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>{error}</div>}
-      </div>
-
-      <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
-    </Sheet>
-  );
-}
-
 /**
  * Where a new chat will live (plan 023, R7): its agent's home Mac while that Mac is in reach, unless you pick this one;
  * and what that Mac lacks for the agent, asked again whenever the agent or the Mac changes (R21). `home` is the Mac to
@@ -375,66 +257,10 @@ export function useChatHome(agents: NewChatAgent[], agentId: string | null, macs
   return { agentHome, remote, pickHere, setPickHere, lacks, home };
 }
 
-/** Where the chat will live, when its agent lives on another Mac, and what the chosen Mac lacks for the agent. */
-function ChatHome({ where, here }: { where: ReturnType<typeof useChatHome>; here: string | null }) {
-  return (
-    <>
-      {where.agentHome && here !== null && <HomeChoice home={where.agentHome} here={here} pickHere={where.pickHere} onPickHere={where.setPickHere} />}
-      {where.lacks.length > 0 && (
-        <div className="loki-meta loki-meta--negative loki-meta--wrap" role="status">
-          {where.remote ? where.remote.name : osWords().Machine} needs {where.lacks.join("; ")}
-        </div>
-      )}
-    </>
-  );
-}
-
 /** The Mac an agent lives on, when that is another paired Mac (with whether it is in reach); undefined when it is this one. */
 function agentHomeOf(agent: { home_mac?: string | null } | undefined, macs: Pushes["peers"] | null | undefined): Pushes["peers"]["peers"][number] | undefined {
   if (!agent?.home_mac || !macs || agent.home_mac === macs.me.mac_id) return undefined;
   return macs.peers.find((p) => p.mac_id === agent.home_mac);
-}
-
-/** Where the chat will live: the agent's home Mac or this one; with that Mac out of reach, this one, and it says so. */
-function HomeChoice({
-  home,
-  here,
-  pickHere,
-  onPickHere,
-}: {
-  home: Pushes["peers"]["peers"][number];
-  here: string;
-  pickHere: boolean;
-  onPickHere: (here: boolean) => void;
-}) {
-  return (
-    <div>
-      <div className="loki-label" style={{ marginBottom: 6 }}>
-        Lives on
-      </div>
-      <div role="radiogroup" aria-label="the Mac this chat lives on" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <Chip
-          role="radio"
-          aria-checked={!pickHere && home.reachable}
-          active={!pickHere && home.reachable}
-          disabled={!home.reachable}
-          onClick={() => onPickHere(false)}
-        >
-          {home.name}
-        </Chip>
-        <Chip role="radio" aria-checked={pickHere || !home.reachable} active={pickHere || !home.reachable} onClick={() => onPickHere(true)}>
-          {here} · {osWords().machine}
-        </Chip>
-      </div>
-      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
-        {!home.reachable
-          ? `${home.name} is out of reach: this chat starts here and stays here`
-          : pickHere
-            ? `runs here, with ${osWords().machine}'s files and tools, for good`
-            : `runs on ${home.name}, with its files and tools; you reach it from here`}
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -554,26 +380,6 @@ function sheetKeys(listOpen: boolean, setListOpen: (open: boolean) => void, onCl
   };
 }
 
-/** The agent row: one radio chip per agent, the chosen one pressed (active). */
-function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"]; agentId: string | null; onPick: (id: string) => void }) {
-  return (
-    <div>
-      <div className="loki-label" style={{ marginBottom: 6 }}>
-        Agent
-      </div>
-      <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {agents.map((a) => (
-          <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} active={a.id === agentId} onClick={() => onPick(a.id)}>
-            <AgentFace name={a.name} src={avatarUrl(a.id)} size={14} />
-            {a.name}
-          </Chip>
-        ))}
-        {agents.length === 0 && <span className="loki-meta loki-meta--wrap">no agents yet — is Desktop running?</span>}
-      </div>
-    </div>
-  );
-}
-
 /** The folder's verdict beside its label: the branch when it is a repo, "folder ok" otherwise, the reason when it is not. */
 function FolderVerdict({ status }: { status: FolderStatus }) {
   return (
@@ -582,10 +388,7 @@ function FolderVerdict({ status }: { status: FolderStatus }) {
         status.ok ? (
           status.branch ? (
             <>
-              <GlassIcon icon={GitBranchIcon} size={12} inline>
-                ⎇
-              </GlassIcon>{" "}
-              {status.branch}
+              <Glyph icon={GitBranchIcon} size={12} inline /> {status.branch}
             </>
           ) : (
             "folder ok"
@@ -636,8 +439,6 @@ export function FolderPicker({
   browser: BrowseWith;
 }) {
   const [hi, setHi] = useState(0);
-  // Liquid Glass words its controls in title case (plan 2026-11-12-1505, R7).
-  const glass = useLook() === "glass";
   return (
     <div style={{ position: "relative" }}>
       <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
@@ -682,17 +483,7 @@ export function FolderPicker({
         />
         {browser && (
           <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title={`choose a folder in ${osWords().fileManager}`}>
-            {glass
-              ? busy === "picking"
-                ? "Choosing…"
-                : !canBrowse
-                  ? "Loading…"
-                  : "Browse…"
-              : busy === "picking"
-                ? "choosing…"
-                : !canBrowse
-                  ? "loading…"
-                  : "browse…"}
+            {busy === "picking" ? "Choosing…" : !canBrowse ? "Loading…" : "Browse…"}
           </Button>
         )}
       </div>
@@ -766,31 +557,6 @@ function FolderList({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function NewDeskFooter({
-  canStart,
-  busy,
-  onClose,
-  onStart,
-}: {
-  canStart: boolean;
-  busy: false | "creating" | "picking";
-  onClose: () => void;
-  onStart: () => void;
-}) {
-  return (
-    <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
-      <span className="loki-label">Enter start · esc close</span>
-      <span style={{ flex: 1 }} />
-      <Button size="sm" onClick={onClose}>
-        cancel
-      </Button>
-      <Button size="sm" tone="positive" onClick={onStart} disabled={!canStart}>
-        {busy === "creating" ? "starting…" : "start"}
-      </Button>
     </div>
   );
 }

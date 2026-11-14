@@ -30,7 +30,7 @@ export type ToFrame =
   | { bridge: typeof BRIDGE; type: "load"; hash: string; url: string }
   | { bridge: typeof BRIDGE; type: "load"; hash: string; code: string }
   | { bridge: typeof BRIDGE; type: "data"; overlay: Record<string, unknown> | null }
-  | { bridge: typeof BRIDGE; type: "style"; css: string; theme: string; palette: string }
+  | { bridge: typeof BRIDGE; type: "style"; css: string; theme: string }
   | { bridge: typeof BRIDGE; type: "layout"; fill: boolean; maxWidth: number };
 
 /** Frame → page, as read by readFrameMessage. */

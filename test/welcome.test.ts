@@ -76,7 +76,7 @@ describe("Welcome: no Node 22 on the machine", () => {
     const out = html({ node: "/opt/homebrew/bin/node", error: "daemon exited: EADDRINUSE", nodeMissing: null });
     expect(out).toContain("EADDRINUSE");
     expect(out).toContain("~/.loki/logs/daemon.log");
-    expect(out).toContain("check again");
+    expect(out).toContain(">Check again</button>");
     expect(out.match(/<button/g)?.length).toBe(1);
     expect(out).not.toContain("Node 22 or newer is needed");
     expect(out).not.toContain("Letta");
