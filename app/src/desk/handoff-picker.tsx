@@ -82,7 +82,7 @@ export function HandoffPicker({
   const owner = item.outside?.owner_name ?? "its agent";
 
   return (
-    <div role="dialog" aria-label={`Hand off to ${owner}`} onKeyDown={onKey} className="flex flex-col" style={{ gap: touch ? "var(--phone-space-2)" : 6 }}>
+    <div role="dialog" aria-label={`Hand off to ${owner}`} onKeyDown={onKey} className="flex flex-col" style={{ gap: touch ? "var(--phone-space-2)" : 8 }}>
       <Meta>{busy ? `Handing off to ${owner}…` : `Hand off to ${owner}`}</Meta>
       {proposal?.note && <Meta wrap>{sentence(proposal.note)}</Meta>}
       {!proposal && !error && <Meta>Asking for its chats…</Meta>}

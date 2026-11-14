@@ -287,7 +287,7 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
           {error}
         </div>
       )}
-      <div className="grid gap-1.5" style={{ padding: "0 8px" }}>
+      <div className="grid gap-2" style={{ padding: "0 8px" }}>
         {view?.servers.map((s) => {
           const on = !s.off_for.includes(agentId);
           return (

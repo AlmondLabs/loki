@@ -76,7 +76,7 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
   };
 
   return (
-    <div role="dialog" aria-label="When should it come back" onKeyDown={onKey} className="flex flex-col gap-1.5">
+    <div role="dialog" aria-label="When should it come back" onKeyDown={onKey} className="flex flex-col gap-2">
       <Meta>When should it come back</Meta>
       <div
         ref={listRef}

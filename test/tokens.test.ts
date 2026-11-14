@@ -84,12 +84,12 @@ const contrast = (a: Rgb, b: Rgb) => {
 const FONT_SCALE = new Set([9.5, 10.5, 11, 12, 13.5, 15, 17, 22, 28]);
 /**
  * Spacing (px), the desktop's padding, margins and gaps: a hairline, then loki's 4px grid with 20 for the pane inset.
- * They are Tailwind's steps 0, px, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10 and 12, because styles.css sets one step to 4px.
+ * They are Tailwind's steps 0, px, 0.5, 1, 2, 3, 4, 5, 6, 8 and 12, because styles.css sets one step to 4px.
  * The phone keeps its own scale, --phone-space-1 to 6.
  */
-const SPACE = new Set([0, 1, 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48]);
+const SPACE = new Set([0, 1, 2, 4, 8, 12, 16, 20, 24, 32, 48]);
 /** The spacing steps a gap, space, padding or margin class may name; anything else, an arbitrary value included, is off the scale. */
-const SPACE_STEPS = new Set(["0", "px", "0.5", "1", "1.5", "2", "3", "4", "5", "6", "8", "10", "12"]);
+const SPACE_STEPS = new Set(["0", "px", "0.5", "1", "2", "3", "4", "5", "6", "8", "12"]);
 /** Radii: control, row, card/sheet, pill — plus the geometric ones used for circles and hairlines. */
 const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
 /**
@@ -180,7 +180,9 @@ describe("design tokens: every style stays on the scales", () => {
     expect(offSpaceCss("x.css", ".a { padding: 10px; }")).toHaveLength(1);
     expect(offSpaceCss("x.css", ".a { margin: 0 14px; }")).toHaveLength(1);
     expect(offSpaceCss("x.css", ".a {\n  gap: 8px;\n  row-gap: 3px;\n}")).toEqual(["x.css:3: row-gap: 3px"]);
-    expect(offSpaceCss("x.css", ".a { margin-left: -6px; padding-inline: calc(36px + 10px); }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a { margin-left: -4px; padding-inline: calc(36px + 10px); }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a { padding: 6px; }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a { margin: 40px; }")).toHaveLength(1);
     expect(
       offSpaceCss(
         "x.css",
@@ -753,7 +755,8 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     expect(offScale("x.tsx", 'const a = <b className="flex gap-7" />;')).toHaveLength(1);
     expect(offScale("x.tsx", 'const a = <b className="grid gap-x-2.5" />;')).toHaveLength(1);
     expect(offScale("x.tsx", 'const a = <b className="flex gap-[10px]" />;')).toHaveLength(1);
-    expect(offScale("x.tsx", 'const a = <b className="flex gap-1.5 gap-px space-y-2 sm:gap-3 gap-y-0.5" />;')).toEqual([]);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-1.5" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-1 gap-px space-y-2 sm:gap-3 gap-y-0.5" />;')).toEqual([]);
     expect(offScale("ui/x.tsx", 'const a = <b className="flex gap-2.5" />;')).toEqual([]);
   });
 

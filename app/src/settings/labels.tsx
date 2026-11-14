@@ -66,7 +66,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
             {chats}
           </span>
         </span>
-        <span className="flex gap-1.5">
+        <span className="flex gap-2">
           <Button size="sm" onClick={() => (setName(label.name), setMode(mode === "rename" ? "show" : "rename"))} aria-label={`Rename ${label.name}`}>
             Rename…
           </Button>
@@ -80,7 +80,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
       </div>
       {mode === "rename" && (
         <form
-          className="flex gap-1.5"
+          className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             if (renamed && renamed !== label.name) void run({ name: label.name, rename: renamed });
@@ -103,7 +103,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
         </form>
       )}
       {mode === "color" && (
-        <div role="radiogroup" aria-label={`Colour of ${label.name}`} className="flex gap-1.5">
+        <div role="radiogroup" aria-label={`Colour of ${label.name}`} className="flex gap-2">
           {Array.from({ length: LABEL_COLORS }, (_, color) => (
             <button
               key={color}

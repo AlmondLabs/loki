@@ -278,7 +278,7 @@ export function Settings({
           </div>
         )}
         {/* Keyed by page so a new page starts at its top. */}
-        <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: `24px ${PANE_INSET}px 40px` }}>
+        <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: `24px ${PANE_INSET}px 48px` }}>
           {pageBody[page]()}
         </div>
       </div>
@@ -770,13 +770,13 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
             <tbody>
               {rows.map((b, i, rows) => (
                 <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
-                  <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 8 }}>
+                  <td className="loki-label" style={{ padding: "4px 0", width: 90, verticalAlign: "top" }}>
                     {i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}
                   </td>
                   <td
                     className="loki-mono"
                     style={{
-                      padding: "6px 12px 6px 0",
+                      padding: "4px 12px 4px 0",
                       width: 170,
                       fontSize: "var(--loki-text-meta)",
                       color: "var(--loki-fg)",
@@ -785,7 +785,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                   >
                     {b.keys.map((k) => formatKeys(k)).join(" · ")}
                   </td>
-                  <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
+                  <td style={{ padding: "4px 0", color: "var(--loki-muted)" }}>
                     {b.label}
                     {b.typing ? (
                       ""
@@ -823,7 +823,7 @@ function InstallState({ s }: { s: string }) {
 function Status({ s }: { s: string }) {
   const color = s === "open" ? "var(--loki-positive)" : s === "connecting" ? "var(--loki-accent)" : "var(--loki-negative)";
   return (
-    <span className="inline-flex items-center gap-1.5" style={{ color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>
+    <span className="inline-flex items-center gap-1" style={{ color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>
       <Dot color={color} />
       {sentence(s)}
     </span>

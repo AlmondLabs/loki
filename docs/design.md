@@ -62,8 +62,8 @@ phone held closer. One face: the system sans (`--loki-font`); `--loki-display` a
 are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
 Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
 
-Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 6 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48**,
-Tailwind's steps `0`, `px`, `0.5`, `1`, `1.5`, `2`, `3`, `4`, `5`, `6`, `8`, `10` and `12`. Every padding, margin and
+Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48**,
+Tailwind's steps `0`, `px`, `0.5`, `1`, `2`, `3`, `4`, `5`, `6`, `8` and `12`. Every padding, margin and
 gap takes one, in the stylesheets and in the views; a tie goes to the step the same control already uses. `styles.css`
 sets one step to 4px (`--spacing`); Tailwind's default is a quarter rem, and the page's root is 15px, which made a step
 3.75px.

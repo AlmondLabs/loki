@@ -14,7 +14,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   box-sizing: border-box;
   border: 1px solid var(--loki-control-border);
   border-radius: var(--loki-radius-md);
@@ -164,7 +164,7 @@
 .loki-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   box-sizing: border-box;
   min-height: 24px;
   padding: 2px 8px;
@@ -231,7 +231,7 @@
 /* A tag inside a meta line: as tall as the line. */
 .loki-chip--tag {
   min-height: 0;
-  padding: 1px 6px;
+  padding: 1px 8px;
   font-size: var(--loki-text-tag);
 }
 /* Floating over the sheet or the transcript: opaque, with the low shadow. */
@@ -257,7 +257,7 @@
   width: 100%;
   box-sizing: border-box;
   min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
-  padding: 6px 12px;
+  padding: 4px 12px;
   border: 1px solid var(--loki-control-border);
   border-radius: var(--loki-radius-sm);
   background: var(--loki-well);
@@ -310,9 +310,9 @@
 /* Text that is secretly editable (an agent's name on its profile): shows its box on hover and focus. */
 .loki-field--inline {
   min-height: 0;
-  padding: 2px 6px;
-  margin: 0 -6px;
-  width: calc(100% + 12px);
+  padding: 2px 4px;
+  margin: 0 -4px;
+  width: calc(100% + 8px);
   border-color: transparent;
   background: transparent;
   font: inherit;
@@ -345,7 +345,7 @@ textarea.loki-field {
   width: 100%;
   box-sizing: border-box;
   text-align: left;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border: 1px solid transparent;
   border-radius: var(--loki-radius-md);
   background: transparent;
@@ -409,7 +409,7 @@ textarea.loki-field {
 .loki-veil--scroll > .loki-sheet-card {
   max-height: none;
   overflow: visible;
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 .loki-veil--bottom {
   display: flex;
@@ -527,7 +527,7 @@ textarea.loki-field {
   font-family: var(--loki-mono);
   font-size: var(--loki-text-micro);
   color: var(--loki-muted);
-  margin-left: 6px;
+  margin-left: 4px;
   border: 1px solid var(--loki-border);
   border-radius: 4px;
   padding: 0 4px;
@@ -768,7 +768,7 @@ textarea.loki-field {
   flex: none;
   min-width: 18px;
   box-sizing: border-box;
-  padding: 1px 6px;
+  padding: 1px 4px;
   border-radius: var(--loki-radius-pill);
   background: var(--loki-attention);
   color: var(--loki-on-attention);
@@ -835,7 +835,7 @@ textarea.loki-field {
 .loki-list-section-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
   box-sizing: border-box;
   padding: 4px 12px;
@@ -1006,7 +1006,7 @@ button.loki-list-section-toggle {
   color: var(--loki-accent);
 }
 .loki-menu-group-label {
-  padding: 6px 8px 2px;
+  padding: 8px 8px 2px;
 }
 .loki-title-menu-sep {
   height: 1px;
@@ -1024,14 +1024,14 @@ button.loki-list-section-toggle {
   background: var(--loki-bg);
 }
 /* The detail's, the list's and a Flow card's title bars (plan 2026-11-14-2224, KTD4) are 52 high, their buttons centred
-   and their title stacks at the top under 6px (the detail title's 40px stack centred in 52), so a one-line and a
-   two-line title share one top line. */
+   and their title stacks at the top 6px down, 4 of the bar's padding and 2 of the stack's own margin (the detail
+   title's 40px stack centred in 52), so a one-line and a two-line title share one top line. */
 .loki-pane-header-line {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 52px;
-  padding: 6px 12px 6px 20px;
+  padding: 4px 12px 4px 20px;
 }
 .loki-pane-header-lead {
   display: inline-flex;
@@ -1077,7 +1077,7 @@ button.loki-list-section-toggle {
 .loki-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 34px;
   padding: 0 8px;
   border: none;
@@ -1131,7 +1131,7 @@ button.loki-list-section-toggle {
 .loki-desk-pane-agent {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   white-space: nowrap;
 }
@@ -1153,7 +1153,7 @@ button.loki-list-section-toggle {
   min-height: 0;
   display: grid;
   place-items: center;
-  padding: 40px 24px;
+  padding: 32px 24px;
   box-sizing: border-box;
 }
 .loki-empty-pane-icon {
@@ -1201,7 +1201,7 @@ button.loki-list-section-toggle {
   align-items: center;
   gap: 8px;
   min-height: 52px;
-  padding: 6px 8px 6px 16px;
+  padding: 4px 8px 4px 16px;
 }
 /* The bar's title stack: the source's name and grey count, over its grey line when it has one. */
 .loki-content-list-head {
@@ -1210,6 +1210,7 @@ button.loki-list-section-toggle {
   gap: 1px;
   min-width: 0;
   align-self: flex-start;
+  margin-top: 2px;
 }
 .loki-content-list-name {
   display: flex;
@@ -1367,7 +1368,7 @@ button.loki-list-section-toggle {
 }
 /* The visit's summary in Flow's detail: what it did, then the way back to Everything in a lane. */
 .loki-empty-pane-summary {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   font-size: var(--loki-text-body);
   font-weight: 600;
   color: var(--loki-fg);
@@ -1679,6 +1680,7 @@ button.loki-list-section-toggle {
     gap: 1px;
     min-width: 0;
     align-self: flex-start;
+    margin-top: 2px;
   }
   .loki-toolbar-name {
     margin: 0;
@@ -1697,7 +1699,7 @@ button.loki-list-section-toggle {
     align-items: center;
     gap: 12px;
     min-height: 52px;
-    padding: 6px calc(12px + var(--loki-toolbar-room)) 6px 20px;
+    padding: 4px calc(12px + var(--loki-toolbar-room)) 4px 20px;
   }
   .loki-card-toolbar > .loki-toolbar-title {
     flex: 1;
@@ -1745,7 +1747,7 @@ button.loki-list-section-toggle {
   /* A chat's link to another (chat/link-header.tsx) reads as more of the grey line, not a pill that grows the toolbar. */
   .loki-toolbar-sub .loki-chat-links {
     display: inline-flex;
-    margin-left: 6px;
+    margin-left: 8px;
     vertical-align: bottom;
   }
   .loki-toolbar-sub .loki-chip {
@@ -1793,7 +1795,7 @@ button.loki-list-section-toggle {
   .loki-new-chat-token {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     height: 24px;
     padding: 0 8px 0 4px;
     border: 0;
@@ -1827,7 +1829,7 @@ button.loki-list-section-toggle {
   .loki-new-chat-notice {
     width: 100%;
     max-width: 48rem;
-    padding: 0 20px 6px;
+    padding: 0 20px 8px;
   }
 
   /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as
@@ -2010,7 +2012,7 @@ button.loki-list-section-toggle {
   }
   .loki-composer-capsule .loki-composer-field {
     min-height: 30px;
-    padding: 6px 4px 6px 12px;
+    padding: 4px 4px 4px 12px;
     line-height: 18px;
   }
   .loki-composer-act {

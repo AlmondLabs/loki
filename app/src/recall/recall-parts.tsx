@@ -236,7 +236,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
           ))}
         </div>
       )}
-      <div className="grid justify-items-center gap-1.5">
+      <div className="grid justify-items-center gap-2">
         {onEnable ? (
           <Button tone="positive" size="md" onClick={onEnable}>
             Turn On Learn

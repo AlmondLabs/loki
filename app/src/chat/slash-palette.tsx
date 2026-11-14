@@ -52,7 +52,7 @@ export function SlashPalette({
               }}
             >
               /{c.id}
-              {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 6 }}>{c.args}</span>}
+              {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 4 }}>{c.args}</span>}
             </span>
             <span className="loki-truncate" style={{ fontSize: "var(--loki-text-tag)", color: "var(--loki-muted)" }}>
               {sentence(commandText(c))}

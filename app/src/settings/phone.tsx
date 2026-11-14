@@ -132,7 +132,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
   const ts = status.tailscale;
   const running = !!ts?.running;
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-2">
       <div
         role="radiogroup"
         aria-label="Route"
@@ -256,7 +256,7 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
         style={{ width: 168, height: 168, borderRadius: "var(--loki-radius-md)", overflow: "hidden", opacity: expired ? 0.35 : 1 }}
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
-      <div className="grid gap-1.5 min-w-0 flex-1">
+      <div className="grid gap-2 min-w-0 flex-1">
         <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
           {code.code}
         </div>

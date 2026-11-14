@@ -583,7 +583,7 @@ export function ConversationHeader({
           <AgentChip name={agentName} />
           {children}
         </div>
-        {below && <div style={{ marginTop: 6 }}>{below}</div>}
+        {below && <div style={{ marginTop: 4 }}>{below}</div>}
       </div>
       {right}
     </div>

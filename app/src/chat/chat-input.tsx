@@ -397,7 +397,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
           id="loki-dictation-error"
           role="status"
           className="loki-meta loki-meta--negative"
-          style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6 }}
+          style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 4 }}
         >
           {dictation.error}
         </span>

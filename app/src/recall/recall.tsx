@@ -499,7 +499,7 @@ function Deck({
               {c.card.back}
             </div>
           ) : (
-            <div className="flex justify-center" style={{ padding: "6px 0 2px" }}>
+            <div className="flex justify-center" style={{ padding: "8px 0 2px" }}>
               <Button size="md" tone="paper" onClick={onReveal} kbd="space">
                 Show Answer
               </Button>

@@ -203,7 +203,7 @@ function UserContent({ row: m }: { row: TranscriptRow }) {
   return (
     <div className="flex flex-col gap-2">
       {m.images && m.images.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {m.images.map((src, k) => (
             <img key={k} src={chatImageUrl(src)} alt="" className="block max-h-40 max-w-56 rounded-sm border border-border" />
           ))}

@@ -42,9 +42,9 @@ export function FindBar({
   };
   return (
     <div
-      className="flex items-center gap-1.5"
+      className="flex items-center gap-2"
       style={{
-        padding: "6px 12px",
+        padding: "4px 12px",
         borderBottom: "1px solid var(--loki-border)",
         background: "var(--loki-panel-header)",
       }}

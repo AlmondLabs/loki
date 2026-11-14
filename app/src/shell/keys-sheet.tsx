@@ -35,7 +35,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
             <div className="loki-label">{g.title}</div>
             {g.rows.map((b) => (
               <div key={b.id} className="grid grid-cols-[170px_1fr] items-baseline gap-3" style={{ fontSize: "var(--loki-text-body)" }}>
-                <span className="inline-flex flex-wrap gap-1.5">
+                <span className="inline-flex flex-wrap gap-2">
                   {b.keys.map((k) => (
                     <Kbd key={k}>{formatKeys(k)}</Kbd>
                   ))}

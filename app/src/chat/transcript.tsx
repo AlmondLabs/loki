@@ -711,7 +711,7 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
   return (
     <>
       {m.images && m.images.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" style={{ marginBottom: m.text ? 8 : 0 }}>
+        <div className="flex flex-wrap gap-2" style={{ marginBottom: m.text ? 8 : 0 }}>
           {m.images.map((src, k) => (
             <img
               key={k}

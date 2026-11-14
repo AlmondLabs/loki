@@ -151,7 +151,7 @@ function ServerRow({
   const loaded = s.tools.filter((t) => t.always_load).map((t) => t.name);
   const toggleAlways = (name: string, on: boolean) => void api.alwaysLoad(s.entry, on ? [...loaded, name] : loaded.filter((n) => n !== name)).then(apply);
   return (
-    <div className="grid gap-1.5" style={{ padding: "6px 0" }}>
+    <div className="grid gap-2" style={{ padding: "4px 0" }}>
       <Row
         dense
         selected={open}
@@ -192,12 +192,12 @@ function ServerRow({
                       {t.name}
                     </span>
                     {t.read_only && (
-                      <Chip static tag style={{ marginLeft: 6 }}>
+                      <Chip static tag style={{ marginLeft: 8 }}>
                         Read-only
                       </Chip>
                     )}
                     {t.destructive && (
-                      <Chip static tag style={{ marginLeft: 6 }}>
+                      <Chip static tag style={{ marginLeft: 8 }}>
                         Destructive
                       </Chip>
                     )}
@@ -246,7 +246,7 @@ function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullabl
   const url = signIn.url;
   if (s.state === "signin")
     return (
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         <span className="loki-meta loki-meta--wrap">
           {s.entry} needs you to sign in before its tools can be used. Your browser opens its sign-in page and comes back to loki.
         </span>
