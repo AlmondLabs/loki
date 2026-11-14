@@ -722,13 +722,14 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     return out;
   };
   /**
-   * A gap, space, padding or margin class whose step is off the spacing scale; shadcn's own files in ui/ keep theirs.
+   * A gap, space, padding or margin class whose step is off the spacing scale; shadcn's own files in ui/ keep theirs,
+   * and so does the dev workbench in dev/, a harness whose room under its last demo clears the floating composer.
    * classStrings reads every string, so a padding or margin class counts only when its step looks like one (a number,
    * px, auto or a bracketed value): "my-macbook-pro.local" and a template head "m-${id}" are not classes. Tailwind's
    * trailing ! is importance, not part of the step.
    */
   const offSpacing = (path: string, text: string): boolean => {
-    if (path.startsWith("ui/")) return false;
+    if (path.startsWith("ui/") || path.startsWith("dev/")) return false;
     const steps = (re: RegExp) => [...text.matchAll(re)].map((m) => m[1].replace(/!$/, ""));
     const gaps = steps(/(?:^|[\s:])!?(?:gap(?:-[xy])?|space-[xy])-(\S+)/g);
     const boxes = steps(/(?:^|[\s:])!?-?(?:p|m)[xytrblse]?-(\d+(?:\.\d+)?!?|px!?|auto!?|\[[^\]\s]*\]!?)(?=\s|$)/g);
@@ -764,6 +765,7 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     expect(offScale("x.tsx", 'const host = "my-macbook-pro.local";')).toEqual([]);
     expect(offScale("x.tsx", "const id = `m-${n}`;")).toEqual([]);
     expect(offScale("ui/x.tsx", 'const a = <b className="p-2.5" />;')).toEqual([]);
+    expect(offScale("dev/x.tsx", 'const a = <b className="pt-20 pb-56" />;')).toEqual([]);
   });
 
   test("no class string in loki's source leaves the scales", () => {
