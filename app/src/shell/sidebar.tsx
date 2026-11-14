@@ -277,13 +277,11 @@ export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () =
       aria-pressed={open}
       title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
       aria-keyshortcuts={ariaShortcut(keyFor("column.toggle"))}
-      className="loki-rail loki-sidebar-toggle"
+      className="loki-rail loki-sidebar-toggle grid place-items-center"
       style={{
         marginTop: 0,
         width: 28,
         height: 28,
-        display: "grid",
-        placeItems: "center",
         border: "1px solid transparent",
         borderRadius: "var(--loki-radius-md)",
         background: "transparent",

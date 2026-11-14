@@ -73,14 +73,14 @@ export function ReflectionPage({
 
   return (
     <Pane>
-      <div style={{ display: "grid", gap: 16, maxWidth: 760, marginBottom: 24 }}>
+      <div className="grid gap-4" style={{ maxWidth: 760, marginBottom: 24 }}>
         <div className="loki-label">Reflection</div>
         {settings === undefined ? (
           <Meta>Reading the settings…</Meta>
         ) : settings === null ? (
           <Meta wrap>loki's daemon did not answer for this setting — it has to be running.</Meta>
         ) : (
-          <span style={{ display: "inline-flex", gap: 6 }}>
+          <span className="inline-flex gap-1.5">
             <Chip label active={settings.reflection.enabled} aria-pressed={settings.reflection.enabled} onClick={() => void toggle(true)}>
               On
             </Chip>
@@ -96,7 +96,7 @@ export function ReflectionPage({
         </Meta>
         <div className="loki-label">Without a provider</div>
         {settings && (
-          <span style={{ display: "inline-flex", gap: 6 }}>
+          <span className="inline-flex gap-1.5">
             <Chip label active={settings.acp.enabled} aria-pressed={settings.acp.enabled} onClick={() => void toggleAcp(true)}>
               Use Claude Code or Cursor
             </Chip>

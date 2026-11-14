@@ -49,7 +49,7 @@ export function SkillsPage({
 }) {
   return (
     <Pane>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
         <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>
           Write
         </Chip>
@@ -75,7 +75,7 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
   return (
     <>
       <SkillActions d={d} store={store} skill={skill} loadingView={loadingView} />
-      <div style={{ display: "grid", gap: 4, marginBottom: 14 }}>
+      <div className="grid gap-1" style={{ marginBottom: 14 }}>
         <SkillOrigin skill={skill} agentName={d.agent.name} />
         {skill.description && (
           <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{skill.description}</div>
@@ -93,12 +93,12 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
 function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: AgentSkill; loadingView: boolean }) {
   const { refreshing, refreshSkill, removeSkill, flash } = store;
   return (
-    <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+    <div className="loki-label flex items-center gap-2" style={{ marginBottom: 6 }}>
       <span className="loki-mono" style={{ color: "var(--loki-fg)" }}>
         {skill.path}
       </span>
       {loadingView && <span>Loading…</span>}
-      <span style={{ flex: 1 }} />
+      <span className="flex-1" />
       {skill.origin === "other" && (
         <Button
           tone="brass"
@@ -183,9 +183,8 @@ function SkillAdd({
   };
   return (
     <div
+      className="grid gap-1.5"
       style={{
-        display: "grid",
-        gap: 6,
         margin: "0 0 10px",
         padding: "8px 10px",
         border: "1px solid var(--loki-border)",
@@ -229,9 +228,9 @@ function SkillAdd({
           <span className="loki-meta loki-meta--wrap">Copies it into {agentName}'s memory; can take a minute</span>
         </>
       )}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div className="flex items-center gap-2">
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Button onClick={onClose}>Cancel</Button>
         <Button tone="positive" onClick={() => void go()} disabled={busy}>
           {busy ? (mode === "install" ? "Installing…" : "Writing…") : mode === "install" ? "Install" : "Add"}
@@ -258,7 +257,7 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     }
   };
   return (
-    <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
+    <div className="grid gap-1.5" style={{ padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
       <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
         Nobody wrote down where {name} came from. Say once; it is remembered.
       </span>
@@ -273,9 +272,9 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
         autoComplete="off"
         data-form-type="other"
       />
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div className="flex items-center gap-2">
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Button onClick={onCancel}>Cancel</Button>
         <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>
           {busy ? "Refreshing…" : "Refresh"}

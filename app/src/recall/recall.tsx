@@ -260,27 +260,25 @@ export function Recall({
     <div ref={detailRef} tabIndex={-1} className="loki-learn-detail" onPointerDown={(e) => e.stopPropagation()}>
       <RecallHeader recall={recall} />
       {body === null ? (
-        <div style={{ position: "relative", flex: 1 }}>
+        <div className="flex-1" style={{ position: "relative" }}>
           <NothingSelected noun={NOUN[view]} />
         </div>
       ) : (
         <div
+          className="flex flex-1 flex-col"
           style={{
-            flex: 1,
             minHeight: 0,
             overflowY: "auto",
             scrollbarGutter: "stable",
             padding: "20px 24px 16px",
             boxSizing: "border-box",
-            display: "flex",
-            flexDirection: "column",
           }}
         >
           {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the body, the
             deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top.
             The gutter is reserved so a long item's scrollbar does not shift the column sideways. */}
-          <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
+          <div className="flex flex-1 flex-col gap-4" style={{ width: 760, maxWidth: "100%", margin: "0 auto" }}>
+            <div key={view} className="flex flex-1 flex-col gap-4" style={{ animation: "loki-view-in 120ms ease-out" }}>
               {view !== "review" && snap && <Notices recall={recall} />}
               {body}
             </div>
@@ -370,7 +368,7 @@ function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: Ret
   return (
     <>
       <Notices recall={recall} />
-      <div style={{ margin: "auto 0", paddingBottom: "8vh", display: "grid", gap: 16 }}>
+      <div className="grid gap-4" style={{ margin: "auto 0", paddingBottom: "8vh" }}>
         {fresh ? (
           <RecallIntro worker={snap.worker} onEnable={() => void recall.settings({ enabled: true })} />
         ) : (
@@ -450,20 +448,19 @@ function Deck({
   return (
     <section
       aria-label={`Card ${position} of ${total}`}
+      className="grid gap-4"
       style={{
         background: "var(--loki-panel)",
         border: "1px solid var(--loki-border)",
         borderRadius: "var(--loki-radius-lg)",
         boxShadow: "var(--loki-shadow-sheet)",
         padding: "18px 24px 16px",
-        display: "grid",
-        gap: 16,
         animation: "loki-card-next 200ms ease-out",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div className="flex flex-wrap items-center gap-3">
         <SourceLine c={c} />
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Meta>
           {position} of {total}
         </Meta>
@@ -500,14 +497,14 @@ function Deck({
               {c.card.back}
             </div>
           ) : (
-            <div style={{ display: "flex", justifyContent: "center", padding: "6px 0 2px" }}>
+            <div className="flex justify-center" style={{ padding: "6px 0 2px" }}>
               <Button size="md" tone="paper" onClick={onReveal} kbd="space">
                 Show Answer
               </Button>
             </div>
           )}
           {c.card.previous.length > 0 && (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="grid gap-2">
               <span>
                 <Button size="sm" bare onClick={onTogglePrevious} aria-expanded={showPrevious}>
                   {showPrevious ? "Hide the Earlier Wording" : "What It Said Before"}
@@ -519,23 +516,15 @@ function Deck({
         </>
       )}
       {revealed && !editing && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
+        <div className="grid grid-cols-[repeat(2,1fr)] gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
           {ANSWERS.map(({ grade, label, key }) => (
-            <Button
-              key={grade}
-              size="md"
-              tone={TONE[grade]}
-              onClick={() => onGrade(grade)}
-              kbd={key}
-              title={`Next in ${gaps[grade]}`}
-              style={{ justifyContent: "center" }}
-            >
+            <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`Next in ${gaps[grade]}`}>
               {label} <span style={{ fontSize: "var(--loki-text-fine)", opacity: 0.75 }}>{gaps[grade]}</span>
             </Button>
           ))}
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
+      <div className="flex flex-wrap items-center gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
         <Button size="sm" onClick={onDelete} kbd="X" title="Delete — it joins the pile the worker reads as 'not this'">
           Delete
         </Button>

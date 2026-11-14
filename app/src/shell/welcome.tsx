@@ -65,7 +65,7 @@ export function Welcome({
     <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 16 }}>
       <div>
         {/* loki's mark, the L (app/public/mark.png). */}
-        <img src="/mark.png" alt="" aria-hidden width={48} height={48} style={{ display: "block", borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
+        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
         <Title page>Welcome to loki</Title>
         <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
@@ -114,11 +114,11 @@ function ProviderStep({
   if (nodeStep) return <span className="loki-meta loki-meta--wrap">Once loki is running</span>;
   if (!showAgent)
     return (
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="grid gap-3">
         <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onModelsChanged} shortlist />
-        <div className="loki-meta loki-meta--wrap" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="loki-meta loki-meta--wrap flex items-center gap-2">
           <span>Keys are checked with the provider and kept in this computer's keychain.</span>
-          <span style={{ flex: 1 }} />
+          <span className="flex-1" />
           {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
           <Button size="sm" onClick={onNext}>
             {connected ? "next" : "skip for now"}
@@ -154,7 +154,7 @@ function AgentForm({
 }) {
   const { name, setName, description, setDescription, persona, setPersona, model, setModel, busy, error, create } = draft;
   return (
-    <div style={{ display: "grid", gap: 12 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
+    <div className="grid gap-3" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
       <Labelled label="Name">
         <Field
           ref={nameRef}
@@ -194,9 +194,9 @@ function AgentForm({
           ))}
         </datalist>
       </Labelled>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+      <div className="flex items-center gap-2" style={{ marginTop: 4 }}>
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         {canGoBack && (
           <Button size="sm" onClick={onBack}>
             Back
@@ -219,13 +219,13 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
   };
   if (status?.nodeMissing) return <NodeNeeded missing={status.nodeMissing} busy={busy} onRecheck={retry} />;
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div className="grid gap-2">
       <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
       {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
         Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
       </div>
-      <Button size="sm" tone="positive" disabled={busy} onClick={retry} style={{ justifySelf: "start" }}>
+      <Button size="sm" tone="positive" disabled={busy} onClick={retry} className="justify-self-start">
         {busy ? "checking…" : "check again"}
       </Button>
     </div>
@@ -240,7 +240,7 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
 export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing; busy: boolean; onRecheck: () => void }) {
   const help = nodeHelp(missing.os);
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div className="grid gap-2">
       <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>
         Node 22 or newer is needed. loki runs your agents on it.
       </div>
@@ -266,7 +266,7 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
         ) : null}{" "}
         {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
       </div>
-      <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} style={{ justifySelf: "start" }}>
+      <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} className="justify-self-start">
         {busy ? "checking…" : "check again"}
       </Button>
     </div>
@@ -275,15 +275,14 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
 
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active: boolean; children: React.ReactNode }) {
   return (
-    <section style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 12, opacity: active || done ? 1 : 0.7 }}>
+    <section className="grid grid-cols-[28px_1fr] gap-3" style={{ opacity: active || done ? 1 : 0.7 }}>
       <span
         aria-hidden
+        className="grid place-items-center"
         style={{
           width: 24,
           height: 24,
           borderRadius: "var(--loki-radius-lg)",
-          display: "grid",
-          placeItems: "center",
           fontSize: "var(--loki-text-meta)",
           fontWeight: 600,
           border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`,
@@ -292,7 +291,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
       >
         {done ? <Glyph icon={CheckIcon} /> : n}
       </span>
-      <div style={{ display: "grid", gap: 8 }}>
+      <div className="grid gap-2">
         <div style={{ fontSize: "var(--loki-text-row)", fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>
         {children}
       </div>
@@ -303,11 +302,11 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 /** A labelled line of the form: the label column matches Settings' facts. */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 12, alignItems: "start", fontSize: "var(--loki-text-meta)" }}>
+    <label className="grid grid-cols-[90px_1fr] items-start gap-3" style={{ fontSize: "var(--loki-text-meta)" }}>
       <span className="loki-label" style={{ paddingTop: 9 }}>
         {label}
       </span>
-      <span style={{ display: "grid", gap: 4, minWidth: 0 }}>{children}</span>
+      <span className="grid min-w-0 gap-1">{children}</span>
     </label>
   );
 }

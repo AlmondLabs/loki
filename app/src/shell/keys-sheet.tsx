@@ -16,7 +16,8 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
     <Sheet label={`Keys for ${place}`} onClose={onClose} width={620} clear>
       <div
         // The card caps its height and clips; the list scrolls inside it, so a view with many keys shows them all.
-        style={{ display: "grid", gap: 16, padding: "18px 22px 16px", maxHeight: "inherit", boxSizing: "border-box", overflowY: "auto" }}
+        className="grid gap-4"
+        style={{ padding: "18px 22px 16px", maxHeight: "inherit", boxSizing: "border-box", overflowY: "auto" }}
         onKeyDown={(e) => {
           if (e.key === "?" && !(e.target instanceof HTMLInputElement)) {
             e.preventDefault();
@@ -24,17 +25,17 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
           }
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+        <div className="flex items-baseline gap-3">
           <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>Keys</span>
           <Meta>{place}</Meta>
-          <span style={{ flex: 1 }} />
+          <span className="flex-1" />
         </div>
         {groups.map((g) => (
-          <section key={g.where} aria-label={g.title} style={{ display: "grid", gap: 4 }}>
+          <section key={g.where} aria-label={g.title} className="grid gap-1">
             <div className="loki-label">{g.title}</div>
             {g.rows.map((b) => (
-              <div key={b.id} style={{ display: "grid", gridTemplateColumns: "170px 1fr", gap: 12, alignItems: "baseline", fontSize: "var(--loki-text-body)" }}>
-                <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+              <div key={b.id} className="grid grid-cols-[170px_1fr] items-baseline gap-3" style={{ fontSize: "var(--loki-text-body)" }}>
+                <span className="inline-flex flex-wrap gap-1.5">
                   {b.keys.map((k) => (
                     <Kbd key={k}>{formatKeys(k)}</Kbd>
                   ))}
@@ -46,19 +47,15 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                       Not while typing
                     </span>
                   )}
-                  {b.was && (
-                    <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
-                      {wasFor(b)}
-                    </span>
-                  )}
+                  {b.was && <span className="loki-meta loki-meta--wrap block">{wasFor(b)}</span>}
                 </span>
               </div>
             ))}
           </section>
         ))}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="flex items-center gap-2">
           <Meta wrap>{sentence(keysSheetNote())}</Meta>
-          <span style={{ flex: 1 }} />
+          <span className="flex-1" />
           <Button size="sm" onClick={onSettings} title={`Open Keys (${keyFor("segment.settings", keyboard, 1)})`}>
             Open
           </Button>

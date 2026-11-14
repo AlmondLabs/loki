@@ -6,7 +6,7 @@ import { stripFrontmatter } from "../phone/model";
 /** A section's head, in the label voice; a right-aligned count or date goes in a span with marginLeft auto. */
 export function Head({ children }: { children: React.ReactNode }) {
   return (
-    <div className="loki-label" style={{ display: "flex", alignItems: "baseline", padding: "0 8px 6px" }}>
+    <div className="loki-label flex items-baseline" style={{ padding: "0 8px 6px" }}>
       {children}
     </div>
   );
@@ -14,7 +14,11 @@ export function Head({ children }: { children: React.ReactNode }) {
 
 /** The detail's reading pane: a scrolling column beside the list. */
 export function Pane({ children }: { children: React.ReactNode }) {
-  return <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 28px 24px" }}>{children}</div>;
+  return (
+    <div className="min-w-0" style={{ minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 28px 24px" }}>
+      {children}
+    </div>
+  );
 }
 
 /** A memory file as prose: the frontmatter dropped, the markdown rendered; a line instead when there is nothing to show. */

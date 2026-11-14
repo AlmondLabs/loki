@@ -484,7 +484,7 @@ export function Banner({ tone = "var(--loki-negative)", children, className, ...
   return (
     <div ref={ref} role="status" className={cx("loki-banner", className)} {...rest}>
       <Dot color={tone} />
-      <span style={{ minWidth: 0 }}>{children}</span>
+      <span className="min-w-0">{children}</span>
     </div>
   );
 }
