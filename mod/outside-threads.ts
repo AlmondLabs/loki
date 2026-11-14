@@ -124,7 +124,7 @@ export interface OutsideThreadsOptions {
   /** Where held mail replies wait for their undo (plan 076); without it a mail reply goes at once. */
   outbox?: Omit<MailOutboxOptions, "send">;
   /** The people in each Slack workspace, for the reply box's @ suggestions and the mentions a reply sends (plan 082). */
-  slackPeople?: Pick<SlackPeople, "search" | "mentions">;
+  slackPeople?: Pick<SlackPeople, "search">;
   /** The people each account has mail with, for suggestions, and told of whom the person sends to (plan 076). */
   people?: Pick<MailPeople, "top" | "saw">;
   /** The time zone a quote's date is written in; this Mac's when left out. */

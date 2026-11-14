@@ -3,13 +3,9 @@ import type { SlackClient, SlackUser } from "./slack.ts";
 
 /**
  * The people in each Slack workspace the person can mention in a reply (plan 082). The reply box suggests them as the
- * person types `@`, and a pick writes their handle (`@ravi.kumar`), which reads as itself in the box and on the phone.
- * When the reply is sent, each `@handle` that names someone in the workspace becomes Slack's mention (`<@U123>`), so
- * Slack tells them; one that names no one stays as typed.
+ * person types `@`, and a pick writes their name and keeps them as a mention, which the send makes Slack's (`<@U123>`)
+ * while the name is in the text (plan 2026-11-14-1530, KTD8); a typed `@handle` stays as typed.
  */
-
-/** An @handle in text: at the start or after anything but a word character, `@` or `.`, so an email address is not one. */
-const HANDLE = /(^|[^\w@.])@([a-z0-9][a-z0-9._-]*)/gi;
 
 /** How long a workspace's people are kept before they are read again, so someone who just joined can be mentioned. */
 const PEOPLE_TTL_MS = 60 * 60_000;
@@ -19,34 +15,6 @@ const MAX_PAGES = 50;
 
 /** How many people a search gives. */
 const SEARCH_LIMIT = 8;
-
-/**
- * Each @handle in the escaped text whose handle is in `mentions` (handle → Slack id), turned into Slack's mention. A
- * handle followed by a full stop or other punctuation is still found: a trailing `.`, `-` or `_` is tried without.
- */
-export function withMentions(text: string, mentions: ReadonlyMap<string, string>): string {
-  if (mentions.size === 0) return text;
-  return text.replace(HANDLE, (whole, before: string, handle: string) => {
-    const known = knownHandle(handle, mentions);
-    if (!known) return whole;
-    return `${before}<@${known.id}>${handle.slice(known.handle.length)}`;
-  });
-}
-
-/** The longest start of `handle` that is in `mentions`, dropping trailing punctuation one character at a time. */
-function knownHandle(handle: string, mentions: ReadonlyMap<string, string>): { handle: string; id: string } | null {
-  for (let h = handle.toLowerCase(); h; h = h.slice(0, -1)) {
-    const id = mentions.get(h);
-    if (id) return { handle: h, id };
-    if (!/[._-]$/.test(h)) return null;
-  }
-  return null;
-}
-
-/** Whether text holds an @handle, as `withMentions` reads them. */
-export function hasHandles(text: string): boolean {
-  return [...text.matchAll(HANDLE)].length > 0;
-}
 
 /**
  * Someone in a workspace with every name Slack keeps for them (plan 2026-11-14-1530, U2): the person's full name and
@@ -130,14 +98,6 @@ export class SlackPeople {
    */
   members(accountId: string): Promise<SlackMember[]> {
     return this.people(accountId);
-  }
-
-  /** Each handle in the workspace to its Slack id, read only when `text` holds an @handle, for sending. */
-  async mentions(accountId: string, text: string): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
-    if (!hasHandles(text)) return out;
-    for (const p of await this.people(accountId)) out.set(p.handle.toLowerCase(), p.id);
-    return out;
   }
 
   /** The workspace's people, read again once they are an hour old; a read that fails is tried again next time. */

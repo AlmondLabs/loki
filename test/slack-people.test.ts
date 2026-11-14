@@ -1,22 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { SlackPerson } from "../core/frame-types.ts";
 import type { SlackUser } from "../mod/slack.ts";
-import { SlackPeople, searchPeople, withMentions } from "../mod/slack-people.ts";
-
-const HANDLES = new Map([
-  ["ravi.kumar", "U1"],
-  ["ana", "U2"],
-]);
-
-describe("an @handle becomes Slack's mention (plan 082)", () => {
-  test("a known handle at the start, after a space or a bracket, and before punctuation", () => {
-    expect(withMentions("@ravi.kumar look (@ana) thanks @ravi.kumar.", HANDLES)).toBe("<@U1> look (<@U2>) thanks <@U1>.");
-  });
-
-  test("an unknown handle, an email address and a handle glued to a word stay as typed; case does not matter", () => {
-    expect(withMentions("@nobody mail ravi@example.test x@ana @ANA", HANDLES)).toBe("@nobody mail ravi@example.test x@ana <@U2>");
-  });
-});
+import { SlackPeople, searchPeople } from "../mod/slack-people.ts";
 
 const PEOPLE: SlackPerson[] = [
   { id: "U1", handle: "ravi.kumar", name: "Ravi Kumar", avatar: null },
@@ -74,18 +59,6 @@ describe("a workspace's people", () => {
     clock.t = 61 * 60_000;
     await people.search("slack:T1:U0", "ravi");
     expect(reads).toEqual([null, "next", null, "next"]);
-  });
-
-  test("a reply with no @handle reads no one; one with a handle gets every handle's id", async () => {
-    const { people, reads } = fixture();
-    expect(await people.mentions("slack:T1:U0", "no one here")).toEqual(new Map());
-    expect(reads).toEqual([]);
-    expect(await people.mentions("slack:T1:U0", "@ana hi")).toEqual(
-      new Map([
-        ["ravi.kumar", "U1"],
-        ["ana", "U2"],
-      ]),
-    );
   });
 
   test("a read that fails is tried again on the next ask", async () => {
