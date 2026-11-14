@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SEGMENTS } from "./shortcuts";
 import { LAYER } from "../kit/layers";
-import { Dot, countText } from "../components";
+import { countText } from "../components";
 import { inTauri, platform, type Platform } from "../desk/env";
 import { ariaShortcut, keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
@@ -161,16 +161,6 @@ export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: 
         );
       })}
     </nav>
-  );
-}
-
-/** The sidebar's foot while a newer loki is out: one quiet row that opens Preferences on it. */
-export function UpdateRow({ onOpen }: { onOpen: () => void }) {
-  return (
-    <button type="button" className="loki-place loki-place--foot" onClick={onOpen}>
-      <Dot aria-hidden color="var(--loki-accent)" />
-      <span className="loki-place-label">Update Available</span>
-    </button>
   );
 }
 

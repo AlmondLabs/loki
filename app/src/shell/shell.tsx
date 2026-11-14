@@ -18,7 +18,7 @@ import { FlowColumn } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
-import { ColumnToggle, GLASS_HEAD, GLASS_INSET, Places, sidebarToggleLeft, sidebarToggleTop, TitleStrip, TITLEBAR_HEIGHT, UpdateRow } from "./sidebar";
+import { ColumnToggle, GLASS_HEAD, GLASS_INSET, Places, sidebarToggleLeft, sidebarToggleTop, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
 import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
@@ -50,6 +50,20 @@ const SEGMENT_KEY = "loki.segment";
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
   return s === "inbox" || s === "agents" || s === "learn" ? s : "desk";
+}
+
+/** The key the last version announced is kept under, so a newer loki is said once, not at every launch. */
+const ANNOUNCED_KEY = "loki.update.announced";
+
+/** Whether `version` has yet to be announced on this Mac; it is marked announced. Without storage, it is said each time. */
+function announceOnce(version: string): boolean {
+  try {
+    if (localStorage.getItem(ANNOUNCED_KEY) === version) return false;
+    localStorage.setItem(ANNOUNCED_KEY, version);
+  } catch {
+    // Blocked storage only costs saying it again next launch.
+  }
+  return true;
 }
 
 /** First launch: nothing to talk to yet. Only while the daemon could not start, or has answered and lists no agents. */
@@ -326,7 +340,20 @@ export function Shell() {
     if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
     setPrefsOpen(true);
   };
-  const openPrefs = () => showPreferences();
+  // A newer loki is said once per version, as a notice with the way to it (plan 2026-11-14-1300, 4), not a row kept at
+  // the sidebar's foot: Preferences › loki has it for as long as it is newer.
+  const newer = update.newer ? update.latest : null;
+  const announce = useEffectEvent((version: string) => {
+    if (!announceOnce(version)) return;
+    notify(`loki ${version} is available`, {
+      duration: Infinity,
+      action: { label: "Update…", onClick: () => showPreferences("loki") },
+      cancel: { label: "Later", onClick: () => {} },
+    });
+  });
+  useEffect(() => {
+    if (newer) announce(newer);
+  }, [newer]);
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -434,7 +461,6 @@ export function Shell() {
           left={GLASS_INSET}
           top={GLASS_INSET + GLASS_HEAD}
           head={<Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} />}
-          foot={update.newer ? <UpdateRow onOpen={openPrefs} /> : null}
           sections={{
             desk: (
               <DeskSidebarView
@@ -497,10 +523,12 @@ export function Shell() {
           {/* No chat to show: say so, as Messages and Mail do, rather than draw an empty room (plan 2026-11-14-1300, 1). */}
           {onChat && noChat && (
             <EmptyPane icon="desk" title="No Chat Selected" style={{ position: "absolute", inset: 0 }}>
-              <span className="loki-meta">Choose a chat in the sidebar, or start one.</span>
-              <Button tone="positive" onClick={() => startNewChat(null)}>
-                New Chat
-              </Button>
+              <p className="loki-meta">Choose a chat in the sidebar, or start one.</p>
+              <div>
+                <Button tone="positive" onClick={() => startNewChat(null)}>
+                  New Chat
+                </Button>
+              </div>
             </EmptyPane>
           )}
 

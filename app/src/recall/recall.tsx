@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall/fsrs.ts";
 import { learnTitle, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
 import { lessonBrief } from "../../../core/recall/extract.ts";
-import { Button, Empty, Meta, Title } from "../components";
+import { Button, Empty, Meta, PaneHeader } from "../components";
+import { ToolbarTitle } from "../item/toolbar";
+import type { ItemProperty } from "../item/item-view";
 import { useNow } from "../components/use-now";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/use-recall";
@@ -127,31 +129,33 @@ export function Recall({
   );
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflowY: "auto",
-        scrollbarGutter: "stable",
-        padding: "20px 24px 16px",
-        boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* The header keeps its place across the views. Inside the
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column" }}>
+      <RecallHeader recall={recall} />
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          scrollbarGutter: "stable",
+          padding: "20px 24px 16px",
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the
           body, the deck sits in the middle of what is left (a little above it, where the eye rests); the lists
           start at the top. The gutter is reserved so a long list's scrollbar does not shift the column sideways. */}
-      <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-        <RecallHeader recall={recall} />
-        <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
-          {view === "review" ? (
-            <ReviewView recall={recall} pass={pass}>
-              {deck}
-            </ReviewView>
-          ) : (
-            <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />
-          )}
+        <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
+            {view === "review" ? (
+              <ReviewView recall={recall} pass={pass}>
+                {deck}
+              </ReviewView>
+            ) : (
+              <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -163,16 +167,15 @@ function RecallHeader({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   const cards = snap?.cards.length ?? 0;
   const leads = snap?.leads.length ?? 0;
-  return (
-    <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-      <Title page>Learn</Title>
-      <Meta>
-        {recall.due} due · {cards} card{cards === 1 ? "" : "s"}
-        {leads ? ` · ${leads} lead${leads === 1 ? "" : "s"}` : ""}
-        {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
-      </Meta>
-    </header>
-  );
+  const deleted = snap?.rejected.length ?? 0;
+  // Learn's toolbar, the chat's anatomy (plan 2026-11-14-1300, 3): its name over a grey line of its counts.
+  const facts: ItemProperty[] = [
+    { key: "status", label: `${recall.due} due`, editable: false, ...(recall.due > 0 ? { tone: "attention" as const } : {}) },
+    { key: "status", label: `${cards} ${cards === 1 ? "card" : "cards"}`, editable: false },
+    ...(leads ? [{ key: "status" as const, label: `${leads} ${leads === 1 ? "lead" : "leads"}`, editable: false }] : []),
+    ...(deleted ? [{ key: "status" as const, label: `${deleted} deleted`, editable: false }] : []),
+  ];
+  return <PaneHeader title="Learn" line={<ToolbarTitle title="Learn" facts={facts} titleAs="h1" />} />;
 }
 
 /** The notices above any view: an error, and the writer being off while cards exist. */

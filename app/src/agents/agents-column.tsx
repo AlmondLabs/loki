@@ -35,6 +35,7 @@ export function AgentsColumn({
     <>
       <ColumnHeader
         title="Agents"
+        quiet
         actions={
           <IconButton label="New agent" onClick={() => selection.setCreating(true)}>
             <Icon name="plus" size={16} />

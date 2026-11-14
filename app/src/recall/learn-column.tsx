@@ -1,6 +1,5 @@
 import { ListIcon, ListRow, ListSection } from "../components";
 import type { IconName } from "../shared/icons";
-import { ColumnHeader } from "../shell/list-column";
 import type { Recall as RecallModel } from "../shell/use-recall";
 import { useLearnView } from "./use-learn-view";
 import { learnViews, type LearnView } from "./views";
@@ -16,7 +15,6 @@ export function LearnColumn({ recall }: { recall: RecallModel }) {
   const loaded = !!recall.snap;
   return (
     <>
-      <ColumnHeader title="Learn" />
       <div className="loki-column-scroll">
         <ListSection title="Views">
           {learnViews(recall.snap, recall.due).map((v) => (

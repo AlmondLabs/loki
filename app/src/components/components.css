@@ -637,7 +637,8 @@ textarea.loki-field {
   border: none;
   border-radius: var(--loki-radius-sm);
   background: transparent;
-  color: var(--loki-muted);
+  /* Full ink, as Mail titles every message: what is new is told by weight and its mark, never by greying the rest. */
+  color: var(--loki-fg);
   font-family: var(--loki-font);
   font-size: var(--loki-text-body);
   line-height: 1.3;
@@ -1328,11 +1329,6 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
-.loki-place--foot {
-  flex: none;
-  margin: 8px 10px 10px;
-  color: var(--loki-muted);
-}
 /* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
 .loki-sidebar-toggle[aria-pressed] {
   background: transparent;
@@ -1369,6 +1365,10 @@ button.loki-list-section-toggle {
   .loki-column-header {
     min-height: 28px;
     padding: 0 10px 0 18px;
+  }
+  /* A heading said to a screen reader only: its actions keep the trailing edge. */
+  .loki-column-header[data-quiet] {
+    justify-content: flex-end;
   }
   .loki-column-title {
     font-size: var(--loki-text-tag);
@@ -1462,6 +1462,13 @@ button.loki-list-section-toggle {
     font-size: var(--loki-text-title);
     font-weight: 600;
     color: var(--loki-fg);
+  }
+  /* Flow's toolbar (plan 2026-11-14-1300, 3): the pane's anatomy over the deck, lined up with the card under it. */
+  .loki-deck-header {
+    margin: -12px 0 8px;
+  }
+  .loki-deck-header .loki-pane-header-line {
+    padding-left: 6px;
   }
   /* A Flow card's toolbar (U16): the chat's title and facts, its moves at the trailing edge; the title opens the chat. */
   .loki-card-toolbar {
