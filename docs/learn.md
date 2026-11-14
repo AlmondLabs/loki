@@ -117,7 +117,7 @@ on top of the batch: up to 80k characters, at most 24k from any one conversation
   one deleted unseen as not wanted. Z undoes.
 - A card you keep failing is offered back to the writer with a replay of its source, for a rewrite in place.
 - E edits a card yourself; O (⌘O) opens the desk it came from; ⌘[ and ⌘] step through the four views (Review,
-  Leads, All cards, Deleted); "export for Anki", on All cards, copies the deck in Anki's plain-text import format.
+  Leads, All Cards, Deleted); Export for Anki, in Preferences › Learn, copies the deck in Anki's plain-text import format.
 
 ## Leads and lessons
 

@@ -1,7 +1,8 @@
 import { useState } from "react";
 
-import { Button, Chip, Field, Row, TextArea, sentence } from "../components";
-import { Head, ListPane, Pane, Prose } from "./bits";
+import { Button, Chip, Field, TextArea, sentence } from "../components";
+import type { ContentRow } from "../shell/content-list";
+import { Pane, Prose } from "./bits";
 import type { AgentDetails, AgentSkill } from "./types";
 import type { AgentStore } from "./use-agent-details";
 import type { ReadingState } from "./use-reading";
@@ -10,15 +11,31 @@ import type { ReadingState } from "./use-reading";
 export type Adding = null | "write" | "install";
 
 /**
- * The skills page: the agent's own and the installed ones listed on the left, with the add form above
- * them; the picked skill's SKILL.md on the right, with refresh and remove. Global skills are not an
- * agent's and live in Preferences › Skills.
+ * The Skills page's items, the list's rows (plan 2026-11-14-1330, KTD9): the agent's own skills, then the installed
+ * ones, each group under its heading; a row's line is the skill's description, or for an installed one where it came
+ * from ("Source?" in the accent when nobody recorded it).
+ */
+export function skillRows(skills: readonly AgentSkill[]): ContentRow[] {
+  return (["self", "other"] as const).flatMap((origin) =>
+    skills
+      .filter((x) => (x.origin ?? "self") === origin)
+      .map((x): ContentRow => ({
+        id: x.name,
+        title: x.name,
+        preview: origin === "other" ? x.source ? x.source.label : <span style={{ color: "var(--loki-accent)" }}>Source?</span> : (x.description ?? undefined),
+        section: sentence(origin),
+      })),
+  );
+}
+
+/**
+ * The Skills page's detail: Write and Install, which open the add form, then the skill chosen in the list with refresh
+ * and remove. Global skills are not an agent's and live in Preferences › Skills.
  */
 export function SkillsPage({
   d,
   store,
   viewSkill,
-  onPickSkill,
   adding,
   setAdding,
   reading,
@@ -26,107 +43,35 @@ export function SkillsPage({
   d: AgentDetails;
   store: AgentStore;
   viewSkill: AgentSkill | null;
-  onPickSkill: (name: string) => void;
   adding: Adding;
   setAdding: (v: Adding) => void;
   reading: ReadingState;
 }) {
   return (
-    <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
-      <ListPane>
-        <Head>
-          Skills
-          <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
-            <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>
-              Write
-            </Chip>
-            <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>
-              Install
-            </Chip>
-          </span>
-        </Head>
-        {adding && (
-          <SkillAdd
-            key={adding}
-            mode={adding}
-            onWrite={store.addSkill}
-            onInstall={store.installSkill}
-            onClose={() => setAdding(null)}
-            agentName={d.agent.name}
-          />
-        )}
-        {d.skills.length === 0 && !adding && (
-          <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
-            None in memory
-          </div>
-        )}
-        <SkillList skills={d.skills} shown={viewSkill} onPick={onPickSkill} />
-        <div className="loki-meta loki-meta--wrap" style={{ padding: "14px 8px 0", lineHeight: 1.5 }}>
+    <Pane>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>
+          Write
+        </Chip>
+        <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>
+          Install
+        </Chip>
+        <span className="loki-meta loki-meta--wrap" style={{ marginLeft: "auto" }}>
           Skills every agent reads are in Preferences › Skills.
-        </div>
-      </ListPane>
-      <Pane>
-        <SkillView d={d} store={store} skill={viewSkill} reading={reading} />
-      </Pane>
-    </div>
-  );
-}
-
-/** The skills in two groups, the agent's own and the installed ones; installed ones say where they came from. */
-function SkillList({ skills, shown, onPick }: { skills: AgentSkill[]; shown: AgentSkill | null; onPick: (name: string) => void }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10 }}>
-      {(["self", "other"] as const).map((origin) => {
-        const list = skills.filter((x) => (x.origin ?? "self") === origin);
-        if (list.length === 0) return null;
-        return (
-          <div key={origin} style={{ minWidth: 0 }}>
-            <div className="loki-label" style={{ padding: "2px 8px" }}>
-              {sentence(origin)} · {list.length}
-            </div>
-            {list.map((x) => {
-              const on = shown?.name === x.name;
-              return (
-                <Row
-                  dense
-                  key={x.name}
-                  selected={on}
-                  onClick={() => onPick(x.name)}
-                  title={x.description ?? x.name}
-                  style={{ justifyContent: "space-between", gap: 8, fontSize: "var(--loki-text-body)" }}
-                >
-                  <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.name}</span>
-                  {origin === "other" && (
-                    <span
-                      style={{
-                        fontSize: "var(--loki-text-fine)",
-                        color: x.source ? "var(--loki-muted)" : "var(--loki-accent)",
-                        flex: "0 1 auto",
-                        minWidth: 0,
-                        maxWidth: "50%",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={x.source ? `From ${x.source.label}` : "Source unknown"}
-                    >
-                      {x.source ? x.source.label : "Source?"}
-                    </span>
-                  )}
-                </Row>
-              );
-            })}
-          </div>
-        );
-      })}
-    </div>
+        </span>
+      </div>
+      {adding && (
+        <SkillAdd key={adding} mode={adding} onWrite={store.addSkill} onInstall={store.installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />
+      )}
+      <SkillView d={d} store={store} skill={viewSkill} reading={reading} />
+    </Pane>
   );
 }
 
 /** The picked skill, read: its path and actions above, where it came from, its description, then the SKILL.md. */
 function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: AgentStore; skill: AgentSkill | null; reading: ReadingState }) {
   const { content, loadingView } = reading;
-  if (!skill) return <div className="loki-meta loki-meta--wrap">{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>;
+  if (!skill) return <div className="loki-meta loki-meta--wrap">{d.agent.name} has no skills in memory yet.</div>;
   return (
     <>
       <SkillActions d={d} store={store} skill={skill} loadingView={loadingView} />

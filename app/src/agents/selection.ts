@@ -7,9 +7,9 @@ import { Listeners } from "../../../core/listeners.ts";
 export const AGENT_ID_KEY = "loki.agentsAgent";
 
 /**
- * What the Agents column and pane both read (plan 013 U10): the chosen agent, its page, and whether the
- * new-agent form is open. They live in different parts of the Shell (the column stays mounted, the pane
- * mounts with the section), so the choice sits here rather than in either. `agent` is undefined before
+ * What the sidebar's Agents sources and the Agents place both read (plan 2026-11-14-1330, KTD9): the chosen agent,
+ * its page, and whether the new-agent form is open. The sidebar stays mounted while the place mounts only while it
+ * shows, so the choice sits here rather than in either. `agent` is undefined before
  * any pick (the desk's agent shows) and null after the shown one is deleted (the first shows).
  */
 export interface AgentsSelectionState {
@@ -78,6 +78,15 @@ export function shownAgent(picked: string | null | undefined, initialAgentId: st
   if (picked) return picked;
   if (picked === undefined && initialAgentId) return initialAgentId;
   return firstAgentId(agents);
+}
+
+/**
+ * Whether the Agents place shows its list column (plan 2026-11-14-1330, R13): the page's items fill it on Memory,
+ * Changes, Reflection and Skills. Profile has no items, and neither have the new-agent form or the invitation before
+ * the first agent, so their detail spans the list and detail columns.
+ */
+export function agentsHasList(state: AgentsSelectionState, agentCount: number): boolean {
+  return agentCount > 0 && !state.creating && state.page !== "profile";
 }
 
 /** The selection's state, re-rendering on each change. */

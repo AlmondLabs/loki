@@ -1,63 +1,43 @@
-import { useMemo } from "react";
+import type { ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { IconButton, ListRow } from "../components";
-import { AgentFace } from "../desk/agent-chip";
-import { Icon } from "../shared/icons";
-import { ColumnHeader } from "../shell/list-column";
-import { agentDmRows } from "./rows";
-import { agentsSelection, shownAgent, useAgentsSelection, type AgentsSelection } from "./selection";
+import { agentRows } from "../phone/model";
+import type { PlaceSources } from "../shell/sidebar";
+import { agentsSelection, shownAgent, type AgentsSelection, type AgentsSelectionState } from "./selection";
+
+/** The Agents place's own row in the sidebar: it stands for no one agent, so choosing it keeps the agent shown. */
+const AGENTS_PLACE = "";
 
 /**
- * The Agents column, Slack's DMs (plan 013 U10): one row per agent — its face with the green dot while a
- * turn runs, its name, the last thing it said, and a red badge for what waits on you in the Inbox. The
- * chosen agent is current; "+" in the header opens the new-agent form in the pane. The choice is shared
- * with the pane through the selection store, so the two agree without the Shell holding it.
+ * The agents as the Agents place's sources in the sidebar (plan 2026-11-14-1330, KTD9), in the daemon's order: each
+ * one's face, its name, a green dot while a turn runs, and the count of what waits on you in Flow. The agent shown is
+ * the selected source, none while the new-agent form is open. Choosing one selects it through the selection store and
+ * leaves the page as it was, so the list and the detail move to the same page of another agent.
  */
-export function AgentsColumn({
+export function agentSources({
   agents,
   desks,
   items,
-  avatar,
   initialAgentId,
+  state,
+  face,
   selection = agentsSelection,
 }: {
   agents: Array<{ id: string; name: string }>;
   desks: Array<{ agent_id: string | null; status: string }>;
   items: AttentionItem[];
-  avatar: (agentId: string) => string;
   initialAgentId: string | null;
+  /** The selection's state as the caller last read it, so the sidebar re-renders with it. */
+  state: AgentsSelectionState;
+  face: (agentId: string, name: string) => ReactNode;
   selection?: AgentsSelection;
-}) {
-  const sel = useAgentsSelection(selection);
-  const rows = useMemo(() => agentDmRows(agents, desks, items), [agents, desks, items]);
-  const current = sel.creating ? null : shownAgent(sel.agent, initialAgentId, agents);
-  return (
-    <>
-      <ColumnHeader
-        title="Agents"
-        quiet
-        actions={
-          <IconButton label="New agent" onClick={() => selection.setCreating(true)}>
-            <Icon name="plus" size={16} />
-          </IconButton>
-        }
-      />
-      <div className="loki-column-scroll">
-        <ul className="loki-list" aria-label="Agents">
-          {rows.map((r) => (
-            <ListRow
-              key={r.id}
-              lead={<AgentFace name={r.name} src={avatar(r.id)} size={20} />}
-              title={r.name}
-              preview={r.preview}
-              badge={r.waiting}
-              live={r.running}
-              current={r.id === current}
-              onOpen={() => selection.pickAgent(r.id)}
-            />
-          ))}
-        </ul>
-      </div>
-    </>
-  );
+}): PlaceSources {
+  const shown = state.creating ? null : shownAgent(state.agent, initialAgentId, agents);
+  return {
+    items: agentRows(agents, desks, items).map((r) => ({ id: r.id, title: r.name, face: face(r.id, r.name), count: r.waiting, live: r.running })),
+    selected: shown ?? AGENTS_PLACE,
+    all: AGENTS_PLACE,
+    onSelect: (id) => {
+      if (id !== AGENTS_PLACE) selection.pickAgent(id);
+    },
+  };
 }

@@ -147,7 +147,10 @@ export function InboxView({
   );
 }
 
-/** The agents: profile, memory, changes and skills per agent; "ask to update" opens the main chat with a request typed in. */
+/**
+ * The Agents place's owner (plan 2026-11-14-1330, KTD9): the chosen agent's page, its items in the list and the one
+ * chosen in the detail; "ask to update" opens the main chat with a request typed in.
+ */
 export function AgentsView({
   desk,
   catchUp,
@@ -163,7 +166,6 @@ export function AgentsView({
 }) {
   return (
     <Agents
-      columnOutside
       agents={catchUp.agents}
       api={desk.agents}
       avatar={avatarUrl}

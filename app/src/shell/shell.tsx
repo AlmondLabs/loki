@@ -12,8 +12,9 @@ import { useDeskPane } from "../desk/use-desk-pane";
 import { chatKeyTarget } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
 import { avatarUrl, inTauri } from "../desk/env";
-import { AgentsColumn } from "../agents/agents-column";
-import { LearnColumn } from "../recall/learn-column";
+import { agentSources } from "../agents/agents-column";
+import { learnSources } from "../recall/learn-column";
+import { useLearnView } from "../recall/use-learn-view";
 import { flowSources } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
@@ -41,7 +42,7 @@ import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
-import { agentsSelection } from "../agents/selection";
+import { agentsHasList, agentsSelection, useAgentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
@@ -71,8 +72,8 @@ function welcomeFor(
 }
 
 /**
- * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, the
- * section's list column (ListColumn; Desk, Agents, Learn) and one view in the space they leave. The desk and attention models live here so the desk view, the
+ * The window: loki's own top strip (the native title bar is hidden), the sidebar of places and their sources
+ * (ListColumn), the showing place's list column, and its detail in the space they leave. The desk and attention models live here so the desk view, the
  * inbox, ⌘K search and settings all read the same state.
  */
 export function Shell() {
@@ -313,9 +314,8 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // A place moved onto the three columns draws its list and its detail from one owner component, which goes here
-  // (plan 2026-11-14-1330, KTD1); a place without one keeps its body in the sidebar and has no list column. Chats is
-  // drawn by the shell itself: its list and its chat pane both stay mounted across places, for the link and the scroll.
+  // Each place but Chats draws its list and its detail from one owner component, which goes here (plan
+  // 2026-11-14-1330, KTD1). Chats is drawn by the shell itself: its list and its chat pane both stay mounted across places, for the link and the scroll.
   const placeOwners: Partial<Record<Segment, ReactNode>> = {
     // Drawn only while Flow shows, so leaving the place ends the visit (useFlowDeck).
     inbox: (
@@ -332,9 +332,26 @@ export function Shell() {
         onPass={(pass) => capture("inbox_pass_completed", pass)}
       />
     ),
+    // Drawn only while Agents shows; the chosen agent and page live in the selection store, so they outlast it.
+    agents: (
+      <AgentsView
+        desk={desk}
+        catchUp={catchUp}
+        onOpenDesk={openDesk}
+        onAskToUpdate={(agentId, text) => {
+          openDesk(agentId, "default", { chat: true });
+          setChatPrefill({ text, tick: Date.now() });
+        }}
+        onShowDesks={() => setSegment("desk")}
+      />
+    ),
+    // Drawn only while Learn shows; the view lives in a store for the window, so it outlasts the visit.
+    learn: <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />,
   };
   const placeOwner = placeOwners[segment];
-  const hasList = segment === "desk" || placeOwner !== undefined;
+  /** The agent and page chosen in Agents: Profile has no items, so its form spans the list and detail columns (R13). */
+  const agentsState = useAgentsSelection();
+  const hasList = segment === "desk" || (segment === "agents" ? agentsHasList(agentsState, agentList.length) : placeOwner !== undefined);
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
   const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
   // The sidebar is the window's one place list (U12), beside every section, its places on top; the list column and the
@@ -374,6 +391,30 @@ export function Shell() {
     setPrefsOpen(false);
     setSegment("inbox");
     lanes.onSelect(id);
+  };
+  /** The agents as Agents' sources (plan 2026-11-14-1330, KTD9): choosing one shows it on the page that was showing. */
+  const agentPlaces = agentSources({
+    agents: agentList,
+    desks: deskList,
+    items: catchUp.items,
+    initialAgentId: desk.agentId,
+    state: agentsState,
+    face: (agentId, name) => <AgentFace name={name} src={avatarUrl(agentId)} size={16} />,
+  });
+  const chooseAgent = (id: string) => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("agents");
+    agentPlaces.onSelect(id);
+  };
+  /** Learn's views as its sources (plan 2026-11-14-1330, R14): choosing one shows its cards or leads in the list. */
+  const [learnView, setLearnView] = useLearnView();
+  const learnPlaces = learnSources({ snap: recall.snap, due: recall.due, view: learnView, onView: setLearnView });
+  const chooseView = (id: string) => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("learn");
+    learnPlaces.onSelect(id);
   };
   /** A label's chats: every chat's list, searched for the label. */
   const showLabel = (name: string) => {
@@ -517,7 +558,6 @@ export function Shell() {
         )}
 
         <ListColumn
-          segment={segment}
           shown={sidebarShown}
           width={column.sidebar}
           onWidth={column.setSidebar}
@@ -547,13 +587,11 @@ export function Shell() {
                   onSelect: chooseSource,
                 },
                 inbox: { ...lanes, onSelect: chooseLane },
+                agents: { ...agentPlaces, onSelect: chooseAgent },
+                learn: { ...learnPlaces, onSelect: chooseView },
               }}
             />
           }
-          sections={{
-            agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
-            learn: <LearnColumn recall={recall} />,
-          }}
         />
 
         {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. Its
@@ -596,7 +634,8 @@ export function Shell() {
 
         {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.detailLeft, right: 0, bottom: 0 }}>
-          {hasList && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
+          {/* A place's owner draws its detail here, with or without its list (Agents' Profile spans both). */}
+          {(hasList || placeOwner !== undefined) && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
           <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>{placeOwner}</PlaceSlotsProvider>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
@@ -659,21 +698,6 @@ export function Shell() {
                 focusTick={newChat.n + focusChat}
               />
             </div>
-          )}
-
-          {segment === "learn" && <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
-
-          {segment === "agents" && (
-            <AgentsView
-              desk={desk}
-              catchUp={catchUp}
-              onOpenDesk={openDesk}
-              onAskToUpdate={(agentId, text) => {
-                openDesk(agentId, "default", { chat: true });
-                setChatPrefill({ text, tick: Date.now() });
-              }}
-              onShowDesks={() => setSegment("desk")}
-            />
           )}
 
           {welcome && !prefsOpen && (

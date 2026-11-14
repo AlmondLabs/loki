@@ -304,6 +304,14 @@ describe("the list's markup", () => {
     expect(out).toContain("No Results");
     expect(out).not.toContain("No chats with friday yet.");
   });
+  test("an empty list puts the place's New under its sentence, unless the place keeps it to the toolbar", () => {
+    const newAction = { label: "New Agent", run: () => {} };
+    const under = (out: string) => out.split('class="loki-content-list-empty"')[1] ?? "";
+    expect(under(html({ rows: [], newAction }))).toContain(">New Agent</button>");
+    const kept = html({ rows: [], newAction, emptyAction: false });
+    expect(under(kept)).not.toContain("New Agent");
+    expect(kept).toContain('aria-label="New Agent"');
+  });
   test("nothing selected shows the detail's No … Selected pane", () => {
     expect(renderToStaticMarkup(createElement(NothingSelected, { noun: "Chat" }))).toContain("No Chat Selected");
   });
