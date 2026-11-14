@@ -806,8 +806,8 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     ["a weight outside 400 · 600 · 700", /\bfont-(?:thin|extralight|light|medium|extrabold|black)\b/],
     ["outline-none, which hides the focus ring tokens.css draws", /(?:^|\s)(?:\S*:)?outline-none(?=\s|$)/],
     ["a default shadow", /\bshadow-(?:2xs|xs|sm|md|lg|xl|2xl)\b/],
-    // Tailwind's xs and 3xl are allowed (3xl is the 24px bubble and sheet radius); the rest are unused, so a use is a decision.
-    ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-(?:2xl|4xl)\b/],
+    // Tailwind's xs, 2xl and 3xl are allowed (2xl is a button in a 24px glass box, 3xl the bubble and sheet radius); 4xl is unused.
+    ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-4xl\b/],
   ];
   const classStrings = (path: string, text: string): Array<{ at: string; text: string }> => {
     const src = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
