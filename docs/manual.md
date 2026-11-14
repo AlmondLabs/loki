@@ -118,8 +118,9 @@ along the top drags the window (double-click zooms). The window title still name
 "Flow · n waiting", "Agents", "Preferences" — for the Window menu and Mission Control. On the left, one **sidebar**
 on the Mac's own material, the traffic lights in its top row: its first rows are the places, **Chats**, **Flow**,
 **Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
-filled; under them, the place's own list. The chosen item fills the rest. ⌘⇧D (or the sidebar button beside the
-traffic lights, which stays while the sidebar is hidden) shows or hides it (in Flow ⌘⇧D is Deny); drag its edge (or
+filled; under them, the place's own list. The chosen item fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
+Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
+hides it; drag its edge (or
 focus it and use the arrows) for a width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
@@ -184,8 +185,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   the model and the permission mode change rarely, so ⌘K is their one home (the phone keeps its two chips). ⌘⇧M opens it on **Models**, ⌘⇧P on
   **Permissions**, which lists the chat's modes with what each lets through, the current one checked and highlighted;
   typing "mode " in ⌘K steps in too, and typing a mode's name or "permission" offers them among the results. When a tool call asks,
-  loki asks "Allow friday to run “edit”?" above the box with **Deny**, **Always Allow…** and **Allow** (Return in the
-  empty box allows; on the phone, **Deny** and **Approve** under the box): Always Allow, after you confirm it, allows that tool from then on, in every chat and every
+  loki asks "Allow friday to run “edit”?" above the box with **Deny**, **Always Allow…** and **Allow** (⌘Return
+  allows, from the box too; on the phone, **Deny** and **Approve** under the box): Always Allow, after you confirm it, allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
 - **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the deck as a full view, see below. Its row in the sidebar carries
@@ -286,7 +287,7 @@ into the Models scope, where all of the chat's models are listed with Usual firs
 Backspace in the empty field, or the chip's ×, steps back out.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
-that work everywhere (less any the view takes for itself, such as ⌘⇧D in Flow; Preferences › Keyboard shortcuts says so); `?` or
+that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
@@ -693,8 +694,8 @@ answer.
 When an agent's turn ends on a choice you are likely to make from a few clear options, it may offer them as quick
 replies: two to four buttons under its last reply, in the chat and on its card in Flow, on the Mac and the phone. A
 button's words are the message: a click sends them as yours, as if you had typed them, and the agent acts on them. On
-the Mac, **1** to **4** send the matching option while the message box is empty and has focus; each button shows its
-number. The buttons belong to the last reply only: once you send anything, clicked or typed, or the agent starts
+the Mac, with one of the buttons focused, **1** to **4** send the matching option; each button's tooltip shows its
+number. In the message box a digit is only a digit. The buttons belong to the last reply only: once you send anything, clicked or typed, or the agent starts
 another turn, they go. Agents are told to offer them only at a real fork, to ask with a question card when they cannot
 go on without an answer, and to make a [suggestion](#suggestions) for work that belongs in another chat. Every agent
 learns of them, loki's own and those on Claude Code or another ACP agent.

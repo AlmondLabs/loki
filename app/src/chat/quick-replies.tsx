@@ -1,5 +1,6 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { repliesOf } from "../../../core/harness.ts";
+import type { KeyboardEvent } from "react";
 import { Button } from "../components";
 
 /**
@@ -12,17 +13,27 @@ export function lastReplies(rows: readonly TranscriptRow[] | undefined): string[
 }
 
 /**
- * The key that sends option `index` from an empty, focused message box on the Mac: 1 to 4, no modifiers. Null for any
- * other key, so the box types it as usual.
+ * The option a key sends while one of the quick replies has focus on the Mac: 1 to 4, no modifiers. Null for any other
+ * key. Never read in the message box, where a digit is only a digit (plan 2026-11-14-0852, 5).
  */
 export function replyKey(e: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }, options: readonly string[]): string | null {
   if (e.metaKey || e.ctrlKey || e.altKey || !/^[1-4]$/.test(e.key)) return null;
   return options[Number(e.key) - 1] ?? null;
 }
 
+/** The group's key handler: a digit sends its option while focus is on one of the replies. */
+export function replyKeyDown(options: readonly string[], onPick: (text: string) => void) {
+  return (e: KeyboardEvent<HTMLElement>) => {
+    const option = replyKey(e, options);
+    if (!option) return;
+    e.preventDefault();
+    onPick(option);
+  };
+}
+
 /**
- * A row of buttons under the agent's last reply, at the end of the thread, one per quick reply; a click sends the option as the person's message.
- * The Mac shows each one's key (1 to 4); the phone has none.
+ * A row of buttons under the agent's last reply, at the end of the thread, one per quick reply; a click sends the option
+ * as the person's message. On the Mac, with a reply focused, 1 to 4 send theirs; the key is in each one's tooltip.
  */
 export function QuickReplies({
   options,
@@ -37,14 +48,19 @@ export function QuickReplies({
   column?: boolean;
 }) {
   return (
-    <div className={column ? "loki-quick-replies loki-quick-replies--column" : "loki-quick-replies"} role="group" aria-label="quick replies">
+    <div
+      className={column ? "loki-quick-replies loki-quick-replies--column" : "loki-quick-replies"}
+      role="group"
+      aria-label="quick replies"
+      onKeyDown={touch ? undefined : replyKeyDown(options, onPick)}
+    >
       {options.map((option, i) => (
         <Button
           key={option}
           tone="brass"
           size={touch ? "touch" : "sm"}
           className="loki-quick-reply"
-          title={`send "${option}"`}
+          title={`Send “${option}”`}
           onClick={() => onPick(option)}
           kbd={touch ? undefined : String(i + 1)}
         >

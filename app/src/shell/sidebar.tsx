@@ -173,7 +173,7 @@ export function UpdateRow({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-/** Show / hide the sidebar (⌘⇧D), floating beside the traffic lights, where it stays while the sidebar is hidden, as Mail's does. */
+/** Show / hide the sidebar (⌃⌘S), floating beside the traffic lights, where it stays while the sidebar is hidden, as Mail's does. */
 export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button

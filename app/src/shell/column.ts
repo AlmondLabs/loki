@@ -66,7 +66,7 @@ export function columnShown(pref: ColumnPref, windowWidth: number, peek: boolean
   return windowWidth < NARROW_BELOW ? peek : !pref.collapsed;
 }
 
-/** The toggle (the rail button, ⌘⇧D): narrow windows peek, wide ones flip the saved collapse. */
+/** The toggle (the rail button, ⌃⌘S): narrow windows peek, wide ones flip the saved collapse. */
 export function toggleColumn(pref: ColumnPref, windowWidth: number, peek: boolean): { pref: ColumnPref; peek: boolean } {
   if (windowWidth < NARROW_BELOW) return { pref, peek: !peek };
   return { pref: { ...pref, collapsed: !pref.collapsed }, peek: false };

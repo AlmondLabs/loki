@@ -206,7 +206,7 @@ a step to its Tool or Task; finished steps at full strength, never AI Elements' 
 **Plan** (folded to "plan as before" when it repeats unchanged) and **Thought** (Reasoning, folded), **EventEntry** (one quiet line; a compaction
 a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column; an
 approval is a question, "Allow friday to run “edit”?", with Deny, Always Allow… and Allow, the default last as a Mac
-alert's, and Return in the empty box allows) and **Composer** (Messages' box: "+" in a glass circle outside a one-line
+alert's, and ⌘Return allows; no key typed alone into the box acts, so a bare Return only sends and a digit is a digit) and **Composer** (Messages' box: "+" in a glass circle outside a one-line
 capsule that grows with the text, the microphone or the accent up-arrow inside it, the Queue above it; "+" only
 attaches files, and the model and the permission mode are ⌘K's). **Brief** is designed and not
 built.
@@ -270,7 +270,7 @@ Internals keep the name desk.
   "Update Available" row sits at the foot while a newer loki is out. The pane is the window's one `main`; the places
   are its navigation.
 - **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
-  edge between 220 and 420, shown or hidden with ⌘⇧D (in Flow ⌘⇧D stays Deny) or the toggle beside the traffic
+  edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden.
   A window under 1100 wide folds it away until asked for, without touching the saved choice. Each section's
   list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. Each list's heading

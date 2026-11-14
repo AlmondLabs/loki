@@ -24,7 +24,7 @@ import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
 import { LinkCard } from "./link-card";
 import { linkAskOf, type LinkSeen } from "../../../core/chat-links.ts";
-import { QuickReplies, lastReplies, replyKey } from "./quick-replies";
+import { QuickReplies, lastReplies } from "./quick-replies";
 import { SuggestionChip, type SuggestionsProps } from "./suggestion-card";
 import { ReplyProposalCards, type ReplySource } from "../desk/reply-proposal-card";
 import { ChatInput } from "./chat-input";
@@ -285,19 +285,9 @@ export function Conversation({
     onSent?.();
   };
   const onBoxKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (palette.onKeyDown(e)) return true;
-    // Return on an empty box answers the approval with Allow, its default button (plan 2026-11-12-1505, R11); with words
-    // in the box it sends them as the reply and the approval stays open.
-    if (!touch && approval && onApprove && !hasContent && e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      onApprove("allow");
-      return true;
-    }
-    const option = replies && !touch && !hasContent ? replyKey(e, replies) : null;
-    if (!option) return false;
-    e.preventDefault();
-    sendReply(option);
-    return true;
+    // No key typed alone into the box acts for the person: ⌘↵ allows a step (the keymap's chat.allow), and a quick
+    // reply's digit works only while the replies have focus (plan 2026-11-14-0852, 5).
+    return palette.onKeyDown(e);
   };
   // On the desktop the model and the permission mode are changed in ⌘K (plan 2026-11-12-1505, U19, U21, U23), their one
   // home: the chat shares its controls, and ⌘⇧M and ⌘⇧P open ⌘K on the Models or Permissions scope. The phone keeps its
@@ -541,11 +531,11 @@ export function Conversation({
 
 /**
  * What the empty box says (plan 2026-11-12-1505, U4–U5): plain words with no keys in them, the keys living in the menu
- * and the tooltips; while an approval waits, that Return allows it on the desktop.
+ * and the tooltips; while an approval waits, that a reply or the buttons above answer it.
  */
 export function boxPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined, touch = false): string {
   if (view.question) return "Answer in your own words, or pick above";
-  if (view.approval) return touch ? "Reply, or approve or deny the step" : "Reply, or press Return to allow";
+  if (view.approval) return touch ? "Reply, or approve or deny the step" : "Reply, or allow or deny the step";
   const who = agentName ?? "the agent";
   return view.status === "idle" ? `Message ${who}` : `Message ${who} — sends when this turn ends`;
 }

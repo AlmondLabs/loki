@@ -129,8 +129,7 @@ quick reply).
 
 - Show / Hide Sidebar moves to ⌃⌘S, the Mac's own key for it. ⌘⇧D stays Deny in Flow only.
 - Allowing from the box takes ⌘Return, as Flow's Approve already does. A bare Return in an empty box does nothing.
-- Quick replies keep 1–4 only when focus is on the replies, not in the box (Tab or ↑ from an empty box moves there);
-  their keys go to the tooltip.
+- Quick replies keep 1–4 only while one of them has focus, not in the box; their keys go to the tooltip.
 - Flow's single letters stay: they never fire while typing, and they are what a Flow visit is built on.
 - A test in `test/keymap.test.ts` fails any key bound in two scopes that can be active at the same time.
 

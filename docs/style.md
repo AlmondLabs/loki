@@ -196,7 +196,7 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
   `Reply All`, `New Chat`), with Apple's words for common commands (`Archive`, `Discard`, `Cancel`). `Button` capitalises
   the first letter of a label written in lowercase, so a new label is written in title case rather than left to it.
   **Everything else is a sentence**: headings, field labels, placeholders, help, tooltips, notices and errors
-  (`Reply, or press Return to allow`). Titles of sections are the names in the sidebar (`Chats`, `Flow`), and tabs,
+  (`Reply, or allow or deny the step`). Titles of sections are the names in the sidebar (`Chats`, `Flow`), and tabs,
   page titles and fold titles read the same way (`Profile`, `MCP servers`). loki's own name stays lowercase.
 - **A decision is a question**: an approval asks `Allow friday to run “edit”?` with Deny, Always Allow… and Allow, the
   default last, as a Mac alert's.
