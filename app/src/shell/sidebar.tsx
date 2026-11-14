@@ -188,7 +188,8 @@ export function Places({
     if (store) saveSidebar(store, next);
   };
   return (
-    <nav aria-label="Sections" className="loki-places">
+    // Inside the sidebar's own navigation landmark (list-column.tsx), so not a second one.
+    <div className="loki-places">
       {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
         const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
         const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
@@ -263,7 +264,7 @@ export function Places({
           </div>
         );
       })}
-    </nav>
+    </div>
   );
 }
 

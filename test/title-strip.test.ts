@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TitleStrip, WindowControls, titlebarHeight } from "../app/src/shell/sidebar.tsx";
+import { readFileSync } from "node:fs";
+import { Places, TitleStrip, WindowControls, sidebarClearance, titlebarHeight } from "../app/src/shell/sidebar.tsx";
+import { ListColumn } from "../app/src/shell/list-column.tsx";
+import { columnsLayout, LIST_DEFAULT, SIDEBAR_DEFAULT } from "../app/src/shell/columns.ts";
 import { TitleMenuPanel, titleMenus, runMenuItem } from "../app/src/shell/title-menu.tsx";
 import { KEYMAP, labelOf, menuSpec, registerActions, resolve } from "../app/src/shell/keymap.ts";
 import { guardBrowserKey } from "../app/src/shell/use-shell-keys.ts";
@@ -60,6 +63,38 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
       expect(out).toContain('aria-haspopup="menu"');
       expect(out).toContain(`height:${titlebarHeight(true, os)}px`);
     }
+  });
+
+  test("Windows and Linux: the strip keeps its ☰ and window buttons over the sidebar and the list beside it", () => {
+    const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
+    // the list column and the detail start under the strip, never over its buttons
+    expect(shell).toMatch(/className="loki-list-column"[\s\S]*?top: TITLEBAR_HEIGHT,/);
+    expect(shell).toMatch(/<main style=\{\{ position: "absolute", top: TITLEBAR_HEIGHT,/);
+    for (const os of ["windows", "linux"] as const) {
+      const labels = [...strip(os).matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
+      expect(labels).toEqual(["Menu", "Minimise", "Maximise", "Close"]);
+      const frame = { windowWidth: 1280, inset: 8, clearance: sidebarClearance(true, os), hasList: true, peek: false };
+      const pref = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, collapsed: false, listHidden: false };
+      expect(columnsLayout(pref, frame)).toMatchObject({ sidebarShown: true, listShown: true, listLeft: 236, list: 300 });
+      // folded, the list starts past the sidebar toggle at the strip's left
+      expect(columnsLayout({ ...pref, collapsed: true }, frame).listLeft).toBe(52);
+    }
+  });
+
+  test("the landmarks: the sidebar is the one navigation, named Sidebar, its places inside it (KTD13)", () => {
+    const out = renderToStaticMarkup(
+      createElement(ListColumn, {
+        shown: true,
+        width: 220,
+        onWidth: () => {},
+        left: 8,
+        top: 52,
+        head: createElement(Places, { segment: "learn", onSelect: () => {}, waiting: 0 }),
+      }),
+    );
+    expect(out).toMatch(/^<nav class="loki-column" aria-label="Sidebar"/);
+    expect(out.match(/<nav/g)?.length).toBe(1);
+    expect(out).not.toContain("<aside");
   });
 
   test("the maximise button reads Restore while the window is maximised", () => {

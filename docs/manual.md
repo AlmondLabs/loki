@@ -123,8 +123,20 @@ filled. Chats lists its sources one level under its row; the other places keep t
 Chats, the source's chats fill a list beside the sidebar, as Mail's messages do, and the chosen chat fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
 Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
 hides it; drag its edge (or
-focus it and use the arrows) for a width between 220 and 420. A window under 800 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
+focus it and use the arrows) for a width between 200 and 300. The sidebar folds on its own when the window cannot keep
+the detail at least 480 wide beside it and the list; ⌃⌘S then shows it over the window until you choose something in
+it, and widening the window brings back what you chose. Below that the list narrows, to 260 at the least, before
+anything else gives way. With the sidebar folded the list starts past the traffic lights and the sidebar button.
+**View › Show / Hide List** (⌃⌘L; Ctrl Shift L on Windows and Linux, where Ctrl L is Focus Message Box) hides the list
+in every place, so the detail (a chat's Canvas, say) takes its room; showing it again brings it back at the width it
+had. Both folds are kept for the window across restarts. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
+
+For the keyboard and VoiceOver the window is three regions, in this order: the sidebar (a navigation landmark named
+"Sidebar"), the list (named for the source showing, "Pinned", "Everything", "Due"), and the detail (the main
+landmark). Tab and ⇧Tab move through a region's controls and on to the next region: from the list, Tab goes to the
+detail's toolbar symbols, then its content. Esc in the detail (outside a text box, or from Flow's reply box) moves
+focus back to the list, in every place; Esc in the list does nothing, and never leaves the place.
 
 - **Chats** (⌘1): under **Chats** the sidebar lists its sources: **Pinned**, one per agent with its face (an agent
   with no chats yet too), and **Archived**, each with a grey count of the chats that wait on you. The chevron at the
@@ -136,7 +148,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   the main chat included; the phone's Home draws it the same. A chat's name goes bold when its agent wrote since you
   looked. On the right of each row, one thing: a blue count when it waits on you, else a green dot that breathes
   while its agent is working, else when it last spoke ("5m", "3h", "2d"). ↑↓ move through the list and show each
-  chat once you stop, while the keys stay in the list; ↵ or Tab moves into the chat's message box, and a click
+  chat once you stop, while the keys stay in the list; ↵ moves into the chat's message box, Tab to the chat's toolbar
+  first, and a click
   shows a chat at once. ⌘[ and ⌘] step through the chats the list shows. Opening a chat from elsewhere (⌘K, a
   notification, a label, Flow's **Open**) chooses the source that holds it, its agent's when the one showing does not,
   and selects its row. Opening a chat (or having it open, the window in front, when a
@@ -305,7 +318,8 @@ Backspace in the empty field, or the chip's ×, steps back out.
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
-same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
+same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to
+Messages, then focus from the detail back to the list; it never changes the place. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
@@ -768,7 +782,7 @@ order" below), and the selected card beside the list with its whole thread (newe
 markers) and its moves in its toolbar. Each row says who it is from (the sender, or the chat's agent), what it is about
 (the subject, the channel, the ticket or the chat's name) and a line of the newest words, with the kind's symbol at its
 start and a muted "Sign In" when the card's account needs mending. ↑↓ move through the list and show each card without
-leaving the list; Return or Tab goes into the card's reply box; a click selects. The rows never reorder while you are in
+leaving the list; Return goes into the card's reply box, Tab to the card's moves in its toolbar; a click selects. The rows never reorder while you are in
 Flow: a card you move on from leaves its gap closed, and a card that arrives takes its place by score, never above the
 one you are on.
 

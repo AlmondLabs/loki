@@ -6,7 +6,7 @@ const KEY_STEP = 16;
 
 /**
  * The sidebar (plan 2026-11-14-1330, R1): the places and their sources, the same rows in every place, so changing place
- * moves only the selection. Each place's items are in the list column beside it, never under the places. The right
+ * moves only the selection. It is the window's navigation landmark, "Sidebar", first in the Tab order (KTD13). Each place's items are in the list column beside it, never under the places. The right
  * edge is a separator: drag it, or focus it and use the arrows (Home / End for the ends); the width is kept when the
  * drag ends.
  */
@@ -32,7 +32,7 @@ export function ListColumn({
   layer?: number;
 }) {
   return (
-    <aside
+    <nav
       className="loki-column"
       aria-label="Sidebar"
       aria-hidden={!shown}
@@ -41,7 +41,7 @@ export function ListColumn({
     >
       {head}
       <ColumnEdge label="Resize sidebar" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={width} onWidth={onWidth} shown={shown} />
-    </aside>
+    </nav>
   );
 }
 

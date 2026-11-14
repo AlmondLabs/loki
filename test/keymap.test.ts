@@ -22,6 +22,7 @@ import {
 } from "../app/src/shell/keymap.ts";
 import { keysFor, keysSheetNote } from "../app/src/shell/keys-sheet.tsx";
 import { hideWindow } from "../app/src/shell/use-window-chrome.ts";
+import { escapeSteps } from "../app/src/shell/use-shell-keys.ts";
 import { SEGMENTS } from "../app/src/shell/shortcuts.ts";
 import { commandText } from "../app/src/chat/slash-palette.tsx";
 import { platform, platformFrom, type Platform } from "../app/src/desk/env.ts";
@@ -73,6 +74,63 @@ describe("keymap: the list's Search", () => {
       expect(resolve(ev("F", { ctrl: true, shift: true }, true), "desk", os)?.id).toBe("list.search");
     }
     expect(keyFor("list.search", "macos")).toBe("⌥⌘F");
+  });
+});
+
+describe("keymap: Hide List", () => {
+  test("⌃⌘L hides the list in every place, from a text box too, and is View › Show / Hide List beside the sidebar's", () => {
+    for (const s of ["desk", "inbox", "agents", "learn"] as const) {
+      expect(resolve(ev("l", { meta: true, ctrl: true }), s, "macos")?.id).toBe("list.toggle");
+      expect(resolve(ev("l", { meta: true, ctrl: true }, true), s, "macos")?.id).toBe("list.toggle");
+    }
+    // ⌘L alone stays Focus Message Box in Chats
+    expect(resolve(ev("l", { meta: true }), "desk", "macos")?.id).toBe("chat.focus");
+    const view = must(
+      menuSpec(KEYMAP, "macos").find((m) => m.title === "View"),
+      "the View menu",
+    );
+    const ids = view.items.flatMap((it) => ("id" in it ? [it.id] : []));
+    expect(ids.indexOf("list.toggle")).toBe(ids.indexOf("column.toggle") + 1);
+    expect(view.items).toContainEqual({ id: "list.toggle", label: "Show / Hide List", accelerator: "Ctrl+CmdOrCtrl+L" });
+  });
+  test("off the Mac it is Ctrl Shift L, since Ctrl L is Focus Message Box there", () => {
+    for (const os of ["windows", "linux"] as const) {
+      expect(keyFor("list.toggle", os)).toBe("Ctrl Shift L");
+      expect(resolve(ev("L", { ctrl: true, shift: true }), "desk", os)?.id).toBe("list.toggle");
+      expect(resolve(ev("l", { ctrl: true }), "desk", os)?.id).toBe("chat.focus");
+      expect(takenBy(bindingOf("list.toggle"), KEYMAP, os)).toEqual([]);
+    }
+    expect(keyFor("list.toggle", "macos")).toBe("⌃⌘L");
+  });
+});
+
+describe("Esc is the same in every place (plan 2026-11-14-1330, KTD14)", () => {
+  const at = (over: Partial<Parameters<typeof escapeSteps>[0]>) =>
+    escapeSteps({ segment: "learn", dialog: "none", typing: false, inDetail: true, prevented: false, ...over });
+  test("from Learn's detail and from an Agents page it moves focus to the list, and never leaves the place", () => {
+    expect(at({ segment: "learn" })).toEqual(["list"]);
+    expect(at({ segment: "agents" })).toEqual(["list"]);
+    expect(at({ segment: "inbox" })).toEqual(["list"]);
+    for (const segment of ["desk", "inbox", "agents", "learn"] as const) expect(at({ segment })).not.toContain("chats");
+  });
+  test("in Chats the Desk tab peels back to Messages first, then the list", () => {
+    expect(at({ segment: "desk" })).toEqual(["messages", "list"]);
+    expect(at({ segment: "desk", inDetail: false })).toEqual(["messages"]);
+  });
+  test("in the list, or anywhere outside the detail, it does nothing", () => {
+    for (const segment of ["inbox", "agents", "learn"] as const) expect(at({ segment, inDetail: false })).toEqual([]);
+  });
+  test("while typing it is the text's, except in Flow's reply box, which goes to the list", () => {
+    expect(at({ segment: "learn", typing: true })).toEqual([]);
+    expect(at({ segment: "desk", typing: true })).toEqual([]);
+    expect(at({ segment: "inbox", typing: true })).toEqual(["list"]);
+    expect(at({ segment: "inbox", typing: true, inDetail: false })).toEqual([]);
+  });
+  test("a dialog keeps it, and Preferences closes on one that slipped out of it", () => {
+    expect(at({ dialog: "other" })).toEqual([]);
+    expect(at({ dialog: "search" })).toEqual([]);
+    expect(at({ dialog: "preferences" })).toEqual(["preferences"]);
+    expect(at({ dialog: "preferences", prevented: true })).toEqual([]);
   });
 });
 

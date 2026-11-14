@@ -8,6 +8,7 @@ import {
   loadColumns,
   saveColumns,
   sidebarFits,
+  toggleList,
   toggleSidebar,
   type ColumnsPref,
 } from "./columns";
@@ -18,8 +19,8 @@ import type { Segment } from "./keymap";
  * The columns' state for the shell: the kept widths and fold (localStorage, columns.ts), the window's width for the
  * fold the widths decide, and a folded sidebar's peek. `layout` places the sidebar, the list (for a place with one)
  * and the detail; `setSidebar(w, commit)` moves the sidebar's edge live and keeps it when `commit` (the drag's end), and
- * `setList` the list's. A peek goes with `dismiss` (a place or a source chosen in it), a press outside the sidebar, or
- * the window widening to fit it.
+ * `setList` the list's; `toggleList` hides or shows the list (View › Hide List), kept like the sidebar's fold. A peek goes
+ * with `dismiss` (a place or a source chosen in it), a press outside the sidebar, or the window widening to fit it.
  */
 export function useColumn(segment: Segment, hasList: boolean) {
   const [pref, setPref] = useState<ColumnsPref>(() => loadColumns(columnsStore()));
@@ -51,6 +52,11 @@ export function useColumn(segment: Segment, hasList: boolean) {
     },
     [pref],
   );
+  const hideList = useCallback(() => {
+    const next = toggleList(pref);
+    setPref(next);
+    saveColumns(columnsStore(), next);
+  }, [pref]);
   // The list's edge, as the sidebar's: live while dragged, kept when it ends.
   const setList = useCallback(
     (w: number, commit: boolean) => {
@@ -76,5 +82,5 @@ export function useColumn(segment: Segment, hasList: boolean) {
     window.addEventListener("pointerdown", onPress, true);
     return () => window.removeEventListener("pointerdown", onPress, true);
   }, [over]);
-  return { sidebar: pref.sidebar, layout, open: layout.sidebarShown, has, toggle, dismiss, setSidebar, setList };
+  return { sidebar: pref.sidebar, layout, open: layout.sidebarShown, has, toggle, toggleList: hideList, dismiss, setSidebar, setList };
 }
