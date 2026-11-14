@@ -12,7 +12,7 @@ import type { AccountStatus } from "../core/frame-types.ts";
 import { messageOf } from "../core/errors.ts";
 import { log } from "./log.ts";
 import type { SlackSession } from "./slack-session.ts";
-import { withMentions } from "./slack-people.ts";
+import { writeMentions } from "../core/mentions.ts";
 
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
@@ -36,6 +36,8 @@ export const SLACK_METHODS = [
   "conversations.history",
   "conversations.replies",
   "conversations.info",
+  "conversations.members",
+  "users.conversations",
   "users.info",
   "users.list",
   "users.prefs.get",
@@ -171,6 +173,22 @@ export interface SlackConversation {
   is_private: boolean;
   user: string | null;
   last_read: string | null;
+  /**
+   * Whether the person is in it (plan 2026-11-14-1530, R6): a reply goes only where they are. Slack leaves it out for a
+   * DM, which is theirs by being one; absent where a caller built the conversation without asking Slack.
+   */
+  is_member?: boolean;
+  /** Whether it is shared with another workspace (Slack Connect), so a reply reaches people outside this one (R10). */
+  is_ext_shared?: boolean;
+}
+
+/** A conversation the person is in, as the list of them gives it: enough to find one by its name. */
+export interface SlackMembership {
+  id: string;
+  name: string | null;
+  is_im: boolean;
+  is_mpim: boolean;
+  user: string | null;
 }
 
 /** A person in the workspace, by the names Slack shows. */
@@ -183,6 +201,12 @@ export interface SlackUser {
   /** The profile photo's address, small; absent or empty when there is none. */
   image?: string;
 }
+
+/**
+ * The people a post mentions (plan 2026-11-14-1530, KTD8): each by the name the text shows them by and their Slack id.
+ * Only these become Slack's `<@U…>`; any other `@` in the text is posted as typed.
+ */
+export type SlackStoredMentions = ReadonlyArray<{ display: string; id: string | null }>;
 
 /** A reply to post in one conversation, in a thread when `thread_ts` is given. */
 export interface SlackPostInput {
@@ -250,8 +274,13 @@ const parsePage = (r: Record<string, unknown>): SlackMessagePage => ({
  * The person's text as Slack should show it: Slack reads <, > and & as its markup, so they are escaped to arrive as
  * typed, and only an @handle loki knows becomes Slack's mention (plan 082).
  */
-const replyText = (text: string, mentions: ReadonlyMap<string, string> | undefined): string =>
-  withMentions(text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), mentions ?? new Map());
+const replyText = (text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> | undefined): string =>
+  writeMentions(
+    text,
+    (mentions ?? []).filter((m) => m.id),
+    (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+    (m) => `<@${m.id ?? ""}>`,
+  ).join("");
 
 /** Whether an address is on files.slack.com over https: the only place outside the API that the session is sent. */
 const isFilesHost = (url: string): boolean => url.startsWith("https://files.slack.com/");
@@ -348,6 +377,35 @@ export class SlackClient {
       is_private: c.is_private === true,
       user: strOrNull(c.user),
       last_read: strOrNull(c.last_read),
+      is_member: c.is_im === true || c.is_member === true,
+      is_ext_shared: c.is_ext_shared === true,
+    };
+  }
+
+  /**
+   * One page of the conversations the person is in, channels and group DMs and DMs (plan 2026-11-14-1530): how a
+   * `#name` an agent writes becomes a channel id, found only among the person's own.
+   */
+  async usersConversations(cursor: string | null): Promise<{ conversations: SlackMembership[]; next_cursor: string | null }> {
+    const r = await this.call("users.conversations", {
+      types: "public_channel,private_channel,mpim,im",
+      exclude_archived: true,
+      limit: 200,
+      ...(cursor ? { cursor } : {}),
+    });
+    const conversations = list(r.channels).map((v) => {
+      const c = rec(v);
+      return { id: str(c.id), name: strOrNull(c.name), is_im: c.is_im === true, is_mpim: c.is_mpim === true, user: strOrNull(c.user) };
+    });
+    return { conversations: conversations.filter((c) => c.id), next_cursor: strOrNull(rec(r.response_metadata).next_cursor) };
+  }
+
+  /** One page of who is in a conversation, by user id (plan 2026-11-14-1530, R22): a mention reaches only them. */
+  async conversationsMembers(channel: string, cursor: string | null): Promise<{ members: string[]; next_cursor: string | null }> {
+    const r = await this.call("conversations.members", { channel, limit: 200, ...(cursor ? { cursor } : {}) });
+    return {
+      members: list(r.members).filter((m): m is string => typeof m === "string" && m !== ""),
+      next_cursor: strOrNull(rec(r.response_metadata).next_cursor),
     };
   }
 
@@ -444,7 +502,7 @@ export class SlackClient {
    * Post the person's own reply (plan 068): in the thread when `thread_ts` names one, else in the conversation. Only the
    * person's reply frame calls this; no agent tool is given it.
    */
-  async postReply(input: SlackPostInput & { mentions?: ReadonlyMap<string, string> }): Promise<{ ts: string }> {
+  async postReply(input: SlackPostInput & { mentions?: SlackStoredMentions }): Promise<{ ts: string }> {
     const text = replyText(input.text, input.mentions);
     const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
     return { ts: typeof r.ts === "string" ? r.ts : "" };
@@ -456,9 +514,7 @@ export class SlackClient {
    * conversation or thread with the text as their comment. An address off files.slack.com is refused before anything
    * is sent there, so the session never leaves Slack. Nothing is retried: Slack takes a completion only once.
    */
-  async postWithFiles(
-    input: SlackPostInput & { mentions?: ReadonlyMap<string, string>; files: ReadonlyArray<{ name: string; data: Uint8Array }> },
-  ): Promise<void> {
+  async postWithFiles(input: SlackPostInput & { mentions?: SlackStoredMentions; files: ReadonlyArray<{ name: string; data: Uint8Array }> }): Promise<void> {
     const uploaded: Array<{ id: string; title: string }> = [];
     for (const file of input.files) {
       const r = await this.call("files.getUploadURLExternal", { filename: file.name, length: file.data.length });

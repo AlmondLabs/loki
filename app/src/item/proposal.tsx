@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { PendingApproval } from "../../../core/attention/model.ts";
 import { offersAlways } from "../../../core/attention/model.ts";
 import { formatInput } from "../../../core/attention/format.ts";
@@ -8,7 +8,21 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/ui/textarea";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { cn } from "@/lib/utils";
-import { STILL_GOES, fileText, peopleChanged, recipientsText, sendNote, sentText, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+import {
+  STILL_GOES,
+  destinationNotes,
+  fileText,
+  mentionNotes,
+  peopleChanged,
+  quotedSubject,
+  recipientsText,
+  sendNote,
+  sentText,
+  useReplyMentions,
+  type FindReplyPeople,
+  type ReplyProposalsProps,
+} from "../desk/reply-proposal-card";
+import { MentionText } from "../desk/mention-field";
 import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply } from "../desk/use-reply-card";
 import { inTauri } from "../desk/env";
 import { sentence } from "../components";
@@ -160,13 +174,21 @@ export function QuestionProposal({ children, where }: { children: ReactNode; whe
  */
 export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? revealFile : null }: Omit<ReplyProposalsProps, "touch">) {
   const decide = source.replies?.decide;
+  const findPeople = source.replies?.findPeople;
   const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? NONE;
   const sent = useSentReplies(proposals);
   if (!decide || proposals.length + sent.length === 0) return null;
   return (
     <div className="flex flex-col gap-2">
       {proposals.map((p) => (
-        <ReplyProposalView key={p.id} proposal={p} blocked={blocked} reveal={reveal} onDecide={(action, opts) => decide(rt, p.id, action, opts)} />
+        <ReplyProposalView
+          key={p.id}
+          proposal={p}
+          blocked={blocked}
+          reveal={reveal}
+          onDecide={(action, opts) => decide(rt, p.id, action, opts)}
+          find={findPeople ? (q) => findPeople(rt, p.id, q) : null}
+        />
       ))}
       {sent.map((p) => (
         <ProposalFrame
@@ -174,7 +196,7 @@ export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? 
           kind="reply"
           where={
             <>
-              {p.subject || "a thread"} · {p.account_label}
+              {quotedSubject(p)} · {p.account_label}
             </>
           }
         >
@@ -277,16 +299,21 @@ export function ReplyProposalView({
   blocked,
   reveal = null,
   onDecide,
+  find = null,
 }: {
   proposal: ReplyProposal;
   blocked: string | null;
   /** Shows a file in its folder; null where that cannot be done. */
   reveal?: ((path: string) => void) | null;
   onDecide: DecideReply;
+  /** The people the editor's `@` list offers (plan 2026-11-14-1530, R18); null, no list. */
+  find?: FindReplyPeople | null;
 }) {
   const { undoRef, ...card } = useReplyCard(p, onDecide);
   const [editing, setEditing] = useState(false);
   const off = card.busy || card.sending || !!blocked;
+  const field = useRef<HTMLTextAreaElement | null>(null);
+  const mentions = useReplyMentions(card, find, off, field);
   // Flow's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
   return (
@@ -294,20 +321,46 @@ export function ReplyProposalView({
       kind="reply"
       where={
         <>
-          {p.subject || "a thread"} · {p.account_label} · {recipientsText(p)}
+          {quotedSubject(p)} · {p.account_label} · {recipientsText(p)}
         </>
       }
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
+        {[...destinationNotes(p), ...mentionNotes(p, card.mentions)].map((note) => (
+          <p key={note} className="m-0 text-meta text-muted-foreground" data-destination-note>
+            {note}
+          </p>
+        ))}
         {peopleChanged(p) && (
           <p className="m-0 text-xs" data-people="changed">
             {sentence(recipientsText(p))}
           </p>
         )}
         {editing ? (
-          <Textarea value={card.text} rows={4} disabled={off} onChange={(e) => card.setText(e.target.value)} onKeyDown={keys} aria-label="Reply text" />
+          <div className="loki-mention-field">
+            {mentions.list}
+            <Textarea
+              ref={field}
+              value={card.text}
+              rows={4}
+              disabled={off}
+              onChange={(e) => {
+                card.setText(e.target.value);
+                mentions.onCaret(e.target);
+              }}
+              onSelect={(e) => mentions.onCaret(e.currentTarget)}
+              onBlur={() => mentions.onCaret(null)}
+              onKeyDown={(e) => {
+                if (!mentions.onKeyDown(e)) keys(e);
+              }}
+              aria-label="Reply text"
+            />
+            {mentions.marks}
+          </div>
         ) : (
-          <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{card.text}</blockquote>
+          <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">
+            <MentionText text={card.text} mentions={card.mentions} />
+          </blockquote>
         )}
         <ReplyFiles files={p.attachments ?? []} kept={card.kept} attached={p.attached ?? []} disabled={off} reveal={reveal} onToggle={card.toggleFile} />
         <ReplyNotes sending={card.sending} reason={card.reason} blocked={blocked} />

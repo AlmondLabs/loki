@@ -190,8 +190,8 @@ mode would not have asked.
   Drive, Sheets, Docs and Calendar, send mail and invites, and delete Drive files; `google_api` reaches any method of
   those five services on their own hosts, never a URL the script names. No tool returns a token. Files are read and
   written only inside the chat's folder.
-- **Slack, Jira and Flow.** `slack_read`, `jira_read` and `flow_list` (`mod/account-ops/script-tools.ts`, plan 097)
-  only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
+- **Slack, Jira and Flow.** `slack_read`, `jira_read`, `flow_list` and `people_find` (`mod/account-ops/script-tools.ts`,
+  plans 097 and 2026-11-14-1530) only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
   another agent's account is refused without saying whose it is.
 - **loki's own tools.** The history, schedule, canvas and `chat_list` tools are script-only (plan 099). Their reads
   run without a card in standard mode, as they did as the model's tools; creating or cancelling a scheduled task asks
@@ -216,8 +216,10 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
 - **Google sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
   the one-time `state` of a sign-in loki started in the last 10 minutes (`mod/google-signin.ts`). loki asks for
-  `gmail.modify`, `drive`, `spreadsheets`, `documents`, `calendar`, `openid` and `userinfo.email`, keeps earlier
-  grants (`include_granted_scopes`), and records which you allowed. `drive` is Google's full Drive scope: a script can
+  `gmail.modify`, `drive`, `spreadsheets`, `documents`, `calendar`, `openid` and `userinfo.email`, and the read-only
+  `contacts.readonly`, `contacts.other.readonly` and `directory.readonly` (plan 2026-11-14-1530), with which an
+  agent's mentions and `people_find` look people up by name; it keeps earlier grants (`include_granted_scopes`), and
+  records which you allowed. An account without the three contacts scopes finds people only by address. `drive` is Google's full Drive scope: a script can
   read, change and delete any file in that Drive. Signing an account in again must come back as the same address and
   with Gmail, or nothing is changed.
 - **What loki changes in Gmail on your moves.** Only labels, and only on your move on a card (plan 070): read removes UNREAD,
@@ -237,7 +239,8 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
   copy is removed at once. The session stays in the daemon's memory and is never written anywhere; loki reads it again
   when Slack refuses it.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
-  activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), and `chat.postMessage` and the file upload
+  activity and counts, the conversations you are in (`users.conversations`, to find a `#channel` an agent names) and
+  who is in one (`conversations.members`, to say on a card when someone mentioned is not), marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), and `chat.postMessage` and the file upload
   (`files.getUploadURLExternal`, `files.completeUploadExternal`) for a reply you send, your own or an agent's on your
   Send; no agent tool reaches them, and nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, and a file's bytes only to the
@@ -248,7 +251,9 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
   `*.atlassian.net` host, where every Jira Cloud site's API lives; an answer naming any other host is refused before
   the token leaves the Mac (`mod/frames/accounts.ts`, `mod/jira.ts`). The token is kept in the keychain with the site's host and your email, never in a state file. A
   token Jira refuses marks the account as wanting a new one; loki does not try it again until you reconnect.
-- **What loki calls in Jira.** It reads: who you are, the tickets you watch, each ticket's fields and description, the
+- **What loki calls in Jira.** It reads: who you are, the tickets you watch, any ticket an agent's reply names (its
+  key, title, assignee, reporter, watcher count and project type, plan 2026-11-14-1530), the site's people by name
+  (its user searches, for mentions), each ticket's fields and description, the
   site's list of fields (once, to find its Sprint field), and each ticket's comments and history. When a comment on a
   card shares a file, it reads the ticket's attachment list, and for a picture it fetches Jira's thumbnail once, asked
   with `redirect=false` and with redirects not followed, so the token goes only to the site and never to Jira's media
@@ -261,10 +266,12 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
   and nothing changes a ticket's status, fields, watchers or other comments.
 - **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
   owner (`mod/handoff.ts`), or when an owner's script returns or prints what it read from Google, Slack, Jira or Flow
-  with the script-only reads, which only the owner's chats are offered and which check ownership on every call. In a
+  with the script-only reads, which only the owner's chats are offered and which check ownership on every call. Names,
+  addresses, Slack handles and Jira account ids of people in the owner's accounts reach it too, from `people_find` and
+  from a `reply_propose` refused because a name fits several people (plan 2026-11-14-1530). In a
   hand-off the text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
   tags made inert. A script's whole answer is fenced the same way when the script called a tool marked as answering
-  with other people's text (`strangerText`: every Google read, `google_api`, `slack_read`, `jira_read`, `flow_list`),
+  with other people's text (`strangerText`: every Google read, `google_api`, `slack_read`, `jira_read`, `flow_list`, `people_find`),
   failed scripts included (plan 097, `fencedIfRead` in `daemon/scripts.ts`). The Inbox card itself is drawn in the app and goes to no model.
 - **A mail drawn on its card.** A mail's HTML is drawn for you only, in a frame sandboxed with no scripts or forms and
   its own policy allowing only images, styles and fonts (`app/src/desk/mail-html.tsx`); scripts, frames,
@@ -291,17 +298,23 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
 - **Recipients, forward and From (plan 076).** They ride on `account_thread_reply`, the frame only your devices send.
   The mod checks each address is one line, refuses more than 100 people, and sends only from an address Gmail lists
   as one you send from. A forward reads the forwarded mail's own files from Gmail and attaches them, refusing more
-  than 17 MB. Agents get none of this: an agent's mail reply goes to exactly the people its card showed, and when the
-  thread's people changed before it went, it does not go and the card shows who was added or removed.
+  than 17 MB. Agents get none of this: an agent's mail reply goes to exactly the people its card showed, the thread's and
+  those its mentions add to cc, each named on the card, and when the thread's people changed before it went, it does
+  not go and the card shows who was added or removed. A mention's cc is added after that check, so mentioning someone
+  is never a change of the thread's people. Each held reply's mentions are sealed with it.
 - **Residual risks.** A fence asks the model to treat text as content; it cannot make it. A fence covers what a
   script answers, not what it leaves behind: text it writes to a file, an attachment it saves, or the whole of an
   answer too long for the model, which goes to a file, reaches the model unfenced when the agent later reads that file.
   The same was true before plan 097, when an agent could write what its account tools showed it to a file. An owner that also has shell
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
   are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. An owner may
-  propose a reply in any thread of its accounts (plan 071), not only one you handed it, so mail could steer it to
-  propose a reply somewhere you did not ask; its card, which names the thread, who the reply goes to and its files,
-  is the gate, and your Send on it is the only thing that sends. Mail can also steer an owner to attach any file it
+  propose a reply in any thread of its accounts (plans 071 and 2026-11-14-1530), not only one you handed it and not
+  only one in Flow: any ticket of a Jira site, a service desk's whose customer sees the comment included, and any
+  conversation you are in. So mail could steer it to propose a reply somewhere you did not ask, or to mention someone
+  in it, which on Gmail adds them to cc. Its card, which names the thread as the service reads it, who the reply goes
+  to and whom it adds to cc, who Jira usually tells, and its files, is the gate, and your Send on it is the only thing
+  that sends. Words read from the service (a subject, a first line) are quoted on the card, apart from loki's own
+  lines, so a stranger cannot write one that passes for loki's. Mail can also steer an owner to attach any file it
   can read, under any name, so a private file could ride a reply as `invoice.pdf`: show a file in Finder from the
   card before you send a reply that carries it. Account
   secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain

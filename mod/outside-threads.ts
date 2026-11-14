@@ -1,6 +1,7 @@
 import { messageOf } from "../core/errors.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import type {
+  ReplyMention,
   AccountProvider,
   EmojiChoice,
   MailAddressing,
@@ -25,7 +26,9 @@ import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type Mail
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
-import { MAY_HAVE_GONE, checkedFiles, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
+import { bareAddresses, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-addressing.ts";
+import { liveMentions } from "../core/mentions.ts";
+import { MAY_HAVE_GONE, checkedFiles } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
 import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
 import type { SlackPeople } from "./slack-people.ts";
@@ -74,6 +77,8 @@ export interface AgentReply {
   attached: string[];
   people: { to: string[]; cc: string[] } | null;
   proposal: HeldProposal;
+  /** The people it mentions that are still in its text (plan 2026-11-14-1530, KTD6); on Gmail, cc'd after the people check. */
+  mentions: ReplyMention[];
 }
 
 /**
@@ -119,7 +124,7 @@ export interface OutsideThreadsOptions {
   /** Where held mail replies wait for their undo (plan 076); without it a mail reply goes at once. */
   outbox?: Omit<MailOutboxOptions, "send">;
   /** The people in each Slack workspace, for the reply box's @ suggestions and the mentions a reply sends (plan 082). */
-  slackPeople?: Pick<SlackPeople, "search" | "mentions">;
+  slackPeople?: Pick<SlackPeople, "search">;
   /** The people each account has mail with, for suggestions, and told of whom the person sends to (plan 076). */
   people?: Pick<MailPeople, "top" | "saw">;
   /** The time zone a quote's date is written in; this Mac's when left out. */
@@ -228,6 +233,7 @@ export class OutsideThreads {
       thread_ts: null,
       files: reply.files,
       proposal: reply.proposal,
+      ...(reply.mentions.length ? { mentions: reply.mentions } : {}),
     });
     // Sent, refused or undone, the proposal hears it from the outbox's reports; the answer here is for no one.
     void held.catch(() => undefined);
@@ -440,6 +446,7 @@ export class OutsideThreads {
     mail: MailAddressing | null = null,
     outboxId: string | null = null,
     threadTs: string | null = null,
+    mentions: readonly ReplyMention[] = [],
   ): Promise<OutsideReplied> {
     const body = text.trim();
     if (!body) throw new Error("the reply is empty");
@@ -449,7 +456,18 @@ export class OutsideThreads {
     if (mail && account.provider !== "gmail") throw new Error("only a mail reply has recipients");
     if (threadTs && account.provider !== "slack") throw new Error("only a Slack reply goes into a thread the card opened");
     if (mail && mail.to.length + mail.cc.length + mail.bcc.length === 0) throw new Error("add someone to send it to");
-    const held = { outbox_id: outboxId ?? "", account_id: accountId, thread_id: threadId, text: body, then, mail, thread_ts: threadTs };
+    // The person's own mentions are those they picked (plan 2026-11-14-1530, R23): a typed @handle goes as text.
+    const picked = liveMentions(body, mentions);
+    const held = {
+      outbox_id: outboxId ?? "",
+      account_id: accountId,
+      thread_id: threadId,
+      text: body,
+      then,
+      mail,
+      thread_ts: threadTs,
+      ...(picked.length ? { mentions: picked } : {}),
+    };
     if (this.outbox && outboxId && account.provider === "gmail") return this.outbox.hold(held);
     return this.sendNow(held);
   }
@@ -471,16 +489,16 @@ export class OutsideThreads {
     let deals = !agent;
     switch (sender.provider) {
       case "gmail":
-        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files);
+        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files, held.mentions ?? []);
         break;
       case "slack": {
         // A thread the person opened on the card (plan 085) is where they are writing, else the card's own place.
         const place = slackPlace(threadId);
         const { channel } = place;
         const ts = held.thread_ts ?? place.ts;
-        // People who cannot be read leave each @handle as typed; the reply still goes.
-        const mentions = (await this.opts.slackPeople?.mentions(accountId, body).catch(() => null)) ?? new Map<string, string>();
-        const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions };
+        // Only the stored mentions become Slack's (plan 2026-11-14-1530, KTD8): any other @ in the text, a quoted
+        // stranger's handle among them, goes as typed and notifies no one.
+        const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions: held.mentions ?? [] };
         // With files, the text rides with them as one message (KTD7).
         try {
           if (files.length) await sender.client.postWithFiles({ ...where, files });
@@ -505,7 +523,7 @@ export class OutsideThreads {
         // Posted once: a post that fails or times out is reported and never tried again, since a retry could post the
         // comment twice (plan 2026-11-10-1451, KTD11). The thread id is the ticket's own id.
         try {
-          await sender.client.postComment(threadId, body);
+          await sender.client.postComment(threadId, body, held.mentions ?? []);
         } catch (err) {
           if (agent) throw unclearPost(err, "Jira");
           throw err;
@@ -538,6 +556,7 @@ export class OutsideThreads {
     outboxId: string | null,
     agent = false,
     files: ReadonlyArray<{ name: string; data: Buffer }> = [],
+    mentions: readonly ReplyMention[] = [],
   ): Promise<void> {
     const [thread, sendAs] = await Promise.all([client.getThread(threadId, "full"), client.sendAs()]);
     const newest = replyTarget(thread.messages);
@@ -556,7 +575,19 @@ export class OutsideThreads {
     const from = sendAs.find((s) => s.address.toLowerCase() === fromAddress);
     if (!from) throw new Error("that is not an address you send from in Gmail");
     const forward = mail?.mode === "forward";
-    const { to, cc } = mail ?? replyAllOf(newest, own);
+    const people = mail ?? replyAllOf(newest, own);
+    // A mention adds its person to cc after the people check, so mentioning someone is never a change of the thread's
+    // people (plan 2026-11-14-1530, KTD5); one already on the thread is not added twice.
+    const on = new Set([...people.to, ...people.cc, ...(mail?.bcc ?? [])].flatMap((p) => bareAddresses([p])));
+    const added: string[] = [];
+    for (const m of mentions) {
+      const address = m.address?.toLowerCase();
+      if (!address || on.has(address)) continue;
+      on.add(address);
+      added.push(fromHeader(m.address ?? address, m.display));
+    }
+    const { to } = people;
+    const cc = [...people.cc, ...added];
     const bcc = mail?.bcc ?? [];
     if (to.length + cc.length + bcc.length === 0) throw new Error(forward ? "add someone to forward it to" : "no one in that thread to reply to");
     const { text, html } = mailParts(newest);

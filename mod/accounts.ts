@@ -1,4 +1,4 @@
-import type { AccountDisconnectCause, AccountProvider, AccountStatus, AccountView, GoogleService } from "../core/frame-types.ts";
+import type { AccountDisconnectCause, AccountProvider, AccountStatus, AccountView, GoogleContactSource, GoogleService } from "../core/frame-types.ts";
 import type { MacAccountView } from "../core/frames.ts";
 import { Listeners } from "../core/listeners.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -29,6 +29,14 @@ export interface NewAccount {
   owner_agent_id: string;
   /** A Google account's granted services (AccountView.services). */
   services?: GoogleService[];
+  /** Where a Google account's sign-in lets loki find people by name (AccountView.contacts). */
+  contacts?: GoogleContactSource[];
+}
+
+/** What a Google sign-in or token refresh says was granted: the services scripts use, and where people are found. */
+export interface GoogleGrants {
+  services: GoogleService[];
+  contacts: GoogleContactSource[];
 }
 
 /** What changed about an account, for the parts that follow its owner: the tools (U9) and reply proposals (U10). */
@@ -58,6 +66,11 @@ const PROVIDERS: readonly AccountProvider[] = ["gmail", "slack", "jira"];
 const CAUSES: readonly AccountDisconnectCause[] = ["sign_in_again", "admin_blocks", "slack_signed_out", "temporarily_failing"];
 /** Every Google service loki asks for, in the order the app lists them. */
 export const GOOGLE_SERVICES: readonly GoogleService[] = ["gmail", "drive", "sheets", "docs", "calendar"];
+/** Every place a Google account can let loki find people by name, in the order the app lists them (KTD7). */
+export const GOOGLE_CONTACT_SOURCES: readonly GoogleContactSource[] = ["contacts", "other_contacts", "directory"];
+
+/** A Google account's places to find people: what its sign-in granted, or none for an account signed in before loki asked. */
+export const contactsOf = (a: Pick<AccountView, "contacts">): GoogleContactSource[] => a.contacts ?? [];
 
 /** A Google account's services: what its sign-in granted, or Gmail alone for an account signed in before loki asked for more. */
 export const servicesOf = (a: Pick<AccountView, "services">): GoogleService[] => a.services ?? ["gmail"];
@@ -107,6 +120,7 @@ export function accountView(a: AccountView): AccountView {
     status: a.status,
     connected_at: a.connected_at,
     ...(a.services ? { services: [...a.services] } : {}),
+    ...(a.contacts ? { contacts: [...a.contacts] } : {}),
   };
 }
 
@@ -121,7 +135,17 @@ function parseView(v: unknown): AccountView | null {
   if (typeof id !== "string" || !id || typeof address !== "string" || typeof owner !== "string" || !owner || typeof at !== "string") return null;
   if (!PROVIDERS.includes(provider as AccountProvider) || !isStatus(status)) return null;
   const services = Array.isArray(r.services) ? GOOGLE_SERVICES.filter((s) => (r.services as unknown[]).includes(s)) : undefined;
-  return { account_id: id, provider: provider as AccountProvider, address, owner_agent_id: owner, status, connected_at: at, ...(services ? { services } : {}) };
+  const contacts = Array.isArray(r.contacts) ? GOOGLE_CONTACT_SOURCES.filter((s) => (r.contacts as unknown[]).includes(s)) : undefined;
+  return {
+    account_id: id,
+    provider: provider as AccountProvider,
+    address,
+    owner_agent_id: owner,
+    status,
+    connected_at: at,
+    ...(services ? { services } : {}),
+    ...(contacts ? { contacts } : {}),
+  };
 }
 
 function parseRecord(v: unknown): AccountRecord | null {
@@ -191,6 +215,7 @@ export class Accounts {
       status: "connected",
       connected_at: (this.opts.now?.() ?? new Date()).toISOString(),
       ...(input.services ? { services: [...input.services] } : {}),
+      ...(input.contacts ? { contacts: [...input.contacts] } : {}),
       backfill: {},
     };
     this.records = [...this.records, record];
@@ -216,20 +241,21 @@ export class Accounts {
   }
 
   /**
-   * An account here signed in again (plan 2026-11-11 scripts, R18): its new secret kept, its services as granted now,
-   * and connected; owner, cursor and cards stay. Everyone holding the old tokens hears `signed_in` and reads the new.
+   * An account here signed in again (plan 2026-11-11 scripts, R18): its new secret kept, its services and places to
+   * find people as granted now, and connected; owner, cursor and cards stay. Everyone holding the old tokens hears
+   * `signed_in` and reads the new.
    */
-  async signedIn(accountId: string, secret: string, services: GoogleService[]): Promise<AccountRecord> {
+  async signedIn(accountId: string, secret: string, grants: GoogleGrants): Promise<AccountRecord> {
     this.need(accountId);
     await this.setSecret(accountId, secret);
-    const changed = this.change(accountId, { status: "connected", services: [...services] });
+    const changed = this.change(accountId, { status: "connected", services: [...grants.services], contacts: [...grants.contacts] });
     this.save({ kind: "signed_in", account_id: accountId });
     return changed;
   }
 
-  /** Keep a Google account's services as a token refresh reports them; the app's row follows. */
-  setServices(accountId: string, services: GoogleService[]): AccountRecord {
-    const changed = this.change(accountId, { services: [...services] });
+  /** Keep a Google account's services and places to find people as a token refresh reports them; the app's row follows. */
+  setGrants(accountId: string, grants: GoogleGrants): AccountRecord {
+    const changed = this.change(accountId, { services: [...grants.services], contacts: [...grants.contacts] });
     this.save({ kind: "status", account_id: accountId });
     return changed;
   }

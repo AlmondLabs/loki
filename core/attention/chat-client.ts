@@ -12,6 +12,7 @@ import type {
   OutsideRead,
   OutsideReplied,
   OutsideWindowAsk,
+  ReplyMention,
   ReplyThen,
   SuggestionTarget,
 } from "../frame-types.ts";
@@ -337,7 +338,7 @@ export class FrameChatClient {
     text: string,
     then: ReplyThen,
     home: string | null,
-    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null } = {},
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null; mentions?: readonly ReplyMention[] } = {},
   ): Promise<OutsideReplied> {
     const r = await this.call(
       "account_thread_reply",
@@ -350,6 +351,7 @@ export class FrameChatClient {
         ...(extra.mail ? { mail: extra.mail } : {}),
         ...(extra.outbox_id ? { outbox_id: extra.outbox_id } : {}),
         ...(extra.thread_ts ? { thread_ts: extra.thread_ts } : {}),
+        mentions: [...(extra.mentions ?? [])],
       },
       // A held mail reply answers once its undo time is over and it went (plan 076).
       60_000,
@@ -571,7 +573,11 @@ export class FrameChatClient {
         action,
         ...(opts.text ? { text: opts.text } : {}),
         ...(opts.files ? { files: [...opts.files] } : {}),
+        ...(opts.mentions?.length ? { mentions: [...opts.mentions] } : {}),
       }),
+    /** The people the reply card's `@` picker offers for `query` (plan 2026-11-14-1530, R18), from the chat's Mac. */
+    findPeople: (rt: Runtime, proposalId: string, query: string) =>
+      this.call("reply_people_find", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, proposal_id: proposalId, query }),
   };
 
   /**

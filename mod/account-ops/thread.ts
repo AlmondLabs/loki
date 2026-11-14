@@ -1,4 +1,4 @@
-import type { MailFile, SlackAttachment, SlackBlock, SlackFile, SlackReaction } from "../../core/frame-types.ts";
+import type { MailFile, ReplyHeardBy, SlackAttachment, SlackBlock, SlackFile, SlackReaction } from "../../core/frame-types.ts";
 
 /**
  * A thread as loki reads it from an account (plan 097, U1): the shape every reader returns, whatever the service, and
@@ -47,3 +47,32 @@ export const MAIL_HTML_MAX = 512 * 1024;
 
 /** A thread's whole text from its account, oldest first; one reader per service. */
 export type ThreadText = (accountId: string, threadId: string) => Promise<ThreadMessage[]>;
+
+/**
+ * Where a reply lands, read from its service when the agent proposes it (plan 2026-11-14-1530, KTD2): what the card
+ * shows so the person sees the service's own words, never only the agent's. The thread id is the one Flow keys the
+ * thread by (Gmail's thread id, Slack's DM channel or `<channel>:<thread ts>`, Jira's numeric issue id), so the reply
+ * goes where the card said whatever the agent typed.
+ */
+export interface ReplyDestination {
+  thread_id: string;
+  /** The mail's subject with one "Re:", a Slack thread's first line, a Jira ticket's title; "" when there is none. */
+  subject: string;
+  /** Gmail: whom reply all reaches and copies; empty for Slack and Jira. */
+  to: string[];
+  cc: string[];
+  /** Slack: the conversation in words ("#ops", "the thread in your DM with Grace Lee"); Jira: the ticket's key. */
+  place: string | null;
+  /** Whether the thread has a record in Flow; a reply where it has none says so on its card (R10). */
+  in_flow: boolean;
+  /** Slack: whether people outside the workspace are in the conversation (R10). */
+  shared_outside: boolean;
+  /** Jira: who Jira usually tells of a comment, and whether a service desk's customer sees it (R10). */
+  heard_by: ReplyHeardBy | null;
+}
+
+/**
+ * What a reader knows of Flow's record of a thread: only that it is there, and the names it lends where the service
+ * has not answered (KTD2). A record never decides where a reply goes.
+ */
+export type FlowRecord = (accountId: string, threadId: string) => { sender: string; subject_or_first_line: string } | null;

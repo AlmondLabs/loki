@@ -7,6 +7,7 @@ import type { Runtime } from "../core/attention/protocol.ts";
 import type { ChatEngineView } from "../core/models.ts";
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { call, piece } from "./fixtures/chat-events.ts";
+import { must } from "./fixtures/must.ts";
 
 const ADA: Runtime = { agent_id: "ada", conversation_id: "c1" };
 const ENGINE: ChatEngineView = { agent: "claude", name: "Claude Code", model: "sonnet", modes: [], commands: [] };
@@ -40,6 +41,8 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const handoffs: Array<[string, string, string | null, string | null]> = [];
   const moves: unknown[] = [];
   const replies: Array<[string, string, string, string, string | null]> = [];
+  /** What else each reply carried beside its text: the mentions picked from the box among it. */
+  const replyExtras: unknown[] = [];
   /** How the daemon answers a reply: refused before it was sent, or sent with the move's reason. */
   const replyAnswer = { refused: null as string | null, thenError: null as string | null };
   /** Each write-back and restore the daemon was asked for. */
@@ -58,9 +61,10 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     return Promise.resolve(change(move, move === "read" && readEnds.value));
   };
   const client = {
-    replyOutside: (accountId: string, threadId: string, text: string, then: string, home: string | null) => {
+    replyOutside: (accountId: string, threadId: string, text: string, then: string, home: string | null, extra: unknown) => {
       if (replyAnswer.refused) return Promise.reject(new Error(replyAnswer.refused));
       replies.push([accountId, threadId, text, then, home]);
+      replyExtras.push(extra);
       const ended = then === "archive" && !replyAnswer.thenError;
       return Promise.resolve({
         sent: true,
@@ -135,6 +139,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     handoffs,
     moves,
     replies,
+    replyExtras,
     replyAnswer,
     writes,
     readEnds,
@@ -535,6 +540,20 @@ describe("the chat store (plan 052)", () => {
       disconnected: null,
       unread_out_there: true,
     },
+  });
+
+  test("a person picked from a Slack card's @ list goes with its reply as a mention; the same name typed by hand does not (R23)", async () => {
+    const jira = ticket();
+    const card = { ...jira, outside: { ...must(jira.outside, "the card's account"), account_id: "slack:T1:U0", provider: "slack" as const } };
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z")]);
+    await flush();
+    await d.store.replyOutside(card, "@Grace Lee can you look", "stay");
+    expect(d.replyExtras.at(-1)).toMatchObject({ mentions: [] });
+    d.store.pickPerson(card, { id: "U5", handle: "grace", name: "Grace Lee", avatar: null });
+    await d.store.replyOutside(card, "@Grace Lee can you look", "stay");
+    expect(d.replyExtras.at(-1)).toMatchObject({ mentions: [{ display: "Grace Lee", id: "U5", address: null }] });
+    await d.store.replyOutside(card, "can you look", "stay");
+    expect(d.replyExtras.at(-1)).toMatchObject({ mentions: [] });
   });
 
   test("a Jira card is never archived: the store refuses before asking its Mac, and the card stays (R19, KTD12)", async () => {

@@ -1,6 +1,6 @@
 import type { GoogleService } from "../core/frame-types.ts";
-import { servicesOf, type Accounts } from "./accounts.ts";
-import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, grantedServices, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
+import { contactsOf, servicesOf, type Accounts, type GoogleGrants } from "./accounts.ts";
+import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, grantedContacts, grantedServices, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
 
 /**
  * One Google account's sign-in, shared by everything that calls Google for it (plan 2026-11-11 scripts, KTD8): the Gmail
@@ -31,6 +31,18 @@ export const GOOGLE_SERVICE_NAME: Readonly<Record<GoogleService, string>> = {
   calendar: "Calendar",
 };
 
+/**
+ * What a call is for: one of the services scripts use, or `contacts`, the People API that finds people by name
+ * (plan 2026-11-14-1530, KTD7), which is a grant of its own rather than a service.
+ */
+export type GoogleCallFor = GoogleService | "contacts";
+
+/** What a call is for, by the name the person knows it by. */
+const callName = (what: GoogleCallFor): string => (what === "contacts" ? "Google Contacts" : GOOGLE_SERVICE_NAME[what]);
+
+/** The words for a call refused for want of the contacts grant, which signing the account in again gives. */
+export const CONTACTS_NOT_ALLOWED = "this Google account has not let loki look up people: sign in again in Preferences › Accounts";
+
 /** A call Google refused, with its status and Google's first reason; a missing service's says which. */
 export class GoogleError extends Error {
   readonly status: number;
@@ -58,7 +70,7 @@ export interface GoogleAuthOptions {
 
 /** One call on a Google API: the service it belongs to (for the missing-service message), and what to send. */
 export interface GoogleRequest {
-  service: GoogleService;
+  service: GoogleCallFor;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** The whole URL, on a Google API host. */
   url: string;
@@ -130,8 +142,9 @@ export class GoogleAuth {
       this.disconnect("admin_blocks");
       throw new GoogleError("your Google admin blocks this app: use your own Google app in Preferences › Accounts", res.status, reasons[0] ?? null);
     }
-    if (res.status === 403 && isMissingScope(reasons)) throw new GoogleError(signInAgainFor(req.service), res.status, "insufficient_scope");
-    throw new GoogleError(str(rec(answer.error).message) || `${GOOGLE_SERVICE_NAME[req.service]} answered ${res.status}`, res.status, reasons[0] ?? null);
+    if (res.status === 403 && isMissingScope(reasons))
+      throw new GoogleError(req.service === "contacts" ? CONTACTS_NOT_ALLOWED : signInAgainFor(req.service), res.status, "insufficient_scope");
+    throw new GoogleError(str(rec(answer.error).message) || `${callName(req.service)} answered ${res.status}`, res.status, reasons[0] ?? null);
   }
 
   /** A call whose answer is JSON; an empty answer (a 204) is `{}`. */
@@ -142,7 +155,7 @@ export class GoogleAuth {
     try {
       return JSON.parse(text) as unknown;
     } catch {
-      throw new GoogleError(`${GOOGLE_SERVICE_NAME[req.service]} answered with something that is not JSON`, res.status, null);
+      throw new GoogleError(`${callName(req.service)} answered with something that is not JSON`, res.status, null);
     }
   }
 
@@ -236,17 +249,20 @@ export class GoogleAuth {
     };
     await this.opts.accounts.setSecret(this.opts.account_id, JSON.stringify(next));
     this.secret = next;
-    if (scopes) this.keepServices(grantedServices(scopes));
+    if (scopes) this.keepGrants({ services: grantedServices(scopes), contacts: grantedContacts(scopes) });
     return access;
   }
 
-  /** The account's services as Google now reports them, written only when they changed (the person took one back). */
-  private keepServices(services: GoogleService[]): void {
+  /**
+   * The account's services and places to find people as Google now reports them, written only when they changed (the
+   * person took one back).
+   */
+  private keepGrants(grants: GoogleGrants): void {
     const account = this.opts.accounts.get(this.opts.account_id);
     if (!account) return;
-    const had = servicesOf(account);
-    if (had.length === services.length && had.every((s) => services.includes(s))) return;
-    this.opts.accounts.setServices(this.opts.account_id, services);
+    const same = (had: readonly string[], now: readonly string[]) => had.length === now.length && had.every((s) => now.includes(s));
+    if (same(servicesOf(account), grants.services) && same(contactsOf(account), grants.contacts)) return;
+    this.opts.accounts.setGrants(this.opts.account_id, grants);
   }
 
   /** Mark the account disconnected with why, unless it already says so; an account no longer here is left alone. */

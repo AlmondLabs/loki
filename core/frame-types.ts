@@ -693,6 +693,51 @@ export interface ReplyProposal {
   people_removed?: string[];
   /** Jira: the names of its files already on the ticket from an earlier Send, which a later one does not attach again (KTD8). */
   attached?: string[];
+  /**
+   * Whether the thread had a record in Flow when the reply was proposed (plan 2026-11-14-1530, R10): a reply where it
+   * had none says so on its card. Absent on one stored before, which could only be proposed where it had one.
+   */
+  in_flow?: boolean;
+  /** Slack: people outside the workspace are in the conversation, read from Slack when proposed (R10). */
+  shared_outside?: boolean;
+  /** Jira: who Jira usually tells of the comment, read from the ticket when proposed (R10). */
+  heard_by?: ReplyHeardBy;
+  /**
+   * The people the reply mentions (plan 2026-11-14-1530, KTD3), resolved when proposed or picked on the card, each
+   * shown in the text as `@display`. Only those still in the text when it is sent are written as the service's own.
+   */
+  mentions?: ReplyMention[];
+}
+
+/**
+ * Someone the card's `@` picker offers (plan 2026-11-14-1530, R18): the mention a pick stores, and one detail that tells
+ * them apart from others of the same name (an address, a title, a handle), or null.
+ */
+export interface ReplyPersonChoice extends ReplyMention {
+  detail: string | null;
+}
+
+/**
+ * A person a reply mentions (plan 2026-11-14-1530, KTD3): the full name the text shows them by, and who they are in the
+ * service, a Slack user id or a Jira account id, or for Gmail the address a mention adds to cc.
+ */
+export interface ReplyMention {
+  display: string;
+  id: string | null;
+  address: string | null;
+  /** Slack: they are not in the conversation, so the mention will not notify them (R22). */
+  not_member?: boolean;
+}
+
+/**
+ * Who Jira usually tells of a comment on a ticket (plan 2026-11-14-1530, R10): its assignee and reporter by name, its
+ * watchers by count, and whether it is a service desk's ticket, whose customer sees a comment posted as loki posts one.
+ */
+export interface ReplyHeardBy {
+  assignee: string | null;
+  reporter: string | null;
+  watchers: number;
+  customer_sees: boolean;
 }
 
 /**
@@ -919,6 +964,11 @@ export type AccountProvider = "gmail" | "slack" | "jira";
 export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_signed_out" | "temporarily_failing";
 /** The Google services a Google account can let loki use (plan 2026-11-11 scripts, R16), as the app names them. */
 export type GoogleService = "gmail" | "drive" | "sheets" | "docs" | "calendar";
+/**
+ * Where a Google account lets loki look people up by name (plan 2026-11-14-1530, KTD7): its saved contacts, the people
+ * it has mailed (other contacts), and its organisation's directory. A grant apart from the services scripts use.
+ */
+export type GoogleContactSource = "contacts" | "other_contacts" | "directory";
 /** Whether an account is watched: connected, or disconnected with its cause. */
 export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
 
@@ -942,6 +992,11 @@ export interface AccountView {
    * in before loki asked for more than Gmail, which reads as Gmail only; absent on Slack and Jira accounts.
    */
   services?: GoogleService[];
+  /**
+   * Where a Gmail account's sign-in lets loki find people by name (KTD7). Absent on an account signed in before loki
+   * asked, which finds people by address only until it signs in again; absent on Slack and Jira accounts.
+   */
+  contacts?: GoogleContactSource[];
 }
 
 /** A workspace signed in to the Slack desktop app on this Mac, as the person picks one to connect (plan 067, R21). */

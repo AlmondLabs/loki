@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import type { MailAddressing, OutsideReplied, ReplyThen } from "../core/frame-types.ts";
+import type { MailAddressing, OutsideReplied, ReplyMention, ReplyThen } from "../core/frame-types.ts";
+import { replyMentionOf } from "../core/frames.ts";
 import { messageOf } from "../core/errors.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
@@ -51,6 +52,11 @@ export interface HeldReply {
   thread_ts?: string | null;
   files?: HeldFile[];
   proposal?: HeldProposal | null;
+  /**
+   * The people the reply mentions, as stored (plan 2026-11-14-1530, KTD3): the only ones its send writes as the
+   * service's own mentions, and on Gmail the addresses it adds to cc. Left out of a reply that mentions no one.
+   */
+  mentions?: ReplyMention[];
 }
 
 /** What MailOutbox is built from; the clock and the timer are injected so tests own them. */
@@ -366,8 +372,10 @@ type Stored = HeldReply & { seal?: unknown; state?: "sending" | "sent" | "failed
  */
 function sealOf(key: string, h: HeldReply): string {
   const base: unknown[] = [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
-  const more = h.thread_ts != null || h.files !== undefined || h.proposal != null;
-  const fields = more ? [...base, h.thread_ts ?? null, h.files ?? null, h.proposal ?? null] : base;
+  // Mentions came later still (plan 2026-11-14-1530, KTD10's rule): sealed after the rest, only when a reply has them.
+  const mentioned = h.mentions !== undefined;
+  const more = h.thread_ts != null || h.files !== undefined || h.proposal != null || mentioned;
+  const fields = more ? [...base, h.thread_ts ?? null, h.files ?? null, h.proposal ?? null, ...(mentioned ? [h.mentions] : [])] : base;
   return createHmac("sha256", key).update(JSON.stringify(fields)).digest("hex");
 }
 
@@ -416,7 +424,8 @@ function isHeld(v: unknown): v is Stored {
     typeof h.mail === "object" &&
     (h.thread_ts === undefined || h.thread_ts === null || typeof h.thread_ts === "string") &&
     (h.files === undefined || (Array.isArray(h.files) && h.files.every(isFile))) &&
-    (h.proposal === undefined || h.proposal === null || isProposal(h.proposal))
+    (h.proposal === undefined || h.proposal === null || isProposal(h.proposal)) &&
+    (h.mentions === undefined || (Array.isArray(h.mentions) && h.mentions.every((m) => replyMentionOf(m) !== null)))
   );
 }
 

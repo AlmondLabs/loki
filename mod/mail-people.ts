@@ -5,7 +5,8 @@ import { readJson, writeJsonAtomic } from "./json-file.ts";
  * The people each Gmail account has mail with (plan 076), for the recipients line's suggestions: everyone in the From,
  * To and Cc of the mail loki already reads, and whoever the person sends to from loki. It is built from headers only,
  * kept in one file on the account's Mac (`state/mail-people.json`), and holds names and addresses, never a token or a
- * word of the mail. Google Contacts would need a second permission; this needs none.
+ * word of the mail. It needs no permission beyond Gmail's; an agent's mentions find people in Google Contacts and the
+ * directory instead (mod/people.ts, plan 2026-11-14-1530), under the contacts permission the account grants.
  */
 
 /** One person as the file keeps them: the name they last showed, how many messages they were on, and the newest one's time. */

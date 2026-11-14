@@ -28,6 +28,7 @@ import type {
   OutsideMove,
   OutsideRead,
   OutsideWindowAsk,
+  ReplyPersonChoice,
   ReplyProposal,
   ReplyThen,
   EmojiChoice,
@@ -44,6 +45,7 @@ import { coalesce } from "../timers.ts";
 import { Listeners } from "../listeners.ts";
 import { messageOf } from "../errors.ts";
 import { createSentReplies, sentKey } from "./sent-replies.ts";
+import { PickedPeople } from "./picked-people.ts";
 
 /**
  * Every chat this client follows, outside React (plan 052): the list and its digests, the agents, the live half of
@@ -683,6 +685,10 @@ export class ChatStore {
     const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
     return typeof out === "string" ? { done: false, message: out, proposal: null } : out;
   };
+  /** The people a reply card's `@` picker offers (plan 2026-11-14-1530, R18), or why they could not be read. */
+  findReplyPeople = (rt: Runtime, proposalId: string, query: string): Promise<{ people: ReplyPersonChoice[]; notice: string | null } | string> =>
+    this.attempt((c) => c.replies.findPeople(rt, proposalId, query));
+
   /** Close a link of a chat (plan 067), on its Mac and the other chat's: null, or why not. */
   closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
 
@@ -978,7 +984,9 @@ export class ChatStore {
     // A reply sent alone stays on its card, whose thread shows it at once (plan 086); one with a move leaves with the card.
     const place = sentKey(o.account_id, o.thread_id, extra.thread_ts ?? null);
     const shown = then === "stay" ? this.sent.add(place, text.trim(), new Date(this.now()).toISOString()) : null;
-    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, extra));
+    // The people picked from the box's @ list go as mentions while their names are in the text (R23).
+    const mentions = this.picked.in(o.account_id, text);
+    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, { ...extra, mentions }));
     if (shown) {
       if (typeof r === "string" || !r.sent) this.sent.drop(shown);
       else this.sent.went(shown);
@@ -1009,6 +1017,15 @@ export class ChatStore {
     const o = card.outside;
     if (o?.provider !== "slack") return "only a Slack message takes a reaction";
     return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
+  };
+
+  /** The people picked from reply boxes' @ lists this session, which their sends mention (plan 2026-11-14-1530, R23). */
+  readonly picked = new PickedPeople();
+
+  /** The person picked someone from a Slack card's @ list (R23): its sends mention them while their name is in the text. */
+  pickPerson = (card: Pick<ConversationInfo, "outside">, person: SlackPerson): void => {
+    const o = card.outside;
+    if (o?.provider === "slack") this.picked.add(o.account_id, { display: person.name, id: person.id, address: null });
   };
 
   /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why they could not be read. */

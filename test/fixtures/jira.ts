@@ -15,6 +15,20 @@ export interface FakeJiraPerson {
   avatar?: string;
 }
 
+/** Someone in the site's people, as the user searches find them (plan 2026-11-14-1530, U2). */
+export interface FakeJiraUser extends FakeJiraPerson {
+  /** Their address, which Jira shows only when their profile shares it. */
+  email?: string;
+  /** Ticket keys and project keys they cannot see; the site-wide search still finds them. */
+  blind?: string[];
+  /** Whether tickets can be assigned to them; true when left out. */
+  assignable?: boolean;
+  /** An app's account, which the searches give and loki leaves out. */
+  app?: boolean;
+  /** Deactivated, which the searches give marked inactive. */
+  inactive?: boolean;
+}
+
 /** A request the fake received: its method, URL, body as text, authorization header and redirect mode. */
 export interface FakeJiraRequest {
   method: string;
@@ -148,6 +162,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
   const me = opts.me ?? JIRA_ME;
   const tickets: StoredTicket[] = [];
   const requests: FakeJiraRequest[] = [];
+  /** The site's people for the user searches: the signed-in person, Ada and Bob, and whoever a test adds. */
+  const users: FakeJiraUser[] = [me, JIRA_ADA, JIRA_BOB];
   /** Every comment posted through the API, in order: the ticket's key, the new comment's id and the document sent. */
   const posted: Array<{ key: string; id: string; body: unknown }> = [];
   const state = {
@@ -225,6 +241,38 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return json(200, { issues, isLast, ...(isLast ? {} : { nextPageToken: String(from + size) }) });
   };
 
+  /**
+   * A user search: everyone whose name has a word starting with `query`, or whose address starts with it, or the one
+   * `accountId` names, among those `canBe` lets through. Jira answers a list, apps and deactivated people included.
+   */
+  const userSearch = (q: URLSearchParams, canBe: (u: FakeJiraUser) => boolean): Response => {
+    const query = q.get("query")?.toLowerCase();
+    const id = q.get("accountId");
+    if (!query && !id) return json(400, { errorMessages: ["One of 'query' or 'accountId' is required."] });
+    const matches = (u: FakeJiraUser) =>
+      id
+        ? u.account_id === id
+        : u.display_name.toLowerCase().startsWith(query ?? "") ||
+          u.display_name
+            .toLowerCase()
+            .split(/\s+/)
+            .some((w) => w.startsWith(query ?? "")) ||
+          (u.email ?? "").toLowerCase().startsWith(query ?? "");
+    const found = users.filter((u) => matches(u) && canBe(u)).slice(0, Number(q.get("maxResults") ?? "50"));
+    return json(
+      200,
+      found.map((u) => ({
+        accountId: u.account_id,
+        accountType: u.app ? "app" : "atlassian",
+        displayName: u.display_name,
+        active: !u.inactive,
+        ...(u.email ? { emailAddress: u.email } : {}),
+      })),
+    );
+  };
+  /** Whether someone can see a ticket: neither it nor its project is one they are blind to. */
+  const sees = (u: FakeJiraUser, key: string) => !(u.blind ?? []).some((b) => b === key || b === key.split("-")[0]);
+
   /** The answer a broken read gives: Jira's refusal of the token for 401, else a failure with a message. */
   const breaks = (read: "issue" | "field"): Response | null => {
     if (state.broken?.read !== read) return null;
@@ -248,6 +296,24 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     // The search Jira retired in 2025.
     if (path === "/rest/api/3/search") return json(410, { errorMessages: ["The requested API has been removed. Please migrate to /rest/api/3/search/jql."] });
     if (path === "/rest/api/3/search/jql" && req.method === "GET") return search(q);
+    if (path === "/rest/api/3/user/search" && req.method === "GET") return userSearch(q, () => true);
+    if (path === "/rest/api/3/user/viewissue/search" && req.method === "GET") {
+      const ticket = find(q.get("issueKey") ?? "");
+      if (!ticket) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
+      return userSearch(q, (u) => sees(u, ticket.key));
+    }
+    if (path === "/rest/api/3/user/permission/search" && req.method === "GET") {
+      const project = q.get("projectKey") ?? "";
+      if (q.get("permissions") !== "BROWSE_PROJECTS" || !project)
+        return json(400, { errorMessages: ["the fake Jira reads only BROWSE_PROJECTS on a project"] });
+      return userSearch(q, (u) => sees(u, project));
+    }
+    if (path === "/rest/api/3/user/assignable/search" && req.method === "GET") {
+      const ticket = q.get("issueKey") ? find(q.get("issueKey") ?? "") : undefined;
+      const where = ticket?.key ?? q.get("project");
+      if (!where) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
+      return userSearch(q, (u) => u.assignable !== false && sees(u, where));
+    }
 
     const one = /^\/rest\/api\/3\/issue\/([^/]+)$/.exec(path);
     if (one && req.method === "GET") {
@@ -264,7 +330,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
         assignee: ticket.assignee ? person(ticket.assignee) : null,
         reporter: ticket.reporter ? person(ticket.reporter) : null,
         issuetype: named(ticket.type),
-        project: ticket.project ? { key: ticket.key.split("-")[0], name: ticket.project } : null,
+        project: ticket.project ? { key: ticket.key.split("-")[0], name: ticket.project, projectTypeKey: "software" } : null,
+        watches: { watchCount: ticket.watchers.size, isWatching: ticket.watchers.has(me.account_id) },
         status: named(ticket.status),
         priority: named(ticket.priority),
         labels: ticket.labels,
@@ -417,6 +484,10 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       if (patch.summary !== undefined) ticket.summary = patch.summary;
       if (patch.assignee !== undefined) ticket.assignee = patch.assignee;
       if (patch.watchers !== undefined) ticket.watchers = new Set(patch.watchers.map((p) => p.account_id));
+    },
+    /** Someone joins the site's people, for the user searches. */
+    addUser(user: FakeJiraUser): void {
+      users.push(user);
     },
     /** The person loses sight of a ticket: it answers "not found" and leaves the search. */
     hide(key: string): void {

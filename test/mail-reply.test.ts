@@ -12,7 +12,7 @@ import { MailOutbox, RESUME_MAX_MS } from "../mod/mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import { MailPeople } from "../mod/mail-people.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
-import { peopleChange, replyOf } from "../mod/reply-proposals.ts";
+import { peopleChange, replyOf } from "../mod/reply-addressing.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OutsideReply } from "../app/src/desk/outside-card.tsx";
@@ -416,6 +416,28 @@ describe("undo send", () => {
     expect(tm.pending()).toEqual([]);
     expect(second.sent).toEqual([]);
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ version: 1, held: [] });
+  });
+  test("a held reply's mentions are sealed: it goes after a restart with them, and one whose mentions changed is dropped (plan 2026-11-14-1530)", async () => {
+    const file = join(scratch(), "outbox.json");
+    const ana = { display: "Ana Ruiz", id: null, address: "ana@example.com" };
+    const first = mail({ outbox: file, after: timers().after });
+    void first.t.reply(MAIL, "t1", "ok @Ana Ruiz", "archive", null, "o1-abcdefgh", null, [ana]);
+    await settle();
+    const kept = JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> };
+    expect(kept.held[0]?.mentions).toEqual([ana]);
+    const tm = timers();
+    const second = mail({ outbox: file, after: tm.after });
+    second.t.resume();
+    await settle();
+    expect(tm.pending()).toHaveLength(1);
+    const forged = join(scratch(), "outbox.json");
+    writeFileSync(forged, JSON.stringify({ version: 1, held: [{ ...kept.held[0], mentions: [{ ...ana, address: "eve@evil.example" }] }] }));
+    const again = timers();
+    const third = mail({ outbox: forged, after: again.after });
+    third.t.resume();
+    await settle();
+    expect(again.pending()).toEqual([]);
+    expect(third.sent).toEqual([]);
   });
   test("without a keychain a held reply still goes after its wait, and nothing is sent after a restart", async () => {
     const file = join(scratch(), "outbox.json");

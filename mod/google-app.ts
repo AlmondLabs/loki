@@ -3,8 +3,8 @@
  * sign-in rather than building a Google Cloud project; a person may use an app of their own instead (Preferences ›
  * Inbox), whose id and secret are kept in the keychain with the account they signed in.
  */
-import type { GoogleService } from "../core/frame-types.ts";
-import { GOOGLE_SERVICES } from "./accounts.ts";
+import type { GoogleContactSource, GoogleService } from "../core/frame-types.ts";
+import { GOOGLE_CONTACT_SOURCES, GOOGLE_SERVICES } from "./accounts.ts";
 
 /** A Google OAuth client: what a sign-in and every token refresh present to Google. */
 export interface GoogleApp {
@@ -64,6 +64,23 @@ export const SERVICE_SCOPES: Readonly<Record<GoogleService, string>> = {
 export function grantedServices(scopes: string): GoogleService[] {
   const granted = new Set(scopes.split(/\s+/));
   return GOOGLE_SERVICES.filter((s) => granted.has(SERVICE_SCOPES[s]));
+}
+
+/**
+ * The read-only scope loki asks Google for, for each place it finds people by name (plan 2026-11-14-1530, KTD7): saved
+ * contacts, other contacts and the organisation's directory. They let an agent's `@Ana` find Ana's address, as Gmail's
+ * own `@` does; none of them lets loki change a contact.
+ */
+export const CONTACT_SCOPES: Readonly<Record<GoogleContactSource, string>> = {
+  contacts: "https://www.googleapis.com/auth/contacts.readonly",
+  other_contacts: "https://www.googleapis.com/auth/contacts.other.readonly",
+  directory: "https://www.googleapis.com/auth/directory.readonly",
+};
+
+/** The places to find people that a grant's scopes cover, in the app's order. */
+export function grantedContacts(scopes: string): GoogleContactSource[] {
+  const granted = new Set(scopes.split(/\s+/));
+  return GOOGLE_CONTACT_SOURCES.filter((s) => granted.has(CONTACT_SCOPES[s]));
 }
 
 /** A Gmail account's secret as the keychain gives it back, or null when it is not one. */

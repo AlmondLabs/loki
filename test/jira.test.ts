@@ -616,6 +616,39 @@ describe("files attached to a ticket", () => {
   });
 });
 
+describe("the user searches (plan 2026-11-14-1530, U2)", () => {
+  test("each scope asks its own GET: the site, who can see a ticket, who can browse a project, who can be assigned", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    await c.searchUsers({ kind: "site" }, { query: "ada" });
+    await c.searchUsers({ kind: "ticket", ticket: "OPS-1" }, { query: "ada" });
+    await c.searchUsers({ kind: "project", project: "OPS" }, { query: "ada" });
+    await c.searchUsers({ kind: "assignee", ticket: "OPS-1" }, { query: "ada" });
+    await c.searchUsers({ kind: "assignee", project: "OPS" }, { account_id: "acc-ada" });
+    expect(jira.requests.map((r) => [r.method, r.url.pathname, Object.fromEntries(r.url.searchParams)])).toEqual([
+      ["GET", "/rest/api/3/user/search", { query: "ada", maxResults: "50" }],
+      ["GET", "/rest/api/3/user/viewissue/search", { issueKey: "OPS-1", query: "ada", maxResults: "50" }],
+      ["GET", "/rest/api/3/user/permission/search", { permissions: "BROWSE_PROJECTS", projectKey: "OPS", query: "ada", maxResults: "50" }],
+      ["GET", "/rest/api/3/user/assignable/search", { issueKey: "OPS-1", query: "ada", maxResults: "50" }],
+      ["GET", "/rest/api/3/user/assignable/search", { project: "OPS", accountId: "acc-ada", maxResults: "50" }],
+    ]);
+  });
+
+  test("people come back with their id, name and shared address; apps and deactivated people are left out", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    jira.addUser({ account_id: "acc-vr", display_name: "Vivek Rao", email: "vivek.rao@acme.com" });
+    jira.addUser({ account_id: "acc-bot", display_name: "Vivek Bot", app: true });
+    jira.addUser({ account_id: "acc-old", display_name: "Vivek Old", inactive: true });
+    jira.addUser({ account_id: "acc-vs", display_name: "Vivek Shah", blind: ["OPS-1"] });
+    expect(await c.searchUsers({ kind: "site" }, { query: "vivek" })).toEqual([
+      { account_id: "acc-vr", display_name: "Vivek Rao", email: "vivek.rao@acme.com" },
+      { account_id: "acc-vs", display_name: "Vivek Shah", email: null },
+    ]);
+    expect((await c.searchUsers({ kind: "ticket", ticket: "OPS-1" }, { query: "vivek" })).map((u) => u.account_id)).toEqual(["acc-vr"]);
+  });
+});
+
 /** Names that would change something in Jira: the client may have none but the comment and the attach call. */
 const WRITES = /post|send|add|attach(?!ments)|create|update|edit|delete|remove|assign|transition|watch(?!ed)|set|put|move|mark/i;
 
@@ -639,8 +672,13 @@ describe("the only things the client writes are the person's comment and its fil
     await c.history("OPS-1");
     await c.ticket("OPS-1");
     await c.issue("OPS-1");
+    await c.ticketFacts("OPS-1");
     await c.attachments("OPS-1");
     await c.thumbnail("10001");
+    await c.searchUsers({ kind: "site" }, { query: "ada" });
+    await c.searchUsers({ kind: "ticket", ticket: "OPS-1" }, { query: "ada" });
+    await c.searchUsers({ kind: "project", project: "OPS" }, { query: "ada" });
+    await c.searchUsers({ kind: "assignee", ticket: "OPS-1" }, { account_id: "acc-ada" });
     expect(jira.writes()).toEqual([]);
     await c.attachFiles("OPS-1", [{ name: "notes.txt", data: bytes("notes") }]);
     await c.postComment("OPS-1", "hello");
@@ -653,7 +691,19 @@ describe("the only things the client writes are the person's comment and its fil
     expect(
       called.filter(
         (n) =>
-          !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket", "issue", "attachments", "thumbnail"].includes(n) && !PRIVATE.includes(n),
+          ![
+            "myself",
+            "serverInfo",
+            "searchWatched",
+            "comments",
+            "history",
+            "ticket",
+            "issue",
+            "ticketFacts",
+            "attachments",
+            "thumbnail",
+            "searchUsers",
+          ].includes(n) && !PRIVATE.includes(n),
       ),
     ).toEqual([]);
   });

@@ -3,24 +3,24 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { ReplyAttachment, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
-import type { ChatState, ReplyAction, ReplyDecideOptions } from "../core/frames.ts";
-import { splitMailboxes } from "../core/mail-header.ts";
+import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyPersonChoice, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import { lastByName, liveMentions, mentionSpans, writeMentions } from "../core/mentions.ts";
+import { replyMentionOf, type ChatState, type ReplyAction, type ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
-import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
+import type { AccountThreads } from "./account-threads.ts";
+import { readReplyDestination, type ReplyReads } from "./account-ops/reply-reader.ts";
 import { accountLabel, ownedAccount, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import { type GmailClient, type GmailMessage } from "./gmail.ts";
-import { GoogleError } from "./google-auth.ts";
 import { inert } from "./account-ops/fence.ts";
 import { inChatFolder, md5 } from "./google-tools/core.ts";
 import { causeWords } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
+import { bareAddresses, slackPlace } from "./reply-addressing.ts";
+import type { People } from "./people.ts";
 import type { HeldProposal, HeldReply } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
-import type { SlackClient } from "./slack.ts";
 import type { ChatKey } from "./suggestions.ts";
 import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
 
@@ -31,8 +31,10 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
  * thread as the person. The agent has no way to send (R14). It names the thread, the text and files from its chat's
  * folder, never who it goes to: a Gmail reply goes to all of the newest message's people but the person, exactly as
  * the card showed them (a change stops it, KTD4), a Slack reply into the same conversation and thread, a Jira comment
- * onto the ticket, so a stranger's mail that asks the agent to send something elsewhere can at most yield a reply to
- * the thread's own people.
+ * onto the ticket. Beyond them, only the people it mentions are told, each resolved in the account and named on the
+ * card (plan 2026-11-14-1530): Slack and Jira notify them, and Gmail adds them to cc. So a stranger's mail that asks the
+ * agent to send something elsewhere yields at most a reply in a thread of the account, to its own people and anyone the
+ * card names as mentioned, which the person reads before their Send.
  *
  * Each chat's proposals live in `state/reply-proposals.json`, beside the notices its agent has yet to read. A proposal
  * moves from pending to sending, and from there to sent, or back to pending on Undo or a send that did not go; or from
@@ -41,20 +43,18 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
  * reply reaches every client as the chat's `reply_proposals` event (KTD3).
  */
 
-/** What reading the thread for a Gmail card needs of the mailbox's client: the thread and the person's own addresses. */
-export type ReplyGmail = Pick<GmailClient, "getThread" | "sendAsAddresses">;
-/** What naming a Slack card's place needs of the workspace's client: a conversation's name. */
-export type ReplySlack = Pick<SlackClient, "conversationsInfo">;
-/** An account's client for reading where a reply goes, by its provider. A Jira ticket's place comes from its card's record. */
-export type ReplyClient = { provider: "gmail"; client: ReplyGmail } | { provider: "slack"; client: ReplySlack } | { provider: "jira" };
-
 /** What the proposals are built from. `now` and `newId` exist for tests. */
 export interface ReplyProposalsOptions {
   /** `state/reply-proposals.json`. */
   file: string;
   accounts: Pick<Accounts, "get" | "onChange">;
-  threads: Pick<AccountThreads, "get" | "list">;
-  clientFor(account: AccountRecord): ReplyClient;
+  threads: Pick<AccountThreads, "get">;
+  /** An account's reads of where a reply goes (plan 2026-11-14-1530, U1): the card's facts come from the service. */
+  clientFor(account: AccountRecord): ReplyReads;
+  /** The people in each account, by name (mod/people.ts, KTD4); without it, a reply mentions no one. */
+  people?: Pick<People, "resolve" | "find">;
+  /** Who is in a Slack conversation, by user id (R22): a mention of anyone else notifies no one. */
+  members?(accountId: string, channel: string): Promise<ReadonlySet<string>>;
   /** The person's send path (KTD1): the hold, its undo, and what the outbox still has and whether a reply went. */
   outside: Pick<OutsideThreads, "holdAgentReply" | "unsend" | "holds" | "wentOutIn" | "acknowledge">;
   /** Tell every client following a chat what its open proposals now are. */
@@ -79,7 +79,15 @@ export interface ReplyInput {
   text: string;
   /** Full paths of files for the reply to carry, already found inside the chat's folder (R8). */
   attachments?: string[];
+  /**
+   * The people the text mentions as `@<entry>` (plan 2026-11-14-1530, KTD3): a full name, an address, a Slack handle or
+   * a token a refusal gave. Each must name exactly one person, or the proposal is refused saying who matched.
+   */
+  mentions?: string[];
 }
+
+/** The most people the card's `@` picker lists at once. */
+const PICKER_MAX = 8;
 
 /** The most files one reply carries (R8). */
 export const MAX_REPLY_FILES = 10;
@@ -153,92 +161,6 @@ const movedNotice = (p: ReplyProposal): string =>
 /** What the person is told when they send a reply whose account moved since. */
 const MOVED = "that account moved to another agent: this reply was withdrawn";
 
-/** A Gmail message's header by name, any case; "" when it has none. */
-export const headerOf = (m: GmailMessage | undefined, name: string): string =>
-  m?.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
-
-/** An address header's people, each as written ("Grace <grace@acme.com>") and by its bare address, lower case. */
-function people(header: string): Array<{ text: string; address: string }> {
-  return splitMailboxes(header).flatMap((text) => {
-    // The address is the last <…>: a display name may hold angle brackets of its own, quoted.
-    const address = ([...text.matchAll(/<([^<>]+)>/g)].at(-1)?.[1] ?? text).trim().toLowerCase();
-    return address.includes("@") ? [{ text, address }] : [];
-  });
-}
-
-/**
- * Who a reply to all of a message goes to (KTD9): its sender and everyone it was to, and everyone it copied, never the
- * person's own addresses and nobody twice. A message the person wrote themselves is answered to whom it went.
- */
-export function replyAllOf(message: GmailMessage | undefined, own: readonly string[]): { to: string[]; cc: string[] } {
-  const { mine, fromMe, sender } = whoWrote(message, own);
-  const seen = new Set<string>();
-  const keep = (list: Array<{ text: string; address: string }>) =>
-    list.filter((p) => !mine.has(p.address) && !seen.has(p.address) && seen.add(p.address)).map((p) => p.text);
-  const to = keep([...(fromMe ? [] : sender), ...people(headerOf(message, "To"))]);
-  return { to, cc: keep(people(headerOf(message, "Cc"))) };
-}
-
-/**
- * Who a reply to all of `message` would reach now that the proposal did not name, and whom it named that it would no
- * longer reach (KTD4), by bare address in lower case, To and Cc together: a new display name or another order is not a
- * change. Both lists are empty when the people are the same, and the send at the end of the hold goes only then.
- */
-export function peopleChange(
-  message: GmailMessage | undefined,
-  own: readonly string[],
-  proposal: { to: readonly string[]; cc: readonly string[] },
-): { added: string[]; removed: string[] } {
-  const bare = (list: readonly string[]) => new Set(list.flatMap((t) => people(t).map((p) => p.address)));
-  const { to, cc } = replyAllOf(message, own);
-  const now = bare([...to, ...cc]);
-  const was = bare([...proposal.to, ...proposal.cc]);
-  return { added: [...now].filter((a) => !was.has(a)), removed: [...was].filter((a) => !now.has(a)) };
-}
-
-/**
- * Who a reply to the sender alone goes to (plan 076): whom the message asks replies to go to (Reply-To), else its
- * sender; a message the person wrote themselves is answered to whom it went, as Gmail does.
- */
-export function replyOf(message: GmailMessage | undefined, own: readonly string[]): { to: string[]; cc: string[] } {
-  const { mine, fromMe, sender } = whoWrote(message, own);
-  const seen = new Set<string>();
-  const to = (fromMe ? people(headerOf(message, "To")) : sender).filter((p) => !mine.has(p.address) && !seen.has(p.address) && seen.add(p.address));
-  return { to: to.map((p) => p.text), cc: [] };
-}
-
-/** The person's addresses, whether they wrote the message, and whom a reply to its writer goes to: its Reply-To, else its From. */
-function whoWrote(message: GmailMessage | undefined, own: readonly string[]) {
-  const mine = new Set(own.map((a) => a.toLowerCase()));
-  const from = people(headerOf(message, "From"));
-  const fromMe = from.length > 0 && from.every((p) => mine.has(p.address));
-  const replyTo = people(headerOf(message, "Reply-To"));
-  return { mine, fromMe, sender: replyTo.length ? replyTo : from };
-}
-
-/** People as the agent is told of them: bare addresses, since a display name is the sender's own writing. */
-const addresses = (list: readonly string[]): string => inert(list.flatMap((t) => people(t).map((p) => p.address)).join(", "));
-
-/**
- * The message a reply answers: the newest in the thread by Gmail's time that is not one of the person's own drafts, so
- * an unsent draft never sets who the reply goes to or what it replies to (KTD9).
- */
-export function replyTarget(messages: readonly GmailMessage[]): GmailMessage | undefined {
-  return messages
-    .filter((m) => !m.labelIds.includes("DRAFT"))
-    .sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
-    .at(-1);
-}
-
-/** A reply's subject: the message's own, with one "Re:" in front. */
-export const replySubject = (subject: string): string => (/^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim()}`.trim());
-
-/** A Slack card's thread id as its place: a DM card's is its channel, an Activity card's `<channel>:<thread ts>`. */
-export function slackPlace(threadId: string): { channel: string; ts: string | null } {
-  const at = threadId.indexOf(":");
-  return at < 0 ? { channel: threadId, ts: null } : { channel: threadId.slice(0, at), ts: threadId.slice(at + 1) };
-}
-
 function parseProposal(v: unknown): ReplyProposal | null {
   if (typeof v !== "object" || v === null) return null;
   const r = v as Record<string, unknown>;
@@ -256,6 +178,8 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const added = strings("people_added");
   const removed = strings("people_removed");
   const attached = strings("attached");
+  const heardBy = parseHeardBy(r.heard_by);
+  const mentions = Array.isArray(r.mentions) ? r.mentions.flatMap((m) => replyMentionOf(m) ?? []) : [];
   return {
     id,
     account_id: account,
@@ -277,6 +201,23 @@ function parseProposal(v: unknown): ReplyProposal | null {
     ...(added.length ? { people_added: added } : {}),
     ...(removed.length ? { people_removed: removed } : {}),
     ...(attached.length ? { attached } : {}),
+    ...(typeof r.in_flow === "boolean" ? { in_flow: r.in_flow } : {}),
+    ...(r.shared_outside === true ? { shared_outside: true } : {}),
+    ...(heardBy ? { heard_by: heardBy } : {}),
+    ...(mentions.length ? { mentions } : {}),
+  };
+}
+
+/** Who Jira usually tells of a stored comment, or null when it was stored without them. */
+function parseHeardBy(v: unknown): ReplyHeardBy | null {
+  if (typeof v !== "object" || v === null) return null;
+  const r = v as Record<string, unknown>;
+  const name = (x: unknown) => (typeof x === "string" ? x : null);
+  return {
+    assignee: name(r.assignee),
+    reporter: name(r.reporter),
+    watchers: typeof r.watchers === "number" ? r.watchers : 0,
+    customer_sees: r.customer_sees === true,
   };
 }
 
@@ -305,6 +246,21 @@ const keyOf = (chat: ChatKey) => `${chat.agent_id}/${chat.conversation_id}`;
 function withFiles(p: ReplyProposal, files: readonly ReplyAttachment[]): ReplyProposal {
   const { attachments: _was, ...rest } = p;
   return files.length ? { ...rest, attachments: [...files] } : rest;
+}
+
+/** A proposal with its mentions as given: the field left out when there are none, as one without is stored. */
+function withMentionList(p: ReplyProposal, mentions: readonly ReplyMention[]): ReplyProposal {
+  const { mentions: _was, ...rest } = p;
+  return mentions.length ? { ...rest, mentions: [...mentions] } : rest;
+}
+
+/** Mentions with each person once, by their service id or address, the first kept. */
+function uniqueMentions(list: readonly ReplyMention[]): ReplyMention[] {
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    const key = `${m.id ?? ""}|${m.address?.toLowerCase() ?? ""}|${m.display}`;
+    return !seen.has(key) && seen.add(key);
+  });
 }
 
 /** A proposal without the marks of who joined or left its thread, which a new Send clears. */
@@ -346,28 +302,35 @@ export class ReplyProposals implements AgentReplyReports {
     if (!input.text.trim()) throw new Error("a reply needs text");
     const account = this.opts.accounts.get(input.account_id);
     if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
-    // Any thread of the agent's own account will do (plan 071): the person's Send on the card is the gate. A thread
-    // found by search has no record here, so its subject comes from the thread itself. A Jira ticket is named by its
-    // id or its key, which only a ticket that has had a card can be found by (R28, KTD7).
+    // Any thread of the agent's own account will do, in Flow or not (plan 071; plan 2026-11-14-1530, R1): the person's
+    // Send on the card is the gate, so the card shows where the reply lands as the service itself says (KTD2).
     const files = await this.files(input.attachments ?? []);
-    const record = account.provider === "jira" ? this.ticketRecord(account, input.thread_id) : this.opts.threads.get(input.account_id, input.thread_id);
-    const threadId = record?.thread_id ?? input.thread_id;
-    const where = await this.where(account, threadId, record?.subject_or_first_line ?? "");
+    const where = await readReplyDestination(
+      account,
+      this.opts.clientFor(account),
+      input.thread_id,
+      (accountId, threadId) => this.opts.threads.get(accountId, threadId) ?? null,
+    );
+    const { text, mentions } = await this.mentioned(account, where, input.text, input.mentions ?? []);
     const proposal: ReplyProposal = {
       id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
       account_id: account.account_id,
       provider: account.provider,
       account_label: accountLabel(account),
-      thread_id: threadId,
+      thread_id: where.thread_id,
       subject: where.subject,
       to: where.to,
       cc: where.cc,
       place: where.place,
-      text: input.text,
+      text,
       status: "pending",
       reason: null,
       created_at: this.now(),
       ...(files.length ? { attachments: files } : {}),
+      in_flow: where.in_flow,
+      ...(where.shared_outside ? { shared_outside: true } : {}),
+      ...(where.heard_by ? { heard_by: where.heard_by } : {}),
+      ...(mentions.length ? { mentions } : {}),
     };
     await this.locked(chat, () => {
       const r = this.record(chat);
@@ -375,6 +338,86 @@ export class ReplyProposals implements AgentReplyReports {
       return Promise.resolve();
     });
     return proposal;
+  }
+
+  /**
+   * The people a reply's text mentions (KTD3, R13): each listed entry found in the text as `@<entry>`, resolved to one
+   * person in the account (on Jira, among those who can see the ticket), and written back as `@Full Name`, so a
+   * mention given as a handle, an address or a token shows and is kept like one given by name. A Slack mention of
+   * someone not in the conversation is marked, since it will not notify them (R22). Throws the first refusal.
+   */
+  private async mentioned(
+    account: AccountRecord,
+    where: { thread_id: string; place: string | null },
+    text: string,
+    entries: readonly string[],
+  ): Promise<{ text: string; mentions: ReplyMention[] }> {
+    const wanted = [...new Set(entries.map((e) => e.trim().replace(/^@/, "")).filter(Boolean))];
+    if (wanted.length === 0) return { text, mentions: [] };
+    const people = this.opts.people;
+    if (!people) throw new Error("mentions cannot be resolved on this Mac: write the reply without them");
+    // Every entry is found in the text and rewritten together, in one longest-first pass, so an entry that begins
+    // another (`sam` and `sam.lee`) never matches inside the longer name or inside a name an earlier rewrite wrote.
+    const standing = new Set(
+      mentionSpans(
+        text,
+        wanted.map((display) => ({ display })),
+      ).map((s) => s.mention.display.toLowerCase()),
+    );
+    const resolved: Array<{ display: string; mention: ReplyMention }> = [];
+    const mentions: ReplyMention[] = [];
+    for (const entry of wanted) {
+      if (!standing.has(entry.toLowerCase())) throw new Error(`@${entry} is not in the text: write it there as @${entry}, or leave it out of mentions`);
+      const jira = account.provider === "jira" && where.place ? { jira: { kind: "ticket" as const, ticket: where.place } } : {};
+      const found = await people.resolve(account.account_id, entry, jira);
+      if (!found.ok) throw new Error(found.why);
+      const person = found.person;
+      const mention: ReplyMention =
+        person.provider === "gmail"
+          ? { display: person.display, id: null, address: person.address }
+          : { display: person.display, id: person.id, address: null };
+      resolved.push({ display: entry, mention });
+      if (!mentions.some((m) => m.display === mention.display && m.id === mention.id && m.address === mention.address)) mentions.push(mention);
+    }
+    const out = writeMentions(
+      text,
+      resolved,
+      (t) => t,
+      (r) => `@${r.mention.display}`,
+    ).join("");
+    if (account.provider === "slack" && this.opts.members) {
+      // Who is in the conversation only adds a note to the card, so a read Slack refuses (rate limited, say) leaves
+      // the mentions unmarked rather than refusing the reply.
+      const members = await this.opts.members(account.account_id, slackPlace(where.thread_id).channel).catch(() => null);
+      if (members) return { text: out, mentions: mentions.map((m) => (m.id && !members.has(m.id) ? { ...m, not_member: true } : m)) };
+    }
+    return { text: out, mentions };
+  }
+
+  /**
+   * The people the card's `@` picker offers for a proposal (R18, KTD4): the same search an agent's mentions resolve
+   * through, so the two never disagree; on Jira those who can see the ticket, on Slack each marked when they are not
+   * in the conversation (R22). A Gmail account that cannot search by name says so in `notice`.
+   */
+  async findPeople(chat: ChatKey, id: string, query: string): Promise<{ people: ReplyPersonChoice[]; notice: string | null }> {
+    const p = this.record(chat).proposals.find((x) => x.id === id);
+    if (!p) throw new Error(`no reply ${id} in this chat`);
+    const people = this.opts.people;
+    if (!people) return { people: [], notice: "people cannot be found on this Mac" };
+    const scope = p.provider === "jira" && p.place ? { jira: { kind: "ticket" as const, ticket: p.place } } : {};
+    const found = await people.find(p.account_id, query, scope);
+    const choices = found.people
+      .slice(0, PICKER_MAX)
+      .map((f): ReplyPersonChoice =>
+        f.provider === "gmail"
+          ? { display: f.display, id: null, address: f.address, detail: f.detail }
+          : { display: f.display, id: f.id, address: null, detail: f.detail },
+      );
+    if (p.provider !== "slack" || !this.opts.members || choices.length === 0) return { people: choices, notice: found.notice };
+    // As for an agent's mentions, a membership read that fails leaves the people found unmarked, not the search failed.
+    const members = await this.opts.members(p.account_id, slackPlace(p.thread_id).channel).catch(() => null);
+    if (!members) return { people: choices, notice: found.notice };
+    return { people: choices.map((c) => (c.id && !members.has(c.id) ? { ...c, not_member: true } : c)), notice: found.notice };
   }
 
   /** A chat's proposals, settled ones included, oldest first. */
@@ -518,7 +561,12 @@ export class ReplyProposals implements AgentReplyReports {
       if (refused || !account) return put({ ...p, reason: refused }, false, refused);
       // The person's edits and the files they kept are kept whatever happens next, so Undo or a refusal returns them (R5).
       const kept = (p.attachments ?? []).filter((f) => !opts.files || opts.files.includes(f.name));
-      const edits = withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept));
+      // The mentions the agent stored and those the person picked on the card count only while their `@display` is
+      // still in the text as sent (KTD6); a person picked twice is kept once, and a pick takes the place of a mention
+      // with the same name, since the text tells them apart by name alone.
+      const text = edited ?? p.text;
+      const mentions = liveMentions(text, lastByName(uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])])));
+      const edits = withMentionList(withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept)), mentions);
       try {
         await checkedFiles(kept);
       } catch (err) {
@@ -549,6 +597,7 @@ export class ReplyProposals implements AgentReplyReports {
           attached: kept.filter((f) => before.has(f.name)).map((f) => f.name),
           people: p.provider === "gmail" ? { to: p.to, cc: p.cc } : null,
           proposal: { agent_id: chat.agent_id, conversation_id: chat.conversation_id, proposal_id: p.id },
+          mentions,
         });
       } catch (err) {
         return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
@@ -587,45 +636,6 @@ export class ReplyProposals implements AgentReplyReports {
     const total = files.reduce((n, f) => n + f.size, 0);
     if (total > MAX_REPLY_BYTES) throw new Error(`the files come to ${bytesWords(total)}, and a reply carries ${bytesWords(MAX_REPLY_BYTES)} at most`);
     return files;
-  }
-
-  /**
-   * Who the card says a reply goes to, read from the thread: Gmail's reply-all, or Slack's conversation and thread; a
-   * Jira comment goes on the ticket, named by its key from its card's record.
-   */
-  private async where(
-    account: AccountRecord,
-    threadId: string,
-    subject: string,
-  ): Promise<{ subject: string; to: string[]; cc: string[]; place: string | null }> {
-    const reader = this.opts.clientFor(account);
-    if (reader.provider === "jira") return { subject, to: [], cc: [], place: this.opts.threads.get(account.account_id, threadId)?.place ?? null };
-    if (reader.provider === "gmail") {
-      const thread = await reader.client.getThread(threadId, "metadata").catch((err: unknown) => {
-        if (err instanceof GoogleError && err.status === 404) throw new Error(`there is no thread ${threadId} in ${account.address}`);
-        throw err;
-      });
-      const newest = replyTarget(thread.messages);
-      const own = [account.address, ...(await reader.client.sendAsAddresses().catch(() => []))];
-      return { subject: replySubject(headerOf(newest, "Subject") || subject), ...replyAllOf(newest, own), place: null };
-    }
-    const { channel, ts } = slackPlace(threadId);
-    const info = await reader.client.conversationsInfo(channel).catch(() => null);
-    const sender = this.opts.threads.get(account.account_id, threadId)?.sender || "them";
-    const conversation = info?.is_im ? `your DM with ${sender}` : info?.name ? `#${info.name}` : "that conversation";
-    return { subject, to: [], cc: [], place: ts ? `the thread in ${conversation}` : conversation };
-  }
-
-  /**
-   * The card's record of a Jira ticket named by its id or its key, in any case (KTD7); throws why when the ticket never
-   * had a card, since its key is known only from one (R28).
-   */
-  private ticketRecord(account: AccountRecord, ticket: string): ThreadRecord {
-    const wanted = ticket.trim().toLowerCase();
-    const found =
-      this.opts.threads.get(account.account_id, ticket.trim()) ?? this.opts.threads.list(account.account_id).find((r) => r.place?.toLowerCase() === wanted);
-    if (!found) throw new Error(`${ticket} has never had a card in Flow, so loki cannot find it: comment on a ticket flow_list lists`);
-    return found;
   }
 
   /**
@@ -707,7 +717,7 @@ export class ReplyProposals implements AgentReplyReports {
 function whoWords(p: ReplyProposal): string {
   switch (p.provider) {
     case "gmail":
-      return `to ${addresses([...p.to, ...p.cc]) || "no one"}`;
+      return `to ${inert(bareAddresses([...p.to, ...p.cc]).join(", ")) || "no one"}`;
     case "slack":
       return `in ${inert(p.place ?? "that conversation")}`;
     case "jira":
@@ -725,21 +735,35 @@ const filesWords = (files: readonly ReplyAttachment[]): string => files.map((f) 
 function sentNotice(p: ReplyProposal): string {
   const what = p.provider === "jira" ? "posted your comment" : "sent your reply";
   const files = p.attachments?.length ? `, with ${filesWords(p.attachments)}` : "";
+  const named = (p.mentions ?? []).map((m) => (m.address ? `${m.display} <${m.address}>` : m.display));
+  const mentioned = named.length ? `, ${p.provider === "gmail" ? "copying" : "mentioning"} ${inert(named.join(", "))}` : "";
   return [
-    `The person ${what} in ${p.account_label}, thread ${p.thread_id}, ${whoWords(p)}${files}. It says:`,
+    `The person ${what} in ${p.account_label}, thread ${p.thread_id}, ${whoWords(p)}${files}${mentioned}. It says:`,
     // The notice rides in a system-reminder; text that echoes a stranger's markup must not end it.
     inert(p.text),
   ].join("\n");
 }
 
-/** A proposal as a tool result lists it: one line, with its id, where it goes, its files and how it stands. */
+/**
+ * A proposal as a tool result lists it: one line, with its id, where it goes, its files and how it stands, then who its
+ * mentions resolved to, so the agent sees whom the reply tells before the person sends it (plan 2026-11-14-1530).
+ */
 function proposalLine(p: ReplyProposal): string {
   const who = whoWords(p);
   const files = p.attachments?.length ? `with ${filesWords(p.attachments)}` : "";
-  return [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, files, p.status, p.reason && inert(p.reason)]
+  const line = [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, files, p.status, p.reason && inert(p.reason)]
     .filter(Boolean)
     .join(" · ");
+  return p.mentions?.length ? `${line}\nMentions: ${inert(p.mentions.map(mentionWords).join("; "))}` : line;
 }
+
+/** One mention as the agent is told of it: the name, and what the reply does for them. */
+const mentionWords = (m: ReplyMention): string =>
+  m.address
+    ? `${m.display} <${m.address}> (copied on the mail)`
+    : m.not_member
+      ? `${m.display} (not in this conversation: will not be notified)`
+      : `${m.display} (notified)`;
 
 /**
  * Register reply_propose for the agents that own an account, the notices that tell an agent what became of its replies
@@ -759,9 +783,10 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       "Propose a reply in a thread of an account you own: one the person handed to this chat, or one a script found " +
       "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person reviews it on a card, may edit " +
       "it or take its files off, and sends it from there as themselves; you cannot send it, and nothing goes before their " +
-      "Send. It goes only to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
-      "Slack: the same conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a " +
-      "ticket that has had a card in Flow (by key or id), its files attached to the ticket. " +
+      "Send. It goes to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
+      "Slack: the same conversation and thread, or a new message in a conversation you are in), and to no one else but " +
+      "the people in `mentions`. On a Jira site it is a comment on any ticket you can see, its files attached to the ticket. The thread " +
+      "need not be in Flow. " +
       "You hear what became of it with the next message.",
     parameters: {
       type: "object",
@@ -769,9 +794,16 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
         account: { type: "string", description: "The account's id or name, from the prompt's list of your accounts, a script or the hand-off." },
         thread: {
           type: "string",
-          description: "The thread id, from the hand-off or a script (flow_list, google_gmail_search, slack_read); for Jira, the ticket's key or id.",
+          description:
+            "The thread: Gmail's thread id (from the hand-off or a script); Slack's `channel:ts`, a channel or DM id, a message link or #channel; Jira's ticket key, id or link.",
         },
-        text: { type: "string", description: "The reply, as plain text." },
+        text: { type: "string", description: "The reply, as plain text. Write each person in `mentions` into it as @<entry>." },
+        mentions: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "People to mention, each as written after its @ in the text: a full name, an address, a Slack handle, or a token a refusal gave; a script's people_find looks them up first. Slack and Jira notify them; Gmail adds them to cc. A name that matches several people or nobody is refused with who matched: ask the person which one they mean. Any other @ in the text stays plain text.",
+        },
         attachments: {
           type: "array",
           items: { type: "string" },
@@ -796,6 +828,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
           thread_id: thread,
           text: argText(ctx.args.text),
           ...(attachments.length ? { attachments } : {}),
+          ...(Array.isArray(ctx.args.mentions) ? { mentions: ctx.args.mentions.map(argText).filter(Boolean) } : {}),
         });
         log("tool:reply_propose", { agent: ctx.agent.id, provider: p.provider });
         return `Proposed ${p.id}: it waits for the person to review and send it.\n${proposalLine(p)}`;
@@ -816,7 +849,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose, with `attachments` for its files: the person reviews the reply on a card and sends it from there; you cannot send it. Never send mail, Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), use reply_propose, with `attachments` for its files and `mentions` for the people it should tell: the person reviews the reply on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

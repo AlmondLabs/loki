@@ -1,14 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
 import { messageOf } from "../core/errors.ts";
-import { accountIdOf, type Accounts, type AccountRecord } from "./accounts.ts";
-import type { GoogleService } from "../core/frame-types.ts";
+import { accountIdOf, type Accounts, type AccountRecord, type GoogleGrants } from "./accounts.ts";
 import { GOOGLE_TIMEOUT_MS } from "./google-auth.ts";
 import {
   GOOGLE_AUTH_URL,
   GOOGLE_TOKEN_URL,
+  CONTACT_SCOPES,
   SERVICE_SCOPES,
   SHARED_APP_MISSING,
   SHARED_GOOGLE_APP,
+  grantedContacts,
   grantedServices,
   isUsableApp,
   type GmailSecret,
@@ -31,10 +32,11 @@ export const GOOGLE_OAUTH_CALLBACK = "/accounts/google/callback";
 export const googleCallbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT)): string => `http://127.0.0.1:${port}${GOOGLE_OAUTH_CALLBACK}`;
 
 /**
- * What loki asks Google for: Gmail, Drive, Sheets, Docs and Calendar for scripts (plan 2026-11-11 scripts, R16), and
- * who the person is. Google may let the person untick a service; what was granted is kept (grantedServices).
+ * What loki asks Google for: Gmail, Drive, Sheets, Docs and Calendar for scripts (plan 2026-11-11 scripts, R16), read-only
+ * contacts, other contacts and directory to find people by name (plan 2026-11-14-1530, KTD7), and who the person is.
+ * Google may let the person untick any of them; what was granted is kept (grantedServices, grantedContacts).
  */
-export const GOOGLE_SCOPES = [...Object.values(SERVICE_SCOPES), "openid", "https://www.googleapis.com/auth/userinfo.email"];
+export const GOOGLE_SCOPES = [...Object.values(SERVICE_SCOPES), ...Object.values(CONTACT_SCOPES), "openid", "https://www.googleapis.com/auth/userinfo.email"];
 
 /** How long a sign-in may take between opening Google's page and coming back. */
 export const PENDING_SIGN_IN_MS = 10 * 60 * 1000;
@@ -158,8 +160,11 @@ export class GoogleSignIn {
       const address = await this.address(tokens.access_token);
       const secret: GmailSecret = { ...tokens, ...(pending.own ? { own_app: pending.app } : {}) };
       // An answer without its scopes is read as Gmail alone, never as more than was asked for.
-      const services = tokens.scopes === undefined ? (["gmail"] satisfies GoogleService[]) : grantedServices(tokens.scopes);
-      const account = await this.connect(address, pending, JSON.stringify(secret), services);
+      const grants: GoogleGrants =
+        tokens.scopes === undefined
+          ? { services: ["gmail"], contacts: [] }
+          : { services: grantedServices(tokens.scopes), contacts: grantedContacts(tokens.scopes) };
+      const account = await this.connect(address, pending, JSON.stringify(secret), grants);
       return { ok: true, message: `Connected ${address}. You can close this tab and go back to loki.`, account };
     } catch (error) {
       return { ok: false, message: `Gmail did not connect: ${messageOf(error)}` };
@@ -214,23 +219,23 @@ export class GoogleSignIn {
 
   /**
    * A new mailbox is added with its owner; Accounts refuses one connected already. A mailbox here that lost its
-   * sign-in (R22), or one signed in again on purpose (`account_id`, R18), takes the new tokens and services and is
+   * sign-in (R22), or one signed in again on purpose (`account_id`, R18), takes the new tokens and grants and is
    * connected, keeping its owner and where its watcher stands. Nothing is written when the sign-in came back as another
    * address than the account it was for, or without Gmail, which loki needs to read the mailbox at all.
    */
-  private async connect(address: string, pending: Pending, secret: string, services: GoogleService[]): Promise<AccountRecord> {
+  private async connect(address: string, pending: Pending, secret: string, grants: GoogleGrants): Promise<AccountRecord> {
     const accountId = accountIdOf({ provider: "gmail", address });
     const wanted = pending.account_id;
     if (wanted && wanted !== accountId)
       throw new Error(`you signed in as ${address.toLowerCase()}, not ${wanted.replace(/^gmail:/, "")}: nothing was changed. Sign in again as that account.`);
-    if (!services.includes("gmail"))
+    if (!grants.services.includes("gmail"))
       throw new Error(
         "Gmail was unticked on Google's page, and loki needs it to read this mailbox: nothing was changed. Sign in again and leave Gmail ticked.",
       );
     const existing = this.opts.accounts.get(accountId);
-    if (existing && (existing.status !== "connected" || wanted)) return this.opts.accounts.signedIn(accountId, secret, services);
+    if (existing && (existing.status !== "connected" || wanted)) return this.opts.accounts.signedIn(accountId, secret, grants);
     return this.opts.accounts.add(
-      { account_id: accountId, provider: "gmail", address: address.toLowerCase(), owner_agent_id: pending.owner_agent_id, services },
+      { account_id: accountId, provider: "gmail", address: address.toLowerCase(), owner_agent_id: pending.owner_agent_id, ...grants },
       secret,
     );
   }

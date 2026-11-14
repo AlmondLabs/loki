@@ -70,14 +70,22 @@ export interface AccountRow {
    * their names; null when it has them all, or is not a Google account.
    */
   more: { reconnect: Reconnect; services: string } | null;
+  /**
+   * A connected Gmail account that has not let loki look in its contacts and directory (plan 2026-11-14-1530, R15):
+   * the line saying agents find people there by address only, which signing in again fixes; null otherwise.
+   */
+  people: string | null;
 }
+
+/** What a Gmail row says while its sign-in has not granted contacts (R15). */
+export const PEOPLE_BY_ADDRESS_ONLY = "Agents can find people here only by address until it signs in again for Contacts";
 
 /** The Google services loki asks for, by the words the row uses. */
 const GOOGLE_SERVICE_WORDS: Record<GoogleService, string> = { gmail: "Gmail", drive: "Drive", sheets: "Sheets", docs: "Docs", calendar: "Calendar" };
 
-/** Services as one phrase: "Drive", "Drive and Docs", "Drive, Sheets and Docs". */
-function servicesWords(services: readonly GoogleService[]): string {
-  const words = services.map((s) => GOOGLE_SERVICE_WORDS[s]);
+/** Services as one phrase: "Drive", "Drive and Docs", "Drive, Sheets and Docs"; Contacts last when it is missing too. */
+function servicesWords(services: readonly GoogleService[], contacts = false): string {
+  const words = [...services.map((s) => GOOGLE_SERVICE_WORDS[s]), ...(contacts ? ["Contacts"] : [])];
   return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1) ?? ""}`;
 }
 
@@ -143,17 +151,24 @@ export function accountRows(accounts: readonly AccountView[], agents: readonly A
     const reconnect = cause && cause !== "temporarily_failing" ? reconnectOf(a) : null;
     // An account signed in before loki asked for more than Gmail has granted Gmail alone.
     const missing = a.provider === "gmail" ? GOOGLE_SERVICES.filter((s) => !(a.services ?? ["gmail"]).includes(s)) : [];
-    const more = !cause && missing.length > 0 ? { reconnect: reconnectOf(a), services: servicesWords(missing) } : null;
+    // Contacts is a grant of its own (KTD7): its line sits apart from the one about the services scripts use.
+    const noContacts = a.provider === "gmail" && !cause && (a.contacts ?? []).length === 0;
+    const more = !cause && (missing.length > 0 || noContacts) ? { reconnect: reconnectOf(a), services: servicesWords(missing, noContacts) } : null;
     return {
       account_id: a.account_id,
       label: a.address,
       service: SERVICE[a.provider],
       owner_agent_id: a.owner_agent_id,
       owner: agents.find((g) => g.id === a.owner_agent_id)?.name ?? "an agent no longer here",
-      state: cause ? disconnectedText(cause, a.provider) : more ? `Connected; scripts cannot use ${more.services} until it signs in again` : "Connected",
+      state: cause
+        ? disconnectedText(cause, a.provider)
+        : missing.length > 0
+          ? `Connected; scripts cannot use ${servicesWords(missing)} until it signs in again`
+          : "Connected",
       problem: cause !== null,
       reconnect,
       more,
+      people: noContacts ? PEOPLE_BY_ADDRESS_ONLY : null,
     };
   });
 }
@@ -382,6 +397,7 @@ function AccountLine({
         </span>
       </div>
       <div className={row.problem ? "loki-meta loki-meta--negative loki-meta--wrap" : "loki-meta loki-meta--wrap"}>{sentence(row.state)}</div>
+      {row.people && <div className="loki-meta loki-meta--wrap">{row.people}</div>}
       <div className="flex flex-wrap items-center gap-2">
         {reconnect && (
           <Button tone="positive" onClick={() => onReconnect(reconnect)}>
