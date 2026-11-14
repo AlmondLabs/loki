@@ -34,14 +34,14 @@ export function Stat({ data }: KitProps) {
   return (
     <div className="loki-widget-body">
       <div className="flex items-baseline gap-1">
-        <span className="loki-mono" style={{ fontSize: "var(--loki-text-hero)", fontWeight: 600 }}>
+        <span className="loki-mono" style={{ fontSize: "var(--text-2xl)", fontWeight: 600 }}>
           {asText(data.value ?? "—")}
         </span>
         {typeof data.unit === "string" && <span className="loki-muted">{data.unit}</span>}
         {delta !== null && (
           <span
             style={{
-              fontSize: "var(--loki-text-meta)",
+              fontSize: "var(--text-xs)",
               color: delta >= 0 ? "var(--loki-positive)" : "var(--loki-negative)",
             }}
           >
@@ -50,7 +50,7 @@ export function Stat({ data }: KitProps) {
         )}
       </div>
       {typeof data.label === "string" && (
-        <div className="loki-muted" style={{ fontSize: "var(--loki-text-meta)" }}>
+        <div className="loki-muted" style={{ fontSize: "var(--text-xs)" }}>
           {data.label}
         </div>
       )}

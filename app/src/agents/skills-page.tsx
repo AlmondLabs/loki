@@ -77,9 +77,7 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
       <SkillActions d={d} store={store} skill={skill} loadingView={loadingView} />
       <div className="grid gap-1" style={{ marginBottom: 12 }}>
         <SkillOrigin skill={skill} agentName={d.agent.name} />
-        {skill.description && (
-          <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{skill.description}</div>
-        )}
+        {skill.description && <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{skill.description}</div>}
         {store.needsSource === skill.name && (
           <SourceAsk name={skill.name} onGo={(src) => store.refreshSkill(skill, src)} onCancel={() => store.setNeedsSource(null)} />
         )}
@@ -123,7 +121,7 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
 /** Where the skill came from: written by the agent, from a source, or installed with the source unknown (in the accent, as a nudge). */
 function SkillOrigin({ skill, agentName }: { skill: AgentSkill; agentName: string }) {
   return (
-    <div style={{ fontSize: "var(--loki-text-fine)", color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+    <div style={{ fontSize: "var(--text-xs)", color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
       {skill.origin === "self" ? `Written by ${agentName}` : skill.source ? `From ${skill.source.label}` : "Installed · source unknown"}
       {skill.origin === "other" && skill.edited ? ` · edited by ${agentName} since` : ""}
     </div>

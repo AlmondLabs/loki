@@ -67,7 +67,7 @@ export function Welcome({
         {/* loki's mark, the L (app/public/mark.png). */}
         <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--loki-radius-md)", marginBottom: 16 }} />
         <Title page>Welcome to loki</Title>
-        <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
         </div>
       </div>
@@ -220,7 +220,7 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
   if (status?.nodeMissing) return <NodeNeeded missing={status.nodeMissing} busy={busy} onRecheck={retry} />;
   return (
     <div className="grid gap-2">
-      <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
       {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
         Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
@@ -241,9 +241,7 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
   const help = nodeHelp(missing.os);
   return (
     <div className="grid gap-2">
-      <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>
-        Node 22 or newer is needed. loki runs your agents on it.
-      </div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. loki runs your agents on it.</div>
       {missing.found && (
         <div className="loki-meta loki-meta--wrap">
           The Node found is {missing.found}
@@ -283,7 +281,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
           width: 24,
           height: 24,
           borderRadius: "var(--loki-radius-lg)",
-          fontSize: "var(--loki-text-meta)",
+          fontSize: "var(--text-xs)",
           fontWeight: 600,
           border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`,
           color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)",
@@ -292,7 +290,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
         {done ? <Glyph icon={CheckIcon} /> : n}
       </span>
       <div className="grid gap-2">
-        <div style={{ fontSize: "var(--loki-text-row)", fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>
+        <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>
         {children}
       </div>
     </section>
@@ -302,7 +300,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 /** A labelled line of the form: the label column matches Settings' facts. */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="grid grid-cols-[90px_1fr] items-start gap-3" style={{ fontSize: "var(--loki-text-meta)" }}>
+    <label className="grid grid-cols-[90px_1fr] items-start gap-3" style={{ fontSize: "var(--text-xs)" }}>
       <span className="loki-label" style={{ paddingTop: 8 }}>
         {label}
       </span>

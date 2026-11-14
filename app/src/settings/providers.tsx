@@ -260,7 +260,7 @@ function ProviderRow({
       <Row onClick={onToggle} aria-expanded={open}>
         <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
         <span className="grid gap-px min-w-0 flex-1">
-          <span style={{ fontSize: "var(--loki-text-body)", fontWeight: 600 }}>{p.display_name}</span>
+          <span style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>{p.display_name}</span>
           {p.description && !open && <span className="loki-meta">{p.description}</span>}
         </span>
         {connected && (
@@ -300,12 +300,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         </span>
       )}
       {fields.map((f) => (
-        <label
-          key={f.key}
-          htmlFor={`${fieldId}-${f.key}`}
-          className="grid grid-cols-[140px_1fr] items-center gap-3"
-          style={{ fontSize: "var(--loki-text-meta)" }}
-        >
+        <label key={f.key} htmlFor={`${fieldId}-${f.key}`} className="grid grid-cols-[140px_1fr] items-center gap-3" style={{ fontSize: "var(--text-xs)" }}>
           <span style={{ color: "var(--loki-muted)" }}>
             {f.label}
             {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
@@ -348,7 +343,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       </div>
       {signIn && busy && (
-        <label htmlFor={`${fieldId}-address`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3" style={{ fontSize: "var(--loki-text-meta)" }}>
+        <label htmlFor={`${fieldId}-address`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3" style={{ fontSize: "var(--text-xs)" }}>
           <span style={{ color: "var(--loki-muted)" }}>Browser didn't come back?</span>
           <Field
             id={`${fieldId}-address`}

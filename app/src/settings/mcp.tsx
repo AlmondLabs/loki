@@ -188,7 +188,7 @@ function ServerRow({
                     aria-label={`Always load ${t.name}`}
                   />
                   <span className="min-w-0">
-                    <span className="loki-mono" style={{ fontSize: "var(--loki-text-meta)" }}>
+                    <span className="loki-mono" style={{ fontSize: "var(--text-xs)" }}>
                       {t.name}
                     </span>
                     {t.read_only && (

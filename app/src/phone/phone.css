@@ -9,17 +9,6 @@
 
 /* Night: iOS's black ground, grouped surfaces a step lighter. */
 .loki-phone {
-  /* The shared components the phone draws keep a step larger scale than the Mac's (kit/tokens.css), for a phone held
-     closer and read by touch; a property set here wins over the one the root passes down. */
-  --loki-text-micro: 9.5px;
-  --loki-text-fine: 10.5px;
-  --loki-text-tag: 11px;
-  --loki-text-meta: 12px;
-  --loki-text-body: 13.5px;
-  --loki-text-row: 15px;
-  --loki-text-title: 17px;
-  --loki-text-display: 22px;
-  --loki-text-hero: 28px;
   color-scheme: dark;
   --loki-bg: #000000;
   --loki-panel: #1c1c1e;
@@ -213,7 +202,8 @@ html:has(.loki-phone-shell) {
    a native app's Dynamic Type does. iOS reports it as the body style's size: on the document, -apple-system-body
    makes 1rem that size (17px at the default), and the scale keeps its proportions to it, so the default draws
    exactly the px above. Clamped, a step below and about half again above the default, so the larger accessibility
-   sizes grow the text without breaking rows built around a 44px touch. Spacing and touch sizes stay fixed. Only on
+   sizes grow the text without breaking rows built around a 44px touch. The phone's own spacing and touch sizes stay fixed; the shared parts it draws use
+   Tailwind's sizes and spacing in rem, so they follow Text Size without a cap. Only on
    a touch screen with WebKit's text styles: a desktop browser keeps the px scale (macOS's body style is 13px). */
 @supports (font: -apple-system-body) {
   @media (hover: none) and (pointer: coarse) {

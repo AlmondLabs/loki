@@ -80,11 +80,16 @@ const contrast = (a: Rgb, b: Rgb) => {
   return (high + 0.05) / (low + 0.05);
 };
 
-/** Type scale (px): micro, meta, label (.loki-label), small, body, row title, card title, display, hero. */
-const FONT_SCALE = new Set([9.5, 10.5, 11, 12, 13.5, 15, 17, 22, 28]);
+/**
+ * The font sizes a style may name: Tailwind's text-xs, text-sm, text-base and text-2xl as they ship, by their theme
+ * variables, or the phone's own scale (--phone-text-*), which phone-only rules and the touch ternaries keep.
+ */
+const FONT_SIZE = /^var\(--(?:text-(?:xs|sm|base|2xl)|phone-text-[a-z-]+)\)$/;
+/** AgentFace's initial is sized from the face it sits in: the one font size worked out rather than named. */
+const FACE_INITIAL = { path: "desk/agent-chip.tsx", value: "Math.max(9, Math.round(size * 0.5))" };
 /**
  * Spacing (px), the desktop's padding, margins and gaps: a hairline, then loki's 4px grid with 20 for the pane inset.
- * They are Tailwind's steps 0, px, 0.5, 1, 2, 3, 4, 5, 6, 8 and 12, because styles.css sets one step to 4px.
+ * They are Tailwind's steps 0, px, 0.5, 1, 2, 3, 4, 5, 6, 8 and 12: one step is Tailwind's default quarter rem, 4px at the 16px root.
  * The phone keeps its own scale, --phone-space-1 to 6.
  */
 const SPACE = new Set([0, 1, 2, 4, 8, 12, 16, 20, 24, 32, 48]);
@@ -99,7 +104,7 @@ const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
 const TRACKING = new Set<string>([]);
 /** Serif, condensed and narrow faces have no place in either presentation. */
 const RETIRED_FACE = /(?<!sans-)serif|New York|Iowan|Georgia|Avenir|Condensed|Narrow/i;
-/** The agent's hue is computed, not a token; its glyph size is derived from the face size. */
+/** The agent's hue is computed, not a token. */
 const COMPUTED = (hit: string) => hit.startsWith("desk/agent-chip.tsx:");
 
 const findAll = (list: typeof files, re: RegExp, pick: (m: RegExpMatchArray) => string) =>
@@ -145,6 +150,51 @@ const offSpaceInline = (path: string, text: string) =>
     .filter((m) => offSpace(m[1]).length > 0)
     .map((m) => `${path}:${lineAt(text, m.index)}: ${m[1].trim()}`);
 
+/**
+ * Whether a font size expression leaves the four sizes: any string in it that is not one of FONT_SIZE's forms, or any
+ * number outside its strings, which would be px. A ternary passes when both its sides do.
+ */
+const offFontExpr = (expr: string) => {
+  const strings = [...expr.matchAll(/(["'`])(.*?)\1/g)].map((m) => m[2]);
+  const rest = expr.replace(/"[^"]*"|'[^']*'|`[^`]*`/g, "");
+  return strings.some((s) => !FONT_SIZE.test(s)) || /(?<![\w.$])\d/.test(rest);
+};
+
+/**
+ * What a bare name stands for: its nearest definition above the use, a `const` or a parameter's default (`size = 12`),
+ * written with spaces round the `=` as Prettier writes them, which a JSX attribute (`size={12}`) never is. Undefined
+ * when there is none in the file, so a size the fence cannot read fails rather than slips by.
+ */
+const definitionOf = (text: string, at: number, expr: string) => {
+  if (!/^[A-Za-z_$][\w$]*$/.test(expr)) return expr;
+  const defs = [...text.slice(0, at).matchAll(new RegExp(`\\b${expr.replace("$", "\\$")} = ((?:"[^"]*"|'[^']*'|[^,;)}\\n"'])+)`, "g"))];
+  return defs.at(-1)?.[1].trim();
+};
+
+/**
+ * Font sizes in a view that leave the four sizes, as "path:line: value": a style object's `fontSize:` and a JSX
+ * `fontSize={…}` or `fontSize="…"` prop (a chart's axis), with a bare name read through definitionOf. A value runs to
+ * the next comma or brace outside its quotes and parentheses. AgentFace's computed initial is the one exemption.
+ */
+const offFontInline = (path: string, text: string) =>
+  [...text.matchAll(/\bfontSize(?:=("[^"]*")|(?:: |=\{)((?:`[^`]*`|"[^"]*"|'[^']*'|\((?:[^()\n]|\([^()\n]*\))*\)|[^,}\n"'`()])+))/g)]
+    // the JSX string prop is the first group, everything else the second; the group that did not match is undefined, whatever its type says
+    .map((m) => ({ at: m.index, value: (m[1] || m[2]).trim() }))
+    .filter(({ at, value }) => {
+      if (path === FACE_INITIAL.path && value === FACE_INITIAL.value) return false;
+      const meaning = definitionOf(text, at, value);
+      return meaning === undefined || offFontExpr(meaning);
+    })
+    .map(({ at, value }) => `${path}:${lineAt(text, at)}: ${value}`);
+
+/** font-size declarations in a stylesheet that are not one of the four sizes, the phone's scale or inherit, as "path:line: value". */
+const offFontCss = (path: string, text: string) => {
+  const bare = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, " "));
+  return [...bare.matchAll(/(?<![\w-])font-size\s*:\s*([^;{}]+)/g)]
+    .filter((m) => m[1].trim() !== "inherit" && !FONT_SIZE.test(m[1].trim()))
+    .map((m) => `${path}:${lineAt(bare, m.index)}: ${m[1].trim()}`);
+};
+
 describe("design tokens: every style stays on the scales", () => {
   test("no literal colours — every colour is a --loki token", () => {
     const re = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b(?![0-9a-fA-F])|rgba?\([^)]*\)|hsla?\([^)]*\)/g;
@@ -152,11 +202,54 @@ describe("design tokens: every style stays on the scales", () => {
     const hits = findAll(files, re, (m) => m[0]).filter((h) => !COMPUTED(h) && !h.startsWith("kit/tokens.css") && !h.startsWith("phone/phone.css"));
     expect(hits).toEqual([]);
   });
-  test("font sizes come from the type scale (inline, px strings, expressions, css)", () => {
-    const inline = findAll(code, /fontSize: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => !COMPUTED(h));
-    const off = inline.filter((h) => numbers(value(h)).some((n) => !FONT_SCALE.has(n)));
-    const inCss = findAll(files, /font-size:\s*([\d.]+)px/g, (m) => m[1]).filter((h) => !FONT_SCALE.has(Number(value(h))));
-    expect([...off, ...inCss]).toEqual([]);
+  test("the font size fence fails loki's old tokens, px and numbers, and passes the four sizes and the phone's", () => {
+    expect(offFontCss("x.css", ".a { font-size: var(--loki-text-body); }")).toHaveLength(1);
+    expect(offFontCss("x.css", ".a {\n  font-size: 13px;\n}")).toEqual(["x.css:2: 13px"]);
+    expect(offFontCss("x.css", ".a { font-size: 0.9em; }")).toHaveLength(1);
+    expect(
+      offFontCss(
+        "x.css",
+        ".a { font-size: var(--text-xs); } .b { font-size: var(--text-sm); } .c { font-size: var(--text-base); line-height: 1.4; } .d { font-size: var(--text-2xl); } .e { font-size: inherit; } .f { font-size: var(--phone-text-body); } /* font-size: 13px */",
+      ),
+    ).toEqual([]);
+    expect(offFontInline("x.tsx", 'const s = { fontSize: "var(--loki-text-meta)" };')).toHaveLength(1);
+    expect(offFontInline("x.tsx", "const s = { fontSize: 11, color: x };")).toHaveLength(1);
+    expect(offFontInline("x.tsx", 'const s = { fontSize: "13px" };')).toHaveLength(1);
+    expect(offFontInline("x.tsx", "const a = <XAxis fontSize={11} tickLine={false} />;")).toHaveLength(1);
+    expect(offFontInline("x.tsx", 'const s = { fontSize: touch ? "var(--phone-text-body)" : 12 };')).toHaveLength(1);
+    // a number behind a name: a const, and a parameter's default
+    expect(offFontInline("x.tsx", 'const size = touch ? "var(--phone-text-body)" : 12;\nconst s = { fontSize: size };')).toEqual(["x.tsx:2: size"]);
+    expect(offFontInline("x.tsx", "function Chip({ size = 10.5 }) {\n  return <b style={{ fontSize: size }} />;\n}")).toHaveLength(1);
+    expect(offFontInline("x.tsx", "const s = { fontSize: imported };")).toHaveLength(1);
+    // the computed initial is exempt in AgentFace's file only, and only that line
+    expect(offFontInline("x.tsx", "const s = { fontSize: Math.max(9, Math.round(size * 0.5)) };")).toHaveLength(1);
+    expect(offFontInline("desk/agent-chip.tsx", "const s = { fontSize: Math.max(9, Math.round(size * 0.5)), gap: 4 };")).toEqual([]);
+    expect(offFontInline("desk/agent-chip.tsx", "const s = { fontSize: 10.5 };")).toHaveLength(1);
+    expect(
+      offFontInline(
+        "x.tsx",
+        [
+          'const s = { fontSize: "var(--text-xs)", color: x };',
+          'const t = { fontSize: touch ? "var(--phone-text-body)" : "var(--text-sm)" };',
+          'const u = { fontSize: "var(--phone-text-body)" };',
+          'const size = touch ? "var(--phone-text-body)" : "var(--text-sm)";',
+          "const v = { fontSize: size };",
+          // a later name for a button's size is not the one the font size read
+          'const size = touch ? "touch" : "sm";',
+          'const a = <XAxis fontSize="var(--text-xs)" size={12} />;',
+          'const b = <b style={{ fontSize: "var(--text-base)" }} />;',
+          'const c = <b style={{ fontSize: "var(--text-2xl)" }} />;',
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+  test("font sizes are Tailwind's four or the phone's, in views and in desktop and shared stylesheets", () => {
+    const inline = code.flatMap((f) => offFontInline(f.path, f.text));
+    const inCss = css.filter((f) => !f.path.startsWith("phone/")).flatMap((f) => offFontCss(f.path, f.text));
+    expect([...inline, ...inCss]).toEqual([]);
+  });
+  test("no --loki-text- token is defined or used anywhere: loki's text sizes are Tailwind's", () => {
+    expect(findAll(files, /--loki-text-[a-z]+/g, (m) => m[0])).toEqual([]);
   });
   test("the inline spacing fence fails an off-scale literal and passes tokens, names and the phone's ternaries", () => {
     expect(offSpaceInline("x.tsx", 'const s = { padding: "14px 28px" };')).toHaveLength(1);
@@ -213,7 +306,7 @@ describe("design tokens: every style stays on the scales", () => {
     expect([...inline, ...inCss]).toEqual([]);
   });
   test("a small muted or negative line is .loki-meta, not a hand-set fontSize and colour", () => {
-    const off = findAll(code, /fontSize: (?:12|10\.5), color: "var\(--loki-(?:muted|negative)\)"/g, (m) => m[0]);
+    const off = findAll(code, /fontSize: "var\(--text-xs\)", color: "var\(--loki-(?:muted|negative)\)"/g, (m) => m[0]);
     expect(off).toEqual([]);
   });
   test("shadows are the four named shadows", () => {
@@ -342,7 +435,7 @@ describe("design tokens: the desktop's faces, focus and radii", () => {
     const label = rule(".loki-label");
     expect(label).not.toMatch(/text-transform:\s*uppercase/);
     expect(label).not.toMatch(/letter-spacing/);
-    expect(label).toMatch(/font-size:\s*var\(--loki-text-meta\)/);
+    expect(label).toMatch(/font-size:\s*var\(--text-xs\)/);
     expect(label).toMatch(/font-weight:\s*600/);
     expect(label).toMatch(/color:\s*var\(--loki-muted\)/);
   });
@@ -638,7 +731,7 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
  * shadcn on loki's tokens (plan 096, U2). shadcn's colour names are loki's roles under other names, declared once in
  * tokens.css; the pairs shadcn draws text on meet AA in every family and side; its stacking repeats LAYER. Tailwind's
  * default theme stays for the agents' widgets, so loki's own class strings are fenced here instead: no default palette
- * colour, no default text size, no arbitrary size, radius, layer or tracking, no weight outside 400 · 600 · 700.
+ * colour, no text size but xs, sm, base and 2xl, no arbitrary size, radius, layer or tracking, no weight outside 400 · 600 · 700.
  */
 describe("shadcn reads loki's tokens, and loki's class strings stay on its scales", () => {
   const styles = readFileSync(join(APP, "styles.css"), "utf8");
@@ -701,7 +794,9 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
       "a default palette colour",
       /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|divide|placeholder|caret|decoration|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|black|white)(?:-\d{2,3})?(?:\/\d+)?\b/,
     ],
-    ["a default text size", /\btext-(?:xs|sm|base|lg|xl|[2-9]xl)\b/],
+    // Tailwind's other sizes, and loki's retired names, which would now size nothing. Nothing word-like or a hyphen
+    // comes before the class, so var(--phone-text-body) is not one.
+    ["a text size other than xs, sm, base and 2xl", /(?<![\w-])text-(?:lg|xl|[3-9]xl|micro|fine|tag|meta|body|row|title|display|hero)\b/],
     ["an arbitrary size, radius, layer, weight or line height", /\b(?:text|z|font|leading|shadow)-\[|\brounded(?:-[trblse]{1,2})?-\[(?!(?:1|3|4|9|24)px\])/],
     // small numbers stack inside one component, which the design allows; 50 and up is window-level stacking
     ["a numbered window layer", /\bz-(?:[5-9]\d|\d{3,})\b/],
@@ -744,11 +839,18 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     ]);
 
   test("the fence catches what it should and passes loki's names", () => {
-    expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
+    expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-lg z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
     expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(2);
-    expect(offScale("x.tsx", 'const a = <b className="bg-primary text-body text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
+    expect(offScale("x.tsx", 'const a = <b className="bg-primary text-sm text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
       [],
     );
+  });
+
+  test("the fence holds text sizes to Tailwind's xs, sm, base and 2xl, and fails loki's retired names", () => {
+    for (const cls of ["text-meta", "hover:text-meta", "group-data-[size=sm]/card:text-body", "text-hero", "text-lg", "text-xl", "text-3xl"])
+      expect(offScale("x.tsx", `const a = <b className="flex ${cls}" />;`), cls).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="text-xs text-sm text-base text-2xl sm:text-xs text-loki-muted" />;')).toEqual([]);
+    expect(offScale("x.tsx", 'const s = { fontSize: "var(--phone-text-body)" };')).toEqual([]);
   });
 
   test("the fence holds gap and space classes to the spacing scale, outside shadcn's own files", () => {

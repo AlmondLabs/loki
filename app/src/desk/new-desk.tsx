@@ -319,7 +319,7 @@ export function ChangeFolder({
     >
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">Change folder</div>
-        <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
+        <div style={{ fontSize: "var(--text-base)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
           {title ? `Move ${title}` : "Move this chat"}
           {agentName ? ` · ${agentName}` : ""}
         </div>
@@ -344,7 +344,7 @@ export function ChangeFolder({
         <div className="loki-meta loki-meta--wrap">
           {currentFolder ? `Now in ${currentFolder}. ` : ""}The agent is told the folder changed on its next turn.
         </div>
-        {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>{error}</div>}
+        {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--text-xs)" }}>{error}</div>}
       </div>
       <div className="flex items-center gap-2" style={{ padding: 12, borderTop: "1px solid var(--loki-border)" }}>
         <span className="loki-label">Enter move · esc close</span>
@@ -549,7 +549,7 @@ function FolderList({
               }}
               style={{ display: "grid", gap: 0 }}
             >
-              <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{label}</div>
+              <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)" }}>{label}</div>
               <div className="loki-meta loki-mono">{o.path}</div>
             </Row>
           </div>

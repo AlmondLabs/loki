@@ -374,7 +374,7 @@ function AccountLine({
     <div className="grid gap-2" style={{ padding: "12px 0" }}>
       <div className="flex items-center gap-2">
         <Dot color={row.problem ? "var(--loki-negative)" : "var(--loki-positive)"} />
-        <strong className="min-w-0" style={{ fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
+        <strong className="min-w-0" style={{ fontSize: "var(--text-sm)", overflowWrap: "anywhere" }}>
           {row.label}
         </strong>
         <span className="loki-meta">

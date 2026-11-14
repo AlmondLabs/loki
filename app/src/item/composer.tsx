@@ -89,7 +89,7 @@ function MessagesBox({
               aria-controls={props["aria-controls"]}
               aria-activedescendant={props["aria-activedescendant"]}
               aria-expanded={props["aria-expanded"]}
-              className="loki-composer-field max-h-36 min-w-0 flex-1 text-body"
+              className="loki-composer-field max-h-36 min-w-0 flex-1 text-sm"
               {...field}
             />
             <span className="loki-composer-act">
@@ -139,7 +139,7 @@ function MessagesBox({
       </div>
       {onImages && <input ref={picker} type="file" multiple hidden onChange={onPicked} />}
       {dictation.error && (
-        <span id="loki-dictation-error" role="status" className="text-meta text-destructive">
+        <span id="loki-dictation-error" role="status" className="text-xs text-destructive">
           {dictation.error}
         </span>
       )}
@@ -162,7 +162,7 @@ function QueuedList({ queued, onCancelQueued }: { queued: readonly TranscriptRow
           <QueueItem key={`${k}-${row.text}`} className="flex-row items-center gap-2">
             <QueueItemIndicator />
             <QueueItemContent>{row.text}</QueueItemContent>
-            <span className="shrink-0 text-meta text-muted-foreground">Sends when this turn ends</span>
+            <span className="shrink-0 text-xs text-muted-foreground">Sends when this turn ends</span>
             {onCancelQueued && (
               <QueueItemActions>
                 <QueueItemAction
@@ -191,7 +191,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
         <div data-attachments className="flex flex-wrap gap-2 px-3 pt-2">
           {images.map((a) =>
             isFileAttachment(a) ? (
-              <span key={a.id} title={a.path} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-meta">
+              <span key={a.id} title={a.path} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
                 <FileIcon className="size-4 text-muted-foreground" aria-hidden />
                 <span className="loki-truncate max-w-40">{a.name}</span>
                 <span className="text-muted-foreground">{fileSize(a.size)}</span>
@@ -218,7 +218,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
               key={u.id}
               title={u.error}
               data-failed={u.error ? true : undefined}
-              className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-meta"
+              className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
             >
               <FileIcon className="size-4 text-muted-foreground" aria-hidden />
               <span className="loki-truncate max-w-40">{u.name}</span>
@@ -233,7 +233,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
         </div>
       )}
       {failedUpload && (
-        <span role="status" className="px-3 pt-2 text-meta text-destructive">
+        <span role="status" className="px-3 pt-2 text-xs text-destructive">
           {failedUpload.name}: {failedUpload.error}
         </span>
       )}

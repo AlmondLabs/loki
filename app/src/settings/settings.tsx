@@ -267,7 +267,7 @@ export function Settings({
             {group.title}
           </h3>
           {onClose && (
-            <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: "var(--loki-text-title)" }}>
+            <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: "var(--text-base)" }}>
               <Glyph icon={XIcon} size={16} />
             </IconButton>
           )}
@@ -687,7 +687,7 @@ const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 Hours", "1d": "1
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {
   return (
-    <span className="loki-mono" style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)" }}>
+    <span className="loki-mono" style={{ fontSize: "var(--text-xs)", color: "var(--loki-fg)" }}>
       {children}
     </span>
   );
@@ -766,7 +766,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
         </div>
         {rows.length === 0 && <Setting label="Nothing matches" help={`Try what the key does, such as archive, or a key, such as ${keyFor("search.open")}.`} />}
         {rows.length > 0 && (
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "var(--loki-text-body)" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "var(--text-sm)" }}>
             <tbody>
               {rows.map((b, i, rows) => (
                 <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
@@ -778,7 +778,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     style={{
                       padding: "4px 12px 4px 0",
                       width: 170,
-                      fontSize: "var(--loki-text-meta)",
+                      fontSize: "var(--text-xs)",
                       color: "var(--loki-fg)",
                       whiteSpace: "nowrap",
                     }}
@@ -790,7 +790,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     {b.typing ? (
                       ""
                     ) : b.where === "inbox" || b.where === "desk" ? (
-                      <span style={{ marginLeft: 8, fontSize: "var(--loki-text-fine)", opacity: 0.7 }}>Not while typing</span>
+                      <span style={{ marginLeft: 8, fontSize: "var(--text-xs)", opacity: 0.7 }}>Not while typing</span>
                     ) : null}
                     {b.was && <span className="loki-meta loki-meta--wrap block">{sentence(wasFor(b) ?? "")}</span>}
                     {takenBy(b).map((t) => (
@@ -810,20 +810,18 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
 /** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
 
 function Note({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "warn" }) {
-  return (
-    <span style={{ marginLeft: 8, fontSize: "var(--loki-text-meta)", color: tone === "warn" ? "var(--loki-negative)" : "var(--loki-muted)" }}>{children}</span>
-  );
+  return <span style={{ marginLeft: 8, fontSize: "var(--text-xs)", color: tone === "warn" ? "var(--loki-negative)" : "var(--loki-muted)" }}>{children}</span>;
 }
 
 function InstallState({ s }: { s: string }) {
   const color = s === "error" ? "var(--loki-negative)" : s === "custom" || s === "skipped" ? "var(--loki-muted)" : "var(--loki-positive)";
-  return <span style={{ color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>{sentence(s)}</span>;
+  return <span style={{ color, fontSize: "var(--text-xs)", fontWeight: 600 }}>{sentence(s)}</span>;
 }
 
 function Status({ s }: { s: string }) {
   const color = s === "open" ? "var(--loki-positive)" : s === "connecting" ? "var(--loki-accent)" : "var(--loki-negative)";
   return (
-    <span className="inline-flex items-center gap-1" style={{ color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>
+    <span className="inline-flex items-center gap-1" style={{ color, fontSize: "var(--text-xs)", fontWeight: 600 }}>
       <Dot color={color} />
       {sentence(s)}
     </span>

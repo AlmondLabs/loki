@@ -35,9 +35,9 @@ export function ProposalFrame({ kind, where, children, className }: { kind: Prop
     <section
       data-proposal={kind}
       aria-label={kind === "approval" ? "Needs your approval" : kind === "question" ? "A question for you" : "A reply waiting for you"}
-      className={cn("flex flex-col gap-2 rounded-lg border bg-card p-3 text-body", kind === "reply" && "border-dashed border-ring", className)}
+      className={cn("flex flex-col gap-2 rounded-lg border bg-card p-3 text-sm", kind === "reply" && "border-dashed border-ring", className)}
     >
-      <header className="flex min-w-0 items-center gap-2 text-meta">
+      <header className="flex min-w-0 items-center gap-2 text-xs">
         {kind !== "reply" && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-loki-attention" />}
         <span className={cn("font-semibold", kind === "reply" ? "text-ring" : "text-foreground")}>{kind}</span>
         {where && <span className="loki-truncate text-muted-foreground">{where}</span>}
@@ -77,7 +77,7 @@ export function ApprovalProposal({
   const line = inputLine(approval.input);
   const tip = (word: string, key: string | undefined) => (key ? `${word} (${key})` : word);
   return (
-    <section data-proposal="approval" aria-label={`${who ?? "the agent"} needs your approval`} className="flex flex-col gap-2 px-4 py-3 text-body">
+    <section data-proposal="approval" aria-label={`${who ?? "the agent"} needs your approval`} className="flex flex-col gap-2 px-4 py-3 text-sm">
       <div className="flex min-w-0 items-center gap-3">
         <span aria-hidden className="size-2 shrink-0 rounded-full bg-loki-attention" />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -89,7 +89,7 @@ export function ApprovalProposal({
               type="button"
               aria-expanded={open}
               onClick={() => setOpen((o) => !o)}
-              className="loki-truncate cursor-pointer text-left text-meta text-muted-foreground hover:text-foreground"
+              className="loki-truncate cursor-pointer text-left text-xs text-muted-foreground hover:text-foreground"
               title={open ? "Hide the input" : "Show the whole input"}
             >
               {line}
@@ -115,7 +115,7 @@ export function ApprovalProposal({
           Allow
         </Button>
       </div>
-      {open && <pre className="m-0 max-h-48 overflow-auto rounded-md bg-muted px-3 py-2 text-meta">{formatInput(approval.input)}</pre>}
+      {open && <pre className="m-0 max-h-48 overflow-auto rounded-md bg-muted px-3 py-2 text-xs">{formatInput(approval.input)}</pre>}
       {/* A grant for good, in every chat, asks first (R11), as a Mac asks before a change it cannot quietly take back. */}
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent showCloseButton={false}>
@@ -178,7 +178,7 @@ export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? 
             </>
           }
         >
-          <p role="status" data-sent className="m-0 text-meta text-muted-foreground">
+          <p role="status" data-sent className="m-0 text-xs text-muted-foreground">
             {sentText(p)}
           </p>
         </ProposalFrame>
@@ -211,7 +211,7 @@ function ReplyFiles({
 }) {
   if (files.length === 0) return null;
   return (
-    <ul aria-label="Files" data-attachments className="m-0 flex list-none flex-col gap-1 p-0 text-meta text-muted-foreground">
+    <ul aria-label="Files" data-attachments className="m-0 flex list-none flex-col gap-1 p-0 text-xs text-muted-foreground">
       {files.map((f) => {
         const on = kept.includes(f);
         return (
@@ -254,16 +254,16 @@ function ReplyNotes({ sending, reason, blocked }: { sending: boolean; reason: st
   return (
     <>
       {sending && (
-        <p role="status" className="m-0 text-meta text-muted-foreground">
+        <p role="status" className="m-0 text-xs text-muted-foreground">
           Sending…
         </p>
       )}
       {reason && (
-        <p role="alert" className="m-0 text-meta text-destructive">
+        <p role="alert" className="m-0 text-xs text-destructive">
           {reason}
         </p>
       )}
-      {blocked && <p className="m-0 text-meta text-muted-foreground">{sending ? STILL_GOES : blocked}</p>}
+      {blocked && <p className="m-0 text-xs text-muted-foreground">{sending ? STILL_GOES : blocked}</p>}
     </>
   );
 }
@@ -300,7 +300,7 @@ export function ReplyProposalView({
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
         {peopleChanged(p) && (
-          <p className="m-0 text-meta" data-people="changed">
+          <p className="m-0 text-xs" data-people="changed">
             {sentence(recipientsText(p))}
           </p>
         )}
@@ -329,7 +329,7 @@ export function ReplyProposalView({
               <Button size="sm" variant="ghost" disabled={off} onClick={card.reject} data-action="reject">
                 Reject
               </Button>
-              <span className="text-meta text-muted-foreground">{sendNote(p)}</span>
+              <span className="text-xs text-muted-foreground">{sendNote(p)}</span>
             </>
           )}
         </div>

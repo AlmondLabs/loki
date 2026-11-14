@@ -236,7 +236,7 @@ export function PromptInputAttachment({ data, className, ...props }: PromptInput
         render={
           <div
             className={cn(
-              "group relative flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-md border border-border px-1.5 font-semibold text-body transition-all hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+              "group relative flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-md border border-border px-1.5 font-semibold text-sm transition-all hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
               className,
             )}
             key={data.id}
@@ -279,8 +279,8 @@ export function PromptInputAttachment({ data, className, ...props }: PromptInput
           )}
           <div className="flex items-center gap-2.5">
             <div className="min-w-0 flex-1 space-y-1 px-0.5">
-              <h4 className="truncate font-semibold text-body leading-none">{filename || (isImage ? "Image" : "Attachment")}</h4>
-              {data.mediaType && <p className="truncate font-mono text-muted-foreground text-meta">{data.mediaType}</p>}
+              <h4 className="truncate font-semibold text-sm leading-none">{filename || (isImage ? "Image" : "Attachment")}</h4>
+              {data.mediaType && <p className="truncate font-mono text-muted-foreground text-xs">{data.mediaType}</p>}
             </div>
           </div>
         </div>
@@ -886,7 +886,7 @@ export const PromptInputTab = ({ className, ...props }: PromptInputTabProps) => 
 export type PromptInputTabLabelProps = HTMLAttributes<HTMLHeadingElement>;
 
 export const PromptInputTabLabel = ({ className, ...props }: PromptInputTabLabelProps) => (
-  <h3 className={cn("mb-2 px-3 font-semibold text-muted-foreground text-meta", className)} {...props} />
+  <h3 className={cn("mb-2 px-3 font-semibold text-muted-foreground text-xs", className)} {...props} />
 );
 
 export type PromptInputTabBodyProps = HTMLAttributes<HTMLDivElement>;
@@ -896,7 +896,7 @@ export const PromptInputTabBody = ({ className, ...props }: PromptInputTabBodyPr
 export type PromptInputTabItemProps = HTMLAttributes<HTMLDivElement>;
 
 export const PromptInputTabItem = ({ className, ...props }: PromptInputTabItemProps) => (
-  <div className={cn("flex items-center gap-2 px-3 py-2 text-meta hover:bg-accent", className)} {...props} />
+  <div className={cn("flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent", className)} {...props} />
 );
 
 export type PromptInputCommandProps = ComponentProps<typeof Command>;

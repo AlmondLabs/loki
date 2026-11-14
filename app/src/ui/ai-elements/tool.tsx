@@ -43,7 +43,7 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
   };
 
   return (
-    <Badge className="gap-1.5 rounded-full text-meta" variant="secondary">
+    <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
       {icons[status]}
       {labels[status]}
     </Badge>
@@ -54,7 +54,7 @@ export const ToolHeader = ({ className, title, type, state, chevron = true, ...p
   <CollapsibleTrigger className={cn("flex w-full items-center justify-between gap-4 p-3", className)} {...props}>
     <div className="flex items-center gap-2">
       <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-semibold text-body">{title ?? type.split("-").slice(1).join("-")}</span>
+      <span className="font-semibold text-sm">{title ?? type.split("-").slice(1).join("-")}</span>
       {getStatusBadge(state)}
     </div>
     {chevron && <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />}
@@ -81,8 +81,8 @@ export type ToolInputProps = ComponentProps<"div"> & {
 
 export const ToolInput = ({ className, input, label = "input", ...props }: ToolInputProps) => (
   <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-    <h4 className="font-semibold text-muted-foreground text-meta">{label}</h4>
-    <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-meta whitespace-pre-wrap">
+    <h4 className="font-semibold text-muted-foreground text-xs">{label}</h4>
+    <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs whitespace-pre-wrap">
       {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
     </pre>
   </div>
@@ -108,12 +108,9 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
 
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-semibold text-muted-foreground text-meta">{errorText ? "output · failed" : "output"}</h4>
+      <h4 className="font-semibold text-muted-foreground text-xs">{errorText ? "output · failed" : "output"}</h4>
       <div
-        className={cn(
-          "overflow-x-auto rounded-md text-meta [&_table]:w-full",
-          errorText ? "bg-destructive/10 text-destructive" : "bg-muted/50 text-foreground",
-        )}
+        className={cn("overflow-x-auto rounded-md text-xs [&_table]:w-full", errorText ? "bg-destructive/10 text-destructive" : "bg-muted/50 text-foreground")}
       >
         {errorText && <pre className="p-3 font-mono whitespace-pre-wrap">{errorText}</pre>}
         {Output}

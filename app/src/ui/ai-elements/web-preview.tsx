@@ -110,7 +110,7 @@ export const WebPreviewUrl = ({ value, onChange, onKeyDown, ...props }: WebPrevi
 
   return (
     <Input
-      className="h-8 flex-1 text-body"
+      className="h-8 flex-1 text-sm"
       onChange={onChange ?? handleChange}
       onKeyDown={handleKeyDown}
       placeholder="Enter URL..."
@@ -153,7 +153,7 @@ export const WebPreviewConsole = ({ className, logs = [], children, ...props }: 
   const { consoleOpen, setConsoleOpen } = useWebPreview();
 
   return (
-    <Collapsible className={cn("border-t bg-muted/50 font-mono text-body", className)} onOpenChange={setConsoleOpen} open={consoleOpen} {...props}>
+    <Collapsible className={cn("border-t bg-muted/50 font-mono text-sm", className)} onOpenChange={setConsoleOpen} open={consoleOpen} {...props}>
       <CollapsibleTrigger
         render={<Button className="flex w-full items-center justify-between p-4 text-left font-semibold hover:bg-muted/50" variant="ghost" />}
       >
@@ -173,7 +173,7 @@ export const WebPreviewConsole = ({ className, logs = [], children, ...props }: 
             logs.map((log, index) => (
               <div
                 className={cn(
-                  "text-meta",
+                  "text-xs",
                   log.level === "error" && "text-destructive",
                   log.level === "warn" && "text-loki-attention",
                   log.level === "log" && "text-foreground",

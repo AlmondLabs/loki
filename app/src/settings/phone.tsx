@@ -210,14 +210,14 @@ function RouteRow({
       <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 4 }} />
       <span className="grid gap-px min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-2">
-          <span style={{ fontSize: "var(--loki-text-body)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{sentence(ROUTE_NAME[via])}</span>
+          <span style={{ fontSize: "var(--text-sm)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{sentence(ROUTE_NAME[via])}</span>
           <span className="loki-meta loki-meta--wrap">{hint}</span>
         </span>
         {address && (
           <span
             className="loki-mono"
             style={{
-              fontSize: "var(--loki-text-meta)",
+              fontSize: "var(--text-xs)",
               color: lit ? "var(--loki-fg)" : "var(--loki-muted)",
               overflowWrap: "anywhere",
             }}
@@ -257,13 +257,13 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
       <div className="grid gap-2 min-w-0 flex-1">
-        <div className="loki-mono" style={{ fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+        <div className="loki-mono" style={{ fontSize: "var(--text-2xl)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
           {code.code}
         </div>
         <div className="loki-meta loki-meta--wrap loki-mono" style={{ overflowWrap: "anywhere" }}>
           {url}
         </div>
-        <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
+        <div style={{ fontSize: "var(--text-xs)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
           {expired ? "Expired" : `${left} left`} · over {ROUTE_NAME[status.via]}
         </div>
         <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>

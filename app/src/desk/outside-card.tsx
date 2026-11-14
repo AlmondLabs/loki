@@ -61,10 +61,7 @@ export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; to
   return (
     <div className="flex flex-col" style={{ gap: touch ? "var(--phone-space-3)" : 12 }}>
       {facts.lines.map((line, i) => (
-        <p
-          key={i}
-          style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}
-        >
+        <p key={i} style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : "var(--text-sm)" }}>
           {line}
         </p>
       ))}
@@ -777,7 +774,7 @@ export function OutsideReply({
   const sendKey = isMail ? "cmd+enter" : undefined;
   const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
   const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
-  const size = touch ? "var(--phone-text-body)" : 12;
+  const size = touch ? "var(--phone-text-body)" : "var(--text-sm)";
   // On the desktop a mail's reply is one framed box at the end of the thread, as Gmail's is (plan 078).
   const framed = isMail && !touch;
   const discard = () => {

@@ -16,14 +16,14 @@ export function ChartView({ data }: KitProps) {
   const axes = (
     <>
       <CartesianGrid stroke="var(--loki-border)" strokeDasharray="3 3" />
-      <XAxis dataKey="x" stroke="var(--loki-muted)" fontSize={11} tickLine={false} />
-      <YAxis stroke="var(--loki-muted)" fontSize={11} tickLine={false} />
+      <XAxis dataKey="x" stroke="var(--loki-muted)" fontSize="var(--text-xs)" tickLine={false} />
+      <YAxis stroke="var(--loki-muted)" fontSize="var(--text-xs)" tickLine={false} />
       <Tooltip
         contentStyle={{
           background: "var(--loki-panel)",
           border: "1px solid var(--loki-border)",
           borderRadius: "var(--loki-radius-md)",
-          fontSize: "var(--loki-text-meta)",
+          fontSize: "var(--text-xs)",
         }}
       />
     </>

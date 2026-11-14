@@ -123,7 +123,7 @@ export function LabelPicker({
               onMouseEnter={() => setHi(i)}
               onClick={() => choose(l.id)}
               className="loki-truncate"
-              style={{ fontSize: "var(--loki-text-body)" }}
+              style={{ fontSize: "var(--text-sm)" }}
             >
               {l.name}
             </Row>

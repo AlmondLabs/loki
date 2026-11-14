@@ -114,7 +114,7 @@ const MOVES: CSSProperties = { borderTop: "1px solid var(--loki-border)", paddin
 const MOVES_LAYOUT = "flex flex-wrap items-center gap-2";
 /** A detail's title: the card's front, the lead's name. */
 const TITLE: CSSProperties = {
-  fontSize: "var(--loki-text-display)",
+  fontSize: "var(--text-2xl)",
   fontWeight: 600,
   lineHeight: 1.3,
   color: "var(--loki-fg)",
@@ -123,7 +123,7 @@ const TITLE: CSSProperties = {
   overflowWrap: "anywhere",
 };
 /** A detail's body text: the card's back, the line quoting where a lead came up. */
-const BODY: CSSProperties = { fontSize: "var(--loki-text-row)", lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
+const BODY: CSSProperties = { fontSize: "var(--text-sm)", lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
 
 /**
  * A card chosen in All Cards, edited in the detail (R14): where it came from, its front and back in boxes, how it
@@ -206,10 +206,10 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
   return (
     <section aria-labelledby="learn-welcome" className="grid justify-items-center gap-4" style={{ maxWidth: 440, margin: "0 auto" }}>
       <div className="grid gap-1" style={{ textAlign: "center" }}>
-        <h2 id="learn-welcome" style={{ margin: 0, fontSize: "var(--loki-text-hero)", fontWeight: 700 }}>
+        <h2 id="learn-welcome" style={{ margin: 0, fontSize: "var(--text-2xl)", fontWeight: 700 }}>
           {WELCOME_TITLE}
         </h2>
-        <p style={{ margin: 0, color: "var(--loki-muted)", fontSize: "var(--loki-text-body)" }}>{WELCOME_LINE}</p>
+        <p style={{ margin: 0, color: "var(--loki-muted)", fontSize: "var(--text-sm)" }}>{WELCOME_LINE}</p>
       </div>
       <ul className="grid gap-4" style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {welcomeRows(worker.daily_cap).map((row) => {
@@ -219,7 +219,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
               <span style={{ color: "var(--loki-accent)", paddingTop: 2 }}>
                 <Glyph icon={Drawn} size={22} />
               </span>
-              <span className="grid gap-0.5" style={{ fontSize: "var(--loki-text-body)", lineHeight: 1.4 }}>
+              <span className="grid gap-0.5" style={{ fontSize: "var(--text-sm)", lineHeight: 1.4 }}>
                 <b style={{ fontWeight: 600 }}>{row.head}</b>
                 <span style={{ color: "var(--loki-muted)" }}>{row.line}</span>
               </span>
@@ -228,7 +228,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
         })}
       </ul>
       {more && (
-        <div className="grid gap-2" style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-muted)", lineHeight: 1.45 }}>
+        <div className="loki-meta loki-meta--wrap grid gap-2" style={{ lineHeight: 1.45 }}>
           {WELCOME_MORE.map((line) => (
             <p key={line} style={{ margin: 0 }}>
               {line}

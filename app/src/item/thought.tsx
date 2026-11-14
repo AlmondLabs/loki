@@ -27,8 +27,8 @@ export function Thought({ rows }: { rows: readonly TranscriptRow[] }) {
   if (!t) return null;
   return (
     <Reasoning data-thought duration={t.seconds} defaultOpen={false} className="mb-2">
-      <ReasoningTrigger getThinkingMessage={(_streaming, seconds) => words(seconds)} className="text-meta" />
-      <ReasoningContent className="mt-2 text-meta">{t.text}</ReasoningContent>
+      <ReasoningTrigger getThinkingMessage={(_streaming, seconds) => words(seconds)} className="text-xs" />
+      <ReasoningContent className="mt-2 text-xs">{t.text}</ReasoningContent>
     </Reasoning>
   );
 }

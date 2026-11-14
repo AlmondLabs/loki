@@ -157,7 +157,7 @@ export const Work = memo(
           </ChainOfThought>
         )}
         {failure !== null && !open && (
-          <button type="button" className="flex w-fit cursor-pointer items-center gap-2 text-meta text-loki-negative" onClick={() => show(failure)}>
+          <button type="button" className="flex w-fit cursor-pointer items-center gap-2 text-xs text-loki-negative" onClick={() => show(failure)}>
             <XIcon className="size-3" aria-hidden />
             {stepTarget(rows[failure]) ?? stepName(rows[failure])} failed
           </button>
@@ -197,7 +197,7 @@ function ThoughtStep({ row }: { row: TranscriptRow }) {
         </button>
       }
     >
-      {open && <p className="m-0 text-meta whitespace-pre-wrap text-muted-foreground">{t.text}</p>}
+      {open && <p className="m-0 text-xs whitespace-pre-wrap text-muted-foreground">{t.text}</p>}
     </ChainOfThoughtStep>
   );
 }
@@ -212,7 +212,7 @@ export const samePlan = (a: readonly PlanItem[] | null, b: readonly PlanItem[] |
 /** A plan the thread already showed, unchanged since: one quiet line, so a turn's answer is not buried under it again. */
 function PlanAsBefore({ items }: { items: readonly PlanItem[] }) {
   return (
-    <p data-plan="as-before" className="m-0 flex items-center gap-2 text-meta text-muted-foreground">
+    <p data-plan="as-before" className="m-0 flex items-center gap-2 text-xs text-muted-foreground">
       <ListChecksIcon aria-hidden className="size-4" />
       plan as before · {planProgress(items)}
     </p>
@@ -263,10 +263,10 @@ function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; ac
 /** What an opened step shows, fetched first for a lean row; a sub-agent's or background task's work reads as a Task. */
 export function StepOpened({ row, running }: { row: TranscriptRow; running: boolean }) {
   const { whole, state, retry } = useWhole(row);
-  if (state === "loading") return <p className="m-0 text-meta text-muted-foreground">Loading this step…</p>;
+  if (state === "loading") return <p className="m-0 text-xs text-muted-foreground">Loading this step…</p>;
   if (state === "failed")
     return (
-      <p className="m-0 flex items-center gap-2 text-meta text-muted-foreground">
+      <p className="m-0 flex items-center gap-2 text-xs text-muted-foreground">
         Could not load this step
         <Button size="xs" variant="outline" onClick={retry}>
           Try Again
@@ -286,7 +286,7 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
           {asked && <TaskItem>Asked: {asked}</TaskItem>}
           {said ? (
             <TaskItem>
-              <pre className={failed ? "m-0 font-mono text-meta whitespace-pre-wrap text-loki-negative" : "m-0 font-mono text-meta whitespace-pre-wrap"}>
+              <pre className={failed ? "m-0 font-mono text-xs whitespace-pre-wrap text-loki-negative" : "m-0 font-mono text-xs whitespace-pre-wrap"}>
                 {said}
               </pre>
             </TaskItem>
@@ -308,12 +308,12 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
         state={running ? "input-available" : failed ? "output-error" : "output-available"}
       />
       <ToolContent>
-        {t?.description && <p className="m-0 px-4 pt-3 text-meta text-muted-foreground">{t.description}</p>}
+        {t?.description && <p className="m-0 px-4 pt-3 text-xs text-muted-foreground">{t.description}</p>}
         {t?.input && <ToolInput input={t.input} label={shell ? "Command" : "Input"} />}
         {t?.output ? (
           <ToolOutput output={failed ? undefined : t.output} errorText={failed ? t.output : undefined} />
         ) : (
-          <p className="m-0 px-4 pb-3 text-meta text-muted-foreground">
+          <p className="m-0 px-4 pb-3 text-xs text-muted-foreground">
             {running ? "nothing came back yet" : failed ? "it failed without saying why" : "no output was recorded"}
           </p>
         )}

@@ -147,7 +147,7 @@ function RecipientRow({
       setQuery("");
     }
   };
-  const size = touch ? "var(--phone-text-body)" : 12;
+  const size = touch ? "var(--phone-text-body)" : "var(--text-sm)";
   // The words are capitalised, as iOS and macOS write them.
   const label = { to: "To", cc: "Cc", bcc: "Bcc" }[row];
   return (
@@ -255,7 +255,7 @@ export function MailAddressLine({
   const control = (s: string) => (touch ? sentence(s) : s.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase()));
   const selectStyle = {
     font: "inherit",
-    fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-meta)",
+    fontSize: touch ? "var(--phone-text-body)" : "var(--text-xs)",
     color: "var(--loki-fg)",
     background: "transparent",
     border: "none",

@@ -12,7 +12,7 @@ import { OpenChat, SUGGESTED, suggestedSource } from "../chat/transcript";
 /** A calendar day opening in the thread: "Today", "Yesterday", a date, between two hairlines. */
 export function DayMarker({ label }: { label: string }) {
   return (
-    <Marker variant="separator" role="separator" aria-label={label} className="text-meta font-semibold">
+    <Marker variant="separator" role="separator" aria-label={label} className="text-xs font-semibold">
       <MarkerContent>{label}</MarkerContent>
     </Marker>
   );
@@ -25,7 +25,7 @@ export function NewMarker({ day }: { day: string | null }) {
       variant="separator"
       role="separator"
       aria-label={day ? `New since you last looked, ${day}` : "New since you last looked"}
-      className="text-meta font-semibold text-loki-attention before:bg-loki-attention after:bg-loki-attention"
+      className="text-xs font-semibold text-loki-attention before:bg-loki-attention after:bg-loki-attention"
     >
       <MarkerContent>{day ? `${day} · New` : "New"}</MarkerContent>
     </Marker>
@@ -89,7 +89,7 @@ export function EventEntry({ row: m, arrived }: { row: TranscriptRow; arrived: b
   if (m.text === COMPACTED_TEXT)
     return (
       <div data-row="event" data-checkpoint data-arrived={arrived || undefined} className="flex flex-col gap-2">
-        <Checkpoint className="text-meta">
+        <Checkpoint className="text-xs">
           <CheckpointIcon />
           <CheckpointTrigger
             size="xs"

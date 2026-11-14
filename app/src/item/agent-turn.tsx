@@ -44,7 +44,7 @@ export function AgentTurn({
   return (
     <section data-turn={state} aria-label={`${agentName}'s turn, ${look.words(failed)}`} className="flex flex-col gap-3">
       {header && (
-        <header className="flex items-center gap-2 text-meta text-muted-foreground">
+        <header className="flex items-center gap-2 text-xs text-muted-foreground">
           {took && <span>Worked {took}</span>}
           {state !== "done" && (
             <Badge variant="outline" data-state={state} className={look.className}>

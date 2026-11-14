@@ -254,7 +254,7 @@ function FrameTitleBar({
         touchAction: "none",
       }}
     >
-      <span className="flex items-center gap-2" style={{ fontSize: "var(--loki-text-meta)", fontWeight: 700, color: "var(--loki-fg)" }}>
+      <span className="flex items-center gap-2" style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--loki-fg)" }}>
         {entry.error && <Dot size={7} color="var(--loki-negative)" title={entry.error} />}
         {entry.title}
       </span>

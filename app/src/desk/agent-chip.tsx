@@ -52,7 +52,7 @@ export function agentHue(name: string): number {
 }
 
 /** A small pill naming the agent that owns a chat, in a colour that stays the same for the same name; nothing when there is no name. */
-export function AgentChip({ name, size = 10.5 }: { name: string | null | undefined; size?: number }) {
+export function AgentChip({ name, size = "var(--text-xs)" }: { name: string | null | undefined; size?: string }) {
   if (!name) return null;
   const hue = agentHue(name);
   return (

@@ -9,7 +9,7 @@ import { Button, sentence } from "../components";
 export function Fact({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-baseline gap-6" style={{ padding: "12px 0" }}>
-      <div className="flex-none" style={{ minWidth: 120, fontSize: "var(--loki-text-body)", fontWeight: 600, color: "var(--loki-fg)" }}>
+      <div className="flex-none" style={{ minWidth: 120, fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--loki-fg)" }}>
         {label}
       </div>
       <div
@@ -17,7 +17,7 @@ export function Fact({ label, value, mono = false }: { label: string; value: Rea
         style={{
           textAlign: "right",
           color: "var(--loki-fg)",
-          fontSize: mono ? "var(--loki-text-meta)" : "var(--loki-text-body)",
+          fontSize: mono ? "var(--text-xs)" : "var(--text-sm)",
           lineHeight: 1.5,
           overflowWrap: "anywhere",
         }}
@@ -38,7 +38,7 @@ export function Block({ title, help, children }: { title?: string; help?: string
   return (
     <section className="grid">
       {title && (
-        <h4 className="loki-title" style={{ margin: 0, fontSize: "var(--loki-text-row)" }}>
+        <h4 className="loki-title" style={{ margin: 0, fontSize: "var(--text-sm)" }}>
           {title}
         </h4>
       )}
@@ -61,8 +61,8 @@ export function Setting({ label, help, mono = false, children }: { label: string
           className={mono ? "loki-mono" : undefined}
           style={
             mono
-              ? { fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", overflowWrap: "anywhere" }
-              : { fontSize: "var(--loki-text-body)", fontWeight: 600, color: "var(--loki-fg)" }
+              ? { fontSize: "var(--text-xs)", color: "var(--loki-fg)", overflowWrap: "anywhere" }
+              : { fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--loki-fg)" }
           }
         >
           {label}
@@ -110,7 +110,7 @@ export function Fold({ title, children }: { title: string; children: React.React
   return (
     <section className="grid">
       <div className="flex items-center gap-2">
-        <h4 className="loki-title flex-1" style={{ margin: 0, fontSize: "var(--loki-text-row)" }}>
+        <h4 className="loki-title flex-1" style={{ margin: 0, fontSize: "var(--text-sm)" }}>
           {title}
         </h4>
         <Button size="sm" bare onClick={() => setOpen(!open)} aria-expanded={open}>

@@ -30,7 +30,7 @@ export interface QueueTodo {
 export type QueueItemProps = ComponentProps<"li">;
 
 export const QueueItem = ({ className, ...props }: QueueItemProps) => (
-  <li className={cn("group flex flex-col gap-1 rounded-md px-3 py-1 text-body hover:bg-muted", className)} {...props} />
+  <li className={cn("group flex flex-col gap-1 rounded-md px-3 py-1 text-sm hover:bg-muted", className)} {...props} />
 );
 
 export type QueueItemIndicatorProps = ComponentProps<"span"> & {
@@ -61,7 +61,7 @@ export type QueueItemDescriptionProps = ComponentProps<"div"> & {
 };
 
 export const QueueItemDescription = ({ completed = false, className, ...props }: QueueItemDescriptionProps) => (
-  <div className={cn("ml-6 text-meta", completed ? "text-muted-foreground/40 line-through" : "text-muted-foreground", className)} {...props} />
+  <div className={cn("ml-6 text-xs", completed ? "text-muted-foreground/40 line-through" : "text-muted-foreground", className)} {...props} />
 );
 
 export type QueueItemActionsProps = ComponentProps<"div">;
@@ -98,7 +98,7 @@ export const QueueItemImage = ({ className, ...props }: QueueItemImageProps) => 
 export type QueueItemFileProps = ComponentProps<"span">;
 
 export const QueueItemFile = ({ children, className, ...props }: QueueItemFileProps) => (
-  <span className={cn("flex items-center gap-1 rounded border bg-muted px-2 py-1 text-meta", className)} {...props}>
+  <span className={cn("flex items-center gap-1 rounded border bg-muted px-2 py-1 text-xs", className)} {...props}>
     <PaperclipIcon size={12} />
     <span className="max-w-[100px] truncate">{children}</span>
   </span>
@@ -129,7 +129,7 @@ export const QueueSectionTrigger = ({ children, className, ...props }: QueueSect
     render={
       <button
         className={cn(
-          "group flex w-full items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-left font-semibold text-muted-foreground text-body hover:bg-muted",
+          "group flex w-full items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-left font-semibold text-muted-foreground text-sm hover:bg-muted",
           className,
         )}
         type="button"

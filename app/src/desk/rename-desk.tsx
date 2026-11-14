@@ -85,7 +85,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
   const sheet = (
     <Sheet label="Rename chat" onClose={onClose} width={440} top="18vh">
       <div className="grid gap-3" style={{ padding: "16px 16px 4px" }}>
-        <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)" }}>Rename chat</div>
+        <div style={{ fontSize: "var(--text-base)", fontWeight: 700, color: "var(--loki-fg)" }}>Rename chat</div>
         <Field
           ref={fieldRef}
           name="desk-name"
@@ -126,7 +126,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
           />
         )}
         {error && (
-          <div id="loki-rename-error" role="alert" style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>
+          <div id="loki-rename-error" role="alert" style={{ color: "var(--loki-negative)", fontSize: "var(--text-xs)" }}>
             {error}
           </div>
         )}

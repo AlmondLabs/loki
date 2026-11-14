@@ -72,7 +72,7 @@ export function Diff({ text }: { text: string }) {
       className="loki-mono"
       style={{
         margin: 0,
-        fontSize: "var(--loki-text-meta)",
+        fontSize: "var(--text-xs)",
         lineHeight: 1.5,
         whiteSpace: "pre-wrap",
         overflowWrap: "anywhere",

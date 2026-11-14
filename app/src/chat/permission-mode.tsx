@@ -86,7 +86,7 @@ export function ModeChip({
     >
       <Shield fill={info.fill} />
       {busy ? "changing…" : info.short}
-      <span aria-hidden style={{ fontSize: "var(--loki-text-micro)" }}>
+      <span aria-hidden style={{ fontSize: "var(--text-xs)" }}>
         ▾
       </span>
     </Chip>
@@ -166,12 +166,12 @@ export function ModeMenu({
             <Shield fill={m.fill} />
           </span>
           <span className="grid">
-            <span style={{ fontSize: "var(--loki-text-body)" }}>{m.label}</span>
+            <span style={{ fontSize: "var(--text-sm)" }}>{m.label}</span>
             <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
               {m.description}
             </span>
           </span>
-          <span style={{ fontSize: "var(--loki-text-fine)", color: "var(--loki-accent)" }}>{m.id === selected ? "✓" : ""}</span>
+          <span style={{ fontSize: "var(--text-xs)", color: "var(--loki-accent)" }}>{m.id === selected ? "✓" : ""}</span>
         </Row>
       ))}
       <div style={{ padding: "4px 8px" }}>

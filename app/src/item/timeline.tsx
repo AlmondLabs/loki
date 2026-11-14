@@ -228,10 +228,10 @@ function ThreadBody({
         className="[overflow-anchor:none]"
         style={style}
       >
-        <MessageScrollerContent ref={contentRef} className="w-full max-w-3xl gap-4 py-5 text-body text-foreground">
-          {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
+        <MessageScrollerContent ref={contentRef} className="w-full max-w-3xl gap-4 py-5 text-sm text-foreground">
+          {!rows && !loadFailed && <p className="m-0 text-xs text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
           {!rows && loadFailed && (
-            <div role="alert" className="flex items-center gap-2 text-meta text-destructive">
+            <div role="alert" className="flex items-center gap-2 text-xs text-destructive">
               <span>{home ? `Could not load this chat from ${home}` : "Could not load this chat"}</span>
               <Button size="sm" variant="outline" onClick={loadFailed}>
                 Try Again
@@ -239,7 +239,7 @@ function ThreadBody({
             </div>
           )}
           {rows?.length === 0 && !blank && (
-            <p className="m-0 text-meta text-muted-foreground">Nothing here yet — everything you send lands in {who}'s transcript</p>
+            <p className="m-0 text-xs text-muted-foreground">Nothing here yet — everything you send lands in {who}'s transcript</p>
           )}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
