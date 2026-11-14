@@ -183,7 +183,7 @@ export function ModuleWidget({
       {shown && <WidgetError message={shown} />}
       {!shown && !loaded && (
         <div className="loki-muted" style={{ fontSize: "var(--loki-text-meta)" }}>
-          loading…
+          Loading…
         </div>
       )}
       <iframe

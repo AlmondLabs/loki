@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import QRCode from "qrcode";
-import { Button, Dot, Row as PickRow, Switch } from "../components";
+import { Button, Dot, Row as PickRow, Switch, sentence } from "../components";
 import { Block, Setting } from "./layout";
 import { useNow } from "../components/use-now";
 import { notYetOn, platform, type Platform } from "../desk/env";
@@ -40,7 +40,7 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
 
   // Pairing, the LAN listener and Tailscale are the Mac's for now (R3, AE4): a line in their place, no controls.
   if (!here) return <Setting label="Phone" help={notYetOn("Phone pairing", os)} />;
-  if (!connected || !status) return <Setting label="Phone" help="asking the mod…" />;
+  if (!connected || !status) return <Setting label="Phone" help="Asking the mod…" />;
   const on = status.enabled;
 
   return (
@@ -76,7 +76,7 @@ function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
           </>
         }
       >
-        <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" hideLabel />
+        <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="Phones can reach this Mac" hideLabel />
       </Setting>
     </Block>
   );
@@ -87,7 +87,7 @@ function RouteBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
   const safety =
     status.via === "lan" ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale." : "The tailnet is yours alone; Funnel is never used.";
   return (
-    <Block title="Route" help={`anyone on the lit route can open the page; only a paired phone can act. ${safety}`}>
+    <Block title="Route" help={`Anyone on the lit route can open the page; only a paired phone can act. ${safety}`}>
       <div style={{ padding: "12px 0" }}>
         <Route status={status} onVia={phone.setVia} onServe={phone.setServe} />
       </div>
@@ -102,7 +102,7 @@ function PairBlock({ phone, status, lastCode }: { phone: PhoneApi; status: Phone
       <div>
         <Setting label="A new phone" help="A code that lives ten minutes. Scan it with the phone's camera, then Add to Home Screen.">
           <Button tone="positive" onClick={phone.beginPair}>
-            {lastCode ? "new code" : "pair a phone"}
+            {lastCode ? "New Code" : "Pair Phone"}
           </Button>
         </Setting>
         {lastCode && <PairPlate code={lastCode} status={status} />}
@@ -120,9 +120,9 @@ function PairedPhones({ devices, on, onForget }: { devices: PairedDevice[] | nul
       {devices?.map((d) => {
         const via = viaLabel(d.last_via);
         return (
-          <Setting key={d.id} label={d.name} help={via ? `${lastSeen(d.last_seen_at)} · came in via ${via}` : lastSeen(d.last_seen_at)}>
-            <Button size="sm" tone="negative" onClick={() => onForget(d.id)} title="this phone has to pair again">
-              forget
+          <Setting key={d.id} label={d.name} help={sentence(via ? `${lastSeen(d.last_seen_at)} · came in via ${via}` : lastSeen(d.last_seen_at))}>
+            <Button size="sm" tone="negative" onClick={() => onForget(d.id)} title="This phone has to pair again">
+              Forget
             </Button>
           </Setting>
         );
@@ -143,7 +143,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
     <div style={{ display: "grid", gap: 6 }}>
       <div
         role="radiogroup"
-        aria-label="route"
+        aria-label="Route"
         style={{ display: "grid", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", overflow: "hidden" }}
       >
         {(ts?.installed || running) && (
@@ -152,11 +152,11 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
             lit={status.via === "tailscale"}
             disabled={!running}
             address={running ? tailnetAddress(status) : null}
-            hint={running ? "any network" : "installed, not connected: open Tailscale and sign in"}
+            hint={running ? "Any network" : "Installed, not connected: open Tailscale and sign in"}
             onPick={onVia}
           />
         )}
-        <RouteRow via="lan" lit={status.via === "lan"} address={wifiAddress(status)} hint="the same Wi‑Fi only" onPick={onVia} />
+        <RouteRow via="lan" lit={status.via === "lan"} address={wifiAddress(status)} hint="The same Wi‑Fi only" onPick={onVia} />
       </div>
       {running && status.via === "tailscale" && <ServeSwitch ts={ts} onServe={onServe} />}
       {!ts?.installed && !running && <NoTailscale />}
@@ -168,7 +168,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
 function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: boolean) => void }) {
   return (
     <div style={{ display: "grid", gap: 2, paddingLeft: 2 }}>
-      <Switch on={!!ts.serve_url} onToggle={() => onServe(!ts.serve_url)} label="https on the tailnet" small />
+      <Switch on={!!ts.serve_url} onToggle={() => onServe(!ts.serve_url)} label="HTTPS on the tailnet" small />
       {ts.error && (
         <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ overflowWrap: "anywhere" }}>
           {ts.error}
@@ -217,7 +217,7 @@ function RouteRow({
       <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 5 }} />
       <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
         <span style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "var(--loki-text-body)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{ROUTE_NAME[via]}</span>
+          <span style={{ fontSize: "var(--loki-text-body)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{sentence(ROUTE_NAME[via])}</span>
           <span className="loki-meta loki-meta--wrap">{hint}</span>
         </span>
         {address && (
@@ -270,7 +270,7 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
           {url}
         </div>
         <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
-          {expired ? "expired" : `${left} left`} · over {ROUTE_NAME[status.via]}
+          {expired ? "Expired" : `${left} left`} · over {ROUTE_NAME[status.via]}
         </div>
         <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
           The new icon asks for this code once.

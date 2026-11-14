@@ -29,7 +29,6 @@ export function HandoffPicker({
   const [busy, setBusy] = useState(false);
   const [hi, setHi] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const words = (s: string) => (touch ? sentence(s) : s);
 
   // The proposal is the account's Mac's to make: asked once per card when the picker opens, dropped if it closes first.
   const ask = useEffectEvent(() => source.handoffPropose(item));
@@ -85,19 +84,19 @@ export function HandoffPicker({
   return (
     <div
       role="dialog"
-      aria-label={words(`hand off to ${owner}`)}
+      aria-label={`Hand off to ${owner}`}
       onKeyDown={onKey}
       style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 6 }}
     >
-      <Meta>{words(busy ? `handing off to ${owner}…` : `hand off to ${owner}`)}</Meta>
-      {proposal?.note && <Meta wrap>{words(proposal.note)}</Meta>}
-      {!proposal && !error && <Meta>{words("asking for its chats…")}</Meta>}
+      <Meta>{busy ? `Handing off to ${owner}…` : `Hand off to ${owner}`}</Meta>
+      {proposal?.note && <Meta wrap>{sentence(proposal.note)}</Meta>}
+      {!proposal && !error && <Meta>Asking for its chats…</Meta>}
       {proposal && (
         <div
           ref={listRef}
           role="listbox"
           tabIndex={0}
-          aria-label={words("chats")}
+          aria-label="Chats"
           aria-activedescendant={`handoff-option-${String(hi)}`}
           style={{ display: "flex", flexDirection: "column", maxHeight: 200, overflow: "auto" }}
         >
@@ -126,14 +125,14 @@ export function HandoffPicker({
               >
                 {o.label}
               </span>
-              {o.meta && <Meta>{words(o.meta)}</Meta>}
+              {o.meta && <Meta>{sentence(o.meta)}</Meta>}
             </Row>
           ))}
         </div>
       )}
       {error && (
         <Meta negative wrap>
-          {words(error)}
+          {sentence(error)}
         </Meta>
       )}
     </div>

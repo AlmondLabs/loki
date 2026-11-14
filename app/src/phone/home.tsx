@@ -196,7 +196,7 @@ function FilterPills({ query, labelList, onQuery }: { query: string; labelList: 
   const { labels, text } = labelQuery(query);
   if (!labels.length && !text) return null;
   return (
-    <div className="loki-phone-pills" role="group" aria-label="filters on">
+    <div className="loki-phone-pills" role="group" aria-label="Filters on">
       {labels.map((l) => (
         <FilterPill key={l} label={l} tone={labelColor(l, labelList)} onClear={() => onQuery(toggleLabelTerm(query, l))} />
       ))}
@@ -256,7 +256,7 @@ function AttentionSection({
       onTitle={() => navigate({ kind: "tab", tab: "inbox" })}
       titleLabel={`Needs your attention, ${waiting} waiting. Open Flow`}
     >
-      <ul className="loki-phone-list" aria-label="needs your attention">
+      <ul className="loki-phone-list" aria-label="Needs your attention">
         {attention.map((a) => (
           <AttentionRow key={`${a.item.agent_id}/${a.item.id}`} entry={a} onTopCard={onTopCard} />
         ))}
@@ -340,7 +340,7 @@ function DeskSections({
         );
       })}
       {!filtered && (
-        <ul className="loki-phone-list" aria-label="new chat">
+        <ul className="loki-phone-list" aria-label="New chat">
           <li data-flip="new-desk">
             <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={onNew}>
               <RowIcon name="plus" />
@@ -355,7 +355,7 @@ function DeskSections({
         <div className="loki-phone-empty">
           <p>No chats match.</p>
           <Button size="touch" tone="paper" onClick={onClearFilters}>
-            Clear filter
+            Clear Filter
           </Button>
         </div>
       )}
@@ -412,7 +412,7 @@ const SHORTCUTS: Array<{ kind: Shortcut; label: string; icon: IconName; to: Rout
 /** The rail: one tile per shortcut, scrolling sideways, a red dot on the icon when there is something to do there. */
 function ShortcutRail({ counts }: { counts: HomeCounts }) {
   return (
-    <nav className="loki-phone-rail" aria-label="shortcuts">
+    <nav className="loki-phone-rail" aria-label="Shortcuts">
       {SHORTCUTS.map((s) => {
         const line = shortcutLine(s.kind, counts);
         const lit = (s.kind === "inbox" && counts.inbox > 0) || (s.kind === "learn" && counts.learn > 0);
@@ -442,7 +442,7 @@ function ShortcutRail({ counts }: { counts: HomeCounts }) {
 /** An active filter, said out loud, with the × that clears it. */
 function FilterPill({ label, tone, onClear }: { label: string; /** A label's colour, for its dot. */ tone?: string; onClear: () => void }) {
   return (
-    <button type="button" className="loki-phone-pill" aria-label={`Clear filter ${label}`} onClick={onClear}>
+    <button type="button" className="loki-phone-pill" aria-label={`Clear Filter ${label}`} onClick={onClear}>
       <span className="loki-phone-pill-face">
         {tone && <span aria-hidden className="loki-label-dot" style={{ "--label-tone": tone } as CSSProperties} />}
         <span className="loki-phone-ellipsis">{label}</span>
@@ -457,7 +457,7 @@ function FilterPill({ label, tone, onClear }: { label: string; /** A label's col
  * it since the section mixes agents, and on the right the count while it waits on you, else the time.
  */
 function AttentionRow({ entry: { item, desk, opens }, onTopCard }: { entry: HomeAttention; onTopCard: (item: AttentionItem) => void }) {
-  const title = desk?.title ?? item.title ?? "new chat";
+  const title = desk?.title ?? item.title ?? "New chat";
   const word = BADGE[item.status].label;
   const row = deskRowState(item, desk ?? { status: "live" });
   return (
@@ -509,7 +509,7 @@ export function DeskRow({
       title={name}
       flags={
         <>
-          {d.pinned && !inPinned && <Icon name="pin" size={14} title="pinned" className="loki-phone-row-flag" />}
+          {d.pinned && !inPinned && <Icon name="pin" size={14} title="Pinned" className="loki-phone-row-flag" />}
           <HomeMark row={d} agentHome={agentHome} here={homes?.here} />
         </>
       }

@@ -436,14 +436,14 @@ export function DeskSidebar({
                   fieldRef.current?.focus();
                 }}
               >
-                Clear filter
+                Clear Filter
               </Button>
             </div>
           )}
           {!filtering && !hasRows && model.archived.length === 0 && (
             <div className="loki-sidebar-empty">
-              <span className="loki-meta loki-meta--wrap">No chats yet.</span>
-              {onNew && <Button onClick={() => onNew(null)}>New chat</Button>}
+              <span className="loki-meta loki-meta--wrap">No chats yet</span>
+              {onNew && <Button onClick={() => onNew(null)}>New Chat</Button>}
             </div>
           )}
         </div>

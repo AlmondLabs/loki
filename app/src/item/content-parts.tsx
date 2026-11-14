@@ -70,7 +70,7 @@ export function WidgetArtifact({
 }) {
   if (w.earlier !== undefined)
     return (
-      <Marker data-row="widget" render={onShowDesk ? <button type="button" onClick={onShowDesk} title="show the canvas" /> : undefined}>
+      <Marker data-row="widget" render={onShowDesk ? <button type="button" onClick={onShowDesk} title="Show the canvas" /> : undefined}>
         <MarkerIcon>
           <LayoutGridIcon />
         </MarkerIcon>
@@ -98,7 +98,7 @@ export function WidgetArtifact({
         </div>
         {open && (
           <ArtifactActions>
-            <ArtifactAction icon={LayoutGridIcon} label="show it on the canvas" title="show it on the canvas" onClick={open} />
+            <ArtifactAction icon={LayoutGridIcon} label="Show it on the canvas" title="Show it on the canvas" onClick={open} />
           </ArtifactActions>
         )}
       </ArtifactHeader>

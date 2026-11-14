@@ -430,7 +430,7 @@ function Message({
         <div className="loki-msg-body">{m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}</div>
         {m.queued && (
           <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="loki-msg-queued">
-            queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
+            Queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
           </Button>
         )}
         {(copyable || time) && (
@@ -480,7 +480,7 @@ function SuggestedRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true 
   return (
     <div data-row="event" data-arrived={arrived} className="loki-event-row">
       {open && from ? (
-        <button type="button" className="loki-suggested-chip" onClick={() => open(from.agent_id, from.conversation_id)} title="open the chat it came from">
+        <button type="button" className="loki-suggested-chip" onClick={() => open(from.agent_id, from.conversation_id)} title="Open the chat it came from">
           {words}
         </button>
       ) : (
@@ -555,7 +555,7 @@ function Bubble({
       </div>
       {m.queued && (
         <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4 }}>
-          queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
+          Queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
         </Button>
       )}
     </div>

@@ -20,10 +20,10 @@ const morning = (now: Date, days: number) => new Date(now.getFullYear(), now.get
 /** The return times the second ⌘[ offers, from `now`: in 3 hours, tomorrow morning, in 3 days, and a week on. */
 export function returnChoices(now: Date): ReturnChoice[] {
   return [
-    { id: "today", label: "later today", at: new Date(now.getTime() + 3 * 3_600_000) },
-    { id: "tomorrow", label: "tomorrow", at: morning(now, 1) },
-    { id: "days", label: "in 3 days", at: morning(now, 3) },
-    { id: "week", label: "next week", at: morning(now, 7) },
+    { id: "today", label: "Later Today", at: new Date(now.getTime() + 3 * 3_600_000) },
+    { id: "tomorrow", label: "Tomorrow", at: morning(now, 1) },
+    { id: "days", label: "In 3 Days", at: morning(now, 3) },
+    { id: "week", label: "Next Week", at: morning(now, 7) },
   ];
 }
 
@@ -76,13 +76,13 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
   };
 
   return (
-    <div role="dialog" aria-label="when should it come back" onKeyDown={onKey} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <Meta>when should it come back</Meta>
+    <div role="dialog" aria-label="When should it come back" onKeyDown={onKey} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <Meta>When should it come back</Meta>
       <div
         ref={listRef}
         role="listbox"
         tabIndex={0}
-        aria-label="return times"
+        aria-label="Return times"
         aria-activedescendant={`return-option-${choices[hi].id}`}
         style={{ display: "flex", flexDirection: "column" }}
       >
@@ -105,7 +105,7 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
         ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Meta>a date</Meta>
+        <Meta>A date</Meta>
         <Field
           type="date"
           size="sm"
@@ -113,12 +113,12 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
           min={dateValue(choices[1].at)}
           max={dateValue(new Date(now.getFullYear(), now.getMonth(), now.getDate() + LATER_MAX_DAYS))}
           onChange={(e) => setDate(e.target.value)}
-          aria-label="a date"
+          aria-label="A date"
         />
-        {date && !picked && <Meta negative>pick a day from tomorrow to {String(LATER_MAX_DAYS)} days on</Meta>}
+        {date && !picked && <Meta negative>Pick a day from tomorrow to {String(LATER_MAX_DAYS)} days on</Meta>}
         {picked && (
           <Button size="sm" tone="paper" onClick={() => onPick(picked)}>
-            pick
+            Pick
           </Button>
         )}
       </div>

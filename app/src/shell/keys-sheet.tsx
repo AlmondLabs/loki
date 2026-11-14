@@ -75,7 +75,7 @@ export function keysSheetNote(os: Platform = keyboard): string {
 
 /**
  * The groups the sheet shows for a segment: the view's own bindings (the desk's include the chat box's), then "anywhere"
- * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar). The rows carry
+ * — less any key the view takes for itself (none does today; keymap.test.ts keeps it so). The rows carry
  * the system's own keys (keysOf).
  */
 export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {

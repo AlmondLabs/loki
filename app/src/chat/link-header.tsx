@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { timeLeft, type LinkSeen } from "../../../core/chat-links.ts";
-import { Chip, IconButton, Popover, sentence } from "../components";
+import { Chip, IconButton, Popover } from "../components";
 import { ArrowRightIcon, ArrowLeftIcon, ArrowLeftRightIcon, XIcon, type LucideIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
@@ -14,14 +14,14 @@ const WAY_WORDS: Record<LinkSeen["way"], string> = { out: "this chat may message
 
 /** A link in words, for a screen reader and a title: "linked both ways with infra, 2 h left". */
 function linkWords(l: LinkSeen, now: number): string {
-  const name = l.other.title || "untitled chat";
+  const name = l.other.title || "Untitled chat";
   const left = timeLeft(l, new Date(now));
   return l.way === "in" ? `${name} ${WAY_WORDS.in} ${left}` : `${WAY_WORDS[l.way]} ${name}, ${left}`;
 }
 
 /** One link as the header names it: the other chat, the way, the time left, and its close button. */
-function LinkLine({ link: l, now, onClose, touch }: { link: LinkSeen; now: number; onClose?: (linkId: string) => void; touch: boolean }) {
-  const name = l.other.title || "untitled chat";
+function LinkLine({ link: l, now, onClose }: { link: LinkSeen; now: number; onClose?: (linkId: string) => void }) {
+  const name = l.other.title || "Untitled chat";
   return (
     <>
       <span aria-hidden>
@@ -32,7 +32,7 @@ function LinkLine({ link: l, now, onClose, touch }: { link: LinkSeen; now: numbe
       </span>
       <span className="loki-meta">{timeLeft(l, new Date(now))}</span>
       {onClose && (
-        <IconButton size={24} label={touch ? sentence(`close link to ${name}`) : `close link to ${name}`} onClick={() => onClose(l.id)}>
+        <IconButton size={24} label={`Close link to ${name}`} onClick={() => onClose(l.id)}>
           <Glyph icon={XIcon} />
         </IconButton>
       )}
@@ -75,12 +75,12 @@ export function LinkHeader({ links, onClose, touch = false }: { links: LinkSeen[
   }, [open]);
   const live = links.filter((l) => l.expires_at === null || Date.parse(l.expires_at) > now);
   if (!live.length) return null;
-  const label = touch ? "Links to other chats" : "links to other chats";
+  const label = "Links to other chats";
   if (live.length === 1)
     return (
       <div className="loki-chat-links" aria-label={label}>
         <Chip static touch={touch} title={linkWords(live[0], now)} aria-label={linkWords(live[0], now)}>
-          <LinkLine link={live[0]} now={now} onClose={onClose} touch={touch} />
+          <LinkLine link={live[0]} now={now} onClose={onClose} />
         </Chip>
       </div>
     );
@@ -96,7 +96,7 @@ export function LinkHeader({ links, onClose, touch = false }: { links: LinkSeen[
           <ul className="loki-chat-link-list">
             {live.map((l) => (
               <li key={l.id} className="loki-chat-link-row" aria-label={linkWords(l, now)}>
-                <LinkLine link={l} now={now} onClose={onClose} touch={touch} />
+                <LinkLine link={l} now={now} onClose={onClose} />
               </li>
             ))}
           </ul>

@@ -21,7 +21,7 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
     <div ref={dock} className="loki-phone-dock">
       {children}
       <div className="loki-phone-dock-row">
-        <nav aria-label="primary" className="loki-phone-nav">
+        <nav aria-label="Primary" className="loki-phone-nav">
           {TABS.map((t) => {
             const n = t === "inbox" ? waiting : 0;
             return (

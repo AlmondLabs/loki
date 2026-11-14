@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { LINK_DURATIONS, durationWords, timeLeft, type ChatLink, type LinkDuration } from "../../../core/chat-links.ts";
+import { LINK_DURATIONS, timeLeft, type ChatLink, type LinkDuration } from "../../../core/chat-links.ts";
 import { Button } from "../components";
 import { Segmented, Setting } from "./layout";
 
@@ -10,7 +10,8 @@ export interface ChatLinksApi {
   setDefault: (duration: LinkDuration) => Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string>;
 }
 
-const DURATION_LABELS = Object.fromEntries(LINK_DURATIONS.map((d) => [d, durationWords(d)])) as Record<LinkDuration, string>;
+/** The durations as the segmented control's words, in title case as a control's are; the card says them as `durationWords` does. */
+const DURATION_LABELS: Record<LinkDuration, string> = { hour: "1 Hour", day: "1 Day", always: "Until I Close It" };
 
 /**
  * Preferences › Chat › Chat links (plan 067): the duration the link card starts on, and every live link of this Mac's
@@ -23,7 +24,7 @@ export function ChatLinks({ api }: { api: ChatLinksApi }) {
   const reload = () => void api.list().then(apply);
   const load = useEffectEvent(reload);
   useEffect(() => load(), []);
-  if (view === null) return <Setting label="Links" help={error ?? "asking loki…"} />;
+  if (view === null) return <Setting label="Links" help={error ?? "Asking loki…"} />;
   const now = new Date();
   const close = async (l: ChatLink) => {
     // Either chat's Mac closes it on both; the first that answers does, so a paired Mac out of reach does not stop it.
@@ -35,7 +36,7 @@ export function ChatLinks({ api }: { api: ChatLinksApi }) {
     <>
       <Setting label="Allow for" help="What the card starts on when an agent asks to message another chat.">
         <Segmented
-          label="allow for"
+          label="Allow for"
           options={LINK_DURATIONS}
           value={view.default_duration}
           onPick={(d) => void api.setDefault(d).then(apply)}
@@ -46,11 +47,11 @@ export function ChatLinks({ api }: { api: ChatLinksApi }) {
       {view.links.map((l) => (
         <Setting
           key={l.id}
-          label={`${l.from.title || "untitled chat"} ${l.direction === "both_ways" ? "⇄" : "→"} ${l.to.title || "untitled chat"}`}
-          help={`${l.direction === "both_ways" ? "both ways" : "one way"}, ${timeLeft(l, now)}`}
+          label={`${l.from.title || "Untitled chat"} ${l.direction === "both_ways" ? "⇄" : "→"} ${l.to.title || "Untitled chat"}`}
+          help={`${l.direction === "both_ways" ? "Both ways" : "One way"}, ${timeLeft(l, now)}`}
         >
           <Button size="sm" onClick={() => void close(l)}>
-            close
+            Close
           </Button>
         </Setting>
       ))}

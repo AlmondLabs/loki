@@ -56,8 +56,18 @@ export const KEYMAP: Binding[] = [
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat", typing: true, menu: "Go" },
-  // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
-  { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
+  // The Mac's own key for a sidebar (Mail, Finder, Notes). Off the Mac there is no ⌃⌘, so it is Ctrl B there, the sidebar
+  // key of most editors. ⌘⇧D is Flow's Deny alone.
+  {
+    id: "column.toggle",
+    keys: ["ctrl+cmd+s"],
+    keysOn: { windows: ["cmd+b"], linux: ["cmd+b"] },
+    where: "anywhere",
+    label: "Show / Hide Sidebar",
+    typing: true,
+    menu: "View/column",
+    was: "was {inbox.deny} outside Flow",
+  },
   // Off the Mac there is no hidden window to bring back from the dock: the key minimises (useWindowChrome).
   {
     id: "window.hide",
@@ -117,17 +127,11 @@ export const KEYMAP: Binding[] = [
   { id: "desk.messages", keys: ["escape"], where: "desk", label: "back to Messages from the Canvas tab", note: "handled by the shell" },
 
   // --- chat (the box owns these) ---------------------------------------
+  // Nothing a key alone types into the box acts for the person: allowing a step is ⌘↵ (chat.allow), and the quick replies'
+  // digits work only while one of them has focus.
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
-  {
-    id: "chat.allow-empty",
-    keys: ["enter"],
-    where: "chat",
-    label: "allow the step",
-    typing: true,
-    note: "the empty box, while an approval waits",
-  },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
-  { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply", typing: true, note: "the empty box" },
+  { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply, while one has focus", note: "a quick reply with focus" },
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
 
   // --- inbox (the reply box usually has focus: chords) -------------------
@@ -338,15 +342,18 @@ export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keybo
   const typing = typingIn(e);
   // A key fires while typing only if the binding allows it AND the key is a chord the text does not use:
   // a plain letter or arrow always belongs to the text, whatever the binding says. On the Mac, Ctrl with a letter
-  // edits the text too (Ctrl+K cuts to the line's end, Ctrl+E goes to it), so there only ⌘ counts while typing.
-  const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k) && cmdHeld(e, os)));
+  // edits the text too (Ctrl+K cuts to the line's end, Ctrl+E goes to it), so there only ⌘ counts while typing, unless the
+  // binding asks for ⌃⌘ together (⌃⌘S), which no text box uses.
+  const held = (k: string) => (k.includes("ctrl+") ? e.metaKey && e.ctrlKey : cmdHeld(e, os));
+  const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k) && held(k)));
   const hit = (where: Where) => KEYMAP.find((b) => !b.note && b.where === where && keysOf(b, os).some((k) => live(b, k))) ?? null;
   return hit(segment) ?? hit("anywhere");
 }
 
 /**
- * Where a view's own binding takes a key that works everywhere (resolve lets the view's win): ⌘⇧D is Deny in the
- * inbox, not the sidebar. The keys sheet leaves such a key out of that view's "everywhere" group; Settings says it.
+ * Where a view's own binding takes a key that works everywhere (resolve lets the view's win). The keymap test keeps this
+ * empty, since one key meaning two things in one place is what the reviews kept finding; should one appear, the keys
+ * sheet leaves it out of that view's "everywhere" group and Settings says it.
  */
 export function takenBy(b: Binding, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; key: string; id: string; label: string }> {
   if (b.where !== "anywhere" || b.note) return [];

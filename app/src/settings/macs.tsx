@@ -30,10 +30,10 @@ export function Macs({ macs, connected }: { macs: MacsApi; connected: boolean })
   }, [connected]);
 
   const view = macs.view;
-  if (!connected || !view) return <Setting label="Macs" help="asking the mod…" />;
+  if (!connected || !view) return <Setting label="Macs" help="Asking the mod…" />;
   return (
     <>
-      <Block help="your other Macs running loki, over your tailnet only, never the Wi‑Fi or the internet. Each chat runs on one Mac; the others reach it through that Mac.">
+      <Block help="Your other Macs running loki, over your tailnet only, never the Wi‑Fi or the internet. Each chat runs on one Mac; the others reach it through that Mac.">
         <Setting
           label={osWords().Machine}
           help={
@@ -80,7 +80,7 @@ function Pair({ macs }: { macs: MacsApi }) {
       <div>
         <Setting label={`From ${osWords().machine}`} help="Show a code here, and type it on the other Mac.">
           <Button tone="positive" onClick={macs.beginPair}>
-            {macs.lastCode ? "new code" : "show a code"}
+            {macs.lastCode ? "New Code" : "Show Code"}
           </Button>
         </Setting>
         {macs.lastCode && <PairCode code={macs.lastCode} />}
@@ -98,15 +98,15 @@ function Pair({ macs }: { macs: MacsApi }) {
           <Field
             size="sm"
             mono
-            aria-label="the other Mac's tailnet address"
-            placeholder="the other Mac's address"
+            aria-label="The other Mac's tailnet address"
+            placeholder="The other Mac's address"
             value={host}
             onChange={(e) => setHost(e.target.value)}
             style={{ flex: "1 1 220px", minWidth: 0 }}
           />
-          <Field size="sm" mono aria-label="its pairing code" placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: 96 }} />
+          <Field size="sm" mono aria-label="Its pairing code" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: 96 }} />
           <Button size="sm" type="submit" disabled={busy || !host.trim() || !code.trim()}>
-            {busy ? "pairing…" : "pair"}
+            {busy ? "Pairing…" : "Pair"}
           </Button>
         </form>
         {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
@@ -123,8 +123,8 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
   if (devices.length === 0) return null;
   return (
     <div style={{ display: "grid", gap: 4 }}>
-      <span className="loki-meta">on your tailnet · pick the other Mac, then type the code it shows</span>
-      <div role="radiogroup" aria-label="computers on your tailnet" style={{ display: "grid", gap: 4 }}>
+      <span className="loki-meta">On your tailnet · pick the other Mac, then type the code it shows</span>
+      <div role="radiogroup" aria-label="Computers on your tailnet" style={{ display: "grid", gap: 4 }}>
         {devices.map((d) => {
           const chosen = picked.trim().toLowerCase() === d.address;
           return (
@@ -151,7 +151,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
                   {d.address}
                 </span>
               </span>
-              <span className="loki-meta">{d.paired ? "paired" : d.online ? d.os : "offline"}</span>
+              <span className="loki-meta">{d.paired ? "Paired" : d.online ? d.os : "Offline"}</span>
             </PickRow>
           );
         })}
@@ -176,7 +176,7 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
         </div>
       )}
       <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
-        {expired ? "expired" : `${left} left`} · type both on the other Mac's Preferences › Macs
+        {expired ? "Expired" : `${left} left`} · type both on the other Mac's Preferences › Macs
       </div>
     </div>
   );
@@ -199,12 +199,12 @@ function PairedMacs({ peers, onForget }: { peers: Pushes["peers"]["peers"]; onFo
           }
         >
           {p.outdated && (
-            <Chip static label title={`${osWords().machine} and that one run different loki versions: nothing syncs until both are updated`}>
-              needs an update
+            <Chip static label title={`${osWords().Machine} and that one run different loki versions: nothing syncs until both are updated`}>
+              Needs an update
             </Chip>
           )}
-          <Button size="sm" tone="negative" onClick={() => onForget(p.mac_id)} title="both Macs forget each other; pair again to reconnect">
-            forget
+          <Button size="sm" tone="negative" onClick={() => onForget(p.mac_id)} title="Both Macs forget each other; pair again to reconnect">
+            Forget
           </Button>
         </Setting>
       ))}

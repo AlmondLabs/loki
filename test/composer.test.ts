@@ -75,7 +75,7 @@ describe("the phone's message box's bottom row", () => {
 
   test("the permission mode sits beside the model pill, inside the box, not in the row under it", () => {
     const html = conversation(true, "", { mode: "standard" });
-    expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "permission mode", "Send"]);
+    expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Permission mode", "Send"]);
     expect(html).not.toContain("loki-conversation-footer");
   });
 

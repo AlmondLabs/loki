@@ -143,7 +143,7 @@ describe("the card", () => {
     );
     expect(html).toContain("<iframe");
     // Named for screen readers without a title, which the Mac shows as a tooltip over the whole mail.
-    expect(html).toMatch(/<iframe[^>]*aria-label="mail from DOBIGCLOUD"/);
+    expect(html).toMatch(/<iframe[^>]*aria-label="Mail from DOBIGCLOUD"/);
     expect(html).not.toMatch(/<iframe[^>]*title=/);
     // Popups only so the Mac's webview can hand a clicked link to the shell, which sends it to the browser.
     expect(html).toContain('sandbox="allow-same-origin allow-popups"');

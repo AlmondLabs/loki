@@ -727,24 +727,24 @@ describe("the mail reply box as drawn", () => {
     expect(html).toContain("Reply All");
     expect(html).toMatch(new RegExp(`aria-label="Send" title="[^"]*\\(${formatKeys("cmd+enter")}\\)"`));
   });
-  test("a reply that did not go: its words, why, and Send again and Discard; the line lowercase here and sentence case on the phone", () => {
+  test("a reply that did not go: its words, why, and Send Again and Discard, the line in sentence case", () => {
     const note = { outbox_id: "o3-abcdefgh", text: "Thanks, I will look tomorrow\nAda", reason: "Gmail is unreachable", at: "2026-11-12T10:00:00Z" };
     const draw = (touch: boolean, onUnsent?: () => Promise<null>) =>
       renderToStaticMarkup(createElement(OutsideReply, { facts: { ...facts, not_sent: note }, touch, onUnsent, onSend, items: !touch }));
     const desk = draw(false, () => Promise.resolve(null));
     expect(desk).toContain('role="alert"');
-    expect(desk).toContain("not sent: Gmail is unreachable");
+    expect(desk).toContain("Not sent: Gmail is unreachable");
     expect(desk).toContain("“Thanks, I will look tomorrow”");
-    expect(desk).toContain(">Send again<");
-    expect(desk).toMatch(/title="let it go; the card stops saying it was not sent"[^>]*>Discard</);
+    expect(desk).toContain(">Send Again<");
+    expect(desk).toMatch(/title="Let it go; the card stops saying it was not sent"[^>]*>Discard</);
     const phone = draw(true, () => Promise.resolve(null));
     expect(phone).toContain("Not sent: Gmail is unreachable");
-    expect(phone).toContain(">Send again<");
+    expect(phone).toContain(">Send Again<");
     // With nothing to settle it by, it still says so, and offers nothing.
-    expect(draw(false)).toContain("not sent: Gmail is unreachable");
-    expect(draw(false)).not.toContain("Send again");
-    expect(draw(false)).not.toContain("let it go");
-    expect(renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }))).not.toContain("not sent");
+    expect(draw(false)).toContain("Not sent: Gmail is unreachable");
+    expect(draw(false)).not.toContain("Send Again");
+    expect(draw(false)).not.toContain("Let it go");
+    expect(renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }))).not.toContain("Not sent");
   });
   test("before the line is read it says the reply goes to all, as before", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }));

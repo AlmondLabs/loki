@@ -110,11 +110,15 @@ describe("keymap: resolution", () => {
     expect(resolve(ev("?", { shift: true }), "learn")?.id).toBe("keys.sheet");
     expect(resolve(ev("?", { shift: true }, true), "inbox")).toBeNull();
   });
-  test("⌘⇧D shows and hides the list column (Slack's sidebar key), and stays Deny in the inbox, which has no column", () => {
-    const shiftD = (segment: Parameters<typeof resolve>[1], typing = false) => resolve(ev("d", { meta: true, shift: true }, typing), segment)?.id;
-    expect([shiftD("desk"), shiftD("agents"), shiftD("learn")]).toEqual(["column.toggle", "column.toggle", "column.toggle"]);
-    expect(shiftD("desk", true)).toBe("column.toggle");
-    expect(shiftD("inbox")).toBe("inbox.deny");
+  test("⌃⌘S shows and hides the sidebar everywhere, as the Mac's own apps do; ⌘⇧D is only Flow's Deny", () => {
+    const sidebar = (segment: Parameters<typeof resolve>[1], typing = false) => resolve(ev("s", { meta: true, ctrl: true }, typing), segment, "macos")?.id;
+    for (const s of ["desk", "inbox", "agents", "learn"] as const) expect(sidebar(s)).toBe("column.toggle");
+    expect(sidebar("desk", true)).toBe("column.toggle");
+    const shiftD = (segment: Parameters<typeof resolve>[1]) => resolve(ev("d", { meta: true, shift: true }), segment, "macos")?.id ?? null;
+    expect([shiftD("desk"), shiftD("agents"), shiftD("learn"), shiftD("inbox")]).toEqual([null, null, null, "inbox.deny"]);
+    // ⌘S alone is not the sidebar; off the Mac it is Ctrl B
+    expect(resolve(ev("s", { meta: true }), "desk", "macos")?.id).not.toBe("column.toggle");
+    expect(resolve(ev("b", { ctrl: true }, true), "desk", "windows")?.id).toBe("column.toggle");
   });
   test("segments and settings comma", () => {
     expect(resolve(ev(",", { meta: true }), "agents")?.id).toBe("segment.settings");
@@ -140,24 +144,26 @@ describe("keymap: resolution", () => {
 });
 
 describe("keymap: presentation", () => {
-  test("⌘⇧D is listed where it does what it says: the sidebar outside the inbox, Deny in it", () => {
-    const toggle = bindingOf("column.toggle");
-    expect(takenBy(toggle)).toEqual([{ where: "inbox", key: "cmd+shift+d", id: "inbox.deny", label: "Deny" }]);
-    // no other key that works everywhere is taken by a view
-    for (const b of KEYMAP.filter((b) => b.where === "anywhere" && b.id !== "column.toggle")) expect(takenBy(b)).toEqual([]);
+  test("no key means two things where both can fire: a key that works everywhere is taken by no view, on any system", () => {
+    for (const os of ["macos", "windows", "linux"] as const) {
+      const taken = KEYMAP.filter((b) => b.where === "anywhere").flatMap((b) => takenBy(b, KEYMAP, os).map((t) => `${b.id} ${t.key} ${t.id}`));
+      expect(taken, os).toEqual([]);
+    }
+    // The message box's keys (the chat scope) sit inside Chats (the desk scope): neither takes the other's.
+    const desk = new Set(KEYMAP.filter((b) => b.where === "desk").flatMap((b) => b.keys));
+    expect(KEYMAP.filter((b) => b.where === "chat" && b.keys.some((k) => desk.has(k))).map((b) => b.id)).toEqual([]);
     const everywhere = (segment: Parameters<typeof keysFor>[0]) =>
       must(
         keysFor(segment).find((g) => g.where === "anywhere"),
         "the anywhere group",
       ).rows.map((b) => b.id);
-    expect(everywhere("inbox")).not.toContain("column.toggle");
-    expect(
-      must(
-        keysFor("inbox").find((g) => g.where === "inbox"),
-        "the inbox group",
-      ).rows.map((b) => b.id),
-    ).toContain("inbox.deny");
-    for (const s of ["desk", "agents", "learn"] as const) expect(everywhere(s)).toContain("column.toggle");
+    for (const s of ["desk", "inbox", "agents", "learn"] as const) expect(everywhere(s)).toContain("column.toggle");
+  });
+  test("nothing a key alone types into the message box acts: Return only sends, and the quick replies' digits are theirs", () => {
+    const box = KEYMAP.filter((b) => b.where === "chat" && b.typing).flatMap((b) => b.keys.map((k) => `${k} ${b.id}`));
+    expect(box.filter((k) => !k.includes("+") && !k.startsWith("enter chat.send"))).toEqual([]);
+    expect(KEYMAP.find((b) => b.id === "chat.allow-empty")).toBeUndefined();
+    expect(keyFor("chat.allow", "macos")).toBe("⌘↵");
   });
   test("formats chords with Mac symbols", () => {
     expect(formatKeys("shift+/")).toBe("?");
@@ -309,7 +315,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       for (const k of b.keys) expect(formatKeys(k, "macos")).toBe(macBefore(k));
     }
     expect(SEGMENTS.map((s) => s.key)).toEqual(["⌘1", "⌘2", "⌘4", "⌘5", "⌘6"]);
-    expect(wasFor({ ...bindingOf("search.open"), was: "moved ({column.toggle} shows the sidebar)" }, "macos")).toBe("moved (⌘⇧D shows the sidebar)");
+    expect(wasFor({ ...bindingOf("search.open"), was: "moved ({column.toggle} shows the sidebar)" }, "macos")).toBe("moved (⌃⌘S shows the sidebar)");
     expect(menuSpec(KEYMAP, "macos")).toEqual(menuSpec());
   });
   test("covers AE5: Ctrl+K opens search on Windows, from the message box too, and the keys sheet lists it as Ctrl K", () => {
@@ -423,9 +429,10 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     const everywhere: Binding = { id: "e", keys: ["cmd+9"], keysOn: { linux: ["cmd+1"] }, where: "anywhere", label: "E" };
     expect(takenBy(everywhere, [...planted, everywhere], "macos")).toEqual([]);
     expect(takenBy(everywhere, [...planted, everywhere], "linux")).toEqual([{ where: "desk", key: "cmd+1", id: "a", label: "A" }]);
-    // the one real case reads the same everywhere
+    // the sidebar's key is free on every system: ⌃⌘S on the Mac, Ctrl B elsewhere
     const toggle = bindingOf("column.toggle");
-    for (const os of PC) expect(takenBy(toggle, KEYMAP, os)).toEqual([{ where: "inbox", key: "cmd+shift+d", id: "inbox.deny", label: "Deny" }]);
+    for (const os of PC) expect(takenBy(toggle, KEYMAP, os)).toEqual([]);
+    expect([keyFor("column.toggle", "macos"), keyFor("column.toggle", "windows"), keyFor("column.toggle", "linux")]).toEqual(["⌃⌘S", "Ctrl B", "Ctrl B"]);
   });
   test("the menu's accelerators follow the system's keys", () => {
     const moved: Binding[] = [{ id: "x", keys: ["alt+cmd+j"], keysOn: { windows: ["cmd+j"] }, where: "anywhere", label: "X", menu: "Go" }];
@@ -446,7 +453,8 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
   });
   test("a was line names the key it points to on each system", () => {
     const search = { ...bindingOf("search.open"), was: "moved ({column.toggle} shows the sidebar)" };
-    expect(wasFor(search, "windows")).toBe("moved (Ctrl Shift D shows the sidebar)");
+    expect(wasFor(search, "windows")).toBe("moved (Ctrl B shows the sidebar)");
+    expect(wasFor(bindingOf("column.toggle"), "macos")).toBe("was ⌘⇧D outside Flow");
     expect(wasFor(bindingOf("desk.new"), "windows")).toBeUndefined();
   });
   test("⌘ held means ⌘ alone on the Mac (Ctrl+D deletes forward in a Mac text box) and Ctrl alone elsewhere", () => {

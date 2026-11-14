@@ -191,7 +191,7 @@ function RecipientRow({
             style={{ fontSize: size, width: "100%" }}
           />
           {found.length > 0 && (
-            <div className="loki-mail-suggest" role="listbox" aria-label="suggestions">
+            <div className="loki-mail-suggest" role="listbox" aria-label="Suggestions">
               {found.map((p, i) => (
                 <button
                   key={p.address}

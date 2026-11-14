@@ -5,7 +5,8 @@ import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
 import { outsideReplies } from "../shared/outside-replies";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type OpenedThread, type PickerKind, type ReplyBox } from "./deck-moves";
-import { freshSeeds, withSeeds } from "./outside-words";
+import { freshSeeds, mendLabel, withSeeds } from "./outside-words";
+import { notify } from "../components";
 
 /** How long a word stays on the badge. */
 export const FLASH_MS = 900;
@@ -51,6 +52,7 @@ export function useDeckActions({
   setQueue,
   moves,
   lane = null,
+  onSignIn,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
@@ -59,6 +61,8 @@ export function useDeckActions({
   moves: DeckMoveApi;
   /** The lane Flow is in, null for Everything: undo takes back the last decision on a card it holds (KTD6). */
   lane?: ResolvedLane | null;
+  /** Open where a disconnected account is mended (Preferences › Accounts); a refusal's notice offers it. */
+  onSignIn?: () => void;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   /** Replies and answers sent this visit. A reply on a chat keeps you on the card; the deck's keys move it. */
@@ -104,6 +108,11 @@ export function useDeckActions({
     setDecided,
     setQueue,
     say,
+    notice: (item, words) => {
+      const cause = item.outside?.disconnected;
+      const mend = cause && item.outside && onSignIn ? mendLabel(cause, item.outside.provider) : null;
+      notify(words, mend && onSignIn ? { action: { label: mend, onClick: onSignIn } } : undefined);
+    },
     setDir,
     pick: (kind) => setPicking(kind && currentId ? { id: currentId, kind } : null),
     sent: () => setReplies((n) => n + 1),
@@ -117,7 +126,7 @@ export function useDeckActions({
    */
   const sent = () => {
     setReplies((n) => n + 1);
-    say("sent");
+    say("Sent");
   };
   return {
     flash,

@@ -7,15 +7,15 @@
 export type Grade = 1 | 2 | 3 | 4;
 /** The four grades the scheduler knows, with their FSRS names. */
 export const GRADES: Array<{ grade: Grade; label: string }> = [
-  { grade: 1, label: "again" },
+  { grade: 1, label: "Again" },
   { grade: 2, label: "hard" },
   { grade: 3, label: "good" },
   { grade: 4, label: "easy" },
 ];
 /** What the deck offers: two answers, on the arrow keys. "again" is grade 1, "got it" is grade 3; the scheduler keeps its four internally. */
 export const ANSWERS: Array<{ grade: Grade; label: string; key: string }> = [
-  { grade: 1, label: "again", key: "←" },
-  { grade: 3, label: "got it", key: "→" },
+  { grade: 1, label: "Again", key: "←" },
+  { grade: 3, label: "Got It", key: "→" },
 ];
 
 /** A card's scheduling state, kept by the caller and passed back on every review. */

@@ -8,11 +8,11 @@ import type { ReplyOutcome } from "../../../core/attention/chat-store.ts";
 import { messageOf } from "../../../core/errors.ts";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
-import { Kbd } from "@/ui/kbd";
 import { Textarea } from "@/ui/textarea";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { cn } from "@/lib/utils";
 import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+import { replyKeyDown } from "../chat/quick-replies";
 
 /*
  * Proposal (plan 097, R9): anything the agent asks the person to decide, drawn in one frame whatever its kind. The
@@ -223,7 +223,7 @@ export function ReplyProposalView({
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
         {editing ? (
-          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="reply text" />
+          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="Reply text" />
         ) : (
           <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{text}</blockquote>
         )}
@@ -245,11 +245,11 @@ export function ReplyProposalView({
             </Button>
             {!editing && (
               <Button size="sm" variant="outline" disabled={off} onClick={() => setEditing(true)} data-action="edit">
-                edit
+                Edit
               </Button>
             )}
             <Button size="sm" variant="ghost" disabled={off} onClick={() => void act("reject")} data-action="reject">
-              reject
+              Reject
             </Button>
             <span className="text-meta text-muted-foreground">{words.after}</span>
           </div>
@@ -261,15 +261,15 @@ export function ReplyProposalView({
 
 /**
  * The agent's quick replies (plan 066) as AI Elements' Suggestion chips at the end of the thread: a press sends the
- * option as the person's message; on the Mac each shows its key, 1 to 4, which sends it from an empty box.
+ * option as the person's message. With a chip focused, 1 to 4 send theirs; each key is in its chip's tooltip, not on
+ * its face (docs/style.md §6).
  */
 export function QuickReplyChips({ options, onPick }: { options: readonly string[]; onPick: (text: string) => void }) {
   return (
-    <SuggestionChips role="group" aria-label="quick replies" className="py-1">
+    <SuggestionChips role="group" aria-label="Quick replies" className="py-1" onKeyDown={replyKeyDown(options, onPick)}>
       {options.map((option, i) => (
-        <SuggestionChip key={option} suggestion={option} onClick={onPick} title={`send "${option}"`} className="gap-1.5 px-3">
+        <SuggestionChip key={option} suggestion={option} onClick={onPick} title={`Send “${option}” (${i + 1})`} className="px-3">
           {option}
-          <Kbd>{String(i + 1)}</Kbd>
         </SuggestionChip>
       ))}
     </SuggestionChips>

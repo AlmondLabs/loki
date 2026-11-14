@@ -26,11 +26,11 @@ export function ChangesPage({
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(320px, 440px) 1fr" }}>
       <ListPane>
         <Head>
-          Commits <span style={{ marginLeft: "auto", fontWeight: 400 }}>{log.length ? `last ${log.length}` : ""}</span>
+          Commits <span style={{ marginLeft: "auto", fontWeight: 400 }}>{log.length ? `Last ${log.length}` : ""}</span>
         </Head>
         {log.length === 0 && (
           <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
-            no memory commits yet
+            No memory commits yet
           </div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
@@ -54,7 +54,7 @@ export function ChangesPage({
                   )}
                 </span>
                 <span />
-                <span className="loki-meta">{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
+                <span className="loki-meta">{c.files.length === 0 ? "Merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
               </Row>
             );
           })}
@@ -83,7 +83,7 @@ function CommitView({
   canRevert: boolean;
 }) {
   const { content, loadingView } = reading;
-  if (!shownSha) return <div className="loki-meta loki-meta--wrap">nothing learned yet</div>;
+  if (!shownSha) return <div className="loki-meta loki-meta--wrap">Nothing learned yet</div>;
   return (
     <>
       <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -93,12 +93,12 @@ function CommitView({
         {loadingView && <span>Loading…</span>}
         <span style={{ flex: 1 }} />
         {canRevert && (
-          <Button size="sm" tone="paper" onClick={() => onRevert(shownSha)} title="undo this change with a new commit">
-            revert
+          <Button size="sm" tone="paper" onClick={() => onRevert(shownSha)} title="Undo this change with a new commit">
+            Revert
           </Button>
         )}
       </div>
-      {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">nothing to show here</div>}
+      {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">Nothing to show here</div>}
       {content !== null && <Diff text={content} />}
     </>
   );

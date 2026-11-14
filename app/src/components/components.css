@@ -662,6 +662,12 @@ textarea.loki-field {
   background: color-mix(in srgb, var(--loki-selection), var(--loki-fg) 8%);
   color: var(--loki-fg);
 }
+/* On the selection fill the muted grey falls under AA, so the open row's preview and time take full ink, as Mail's
+   selected message does; their smaller size still sets them below the name. */
+.loki-list-row[aria-current] .loki-list-row-preview,
+.loki-list-row[aria-current] .loki-list-row-time {
+  color: var(--loki-fg);
+}
 /* Unread: bold, in full ink. The status words in the row say it too (rowStatus), so weight is not the only sign. */
 .loki-list-row--unread {
   color: var(--loki-fg);

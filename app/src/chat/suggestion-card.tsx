@@ -63,9 +63,6 @@ export const bumpTick = (t: ChatTick, id: string): ChatTick => ({ id, n: (t?.id 
 /** The tick a chat's Conversation gets: the bumps made for it, 0 for any other chat. */
 export const tickOf = (t: ChatTick, id: string): number => (t?.id === id ? t.n : 0);
 
-/** The words of a control: lowercase on the desktop, sentence case on the phone. */
-const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);
-
 /** A folder's last part, as a target line names it. */
 const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 
@@ -86,14 +83,14 @@ export interface TargetView {
 const GONE = /is (gone|archived): pick another chat$/;
 
 /** A suggestion's target as the card shows it: its name, and whether it is gone (the agent, or the chat once the list came). */
-export function targetOf(source: Pick<SuggestionSource, "items" | "agents" | "listed" | "agentsLoaded">, s: Suggestion, touch = false): TargetView {
+export function targetOf(source: Pick<SuggestionSource, "items" | "agents" | "listed" | "agentsLoaded">, s: Suggestion): TargetView {
   const t = s.target;
   const agent = source.agents.find((a) => a.id === t.agent_id);
   const agentGone = source.agentsLoaded && !agent;
   const said = GONE.test(s.reason ?? "");
   if (!("conversation_id" in t)) {
     const agentName = agent?.name ?? "an agent";
-    return { name: `${say(touch, "new chat with")} ${agentName} in ${folderName(t.folder)}`, gone: agentGone || said };
+    return { name: `New chat with ${agentName} in ${folderName(t.folder)}`, gone: agentGone || said };
   }
   const chat = source.items.find((c) => c.agent_id === t.agent_id && c.id === t.conversation_id);
   const agentName = agent?.name ?? chat?.agent_name ?? "an agent";
@@ -120,7 +117,7 @@ const MAX_HITS = 8;
  * match, ranked by the same matching the ⌘K and phone searches use (shared/search.ts). The chat the suggestion is
  * already for is left out.
  */
-export function chatChoices(source: Pick<SuggestionSource, "items" | "agents">, query: string, current: SuggestionTarget | null, touch = false): ChatChoice[] {
+export function chatChoices(source: Pick<SuggestionSource, "items" | "agents">, query: string, current: SuggestionTarget | null): ChatChoice[] {
   const agentNames = new Map(source.agents.map((a) => [a.id, a.name]));
   const isCurrent = (c: ConversationInfo) => !!current && "conversation_id" in current && current.agent_id === c.agent_id && current.conversation_id === c.id;
   const chats = source.items
@@ -136,7 +133,7 @@ export function chatChoices(source: Pick<SuggestionSource, "items" | "agents">, 
       };
     });
   const agents = source.agents.map((a): Indexed<ChatChoice> => ({
-    hit: { key: `agent:${a.id}`, title: `${say(touch, "new chat with")} ${a.name}`, line: "", agentId: a.id },
+    hit: { key: `agent:${a.id}`, title: `New chat with ${a.name}`, line: "", agentId: a.id },
     fields: [a.name],
     recency: 0,
   }));
@@ -248,7 +245,7 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
     });
   };
   const folder = face.cwd ?? source.items.find((c) => c.agent_id === rt.agent_id && c.id === rt.conversation_id)?.cwd ?? null;
-  const label = say(touch, list.length ? chipText(list.length, false) : "suggestions");
+  const label = sentence(list.length ? chipText(list.length, false) : "suggestions");
   const shown = chipText(list.length, touch);
 
   return (
@@ -259,20 +256,20 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={label}
-        title={say(touch, "suggestions for other chats")}
+        title="Suggestions for other chats"
       >
         <Icon name="suggest" size={touch ? 18 : 14} />
         {shown && <span>{shown}</span>}
       </Chip>
       {open && (
         <SuggestionPanel touch={touch} count={list.length} onClose={() => setOpen(false)}>
-          <div className="loki-suggestions" role="region" aria-label={say(touch, "suggestions for other chats")}>
+          <div className="loki-suggestions" role="region" aria-label="Suggestions for other chats">
             {settled.map(([id, t]) => (
               <div key={id} className="loki-suggestion loki-suggestion-told" role="status">
                 <span className="loki-suggestion-title">{t.title}</span>
                 <span className="loki-suggestion-note">{t.message}</span>
                 <Button size={touch ? "touch" : "sm"} bare onClick={() => setTold((all) => ({ ...all, [id]: undefined }))}>
-                  {say(touch, "dismiss")}
+                  Dismiss
                 </Button>
               </div>
             ))}
@@ -280,7 +277,7 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
               <SuggestionCard
                 key={s.id}
                 suggestion={s}
-                target={targetOf(source, s, touch)}
+                target={targetOf(source, s)}
                 open={shownId === s.id}
                 onToggle={() => setOpenId(shownId === s.id ? null : s.id)}
                 note={notes[s.id] ?? null}
@@ -317,11 +314,11 @@ const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
 function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; count: number; onClose: () => void; children: ReactNode }) {
   const head = (
     <div className="loki-suggestion-modal-head">
-      <span className="loki-suggestion-modal-title">{say(touch, "suggestions")}</span>
-      {count > 0 && <Meta>{say(touch, `${count} waiting`)}</Meta>}
+      <span className="loki-suggestion-modal-title">Suggestions</span>
+      {count > 0 && <Meta>{`${count} waiting`}</Meta>}
       <span style={{ flex: 1 }} />
-      {!touch && <Meta>esc closes</Meta>}
-      <IconButton size={touch ? 36 : 28} label={say(touch, "close")} onClick={onClose}>
+      {!touch && <Meta>Esc closes</Meta>}
+      <IconButton size={touch ? 36 : 28} label="Close" onClick={onClose}>
         <Icon name="close" size={touch ? 20 : 16} />
       </IconButton>
     </div>
@@ -339,7 +336,7 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
     );
   // Drawn at the body, as the rename dialog is: inside the box it would be clipped to the box.
   const sheet = (
-    <Sheet label="suggestions" onClose={onClose} width={720} top="8vh" className="loki-suggestion-modal">
+    <Sheet label="Suggestions" onClose={onClose} width={720} top="8vh" className="loki-suggestion-modal">
       {head}
       {children}
     </Sheet>
@@ -389,12 +386,12 @@ export function SuggestionCardView({
 }: SuggestionCardProps & { picking: boolean; onPicking: (picking: boolean) => void }) {
   const sending = s.status === "sending";
   // A target found gone before anything was pressed says so too, in the words the Mac uses when it refuses (R16).
-  const reason = note ?? s.reason ?? (target.gone ? say(touch, "the chat this was for is gone or archived: pick another chat") : null);
+  const reason = note ?? s.reason ?? (target.gone ? "The chat this was for is gone or archived: pick another chat" : null);
   const off = busy || sending || !!blocked;
   return (
     <div className="loki-suggestion" data-suggestion={s.id} data-open={open || undefined}>
       <button type="button" className="loki-suggestion-head" aria-expanded={open} onClick={onToggle}>
-        <span className="loki-suggestion-kicker">{say(touch, "suggests")}</span>
+        <span className="loki-suggestion-kicker">Suggests</span>
         <span className="loki-suggestion-title">{s.title}</span>
         <span className="loki-suggestion-target">→ {target.name}</span>
       </button>
@@ -406,7 +403,7 @@ export function SuggestionCardView({
               {s.text}
             </Markdown>
           </div>
-          <SuggestionNotes sending={sending} reason={reason} blocked={blocked} touch={touch} />
+          <SuggestionNotes sending={sending} reason={reason} blocked={blocked} />
           {!sending && !picking && <SuggestionActions gone={target.gone} off={off} touch={touch} onDecide={onDecide} onPicking={onPicking} />}
           {!sending && picking && picker(() => onPicking(false))}
         </div>
@@ -416,12 +413,12 @@ export function SuggestionCardView({
 }
 
 /** What an opened card says above its buttons: that it is being sent, why the last action was refused, what blocks it. */
-function SuggestionNotes({ sending, reason, blocked, touch }: { sending: boolean; reason: string | null; blocked: string | null; touch: boolean }) {
+function SuggestionNotes({ sending, reason, blocked }: { sending: boolean; reason: string | null; blocked: string | null }) {
   return (
     <>
       {sending && (
         <div className="loki-suggestion-note" role="status">
-          {say(touch, "sending…")}
+          Sending…
         </div>
       )}
       {!sending && reason && (
@@ -454,18 +451,18 @@ function SuggestionActions({
       {!gone && (
         <>
           <Button size={size} tone="positive" disabled={off} onClick={() => onDecide("send")} data-action="send">
-            {say(touch, "send now")}
+            Send Now
           </Button>
           <Button size={size} tone="paper" disabled={off} onClick={() => onDecide("draft")} data-action="draft">
-            {say(touch, "save as draft")}
+            Save as Draft
           </Button>
         </>
       )}
       <Button size={size} tone={gone ? "brass" : "paper"} disabled={off} onClick={() => onPicking(true)} data-action="change">
-        {say(touch, "change chat")}
+        Change Chat…
       </Button>
       <Button size={size} tone="negative" disabled={off} onClick={() => onDecide("reject")} data-action="reject">
-        {say(touch, "reject")}
+        Reject
       </Button>
     </div>
   );
@@ -495,7 +492,7 @@ function ChatPicker({
   const [query, setQuery] = useState("");
   const [agent, setAgent] = useState<{ id: string; title: string } | null>(null);
   const [folder, setFolder] = useState(sourceFolder ?? "");
-  const choices = chatChoices(source, query, suggestion.target, touch);
+  const choices = chatChoices(source, query, suggestion.target);
   const size = touch ? "touch" : "sm";
   const choose = (c: ChatChoice) => {
     if (c.conversationId) onPick({ agent_id: c.agentId, conversation_id: c.conversationId });
@@ -520,16 +517,16 @@ function ChatPicker({
               () => setAgent(null),
             )
           }
-          aria-label={say(touch, "folder for the new chat")}
+          aria-label="Folder for the new chat"
           autoComplete="off"
           autoFocus
         />
         <div className="loki-suggestion-actions">
           <Button size={size} tone="positive" disabled={disabled || !folder.trim()} onClick={() => onPick({ agent_id: agent.id, folder: folder.trim() })}>
-            {say(touch, "choose")}
+            Choose
           </Button>
           <Button size={size} tone="paper" onClick={() => setAgent(null)}>
-            {say(touch, "back")}
+            Back
           </Button>
         </div>
       </div>
@@ -542,12 +539,12 @@ function ChatPicker({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => keys(e, () => choices[0] && choose(choices[0]), onCancel)}
-        placeholder={say(touch, "find a chat or an agent…")}
-        aria-label={say(touch, "find a chat or an agent")}
+        placeholder="Find a chat or an agent…"
+        aria-label="Find a chat or an agent"
         autoComplete="off"
         autoFocus
       />
-      <ul className="loki-suggestion-hits" aria-label={say(touch, "chats and agents")}>
+      <ul className="loki-suggestion-hits" aria-label="Chats and agents">
         {choices.map((c) => (
           <li key={c.key}>
             <Row dense={!touch} touch={touch} disabled={disabled} onClick={() => choose(c)} className="loki-suggestion-hit">
@@ -556,11 +553,11 @@ function ChatPicker({
             </Row>
           </li>
         ))}
-        {!choices.length && <li className="loki-suggestion-note">{say(touch, "no chat or agent by that name")}</li>}
+        {!choices.length && <li className="loki-suggestion-note">No chat or agent by that name</li>}
       </ul>
       <div className="loki-suggestion-actions">
         <Button size={size} tone="paper" onClick={onCancel}>
-          {say(touch, "cancel")}
+          Cancel
         </Button>
       </div>
     </div>

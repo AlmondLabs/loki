@@ -328,6 +328,8 @@ describe("design tokens: Liquid Glass stays readable on both sides", () => {
           expect(contrast(color("fg"), color(surface))).toBeGreaterThanOrEqual(4.5);
         }
         expect(contrast(color("accent"), color("brass-soft"))).toBeGreaterThanOrEqual(4.5);
+        // A monogram's initial is small text, so it holds AA even at the gradient's lighter end.
+        expect(contrast(color("on-monogram"), color("monogram-top"))).toBeGreaterThanOrEqual(4.5);
       });
 
       test(`${theme}: every label colour reads as a mark on the surfaces chips sit on`, () => {
@@ -338,6 +340,13 @@ describe("design tokens: Liquid Glass stays readable on both sides", () => {
       });
     }
   }
+
+  test("the open list row's preview and time take full ink, since the muted grey falls under AA on the selection", () => {
+    const css = flat(readFileSync(join(APP, "components", "components.css"), "utf8"));
+    for (const part of ["preview", "time"]) {
+      expect(css).toMatch(new RegExp(`\\.loki-list-row\\[aria-current\\] \\.loki-list-row-${part}[^{]*\\{[^}]*color: var\\(--loki-fg\\)`));
+    }
+  });
 });
 
 /**

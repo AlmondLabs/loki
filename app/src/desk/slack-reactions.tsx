@@ -148,7 +148,7 @@ export function EmojiPicker({
     <div
       className="loki-emoji-picker"
       role="dialog"
-      aria-label="react with an emoji"
+      aria-label="React with an emoji"
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) onClose();
       }}
@@ -159,13 +159,13 @@ export function EmojiPicker({
         value={query}
         placeholder={search ? "search emoji" : "pick one"}
         readOnly={!search}
-        aria-label="search emoji"
+        aria-label="Search emoji"
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKey}
       />
       <div className="loki-emoji-choices">
-        {shown === null && <span className="loki-emoji-note">searching…</span>}
-        {shown?.length === 0 && <span className="loki-emoji-note">no emoji by that name</span>}
+        {shown === null && <span className="loki-emoji-note">Searching…</span>}
+        {shown?.length === 0 && <span className="loki-emoji-note">No emoji by that name</span>}
         {shown?.map((c, i) => (
           <button key={c.name} type="button" className="loki-emoji-choice" title={`:${c.name}:`} onClick={() => onPick(c)}>
             <Emoji emoji={c.emoji} name={c.name} />

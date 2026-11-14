@@ -92,7 +92,7 @@ function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
         className="loki-label"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="switch lane"
+        title="Switch lane"
         onClick={(e) => {
           // In the Mac app the system's menu hangs from the title (U19).
           if (native)
@@ -180,7 +180,7 @@ export function LaneMenu({ onClose, ...props }: Omit<LaneSwitchProps, "onLane"> 
     <Popover
       ref={ref}
       role="menu"
-      aria-label="lanes"
+      aria-label="Lanes"
       width={240}
       // It hangs from the title's own small wrapper, so the popover's usual cap (its parent's width) would crush it.
       style={{ padding: 4, maxWidth: "none" }}
@@ -232,7 +232,7 @@ export function CaughtUp({
           <span>{resting} resting</span>
           {onResting && (
             <Button bare size="sm" tone="brass" onClick={onResting}>
-              go through them
+              Go Through Them
             </Button>
           )}
         </div>
@@ -241,13 +241,13 @@ export function CaughtUp({
         <div style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
-        anything new lands here while this stays open
+        Anything new lands here while this stays open
       </div>
       {onEverything && (
         <div className="loki-meta loki-meta--wrap" style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           {quiet && <span>{quiet}</span>}
           <Button bare size="sm" tone="brass" onClick={onEverything}>
-            back to everything
+            Back to Everything
           </Button>
         </div>
       )}
@@ -304,7 +304,7 @@ export function ChatCardMeta({ current, cameBack, suggestions, onSuggestions }: 
     ),
     current.has_draft && <Meta key="draft">draft</Meta>,
     (suggestions ?? 0) > 0 && (
-      <Chip key="suggestions" tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
+      <Chip key="suggestions" tag brass onClick={onSuggestions} aria-haspopup="dialog" title="Open them in this card's message box">
         {chipText(suggestions ?? 0, false)}
       </Chip>
     ),
@@ -413,7 +413,7 @@ export function CardActions({
         }}
         kbd={deckKey("inbox.open", typing)}
       >
-        open chat
+        Open Chat
       </Button>
       <Button
         size="sm"
@@ -422,19 +422,19 @@ export function CardActions({
         title={main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow"}
         kbd={deckKey("inbox.archive", typing)}
       >
-        archive
+        Archive
       </Button>
       <span style={{ flex: 1 }} />
       <Button
         size="sm"
         onClick={later}
-        title="keep it unread: the chat comes back in a day, or sooner if something new arrives"
+        title="Keep it unread: the chat comes back in a day, or sooner if something new arrives"
         kbd={deckKey("inbox.later", typing)}
       >
-        later
+        Later
       </Button>
-      <Button size="sm" tone="paper" onClick={read} title="mark it read: the chat rests and comes back later" kbd={deckKey("inbox.next", typing)}>
-        read
+      <Button size="sm" tone="paper" onClick={read} title="Mark it read: the chat rests and comes back later" kbd={deckKey("inbox.next", typing)}>
+        Mark as Read
       </Button>
     </>
   );

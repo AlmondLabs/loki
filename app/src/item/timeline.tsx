@@ -20,7 +20,7 @@ import { ThreadError } from "../chat/thread-error";
 import { StepsLoad } from "../chat/tool-steps";
 import { useArrivedFrom } from "../chat/transcript";
 import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../chat/transcript-window";
-import { threadEntries, threadTurns, type TurnPart } from "./entries";
+import { threadEntries, threadTurns, thoughtsIntoWork, type TurnPart } from "./entries";
 import { WidgetArtifact } from "./content-parts";
 import { ChangeEntry, DayMarker, EventEntry, NewMarker } from "./event-entry";
 import { chatEntries, type ItemEntry } from "./item-view";
@@ -126,6 +126,8 @@ function ThreadBody({
         if (samePlan(plan, lastPlan)) repeated.add(p.key);
         lastPlan = plan;
       }
+  // A thought before a reply that follows work joins that work's line (plan 2026-11-14-0852, 4).
+  const thoughts = thoughtsIntoWork(entries.flatMap((e) => (e.kind === "turn" ? [e.parts] : [])));
   // The live turn's badge already says it is working; the thinking line is for the wait before its first part.
   const tailEntry = entries.at(-1);
   const turnWorking = tailEntry?.kind === "turn" && tailEntry.state === "working";
@@ -154,17 +156,21 @@ function ThreadBody({
         return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
         return (
-          <>
-            <Thought rows={p.rows} />
-            <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} planAsBefore={repeated.has(p.key)} />
-          </>
+          <Work
+            rows={p.rows}
+            thoughts={thoughts.into.get(p.key)}
+            running={p.running || paused(p.rows)}
+            arrived={p.arrived}
+            waiting={paused(p.rows)}
+            planAsBefore={repeated.has(p.key)}
+          />
         );
       case "event":
         return <EventEntry row={p.row} arrived={p.arrived} />;
       case "message":
         return (
           <>
-            <Thought rows={[p.row]} />
+            {!thoughts.folded.has(p.key) && <Thought rows={[p.row]} />}
             {message(p)}
           </>
         );
@@ -191,17 +197,17 @@ function ThreadBody({
     <MessageScroller data-new-thread className="flex-1">
       <MessageScrollerViewport preserveScrollOnPrepend onScroll={(ev: UIEvent<HTMLDivElement>) => nearTop(ev.currentTarget)} data-thread-scroll style={style}>
         <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-5 px-6 py-5 text-body text-foreground">
-          {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `loading from ${home}…` : "loading the thread…"}</p>}
+          {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
           {!rows && loadFailed && (
             <div role="alert" className="flex items-center gap-2 text-meta text-destructive">
-              <span>{home ? `could not load this chat from ${home}` : "could not load this chat"}</span>
+              <span>{home ? `Could not load this chat from ${home}` : "Could not load this chat"}</span>
               <Button size="sm" variant="outline" onClick={loadFailed}>
-                try again
+                Try Again
               </Button>
             </div>
           )}
           {rows?.length === 0 && !blank && (
-            <p className="m-0 text-meta text-muted-foreground">nothing here yet — everything you send lands in {who}'s transcript</p>
+            <p className="m-0 text-meta text-muted-foreground">Nothing here yet — everything you send lands in {who}'s transcript</p>
           )}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
@@ -214,7 +220,7 @@ function ThreadBody({
           {status === "thinking" && !waiting && !turnWorking && (
             <Trace role="status">
               <TraceLine status="running">
-                <TraceTitle>thinking</TraceTitle>
+                <TraceTitle>Thinking</TraceTitle>
               </TraceLine>
             </Trace>
           )}

@@ -341,7 +341,7 @@ describe("drawing a Slack card's body", () => {
     expect(html).toContain('<span class="loki-mention">@channel</span>');
     expect(html).toContain("3 replies");
     expect(html).toContain('class="loki-slack-reply"');
-    expect(html).toContain("more messages in the channel since");
+    expect(html).toContain("More messages in the channel since");
   });
 
   const controls: ThreadControls = { load: () => {}, openThread: () => {}, busy: null };
@@ -383,9 +383,9 @@ describe("drawing a Slack card's body", () => {
   test("covers AE3: a post with new replies offers to open them, and a thread opened from the channel offers the way back", () => {
     const html = draw([m("p", "Ravi", 0, { replies: 3, new_replies: 3 })], { view: "channel", thread_ts: null, more_before: false, more_after: false });
     expect(html).toContain("3 new replies");
-    expect(html).not.toContain("back to the conversation");
+    expect(html).not.toContain("Back to the Conversation");
     const back = draw([m("p", "Ravi", 0)], { view: "thread", thread_ts: "p", more_before: 0, more_after: 0 }, { back: () => {} });
-    expect(back).toContain("back to the conversation");
+    expect(back).toContain("Back to the Conversation");
   });
 
   test("a post whose replies are all read still opens its thread; without a way to open it, it only counts them", () => {
@@ -478,8 +478,8 @@ describe("reactions on a Slack card (plan 079)", () => {
     const quick = quickChoices([{ name: "100", emoji: { kind: "emoji", text: "💯" } }, shipit]);
     const html = draw([m("a", "Ravi", 0)], { load: () => {}, openThread: () => {}, busy: null, react: () => {}, quick });
     const bar = html.slice(html.indexOf("loki-slack-hoverbar"));
-    expect([...bar.matchAll(/title="react with :([^:]+):"/g)].map((x) => x[1])).toEqual(["100", "shipit", "eyes"]);
-    expect(bar).toContain('aria-label="add a reaction"');
+    expect([...bar.matchAll(/title="React with :([^:]+):"/g)].map((x) => x[1])).toEqual(["100", "shipit", "eyes"]);
+    expect(bar).toContain('aria-label="Add a reaction"');
   });
 
   test("quick reactions are the person's most used, filled to five with loki's own not among them", () => {
@@ -522,7 +522,7 @@ describe("files on a Slack card (plan 080)", () => {
       }),
     );
     expect(html).toContain('class="loki-slack-files"');
-    expect(html).toContain('title="open invoice.pdf in Slack"');
+    expect(html).toContain('title="Open invoice.pdf in Slack"');
     expect(html).toContain("PDF · 2.0 KB");
     expect(html).toContain("file deleted");
   });

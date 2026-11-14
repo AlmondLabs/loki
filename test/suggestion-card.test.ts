@@ -25,7 +25,7 @@ import { must } from "./fixtures/must.ts";
 /**
  * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were
  * made, behind a chip in the message box (plan 052), on the desktop and the phone; each one line until opened, then
- * the message with Send now, Save as draft, Change chat and Reject.
+ * the message with Send Now, Save as Draft, Change Chat… and Reject.
  */
 
 const suggestion = (over: Partial<Suggestion> = {}): Suggestion => ({
@@ -139,7 +139,7 @@ describe("where suggestions show", () => {
       expect(cards(html)).toEqual(["newer", "older"]);
       expect(html).toContain(touch ? "loki-suggestion-sheet" : "loki-suggestion-modal");
       expect(html).toContain('aria-modal="true"');
-      expect(html).toContain(touch ? "2 waiting" : "esc closes");
+      expect(html).toContain(touch ? "2 waiting" : "Esc closes");
     });
   }
   test("a hidden view (composer false) draws no chip: the view on screen draws it once", () => {
@@ -191,15 +191,15 @@ describe("one card", () => {
     expect(html).not.toContain("fixture&#x27;s clock");
     expect(actionsOf(html)).toEqual([]);
   });
-  test("opened on the desktop: the message, then send now, save as draft, change chat and reject, in sentence case", () => {
+  test("opened on the desktop: the message, then Send Now, Save as Draft, Change Chat… and Reject, in title case", () => {
     const html = card();
     expect(html).toContain("fixture&#x27;s clock is real");
     expect(actionsOf(html)).toEqual(["send", "draft", "change", "reject"]);
-    for (const words of ["Send now", "Save as draft", "Change chat", "Reject"]) expect(html).toContain(`>${words}<`);
+    for (const words of ["Send Now", "Save as Draft", "Change Chat…", "Reject"]) expect(html).toContain(`>${words}<`);
   });
-  test("opened on the phone: the same actions in sentence case", () => {
+  test("opened on the phone: the same actions in title case", () => {
     const html = card({ touch: true });
-    for (const words of ["Send now", "Save as draft", "Change chat", "Reject"]) expect(html).toContain(`>${words}<`);
+    for (const words of ["Send Now", "Save as Draft", "Change Chat…", "Reject"]) expect(html).toContain(`>${words}<`);
   });
   test("each button decides with its own action", () => {
     const decided: string[] = [];
@@ -217,7 +217,7 @@ describe("one card", () => {
   });
   test("one being sent says so and offers nothing to press", () => {
     const html = card({ suggestion: suggestion({ status: "sending" }) });
-    expect(html).toContain("sending…");
+    expect(html).toContain("Sending…");
     expect(actionsOf(html)).toEqual([]);
   });
   test("covers AE6: a refused action shows its reason on the card", () => {
@@ -268,8 +268,7 @@ describe("covers AE7: a target that is gone", () => {
   });
   test("the target's name: the chat and its agent, or a new chat with an agent in a folder", () => {
     expect(targetOf(lists, suggestion()).name).toBe("infra · ira");
-    expect(targetOf(lists, suggestion({ target: { agent_id: "friday", folder: "/work/loki" } })).name).toBe("new chat with friday in loki");
-    expect(targetOf(lists, suggestion({ target: { agent_id: "friday", folder: "/work/loki" } }), true).name).toBe("New chat with friday in loki");
+    expect(targetOf(lists, suggestion({ target: { agent_id: "friday", folder: "/work/loki" } })).name).toBe("New chat with friday in loki");
   });
 });
 
@@ -277,7 +276,7 @@ describe("change chat", () => {
   const lists = { items: ITEMS, agents: AGENTS };
   test("with nothing typed: the latest chats, then a new chat with each agent; the current target left out", () => {
     const choices = chatChoices(lists, "", { agent_id: "ira", conversation_id: "infra" });
-    expect(choices.map((c) => c.title)).toEqual(["data pipelines", "new chat with ira", "new chat with friday"]);
+    expect(choices.map((c) => c.title)).toEqual(["data pipelines", "New chat with ira", "New chat with friday"]);
   });
   test("typed: the chats and agents that match, a chat by its agent too", () => {
     const choices = chatChoices(lists, "ira", null);

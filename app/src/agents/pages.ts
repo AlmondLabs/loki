@@ -21,11 +21,11 @@ export function isAgentPage(v: unknown): v is AgentPage {
 
 /** One-line hints under each page title. */
 export const AGENT_PAGE_HINT: Record<AgentPage, string> = {
-  profile: "who it is, and where it is working",
-  memory: "what it knows, file by file",
-  changes: "what it learned, newest first",
-  reflection: "when it sleeps on what happened, and what came of it",
-  skills: "its own, and the ones installed from elsewhere",
+  profile: "Who it is, and where it is working",
+  memory: "What it knows, file by file",
+  changes: "What it learned, newest first",
+  reflection: "When it sleeps on what happened, and what came of it",
+  skills: "Its own, and the ones installed from elsewhere",
 };
 
 /** The tab labels under the agent's header, Slack's "Messages | Canvas | Files" voice. */

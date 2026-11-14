@@ -4,6 +4,7 @@ import { ItemHeader } from "../item/item-header";
 import { ActionBar, type VerbControl } from "../item/action-bar";
 import { outsideItem, type ItemVerb } from "../item/item-view";
 import type {
+  AccountDisconnectCause,
   EmojiChoice,
   JiraCardTicket,
   SlackPerson,
@@ -33,7 +34,7 @@ import {
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { sentKey, type SentReplies, type SentReply, type SentSnapshot } from "../../../core/attention/sent-replies.ts";
-import { Button, Chip, Meta, TextArea } from "../components";
+import { Button, Chip, Meta, TextArea, sentence } from "../components";
 import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
@@ -59,6 +60,7 @@ import {
   SEND_NOTE,
   SEND_TITLE,
   disconnectedText,
+  mendLabel,
   replyPlace,
   ticketAddress,
 } from "./outside-words";
@@ -462,7 +464,7 @@ function MessageRow({ m, folded }: { m: OutsideMessage; folded: boolean }) {
         {m.at && <Meta>{ago(m.at)}</Meta>}
       </div>
       {m.html ? (
-        <MailHtml html={m.html} title={`mail from ${senderName(m.sender)}`} />
+        <MailHtml html={m.html} title={`Mail from ${senderName(m.sender)}`} />
       ) : (
         <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: size }}>
           <LinkedText text={m.text} />
@@ -555,11 +557,15 @@ function SlackRows({
 /** The card's own last lines while its thread is read, or when it could not be, with a line saying which. */
 function ThreadStandIn({ facts, state, touch }: { facts: OutsideFacts; state: ThreadState; touch: boolean }) {
   const failed = state.kind === "failed" ? state.message : null;
+  // A disconnected account's card already says why above the thread (Disconnected): a failed read says it only once.
+  const said = failed !== null && !!facts.disconnected;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
-      <Meta wrap negative={failed !== null}>
-        {failed !== null ? `could not read the whole thread: ${failed}` : "reading the whole thread…"}
-      </Meta>
+      {!said && (
+        <Meta wrap negative={failed !== null}>
+          {failed !== null ? `Could not read the whole thread: ${failed}` : "Reading the whole thread…"}
+        </Meta>
+      )}
       <OutsideLines facts={facts} touch={touch} />
     </div>
   );
@@ -782,7 +788,7 @@ export function OutsideReply({
     }
   };
   // The recipients line says who a mail goes to, so the box says only what is written in it.
-  const hint = !isMail ? replyPlace(facts, inThread) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
+  const hint = !isMail ? replyPlace(facts, inThread) : shown?.mode === "forward" ? "Add a note" : compose ? "Reply" : replyPlace(facts);
   const sendKey = isMail ? "cmd+enter" : undefined;
   const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
   const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
@@ -847,7 +853,7 @@ export function OutsideReply({
           send={{
             busy,
             disabled: off || !text.trim(),
-            title: nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider],
+            title: nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider],
             keys: sendKey ? formatKeys(sendKey) : keyFor("chat.send"),
             onSend: () => void send(),
           }}
@@ -891,7 +897,7 @@ export function OutsideReply({
           value={text}
           rows={touch ? 4 : 3}
           disabled={off}
-          placeholder={touch ? `${hint[0].toUpperCase()}${hint.slice(1)}` : hint}
+          placeholder={hint}
           aria-label={hint}
           onChange={(e) => {
             setText(e.target.value);
@@ -915,7 +921,7 @@ export function OutsideReply({
                   {`-- \n${signature}`}
                 </span>
               ) : (
-                <Meta style={{ flex: 1 }}>{touch ? "No signature" : "no signature"}</Meta>
+                <Meta style={{ flex: 1 }}>No signature</Meta>
               )}
               <button
                 type="button"
@@ -924,7 +930,7 @@ export function OutsideReply({
                 disabled={off}
                 onClick={() => shown && setMail({ ...shown, signature: !signature })}
               >
-                {signature ? (touch ? "Remove" : "remove") : touch ? "Add signature" : "add signature"}
+                {signature ? "Remove" : "Add Signature"}
               </button>
             </div>
           )}
@@ -934,13 +940,13 @@ export function OutsideReply({
                 type="button"
                 className="loki-mail-quote-toggle"
                 aria-expanded={quoteOpen}
-                aria-label={touch ? "Show the quoted mail" : "show the quoted mail"}
+                aria-label="Show the quoted mail"
                 title={
                   touch
                     ? undefined
                     : shown?.mode === "forward"
-                      ? "the mail goes under your note, with its files"
-                      : "the mail you answer goes quoted under your reply"
+                      ? "The mail goes under your note, with its files"
+                      : "The mail you answer goes quoted under your reply"
                 }
                 onClick={() => setQuoteOpen(!quoteOpen)}
               >
@@ -962,9 +968,9 @@ export function OutsideReply({
           disabled={off || !text.trim()}
           onClick={() => void send()}
           kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
-          title={touch ? "send it as you; the card stays" : nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider]}
+          title={touch ? "Send it as you; the card stays" : nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider]}
         >
-          {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
+          {busy ? "Sending…" : "Send"}
         </Button>
         {touch && busy && onUndo && (
           <Button size="touch" onClick={onUndo}>
@@ -984,9 +990,9 @@ export function OutsideReply({
             disabled={off || (!text && mail === null)}
             onClick={discard}
             style={{ marginLeft: "auto" }}
-            title="clear the reply and its recipients"
+            title="Clear the reply and its recipients"
           >
-            discard
+            Discard
           </Button>
         ) : (
           actions
@@ -1072,14 +1078,14 @@ export function OutsideItemActions({
       run: moves.label,
       keys: typing ? undefined : keyFor("inbox.label"),
       disabled: off,
-      title: "add a Gmail label to the thread; the card stays",
+      title: "Add a Gmail label to the thread; the card stays",
     };
   if (onHandoff)
     verbs.handoff = {
       run: onHandoff,
       disabled: off,
       title: facts.disconnected
-        ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
+        ? `Cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
         : HANDOFF_TITLE[facts.provider](facts.owner_name ?? "its agent"),
     };
   if (address) verbs.open_out = { run: () => openExternal(address), title: address };
@@ -1151,7 +1157,7 @@ function NotSentLine({
   return (
     <div role="alert" style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-1)" : 4 }}>
       <Meta negative wrap>
-        {touch ? "Not sent" : "not sent"}: {error ?? note.reason}
+        Not sent: {error ?? note.reason}
       </Meta>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <Meta style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={note.text}>
@@ -1159,11 +1165,11 @@ function NotSentLine({
         </Meta>
         {onUnsent && (
           <>
-            <Button size={size} tone="positive" disabled={!!busy} onClick={() => void act("resend")} title="looks in the thread first, so it never goes twice">
-              {busy === "resend" ? (touch ? "Sending…" : "sending…") : touch ? "Send again" : "send again"}
+            <Button size={size} tone="positive" disabled={!!busy} onClick={() => void act("resend")} title="Looks in the thread first, so it never goes twice">
+              {busy === "resend" ? "Sending…" : "Send Again"}
             </Button>
-            <Button size={size} bare disabled={!!busy} onClick={() => void act("discard")} title="let it go; the card stops saying it was not sent">
-              {touch ? "Discard" : "discard"}
+            <Button size={size} bare disabled={!!busy} onClick={() => void act("discard")} title="Let it go; the card stops saying it was not sent">
+              Discard
             </Button>
           </>
         )}
@@ -1219,6 +1225,26 @@ function DeckReply({
 }
 
 /**
+ * What a disconnected account's card says, once (plan 2026-11-14-0852, 1): the one line that names what happened, and
+ * the control that mends it where one can. The thread under it does not say it again.
+ */
+function Disconnected({ facts, cause, onSignIn }: { facts: OutsideFacts; cause: AccountDisconnectCause; onSignIn?: () => void }) {
+  const mend = mendLabel(cause, facts.provider);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <Meta negative wrap>
+        {sentence(disconnectedText(cause, facts.provider))}
+      </Meta>
+      {mend && onSignIn && (
+        <Button size="sm" tone="brass" onClick={onSignIn}>
+          {mend}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
  * The desktop card for an outside thread: the header (who, where and when, and the badge's flash), the whole thread,
  * the reply box, and the deck's moves. Read marks the thread read out there, later keeps it unread and brings it back,
  * archive archives it in its account, label adds a Gmail label; hand off opens `picker`, where the thread goes to its
@@ -1233,6 +1259,7 @@ export function OutsideCard({
   moves,
   went = null,
   onHandoff,
+  onSignIn,
   picker = null,
   source = null,
   box,
@@ -1251,6 +1278,8 @@ export function OutsideCard({
   went?: string | null;
   /** Open the hand-off picker; absent, the card has no hand off. */
   onHandoff?: () => void;
+  /** Open where a disconnected account is mended; absent, the card only says what happened. */
+  onSignIn?: () => void;
   /** The picker open on the card, the hand-off's, the return time's or the labels'. */
   picker?: ReactNode;
   /** Reading the thread, reacting on a Slack card (plan 079) and its people to mention (plan 082); absent, the card shows its last lines. */
@@ -1289,11 +1318,7 @@ export function OutsideCard({
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <OutsideItemHeader facts={facts} unread={current.unread} flash={flash} went={went} cameBack={cameBack} thread={thread} />
       <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
-        {facts.disconnected && (
-          <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>
-            {disconnectedText(facts.disconnected, facts.provider)}
-          </Meta>
-        )}
+        {facts.disconnected && <Disconnected facts={facts} cause={facts.disconnected} onSignIn={onSignIn} />}
         <OutsideThread facts={facts} state={thread} own={own} items />
         {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>

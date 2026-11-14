@@ -25,7 +25,12 @@ describe("the line for a run of tools", () => {
     expect(workSummary([bash()])).toBe("Ran a command");
     expect(workSummary([bash(), bash(), bash()])).toBe("Ran 3 commands");
     expect(workSummary([read(), read()])).toBe("Used 2 tools");
-    expect(workSummary([read()])).toBe("Used a tool");
+    // One step that names its object says what it did to it.
+    expect(workSummary([read()])).toBe("Read a.ts");
+    expect(workSummary([read(true)])).toBe("Read a.ts · failed");
+    expect(workSummary([{ role: "tool", text: "Read", tool: { name: "Read" } }])).toBe("Used a tool");
+    // An ACP agent's step is named by its title, which already says the verb and the object.
+    expect(workSummary([{ role: "tool", text: "Read signups.csv · signups.csv", tool: { name: "Read signups.csv" } }])).toBe("Read signups.csv");
     expect(workSummary([bash(), read(true), ...Array.from({ length: 8 }, () => read())])).toBe("Ran a command, used 9 tools · 1 failed");
     expect(workSummary([bash(), read()], true)).toBe("Working");
   });
@@ -34,6 +39,7 @@ describe("the line for a run of tools", () => {
     expect(stepVerb("Bash")).toBe("Ran");
     expect(stepVerb("Grep")).toBe("Searched");
     expect(stepVerb("mcp_thing")).toBe("Used mcp_thing");
+    expect(stepVerb("Read signups.csv")).toBe("Read signups.csv");
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
     expect(stepVerb("background_run")).toBe("Started in background");

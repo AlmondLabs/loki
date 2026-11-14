@@ -132,7 +132,7 @@ describe("folders", () => {
     expect(html("dialog")).toContain("Browse…");
     expect(html("mod")).toContain("Browse…");
     expect(html(null)).not.toContain("Browse…");
-    expect(html(null)).toContain('aria-label="folder"'); // typing and completion still work
+    expect(html(null)).toContain('aria-label="Folder"'); // typing and completion still work
   });
 
   test("a folder's name in the list: the last segment, split on backslashes too on Windows", () => {

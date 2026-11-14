@@ -63,10 +63,10 @@ describe("the keyboard (U5)", () => {
     expect(ran).toEqual([]);
   });
 
-  test("the empty box's words carry no keys, and say Return allows while an approval waits", async () => {
+  test("the empty box's words carry no keys, and say how to answer while an approval waits", async () => {
     const { boxPlaceholder } = await import("../app/src/chat/conversation.tsx");
     expect(boxPlaceholder({ status: "idle", approval: null, question: null }, "friday")).toBe("Message friday");
-    expect(boxPlaceholder({ status: "idle", approval, question: null }, "friday")).toBe("Reply, or press Return to allow");
+    expect(boxPlaceholder({ status: "idle", approval, question: null }, "friday")).toBe("Reply, or allow or deny the step");
     expect(boxPlaceholder({ status: "idle", approval, question: null }, "friday", true)).toBe("Reply, or approve or deny the step");
     expect(boxPlaceholder({ status: "streaming", approval: null, question: null }, "friday")).toBe("Message friday — sends when this turn ends");
   });

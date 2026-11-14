@@ -58,7 +58,7 @@ export function useAgentDetails({
     if (!selected) return;
     const err = await onUpdateAgent(selected, body);
     if (err) return flash(err);
-    flash("saved");
+    flash("Saved");
     void load(selected);
   };
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -85,7 +85,7 @@ export function useAgentDetails({
     void load(selected);
   };
   const addSkill = async (name: string, markdown: string) => {
-    if (!selected) return "no agent selected";
+    if (!selected) return "No agent selected";
     const path = `skills/${name}/SKILL.md`;
     const err = await write.writeMemory(selected, path, markdown, `feat: add skill ${name}`);
     if (err) return err;
@@ -95,10 +95,10 @@ export function useAgentDetails({
     return null;
   };
   const installSkill = async (source: string) => {
-    if (!selected) return "no agent selected";
+    if (!selected) return "No agent selected";
     const err = await api.installSkill(selected, source, true);
     if (err) return err;
-    flash("installed");
+    flash("Installed");
     void load(selected);
     return null;
   };
@@ -110,7 +110,7 @@ export function useAgentDetails({
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [needsSource, setNeedsSource] = useState<string | null>(null);
   const refreshSkill = async (skill: AgentSkill, source?: string): Promise<string | null> => {
-    if (!selected || !d) return "no agent selected";
+    if (!selected || !d) return "No agent selected";
     if (!source && !skill.source) {
       setNeedsSource(skill.name);
       return null;
@@ -139,7 +139,7 @@ export function useAgentDetails({
     if (!selected) return;
     const err = await write.revertMemory(selected, sha);
     if (err) return flash(err);
-    flash(`reverted ${sha.slice(0, 8)}: the undo is the newest commit`);
+    flash(`Reverted ${sha.slice(0, 8)}: the undo is the newest commit`);
     void load(selected);
   };
   return {

@@ -84,7 +84,7 @@ function NotLoaded({ retry }: { retry: () => void }) {
     <p className="loki-steps-none">
       Could not load this step.{" "}
       <Button size="sm" onClick={retry}>
-        Try again
+        Try Again
       </Button>
     </p>
   );

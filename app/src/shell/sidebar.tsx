@@ -133,7 +133,7 @@ const PLACE_ICON: Record<Segment, IconName> = { desk: "desk", inbox: "inbox", ag
  */
 export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: Segment; onSelect: (s: Segment) => void; waiting: number; dueCards?: number }) {
   return (
-    <nav aria-label="sections" className="loki-places">
+    <nav aria-label="Sections" className="loki-places">
       {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
         const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
         const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
@@ -173,7 +173,7 @@ export function UpdateRow({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-/** Show / hide the sidebar (⌘⇧D), floating beside the traffic lights, where it stays while the sidebar is hidden, as Mail's does. */
+/** Show / hide the sidebar (⌃⌘S), floating beside the traffic lights, where it stays while the sidebar is hidden, as Mail's does. */
 export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button

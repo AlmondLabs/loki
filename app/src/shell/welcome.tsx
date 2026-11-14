@@ -62,7 +62,7 @@ export function Welcome({
 
   return (
     // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
-    <Sheet label="welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 18 }}>
+    <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 18 }}>
       <div>
         {/* loki's mark, the L (app/public/mark.png). */}
         <img src="/mark.png" alt="" aria-hidden width={48} height={48} style={{ display: "block", borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
@@ -111,7 +111,7 @@ function ProviderStep({
   onModelsChanged,
   onNext,
 }: ProviderProps & { nodeStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
-  if (nodeStep) return <span className="loki-meta loki-meta--wrap">once loki is running</span>;
+  if (nodeStep) return <span className="loki-meta loki-meta--wrap">Once loki is running</span>;
   if (!showAgent)
     return (
       <div style={{ display: "grid", gap: 10 }}>
@@ -170,7 +170,7 @@ function AgentForm({
         <Field
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="what this agent is for (optional)"
+          placeholder="What this agent is for (optional)"
           autoComplete="off"
           data-form-type="other"
         />
@@ -199,7 +199,7 @@ function AgentForm({
         <span style={{ flex: 1 }} />
         {canGoBack && (
           <Button size="sm" onClick={onBack}>
-            back
+            Back
           </Button>
         )}
         <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void create()} disabled={busy || !name.trim()}>

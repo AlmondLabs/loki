@@ -38,13 +38,13 @@ describe("the face", () => {
   test("a Slack card's face carries the mark of where it came from", () => {
     const html = renderToStaticMarkup(createElement(CardFace, { name: "Grace Hopper", src: null, mark: "slack" }));
     expect(html).toContain('class="loki-card-mark loki-card-mark--slack"');
-    expect(html).toContain('aria-label="from Slack"');
+    expect(html).toContain('aria-label="From Slack"');
   });
 
   test("a Jira card's face carries its own mark", () => {
     const html = renderToStaticMarkup(createElement(CardFace, { name: "Grace Hopper", src: null, mark: "jira" }));
     expect(html).toContain('class="loki-card-mark loki-card-mark--jira"');
-    expect(html).toContain('aria-label="from Jira"');
+    expect(html).toContain('aria-label="From Jira"');
     expect(html).toContain("◆");
   });
 });

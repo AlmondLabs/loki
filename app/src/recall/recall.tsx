@@ -187,9 +187,9 @@ function Notices({ recall }: { recall: RecallModel }) {
       )}
       {snap && !snap.worker.enabled && snap.cards.length > 0 && (
         <Meta wrap>
-          the writer is off — these are the cards so far, no new ones are coming ·{" "}
+          Learn is off: these are the cards so far, and no new ones are coming ·{" "}
           <Button bare size="sm" tone="brass" onClick={() => void recall.settings({ enabled: true })}>
-            turn it on
+            Turn On
           </Button>
         </Meta>
       )}
@@ -276,20 +276,20 @@ function ListsView({
 /** What the review view shows around the card: loading, no cards at all, nothing due, or the deck with its key legend. */
 function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pass: ReturnType<typeof useDeckPass>; children: React.ReactNode }) {
   const now = useNow();
-  if (!snap) return <Meta>loading…</Meta>;
+  if (!snap) return <Meta>Loading…</Meta>;
   if (snap.cards.length === 0) {
     const ran = snap.worker.last_run_at
       ? ` The worker last ran ${describeGap(now - new Date(snap.worker.last_run_at).getTime())} ago: ${snap.worker.last_run_note ?? ""}.`
       : " The worker has not run yet.";
     return (
-      <Empty card title="Nothing to recall yet.">
+      <Empty card title="Nothing to recall yet">
         Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.{ran}
       </Empty>
     );
   }
   if (!pass.current) {
     return (
-      <Empty card title={pass.passed.size ? "Done for now." : "Nothing due."}>
+      <Empty card title={pass.passed.size ? "Done for now" : "Nothing due"}>
         {pass.passed.size ? `${pass.passed.size} card${pass.passed.size === 1 ? "" : "s"} this sitting. ` : ""}
         {pass.nextDue ? `The next one is due in ${describeGap(pass.nextDue - now)}.` : ""}
       </Empty>
@@ -339,7 +339,7 @@ function Deck({
   const canOpen = !!(c.card.source.agent_id && c.card.source.conversation_id);
   return (
     <section
-      aria-label={`card ${position} of ${total}`}
+      aria-label={`Card ${position} of ${total}`}
       style={{
         background: "var(--loki-panel)",
         border: "1px solid var(--loki-border)",
@@ -392,7 +392,7 @@ function Deck({
           ) : (
             <div style={{ display: "flex", justifyContent: "center", padding: "6px 0 2px" }}>
               <Button size="md" tone="paper" onClick={onReveal} kbd="space">
-                show the answer
+                Show Answer
               </Button>
             </div>
           )}
@@ -400,7 +400,7 @@ function Deck({
             <div style={{ display: "grid", gap: 8 }}>
               <span>
                 <Button size="sm" bare onClick={onTogglePrevious} aria-expanded={showPrevious}>
-                  {showPrevious ? "hide the earlier wording" : "what it said before"}
+                  {showPrevious ? "Hide the Earlier Wording" : "What It Said Before"}
                 </Button>
               </span>
               {showPrevious && <PreviousText c={c} />}
@@ -417,7 +417,7 @@ function Deck({
               tone={TONE[grade]}
               onClick={() => onGrade(grade)}
               kbd={key}
-              title={`next in ${gaps[grade]}`}
+              title={`Next in ${gaps[grade]}`}
               style={{ justifyContent: "center" }}
             >
               {label} <span style={{ fontSize: "var(--loki-text-fine)", opacity: 0.75 }}>{gaps[grade]}</span>
@@ -426,15 +426,15 @@ function Deck({
         </div>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
-        <Button size="sm" onClick={onDelete} kbd="X" title="delete — it joins the pile the worker reads as 'not this'">
-          delete
+        <Button size="sm" onClick={onDelete} kbd="X" title="Delete — it joins the pile the worker reads as 'not this'">
+          Delete
         </Button>
         <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>
-          edit
+          Edit
         </Button>
         {canOpen && (
           <Button size="sm" onClick={onOpen} kbd="O">
-            open the chat
+            Open the Chat
           </Button>
         )}
       </div>

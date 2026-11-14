@@ -42,7 +42,7 @@ export function useMessageActions(names: { user: string; assistant: string }): {
         </div>
       </div>
       {selecting ? (
-        <div className="loki-phone-select-text" tabIndex={0} aria-label="the message's text">
+        <div className="loki-phone-select-text" tabIndex={0} aria-label="The message's text">
           {row.text}
         </div>
       ) : (

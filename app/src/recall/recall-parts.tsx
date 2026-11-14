@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GaugeIcon, MessagesSquareIcon, RepeatIcon, type LucideIcon } from "lucide-react";
 import { describeGap, isDue, isNew } from "../../../core/recall/fsrs.ts";
 import {
   updatedSinceReview,
@@ -12,6 +13,8 @@ import {
 import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
 import { ago } from "../desk/catch-up-parts";
 import { Setting } from "../settings/layout";
+import { Glyph } from "../shared/icons";
+import { WELCOME_LINE, WELCOME_MORE, WELCOME_TITLE, welcomeRows, type WelcomeRow } from "./welcome";
 
 /** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */
 
@@ -22,11 +25,11 @@ export function SourceLine({ c }: { c: CardWithSchedule }) {
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
       {source.agent_name && <Chip static>{source.agent_name}</Chip>}
       <Meta>
-        {source.title ?? "a conversation"}
+        {source.title ?? "A conversation"}
         {source.at ? ` · ${ago(source.at)}` : ""}
       </Meta>
-      {isNew(c.schedule) && <Meta brass>new</Meta>}
-      {updatedSinceReview(c) && <Meta brass>updated by recall · {ago(c.card.updated_at)}</Meta>}
+      {isNew(c.schedule) && <Meta brass>New</Meta>}
+      {updatedSinceReview(c) && <Meta brass>Updated by recall · {ago(c.card.updated_at)}</Meta>}
       {c.card.tags.map((t) => (
         <Chip key={t} tag>
           {t}
@@ -36,11 +39,11 @@ export function SourceLine({ c }: { c: CardWithSchedule }) {
   );
 }
 
-/** Where a card stands: "due", "in 3d", "new". */
+/** Where a card stands: "Due", "In 3d", "New". */
 export function dueWord(c: CardWithSchedule, now = Date.now()): string {
-  if (isNew(c.schedule)) return "new";
-  if (isDue(c.schedule, now)) return "due";
-  return `in ${describeGap(new Date(c.schedule.due).getTime() - now)}`;
+  if (isNew(c.schedule)) return "New";
+  if (isDue(c.schedule, now)) return "Due";
+  return `In ${describeGap(new Date(c.schedule.due).getTime() - now)}`;
 }
 
 /** Front and back as text boxes; save or cancel. */
@@ -49,14 +52,14 @@ export function CardEditor({ c, onSave, onCancel }: { c: CardWithSchedule; onSav
   const [back, setBack] = useState(c.card.back);
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="front" autoFocus />
-      <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="back" />
+      <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="Front" autoFocus />
+      <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="Back" />
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Button size="sm" onClick={onCancel}>
-          cancel
+          Cancel
         </Button>
         <Button size="sm" tone="positive" onClick={() => onSave({ front, back })} disabled={!front.trim() || !back.trim()}>
-          save
+          Save
         </Button>
       </div>
     </div>
@@ -70,7 +73,7 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
   return (
     <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
       <Meta>
-        before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
+        Before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
       </Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
       <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
@@ -100,11 +103,11 @@ export function CardList({
       <Field
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder={`search ${cards.length} card${cards.length === 1 ? "" : "s"}…`}
-        aria-label="search cards"
+        placeholder={`Search ${cards.length} card${cards.length === 1 ? "" : "s"}…`}
+        aria-label="Search cards"
       />
       {sorted.length === 0 && (
-        <Empty title={needle ? "No card matches." : "No cards yet."}>
+        <Empty title={needle ? "No card matches" : "No cards yet"}>
           {needle ? "Try fewer words." : "The worker writes them from your conversations as they go quiet."}
         </Empty>
       )}
@@ -128,7 +131,7 @@ export function CardList({
                   </Meta>
                   <span style={{ flex: 1 }} />
                   <Button size="sm" tone="negative" onClick={() => onDelete(c.card.id)}>
-                    delete
+                    Delete
                   </Button>
                 </div>
                 <PreviousText c={c} />
@@ -162,7 +165,7 @@ export function CardList({
 /** Deleted cards: what the worker learns from. Restore one that was a mistake; forget one for good. */
 export function RejectedList({ rejected, onRestore, onForget }: { rejected: Rejected[]; onRestore: (id: string) => void; onForget: (id: string) => void }) {
   if (!rejected.length)
-    return <Empty title="Nothing deleted.">Deleting a card puts it here, where the worker reads it as an example of what not to write.</Empty>;
+    return <Empty title="Nothing deleted">Deleting a card puts it here, where the worker reads it as an example of what not to write.</Empty>;
   return (
     <div style={{ display: "grid", gap: 4 }}>
       <Meta wrap>
@@ -190,15 +193,15 @@ export function RejectedList({ rejected, onRestore, onForget }: { rejected: Reje
                 {r.card.back}
               </div>
               <Meta>
-                deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}
+                Deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}
               </Meta>
             </span>
             <span style={{ display: "flex", gap: 6 }}>
               <Button size="sm" onClick={() => onRestore(r.card.id)}>
-                restore
+                Restore
               </Button>
-              <Button size="sm" tone="quiet" onClick={() => onForget(r.card.id)} title="drop it from the pile too — the worker stops seeing it">
-                forget
+              <Button size="sm" tone="quiet" onClick={() => onForget(r.card.id)} title="Drop it from the pile too — the worker stops seeing it">
+                Forget
               </Button>
             </span>
           </li>
@@ -236,22 +239,22 @@ export function WorkerStrip({
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className="loki-label">The worker</span>
         <Button size="sm" tone={worker.enabled ? "paper" : "quiet"} onClick={() => onSettings({ enabled: !worker.enabled })} aria-pressed={worker.enabled}>
-          {worker.enabled ? "on" : "off"}
+          {worker.enabled ? "On" : "Off"}
         </Button>
         <Meta wrap>
-          {worker.last_run_at ? `last run ${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "has not run yet"} · {writtenLine(worker)}
+          {worker.last_run_at ? `Last run ${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "Has not run yet"} · {writtenLine(worker)}
         </Meta>
         <span style={{ flex: 1 }} />
         <Button
           size="sm"
           onClick={onRun}
           disabled={running}
-          title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
+          title="Read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
         >
-          {running ? "running…" : "run now"}
+          {running ? "Running…" : "Run Now"}
         </Button>
-        <Button size="sm" onClick={onExport} disabled={!cardCount} title="copies every card as Anki's plain-text import: front, back, tags">
-          export for Anki
+        <Button size="sm" onClick={onExport} disabled={!cardCount} title="Copies every card as Anki's plain-text import: front, back, tags">
+          Export for Anki
         </Button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -263,7 +266,7 @@ export function WorkerStrip({
           onChange={(e) => setCap(e.target.value)}
           onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ daily_cap: Number(cap) })}
           style={{ width: 64 }}
-          aria-label="cards a day"
+          aria-label="Cards a day"
         />
       </div>
     </div>
@@ -282,54 +285,63 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
 }
 
 /**
- * The section before the writer has ever been on: what it does, what it costs, and the switch. Off by
- * default because it spends the user's model budget in the background; nothing is written until they say so.
+ * Learn's welcome before it has ever been on (plan 2026-11-14-0852, 2), as Apple's welcome sheets are: a title, three
+ * rows of a symbol, a bold line and a sentence, one filled button, and the rest behind Learn More…. Off by default
+ * because it spends the person's model budget in the background; nothing is written until they say so.
  */
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
+  const [more, setMore] = useState(false);
   return (
-    <section
-      aria-label="about learn"
-      style={{
-        background: "var(--loki-panel)",
-        border: "1px solid var(--loki-border)",
-        borderRadius: "var(--loki-radius-lg)",
-        padding: "22px 24px",
-        display: "grid",
-        gap: 14,
-        fontSize: "var(--loki-text-body)",
-        lineHeight: 1.55,
-      }}
-    >
-      <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
-      <p style={{ margin: 0 }}>
-        Learn is a writer that runs in the background. Once conversations have been quiet for half an hour, it hands what was new in them to the agent, several
-        at a time, in a hidden conversation of its own, and keeps what comes back as cards — only concepts, principles and knowledge of your field that will
-        still be true in months, never the details of a task: a question that stands alone, an answer in a line or two. Most conversations give none. You meet
-        them here, on a schedule that spaces the ones you know and brings back the ones you miss. Deleting a card is the feedback — the writer reads the pile of
-        deleted ones before writing again.
-      </p>
-      <p style={{ margin: 0 }}>
-        In the same call it also names <b>leads</b>: concepts that went by in a conversation without being understood. Each waits under the leads tab until you
-        start it — a <code style={{ fontFamily: "var(--loki-mono)" }}>[Learn]</code> conversation with the agent that was there, which teaches by asking, in a
-        chat whose canvas it furnishes with the outline — or say "not this", which it remembers.
-      </p>
-      <p style={{ margin: 0, color: "var(--loki-muted)" }}>
-        It asks the agent's model, so every run spends a little of your provider budget — up to {worker.daily_cap} cards a day, and nothing at all while no
-        conversation has new text. Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.loki/recall/</code>. It is off until
-        you turn it on, and Preferences › Learn turns it off again.
-      </p>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+    <section aria-labelledby="learn-welcome" style={{ display: "grid", gap: 20, justifyItems: "center", maxWidth: 440, margin: "0 auto" }}>
+      <div style={{ display: "grid", gap: 4, textAlign: "center" }}>
+        <h2 id="learn-welcome" style={{ margin: 0, fontSize: "var(--loki-text-hero)", fontWeight: 700 }}>
+          {WELCOME_TITLE}
+        </h2>
+        <p style={{ margin: 0, color: "var(--loki-muted)", fontSize: "var(--loki-text-body)" }}>{WELCOME_LINE}</p>
+      </div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 16 }}>
+        {welcomeRows(worker.daily_cap).map((row) => {
+          const Drawn = WELCOME_ICON[row.icon];
+          return (
+            <li key={row.icon} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 12, alignItems: "start" }}>
+              <span style={{ color: "var(--loki-accent)", paddingTop: 2 }}>
+                <Glyph icon={Drawn} size={22} />
+              </span>
+              <span style={{ display: "grid", gap: 2, fontSize: "var(--loki-text-body)", lineHeight: 1.4 }}>
+                <b style={{ fontWeight: 600 }}>{row.head}</b>
+                <span style={{ color: "var(--loki-muted)" }}>{row.line}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {more && (
+        <div style={{ display: "grid", gap: 8, fontSize: "var(--loki-text-meta)", color: "var(--loki-muted)", lineHeight: 1.45 }}>
+          {WELCOME_MORE.map((line) => (
+            <p key={line} style={{ margin: 0 }}>
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "grid", gap: 6, justifyItems: "center" }}>
         {onEnable ? (
-          <Button tone="brass" onClick={onEnable}>
-            turn the writer on
+          <Button tone="positive" size="md" onClick={onEnable}>
+            Turn On Learn
           </Button>
         ) : (
-          <Meta>turn it on from the Mac: Learn, or Preferences › Learn</Meta>
+          <Meta>Turn it on from the Mac: Learn, or Preferences › Learn.</Meta>
         )}
+        <Button bare size="sm" tone="brass" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+          {more ? "Show Less" : "Learn More…"}
+        </Button>
       </div>
     </section>
   );
 }
+
+/** The welcome's symbols, from the one icon set (Lucide): chats, the spaced repeat, the budget's gauge. */
+const WELCOME_ICON: Record<WelcomeRow["icon"], LucideIcon> = { chats: MessagesSquareIcon, spaced: RepeatIcon, budget: GaugeIcon };
 
 /** Preferences › Learn: the writer's switch and knobs, in Settings' fact grid. */
 export function RecallSettings({
@@ -347,16 +359,16 @@ export function RecallSettings({
   return (
     <>
       <Setting
-        label="Card writer"
+        label="Learn"
         help={`${
           worker.enabled
             ? "Reads conversations once they have been quiet for half an hour, several at a time, and writes the cards worth keeping."
             : "Off: no conversation is read, nothing is written."
         } Each run asks the agent's model, so it spends a little of your provider budget.`}
       >
-        <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label="card writer" hideLabel />
+        <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label="Learn" hideLabel />
       </Setting>
-      <Setting label="Cards a day" help="The most new cards the writer adds in a day.">
+      <Setting label="Cards a day" help="The most new cards Learn adds in a day.">
         <Field
           size="sm"
           mono
@@ -364,7 +376,7 @@ export function RecallSettings({
           onChange={(e) => setCap(e.target.value)}
           onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ daily_cap: Number(cap) })}
           style={{ width: 64 }}
-          aria-label="cards a day"
+          aria-label="Cards a day"
         />
       </Setting>
       <Setting
@@ -375,9 +387,9 @@ export function RecallSettings({
           size="sm"
           onClick={onRun}
           disabled={running}
-          title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
+          title="Read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
         >
-          {running ? "running…" : "run now"}
+          {running ? "Running…" : "Run Now"}
         </Button>
       </Setting>
     </>
@@ -385,7 +397,7 @@ export function RecallSettings({
 }
 
 /** The word for a lead's depth. */
-const DEPTH: Record<Lead["depth"], string> = { primer: "a primer · one sitting", course: "a course · several sittings" };
+const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting", course: "A course · several sittings" };
 
 /**
  * The leads: things the writer thinks the person could learn properly, newest first, each with start (the
@@ -414,16 +426,16 @@ export function LeadList({
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {leads.length === 0 && (
-        <Empty card title="No leads yet.">
+        <Empty card title="No leads yet">
           {worker.enabled
-            ? "When a conversation goes quiet, the writer names what went by in it without being understood — a concept, an acronym, something you took the agent's word for. They collect here, and each is a lesson away."
-            : "Leads come from the writer, and the writer is off. Turn it on under review or in Preferences › Learn and they will collect here as conversations go quiet."}
+            ? "When a chat goes quiet, Learn names what went by in it without being understood — a concept, an acronym, something you took the agent's word for. They collect here, and each is a lesson away."
+            : "Leads come from Learn, and it is off. Turn it on in Review or in Preferences › Learn and they will collect here as chats go quiet."}
         </Empty>
       )}
       {leads.map((l) => (
         <section
           key={l.id}
-          aria-label={`lead: ${l.title}`}
+          aria-label={`Lead: ${l.title}`}
           style={{
             background: "var(--loki-panel)",
             border: "1px solid var(--loki-border)",
@@ -437,13 +449,13 @@ export function LeadList({
             flush
             onClick={() => onStart(l.id)}
             disabled={starting !== null}
-            title="a [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins"
+            title="A [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins"
             style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}
           >
             <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {l.source.agent_name && <Chip static>{l.source.agent_name}</Chip>}
               <Meta>
-                {l.source.title ?? "a conversation"} · {ago(l.created_at)}
+                {l.source.title ?? "A conversation"} · {ago(l.created_at)}
               </Meta>
               <span style={{ flex: 1 }} />
               <Meta>{DEPTH[l.depth]}</Meta>
@@ -480,14 +492,14 @@ export function LeadList({
                 fontWeight: 600,
               }}
             >
-              {starting === l.id ? "furnishing the canvas…" : "start the lesson →"}
+              {starting === l.id ? "Furnishing the canvas…" : "Start the lesson →"}
             </span>
           </Row>
           <div
             style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}
           >
-            <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">
-              not this
+            <Button size="sm" onClick={() => onDismiss(l.id)} title="Learn remembers not to propose this again">
+              Not This
             </Button>
             {l.source.agent_id && l.source.conversation_id && (
               <Button
@@ -498,7 +510,7 @@ export function LeadList({
                   if (agentId && conversationId) onOpen(agentId, conversationId);
                 }}
               >
-                where it came up
+                Where It Came Up
               </Button>
             )}
           </div>
@@ -506,10 +518,10 @@ export function LeadList({
       ))}
       {lessons.length > 0 && (
         <div style={{ display: "grid", gap: 6 }}>
-          <Meta>lessons under way</Meta>
+          <Meta>Lessons under way</Meta>
           {lessons.map((s) => (
             <div key={s.conversation_id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
-              <Row flush onClick={() => onOpen(s.agent_id, s.conversation_id)} title="open the lesson's chat" style={{ minWidth: 0 }}>
+              <Row flush onClick={() => onOpen(s.agent_id, s.conversation_id)} title="Open the lesson's chat" style={{ minWidth: 0 }}>
                 <span
                   style={{
                     fontSize: "var(--loki-text-row)",
@@ -525,11 +537,11 @@ export function LeadList({
                   {s.lead.title}
                 </span>
                 {s.lead.source.agent_name && <Chip static>{s.lead.source.agent_name}</Chip>}
-                <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.started_at)}`}</Meta>
+                <Meta>{s.empty ? "The brief never arrived" : `Started ${ago(s.started_at)}`}</Meta>
               </Row>
               {s.empty && (
-                <Button size="sm" tone="brass" onClick={() => onResume(s)} title="open the chat and send the brief as your first message">
-                  send the brief
+                <Button size="sm" tone="brass" onClick={() => onResume(s)} title="Open the chat and send the brief as your first message">
+                  Send the Brief
                 </Button>
               )}
             </div>
@@ -545,7 +557,7 @@ export function DismissedLeadList({ dismissed, onRestore }: { dismissed: Dismiss
   if (dismissed.length === 0) return null;
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <Meta>dismissed leads</Meta>
+      <Meta>Dismissed leads</Meta>
       {dismissed.map((d) => (
         <Row key={d.lead.id}>
           <span
@@ -563,7 +575,7 @@ export function DismissedLeadList({ dismissed, onRestore }: { dismissed: Dismiss
           </span>
           <Meta>{ago(d.at)}</Meta>
           <Button size="sm" bare onClick={() => onRestore(d.lead.id)}>
-            restore
+            Restore
           </Button>
         </Row>
       ))}

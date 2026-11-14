@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useId, useState } from "react";
-import { Button, Chip, Dot, Field, Row, TextArea } from "../components";
+import { Button, Chip, Dot, Field, Row, TextArea, sentence } from "../components";
 import type { McpServerView, McpView } from "../../../core/frame-types.ts";
 import { openExternal } from "../desk/env";
 import { Block, Segmented, Setting } from "./layout";
@@ -81,12 +81,12 @@ export function Mcp({ api }: { api: McpApi }) {
     };
   }, []);
 
-  if (!view) return <Setting label="Servers" help={error ?? "asking loki…"} />;
+  if (!view) return <Setting label="Servers" help={error ?? "Asking loki…"} />;
   return (
     <>
       <Block
         help={
-          'servers your agents can use. An agent sees each server and its tools\' names; a tool loads only when the agent searches for it, unless it is "always loaded".'
+          'Servers your agents can use. An agent sees each server and its tools\' names; a tool loads only when the agent searches for it, unless it is "always loaded".'
         }
       >
         {view.problems.map((p) => (
@@ -123,7 +123,7 @@ export function Mcp({ api }: { api: McpApi }) {
         ) : (
           <Setting label="Local or remote" help="A command loki starts on this computer, or a server's URL.">
             <Button tone="positive" onClick={() => setEditing("new")}>
-              add a server
+              Add Server…
             </Button>
           </Setting>
         )}
@@ -173,8 +173,8 @@ function ServerRow({
           {s.state === "connected"
             ? `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} · ${tokenLabel(s.tokens)} if all loaded`
             : s.state === "signin"
-              ? "needs sign-in"
-              : s.state}
+              ? "Needs sign-in"
+              : sentence(s.state)}
         </span>
       </Row>
       {open && (
@@ -189,18 +189,18 @@ function ServerRow({
                     type="checkbox"
                     checked={t.always_load}
                     onChange={(e) => toggleAlways(t.name, e.target.checked)}
-                    aria-label={`always load ${t.name}`}
+                    aria-label={`Always load ${t.name}`}
                   />
                   <span style={{ minWidth: 0 }}>
                     <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)" }}>{t.name}</span>
                     {t.read_only && (
                       <Chip static tag style={{ marginLeft: 6 }}>
-                        read-only
+                        Read-only
                       </Chip>
                     )}
                     {t.destructive && (
                       <Chip static tag style={{ marginLeft: 6 }}>
-                        destructive
+                        Destructive
                       </Chip>
                     )}
                     {t.description && (
@@ -212,28 +212,28 @@ function ServerRow({
                   <span className="loki-meta">{tokenLabel(t.tokens)}</span>
                 </label>
               ))}
-              <span className="loki-meta loki-meta--wrap">checked: always loaded, skipping the search (keep it to the few used all the time)</span>
+              <span className="loki-meta loki-meta--wrap">Checked: always loaded, skipping the search (keep it to the few used all the time)</span>
             </div>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button size="sm" onClick={() => void api.restart(s.name).then(apply)}>
-              restart
+              Restart
             </Button>
             <Button size="sm" onClick={onEdit}>
-              edit
+              Edit
             </Button>
             {confirm ? (
               <>
                 <Button size="sm" tone="negative" onClick={() => void api.server(s.entry, null).then(apply)}>
-                  remove {s.entry}
+                  Remove {s.entry}
                 </Button>
                 <Button size="sm" onClick={() => setConfirm(false)}>
-                  keep it
+                  Keep
                 </Button>
               </>
             ) : (
               <Button size="sm" onClick={() => setConfirm(true)}>
-                remove
+                Remove…
               </Button>
             )}
           </div>
@@ -258,19 +258,19 @@ function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullabl
         </span>
         {url ? (
           <Button size="sm" tone="positive" onClick={() => openExternal(url)} style={{ justifySelf: "start" }}>
-            sign in to {s.entry}
+            Sign In to {s.entry}
           </Button>
         ) : (
-          <span className="loki-meta loki-meta--wrap">getting the sign-in page… (restart if it does not come)</span>
+          <span className="loki-meta loki-meta--wrap">Getting the sign-in page… (restart if it does not come)</span>
         )}
       </div>
     );
   if (signIn.signed_in)
     return (
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <span className="loki-meta">signed in</span>
+        <span className="loki-meta">Signed in</span>
         <Button size="sm" onClick={onSignOut}>
-          sign out
+          Sign Out
         </Button>
       </div>
     );
@@ -315,7 +315,7 @@ export async function secureValues(pairs: Record<string, string>, prefix: string
     Object.entries(pairs).map(async ([k, v]): Promise<[string, string]> => {
       if (!v || KEYCHAIN.test(v)) return [k, v];
       const kept = await secret(`${prefix}.${k}`, v);
-      if (typeof kept === "string") throw new Error(`could not keep ${k} in the keychain: ${kept}`);
+      if (typeof kept === "string") throw new Error(`Could not keep ${k} in the keychain: ${kept}`);
       return [k, kept.ref];
     }),
   );
@@ -357,7 +357,7 @@ function ServerForm({
 
   const save = async () => {
     const key = form.name.trim();
-    if (!key) return setError("give the server a name");
+    if (!key) return setError("Give the server a name");
     setBusy(true);
     setError(null);
     try {
@@ -392,23 +392,23 @@ function ServerForm({
           options={["local", "remote"] as const}
           value={form.kind}
           onPick={(k) => set("kind", k)}
-          labels={{ local: "local (a command)", remote: "remote (a URL)" }}
+          labels={{ local: "Local (a Command)", remote: "Remote (a URL)" }}
         />
       </span>
       {form.kind === "local" ? <LocalFields uid={uid} form={form} set={set} /> : <RemoteFields uid={uid} form={form} set={set} />}
       <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
         <input type="checkbox" checked={keychain} onChange={(e) => setKeychain(e.target.checked)} />
         <span className="loki-meta loki-meta--wrap">
-          keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them
+          Keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them
         </span>
       </label>
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <Button size="sm" tone="positive" disabled={busy} onClick={() => void save()}>
-          {busy ? "saving…" : "save"}
+          {busy ? "Saving…" : "Save"}
         </Button>
         <Button size="sm" disabled={busy} onClick={() => onDone(null)}>
-          cancel
+          Cancel
         </Button>
       </div>
       <div className="loki-meta loki-meta--wrap">
@@ -497,14 +497,14 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
   const apply = (r: string[] | string) => (typeof r === "string" ? setError(r) : (setError(null), setTools(r)));
   const load = useEffectEvent(() => void api.list().then(apply));
   useEffect(() => load(), []);
-  if (tools === null) return <Setting label="Tools" help={error ?? "asking loki…"} />;
+  if (tools === null) return <Setting label="Tools" help={error ?? "Asking loki…"} />;
   return (
     <>
-      {tools.length === 0 && <Setting label="None yet" help={'Answer "always allow" on an approval to add its tool here.'} />}
+      {tools.length === 0 && <Setting label="None yet" help={'Answer "Always Allow" on an approval to add its tool here.'} />}
       {tools.map((t) => (
         <Setting key={t} label={t} mono>
           <Button size="sm" onClick={() => void api.set(t, false).then(apply)}>
-            take back
+            Take Back
           </Button>
         </Setting>
       ))}

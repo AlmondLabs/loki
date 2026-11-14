@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import type { AccountProvider, AccountView, GoogleService, SlackWorkspaceView } from "../../../core/frame-types.ts";
-import { Button, Dot, Field } from "../components";
+import { Button, Dot, Field, sentence } from "../components";
 import { disconnectedText } from "../desk/outside-words";
 import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
 import { Block, Fold, Setting } from "./layout";
@@ -73,9 +73,9 @@ export interface AccountRow {
 }
 
 /** The Google services loki asks for, by the words the row uses. */
-const GOOGLE_SERVICE_WORDS: Record<GoogleService, string> = { gmail: "gmail", drive: "drive", sheets: "sheets", docs: "docs", calendar: "calendar" };
+const GOOGLE_SERVICE_WORDS: Record<GoogleService, string> = { gmail: "Gmail", drive: "Drive", sheets: "Sheets", docs: "Docs", calendar: "Calendar" };
 
-/** Services as one phrase: "drive", "drive and docs", "drive, sheets and docs". */
+/** Services as one phrase: "Drive", "Drive and Docs", "Drive, Sheets and Docs". */
 function servicesWords(services: readonly GoogleService[]): string {
   const words = services.map((s) => GOOGLE_SERVICE_WORDS[s]);
   return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1) ?? ""}`;
@@ -95,7 +95,7 @@ const POLL_MS = 3000;
  */
 export function connectState(provider: AccountProvider, owner: string | null, os: Platform): { ready: boolean; reason: string | null } {
   if (provider === "slack" && os !== "macos") return { ready: false, reason: notYetOn("Connecting Slack", os) };
-  if (!owner) return { ready: false, reason: "add an agent first: an account belongs to one" };
+  if (!owner) return { ready: false, reason: "Add an agent first: an account belongs to one" };
   return { ready: true, reason: null };
 }
 
@@ -150,7 +150,7 @@ export function accountRows(accounts: readonly AccountView[], agents: readonly A
       service: SERVICE[a.provider],
       owner_agent_id: a.owner_agent_id,
       owner: agents.find((g) => g.id === a.owner_agent_id)?.name ?? "an agent no longer here",
-      state: cause ? disconnectedText(cause, a.provider) : more ? `connected; scripts cannot use ${more.services} until it signs in again` : "connected",
+      state: cause ? disconnectedText(cause, a.provider) : more ? `Connected; scripts cannot use ${more.services} until it signs in again` : "Connected",
       problem: cause !== null,
       reconnect,
       more,
@@ -257,7 +257,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     const r = await api.connectGmail(ownerId, ownAppOf(clientId, clientSecret), accountId ?? null);
     if (typeof r === "string") return setError(r);
     openExternal(r.url);
-    setNotice("finish signing in to Google in your browser: the mailbox shows here once Google sends you back");
+    setNotice("Finish signing in to Google in your browser: the mailbox shows here once Google sends you back");
   };
   const slack = async (ownerId: string, teamId?: string) => {
     const r = await api.connectSlack(ownerId, teamId);
@@ -286,29 +286,29 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     <>
       <Block
         title="Accounts"
-        help="mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as cards in Flow; each account belongs to one agent, which gets its hand-offs and its tools."
+        help="Mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as cards in Flow; each account belongs to one agent, which gets its hand-offs and its tools."
       >
         {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-        {!accounts && !error && <Setting label="Accounts" help="asking loki…" />}
+        {!accounts && !error && <Setting label="Accounts" help="Asking loki…" />}
         {accounts && rows.length === 0 && <Setting label="None yet" help="Connect a Gmail account, a Slack workspace or a Jira site below." />}
         {rows.map((row) => (
           <AccountLine key={row.account_id} row={row} agents={agents} api={api} apply={apply} onReconnect={reconnect} />
         ))}
       </Block>
-      <Block title="Connect an account" help="a mailbox, a workspace or a Jira site; it goes to the agent below, which you can change on its row later.">
+      <Block title="Connect an account" help="A mailbox, a workspace or a Jira site; it goes to the agent below, which you can change on its row later.">
         <Setting label="Gmail" help={gmailState.reason ?? "Opens Google's sign-in in your browser."}>
           <Button tone="positive" disabled={!gmailState.ready} onClick={() => owner && void gmail(owner)}>
-            connect gmail
+            Connect Gmail
           </Button>
         </Setting>
         <Setting label="Slack" help={slackState.reason ?? "Reads the workspaces signed in to the Slack desktop app; no Slack app to create."}>
           <Button tone="positive" disabled={!slackState.ready} onClick={() => owner && void slack(owner)}>
-            connect slack
+            Connect Slack
           </Button>
         </Setting>
         <JiraConnectSetting state={connectState("jira", owner, os)} connecting={connecting} onOpen={setJiraForm} />
         <Setting label="Goes to" help="The agent that gets a new account's hand-offs, and the only one with tools for it.">
-          <AgentPicker agents={agents} value={owner} onPick={setOwner} label="the agent a new account goes to" placeholder="choose an agent" />
+          <AgentPicker agents={agents} value={owner} onPick={setOwner} label="The agent a new account goes to" placeholder="Choose an agent" />
         </Setting>
         {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
         <JiraConnectForm
@@ -321,14 +321,14 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
           onNotice={setNotice}
           apply={apply}
         />
-        {workspaces?.list.length === 0 && <Setting label="No workspaces" help="Sign in to a workspace in the Slack desktop app, then connect slack again." />}
+        {workspaces?.list.length === 0 && <Setting label="No workspaces" help="Sign in to a workspace in the Slack desktop app, then connect Slack again." />}
         {workspaces?.list.map((w) => (
           <Setting key={w.team_id} label={w.team_name} help={w.url} mono>
             {connectedTeams.has(w.team_id) ? (
-              <span className="loki-meta">connected</span>
+              <span className="loki-meta">Connected</span>
             ) : (
               <Button tone="positive" onClick={() => void slack(workspaces.owner, w.team_id)}>
-                connect
+                Connect
               </Button>
             )}
           </Setting>
@@ -337,14 +337,14 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
       <Fold title="Use your own Google app">
         <Setting
           label="Client id and secret"
-          help="From an OAuth client of your own in Google Cloud, for a desktop app. Filled in, connect gmail signs in with it instead of loki's shared app."
+          help="From an OAuth client of your own in Google Cloud, for a desktop app. Filled in, Connect Gmail signs in with it instead of loki's shared app."
         />
-        <Field value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="client id" placeholder="client id" mono />
+        <Field value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client ID" placeholder="Client ID" mono />
         <Field
           value={clientSecret}
           onChange={(e) => setClientSecret(e.target.value)}
-          aria-label="client secret"
-          placeholder="client secret"
+          aria-label="Client secret"
+          placeholder="Client secret"
           type="password"
           mono
           style={{ marginTop: 8 }}
@@ -379,37 +379,37 @@ function AccountLine({
           {row.service} · {row.owner}
         </span>
       </div>
-      <div className={row.problem ? "loki-meta loki-meta--negative loki-meta--wrap" : "loki-meta loki-meta--wrap"}>{row.state}</div>
+      <div className={row.problem ? "loki-meta loki-meta--negative loki-meta--wrap" : "loki-meta loki-meta--wrap"}>{sentence(row.state)}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {reconnect && (
           <Button tone="positive" onClick={() => onReconnect(reconnect)}>
-            {`reconnect ${row.service.toLowerCase()}`}
+            {`Reconnect ${row.service}`}
           </Button>
         )}
         {more && (
           <Button tone="positive" onClick={() => onReconnect(more.reconnect)}>
-            {`sign in again for ${more.services}`}
+            {`Sign In Again for ${more.services}`}
           </Button>
         )}
         <label className="loki-meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          move to
+          Move to
           <AgentPicker
             agents={agents}
             value={agents.some((g) => g.id === row.owner_agent_id) ? row.owner_agent_id : null}
             onPick={(agentId) => void api.move(row.account_id, agentId).then(apply)}
-            label={`the agent that owns ${row.label}`}
-            placeholder="choose an agent"
+            label={`The agent that owns ${row.label}`}
+            placeholder="Choose an agent"
           />
         </label>
         {confirm ? (
           <>
             <Button tone="negative" onClick={() => void api.disconnect(row.account_id).then(apply)}>
-              disconnect {row.label}
+              Disconnect {row.label}
             </Button>
-            <Button onClick={() => setConfirm(false)}>keep it</Button>
+            <Button onClick={() => setConfirm(false)}>Keep</Button>
           </>
         ) : (
-          <Button onClick={() => setConfirm(true)}>disconnect</Button>
+          <Button onClick={() => setConfirm(true)}>Disconnect…</Button>
         )}
       </div>
     </div>
@@ -454,7 +454,7 @@ export function OwnedAccounts({
   }, [asked]);
   if (!owned.length && !error) return null;
   return (
-    <div role="group" aria-label="accounts this agent owns" style={{ display: "grid", gap: 8 }}>
+    <div role="group" aria-label="Accounts this agent owns" style={{ display: "grid", gap: 8 }}>
       {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       {owned.length > 0 && <span>It owns these accounts: move each to another agent or disconnect it first.</span>}
       {accountRows(owned, agents).map((row) => (
@@ -462,17 +462,17 @@ export function OwnedAccounts({
           <strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{row.label}</strong>
           <span className="loki-meta">{row.service}</span>
           <label className="loki-meta" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-            move to
+            Move to
             <AgentPicker
               agents={moveTargets(agents, agentId)}
               value={null}
               onPick={(to) => void api.move(row.account_id, to).then(apply)}
-              label={`move ${row.label} to`}
-              placeholder="choose an agent"
+              label={`Move ${row.label} to`}
+              placeholder="Choose an agent"
             />
           </label>
           <Button tone="negative" onClick={() => void api.disconnect(row.account_id).then(apply)}>
-            disconnect
+            Disconnect
           </Button>
         </div>
       ))}

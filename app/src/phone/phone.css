@@ -1325,6 +1325,31 @@ span.loki-phone-section-btn {
 .loki-phone-empty .loki-phone-headline {
   color: var(--loki-fg);
 }
+/* Learn's welcome (plan 2026-11-14-0852, 2): three rows of a symbol, a bold line and a sentence, read from the start. */
+.loki-phone .loki-phone-welcome {
+  display: grid;
+  gap: var(--phone-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: start;
+}
+.loki-phone .loki-phone-welcome li {
+  display: grid;
+  grid-template-columns: var(--phone-space-6) 1fr;
+  gap: var(--phone-space-3);
+  align-items: start;
+  color: var(--loki-accent);
+}
+.loki-phone .loki-phone-welcome li > span {
+  display: grid;
+  gap: var(--phone-space-1);
+  color: var(--loki-muted);
+}
+.loki-phone .loki-phone-welcome b {
+  color: var(--loki-fg);
+  font-weight: 600;
+}
 .loki-phone-empty-actions {
   display: flex;
   flex-wrap: wrap;

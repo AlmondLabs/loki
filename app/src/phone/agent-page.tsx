@@ -160,7 +160,7 @@ function Conversations({ agentId, desks, items }: { agentId: string; desks: Desk
   const marks = new Map(items.filter((i) => i.agent_id === agentId).map((i) => [i.id, i]));
   return (
     <RowSection icon="desk" title="Conversations" count={mine.length}>
-      <ul className="loki-phone-list" aria-label="conversations">
+      <ul className="loki-phone-list" aria-label="Conversations">
         {mine.map((x) => (
           <DeskRow key={x.scope} desk={x} mark={x.conversation_id ? marks.get(x.conversation_id) : undefined} onActions={null} />
         ))}
@@ -228,7 +228,7 @@ function Skills({ origin, skills, onOpen }: { origin: "self" | "other"; skills: 
   if (origin === "other" && list.length === 0) return null;
   return (
     <RowSection icon="skill" title={origin === "self" ? "Skills" : "Installed skills"} count={list.length}>
-      <ul className="loki-phone-list" aria-label={origin === "self" ? "skills" : "installed skills"}>
+      <ul className="loki-phone-list" aria-label={origin === "self" ? "Skills" : "Installed skills"}>
         {list.map((s) => (
           <PhoneRow
             key={s.name}
@@ -252,7 +252,7 @@ function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
     <RowSection icon="history" title="Changes" count={commits?.length ?? null}>
       {commits === null && <p className="loki-phone-empty">Reading the log…</p>}
       {commits?.length === 0 && <p className="loki-phone-empty">No memory commits yet.</p>}
-      <ul className="loki-phone-list" aria-label="changes">
+      <ul className="loki-phone-list" aria-label="Changes">
         {(commits ?? []).map((c) => {
           const open = openSha === c.sha;
           const diff = diffs[c.sha];

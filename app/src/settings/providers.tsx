@@ -35,7 +35,7 @@ export function Providers({
     if (loading) load();
   }, [loading]);
 
-  if (providers === null) return <div className="loki-meta loki-meta--wrap">asking loki…</div>;
+  if (providers === null) return <div className="loki-meta loki-meta--wrap">Asking loki…</div>;
   const sorted = sortProviders(providers, filter);
   const shown = more || filter ? sorted : sorted.filter((p) => isConnected(p) || SHORTLIST.includes(p.id));
   const connectedCount = providers.filter(isConnected).length;
@@ -48,14 +48,14 @@ export function Providers({
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder={`filter ${providers.length} providers`}
-          aria-label="filter providers"
+          placeholder={`Filter ${providers.length} providers`}
+          aria-label="Filter providers"
           autoComplete="off"
           data-1p-ignore
           data-form-type="other"
           style={{ flex: 1 }}
         />
-        <span className="loki-meta">{connectedCount === 0 ? "none connected" : `${connectedCount} connected`}</span>
+        <span className="loki-meta">{connectedCount === 0 ? "None connected" : `${connectedCount} connected`}</span>
       </div>
       <div style={{ display: "grid", gap: 2 }}>
         {shown.map((p) => (
@@ -71,13 +71,13 @@ export function Providers({
         ))}
         {shown.length === 0 && (
           <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
-            nothing matches
+            Nothing matches
           </div>
         )}
       </div>
       {!more && !filter && sorted.length > shown.length && (
         <Button size="sm" onClick={() => setMore(true)} style={{ justifySelf: "start" }}>
-          {sorted.length - shown.length} more providers
+          {sorted.length - shown.length} More Providers
         </Button>
       )}
     </div>
@@ -86,7 +86,7 @@ export function Providers({
 
 /**
  * Preferences › Providers (plan 031): the providers you use first, each opening into its key or sign-in; the rest of the
- * daemon's catalogue only after "add a provider", behind a search, the usual ones on top.
+ * daemon's catalogue only after "Add Provider…", behind a search, the usual ones on top.
  */
 export function ProviderSettings({
   providers,
@@ -110,7 +110,7 @@ export function ProviderSettings({
     if (loading) load();
   }, [loading]);
 
-  if (providers === null) return <Setting label="Providers" help="asking loki…" />;
+  if (providers === null) return <Setting label="Providers" help="Asking loki…" />;
   const connected = sortProviders(providers).filter(isConnected);
   const others = sortProviders(providers, filter).filter((p) => !isConnected(p));
   const row = (p: ConnectProvider) => (
@@ -126,7 +126,7 @@ export function ProviderSettings({
   );
   return (
     <>
-      <Block title="Connected" help="who answers your agents' models. A key is checked with the provider, then kept in this computer's keychain.">
+      <Block title="Connected" help="Who answers your agents' models. A key is checked with the provider, then kept in this computer's keychain.">
         {connected.length === 0 && <Setting label="None yet" help="Add a provider below to give your agents a model." />}
         {connected.map(row)}
       </Block>
@@ -146,8 +146,8 @@ export function ProviderSettings({
                 if (filter) setFilter("");
                 else setAdding(false);
               }}
-              placeholder={`search ${providers.length - connected.length} providers`}
-              aria-label="search providers"
+              placeholder={`Search ${providers.length - connected.length} providers`}
+              aria-label="Search providers"
               autoComplete="off"
               data-1p-ignore
               data-form-type="other"
@@ -156,7 +156,7 @@ export function ProviderSettings({
               {others.map(row)}
               {others.length === 0 && (
                 <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
-                  nothing matches
+                  Nothing matches
                 </div>
               )}
             </div>
@@ -171,7 +171,7 @@ export function ProviderSettings({
               .join(", ")}
           >
             <Button tone="positive" onClick={() => setAdding(true)}>
-              add a provider
+              Add Provider…
             </Button>
           </Setting>
         )}
@@ -291,7 +291,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
       {p.auth_methods && p.auth_methods.length > 1 && (
         <span>
           <Segmented
-            label="how to sign in"
+            label="How to sign in"
             options={p.auth_methods.map((m) => m.id)}
             value={authMethodId ?? p.auth_methods[0].id}
             onPick={setMethod}
@@ -317,7 +317,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             value={values[f.key] ?? ""}
             onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
             onKeyDown={(e) => e.key === "Enter" && void connect()}
-            placeholder={f.placeholder ?? (f.secret ? "pasted here, checked with the provider, then kept in the keychain" : "")}
+            placeholder={f.placeholder ?? (f.secret ? "Pasted here, checked with the provider, then kept in the keychain" : "")}
             autoComplete="off"
             spellCheck={false}
             data-1p-ignore
@@ -329,19 +329,19 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
           {signIn
             ? busy
-              ? "waiting for the browser…"
+              ? "Waiting for the Browser…"
               : connected
-                ? "sign in again"
+                ? "Sign In Again"
                 : signIn.label
             : busy
-              ? "checking…"
+              ? "Checking…"
               : connected
-                ? "replace the key"
-                : "connect"}
+                ? "Replace the Key"
+                : "Connect"}
         </Button>
         {connected && (
           <Button size="sm" tone="negative" onClick={() => void disconnect()} disabled={busy}>
-            disconnect
+            Disconnect
           </Button>
         )}
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
@@ -351,7 +351,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
           htmlFor={`${fieldId}-address`}
           style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 10, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
         >
-          <span style={{ color: "var(--loki-muted)" }}>browser didn't come back?</span>
+          <span style={{ color: "var(--loki-muted)" }}>Browser didn't come back?</span>
           <Field
             id={`${fieldId}-address`}
             size="sm"
@@ -359,14 +359,14 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void finish(address)}
-            placeholder="paste the address the browser ended on"
+            placeholder="Paste the address the browser ended on"
             autoComplete="off"
             spellCheck={false}
             data-1p-ignore
             data-form-type="other"
           />
           <Button size="sm" onClick={() => void finish(address)} disabled={!address.trim()}>
-            finish
+            Finish
           </Button>
         </label>
       )}

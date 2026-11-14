@@ -55,7 +55,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
     for (const provider of ["gmail", "slack"] as const) {
       const state = connectState(provider, null, "macos");
       expect(state.ready).toBe(false);
-      expect(state.reason).toBe("add an agent first: an account belongs to one");
+      expect(state.reason).toBe("Add an agent first: an account belongs to one");
       expect(connectState(provider, "agent-work", "macos")).toEqual({ ready: true, reason: null });
     }
   });
@@ -75,12 +75,12 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         owner_agent_id: "agent-work",
         owner: "Work",
         // Signed in before loki asked for more than Gmail: the row offers the sign-in for the rest (plan 2026-11-11, R17).
-        state: "connected; scripts cannot use drive, sheets, docs and calendar until it signs in again",
+        state: "Connected; scripts cannot use Drive, Sheets, Docs and Calendar until it signs in again",
         problem: false,
         reconnect: null,
         more: {
           reconnect: { provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null },
-          services: "drive, sheets, docs and calendar",
+          services: "Drive, Sheets, Docs and Calendar",
         },
       },
       {
@@ -89,7 +89,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         service: "Slack",
         owner_agent_id: "agent-gone",
         owner: "an agent no longer here",
-        state: "connected",
+        state: "Connected",
         problem: false,
         reconnect: null,
         more: null,
@@ -105,8 +105,8 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
       ],
       AGENTS,
     );
-    expect([all.state, all.more]).toEqual(["connected", null]);
-    expect(some.more?.services).toBe("drive, docs and calendar");
+    expect([all.state, all.more]).toEqual(["Connected", null]);
+    expect(some.more?.services).toBe("Drive, Docs and Calendar");
   });
 
   test("AE8: a workspace whose Slack app signed out shows that state and a reconnect with its team", () => {

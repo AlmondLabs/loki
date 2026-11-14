@@ -241,7 +241,7 @@ export function Settings({
           onPick={pick}
           extra={(g) =>
             g.pages.includes("phone") && phone.status?.enabled ? (
-              <Dot aria-label="on" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} />
+              <Dot aria-label="On" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} />
             ) : null
           }
         />
@@ -297,7 +297,7 @@ function AppearancePage() {
           theme.preference === "system" ? `Follows ${systemName(keyboard)} as it changes: ${theme.resolved} now.` : "On this device, whatever the system does."
         }
       >
-        <Segmented label="light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} labels={THEME_LABEL} />
+        <Segmented label="Light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} labels={THEME_LABEL} />
       </Setting>
     </Block>
   );
@@ -323,13 +323,13 @@ function LokiPage({
         <LokiVersionFact update={update} />
         <SystemFact />
       </Block>
-      <Block title="Mod" help="canvas layout, widget files, transcripts and chats, served by loki's daemon.">
+      <Block title="Mod" help="Canvas layout, widget files, transcripts and chats, served by loki's daemon.">
         <Fact label="Link" value={<Status s={modConnection} />} />
         <Fact label="Chats" value={String(deskCount)} />
         <Fact label="Endpoint" value={modBase()} mono />
       </Block>
       {inTauri && (
-        <Block title="Requirements" help="what loki needs on this machine, and where it found it.">
+        <Block title="Requirements" help="What loki needs on this machine, and where it found it.">
           <NodeFact daemon={daemon} />
         </Block>
       )}
@@ -341,7 +341,7 @@ function LokiPage({
 
 /** The Node the daemon runs on, or why the daemon could not start. */
 function NodeFact({ daemon }: { daemon: DaemonStatus | null }) {
-  const value = !daemon ? "—" : daemon.error ? <Note tone="warn">{daemon.error}</Note> : (daemon.node ?? "starting…");
+  const value = !daemon ? "—" : daemon.error ? <Note tone="warn">{daemon.error}</Note> : (daemon.node ?? "Starting…");
   return <Fact label="Node" value={value} mono={!!daemon?.node && !daemon.error} />;
 }
 
@@ -371,11 +371,11 @@ export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate;
   const preview =
     os === "macos" ? null : (
       <Note>
-        a preview build: built and tested in CI, not yet tried on real machines
+        A preview build: built and tested in CI, not yet tried on real machines
         {update.issues ? (
           <>
             {" "}
-            — <a href={update.issues}>report problems</a>
+            — <a href={update.issues}>Report problems</a>
           </>
         ) : null}
       </Note>
@@ -389,13 +389,13 @@ export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate;
   ) : update.latest ? (
     <span>
       {update.current}
-      <Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note>
+      <Note>{update.channel === "nightly" ? "The newest nightly" : "The newest release"}</Note>
       {preview}
     </span>
   ) : (
     <span>
       {update.current}
-      {update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}
+      {update.error ? <Note>Could not check for a newer release — {update.error}</Note> : null}
       {preview}
     </span>
   );
@@ -417,9 +417,9 @@ function InstallFold({ install }: { install: InstallReport | null }) {
             <span>
               <InstallState s={install.skill} />{" "}
               {install.skill === "custom" ? (
-                <Note>a symlink or your own copy; left alone</Note>
+                <Note>A symlink or your own copy; left alone</Note>
               ) : install.skill === "linked" ? (
-                <Note>a symlink to the checkout this build came from</Note>
+                <Note>A symlink to the checkout this build came from</Note>
               ) : null}
             </span>
           ) : (
@@ -435,9 +435,9 @@ function InstallFold({ install }: { install: InstallReport | null }) {
 
 /** The word after the mod's state: what launch found in its place. */
 function modNote(install: InstallReport): React.ReactNode {
-  if (install.mod === "custom") return <Note>your own copy is in place; the app leaves it alone</Note>;
-  if (install.mod === "linked") return <Note>development build — the daemon runs this checkout's mod/boot.ts</Note>;
-  if (install.mod === "skipped") return <Note>development build — the app's own copy is in place; set LOKI_INSTALL=1 to refresh it</Note>;
+  if (install.mod === "custom") return <Note>Your own copy is in place; the app leaves it alone</Note>;
+  if (install.mod === "linked") return <Note>Development build — the daemon runs this checkout's mod/boot.ts</Note>;
+  if (install.mod === "skipped") return <Note>Development build — the app's own copy is in place; set LOKI_INSTALL=1 to refresh it</Note>;
   return null;
 }
 
@@ -501,11 +501,11 @@ function RecallPage({ recall }: { recall: RecallModel }) {
     if (!snap) void recall.refresh();
   }, [snap, recall]);
   return (
-    <Block help="flashcards written in the background from conversations that have gone quiet, and the leads it proposes. The writer is off until you switch it on.">
+    <Block help="Flashcards written in the background from conversations that have gone quiet, and the leads it proposes. Learn is off until you turn it on.">
       {snap ? (
         <RecallSettings worker={snap.worker} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} running={recall.running} />
       ) : (
-        <Setting label="Card writer" help={recall.error ?? "loading…"} />
+        <Setting label="Learn" help={recall.error ?? "Loading…"} />
       )}
     </Block>
   );
@@ -530,16 +530,22 @@ function ChatPage({
     <>
       <Block title="Chat panel">
         <Setting label="Position" help="Where the chat sits on the canvas. An empty canvas opens it centred until the first widget lands.">
-          <Segmented label="position" options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />
+          <Segmented
+            label="Position"
+            options={CHAT_PLACEMENTS}
+            value={chatPlacement}
+            onPick={onChatPlacement}
+            labels={{ left: "Left", center: "Centre", right: "Right" }}
+          />
         </Setting>
         <Setting label="Width at the side" help="When the chat sits on the left or the right.">
-          <Segmented label="width at the side" options={CHAT_WIDTHS} value={chatWidth} onPick={onChatWidth} />
+          <Segmented label="Width at the side" options={CHAT_WIDTHS} value={chatWidth} onPick={onChatWidth} labels={{ narrow: "Narrow", wide: "Wide" }} />
         </Setting>
       </Block>
-      <Block title="Always allowed" help="tools that run without asking, in every chat and every mode but strict.">
+      <Block title="Always allowed" help="Tools that run without asking, in every chat and every mode but strict.">
         {approvals ? <AlwaysAllowed api={approvals} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
       </Block>
-      <Block title="Chat links" help="which chats may message each other, opened on the card an agent shows when it first asks.">
+      <Block title="Chat links" help="Which chats may message each other, opened on the card an agent shows when it first asks.">
         {links ? <ChatLinks api={links} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
       </Block>
     </>
@@ -569,7 +575,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
   return (
     <>
       {lanes && <Lanes {...lanes} />}
-      <Block help="every chat you have not archived, every thread in your Gmail inbox, every unread Slack message and every Jira ticket you watch that someone else changed. A card stays until it is done: a chat or an email when you archive it, a Slack message or a Jira ticket when you read it. The card in front of you never moves until you act on it.">
+      <Block help="Every chat you have not archived, every thread in your Gmail inbox, every unread Slack message and every Jira ticket you watch that someone else changed. A card stays until it is done: a chat or an email when you archive it, a Slack message or a Jira ticket when you read it. The card in front of you never moves until you act on it.">
         <Setting
           label="Read"
           help={`Marks the card read, in Gmail or Slack too. A chat or an email is set aside for a while, then ${REST_GROWTH} times longer each read in a row while nothing new comes, up to a week; anything new brings it back at once. A Slack message or a Jira card is done once read.`}
@@ -580,11 +586,11 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
           <div style={KIND_GRID}>
             {READ_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
-                {KIND_NAME[kind]}
+                {sentence(KIND_NAME[kind])}
               </span>,
               <Segmented
                 key={kind}
-                label={`read rests ${KIND_NAME[kind]} for`}
+                label={`Read rests ${KIND_NAME[kind]} for`}
                 options={REST_FIRST_KEYS}
                 value={times.read_first[kind]}
                 onPick={(first) => set({ ...times, read_first: { ...times.read_first, [kind]: first } })}
@@ -603,11 +609,11 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
           <div style={KIND_GRID}>
             {LATER_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
-                {KIND_NAME[kind]}
+                {sentence(KIND_NAME[kind])}
               </span>,
               <Segmented
                 key={kind}
-                label={`later brings ${KIND_NAME[kind]} back after`}
+                label={`Later brings ${KIND_NAME[kind]} back after`}
                 options={REST_LATER_KEYS}
                 value={laterOf(times, kind)}
                 onPick={(later) => set({ ...times, later: { ...times.later, [kind]: later } })}
@@ -641,7 +647,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
           label="Focus"
           help={`The chat's share of what you have been doing lately: your messages, answers, decisions and reads, each fading by half every ${FOCUS_HALF_LIFE_H} hours. The task you are on rises; one you have moved on from fades.`}
         >
-          <Score>{`up to +${FOCUS_POINTS}`}</Score>
+          <Score>{`Up to +${FOCUS_POINTS}`}</Score>
         </Setting>
         <Setting label="Age" help="Off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first.">
           <Score>±0.1 an hour</Score>
@@ -662,11 +668,11 @@ const KIND_NAME: Record<CardKind, string> = { chat: "chats", email: "email", sla
 /** The first rests on offer, shortest first. */
 const REST_FIRST_KEYS: readonly RestFirst[] = ["10m", "30m", "1h", "3h"];
 /** Each first rest as the setting says it. */
-const REST_FIRST_LABELS: Record<RestFirst, string> = { "10m": "10 min", "30m": "30 min", "1h": "1 hour", "3h": "3 hours" };
+const REST_FIRST_LABELS: Record<RestFirst, string> = { "10m": "10 Min", "30m": "30 Min", "1h": "1 Hour", "3h": "3 Hours" };
 /** The later returns on offer, soonest first. */
 const REST_LATER_KEYS: readonly RestLater[] = ["3h", "1d", "2d", "1w"];
 /** Each later return as the setting says it. */
-const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 hours", "1d": "1 day", "2d": "2 days", "1w": "1 week" };
+const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 Hours", "1d": "1 Day", "2d": "2 Days", "1w": "1 Week" };
 
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {
@@ -701,15 +707,15 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
       value={
         shortcut.available ? (
           <span style={{ display: "inline-grid", gap: 4 }}>
-            <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on Flow from anywhere on the Mac" />
+            <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="Bring loki up on Flow from anywhere on the Mac" />
             {shortcut.error ? (
               <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note>
             ) : (
-              <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>
+              <Note>Off, if another app wants the key or you type non-breaking spaces with it</Note>
             )}
           </span>
         ) : (
-          "the app only — a browser tab cannot hold a system-wide key"
+          "The app only — a browser tab cannot hold a system-wide key"
         )
       }
     />
@@ -731,7 +737,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
           <Field
             size="sm"
             type="search"
-            placeholder="search keys"
+            placeholder="Search keys"
             aria-label="Search keyboard shortcuts"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -770,11 +776,11 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     {b.typing ? (
                       ""
                     ) : b.where === "inbox" || b.where === "desk" ? (
-                      <span style={{ marginLeft: 8, fontSize: "var(--loki-text-fine)", opacity: 0.7 }}>not while typing</span>
+                      <span style={{ marginLeft: 8, fontSize: "var(--loki-text-fine)", opacity: 0.7 }}>Not while typing</span>
                     ) : null}
                     {b.was && (
                       <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
-                        {wasFor(b)}
+                        {sentence(wasFor(b) ?? "")}
                       </span>
                     )}
                     {takenBy(b).map((t) => (
@@ -782,7 +788,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                         key={t.id}
                         className="loki-meta loki-meta--wrap"
                         style={{ display: "block" }}
-                      >{`not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
+                      >{`Not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
                     ))}
                   </td>
                 </tr>

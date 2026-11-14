@@ -80,8 +80,8 @@ export function ModeChip({
       className={className}
       style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined}
       onClick={onClick}
-      title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
-      aria-label="permission mode"
+      title={`Permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
+      aria-label="Permission mode"
       aria-busy={busy || undefined}
     >
       <Shield fill={info.fill} />
@@ -137,7 +137,7 @@ export function ModeMenu({
     <Popover
       ref={ref}
       role="menu"
-      aria-label="permission mode"
+      aria-label="Permission mode"
       anchor={anchor}
       side={side}
       width={300}
@@ -175,7 +175,7 @@ export function ModeMenu({
         </Row>
       ))}
       <div style={{ padding: "5px 8px 3px" }}>
-        <Meta>applies to this conversation · esc</Meta>
+        <Meta>Applies to this conversation · esc</Meta>
       </div>
     </Popover>
   );

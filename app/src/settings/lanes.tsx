@@ -93,9 +93,9 @@ export function newDraft(id: string): LaneDraft {
  */
 export function saveLane(lanes: readonly Lane[], draft: LaneDraft): Lane[] | string {
   const name = draft.name.trim();
-  if (!name) return "a lane needs a name";
+  if (!name) return "A lane needs a name";
   const other = lanes.find((l) => l.id !== draft.id && l.name.trim().toLowerCase() === name.toLowerCase());
-  if (other) return `another lane is called ${other.name}`;
+  if (other) return `Another lane is called ${other.name}`;
   const lane: Lane = { id: draft.id, name, chats: sideOf(draft.chats, draft.chatIds), accounts: sideOf(draft.accounts, draft.accountIds) };
   return lanes.some((l) => l.id === draft.id) ? lanes.map((l) => (l.id === draft.id ? lane : l)) : [...lanes, lane];
 }
@@ -153,7 +153,7 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
   const choices = useLaneAccounts(accounts, agents, draft !== null);
   const [error, setError] = useState<string | null>(null);
   const { lanes, set } = api;
-  if (!lanes) return <Setting label="Lanes" help="asking loki…" />;
+  if (!lanes) return <Setting label="Lanes" help="Asking loki…" />;
   const open = (d: LaneDraft) => {
     setDraft(d);
     setError(null);
@@ -168,10 +168,10 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
   return (
     <Block
       title="Lanes"
-      help="a lane is the part of your work Flow shows while you are in it: chats from some agents, mail and Slack from some accounts. Switch lanes from Flow's title, on each device on its own."
+      help="A lane is the part of your work Flow shows while you are in it: chats from some agents, mail and Slack from some accounts. Switch lanes from Flow's title, on each device on its own."
     >
       <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 180px) 1fr", gap: 24, padding: "12px 0", alignItems: "start" }}>
-        <div role="group" aria-label="lanes" style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+        <div role="group" aria-label="Lanes" style={{ display: "grid", gap: 4, justifyItems: "start" }}>
           {lanes.length === 0 && <span className="loki-meta loki-meta--wrap">No lanes yet</span>}
           {lanes.map((l) => (
             <Button key={l.id} size="sm" bare={draft?.id !== l.id} aria-pressed={draft?.id === l.id} onClick={() => open(draftOf(l))}>
@@ -179,7 +179,7 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
             </Button>
           ))}
           <Button size="sm" tone="positive" onClick={() => open(newDraft(newId()))}>
-            new lane
+            New Lane
           </Button>
         </div>
         {draft ? (
@@ -239,7 +239,7 @@ export function LaneEditor({
   const title = lanes.find((l) => l.id === draft.id)?.name ?? "the new lane";
   return (
     <form
-      aria-label={`edit ${title}`}
+      aria-label={`Edit ${title}`}
       style={{ display: "grid", gap: 8 }}
       onSubmit={(e) => {
         e.preventDefault();
@@ -249,8 +249,8 @@ export function LaneEditor({
       <Field
         size="sm"
         name="lane-name"
-        aria-label="lane name"
-        placeholder="name, like work"
+        aria-label="Lane name"
+        placeholder="Name, like Work"
         autoComplete="off"
         value={draft.name}
         onChange={(e) => onDraft({ ...draft, name: e.target.value })}
@@ -262,16 +262,16 @@ export function LaneEditor({
       )}
       <Setting label="Chats" help="All takes in agents added later; picked ones stay as picked.">
         <Segmented
-          label={`chats in ${title}`}
+          label={`Chats in ${title}`}
           options={SIDE_CHOICES}
           value={draft.chats}
           onPick={(chats) => onDraft({ ...draft, chats })}
-          labels={{ all: "all agents" }}
+          labels={{ all: "All Agents", pick: "Pick", none: "None" }}
         />
       </Setting>
       {draft.chats === "pick" && (
         <Picks
-          label={`agents in ${title}`}
+          label={`Agents in ${title}`}
           items={agents.map((g) => ({ id: g.id, label: g.name, detail: null }))}
           ids={draft.chatIds}
           onTick={(id, on) => onDraft({ ...draft, chatIds: ticked(draft.chatIds, id, on) })}
@@ -280,21 +280,21 @@ export function LaneEditor({
       )}
       <Setting label="Mail and Slack" help="All takes in accounts connected later, on every Mac.">
         <Segmented
-          label={`mail and Slack in ${title}`}
+          label={`Mail and Slack in ${title}`}
           options={SIDE_CHOICES}
           value={draft.accounts}
           onPick={(side) => onDraft({ ...draft, accounts: side })}
-          labels={{ all: "all accounts" }}
+          labels={{ all: "All Accounts", pick: "Pick", none: "None" }}
         />
       </Setting>
       {draft.accounts === "pick" &&
         (typeof accounts === "string" ? (
           <div className="loki-meta loki-meta--negative loki-meta--wrap">{accounts}</div>
         ) : accounts === null ? (
-          <span className="loki-meta">asking loki…</span>
+          <span className="loki-meta">Asking loki…</span>
         ) : (
           <Picks
-            label={`accounts in ${title}`}
+            label={`Accounts in ${title}`}
             items={accounts.map((a) => ({ id: a.account_id, label: a.label, detail: [a.service, a.owner, a.mac].filter(Boolean).join(" · ") }))}
             ids={draft.accountIds}
             onTick={(id, on) => onDraft({ ...draft, accountIds: ticked(draft.accountIds, id, on) })}
@@ -303,21 +303,21 @@ export function LaneEditor({
         ))}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Button size="sm" tone="positive" type="submit">
-          save
+          Save
         </Button>
         {onDelete &&
           (confirm ? (
             <>
               <Button size="sm" tone="negative" onClick={onDelete}>
-                delete {title}
+                Delete {title}
               </Button>
               <Button size="sm" onClick={() => setConfirm(false)}>
-                keep it
+                Keep
               </Button>
             </>
           ) : (
             <Button size="sm" onClick={() => setConfirm(true)}>
-              delete
+              Delete…
             </Button>
           ))}
       </div>
@@ -344,7 +344,7 @@ function Picks({
     <div role="group" aria-label={label} style={{ display: "grid", gap: 4 }}>
       {items.map((i) => (
         <label key={i.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 8, alignItems: "baseline", cursor: "pointer" }}>
-          <input type="checkbox" checked={ids.includes(i.id)} onChange={(e) => onTick(i.id, e.target.checked)} aria-label={`pick ${i.label}`} />
+          <input type="checkbox" checked={ids.includes(i.id)} onChange={(e) => onTick(i.id, e.target.checked)} aria-label={`Pick ${i.label}`} />
           <span style={{ minWidth: 0, fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
             {i.label}
             {i.detail && (

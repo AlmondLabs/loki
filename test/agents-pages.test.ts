@@ -215,8 +215,8 @@ describe("agents pane", () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const html = renderToStaticMarkup(createElement(Agents, { ...props([]), columnOutside: true, selection: createAgentsSelection(null) } as never));
     expect(html).toContain("loki-empty-pane");
-    expect(html).toContain("No agents yet.");
-    expect(html).toContain(">New agent</button>");
+    expect(html).toContain("No agents yet<");
+    expect(html).toContain(">New Agent</button>");
     expect(html).not.toContain(">Agents</h2>");
   });
   test("with the column inside (no Shell column), the list sits beside the pane", async () => {
@@ -226,6 +226,6 @@ describe("agents pane", () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const html = renderToStaticMarkup(createElement(Agents, { ...props([]), selection: createAgentsSelection(null) } as never));
     expect(html).toContain(">Agents</h2>");
-    expect(html).toContain("No agents yet.");
+    expect(html).toContain("No agents yet<");
   });
 });

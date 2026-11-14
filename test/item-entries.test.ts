@@ -109,13 +109,13 @@ describe("WidgetArtifact", () => {
     const out = html(createElement(WidgetArtifact, { mark: widget(), live: false, onFrame: () => {} }));
     expect(out).toContain("Signups chart");
     expect(out).toContain("friday added");
-    expect(out).toContain("show it on the canvas");
+    expect(out).toContain("Show it on the canvas");
   });
 
   test("a removed widget says so and offers no way to it; earlier changes are one line", () => {
     const gone = html(createElement(WidgetArtifact, { mark: widget({ gone: true }), live: false, onFrame: () => {} }));
     expect(gone).toContain("since removed from the canvas");
-    expect(gone).not.toContain("show it on the canvas");
+    expect(gone).not.toContain("Show it on the canvas");
     expect(html(createElement(WidgetArtifact, { mark: widget({ earlier: 3 }), live: false }))).toContain("3 earlier widget changes");
   });
 });

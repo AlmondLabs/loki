@@ -166,11 +166,11 @@ describe("an emptied lane", () => {
   test("the caught-up state shows the other lanes' count and a way back to everything", () => {
     const html = renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0, others: 2, onEverything: noop }));
     expect(html).toContain("2 waiting in other lanes");
-    expect(html).toContain("Back to everything");
+    expect(html).toContain("Back to Everything");
     const none = renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0, others: 0, onEverything: noop }));
     expect(none).not.toContain("other lanes");
-    expect(none).toContain("Back to everything");
-    expect(renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0 }))).not.toContain("Back to everything");
+    expect(none).toContain("Back to Everything");
+    expect(renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0 }))).not.toContain("Back to Everything");
   });
 
   test("an emptied agent lane stays in the menu while on and leaves it once the person switches away", () => {

@@ -61,7 +61,7 @@ export function ProfilePage({
             <ConfirmDelete d={d} myDesks={myDesks} accounts={accounts} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} />
           ) : (
             <Button tone="negative" onClick={() => setConfirmDelete(true)}>
-              delete this agent…
+              Delete Agent…
             </Button>
           )}
         </div>
@@ -78,7 +78,7 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       </Head>
       {myDesks.length === 0 && (
         <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
-          no live chats
+          No live chats
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
@@ -89,19 +89,19 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
             onClick={() => onOpen(x.conversation_id ?? "default")}
             style={{ justifyContent: "space-between", fontSize: "var(--loki-text-body)" }}
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "Main chat"}</span>
             <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
-              {x.active ? "active" : x.last_active ? ago(x.last_active) : ""}
+              {x.active ? "Active" : x.last_active ? ago(x.last_active) : ""}
             </span>
           </Row>
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
         <Button tone="brass" onClick={() => onOpen("default")}>
-          main chat
+          Main Chat
         </Button>
         <Button onClick={onShowDesks} kbd={keyFor("segment.desk")}>
-          chats
+          Chats
         </Button>
       </div>
     </section>
@@ -134,7 +134,7 @@ function ConfirmDelete({
   return (
     <div
       role="alertdialog"
-      aria-label={`delete ${d.agent.name}`}
+      aria-label={`Delete ${d.agent.name}`}
       style={{
         display: "grid",
         gap: 8,
@@ -151,16 +151,16 @@ function ConfirmDelete({
         {myDesks.length
           ? `${myDesks.length} live chat${myDesks.length === 1 ? "" : "s"} (${myDesks
               .slice(0, 3)
-              .map((x) => x.title ?? "main chat")
+              .map((x) => x.title ?? "Main chat")
               .join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.`
           : ""}
       </span>
       {accounts && <OwnedAccounts api={accounts.api} agentId={d.agent.id} agents={accounts.agents} asked={asked} onOwned={setOwned} />}
       <div style={{ display: "flex", gap: 8 }}>
         <Button tone="negative" disabled={owned > 0} onClick={() => void remove()}>
-          delete {d.agent.name}
+          Delete {d.agent.name}
         </Button>
-        <Button onClick={onKeep}>keep</Button>
+        <Button onClick={onKeep}>Keep</Button>
       </div>
     </div>
   );
@@ -206,7 +206,7 @@ function Identity({
           onChange={(e) => setName(e.target.value)}
           onBlur={() => name.trim() && name.trim() !== d.agent.name && void onSave({ name: name.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          aria-label="agent name"
+          aria-label="Agent name"
           style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}
         />
         <Field
@@ -215,8 +215,8 @@ function Identity({
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() => description.trim() !== (d.agent.description ?? "") && void onSave({ description: description.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          placeholder="a line about this agent"
-          aria-label="agent description"
+          placeholder="A line about this agent"
+          aria-label="Agent description"
           style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)" }}
         />
         <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
@@ -229,7 +229,7 @@ function Identity({
             onChange={(e) => setModel(e.target.value)}
             onBlur={() => model.trim() && model.trim() !== (d.agent.model ?? "") && void onSave({ model: model.trim() })}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-            aria-label="model"
+            aria-label="Model"
             style={{ width: 240, fontSize: "var(--loki-text-meta)" }}
           />
           <datalist id="loki-models">
@@ -244,9 +244,9 @@ function Identity({
         </div>
         {macs.length > 1 && (
           <label className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            lives on
+            Lives on
             <select
-              aria-label="the Mac this agent lives on"
+              aria-label="The Mac this agent lives on"
               value={d.agent.home_mac ?? macs[0].mac_id}
               onChange={(e) => void onSave({ home_mac: e.target.value })}
               style={{ font: "inherit", color: "var(--loki-fg)" }}

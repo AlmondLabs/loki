@@ -112,7 +112,8 @@ export function stepVerb(name: string): string {
     case "AskUserQuestion":
       return "Asked you";
     default:
-      return `Used ${name}`;
+      // An ACP agent names a step by its title ("Read signups.csv"), which already says what it did.
+      return name.includes(" ") ? name : `Used ${name}`;
   }
 }
 
@@ -212,6 +213,12 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
   if (running) return took ? `Working · ${took}` : "Working";
   const only = rows.length === 1 ? rows[0] : null;
   if (only?.tool?.description && stepKind(only) === "command") return `Ran ${only.tool.description}${only.tool.failed ? " · failed" : ""}`;
+  // One step that names what it was done to says so ("Read signups.csv"), not "Used a tool".
+  const target = only?.role === "tool" && !["command", "background", "agent"].includes(stepKind(only)) ? stepTarget(only) : null;
+  if (only && target) {
+    const verb = stepVerb(stepName(only));
+    return `${verb.endsWith(target) ? verb : `${verb} ${target}`}${stepFailed(only) ? " · failed" : ""}`;
+  }
   const count = (k: StepKind) => rows.filter((r) => stepKind(r) === k).length;
   const background = count("background");
   const commands = count("command");

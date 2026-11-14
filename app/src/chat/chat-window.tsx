@@ -109,7 +109,7 @@ export function ChatWindow({
                       <Glyph icon={width === "wide" ? PanelLeftIcon : PanelRightIcon} />
                     </IconButton>
                   )}
-                  <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: "var(--loki-text-body)" }}>
+                  <IconButton size={24} onClick={onClose} label="Close chat" style={{ fontSize: "var(--loki-text-body)" }}>
                     <Glyph icon={XIcon} />
                   </IconButton>
                 </div>
@@ -199,7 +199,7 @@ export function ChatBubble({
       data-alert={alert || undefined}
       onClick={onToggle}
       onPointerDown={(e) => e.stopPropagation()}
-      aria-label="toggle chat"
+      aria-label="Toggle chat"
       style={{
         position: "absolute",
         ...(side === "right" ? { right: 20 } : { left: 20 }),
@@ -219,7 +219,7 @@ export function ChatBubble({
       {open ? <Glyph icon={XIcon} size={18} /> : <Glyph icon={MessageSquareIcon} size={18} />}
       {alert && !open && (
         <span
-          aria-label="permission waiting"
+          aria-label="Permission waiting"
           style={{
             position: "absolute",
             top: -2,

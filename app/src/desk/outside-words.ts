@@ -11,6 +11,16 @@ import { senderName } from "./mail-thread";
 /** The service's own name, as the card's meta and notices say it. */
 const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 
+/**
+ * The control that mends a disconnected account, in Apple's words, or null where waiting is the only cure (plan
+ * 2026-11-14-0852, 1): a Gmail or Slack sign-in, a Jira API token, or connecting again after an admin's block.
+ */
+export function mendLabel(cause: AccountDisconnectCause, provider: AccountProvider): string | null {
+  if (cause === "temporarily_failing") return null;
+  if (cause === "sign_in_again") return provider === "jira" ? "Add Token…" : "Sign In…";
+  return "Connect Again…";
+}
+
 /** What a disconnected account's cards say (R22): what happened and how to reconnect, lowercase as desktop meta. */
 export function disconnectedText(cause: AccountDisconnectCause, provider: AccountProvider): string {
   const service = SERVICE[provider];
@@ -40,7 +50,7 @@ export function outsideWho(o: OutsideFacts): string {
 export function outsideTitle(o: OutsideFacts): string {
   switch (o.provider) {
     case "gmail":
-      return o.subject || "no subject";
+      return o.subject || "No subject";
     case "slack":
       return senderName(o.sender);
     case "jira":
@@ -69,11 +79,11 @@ export function ticketAddress(o: OutsideFacts, link: string | null = null): stri
 export function replyPlace(o: OutsideFacts, inThread = false): string {
   switch (o.provider) {
     case "gmail":
-      return "reply to all";
+      return "Reply to all";
     case "slack":
-      return inThread || o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
+      return inThread || o.thread_id.includes(":") ? "Reply in the thread" : "Reply in the DM";
     case "jira":
-      return "comment on the ticket";
+      return "Comment on the ticket";
   }
 }
 
@@ -92,9 +102,9 @@ export function withSeeds(text: string, seeds: readonly OutsideSeed[]): string {
 
 /** What the desktop's send button says it does, for each service: a Jira comment leaves the card unread (KTD11). */
 export const SEND_TITLE: Record<AccountProvider, string> = {
-  gmail: "send it as you; the card stays for your next move",
-  slack: "send it as you; the card stays for your next move",
-  jira: "post it on the ticket as you; the card stays, unread, for your next move",
+  gmail: "Send it as you; the card stays for your next move",
+  slack: "Send it as you; the card stays for your next move",
+  jira: "Post it on the ticket as you; the card stays, unread, for your next move",
 };
 
 /** The line under the phone's send, for each service. */
@@ -109,23 +119,23 @@ export const MARK: Record<AccountProvider, CardMark> = { gmail: "mail", slack: "
 
 /** Where a card came from, as the header says it when more than one account of its service is connected. */
 export const CAME_FROM: Record<AccountProvider, string> = {
-  gmail: "the mailbox it came to",
-  slack: "the workspace it came from",
-  jira: "the site it came from",
+  gmail: "The mailbox it came to",
+  slack: "The workspace it came from",
+  jira: "The site it came from",
 };
 
 /** What later says it does, for each service: Jira keeps no read mark, so nothing changes there (R20). */
 export const LATER_TITLE: Record<AccountProvider, string> = {
-  gmail: "keep it unread in Gmail: the card comes back in a day, or sooner if something new arrives",
-  slack: "keep it unread in Slack: the card comes back in a day, or sooner if something new arrives",
-  jira: "keep it unread: the card comes back in a day, or sooner if the ticket changes",
+  gmail: "Keep it unread in Gmail: the card comes back in a day, or sooner if something new arrives",
+  slack: "Keep it unread in Slack: the card comes back in a day, or sooner if something new arrives",
+  jira: "Keep it unread: the card comes back in a day, or sooner if the ticket changes",
 };
 
 /** What read says it does, for each service. */
 export const READ_TITLE: Record<AccountProvider, string> = {
-  gmail: "mark it read in Gmail: the card rests and comes back later",
-  slack: "mark it read in Slack: the card ends until someone writes again",
-  jira: "done reading: the card ends until the ticket changes again; nothing changes in Jira",
+  gmail: "Mark it read in Gmail: the card rests and comes back later",
+  slack: "Mark it read in Slack: the card ends until someone writes again",
+  jira: "Done reading: the card ends until the ticket changes again; nothing changes in Jira",
 };
 
 /**
@@ -133,14 +143,14 @@ export const READ_TITLE: Record<AccountProvider, string> = {
  * draws none (KTD12).
  */
 export const ARCHIVE_TITLE: Record<AccountProvider, string | null> = {
-  gmail: "done with this thread: it leaves Flow and is archived in Gmail",
-  slack: "done with this thread: it leaves Flow and is marked read in Slack",
+  gmail: "Done with this thread: it leaves Flow and is archived in Gmail",
+  slack: "Done with this thread: it leaves Flow and is marked read in Slack",
   jira: null,
 };
 
 /** What hand off says it does, for each service: a mail or a Slack card leaves with it, and a Jira card stays (KTD13). */
 export const HANDOFF_TITLE: Record<AccountProvider, (owner: string) => string> = {
-  gmail: (owner) => `give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
-  slack: (owner) => `give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
-  jira: (owner) => `give the whole ticket to ${owner} in one of its chats; the card stays until you read it`,
+  gmail: (owner) => `Give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
+  slack: (owner) => `Give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
+  jira: (owner) => `Give the whole ticket to ${owner} in one of its chats; the card stays until you read it`,
 };

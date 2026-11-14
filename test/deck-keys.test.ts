@@ -41,6 +41,9 @@ function deck(
     read?: MoveResult;
     /** Mail replies are held for their undo (plan 076): what stopping one answers. */
     unsend?: (outboxId: string) => boolean;
+    /** The host's notices; absent, refusals flash on the badge. */
+    notices?: string[];
+    later?: MoveResult;
   } = {},
 ) {
   const calls: Array<[string, ...unknown[]]> = [];
@@ -62,13 +65,14 @@ function deck(
       setDecided: (v) => (state.decided = apply(v, state.decided)),
       setQueue: (v) => (state.queue = apply(v, state.queue)),
       say: (w) => state.flash.push(w),
+      ...(over.notices ? { notice: (_item: AttentionItem, w: string) => over.notices?.push(w) } : {}),
       setDir: () => {},
       pick: (k) => (state.picker = k),
       sent: () => calls.push(["sent"]),
       newId: () => "o1",
       moves: {
         read: (item) => (calls.push(["read", item.id]), Promise.resolve(over.read ?? DONE)),
-        later: (item, until) => (calls.push(["later", item.id, until]), Promise.resolve(DONE)),
+        later: (item, until) => (calls.push(["later", item.id, until]), Promise.resolve(over.later ?? DONE)),
         laterAsks: () => over.asks ?? false,
         archive: (item) => (calls.push(["archive", item.id]), Promise.resolve(null)),
         label: (item, ids) => (calls.push(["label", item.id, ids]), Promise.resolve(null)),
@@ -100,7 +104,7 @@ describe("⌘] and ⌘[ on a card", () => {
     await settle();
     expect(d.calls).toEqual([["later", "c1", undefined]]);
     expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
-    expect(d.state.flash).toEqual(["later"]);
+    expect(d.state.flash).toEqual(["Later"]);
   });
   test("⌘] reads the card; a refusal out there brings it back on top with the reason", async () => {
     const d = deck([outsideItem("Lunch"), attentionItem("c2")], { read: { error: "Gmail refused", ask: false, rest: null } });
@@ -109,7 +113,7 @@ describe("⌘] and ⌘[ on a card", () => {
     await settle();
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
     expect(d.state.decided).toEqual([]);
-    expect(d.state.flash).toEqual(["read", "not marked read: Gmail refused"]);
+    expect(d.state.flash).toEqual(["Read", "Not marked read: Gmail refused"]);
   });
   test("⌘] with text in the reply box sends the reply with read, clears the box, and the card moves on", async () => {
     const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "Thursday works" });
@@ -138,7 +142,7 @@ describe("⌘] and ⌘[ on a card", () => {
     expect(d.state.box.held).toBeNull();
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
     expect(d.state.decided).toEqual([]);
-    expect(d.state.flash).toEqual(["sending · z undo", "sent"]);
+    expect(d.state.flash).toEqual(["Sending · z undo", "Sent"]);
   });
   test("Z while a mail sent alone waits stops it and puts the words back, the card where it was", async () => {
     let finish: (r: OutsideReplyResult) => void = () => {};
@@ -153,7 +157,7 @@ describe("⌘] and ⌘[ on a card", () => {
     await settle();
     expect(d.state.box.text).toBe("ok");
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
-    expect(d.state.flash).toEqual(["sending · z undo", "not sent"]);
+    expect(d.state.flash).toEqual(["Sending · z undo", "Not sent"]);
   });
   test("Enter in a Slack card's box only sends: the card stays on top for the person's own next move (plan 083)", async () => {
     const lunch = outsideItem("Lunch");
@@ -165,7 +169,7 @@ describe("⌘] and ⌘[ on a card", () => {
     expect(d.state.box.text).toBe("");
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
     expect(d.state.decided).toEqual([]);
-    expect(d.state.flash).toEqual(["sent"]);
+    expect(d.state.flash).toEqual(["Sent"]);
   });
   test("a reply on a Slack card goes into the thread opened on it, after a newer message too, and not on another card (plans 085, 090)", async () => {
     const lunch = outsideItem("Lunch");
@@ -217,7 +221,7 @@ describe("a mail reply held for its undo (plan 076)", () => {
     d.moves().read();
     expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
     expect(d.state.box.text).toBe("");
-    expect(d.state.flash).toEqual(["sending · z undo"]);
+    expect(d.state.flash).toEqual(["Sending · z undo"]);
     expect(d.state.decided.map((x) => x.held?.outbox_id)).toEqual(["o1"]);
     expect(d.calls[0]).toEqual([
       "reply",
@@ -230,7 +234,7 @@ describe("a mail reply held for its undo (plan 076)", () => {
     await settle();
     // Sent: the decision is an ordinary one now, so Z takes back the read and not the reply.
     expect(d.state.decided.map((x) => x.held)).toEqual([undefined]);
-    expect(d.state.flash).toEqual(["sending · z undo", "sent"]);
+    expect(d.state.flash).toEqual(["Sending · z undo", "Sent"]);
   });
   test("Z while it is held stops it, and the card comes back with the words and addressing in its box", async () => {
     const r = later();
@@ -244,7 +248,7 @@ describe("a mail reply held for its undo (plan 076)", () => {
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
     expect(d.state.decided).toEqual([]);
     expect(d.state.box).toMatchObject({ text: "Thursday works", mail: null, error: null });
-    expect(d.state.flash.at(-1)).toBe("not sent");
+    expect(d.state.flash.at(-1)).toBe("Not sent");
   });
   test("Z after it went says so and leaves the card where it is", async () => {
     const r = later();
@@ -253,7 +257,7 @@ describe("a mail reply held for its undo (plan 076)", () => {
     d.moves().undo();
     await settle();
     expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
-    expect(d.state.flash.at(-1)).toBe("already sent");
+    expect(d.state.flash.at(-1)).toBe("Already sent");
   });
   test("a send that fails brings the card back on top with the words and the reason", async () => {
     const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "ok", reply: { sent: false, error: "Gmail refused it" }, unsend: () => true });
@@ -262,7 +266,7 @@ describe("a mail reply held for its undo (plan 076)", () => {
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
     expect(d.state.decided).toEqual([]);
     expect(d.state.box).toMatchObject({ text: "ok", error: "Gmail refused it" });
-    expect(d.state.flash.at(-1)).toBe("not sent");
+    expect(d.state.flash.at(-1)).toBe("Not sent");
   });
   test("a Slack card's reply is never held: it goes at once, as before", async () => {
     const slack = outsideItem("Lunch");
@@ -280,14 +284,14 @@ describe("⌘E and L", () => {
     d.moves().archive();
     expect(d.calls).toEqual([]);
     expect(d.state.queue.map((i) => i.id)).toEqual(["default"]);
-    expect(d.state.flash).toEqual(["main chats stay"]);
+    expect(d.state.flash).toEqual(["Main chats stay"]);
   });
   test("⌘E with text sends it, then archives", async () => {
     const d = deck([outsideItem("Lunch")], { text: "done, thanks" });
     d.moves().archive();
     await settle();
     expect(d.calls[0]).toEqual(["reply", "t1#1", "done, thanks", "archive"]);
-    expect(d.state.flash).toEqual(["archived"]);
+    expect(d.state.flash).toEqual(["Archived"]);
   });
   test("AE8: L on an email card opens the labels; picking Clients adds it and the card stays", async () => {
     const d = deck([outsideItem("Lunch"), attentionItem("c2")]);
@@ -297,7 +301,7 @@ describe("⌘E and L", () => {
     expect(d.calls).toEqual([["label", "t1#1", ["Label_7"]]]);
     expect(d.state.picker).toBeNull();
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
-    expect(d.state.flash).toEqual(["labelled"]);
+    expect(d.state.flash).toEqual(["Labelled"]);
   });
   test("L on a chat card, or a Slack card, does nothing", () => {
     const chat = deck([attentionItem("c1")]);
@@ -328,7 +332,7 @@ describe("⌘E and L on a Jira card (plan 2026-11-10-1451, U6)", () => {
     expect(d.state.queue.map((i) => i.id)).toEqual(["10001#1", "c2"]);
     expect(d.state.decided).toEqual([]);
     expect(d.state.box.text).toBe("on it");
-    expect(d.state.flash).toEqual(["a jira card ends with read"]);
+    expect(d.state.flash).toEqual(["A Jira card ends with read"]);
   });
   test("L does nothing", () => {
     const d = deck([jiraItem()]);
@@ -347,7 +351,7 @@ describe("a comment from a Jira card's box (plan 2026-11-10-1451, U7)", () => {
     expect(d.state.box.text).toBe("");
     expect(d.state.queue.map((i) => i.id)).toEqual(["10001#1", "c2"]);
     expect(d.state.decided).toEqual([]);
-    expect(d.state.flash).toEqual(["sent"]);
+    expect(d.state.flash).toEqual(["Sent"]);
   });
   test("⌘] with text posts it and then reads the card, which moves on", async () => {
     const d = deck([jiraItem(), attentionItem("c2")], { text: "Done" });
@@ -453,5 +457,52 @@ describe("the word on the badge", () => {
     flash.stop();
     vi.advanceTimersByTime(FLASH_MS * 2);
     expect(shown.at(-1)).toBe("later");
+  });
+});
+
+describe("a refusal says so, and a card whose account needs a sign-in never stops the deck (plan 2026-11-14-0852, 1)", () => {
+  const signedOut = () => {
+    const item = outsideItem("Lunch");
+    const outside = must(item.outside, "the card's account");
+    return { ...item, outside: { ...outside, disconnected: "sign_in_again" as const } };
+  };
+
+  test("a refused move goes to a notice, which stays to be read, not the badge's 900 ms flash", async () => {
+    const notices: string[] = [];
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { read: { error: "Gmail refused", ask: false, rest: null }, notices });
+    d.moves().read();
+    await settle();
+    expect(d.state.flash).toEqual(["Read"]);
+    expect(notices).toEqual(["Not marked read: Gmail refused"]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+  });
+
+  test("Later on a card that needs a sign-in passes it for this visit, writes nothing, and says why", async () => {
+    const notices: string[] = [];
+    const d = deck([signedOut(), attentionItem("c2")], { notices });
+    d.moves().later();
+    await settle();
+    expect(d.calls).toEqual([]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
+    expect(notices).toEqual(["Skipped for this visit: nothing changed in its account"]);
+  });
+
+  test("an account that is only failing for now still writes Later as usual", async () => {
+    const item = outsideItem("Lunch");
+    const failing = { ...item, outside: { ...must(item.outside, "the card's account"), disconnected: "temporarily_failing" as const } };
+    const d = deck([failing, attentionItem("c2")], { notices: [] });
+    d.moves().later();
+    await settle();
+    expect(d.calls).toEqual([["later", "t1#1", undefined]]);
+  });
+});
+
+describe("the control that mends a disconnected account", () => {
+  test("Sign In… for Gmail and Slack, Add Token… for Jira, Connect Again… after a block, nothing while it only fails for now", async () => {
+    const { mendLabel } = await import("../app/src/desk/outside-words.ts");
+    expect(mendLabel("sign_in_again", "gmail")).toBe("Sign In…");
+    expect(mendLabel("sign_in_again", "jira")).toBe("Add Token…");
+    expect(mendLabel("admin_blocks", "slack")).toBe("Connect Again…");
+    expect(mendLabel("temporarily_failing", "gmail")).toBeNull();
   });
 });

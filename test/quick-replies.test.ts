@@ -9,7 +9,7 @@ import type { PendingQuestion } from "../core/attention/model.ts";
 
 /**
  * Quick replies (plan 066): an agent ends a reply with a few options, drawn as buttons under its last reply; a click, or
- * 1 to 4 from an empty box on the Mac, sends the option as the person's message.
+ * 1 to 4 while a reply has focus on the Mac, sends the option as the person's message.
  */
 const offer = "Ready to migrate.\n\n<loki-replies>\n- run the migration\n- show me the diff first\n</loki-replies>";
 const reply: TranscriptRow = { role: "assistant", text: offer };
@@ -22,7 +22,7 @@ const key = (k: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altK
 });
 
 /** Both the desktop's chips and the phone's row are named "quick replies". */
-const OFFERED = 'aria-label="quick replies"';
+const OFFERED = 'aria-label="Quick replies"';
 const draw = (rows: TranscriptRow[], status: ChatStatus = "idle", question: PendingQuestion | null = null, touch = false) =>
   renderToStaticMarkup(createElement(Conversation, { touch, view: { rows, status, question }, actions: { onSend: () => {}, onAnswer: () => {} } }));
 
@@ -54,12 +54,29 @@ describe("quick replies (plan 066)", () => {
     expect(draw([reply], "streaming", null, true)).not.toContain(OFFERED);
   });
 
-  test("the Mac shows each one's key; the phone does not", () => {
-    expect(draw([reply])).toMatch(/run the migration<kbd[^>]*>1<\/kbd>/);
+  test("no key on a reply's face: the Mac puts it in the tooltip, the phone has none", () => {
+    const mac = draw([reply]);
+    expect(mac).not.toContain("<kbd");
+    expect(mac).toContain('title="Send “run the migration” (1)"');
     const phone = draw([reply], "idle", null, true);
     expect(phone).toContain(OFFERED);
     expect(phone).not.toContain("<kbd");
     expect(phone).not.toContain("loki-kbd");
+  });
+
+  test("a digit in the message box is only a digit: the box never sends a quick reply", () => {
+    const html = draw([reply]);
+    // The box's handler no longer reads replyKey; the replies' own group does.
+    expect(html).toContain(OFFERED);
+    const sent: string[] = [];
+    const group = QuickReplies({ options: ["yes", "no"], onPick: (t) => sent.push(t) });
+    const onKeyDown = (group.props as { onKeyDown?: (e: unknown) => void }).onKeyDown;
+    if (!onKeyDown) throw new Error("the replies' group has no key handler");
+    let stopped = false;
+    onKeyDown({ ...key("2"), preventDefault: () => (stopped = true) });
+    expect(sent).toEqual(["no"]);
+    expect(stopped).toBe(true);
+    expect((QuickReplies({ options: ["yes"], onPick: () => {}, touch: true }).props as { onKeyDown?: unknown }).onKeyDown).toBeUndefined();
   });
 
   test("a click sends the option word for word", () => {

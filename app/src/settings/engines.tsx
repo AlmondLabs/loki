@@ -65,10 +65,10 @@ export function Engines({ api }: { api: EnginesApi }) {
     setTrying(null);
   };
 
-  if (!view) return <Setting label="Engines" help={error ?? "asking loki…"} />;
+  if (!view) return <Setting label="Engines" help={error ?? "Asking loki…"} />;
   return (
     <>
-      <Block help="what a chat can run on besides loki's own models. A chat picks its engine in the model picker, before its first message.">
+      <Block help="What a chat can run on besides loki's own models. A chat picks its engine in the model picker, before its first message.">
         {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
         {view.engines.map((e) => (
           <EngineRow
@@ -96,7 +96,7 @@ export function Engines({ api }: { api: EnginesApi }) {
         ) : (
           <Setting label="Any agent that speaks ACP" help="Added by the command that starts it, such as Gemini CLI or Codex.">
             <Button tone="positive" onClick={() => setEditing("new")}>
-              add an engine
+              Add Engine…
             </Button>
           </Setting>
         )}
@@ -139,17 +139,17 @@ function EngineRow({
         }
       >
         <Button size="sm" bare onClick={() => setDetails(!details)} aria-expanded={details}>
-          details
+          Details
         </Button>
-        <Button size="sm" onClick={onTry} disabled={trying !== null} aria-label={`try starting ${e.name}`}>
-          {trying === e.id ? "starting…" : "try"}
+        <Button size="sm" onClick={onTry} disabled={trying !== null} aria-label={`Try starting ${e.name}`}>
+          {trying === e.id ? "Starting…" : "Try"}
         </Button>
-        <Button size="sm" onClick={onEdit} aria-label={`edit ${e.name}`}>
-          edit
+        <Button size="sm" onClick={onEdit} aria-label={`Edit ${e.name}`}>
+          Edit
         </Button>
         {(!e.builtin || e.changed) && (
-          <Button size="sm" tone="negative" onClick={onRemove} aria-label={e.builtin ? `start ${e.name} as loki ships it` : `remove ${e.name}`}>
-            {e.builtin ? "reset" : "remove"}
+          <Button size="sm" tone="negative" onClick={onRemove} aria-label={e.builtin ? `Start ${e.name} as loki ships it` : `Remove ${e.name}`}>
+            {e.builtin ? "Reset" : "Remove"}
           </Button>
         )}
       </Setting>
@@ -182,8 +182,8 @@ function EngineForm({
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     const id = engine?.id ?? engineId(name);
-    if (!id) return setError("give the agent a name");
-    if (!command.trim()) return setError("say which command starts it");
+    if (!id) return setError("Give the agent a name");
+    if (!command.trim()) return setError("Say which command starts it");
     setBusy(true);
     try {
       const r = await api.set({
@@ -227,10 +227,10 @@ function EngineForm({
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
       <div style={{ display: "flex", gap: 6 }}>
         <Button size="sm" tone="positive" onClick={() => void save()} disabled={busy}>
-          {busy ? "saving…" : "save"}
+          {busy ? "Saving…" : "Save"}
         </Button>
         <Button size="sm" onClick={() => onDone(null)}>
-          cancel
+          Cancel
         </Button>
       </div>
       <div className="loki-meta loki-meta--wrap">

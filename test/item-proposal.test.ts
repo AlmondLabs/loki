@@ -97,11 +97,12 @@ describe("approving a reply proposal", () => {
 });
 
 describe("quick replies", () => {
-  test("are suggestion chips with their keys", () => {
+  test("are suggestion chips with their keys in their tooltips, not on their faces", () => {
     const out = html(createElement(QuickReplyChips, { options: ["yes", "not now"], onPick: () => {} }));
-    expect(out).toContain('aria-label="quick replies"');
-    expect(out).toMatch(/yes<kbd[^>]*>1<\/kbd>/);
-    expect(out).toMatch(/not now<kbd[^>]*>2<\/kbd>/);
+    expect(out).toContain('aria-label="Quick replies"');
+    expect(out).not.toContain("<kbd");
+    expect(out).toContain('title="Send “yes” (1)"');
+    expect(out).toContain('title="Send “not now” (2)"');
   });
 });
 

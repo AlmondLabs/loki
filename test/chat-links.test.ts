@@ -392,7 +392,7 @@ describe("the link card and the header", () => {
 
   test("the card names the other chat and its Mac, shows the message, and offers both directions, three durations, allow and deny", () => {
     const html = renderToStaticMarkup(createElement(LinkCard, { requestId: "q1", ask, onAnswer: () => {} }));
-    expect(html).toContain("wants to message another chat");
+    expect(html).toContain("Wants to message another chat");
     expect(html).toContain("infra (Bo on studio)");
     expect(html).toContain("Is the cert renewed?");
     for (const words of ["one way", "both ways", "1 hour", "1 day", "until I close it", ">Allow</button>", ">Deny</button>"]) expect(html).toContain(words);
@@ -413,7 +413,7 @@ describe("the link card and the header", () => {
     const html = renderToStaticMarkup(createElement(LinkHeader, { links: seen, onClose: () => {} }));
     expect(html).toContain("infra");
     expect(html).toContain("min left");
-    expect(html).toContain("close link to infra");
+    expect(html).toContain("Close link to infra");
     expect(html).not.toContain("old");
   });
 

@@ -118,8 +118,9 @@ along the top drags the window (double-click zooms). The window title still name
 "Flow · n waiting", "Agents", "Preferences" — for the Window menu and Mission Control. On the left, one **sidebar**
 on the Mac's own material, the traffic lights in its top row: its first rows are the places, **Chats**, **Flow**,
 **Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
-filled; under them, the place's own list. The chosen item fills the rest. ⌘⇧D (or the sidebar button beside the
-traffic lights, which stays while the sidebar is hidden) shows or hides it (in Flow ⌘⇧D is Deny); drag its edge (or
+filled; under them, the place's own list. The chosen item fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
+Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
+hides it; drag its edge (or
 focus it and use the arrows) for a width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
@@ -184,8 +185,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   the model and the permission mode change rarely, so ⌘K is their one home (the phone keeps its two chips). ⌘⇧M opens it on **Models**, ⌘⇧P on
   **Permissions**, which lists the chat's modes with what each lets through, the current one checked and highlighted;
   typing "mode " in ⌘K steps in too, and typing a mode's name or "permission" offers them among the results. When a tool call asks,
-  loki asks "Allow friday to run “edit”?" above the box with **Deny**, **Always Allow…** and **Allow** (Return in the
-  empty box allows; on the phone, **Deny** and **Approve** under the box): Always Allow, after you confirm it, allows that tool from then on, in every chat and every
+  loki asks "Allow friday to run “edit”?" above the box with **Deny**, **Always Allow…** and **Allow** (⌘Return
+  allows, from the box too; on the phone, **Deny** and **Approve** under the box): Always Allow, after you confirm it, allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
 - **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the deck as a full view, see below. Its row in the sidebar carries
@@ -256,7 +257,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         chats and for email, and **Later brings a card back after**, for chats, email, Slack and Jira, on every device
         (see "Return times"); and, under "How the
         order works", what each card's score is made of (see "The order").
-     2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
+     2. **Learn**: Learn's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
         something new, at once), and the last run.
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
@@ -286,7 +287,7 @@ into the Models scope, where all of the chat's models are listed with Usual firs
 Backspace in the empty field, or the chip's ×, steps back out.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
-that work everywhere (less any the view takes for itself, such as ⌘⇧D in Flow; Preferences › Keyboard shortcuts says so); `?` or
+that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
@@ -693,8 +694,8 @@ answer.
 When an agent's turn ends on a choice you are likely to make from a few clear options, it may offer them as quick
 replies: two to four buttons under its last reply, in the chat and on its card in Flow, on the Mac and the phone. A
 button's words are the message: a click sends them as yours, as if you had typed them, and the agent acts on them. On
-the Mac, **1** to **4** send the matching option while the message box is empty and has focus; each button shows its
-number. The buttons belong to the last reply only: once you send anything, clicked or typed, or the agent starts
+the Mac, with one of the buttons focused, **1** to **4** send the matching option; each button's tooltip shows its
+number. In the message box a digit is only a digit. The buttons belong to the last reply only: once you send anything, clicked or typed, or the agent starts
 another turn, they go. Agents are told to offer them only at a real fork, to ask with a question card when they cannot
 go on without an answer, and to make a [suggestion](#suggestions) for work that belongs in another chat. Every agent
 learns of them, loki's own and those on Claude Code or another ACP agent.
@@ -767,7 +768,10 @@ them:
 5. **Undo**, Z or ⌘Z, takes back the last move on any card, a rest, a chat's read mark or archive, or what a move did
    in Gmail (the thread comes back unread or in the inbox, as it was). The ⌘ forms work while you type a reply.
 
-A move that loki or Gmail refuses brings the card back on top with the reason. Approval and question cards never
+A move that loki or Gmail refuses brings the card back on top, and a notice at the top right says why, with
+**Sign In…** (or **Add Token…**, **Connect Again…**) when the card's account needs mending; it opens Preferences ›
+Accounts. A card whose account needs a sign-in says so once, above its thread, with the same button, and Later passes
+it for this visit without writing anything, so it never holds up the cards behind it. Approval and question cards never
 rest: an approval leaves only by Approve or Deny, and read or later on it only moves past it for this visit. Once
 only resting cards are left, Flow says "You're caught up", how many rest, and **go through them**. A or ⌘↵
 approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused,
@@ -812,8 +816,10 @@ The mental model — what the writer reads, asks, writes and costs, and how lead
 [docs/learn.md](learn.md); this section is the reference for the keys and the files.
 
 Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
-writer spends your provider budget in the background, so the section's first visit explains what it does and
-offers the switch (Preferences › Learn has it too, with the knobs). Nothing about the cards happens in
+writer spends your provider budget in the background, so the section's first visit is a welcome: three rows (cards
+from what you discuss, reviewed when you'd forget, up to the day's cap from your provider budget), **Turn On Learn**,
+and **Learn More…** for the rest (Preferences › Learn has the switch too, with the knobs). On screen the writer is
+simply Learn. Nothing about the cards happens in
 chat: the daemon's Learn pass, one of its background passes, watches for conversations that have gone quiet, hands their new stretches of
 transcript to the agent together — one question per agent, the stretches most worth reading first, up to a
 budget; what does not fit waits for the next tick — and writes whatever comes back: one fact per card, a
@@ -1270,7 +1276,8 @@ card's comment box (a card that had ended comes back, unread) until you send it 
 approval. The owner can propose a comment only on a ticket that has had a card in Flow. The agent cannot take a
 proposal back: you reject the card, or clear an approved comment from the ticket card's box.
 
-**When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
+**When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines,
+with a button that opens Preferences › Accounts where a sign-in or a token mends it:
 
 1. "Gmail wants a new sign-in": the sign-in expired or was revoked; **reconnect gmail** signs in again.
 2. "a workspace admin blocks loki in Gmail" (or Slack): ask the admin, or use your own Google app, then connect again.

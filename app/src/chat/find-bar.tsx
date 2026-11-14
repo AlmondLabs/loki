@@ -71,17 +71,17 @@ export function FindBar({
             onEscape();
           }
         }}
-        placeholder={`find in transcript… (${formatKeys("enter")} next · ${formatKeys("shift+enter")} previous · ${formatKeys("escape")})`}
-        aria-label="find in transcript"
+        placeholder={`Find in transcript… (${formatKeys("enter")} next · ${formatKeys("shift+enter")} previous · ${formatKeys("escape")})`}
+        aria-label="Find in transcript"
         style={{ flex: 1 }}
       />
-      <IconButton size={24} onClick={() => findNext(true)} label="previous match">
+      <IconButton size={24} onClick={() => findNext(true)} label="Previous match">
         <Glyph icon={ChevronUpIcon} />
       </IconButton>
-      <IconButton size={24} onClick={() => findNext(false)} label="next match">
+      <IconButton size={24} onClick={() => findNext(false)} label="Next match">
         <Glyph icon={ChevronDownIcon} />
       </IconButton>
-      <IconButton size={24} onClick={onClose} label="close find">
+      <IconButton size={24} onClick={onClose} label="Close find">
         <Glyph icon={XIcon} />
       </IconButton>
     </div>

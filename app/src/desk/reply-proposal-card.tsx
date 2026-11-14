@@ -39,9 +39,6 @@ export const REPLY_WORDS: Record<ReplyProposal["provider"], { kicker: string; af
   jira: { kicker: "comment", after: "goes in the ticket's comment box in Flow; you post it from there", writing: "putting the comment on the card…" },
 };
 
-/** The words of a control: lowercase on the desktop, sentence case on the phone. */
-const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);
-
 /** Who a reply goes to, as its card says it: Gmail's people, Slack's place, or the Jira ticket. */
 export function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" | "place">): string {
   switch (p.provider) {
@@ -60,7 +57,7 @@ export function ReplyProposalCards({ source, rt, blocked = null, touch = false }
   const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? [];
   if (!decide || proposals.length === 0) return null;
   return (
-    <ul aria-label={say(touch, "replies waiting for you")} style={{ listStyle: "none", margin: 0, padding: 0 }}>
+    <ul aria-label="Replies waiting for you" style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {proposals.map((p) => (
         <li key={p.id}>
           <ReplyProposalCard proposal={p} touch={touch} blocked={blocked} onDecide={(action, opts) => decide(rt, p.id, action, opts)} />
@@ -109,7 +106,7 @@ function ReplyProposalCard({
   return (
     <div className="loki-suggestion" data-reply={p.id} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent}>
       <div className="loki-suggestion-head" style={{ cursor: "default" }}>
-        <span className="loki-suggestion-kicker">{say(touch, REPLY_WORDS[p.provider].kicker)}</span>
+        <span className="loki-suggestion-kicker">{sentence(REPLY_WORDS[p.provider].kicker)}</span>
         <span className="loki-suggestion-title">
           {p.subject || "a thread"} · {p.account_label}
         </span>
@@ -123,11 +120,11 @@ function ReplyProposalCard({
           disabled={off}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={keys}
-          aria-label={say(touch, "reply text")}
+          aria-label="Reply text"
         />
         {drafting && (
           <div className="loki-suggestion-note" role="status">
-            {say(touch, REPLY_WORDS[p.provider].writing)}
+            {sentence(REPLY_WORDS[p.provider].writing)}
           </div>
         )}
         {!drafting && reason && (
@@ -139,12 +136,12 @@ function ReplyProposalCard({
         {!drafting && (
           <div className="loki-suggestion-actions">
             <Button size={size} tone="positive" disabled={off || !text.trim()} onClick={() => void act("approve")} data-action="approve">
-              {say(touch, refused?.replace ? "replace the draft" : "approve")}
+              {refused?.replace ? "Replace the Draft" : "Approve"}
             </Button>
             <Button size={size} tone="negative" disabled={off} onClick={() => void act("reject")} data-action="reject">
-              {say(touch, "reject")}
+              Reject
             </Button>
-            <Meta wrap>{say(touch, REPLY_WORDS[p.provider].after)}</Meta>
+            <Meta wrap>{sentence(REPLY_WORDS[p.provider].after)}</Meta>
           </div>
         )}
       </div>
