@@ -1324,7 +1324,7 @@ describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
     expect(html).toContain("OPS-7 · Rotate the keys");
     expect(html).toContain('title="The site it came from"');
     expect(html).not.toContain("workspace");
-    expect(itemActions(JIRA_FACTS, read())).toMatch(/data-verb="open_out" title="https:\/\/acme\.atlassian\.net\/browse\/OPS-7"[^>]*>Open in Jira</);
+    expect(itemActions(JIRA_FACTS, read())).toMatch(/aria-label="Open in Jira" title="https:\/\/acme\.atlassian\.net\/browse\/OPS-7"/);
   });
   test("a site with a custom domain links to that domain, as the read gave it", () => {
     expect(itemActions(JIRA_FACTS, read("https://jira.acme.example/browse/OPS-7"))).toContain('title="https://jira.acme.example/browse/OPS-7"');
@@ -1363,12 +1363,12 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     const html = head(jiraTicket({ changed: [] }));
     expect(html).toContain('aria-label="From Jira"');
     expect(html).toContain(">OPS-7 · Rotate the keys<");
-    expect(html).toContain('data-property="status" title="In review"');
-    expect(html).not.toContain('data-flag="changed"');
+    expect(html).toContain("In review");
+    expect(html).not.toContain("Changed");
   });
   test("a ticket someone else changed marks the header changed", () => {
     const changed = [{ field: "summary", from: "Rotate keys", to: "Rotate the keys", by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
-    expect(head(jiraTicket({ changed }))).toMatch(/data-flag="changed"[^>]*>Changed</);
+    expect(head(jiraTicket({ changed }))).toContain("Changed");
   });
   test("the fields show what the ticket has, the changed status marked new with what it was and who changed it", () => {
     const html = thread();
@@ -1603,15 +1603,15 @@ describe("the moves a Jira card offers (plan 2026-11-10-1451, U6)", () => {
 
   test("on the desktop: Hand Off, Later and Mark as Read, with no Archive or Label, and hand off says the card stays", () => {
     const html = card(JIRA_FACTS);
-    expect(html).toContain(">Hand Off<");
-    expect(html).toContain(">Later<");
-    expect(html).toContain(">Mark as Read<");
-    expect(html).not.toContain(">Archive<");
-    expect(html).not.toContain(">Label<");
+    expect(html).toContain('aria-label="Hand Off"');
+    expect(html).toContain('aria-label="Later"');
+    expect(html).toContain('aria-label="Mark as Read"');
+    expect(html).not.toContain('aria-label="Archive"');
+    expect(html).not.toContain('aria-label="Label"');
     expect(html).toContain("Give the whole ticket to friday in one of its chats; the card stays until you read it");
     // A Slack card keeps its archive and its hand-off words.
     const slack = card(FACTS);
-    expect(slack).toContain(">Archive<");
+    expect(slack).toContain('aria-label="Archive"');
     expect(slack).toContain("the card leaves until someone writes again");
   });
 

@@ -51,14 +51,19 @@ export function ToolbarTitle({
   );
 }
 
-/** One of a toolbar group's items: a symbol whose name is said to a screen reader and shown, with its key, on hover. */
+/**
+ * One of a toolbar group's items: a symbol whose name is said to a screen reader and shown, with its key, on hover; or,
+ * without a symbol, its name in words (Sign In…).
+ */
 export interface ToolbarMove {
   label: string;
-  icon: ReactNode;
+  icon?: ReactNode;
   run: () => void;
   /** The tooltip: the name and its key, or why the move is off. */
   title?: string;
   disabled?: boolean;
+  /** The group's one prominent item, tinted as a Mac toolbar's (plan 2026-11-14-1330, R10): what finishes the item. */
+  prominent?: boolean;
 }
 
 /** The item's moves as one glass group of symbols at the toolbar's trailing edge, as Mail's toolbar draws them. */
@@ -66,8 +71,16 @@ export function ToolbarGroup({ label, moves }: { label: string; moves: readonly 
   return (
     <span className="loki-toolbar-group" role="group" aria-label={label}>
       {moves.map((m) => (
-        <button key={m.label} type="button" className="loki-toolbar-item" aria-label={m.label} title={m.title ?? m.label} disabled={m.disabled} onClick={m.run}>
-          {m.icon}
+        <button
+          key={m.label}
+          type="button"
+          className={["loki-toolbar-item", !m.icon && "loki-toolbar-item--text", m.prominent && "loki-toolbar-item--prominent"].filter(Boolean).join(" ")}
+          aria-label={m.label}
+          title={m.title ?? m.label}
+          disabled={m.disabled}
+          onClick={m.run}
+        >
+          {m.icon ?? m.label}
         </button>
       ))}
     </span>

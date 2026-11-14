@@ -183,8 +183,9 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
     const { PaneHeader } = await import("../app/src/components/index.tsx");
     const out = renderToStaticMarkup(createElement(PaneHeader, { title: "t" }));
     expect(out).toContain('<div class="loki-pane-header-trailing"></div>');
-    const flow = readFileSync(join(APP, "desk", "catch-up-parts.tsx"), "utf8");
-    expect(flow).toContain('<div className="loki-pane-header-trailing" />');
+    // Flow's detail toolbar, a card's, leaves the same room (plan 2026-11-14-1330, U6).
+    const card = must(/\.loki-card-toolbar \{([^}]*)\}/.exec(glass), "the card toolbar's rule")[1];
+    expect(card).toContain("var(--loki-toolbar-room)");
   });
 
   test("Messages and Canvas sit in the chat toolbar's centred slot", () => {

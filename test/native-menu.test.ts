@@ -6,12 +6,10 @@ import { rowMenuEntries } from "../app/src/shell/desk-sidebar.tsx";
 import { effortTitle } from "../app/src/chat/model-picker.tsx";
 import { stepEffort, switcherGroups } from "../app/src/chat/model-switcher.tsx";
 import { modeMenuEntries, MODES } from "../app/src/chat/permission-mode.tsx";
-import { laneMenuEntries } from "../app/src/desk/catch-up-parts.tsx";
 import type { DeskSummary } from "../core/frame-types.ts";
-import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, MailOpenIcon, PencilIcon, PinIcon, PinOffIcon, PlusIcon, TagIcon, type LucideIcon } from "lucide-react";
+import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, MailOpenIcon, PencilIcon, PinIcon, PinOffIcon, TagIcon, type LucideIcon } from "lucide-react";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import type { Lane } from "../core/attention/lanes.ts";
 
 // Plan 2026-11-12-1505, U19 and U22: under Liquid Glass in the Mac app, menus and pickers are the system's, drawn by
 // AppKit (src-tauri popup.rs), each action with the Lucide icon it has everywhere else. A browser cannot pop one up, so
@@ -229,28 +227,14 @@ describe("Switch model, ⌘K's way", () => {
   });
 });
 
-describe("the mode and lane menus", () => {
+describe("the mode menu", () => {
   test("the permission modes in title case, the current one checked; unset reads as unrestricted", () => {
     expect(labels(modeMenuEntries("acceptEdits", MODES, noop))).toEqual(["Strict", "Standard", "Accept Edits ✓", "Unrestricted"]);
     expect(labels(modeMenuEntries(null, MODES, noop)).at(-1)).toBe("Unrestricted ✓");
   });
 
-  test("Flow's lanes: Everything, the person's lanes, then New Lane…", () => {
-    const work: Lane = { id: "l-work", name: "Work", chats: "all", accounts: [] };
-    expect(labels(laneMenuEntries({ lane: work, lanes: [work], items: [], onPick: noop, onNewLane: noop }))).toEqual([
-      "Everything",
-      "Work ✓",
-      "—",
-      "New Lane…",
-    ]);
-    expect(labels(laneMenuEntries({ lane: null, lanes: [], items: [], onPick: noop }))).toEqual(["Everything ✓"]);
-  });
-
-  test("a picker's choices carry no icon; only the action after them does", () => {
-    const work: Lane = { id: "l-work", name: "Work", chats: "all", accounts: [] };
+  test("a picker's choices carry no icon", () => {
     const iconOf = (e: MenuEntry): LucideIcon | null | undefined => (e.type === "item" ? (e.icon ?? null) : undefined);
     expect(modeMenuEntries("standard", MODES, noop).map(iconOf)).toEqual([null, null, null, null]);
-    const lanes = tidyEntries(laneMenuEntries({ lane: work, lanes: [work], items: [], onPick: noop, onNewLane: noop }));
-    expect(lanes.map(iconOf)).toEqual([null, null, undefined, PlusIcon]);
   });
 });

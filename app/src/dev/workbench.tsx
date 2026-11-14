@@ -10,7 +10,6 @@ import { Kbd } from "@/ui/kbd";
 import { cn } from "@/lib/utils";
 import { keyFor } from "../shell/keymap";
 import { ContentList, NothingSelected, type ContentRow } from "../shell/content-list";
-import { ActionBar } from "../item/action-bar";
 import { AgentPlan } from "../item/agent-plan";
 import { AgentTurn } from "../item/agent-turn";
 import { ApprovalProposal } from "../item/proposal";
@@ -292,24 +291,32 @@ export function Workbench() {
           <AgentPlan items={ROWS[0].tool?.plan ?? []} />
         </Section>
 
-        <Section title="Flow's cards" note="Gmail, Slack and Jira on one shape: the card is the solid page, its moves in Apple's words.">
+        <Section title="Flow's cards" note="Gmail, Slack and Jira on one shape: each card's toolbar, its moves as symbols with Archive the prominent one.">
           <div className="flex flex-col gap-4">
             {OUTSIDE.map(({ name, facts }) => (
-              <div key={name} className="flex flex-col gap-2 rounded-lg border bg-background pb-3">
-                <OutsideItemHeader facts={facts} unread flash={null} went={null} cameBack={false} thread={{ kind: "loading" }} />
-                <div className="px-4">
-                  <OutsideItemActions facts={facts} thread={{ kind: "loading" }} typing={false} moves={MOVES} picking={false} onHandoff={noop} />
-                </div>
+              <div key={name} className="rounded-lg border bg-background">
+                <OutsideItemHeader
+                  facts={facts}
+                  unread
+                  flash={null}
+                  went={null}
+                  cameBack={false}
+                  thread={{ kind: "loading" }}
+                  actions={
+                    <OutsideItemActions
+                      facts={facts}
+                      thread={{ kind: "loading" }}
+                      typing={false}
+                      moves={MOVES}
+                      picking={false}
+                      onHandoff={noop}
+                      onSignIn={noop}
+                    />
+                  }
+                />
               </div>
             ))}
           </div>
-        </Section>
-
-        <Section title="Moves under the box" note="The finishing move last and filled.">
-          <ActionBar
-            view={{ main: "archive", more: ["later", "mark_read"] }}
-            verbs={{ archive: { run: noop }, later: { run: noop }, mark_read: { run: noop } }}
-          />
         </Section>
       </main>
     </div>

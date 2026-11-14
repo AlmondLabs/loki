@@ -7,13 +7,14 @@ import { idOf, inboxQueue, type Decision } from "../core/attention/queue.ts";
 import { agentLane, laneEvent, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../core/attention/lanes.ts";
 import type { MoveResult } from "../core/attention/use-attention.ts";
 import * as parts from "../app/src/desk/catch-up-parts.tsx";
-import { CaughtUp, DeckHeader, LaneMenu, laneTitle } from "../app/src/desk/catch-up-parts.tsx";
+import { FlowCaughtUp, VisitSummary } from "../app/src/desk/catch-up-parts.tsx";
+import { flowLanes } from "../app/src/desk/flow-column.tsx";
 import { switchLane } from "../app/src/desk/use-deck-queue.ts";
 import { EMPTY_REPLY, createDeckMoves } from "../app/src/desk/deck-moves.ts";
 import { createVisit, endOnPageHide } from "../app/src/desk/use-flow-deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** The desktop Flow's lanes (plan 087, U6): the title switcher, the deck's lane, the quiet count and undo across switches; and a visit's end. */
+/** The desktop Flow's lanes (plan 087, U6): the deck's lane, the quiet count and undo across switches; the empty list and the visit's summary; and a visit's end. */
 
 const WORK: Lane = { id: "w", name: "Work", chats: ["ag-work"], accounts: [] };
 const HOME: Lane = { id: "h", name: "Home", chats: ["ag-home"], accounts: [] };
@@ -70,50 +71,26 @@ function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
   return { state, calls, moves, switchTo, shown: () => selected()?.id };
 }
 
-describe("the title switcher", () => {
-  test('the title reads "flow" in Everything and names the lane as the person typed it otherwise', () => {
-    expect(laneTitle(null)).toBe("Flow");
-    expect(laneTitle(WORK)).toBe("Flow · Work");
-    const html = renderToStaticMarkup(createElement(DeckHeader, { lane: WORK, lanes: [WORK], items: [], needYou: 0, chats: 0, others: 0, onLane: noop }));
-    expect(html).toContain("Flow · Work");
-    expect(html).toContain('aria-haspopup="menu"');
-  });
-
-  test("the menu lists Everything, the person's lanes, an agent lane for each agent with cards, then New Lane…", () => {
-    const items = [work, of("w2", "ag-work", "Ada"), home];
-    const html = renderToStaticMarkup(createElement(LaneMenu, { lane: WORK, lanes: [WORK, HOME], items, onPick: noop, onNewLane: noop, onClose: noop }));
-    expect(html).toContain('role="menu"');
-    const rows = [...html.matchAll(/role="menuitem(?:radio)?"[^>]*>(.*?)<\/button>/g)].map((m) =>
-      m[1]
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    );
-    expect(rows).toEqual(["Everything", "Work", "Home", "Ada 2", "Bo 1", "New Lane…"]);
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
-    expect(html.match(/loki-menu-check/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-checked="true"[^>]*>.*?Work/);
-  });
-
-  test("no agent pills are left to render", () => {
-    expect("AgentPills" in parts).toBe(false);
-    expect("agentPills" in parts).toBe(false);
-    const html = renderToStaticMarkup(createElement(DeckHeader, { lane: null, lanes: [], items: [work, home], needYou: 2, chats: 2, others: 0, onLane: noop }));
-    expect(html).not.toContain("aria-pressed");
+describe("the lanes are sources, not a menu in the title (plan 2026-11-14-1330, U6)", () => {
+  test("no lane menu or agent pills are left to render", () => {
+    for (const gone of ["DeckHeader", "LaneMenu", "laneMenuEntries", "laneTitle", "AgentPills", "agentPills"]) expect(gone in parts).toBe(false);
   });
 });
 
 describe("the deck in a lane", () => {
   // AE3: an approval outside Work stays out of Work's deck and only raises the quiet count.
-  test("in Work an approval outside it is not in the deck and the quiet line counts it; Everything has no quiet line", () => {
+  test("in Work an approval outside it is not in the deck, and only the counts outside it say so", () => {
     const asks = of("h2", "ag-home", "Bo", { status: "approval" });
     const items = [work, asks];
     expect(ids(inboxQueue(laneItems(items, WORK)))).toEqual(["w1"]);
     expect(otherLanesCount(items, WORK)).toBe(1);
-    const inWork = renderToStaticMarkup(createElement(DeckHeader, { lane: WORK, lanes: [WORK], items, needYou: 0, chats: 1, others: 1, onLane: noop }));
-    expect(inWork).toContain("1 waiting in other lanes");
-    const all = renderToStaticMarkup(createElement(DeckHeader, { lane: null, lanes: [WORK], items, needYou: 1, chats: 2, others: 0, onLane: noop }));
-    expect(all).not.toContain("other lanes");
+    expect(flowLanes(items, WORK, [WORK, HOME]).map((l) => [l.name, l.count])).toEqual([
+      ["Everything", 2],
+      ["Work", 1],
+      ["Home", 1],
+      ["Ada", 1],
+      ["Bo", 1],
+    ]);
   });
 
   test("switching from Everything to Work while a Work card is selected keeps it selected", () => {
@@ -183,24 +160,39 @@ describe("the deck in a lane", () => {
   });
 });
 
-describe("an emptied lane", () => {
-  // AE6: Ada's lane cleared: caught up, the outside count, the way back; Ada's lane stays listed only while on.
-  test("the caught-up state shows the other lanes' count and a way back to everything", () => {
-    const html = renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0, others: 2, onEverything: noop }));
-    expect(html).toContain("2 waiting in other lanes");
-    expect(html).toContain("Back to Everything");
-    const none = renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0, others: 0, onEverything: noop }));
-    expect(none).not.toContain("other lanes");
-    expect(none).toContain("Back to Everything");
-    expect(renderToStaticMarkup(createElement(CaughtUp, { items: [], decided: [], replies: 0 }))).not.toContain("Back to Everything");
+describe("an emptied list (R12)", () => {
+  test("the list says you're caught up, with Go Through Them while rested cards wait", () => {
+    const html = renderToStaticMarkup(createElement(FlowCaughtUp, { resting: 3, onResting: noop }));
+    expect(html).toContain("You&#x27;re caught up");
+    expect(html).toContain("3 resting");
+    expect(html).toContain(">Go Through Them</button>");
+    expect(renderToStaticMarkup(createElement(FlowCaughtUp, { resting: 0, onResting: noop }))).not.toContain("Go Through Them");
   });
 
-  test("an emptied agent lane stays in the menu while on and leaves it once the person switches away", () => {
+  test("the detail shows what the visit did", () => {
+    const read = (item: AttentionItem): Decision => ({ item, action: "seen", via: "next", stamp: "" });
+    const archived: Decision = { item: home, action: "archived", via: "archive", stamp: "" };
+    const html = renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [read(work), archived], replies: 1 }));
+    expect(html).toContain("2 moved past · 1 archived · 1 reply");
+    expect(renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [], replies: 0 }))).not.toContain("moved past");
+  });
+
+  // AE6: Ada's lane cleared: caught up, the outside count, the way back.
+  test("in an emptied lane the summary shows the other lanes' count and a way back to Everything", () => {
+    const html = renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [], replies: 0, others: 2, onEverything: noop }));
+    expect(html).toContain("2 waiting in other lanes");
+    expect(html).toContain("Back to Everything");
+    const none = renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [], replies: 0, others: 0, onEverything: noop }));
+    expect(none).not.toContain("other lanes");
+    expect(none).toContain("Back to Everything");
+    expect(renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [], replies: 0 }))).not.toContain("Back to Everything");
+  });
+
+  test("an emptied agent lane stays among the sources while on and leaves them once the person switches away", () => {
     const items = [home, of("w9", "ag-work", "Ada", { status: "running" })];
     const ada = agentLane(items, "ag-work");
-    const on = renderToStaticMarkup(createElement(LaneMenu, { lane: ada, lanes: [], items, onPick: noop, onNewLane: noop, onClose: noop }));
-    expect(on).toMatch(/aria-checked="true"[^>]*>.*?Ada/);
-    const away = renderToStaticMarkup(createElement(LaneMenu, { lane: null, lanes: [], items, onPick: noop, onNewLane: noop, onClose: noop }));
+    expect(flowLanes(items, ada, []).map((l) => l.name)).toContain("Ada");
+    const away = flowLanes(items, null, []).map((l) => l.name);
     expect(away).not.toContain("Ada");
     expect(away).toContain("Bo");
   });

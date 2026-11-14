@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
-import { otherLanesCount, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
+import { otherLanesCount, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
-import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
+import { catchUpQueue, idOf, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -14,7 +14,10 @@ import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-wi
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CaughtUp, ChatItemHeader, DeckHeader, cameBackIn, deckKey, liveWaitingCount } from "./catch-up-parts";
+import { BADGE, ChatItemHeader, FlowCaughtUp, VisitSummary, cameBackIn, deckKey, liveWaitingCount, type ChatMoves } from "./catch-up-parts";
+import { flowRows } from "./flow-column";
+import { ContentList, type ContentListHandle } from "../shell/content-list";
+import { PlaceColumns } from "../shell/place-columns";
 import type { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useFlowDeck, type PassSummaryHandler } from "./use-flow-deck";
@@ -23,13 +26,14 @@ import { addressingFor } from "./mail-address";
 import { HandoffPicker } from "./handoff-picker";
 import { ReturnPicker } from "./return-picker";
 import { LabelPicker } from "./label-picker";
-import { rowAfter, type DeckMoveApi } from "./deck-moves";
+import type { DeckMoveApi } from "./deck-moves";
 import type { MoveResult } from "../../../core/attention/use-attention.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 
 /**
- * The Inbox: every chat you have not archived, highest score first (core/attention/priority.ts): blocked agents, then
- * what is new, then the chats in focus, then the rest. The moves act on the selected card (useFlowDeck):
+ * Flow: every chat you have not archived, highest score first (core/attention/priority.ts): blocked agents, then
+ * what is new, then the chats in focus, then the rest, as a list beside the selected card. ↑↓ move through the list;
+ * the moves act on the selected card (useFlowDeck):
  *   ⌘] / →  read (it rests, then comes back)   ⌘[ / ←  later (unread, back in a day; the second time, you pick)
  *   ⌘E / E  archive (done: it leaves)          L  label (email cards)
  *   A approve  D deny   R reply   O open the chat   Z undo
@@ -41,28 +45,18 @@ import type { AccountLabel } from "../../../core/frame-types.ts";
 export { BADGE };
 export { catchUpQueue };
 
-/** The Inbox, as a card over the shell; nothing is mounted while it is closed, so each opening builds its queue afresh. */
-export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
-  // Closed: nothing mounted, so each opening is a fresh visit (KTD6) — the queue is built from the Inbox right now.
-  if (!open) return null;
-  return <CatchUpDeck {...props} />;
-}
-
-interface CatchUpProps {
+/** What Flow's owner reads from the app: the cards, the lane, the moves out there and what a card's chat needs. */
+interface FlowPlaceProps {
   /** Leave Flow: a chat was opened from a card. */
   onClose: () => void;
   /** The labels' colours (plan 022), for the card's chips. */
   labelList?: readonly LabelView[] | null;
-  /** Every card in Flow, whatever the lane: the deck reads the lane's, the quiet count and the menu all of them (KTD3). */
+  /** Every card in Flow, whatever the lane: the deck reads the lane's, the quiet count all of them (KTD3). */
   items: AttentionItem[];
   /** This device's active lane, null for Everything (plan 087). */
   lane: ResolvedLane | null;
-  /** The lanes the person made, for the title's menu; null until they first come. */
-  lanes: Lane[] | null;
-  /** A lane picked in the title's menu, null for Everything: switch to it. */
+  /** Switch lanes, null for Everything: the summary's Back to Everything. The sidebar's sources switch them too. */
   onLane: (lane: ResolvedLane | null) => void;
-  /** "new lane…" in the menu: open Preferences › Flow. */
-  onNewLane?: () => void;
   /** Sign In… on a card whose account lost its sign-in: open Preferences › Accounts (plan 2026-11-14-0852, 1). */
   onSignIn?: () => void;
   /** Read (⌘]): marked read here and out there, and rested (plan 070, R5). */
@@ -113,9 +107,15 @@ interface CatchUpProps {
   widgetSource?: InlineWidgetSource;
 }
 
-type DeckProps = CatchUpProps;
+type DeckProps = FlowPlaceProps;
 
-function CatchUpDeck(props: DeckProps) {
+/**
+ * The Flow place (plan 2026-11-14-1330, U6), Mail's message list and reading pane: the lane's cards as the list's rows
+ * in the deck's order, and the selected card as the detail, its moves its toolbar's symbols. It is the place's one owner
+ * (KTD1), mounted only while Flow shows, so entering Flow begins a visit and leaving it ends one (useFlowDeck). Every
+ * move goes through the list, so a row the arrows have only highlighted commits before the move acts on it (AE4).
+ */
+export function FlowPlace(props: FlowPlaceProps) {
   const { onClose, items, lane, onOpenDesk } = props;
   const { replyOutside, composeOutside, unsendOutside } = props.chats;
   const flow = useFlowDeck({
@@ -130,19 +130,18 @@ function CatchUpDeck(props: DeckProps) {
   const { shown, current, decided, actions } = flow;
   // The quiet line: cards needing the person in the other lanes (R14, KTD5).
   const others = useMemo(() => otherLanesCount(items, lane), [items, lane]);
-  /** Switch lanes from the title's menu; picking the lane already on is no switch. */
-  const pickLane = (next: ResolvedLane | null) => {
-    if ((next?.id ?? "") !== (lane?.id ?? "")) props.onLane(next);
-  };
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
   const [modeTick, setModeTick] = useState(0);
   // The card's suggestions open from its mark or /suggestions, for that card only (a later card never opens on it).
   const [suggestTick, setSuggestTick] = useState<ChatTick>(null);
-  // The reply box is always there; it takes focus on R or a click, never on its own as the selection moves (KTD7). While
-  // you are in it, letters type; the deck's single-key shortcuts return when you press Esc (or click out).
+  // The reply box is always there; it takes focus on R, Return in the list or a click, never on its own as the
+  // selection moves (KTD7). While you are in it, letters type; the deck's single-key shortcuts return when you press Esc
+  // (or click out).
   const [typingRaw, setTyping] = useState(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
+  const list = useRef<ContentListHandle>(null);
+  const listHost = useRef<HTMLDivElement>(null);
 
   const { handoffPropose, handoff } = props.chats;
   const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
@@ -159,6 +158,17 @@ function CatchUpDeck(props: DeckProps) {
     onReply: (item, text, images) => (flow.touch(item), props.onReply(item, text, images)),
     onAnswer: (item, requestId, answers) => (flow.touch(item), props.onAnswer(item, requestId, answers)),
   };
+  /** A move, on the row the person sees: the list commits a pending highlight first (AE4), then the move acts. */
+  const onSelected = (run: () => void) => {
+    const rows = list.current;
+    if (rows) rows.act(run);
+    else run();
+  };
+  const read = () => onSelected(actions.read);
+  const later = () => onSelected(actions.later);
+  const archive = () => onSelected(actions.archive);
+  const label = () => onSelected(actions.label);
+  const approve = (behavior: "allow" | "deny" | "always") => onSelected(() => actions.approve(behavior));
 
   // /model and /mode are the card's own chips; everything else goes up (loki's keymap actions, the harness's commands).
   const runCommand = (item: AttentionItem, id: string, args: string) => {
@@ -173,22 +183,18 @@ function CatchUpDeck(props: DeckProps) {
     actions.setMail(addressingFor(compose, mode, actions.reply.mail));
     replyRef.current?.focus();
   };
-  // A card answered elsewhere has its moves off (R11); with no list to arrow through here, ⌘] steps past it, which
-  // leaves it.
-  const stepPast = () => {
-    if (current) flow.select(rowAfter(flow.queue, idOf(current)));
-  };
+  // A card answered elsewhere keeps its place, its moves off (R11); ↓ in the list steps past it, and it goes.
   const flash = flow.elsewhere ? "Answered elsewhere" : actions.flash;
   useDeckKeys({
     typing,
     current: flow.elsewhere ? undefined : current,
     decided,
     replyRef,
-    read: flow.elsewhere ? stepPast : actions.read,
-    later: actions.later,
-    archive: actions.archive,
-    label: props.labelsOf ? actions.label : () => {},
-    approve: actions.approve,
+    read,
+    later,
+    archive,
+    label: props.labelsOf ? label : () => {},
+    approve,
     undo: actions.undo,
     replySender: () => mailMode("reply"),
     forward: () => mailMode("forward"),
@@ -198,6 +204,25 @@ function CatchUpDeck(props: DeckProps) {
     },
     onClose,
   });
+
+  // Focus stays in the list as the person moves through it (R15): entering Flow puts it on the selected row, and a move
+  // that takes the focused row away hands it to the row selected after it, so the arrows keep working. Focus the
+  // person put elsewhere (the reply box, the sidebar) stays there.
+  const selectedId = current ? idOf(current) : null;
+  const entered = useRef(false);
+  useEffect(() => {
+    const host = listHost.current;
+    if (!host) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || host.contains(active);
+    if (entered.current && !lost) return;
+    const rows = [...host.querySelectorAll<HTMLElement>(".loki-list-row")];
+    const row = rows.find((el) => el.dataset.row === selectedId) ?? rows.at(0);
+    if (!row) return;
+    entered.current = true;
+    row.focus({ preventScroll: true });
+    row.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
 
   // The picker open on the selected card, in the card's picker slot: where the thread goes, when the card comes back, its labels.
   const closePicker = () => actions.openPicker(null);
@@ -220,101 +245,92 @@ function CatchUpDeck(props: DeckProps) {
     <LabelPicker item={current} labelsOf={props.labelsOf} onPick={actions.pickLabels} onCancel={closePicker} />
   ) : null;
 
-  // One column capped at the pane (minmax(0, 1fr)): an auto column grew to the card's 1100px and clipped it in a 1100-wide window.
-  return (
-    <div
-      onPointerDown={(e) => e.stopPropagation()}
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "var(--loki-bg)",
-        display: "grid",
-        gridTemplateRows: "100%",
-        gridTemplateColumns: "minmax(0, 1fr)",
-        justifyItems: "center",
-        padding: "20px 24px 16px",
-        boxSizing: "border-box",
-        animation: "loki-veil 160ms ease-out both",
-      }}
-    >
-      <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        <DeckHeader
-          lane={lane}
-          lanes={props.lanes}
-          items={items}
-          onLane={pickLane}
-          onNewLane={props.onNewLane}
-          needYou={liveWaitingCount(shown)}
-          chats={inboxQueue(shown).length}
-          // While caught up the count sits with the way back, once.
-          others={current ? others : 0}
-        />
-        {!current ? (
-          <CaughtUp
-            items={shown}
-            decided={decided}
-            replies={actions.replies}
-            resting={flow.resting ? 0 : restingCount(shown)}
-            onResting={flow.goThrough}
-            others={others}
-            onEverything={lane ? () => pickLane(null) : undefined}
-          />
-        ) : current.outside ? (
-          <div key={idOf(current)} className="loki-flow-card" style={cardFrame(actions.dir)}>
-            <OutsideCard
-              current={current}
-              facts={current.outside}
-              flash={flash}
-              cameBack={cameBackIn(decided, current)}
-              typing={typing}
-              moves={{ read: actions.read, later: actions.later, archive: actions.archive, label: props.labelsOf ? actions.label : () => {} }}
-              went={wentTo(current.outside, items)}
-              onHandoff={handoffSource ? () => actions.openPicker("handoff") : undefined}
-              onSignIn={props.onSignIn}
-              source={outsideSource}
-              box={
-                replyOutside
-                  ? {
-                      text: actions.reply.text,
-                      mail: actions.reply.mail,
-                      busy: actions.reply.busy,
-                      error: actions.reply.error,
-                      onText: actions.setText,
-                      onMail: actions.setMail,
-                      onSend: actions.sendReply,
-                      thread: actions.reply.thread ?? null,
-                      onThread: actions.setThread,
-                    }
-                  : undefined
-              }
-              compose={compose}
-              replyRef={replyRef}
-              onTyping={setTyping}
-              onEscapeEmpty={leaveBox}
-              picker={picker}
-            />
-          </div>
-        ) : (
-          <Card
-            key={idOf(current)}
-            current={current}
-            decided={decided}
-            typing={typing}
-            setTyping={setTyping}
-            replyRef={replyRef}
-            actions={actions}
-            flash={flash}
-            deck={deck}
-            onCommand={(id, args) => runCommand(current, id, args)}
-            modelTick={modelTick}
-            modeTick={modeTick}
-            suggestionsTick={tickOf(suggestTick, idOf(current))}
-            onSuggestions={() => setSuggestTick((t) => bumpTick(t, idOf(current)))}
-            picker={picker}
-          />
-        )}
-      </div>
+  const title = lane ? lane.name : "Flow";
+  const listColumn = (
+    <div ref={listHost} className="loki-flow-list">
+      <ContentList
+        ref={list}
+        label={title}
+        title={title}
+        count={liveWaitingCount(shown) || null}
+        rows={flowRows(flow.queue)}
+        selectedId={selectedId}
+        onSelect={flow.select}
+        onEnter={() => replyRef.current?.focus()}
+        empty={<FlowCaughtUp resting={flow.resting ? 0 : restingCount(shown)} onResting={flow.goThrough} />}
+      />
     </div>
+  );
+
+  const detail = !current ? (
+    <VisitSummary items={shown} decided={decided} replies={actions.replies} others={others} onEverything={lane ? () => props.onLane(null) : undefined} />
+  ) : current.outside ? (
+    <div key={idOf(current)} className="loki-flow-card">
+      <OutsideCard
+        current={current}
+        facts={current.outside}
+        flash={flash}
+        cameBack={cameBackIn(decided, current)}
+        typing={typing}
+        moves={{ read, later, archive, label: props.labelsOf ? label : () => {} }}
+        off={flow.elsewhere}
+        went={wentTo(current.outside, items)}
+        onHandoff={handoffSource ? () => actions.openPicker("handoff") : undefined}
+        onSignIn={props.onSignIn}
+        source={outsideSource}
+        box={
+          replyOutside
+            ? {
+                text: actions.reply.text,
+                mail: actions.reply.mail,
+                busy: actions.reply.busy,
+                error: actions.reply.error,
+                onText: actions.setText,
+                onMail: actions.setMail,
+                onSend: actions.sendReply,
+                thread: actions.reply.thread ?? null,
+                onThread: actions.setThread,
+              }
+            : undefined
+        }
+        compose={compose}
+        replyRef={replyRef}
+        onTyping={setTyping}
+        onEscapeEmpty={leaveBox}
+        picker={picker}
+      />
+    </div>
+  ) : (
+    <Card
+      key={idOf(current)}
+      current={current}
+      decided={decided}
+      typing={typing}
+      setTyping={setTyping}
+      replyRef={replyRef}
+      actions={actions}
+      moves={{ read, later, archive, approve, off: flow.elsewhere }}
+      flash={flash}
+      deck={deck}
+      onCommand={(id, args) => runCommand(current, id, args)}
+      modelTick={modelTick}
+      modeTick={modeTick}
+      suggestionsTick={tickOf(suggestTick, idOf(current))}
+      onSuggestions={() => setSuggestTick((t) => bumpTick(t, idOf(current)))}
+      picker={picker}
+    />
+  );
+
+  return (
+    <PlaceColumns
+      list={listColumn}
+      detail={
+        // The detail's own presses stay in it (the desk's canvas under it listens for them on the window).
+        <div className="loki-flow-detail" onPointerDown={(e) => e.stopPropagation()}>
+          {detail}
+        </div>
+      }
+    />
   );
 }
 
@@ -329,6 +345,7 @@ function Card({
   setTyping,
   replyRef,
   actions,
+  moves: deckMoves,
   flash,
   deck,
   onCommand,
@@ -344,6 +361,8 @@ function Card({
   setTyping: (v: boolean) => void;
   replyRef: RefObject<HTMLTextAreaElement | null>;
   actions: ReturnType<typeof useDeckActions>;
+  /** The card's moves as the list makes them, a pending highlight committed first, and whether they are off (R11). */
+  moves: Pick<ChatMoves, "read" | "later" | "archive" | "approve" | "off">;
   /** The badge's word: the last move's, or that the card was answered elsewhere (R11). */
   flash: string | null;
   deck: DeckProps;
@@ -367,9 +386,9 @@ function Card({
   // draft for this chat (plan 049) shows in the box while nothing is typed.
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
   const cameBack = cameBackIn(decided, current);
-  const moves = { typing, read: actions.read, later: actions.later, archive: actions.archive, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
+  const moves: ChatMoves = { current, typing, ...deckMoves, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
   return (
-    <div className="loki-flow-card" style={cardFrame(actions.dir)}>
+    <div className="loki-flow-card">
       {/* A chip naming another chat opens it, as O opens the card's own. */}
       <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
         <Conversation
@@ -410,7 +429,7 @@ function Card({
               flash={flash}
               suggestions={waitingCount(deck.chats, current.runtime)}
               onSuggestions={onSuggestions}
-              moves={{ current, ...moves }}
+              moves={moves}
             />
           }
           hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
@@ -450,25 +469,5 @@ function deckMoveApi(
     seen: props.onSeen,
     unread: props.onUnread,
     approve: props.onApprove,
-  };
-}
-
-/**
- * The card's frame, a chat's or an outside thread's, entering from the last move's side. A card is the page it holds:
- * solid, no coloured rule; its badge says where it stands (plan 2026-11-12-1505, U6).
- */
-function cardFrame(dir: "next" | "back"): CSSProperties {
-  return {
-    flex: 1,
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    position: "relative",
-    background: "var(--loki-bg)",
-    border: "1px solid var(--loki-border)",
-    borderRadius: "var(--loki-radius-lg)",
-    boxShadow: "var(--loki-shadow-sheet)",
-    overflow: "hidden",
-    animation: `${dir === "back" ? "loki-card-back" : "loki-card-next"} 200ms ease-out`,
   };
 }
