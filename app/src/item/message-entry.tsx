@@ -21,7 +21,8 @@ const REMARK_PLUGINS = [remarkGfm];
 
 /**
  * A message from a person, or from you, in an outside item (plan 097, MessageEntry): a person's has their picture (or
- * initial), name and time beside it; yours is the block across the column with where it went. Under the words, its
+ * initial), name and time beside it, and so does yours in Slack and Jira; yours in mail is the block across the column
+ * with where it went. Under the words, its
  * reactions where the source has them. A Slack message that brought the card, or a Jira comment naming the person, is
  * marked with the accent bar.
  */
@@ -48,7 +49,8 @@ export function MessageEntry({
 }) {
   const time = clockLabel(m.at);
   const parts = <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />;
-  if (m.from === "you")
+  // In a Slack channel or on a Jira ticket you are one voice among the others, so yours sits in the run with your picture.
+  if (m.from === "you" && source !== "slack" && source !== "jira")
     return (
       <Message from="user" data-row="user" className="max-w-full">
         <MessageContent className="w-full gap-1 bg-accent! px-3.5! py-2.5!">

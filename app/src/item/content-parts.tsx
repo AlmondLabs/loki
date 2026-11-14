@@ -37,12 +37,23 @@ function partOf(p: ItemPart, source: ItemSource, title: string): ReactNode {
           <LinkedText text={p.text} />
         </p>
       );
+    // A Slack block keeps its line breaks inside its words, so they are drawn as written, as the phone's rows do.
     case "blocks":
-      return <Blocks blocks={p.blocks} />;
+      return (
+        <div className="whitespace-pre-wrap">
+          <Blocks blocks={p.blocks} />
+        </div>
+      );
     case "html":
       return <MailHtml html={p.html} title={title} />;
     case "attachments":
-      return p.attachments.map((a, k) => <AppAttachment key={k} a={a} />);
+      return (
+        <div className="whitespace-pre-wrap">
+          {p.attachments.map((a, k) => (
+            <AppAttachment key={k} a={a} />
+          ))}
+        </div>
+      );
     case "files":
       return <SlackFiles files={p.files} where={source === "jira" ? "jira" : "Slack"} />;
     case "mail_files":

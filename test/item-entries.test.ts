@@ -63,6 +63,15 @@ describe("MessageEntry", () => {
     expect(out).toContain('data-row="user"');
     expect(out).toContain("· to billing@northwind.example");
   });
+
+  test("yours in Slack and Jira sits in the run with your picture, as everyone else's does", () => {
+    for (const source of ["slack", "jira"] as const) {
+      const out = html(createElement(MessageEntry, { entry: message({ from: "you", who: "You", avatar: "https://example.com/me.png" }), source }));
+      expect(out).toContain('data-row="person"');
+      expect(out).toContain('src="https://example.com/me.png"');
+      expect(out).toContain(">You<");
+    }
+  });
 });
 
 describe("Reactions", () => {
@@ -101,6 +110,17 @@ describe("ContentParts", () => {
     );
     expect(out).toContain("<blockquote");
     expect(out).toContain("after 2pm");
+  });
+
+  test("a Slack message keeps its line breaks", () => {
+    const out = html(
+      createElement(ContentParts, {
+        parts: [{ kind: "blocks", blocks: [{ kind: "text", spans: [{ kind: "text", text: "1. Ledger views\n2. GST summary views" }] }] }],
+        source: "slack",
+        title: "x",
+      }),
+    );
+    expect(out).toMatch(/class="whitespace-pre-wrap"><div>1\. Ledger views\n2\. GST summary views/);
   });
 });
 
