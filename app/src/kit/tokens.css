@@ -237,6 +237,8 @@
   --loki-dock-height: 0px;
   /* The width the Update button takes at the detail toolbar's trailing edge (shell/update-button.tsx); 0 without one. */
   --loki-toolbar-room: 0px;
+  /* The face that leads a message in the thread; tool lines, quick replies and widgets indent by it and its 8px gap. */
+  --loki-msg-face: 36px;
 }
 :root {
   --loki-layer-panel: 100;
