@@ -35,7 +35,7 @@ import { ColumnEdge, ListColumn } from "./list-column";
 import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
 import { ChatListView } from "./desk-sidebar";
-import type { ContentListHandle } from "./content-list";
+import { leaveList, listStop, type ContentListHandle } from "./content-list";
 import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows } from "./sidebar-model";
 import { AgentFace } from "../desk/agent-chip";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
@@ -471,6 +471,14 @@ export function Shell() {
    * pending arrow highlight included, and commits through `selectChat`.
    */
   const chatList = useRef<ContentListHandle>(null);
+  /** Chats' list slot, and with `listSlot` the other places', for Esc to move focus to the list showing (KTD14). */
+  const chatSlot = useRef<HTMLDivElement>(null);
+  /** The whole list column, for Hide List to move focus out of it (leaveList). */
+  const listColumn = useRef<HTMLDivElement>(null);
+  const toList = () => {
+    if (!layout.listShown) return;
+    listStop(segment === "desk" ? chatSlot.current : listSlot)?.focus();
+  };
 
   /** ⌘1-6 and ⌘,: ⌘, (⌘6) toggles Preferences over the section; the others close it and go (settings/preferences.ts). */
   const segmentKey = (id: string) => {
@@ -495,6 +503,11 @@ export function Shell() {
       "column.toggle": () => {
         if (column.has) column.toggle();
       },
+      "list.toggle": () => {
+        if (layout.listShown)
+          leaveList(listColumn.current, document.querySelector("main"), document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        column.toggleList();
+      },
       "window.hide": () => {
         if (inTauri) hideCurrentWindow();
       },
@@ -510,7 +523,7 @@ export function Shell() {
       "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
       "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
     },
-    { toDesk: () => setSegment("desk"), toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
+    { toList, toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
   );
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (search-model.ts SearchTarget). */
@@ -596,20 +609,26 @@ export function Shell() {
 
         {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. Its
             ContentList is the landmark, named for the source (KTD13); the edge beside it resizes the column. */}
-        {/* Always mounted, hidden in a place with no list, so Chats' list keeps its scroll across places (KTD1). */}
+        {/* Always mounted, hidden in a place with no list or with the list hidden (View › Hide List), so Chats' list keeps
+            its scroll across places (KTD1). */}
         <div
+          ref={listColumn}
           className="loki-list-column"
-          aria-hidden={!hasList}
+          aria-hidden={!layout.listShown}
           style={{
             position: "absolute",
             top: TITLEBAR_HEIGHT,
             left: layout.listLeft,
             width: Math.max(layout.list, LIST_MIN),
             bottom: 0,
-            visibility: hasList ? "visible" : "hidden",
+            visibility: layout.listShown ? "visible" : "hidden",
           }}
         >
-          <div className="loki-list-column-slot" style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? undefined : "hidden" }}>
+          <div
+            ref={chatSlot}
+            className="loki-list-column-slot"
+            style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? undefined : "hidden" }}
+          >
             <ChatListView
               ref={chatList}
               desk={desk}
@@ -629,10 +648,11 @@ export function Shell() {
           </div>
           {/* The owner's portal slot covers the column; with no owner showing it must not swallow clicks meant for Chats' list underneath. */}
           <div ref={setListSlot} className="loki-list-column-slot" style={{ position: "absolute", inset: 0, pointerEvents: placeOwner ? undefined : "none" }} />
-          {hasList && <ColumnEdge label="Resize list" min={LIST_MIN} max={LIST_MAX} width={layout.list} onWidth={column.setList} />}
+          {layout.listShown && <ColumnEdge label="Resize list" min={LIST_MIN} max={LIST_MAX} width={layout.list} onWidth={column.setList} />}
         </div>
 
-        {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
+        {/* The detail: the window's one main landmark, after the sidebar's navigation and the list's region (KTD13), so Tab
+            runs sidebar, list, then the detail's toolbar and its content. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.detailLeft, right: 0, bottom: 0 }}>
           {/* A place's owner draws its detail here, with or without its list (Agents' Profile spans both). */}
           {(hasList || placeOwner !== undefined) && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}

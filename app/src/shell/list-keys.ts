@@ -80,8 +80,11 @@ export interface ListSelectionOptions {
   committed: () => string | null;
   /** Commit a row: the place loads it in the detail. Never called for the row already committed. */
   commit: (id: string) => void;
-  /** Move focus into the detail of this (committed) row: Return or Tab. */
-  focusDetail: (id: string) => void;
+  /**
+   * Move focus into the detail of this (committed) row: Return goes to its content (the message box), Tab to the first
+   * of its controls, its toolbar, as the Tab order runs (KTD13).
+   */
+  focusDetail: (id: string, via: "enter" | "tab") => void;
   /** The pending highlight changed, for the list to draw it; null once it commits or is dropped. */
   onHighlight: (id: string | null) => void;
   schedule?: Schedule;
@@ -147,7 +150,7 @@ export function createListSelection(options: ListSelectionOptions): ListSelectio
       const move = moveFor(ids, pending ?? options.committed(), key);
       if (move.commit === "now") {
         const id = flush();
-        if (move.focusDetail && id !== null) options.focusDetail(id);
+        if (move.focusDetail && id !== null) options.focusDetail(id, key === "tab" ? "tab" : "enter");
         return null;
       }
       if (move.commit !== "rest" || move.highlight === null) return null;

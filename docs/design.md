@@ -273,8 +273,7 @@ Internals keep the name desk.
   an **Update…** button at the detail toolbar's trailing edge (plan 2026-11-14-1330, R18), laid over the detail's top
   right by the shell so it sits in the same spot in every place, with each toolbar's trailing side leaving it room; its
   menu holds **Later**, which hides it until the next version. It sat as a row at the sidebar's foot until 2026-11-14,
-  then was a notice over the content; Preferences › loki keeps saying it while it is newer. The pane is the window's one `main`; the places
-  are its navigation. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
+  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
   (plan 2026-11-14-1330, R1): the same rows in every place, so changing place moves only the selection. Each source is
   a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
   for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
@@ -285,8 +284,20 @@ Internals keep the name desk.
 - **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its
   edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list
-  and a detail of 480. Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
+  and a detail of 480, and with it folded the list starts at a clearance past the traffic lights and the toggle (128 on
+  the Mac, 52 in a browser). Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
   Learn's views were the last of them, and every place's items are in the list column now.
+- **Hide List.** View › Show / Hide List (⌃⌘L; Ctrl Shift L off the Mac, where Ctrl L is Focus Message Box) hides the
+  list column in every place, and the detail takes its room; showing it brings it back at its width. It is a keymap
+  row, so the menu bar needs no Rust change, and it is kept with the sidebar's fold in `loki.desktop.column`
+  (`list_hidden`). A ⌃⌘ chord never matches its ⌘ alone (keymap.ts `matches`), so ⌃⌘L is not ⌘L.
+- **Landmarks and focus** (plan 2026-11-14-1330, KTD13, KTD14). Three regions, in Tab order: the sidebar, a `<nav
+  aria-label="Sidebar">` (the places inside it are not a landmark of their own); the list, a `<section>` named for the
+  source, one roving tab stop on the selected row; the detail, the window's one `<main>`, its toolbar before its
+  content. From the list, Return goes into the detail's content (the message box) and Tab to the first control in its
+  toolbar (`content-list.tsx` `toolbarControl`), or into the content where the toolbar has none, as Learn's. Esc is the same in every place: in the detail (not typing, or in Flow's reply box) it moves focus to the
+  list's selected row; in the list it does nothing; it never changes the place. Chats' Canvas tab goes back to
+  Messages first. Until 2026-11-14 Esc in Agents and Learn went to Chats, and Flow's closed the deck.
 - **Chats list.** Chats on the three columns (plan 2026-11-14-1330, U3): the sidebar's source chosen, its chats in the
   list column on `ContentList`, the chat in the detail. The toolbar names the source, with New Chat (an agent's starts
   one with that agent) and Search (⌥⌘F; chat or agent names and `label:`, the source's rows only). Every chat's list
@@ -299,8 +310,8 @@ Internals keep the name desk.
   through the mod. Hover shows pin and archive; a right click selects the row and opens its menu (open, Mark as read or
   unread, Rename…, Change folder…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a
   "Needs you" pill at the top or bottom edge of the rows scrolls it back. The arrows highlight at once and commit after
-  a rest, so the chat's link opens once per commit and focus stays in the list (KTD4); Return or Tab goes into the
-  message box. Opening a chat from elsewhere chooses the source that holds it and selects its row (KTD8); choosing a
+  a rest, so the chat's link opens once per commit and focus stays in the list (KTD4); Return goes into the message
+  box, Tab to the chat's toolbar first (KTD13). Opening a chat from elsewhere chooses the source that holds it and selects its row (KTD8); choosing a
   source that does not hold the open chat shows "No Chat Selected" and opens no link. The list stays mounted, hidden,
   while another place shows, so it keeps its scroll. The sidebar replaced the desks tree drawer (2026-09-23, approved by
   the user); the tree went with Tasks (plan 049), and the list column took the chats from the sidebar (2026-11-14).

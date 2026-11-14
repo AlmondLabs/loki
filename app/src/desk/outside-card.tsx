@@ -755,8 +755,9 @@ export function OutsideReply({
     const key = replyBoxKey(e.nativeEvent, keyboard, isMail);
     // ⌘], ⌘[ and ⌘E go on to the deck, which sends the text with their move (KTD9).
     if (key === "deck") return;
-    // The deck's single keys are its own outside the box; inside, letters are the reply's.
-    e.stopPropagation();
+    // The deck's single keys are its own outside the box; inside, letters are the reply's. Esc goes on to the shell,
+    // which moves focus to the list (KTD14).
+    if (key !== "escape") e.stopPropagation();
     // A chat's or Slack's box sends on Enter, a mail's on ⌘Enter (plan 076); the other Enter starts a line.
     if (key === "send") {
       e.preventDefault();
@@ -765,7 +766,7 @@ export function OutsideReply({
       e.preventDefault();
       setLineOpen(true);
     } else if (key === "escape") {
-      e.preventDefault();
+      // Not prevented: the shell skips an Esc something inside already took, and this one is handed on to it.
       if (!text && onEscapeEmpty) onEscapeEmpty();
       else e.currentTarget.blur();
     }

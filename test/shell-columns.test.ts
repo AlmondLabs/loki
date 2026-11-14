@@ -15,9 +15,11 @@ import {
   loadColumns,
   saveColumns,
   sidebarFits,
+  toggleList,
   toggleSidebar,
   type ColumnsFrame,
 } from "../app/src/shell/columns.ts";
+import { GLASS_LIGHTS, sidebarClearance, sidebarToggleLeft } from "../app/src/shell/sidebar.tsx";
 
 /**
  * The window's columns (plan 2026-11-14-1330, KTD1): the sidebar and the list keep their widths across reloads, the
@@ -29,7 +31,7 @@ const memory = (seed: Record<string, string> = {}) => {
   return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m };
 };
 
-const DEFAULTS = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, collapsed: false };
+const DEFAULTS = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, collapsed: false, listHidden: false };
 /** The Mac's frame: the glass inset of 8, and the traffic lights and toggle's clearance of 128. */
 const mac = (windowWidth: number, more: Partial<ColumnsFrame> = {}): ColumnsFrame => ({
   windowWidth,
@@ -52,7 +54,7 @@ describe("columns: widths", () => {
 
 describe("columns: where they go", () => {
   test("at 1440 with the defaults, the sidebar is 220 and the list 300, and the detail starts after both", () => {
-    expect(columnsLayout(DEFAULTS, mac(1440))).toEqual({ sidebarShown: true, sidebarOver: false, listLeft: 236, list: 300, detailLeft: 536 });
+    expect(columnsLayout(DEFAULTS, mac(1440))).toEqual({ sidebarShown: true, sidebarOver: false, listShown: true, listLeft: 236, list: 300, detailLeft: 536 });
   });
   test("the sidebar folds below inset + sidebar + list + 480, 1016 at the defaults", () => {
     expect(sidebarFits(DEFAULTS, mac(1016))).toBe(true);
@@ -60,7 +62,7 @@ describe("columns: where they go", () => {
   });
   test("at 1000, the sidebar is folded, the list starts after the 128 clearance, and the detail keeps at least 480", () => {
     const at = columnsLayout(DEFAULTS, mac(1000));
-    expect(at).toEqual({ sidebarShown: false, sidebarOver: false, listLeft: 128, list: 300, detailLeft: 428 });
+    expect(at).toEqual({ sidebarShown: false, sidebarOver: false, listShown: true, listLeft: 128, list: 300, detailLeft: 428 });
     expect(1000 - at.detailLeft).toBeGreaterThanOrEqual(480);
   });
   test("at the Mac's 900, the list is 292 and the detail 480", () => {
@@ -70,16 +72,33 @@ describe("columns: where they go", () => {
   });
   test("with a browser's clearance of 52 at 700, the list stays at 260 and only the detail gives way", () => {
     const at = columnsLayout(DEFAULTS, { windowWidth: 700, inset: 8, clearance: 52, hasList: true, peek: false });
-    expect(at).toEqual({ sidebarShown: false, sidebarOver: false, listLeft: 52, list: 260, detailLeft: 312 });
+    expect(at).toEqual({ sidebarShown: false, sidebarOver: false, listShown: true, listLeft: 52, list: 260, detailLeft: 312 });
   });
   test("a place without a list counts none: the sidebar stays at the Mac's 900, and the detail starts after it", () => {
-    expect(columnsLayout(DEFAULTS, mac(900, { hasList: false }))).toEqual({ sidebarShown: true, sidebarOver: false, listLeft: 236, list: 0, detailLeft: 236 });
+    expect(columnsLayout(DEFAULTS, mac(900, { hasList: false }))).toEqual({
+      sidebarShown: true,
+      sidebarOver: false,
+      listShown: false,
+      listLeft: 236,
+      list: 0,
+      detailLeft: 236,
+    });
     expect(sidebarFits(DEFAULTS, mac(715, { hasList: false }))).toBe(false);
+  });
+  test("with the sidebar folded on the Mac, the list's toolbar starts past the traffic lights and the sidebar toggle", () => {
+    const clearance = sidebarClearance(true, "macos");
+    const at = columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440, { clearance }));
+    expect(at.listLeft).toBe(clearance);
+    // the toggle is 28 wide and sits after the lights; the list starts clear of both
+    expect(at.listLeft).toBeGreaterThan(sidebarToggleLeft(true, "macos") + 28);
+    expect(at.listLeft).toBeGreaterThan(GLASS_LIGHTS.x);
+    expect(columnsLayout(DEFAULTS, mac(900, { clearance })).listLeft).toBe(clearance);
   });
   test("a sidebar folded by choice leaves the list at the clearance", () => {
     expect(columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440))).toEqual({
       sidebarShown: false,
       sidebarOver: false,
+      listShown: true,
       listLeft: 128,
       list: 300,
       detailLeft: 428,
@@ -92,7 +111,14 @@ describe("columns: the toggle", () => {
     const fits = sidebarFits(DEFAULTS, mac(900));
     expect(toggleSidebar(DEFAULTS, fits, false)).toEqual({ pref: DEFAULTS, peek: true });
     expect(toggleSidebar(DEFAULTS, fits, true)).toEqual({ pref: DEFAULTS, peek: false });
-    expect(columnsLayout(DEFAULTS, mac(900, { peek: true }))).toEqual({ sidebarShown: true, sidebarOver: true, listLeft: 128, list: 292, detailLeft: 420 });
+    expect(columnsLayout(DEFAULTS, mac(900, { peek: true }))).toEqual({
+      sidebarShown: true,
+      sidebarOver: true,
+      listShown: true,
+      listLeft: 128,
+      list: 292,
+      detailLeft: 420,
+    });
   });
   test("a peek lasts only while the sidebar does not fit: widened to fit, it is spent, so narrowing again does not bring it back", () => {
     expect(keptPeek(true, false)).toBe(true);
@@ -112,18 +138,50 @@ describe("columns: the toggle", () => {
   });
 });
 
+describe("columns: Hide List", () => {
+  test("a hidden list gives its room to the detail, and the place counts no list for the sidebar's fold", () => {
+    const hidden = { ...DEFAULTS, listHidden: true };
+    expect(columnsLayout(hidden, mac(1440))).toEqual({ sidebarShown: true, sidebarOver: false, listShown: false, listLeft: 236, list: 0, detailLeft: 236 });
+    // at 900 the sidebar folds only for the list's sake: with it hidden the sidebar stays
+    expect(sidebarFits(DEFAULTS, mac(900))).toBe(false);
+    expect(sidebarFits(hidden, mac(900))).toBe(true);
+    // with the sidebar folded too, the detail starts at the clearance
+    expect(columnsLayout({ ...hidden, collapsed: true }, mac(1440)).detailLeft).toBe(128);
+  });
+  test("Hide List flips only the list, and showing it again restores its width", () => {
+    const wide = { ...DEFAULTS, list: 380 };
+    const hidden = toggleList(wide);
+    expect(hidden).toEqual({ ...wide, listHidden: true });
+    const shown = toggleList(hidden);
+    expect(shown).toEqual(wide);
+    expect(columnsLayout(shown, mac(1440)).list).toBe(380);
+  });
+  test("a hidden list is kept across reloads under the columns' key, and older saves read as shown", () => {
+    const s = memory();
+    saveColumns(s, { ...DEFAULTS, list: 340, listHidden: true });
+    expect(JSON.parse(s.m.get(COLUMNS_KEY) ?? "")).toEqual({ width: SIDEBAR_DEFAULT, collapsed: false, list: 340, list_hidden: true });
+    expect(loadColumns(s)).toEqual({ ...DEFAULTS, list: 340, listHidden: true });
+    expect(loadColumns(memory({ [COLUMNS_KEY]: JSON.stringify({ width: 220, collapsed: false, list: 300 }) })).listHidden).toBe(false);
+  });
+});
+
 describe("columns: persistence", () => {
   test("nothing stored reads as the defaults", () => {
     expect(loadColumns(memory())).toEqual(DEFAULTS);
   });
   test("the one-column window's {width: 400, collapsed: false} loads as a sidebar of 300 with the default list", () => {
-    expect(loadColumns(memory({ [COLUMNS_KEY]: JSON.stringify({ width: 400, collapsed: false }) }))).toEqual({ sidebar: 300, list: 300, collapsed: false });
+    expect(loadColumns(memory({ [COLUMNS_KEY]: JSON.stringify({ width: 400, collapsed: false }) }))).toEqual({
+      sidebar: 300,
+      list: 300,
+      collapsed: false,
+      listHidden: false,
+    });
   });
   test("both widths and the fold come back across a reload, under the old key's shape", () => {
     const s = memory();
-    saveColumns(s, { sidebar: 250, list: 360, collapsed: true });
-    expect(JSON.parse(s.m.get(COLUMNS_KEY) ?? "")).toEqual({ width: 250, collapsed: true, list: 360 });
-    expect(loadColumns(s)).toEqual({ sidebar: 250, list: 360, collapsed: true });
+    saveColumns(s, { sidebar: 250, list: 360, collapsed: true, listHidden: false });
+    expect(JSON.parse(s.m.get(COLUMNS_KEY) ?? "")).toEqual({ width: 250, collapsed: true, list: 360, list_hidden: false });
+    expect(loadColumns(s)).toEqual({ sidebar: 250, list: 360, collapsed: true, listHidden: false });
   });
   test("a malformed saved value reads as the defaults", () => {
     expect(loadColumns(memory({ [COLUMNS_KEY]: "{not json" }))).toEqual(DEFAULTS);

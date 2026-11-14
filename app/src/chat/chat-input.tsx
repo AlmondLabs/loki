@@ -219,7 +219,8 @@ export function useMessageBox(
         e.preventDefault();
         send();
       } else if (e.key === "Escape" && onEscape) {
-        e.preventDefault();
+        // Not prevented, so the shell still takes it on: in Flow's card it moves focus to the list (KTD14), and it
+        // skips an Esc something inside already took (the slash palette's, which prevents it in onKeyDown above).
         onEscape();
       } else if (e.key.toLowerCase() === "d" && cmdHeld(e) && !e.altKey && !e.shiftKey && dictation.supported) {
         // ⌘D dictates (Ctrl+D off the Mac). (⌘M is minimise on a Mac and stays that way.)

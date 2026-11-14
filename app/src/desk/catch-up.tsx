@@ -150,7 +150,7 @@ export function FlowPlace(props: FlowPlaceProps) {
   const compose = useMailCompose(current, composeOutside ? { composeOutside } : null);
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
-  /** Esc in an outside card's empty box: the keys go back to the deck, and Flow stays (KTD14). */
+  /** Esc in an outside card's empty box: the box lets go, and the shell moves focus to the list; Flow stays (KTD14). */
   const leaveBox = () => replyRef.current?.blur();
   // A chat replied to or answered here waits on its agent's turn, which is not an answer from elsewhere (R11).
   const deck: DeckProps = {

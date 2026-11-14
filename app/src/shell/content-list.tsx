@@ -36,7 +36,10 @@ export interface ContentListProps {
   selectedId: string | null;
   /** Commit a row: a click, Return, Tab, or an arrow's rest. */
   onSelect: (id: string) => void;
-  /** Return or Tab on the committed row: move focus into the detail. */
+  /**
+   * Return on the committed row: move focus into the detail's content. Tab goes to the first control in the detail's
+   * toolbar, and comes here only when the toolbar has none.
+   */
   onEnter: (id: string) => void;
   /** A right-click or the menu key on a row, after it is committed. */
   onMenu?: (id: string, e: MouseEvent<HTMLButtonElement>) => void;
@@ -127,7 +130,7 @@ export function ContentList({
     (selectionRef.current ??= createListSelection({
       committed: () => latest.current.selectedId,
       commit: (id) => latest.current.onSelect(id),
-      focusDetail: (id) => latest.current.onEnter(id),
+      focusDetail: (id, via) => (via === "tab" ? tabIntoDetail(() => latest.current.onEnter(id)) : latest.current.onEnter(id)),
       onHighlight: (id) => setHighlight(id === null ? null : { id, over: latest.current.selectedId }),
     }));
   useEffect(() => () => selectionRef.current?.stop(), []);
@@ -192,6 +195,66 @@ export function ContentList({
       </div>
     </section>
   );
+}
+
+/** What the Tab key can reach: the controls, less those taken out of the Tab order. */
+const TABBABLE = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
+/**
+ * The first control under `root` that Tab would reach: not disabled, not out of the Tab order, and not inside something
+ * hidden from the person (the chat that stays mounted behind another place is aria-hidden).
+ */
+export function firstControl(root: ParentNode | null): HTMLElement | null {
+  for (const el of root?.querySelectorAll<HTMLElement>(TABBABLE) ?? []) {
+    if (el.tabIndex < 0 || el.matches(":disabled") || el.closest('[aria-hidden="true"], [inert], [hidden]')) continue;
+    return el;
+  }
+  return null;
+}
+
+/** The list's one tab stop under `root`: the selected row, else the first (Esc in the detail lands here, KTD14). */
+export function listStop(root: ParentNode | null): HTMLElement | null {
+  return root?.querySelector<HTMLElement>('.loki-list-row[tabindex="0"]') ?? null;
+}
+
+/** A detail's toolbar band: the pane header of Chats, Agents and Learn, and Flow's card toolbar. */
+const DETAIL_TOOLBARS = ".loki-pane-header, .loki-card-toolbar";
+
+/**
+ * The first control in the detail's toolbar under `main`, the one showing (a hidden pane's toolbar is passed over),
+ * where Tab from the list goes before the detail's content (KTD13); null when the toolbar has no control.
+ */
+export function toolbarControl(main: ParentNode | null): HTMLElement | null {
+  for (const bar of main?.querySelectorAll(DETAIL_TOOLBARS) ?? []) {
+    const to = firstControl(bar);
+    if (to) return to;
+  }
+  return null;
+}
+
+/**
+ * View › Hide List with focus in the list (a row, its Search): the column goes invisible but would keep focus, and the
+ * arrows would go on committing rows nobody sees. Focus moves to the detail instead, its toolbar first as Tab goes,
+ * else its first control; with neither, the list lets go of it.
+ */
+export function leaveList(list: Pick<Node, "contains"> | null, main: ParentNode | null, active: HTMLElement | null): void {
+  if (!list || !active || !list.contains(active)) return;
+  const to = toolbarControl(main) ?? firstControl(main);
+  if (to) to.focus();
+  else active.blur();
+}
+
+/**
+ * Tab from the list (KTD13): once the committed row has drawn its detail, focus the first control in its toolbar, in
+ * the window's one `<main>`; with none there (Learn's toolbar is its title alone), `fallback` moves focus into the
+ * detail's content as Return does.
+ */
+function tabIntoDetail(fallback: () => void): void {
+  requestAnimationFrame(() => {
+    const to = toolbarControl(document.querySelector("main"));
+    if (to) to.focus();
+    else fallback();
+  });
 }
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { COMMIT_REST_MS, createListSelection, heldRows, listKeyOf, moveFor, stepRow, type Schedule } from "../app/src/shell/list-keys.ts";
-import { ContentList, NothingSelected, onListKeyDown } from "../app/src/shell/content-list.tsx";
+import { ContentList, NothingSelected, firstControl, leaveList, listStop, onListKeyDown, toolbarControl } from "../app/src/shell/content-list.tsx";
 
 /**
  * One list's keyboard and selection, as Mail's (plan 2026-11-14-1330, KTD3): arrows highlight at once and commit after
@@ -52,7 +52,7 @@ function selection(start: string | null = "a") {
       committed = id;
       log.push(`commit ${id}`);
     },
-    focusDetail: (id) => log.push(`detail ${id}`),
+    focusDetail: (id, via) => log.push(`${via} ${id}`),
     onHighlight: () => {},
     schedule: clock.schedule,
   });
@@ -106,14 +106,20 @@ describe("a selection over time", () => {
     const { sel, clock, log } = selection("a");
     sel.press(IDS, "down");
     sel.press(IDS, "enter");
-    expect(log).toEqual(["commit b", "detail b"]);
+    expect(log).toEqual(["commit b", "enter b"]);
     clock.advance(COMMIT_REST_MS);
-    expect(log).toEqual(["commit b", "detail b"]);
+    expect(log).toEqual(["commit b", "enter b"]);
   });
   test("Return on the committed row only asks for the detail", () => {
     const { sel, log } = selection("b");
     sel.press(IDS, "enter");
-    expect(log).toEqual(["detail b"]);
+    expect(log).toEqual(["enter b"]);
+  });
+  test("Tab commits too, and asks for the detail by Tab, so focus goes to the detail's toolbar before its content (KTD13)", () => {
+    const { sel, log } = selection("a");
+    sel.press(IDS, "down");
+    sel.press(IDS, "tab");
+    expect(log).toEqual(["commit b", "tab b"]);
   });
   test("an action on a highlighted row within the 150 ms commits that row first, then acts on it", () => {
     const { sel, clock, log } = selection("a");
@@ -259,6 +265,76 @@ describe("the list element's keys", () => {
   test("a key the list leaves alone (E, ⌘↓) goes on to the window", () => {
     expect(press("e")).toEqual({ reachesWindow: true, prevented: false });
     expect(press("ArrowDown", { meta: true })).toEqual({ reachesWindow: true, prevented: false });
+  });
+});
+
+describe("focus between the list and the detail (KTD13, KTD14)", () => {
+  /** A stand-in element: its tab index, whether it is disabled, and the attributes on it or around it. */
+  const el = (name: string, over: Partial<{ tabIndex: number; disabled: boolean; hiddenBy: string }> = {}) => ({
+    name,
+    tabIndex: over.tabIndex ?? 0,
+    matches: (q: string) => q === ":disabled" && over.disabled === true,
+    closest: (q: string) => (over.hiddenBy && q.includes(over.hiddenBy) ? {} : null),
+    focus: () => {},
+  });
+  const root = (els: Array<ReturnType<typeof el>>) => ({
+    querySelectorAll: () => els,
+    querySelector: (q: string) => (q.includes('tabindex="0"') ? (els.find((e) => e.tabIndex === 0) ?? null) : null),
+  });
+  test("Tab from the list reaches the detail's toolbar symbols before its content", () => {
+    // the hidden chat's toolbar behind Flow, Flow's card toolbar; the transcript and the message box are not toolbars
+    const main = { querySelectorAll: () => [root([el("chat-tab", { hiddenBy: "aria-hidden" })]), root([el("read"), el("later")])] };
+    expect(toolbarControl(main as unknown as ParentNode)).toMatchObject({ name: "read" });
+  });
+  test("a toolbar with no control (Learn's is its title alone) leaves Tab to go into the content, as Return does", () => {
+    expect(toolbarControl({ querySelectorAll: () => [root([])] } as unknown as ParentNode)).toBeNull();
+    expect(toolbarControl(null)).toBeNull();
+  });
+  test("the first control skips what is hidden, disabled or out of the Tab order: the chat behind another place, a move that is off", () => {
+    const detail = root([
+      el("behind", { hiddenBy: "aria-hidden" }),
+      el("off", { disabled: true }),
+      el("roving", { tabIndex: -1 }),
+      el("inert", { hiddenBy: "inert" }),
+      el("toolbar-item"),
+    ]);
+    expect(firstControl(detail as unknown as ParentNode)).toMatchObject({ name: "toolbar-item" });
+    expect(firstControl(root([]) as unknown as ParentNode)).toBeNull();
+    expect(firstControl(null)).toBeNull();
+  });
+  test("Esc lands on the list's one tab stop, the selected row", () => {
+    const list = root([el("a", { tabIndex: -1 }), el("b"), el("c", { tabIndex: -1 })]);
+    expect(listStop(list as unknown as ParentNode)).toMatchObject({ name: "b" });
+    expect(listStop(null)).toBeNull();
+  });
+  describe("Hide List with focus in the list moves it to the detail, so the arrows stop committing rows nobody sees", () => {
+    /** A focusable stand-in that records whether it was focused or let go. */
+    const spy = (name: string) => {
+      const said: string[] = [];
+      return { said, node: { ...el(name), focus: () => said.push(`focus ${name}`), blur: () => said.push(`blur ${name}`) } };
+    };
+    const list = (inside: unknown[]) => ({ contains: (n: unknown) => inside.includes(n) });
+    test("to the detail's toolbar first, else its first control", () => {
+      const row = spy("row");
+      const read = spy("read");
+      leaveList(list([row.node]), { querySelectorAll: () => [root([read.node])] } as unknown as ParentNode, row.node as unknown as HTMLElement);
+      expect(read.said).toEqual(["focus read"]);
+      const reply = spy("reply");
+      const content = { querySelectorAll: (q: string) => (q.includes("pane-header") ? [] : [reply.node]) };
+      leaveList(list([row.node]), content as unknown as ParentNode, row.node as unknown as HTMLElement);
+      expect(reply.said).toEqual(["focus reply"]);
+    });
+    test("with nothing in the detail to take it, the row lets go of focus", () => {
+      const search = spy("search");
+      leaveList(list([search.node]), { querySelectorAll: () => [] } as unknown as ParentNode, search.node as unknown as HTMLElement);
+      expect(search.said).toEqual(["blur search"]);
+    });
+    test("focus outside the list stays where it is", () => {
+      const box = spy("box");
+      const read = spy("read");
+      leaveList(list([]), { querySelectorAll: () => [root([read.node])] } as unknown as ParentNode, box.node as unknown as HTMLElement);
+      expect([...box.said, ...read.said]).toEqual([]);
+    });
   });
 });
 

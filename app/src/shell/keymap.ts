@@ -68,6 +68,17 @@ export const KEYMAP: Binding[] = [
     menu: "View/column",
     was: "was {inbox.deny} outside Flow",
   },
+  // Mail's View › Hide Message List key is ⌃⌘L's neighbour; this one hides the list column in every place for a wider
+  // detail (plan 2026-11-14-1330, KTD12). Off the Mac ⌃⌘ is not there and Ctrl L is Focus Message Box, so it is Ctrl Shift L.
+  {
+    id: "list.toggle",
+    keys: ["ctrl+cmd+l"],
+    keysOn: { windows: ["cmd+shift+l"], linux: ["cmd+shift+l"] },
+    where: "anywhere",
+    label: "Show / Hide List",
+    typing: true,
+    menu: "View/column",
+  },
   // Off the Mac there is no hidden window to bring back from the dock: the key minimises (useWindowChrome).
   {
     id: "window.hide",
@@ -323,6 +334,8 @@ export function matches(e: KeyboardEvent, spec: string): boolean {
   const hasCmd = e.metaKey || e.ctrlKey;
   if (want.cmd !== hasCmd) return false;
   if (want.ctrl && !e.ctrlKey) return false;
+  // ⌃⌘ together is a chord of its own (⌃⌘L hides the list), never ⌘ alone (⌘L focuses the message box).
+  if (!want.ctrl && e.metaKey && e.ctrlKey) return false;
   if (want.alt !== e.altKey) return false;
   // Shift: required when asked; tolerated for "=" (⌘⇧= is also zoom in on a Mac) via a separate spec.
   if (want.shift !== e.shiftKey && !(key.length === 1 && !/[a-z0-9]/.test(key) && !want.shift && !e.shiftKey)) return false;

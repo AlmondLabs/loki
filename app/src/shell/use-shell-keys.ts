@@ -1,6 +1,18 @@
 import { useEffect, useRef } from "react";
 import { inTauri, keyboard, type Platform } from "../desk/env";
-import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
+import {
+  chordIds,
+  dialogState,
+  keySegment,
+  menuSpec,
+  registerActions,
+  resolve,
+  runAction,
+  shellKeyAllowed,
+  typingIn,
+  type DialogState,
+  type Segment,
+} from "./keymap";
 
 /**
  * The webview's own keys on Windows (WebView2's browser accelerators) and Linux: reload, print, find, the caret,
@@ -47,20 +59,46 @@ export function guardBrowserKey(
   if (BROWSER_KEYS.has(chord)) e.preventDefault();
 }
 
+/** One thing Esc can do, tried in order: close Preferences, peel Chats' Desk tab back to Messages, move focus to the list. */
+export type EscapeStep = "preferences" | "messages" | "list";
+
+/**
+ * What Esc does, the same in every place (plan 2026-11-14-1330, KTD14), as the steps to try in order; the first that
+ * acts takes the key. In the detail it moves focus to the list, and in the list, or anywhere else, it does nothing; it
+ * never leaves the place. While typing the key is the text's, except in Flow's reply box, which is in the detail. In
+ * Chats the Desk tab goes back to Messages first. A dialog keeps it, but Esc with focus slipped out of Preferences
+ * closes it. An Esc something inside already took (`prevented`: the sheet, the slash palette, the find bar) does
+ * nothing more, so one press dismisses only the innermost thing; a box that hands the key on (Flow's reply box) leaves
+ * it unprevented.
+ */
+export function escapeSteps(at: { segment: Segment; dialog: DialogState; typing: boolean; inDetail: boolean; prevented: boolean }): EscapeStep[] {
+  if (at.prevented) return [];
+  if (at.dialog === "preferences") return ["preferences"];
+  if (at.dialog !== "none") return [];
+  if (at.typing) return at.segment === "inbox" && at.inDetail ? ["list"] : [];
+  const steps: EscapeStep[] = at.segment === "desk" ? ["messages"] : [];
+  return at.inDetail ? [...steps, "list"] : steps;
+}
+
+/** Whether a key's target is in the detail: the window's one `<main>`. */
+function inDetail(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("main") !== null;
+}
+
 /**
  * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
  * their own: the sheet's zoom, the deck's decisions), the one keydown listener that
  * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
  * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
  * registered once. Dialogs own their keys; Preferences, the one dialog that is part of the shell, lets ⌘,
- * ⌘1-6 and its ⌘[ ⌘] through, and search lets ⌘K through to close it (shellKeyAllowed). Esc peels a layer:
- * the desk's Desk tab back to Messages (`toMessages` says whether it took it), then a segment other than
- * the desk, through `escape` (the inbox closes itself). Never while typing.
+ * ⌘1-6 and its ⌘[ ⌘] through, and search lets ⌘K through to close it (shellKeyAllowed). Esc is
+ * `escapeSteps`': Chats' Desk tab back to Messages (`toMessages` says whether it took it), then focus from the detail
+ * to the list (`toList`).
  */
 export function useShellKeys(
   view: { segment: Segment },
   actions: Record<string, () => void>,
-  escape: { toDesk: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void },
+  escape: { toList: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void },
 ): void {
   const ref = useRef({ view, actions, escape });
   useEffect(() => {
@@ -82,18 +120,16 @@ export function useShellKeys(
       const { segment } = ref.current.view;
       const dialog = dialogState();
       if (e.key === "Escape") {
-        // The sheet closes itself on Esc from inside; this catches focus that slipped out of it.
-        if (dialog === "preferences" && !e.defaultPrevented && ref.current.escape.closePreferences) {
+        const { escape } = ref.current;
+        // The sheet closes itself on Esc from inside; "preferences" catches focus that slipped out of it.
+        const steps = escapeSteps({ segment, dialog, typing: typingIn(e), inDetail: inDetail(e.target), prevented: e.defaultPrevented });
+        for (const step of steps) {
+          if (step === "preferences" && !escape.closePreferences) continue;
+          if (step === "messages" && escape.toMessages?.(false) !== true) continue;
           e.preventDefault();
-          ref.current.escape.closePreferences();
+          if (step === "preferences") escape.closePreferences?.();
+          else if (step === "list") escape.toList();
           return;
-        }
-        if (typingIn(e) || dialog !== "none") return;
-        if (segment === "desk") {
-          if (ref.current.escape.toMessages?.(false)) e.preventDefault();
-        } else if (segment === "agents" || segment === "learn") {
-          e.preventDefault();
-          ref.current.escape.toDesk();
         }
         return;
       }
