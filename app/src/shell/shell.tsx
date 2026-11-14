@@ -14,7 +14,7 @@ import { useDesk } from "../desk/use-desk";
 import { avatarUrl, inTauri } from "../desk/env";
 import { AgentsColumn } from "../agents/agents-column";
 import { LearnColumn } from "../recall/learn-column";
-import { FlowColumn } from "../desk/flow-column";
+import { flowSources } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
@@ -316,7 +316,23 @@ export function Shell() {
   // A place moved onto the three columns draws its list and its detail from one owner component, which goes here
   // (plan 2026-11-14-1330, KTD1); a place without one keeps its body in the sidebar and has no list column. Chats is
   // drawn by the shell itself: its list and its chat pane both stay mounted across places, for the link and the scroll.
-  const placeOwners: Partial<Record<Segment, ReactNode>> = {};
+  const placeOwners: Partial<Record<Segment, ReactNode>> = {
+    // Drawn only while Flow shows, so leaving the place ends the visit (useFlowDeck).
+    inbox: (
+      <InboxView
+        desk={desk}
+        catchUp={catchUp}
+        notice={notice}
+        models={modelList}
+        onLoadModels={loadModels}
+        onPickModel={pickModel}
+        onPickMode={pickMode}
+        onOpenDesk={openDesk}
+        onClose={() => setSegment("desk")}
+        onPass={(pass) => capture("inbox_pass_completed", pass)}
+      />
+    ),
+  };
   const placeOwner = placeOwners[segment];
   const hasList = segment === "desk" || placeOwner !== undefined;
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
@@ -343,6 +359,21 @@ export function Shell() {
     setSegment("desk");
     const open = deskList.find((d) => d.scope === desk.scope);
     setUnselected(!open || !sourceHolds(id, open));
+  };
+  /** Flow's lanes as its sources in the sidebar (plan 2026-11-14-1330, U6): its own row is Everything. */
+  const lanes = flowSources(
+    catchUp.items,
+    catchUp.flow.lane,
+    catchUp.flow.lanes,
+    (lane) => catchUp.flow.setLaneId(lane?.id ?? ""),
+    (agentId, name) => <AgentFace name={name} src={avatarUrl(agentId)} size={16} />,
+  );
+  /** A lane chosen in the sidebar: Flow shows it, within the same visit (R12). */
+  const chooseLane = (id: string) => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("inbox");
+    lanes.onSelect(id);
   };
   /** A label's chats: every chat's list, searched for the label. */
   const showLabel = (name: string) => {
@@ -515,21 +546,13 @@ export function Shell() {
                   all: ALL_CHATS,
                   onSelect: chooseSource,
                 },
+                inbox: { ...lanes, onSelect: chooseLane },
               }}
             />
           }
           sections={{
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
             learn: <LearnColumn recall={recall} />,
-            inbox: (
-              <FlowColumn
-                items={catchUp.items}
-                lane={catchUp.flow.lane}
-                lanes={catchUp.flow.lanes}
-                onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
-                onNewLane={() => showPreferences("inbox")}
-              />
-            ),
           }}
         />
 
@@ -636,21 +659,6 @@ export function Shell() {
                 focusTick={newChat.n + focusChat}
               />
             </div>
-          )}
-
-          {segment === "inbox" && (
-            <InboxView
-              desk={desk}
-              catchUp={catchUp}
-              notice={notice}
-              models={modelList}
-              onLoadModels={loadModels}
-              onPickModel={pickModel}
-              onPickMode={pickMode}
-              onOpenDesk={openDesk}
-              onClose={() => setSegment("desk")}
-              onPass={(pass) => capture("inbox_pass_completed", pass)}
-            />
           )}
 
           {segment === "learn" && <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}

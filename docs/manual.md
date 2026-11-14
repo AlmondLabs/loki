@@ -199,8 +199,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   allows, from the box too; on the phone, **Deny** and **Approve** under the box): Always Allow, after you confirm it, allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
-- **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the deck as a full view, see below. Its row in the sidebar carries
-  the waiting count, the same number the tray title and dock badge show.
+- **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the cards that wait on
+  you as a list beside the selected card, see below. Its row in the sidebar carries the waiting count, the same number
+  the tray title and dock badge show, and its lanes are listed under it.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
   one works, the last thing it said, a count of what waits on you — and the chosen agent fills the pane with
   a tab per page (a first visit lands on Memory); the "+" at the top of the sidebar makes a new agent. **Profile**: face, name, description and model
@@ -583,10 +584,13 @@ Jira ticket (plans 096 and 097, in Apple's language since plan 2026-11-12-1505).
 - **The toolbar**: a chat's or a Flow card's name over a grey line of its facts (the agent and how it stands, the
   folder and labels; then, on a Flow card, when and why it is here), and at the trailing edge its moves as symbols,
   their names and keys in their tooltips: **Label**, **Mark as Read** while it is unread, and **Archive** (on a Flow
-  card **Later**, **Mark as Read** and **Archive**). An outside card's header names it the same way, with a flag for
-  each state that holds now (**Unread**; **Starred** for a starred Gmail thread; **Mentions You** on Slack and Jira;
-  **Changed** on a ticket that changed since you looked), and its moves sit in the row under its reply box, the one
-  that finishes it last and filled.
+  card **Later**, **Mark as Read** and **Archive**, with **Approve** and **Deny** before them while an approval waits).
+  **Archive** is the one tinted symbol. An outside card's toolbar leads with the sender's face and names the card the
+  same way, its grey line saying each state that holds now (**Unread**; **Starred** for a starred Gmail thread;
+  **Mentions you** on Slack and Jira; **Changed** on a ticket that changed since you looked); its symbols are **Hand
+  Off**, **Label** on a mail, **Later**, **Mark as Read**, **Archive** (a Jira card has none, and its **Mark as Read** is
+  the tinted one) and, on a Jira card, **Open in Jira**. Where the card's account needs mending, **Sign In…** (or
+  **Add Token…**, **Connect Again…**) comes first, in words. Nothing sits at the window's bottom edge but a reply box.
 - **The thread**: your messages are bubbles at the trailing edge, their time in their tooltip, with the time told
   where a gap of a quarter of an hour or more opens; everything the agent did until your next message is one turn,
   its header saying only how long it worked and, while it is not simply finished, where it stands (working, needs
@@ -754,9 +758,15 @@ recognition is available, so treat it like any other cloud dictation.
 A chat is not done until it is archived. Flow holds every chat you have not archived, except one whose agent
 is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you, and the Jira tickets you
 watch, are cards in it too, once you connect those accounts (see "Email, Slack and Jira" below). Flow's row in the
-sidebar counts what needs you; click it, press
-⌘2, or ⌥Space from anywhere for a deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers), highest score first (see "The order" below).
+sidebar counts what needs you; click it, press ⌘2, or ⌥Space from anywhere. Flow is laid out as Mail is: the lanes
+under its row in the sidebar (see "Lanes" below), the lane's cards in the list beside it, highest score first (see "The
+order" below), and the selected card beside the list with its whole thread (newest at the bottom, tool calls as muted
+markers) and its moves in its toolbar. Each row says who it is from (the sender, or the chat's agent), what it is about
+(the subject, the channel, the ticket or the chat's name) and a line of the newest words, with the kind's symbol at its
+start and a muted "Sign In" when the card's account needs mending. ↑↓ move through the list and show each card without
+leaving the list; Return or Tab goes into the card's reply box; a click selects. The rows never reorder while you are in
+Flow: a card you move on from leaves its gap closed, and a card that arrives takes its place by score, never above the
+one you are on.
 
 Every card, a chat, an email, a Slack message or a Jira ticket, stays until it is done, and the same keys move each of
 them:
@@ -778,19 +788,21 @@ them:
 5. **Undo**, Z or ⌘Z, takes back the last move on any card, a rest, a chat's read mark or archive, or what a move did
    in Gmail (the thread comes back unread or in the inbox, as it was). The ⌘ forms work while you type a reply.
 
-A move that loki or Gmail refuses brings the card back on top, and a notice at the top right says why, with
+A move that loki or Gmail refuses brings the card back where it was, and a notice at the top right says why, with
 **Sign In…** (or **Add Token…**, **Connect Again…**) when the card's account needs mending; it opens Preferences ›
-Accounts. A card whose account needs a sign-in says so once, above its thread, with the same button, and Later passes
-it for this visit without writing anything, so it never holds up the cards behind it. Approval and question cards never
-rest: an approval leaves only by Approve or Deny, and read or later on it only moves past it for this visit. Once
-only resting cards are left, Flow says "You're caught up", how many rest, and **go through them**. A or ⌘↵
-approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused,
-Esc returns to Chats. Preferences › Flow lists these keys and sets the return times for each kind of card (see
-"Return times" below).
-The header reads "n need you" and "m chats", counting the lane you are in (see "Lanes" below). Once you have been
-past every chat the deck says "You've been through
-every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing Flow
-ends a visit; opening it again starts a fresh one.
+Accounts. A card whose account needs a sign-in says so once, above its thread, has the same button in its toolbar, and
+Later passes it for this visit without writing anything, so it never holds up the cards behind it. A card answered
+elsewhere while you are on it (on the phone, or archived on another Mac) stays in view, marked "Answered elsewhere",
+its moves off, until you move on with ↓. Approval and question cards never
+rest: an approval leaves only by Approve or Deny, and read or later on it only moves past it for this visit. With
+nothing left, the list says "You're caught up", and while resting cards wait, how many and **Go Through Them**; the
+detail shows what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). A or ⌘↵ approves, D or ⌘⇧D
+denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused. The reply box never
+takes focus on its own as you move through the list; R, Return or a click puts you in it, and Esc there hands the keys
+back to the list. Esc does not leave Flow; ⌘1 or the sidebar does. Preferences › Flow lists these keys and sets the
+return times for each kind of card (see "Return times" below).
+The list's title is the lane's name ("Flow" in Everything) with how many of its cards need you. A visit is your time in
+the Flow place: switching lanes stays in it, and leaving Flow for another place ends it; coming back starts a fresh one.
 Flow runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
 chats included, with who spoke last — nothing is windowed by age or capped by count, so a conversation only leaves
 Flow when it is archived (main chats are never archived, so they always stay). The live half — streaming,
@@ -880,25 +892,21 @@ chats from all agents, picked agents or none, then mail and Slack from all accou
 account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
 Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
 
-**Switching.** In Flow the sidebar lists the lanes: Everything, yours, then one per agent with cards, each with how
-many of its cards need you. Click one to switch; Flow's title is the same list as a menu, and the sidebar's **+**
-opens Preferences › Flow to make a new one.
-
-**Switching.** Flow's title names the lane you are in ("flow · work" on the desktop, "Work" on the phone); click or tap
-it for the switcher: **everything**, your lanes, then a lane for each agent with cards waiting (its chats and the
-accounts it owns), busiest first. The desktop menu also has **new lane…**, which opens Preferences › Flow. Each device
-keeps its own lane until you switch, so the Mac can sit in Work while the phone stays in Everything; a new device starts
-in Everything.
+**Switching.** On the Mac the lanes are listed under Flow's row in the sidebar, as Mail lists its mailboxes: Flow's
+own row is Everything, then your lanes, then a lane for each agent with cards waiting (its chats and the accounts it
+owns), busiest first, each with how many of its cards need you. Click one to switch; the list's title names the lane.
+On the phone Flow's title names the lane ("Work"); tap it for the same switcher. Each device keeps its own lane until
+you switch, so the Mac can sit in Work while the phone stays in Everything; a new device starts in Everything.
 
 **What a lane changes.** The deck holds only the lane's cards, in the usual order. Nothing from another lane breaks
-through, approvals and questions included; a quiet line says "4 waiting in other lanes" instead. That device's badges
+through, approvals and questions included; the other lanes' counts in the sidebar say what waits there instead. That device's badges
 count only the lane: the sidebar, the window title ("Flow · Work · 3 waiting"), the tray and dock, the phone's Flow tab and
 Home's "Needs your attention". The chat list, ⌘K and Search still show everything. An empty lane says you're caught up,
-with the count from other lanes and **back to everything**; an agent's lane stays on when it empties and leaves the
-switcher once you move on.
+with the count from other lanes and **Back to Everything**; an agent's lane stays on when it empties and leaves the
+sidebar once you move on.
 
 **What a switch keeps.** Switching moves no card: rests, laters and unread marks stay as they were, and a card the lane
-hides is not read. The card on top stays on top when the new lane holds it. Undo takes back only moves on cards in the
+hides is not read. The selected card stays selected when the new lane holds it. Undo takes back only moves on cards in the
 lane you are in; switch back to undo one made elsewhere. A mail or Slack reply you were typing is kept for the session,
 so it is still there when its card comes back. Proposed replies and suggestions belong to the owning agent's chat card,
 so a lane shows them through its chats, not through an account.
@@ -1135,8 +1143,8 @@ card comes back in loki, and Slack keeps the DM read.
 
 A Jira card's moves write nothing to Jira, and Jira's read state does not reach loki: see "Jira tickets" below.
 
-**Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
-chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
+**Reply from the card.** Under the thread is a box for your own reply. It takes focus on R, Return in the list or a
+click, never on its own as you move through the list (Esc gives the keys back, and never leaves Flow), and sends it as
 you. On a Slack card, Enter or **send** sends it (Shift-Enter starts a new line), in the DM or in the thread for an
 Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. Either way the
 reply goes alone: the card stays where it is until you make the next move yourself, your reply shows at the end of

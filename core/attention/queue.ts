@@ -60,6 +60,8 @@ export interface Decision {
   via?: "next" | "later" | "archive" | "label" | "approve" | "deny";
   /** stampOf(item) when decided; the same conversation comes back if it has moved on since. */
   stamp: string;
+  /** The card's row in the list when it was decided, so undo puts it back there (R9); absent, it goes back on top. */
+  at?: number;
   /**
    * A mail reply still held for its undo (plan 076): the id it is stopped by, and the words and addressing that come
    * back to the box when it is. Gone once the reply went, so undo then takes back the move as usual.
@@ -67,24 +69,34 @@ export interface Decision {
   held?: { outbox_id: string; text: string; mail: MailAddressing | null };
 }
 
-/** The head is popped: the card under your hands is done with, and the rest are ordered again by their score. */
-export function popHead(queue: AttentionItem[]): AttentionItem[] {
-  return byScore(queue.slice(1));
+/** What a merge pins and lets in: the selected card's id, which stays wherever it sits, and whether resting cards count. */
+export interface MergeOptions {
+  /** Going through the cards Next rested, asked for at the end of a pass. */
+  resting?: boolean;
+  /** "agentId/conversationId" of the selected card, or null with nothing selected. */
+  selectedId?: string | null;
 }
 
 /**
- * Fold live items into an open visit, on every event: the head (index 0) never moves; chats that left the
- * Inbox (archived, or their agent started a turn) drop out; everything behind the head — what was there and
- * what just arrived — is ordered by score. A chat you moved past earlier in this visit comes back only if it
- * has a newer message or a new approval, so a reply that lands while the deck is open is queued rather than
- * waiting for the next visit; being new, it lands near the top.
+ * Fold live items into an open visit, on every event (plan 2026-11-14-1330, KTD5, R8). The rows never reorder within a
+ * visit: chats that left the Inbox (archived, or their agent started a turn) drop out and close the gap, and the rest
+ * keep their places. The selected card stays even when it has left, so a card answered elsewhere does not vanish from
+ * under the person (R11). What arrives is placed by score among the rows under the selection, never above it, so the
+ * rows the person has passed never move. A chat moved past earlier in this visit comes back only if it has a newer
+ * message or a new approval, so a reply that lands while the deck is open is queued rather than waiting for the next
+ * visit. Scoring is priority.ts's; only entering, a lane switch and Go Through Them sort the rows afresh.
  */
-export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[], resting = false): AttentionItem[] {
+export function mergeQueue(
+  queue: AttentionItem[],
+  items: AttentionItem[],
+  decided: Decision[],
+  { resting = false, selectedId = null }: MergeOptions = {},
+): AttentionItem[] {
   const actionable = inboxQueue(items, resting);
   const actionableIds = new Set(actionable.map(idOf));
   const lastDecision = new Map<string, Decision>();
   for (const d of decided) lastDecision.set(idOf(d.item), d); // last decision wins
-  const keep = queue.filter((i, idx) => idx === 0 || actionableIds.has(idOf(i)));
+  const keep = queue.filter((i) => idOf(i) === selectedId || actionableIds.has(idOf(i)));
   const known = new Set(keep.map(idOf));
   const fresh = actionable.filter((i) => {
     const id = idOf(i);
@@ -92,8 +104,33 @@ export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decid
     const prev = lastDecision.get(id);
     return prev?.stamp !== stampOf(i);
   });
-  const next = keep.length ? [keep[0], ...byScore([...keep.slice(1), ...fresh])] : byScore(fresh);
+  const next = placeArrivals(
+    keep,
+    byScore(fresh),
+    keep.findIndex((i) => idOf(i) === selectedId),
+  );
   // The kept items are the queue's own objects, so identity says whether anything moved.
   const same = next.length === queue.length && next.every((i, idx) => i === queue[idx]);
   return same ? queue : next;
+}
+
+/** Each arrival (highest score first) goes under row `floor`, before the first row it outscores, so equal scores keep their order. */
+function placeArrivals(rows: AttentionItem[], arrivals: AttentionItem[], floor: number): AttentionItem[] {
+  const next = [...rows];
+  for (const item of arrivals) {
+    let at = floor + 1;
+    while (at < next.length && next[at].score >= item.score) at++;
+    next.splice(at, 0, item);
+  }
+  return next;
+}
+
+/**
+ * The rows once the selection leaves the card `leftId`: a card held only because it was selected (answered or archived
+ * elsewhere, R11) goes now; one still in the Inbox stays where it is.
+ */
+export function leaveRow(queue: AttentionItem[], leftId: string, items: AttentionItem[], resting = false): AttentionItem[] {
+  if (inboxQueue(items, resting).some((i) => idOf(i) === leftId)) return queue;
+  const next = queue.filter((i) => idOf(i) !== leftId);
+  return next.length === queue.length ? queue : next;
 }

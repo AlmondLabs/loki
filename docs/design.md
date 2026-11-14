@@ -193,11 +193,12 @@ Tailwind's defaults. `cn` (`app/src/lib/utils.ts`) knows those sizes and loki's 
 never drops the colour. `test/tokens.test.ts` fences all of it: off-scale classes, `outline-none`, focus rings,
 numbered layers, default sizes, tracking and hard-coded keys fail the build.
 
-**One item.** A chat, a Slack thread, an email and a Jira ticket draw with the same twelve components in
-`app/src/item/` (plan 097): **ItemHeader** and **ToolbarTitle** (a chat's and a Flow card's header is a Mac toolbar:
+**One item.** A chat, a Slack thread, an email and a Jira ticket draw with the same components in
+`app/src/item/` (plan 097): **ToolbarTitle** and **ToolbarGroup** (a chat's and a Flow card's header is a Mac toolbar:
 the name over a grey line of its facts, the moves a glass group of symbols at the trailing edge, their names and keys
-in their tooltips; an outside card's header keeps its flags only while they hold), **ActionBar** (an outside card's
-moves under its box: the finishing move last, filled, the rest quiet capsules before it, keys in tooltips),
+in their tooltips; the one that finishes the item, Archive, is the group's one prominent item, tinted in the accent, or
+Mark as Read on a Jira card, which has no archive; an outside card's sender face leads its toolbar and its flags sit in
+the grey line only while they hold; a card whose account needs mending has **Sign In…** in words before its symbols),
 **Timeline** (time told at gaps of a quarter of an hour), **MessageEntry** (yours a bubble at the trailing edge with no
 label, its time in its tooltip; the agent's prose, copy beside it on hover), **AgentTurn** (no name on screen: the
 header says only how long it worked and, while it is not simply done, where it stands, with the Loader while working;
@@ -278,7 +279,8 @@ Internals keep the name desk.
   a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
   for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
   hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
-  first (Pinned, each agent, Archived); the other places keep their lists under the places until they move.
+  (Pinned, each agent, Archived), and Flow its lanes; the other places keep their lists under the places until they
+  move.
 - **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
   edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden.
@@ -327,13 +329,17 @@ Internals keep the name desk.
   window: a named page list on
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
-- **Flow** is one card at a time, the card a solid page with the chat's toolbar; Enter or O on a card opens its chat
-  on Messages. Its sidebar lists the lanes as Mail lists its mailboxes (plan 2026-11-14-1130): Everything, the
-  person's lanes, then each agent with cards, each with the count of what needs the person, the active one chosen;
-  the title's menu is the same list, and the header's "+" is New Lane….
-  Once two agents have cards waiting, pills over the deck filter the visit by agent (All, then each agent, busiest
-  first, with its count); a pill that is on stays at 0 when its cards are archived, and undo takes back that
-  agent's last decision.
+- **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the
+  sidebar, as Mail lists its mailboxes (Flow's own row is Everything, then the person's lanes, then each agent with
+  cards, each with the count of what needs the person); the list column holds the lane's cards in the deck's order on
+  `ContentList`, titled with the lane and its count; the detail is the selected card. A row says who it is from (the
+  sender, or the chat's agent), what it is about and one line of the newest words, the kind's symbol (a chat's bubble,
+  a mail, Slack's #, a ticket) at its start and a muted "Sign In" mark where the account needs mending. The card has no
+  box: its toolbar is the detail's top band, its thread at the readable width (`max-w-3xl`), and nothing sits at the
+  window's bottom edge but a reply box. The rows never reorder within a visit. With nothing left the list says "You're
+  caught up" with **Go Through Them** while rested cards wait, and the detail shows what the visit did. There is no
+  menu in the title and no "+": lanes are made in Preferences › Flow. Enter or O on a chat's card opens its chat on
+  Messages.
 
 ## Phone (2026-09-23; Liquid Glass 2026-11-12)
 
@@ -449,6 +455,10 @@ box is one for both, its sizes set by `touch`.
 - The item's moves in its header (plan 097, U8, 2026-11-12): ItemHeader and ActionBar as one bar, the moves at the
   title's end. Moved back under the box the same day, by the user's decision: a reply and its move go together (⌘]
   and ⌘E send with the reply), the eye is at the box after reading down, and the header is for what the item is.
+  Moved up again as the toolbar's symbols with Flow's list and reading pane (plan 2026-11-14-1330, R10), as Mail's
+  reading pane has them, and ItemHeader and ActionBar went: nothing sits at the window's bottom edge.
+- Flow as one card at a time (to 2026-11-14): a solid card with a shadow over the pane, each move sliding the next card
+  in, the lanes in a menu on its title. The list and reading pane replaced it, so the person sees what comes next.
 - A "done" badge on every finished agent turn (plan 097, U4, 2026-11-12): dropped the same day at the user's ask. Nearly
   every turn ends done, so it said nothing and dulled the badges that matter; a finished turn shows its name and time.
 

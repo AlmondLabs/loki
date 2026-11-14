@@ -127,7 +127,8 @@ component. The agent writes the files and reads them back with `canvas_read`. _A
 code's desk is the chat).
 
 **Flow** (`app/src/desk/catch-up.tsx`; Inbox in older code and words, Catch Up before that): the chats, mail, Slack
-messages and Jira tickets that wait on you, one card at a time, highest score first (`core/attention/priority.ts`). The
+messages and Jira tickets that wait on you, highest score first (`core/attention/priority.ts`): on the Mac a list
+beside the selected card, on the phone one card at a time. The
 same moves work on every card (`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see
 Later) and archive (⌘E). A card stays until it is done. The code, frames, stored files and analytics keep the name `inbox`.
 

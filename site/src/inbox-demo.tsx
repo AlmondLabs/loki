@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type KeyboardEvent } from "react";
-import { CatchUp } from "../../app/src/desk/catch-up";
+import { FlowPlace } from "../../app/src/desk/catch-up";
+import { PlaceSlotsProvider } from "../../app/src/shell/place-columns";
 import type { ResolvedLane } from "../../core/attention/lanes.ts";
 import { resolve, runAction } from "../../app/src/shell/keymap";
 import type { SuggestionSource } from "../../app/src/chat/suggestion-card";
@@ -9,7 +10,8 @@ import { DEMO_AGENTS, DemoChats } from "./demo-chats";
 const MOVED = { error: null, ask: false, rest: null };
 
 /**
- * The Inbox section's live deck: loki's own Inbox (`CatchUp`) over the made-up chats of demo-chats.ts. Keys work
+ * The Inbox section's live deck: loki's own Flow (`FlowPlace`), its list beside the selected card, over the made-up
+ * chats of demo-chats.ts. Keys work
  * while the deck has focus, through the app's own keymap, so arrows and letters do not steal the page's scrolling.
  */
 export function InboxDemo() {
@@ -23,7 +25,7 @@ export function InboxDemo() {
   const [visit, setVisit] = useState(0);
   /** The demo's lane, kept for the page's life: its agent lanes switch the deck as the app's do. */
   const [lane, setLane] = useState<ResolvedLane | null>(null);
-  const source = useMemo((): Parameters<typeof CatchUp>[0]["chats"] => {
+  const source = useMemo((): Parameters<typeof FlowPlace>[0]["chats"] => {
     const suggestions: Omit<SuggestionSource, "conversation"> = {
       // Every chat, not only the Inbox's: a suggestion's chat may be mid-answer.
       items: all,
@@ -41,6 +43,10 @@ export function InboxDemo() {
     if (binding && runAction(binding.id)) e.preventDefault();
   };
 
+  // Flow draws its list and its detail into two slots, as the app's shell gives them (shell/place-columns.tsx).
+  const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
+  const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
+
   const startOver = () => {
     chats.reset();
     setVisit((v) => v + 1);
@@ -55,39 +61,41 @@ export function InboxDemo() {
         <em>Flow · {items.length} waiting</em>
       </div>
       <div className="site-inbox-deck">
-        <CatchUp
-          key={visit}
-          open
-          onClose={startOver}
-          items={items}
-          lane={lane}
-          lanes={[]}
-          onLane={setLane}
-          chats={source}
-          loadHistory={() => {}}
-          onRead={(item) => (chats.seen(item.id), lastMove.set(item.id, "read"), Promise.resolve(MOVED))}
-          onLater={(item) => (lastMove.set(item.id, "later"), Promise.resolve(MOVED))}
-          laterAsks={() => false}
-          onArchive={(item) => {
-            chats.archive(item.id);
-            lastMove.set(item.id, "archive");
-            return Promise.resolve(null);
-          }}
-          onLabel={() => Promise.resolve(null)}
-          onUndo={(item) => {
-            const move = lastMove.get(item.id);
-            if (move === "read") chats.unread(item.id);
-            else if (move === "archive") chats.unarchive(item.id);
-            lastMove.delete(item.id);
-            return Promise.resolve(null);
-          }}
-          onSeen={(item) => chats.seen(item.id)}
-          onUnread={(item) => chats.unread(item.id)}
-          onApprove={(item, _requestId, behavior) => chats.decide(item.id, behavior !== "deny")}
-          onReply={(item, text) => chats.reply(item.id, text)}
-          onAnswer={(item, _requestId, answers) => chats.answer(item.id, answers)}
-          onOpenDesk={() => {}}
-        />
+        <div ref={setListSlot} className="site-inbox-list" />
+        <div ref={setDetailSlot} className="site-inbox-detail" />
+        <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>
+          <FlowPlace
+            key={visit}
+            onClose={startOver}
+            items={items}
+            lane={lane}
+            onLane={setLane}
+            chats={source}
+            loadHistory={() => {}}
+            onRead={(item) => (chats.seen(item.id), lastMove.set(item.id, "read"), Promise.resolve(MOVED))}
+            onLater={(item) => (lastMove.set(item.id, "later"), Promise.resolve(MOVED))}
+            laterAsks={() => false}
+            onArchive={(item) => {
+              chats.archive(item.id);
+              lastMove.set(item.id, "archive");
+              return Promise.resolve(null);
+            }}
+            onLabel={() => Promise.resolve(null)}
+            onUndo={(item) => {
+              const move = lastMove.get(item.id);
+              if (move === "read") chats.unread(item.id);
+              else if (move === "archive") chats.unarchive(item.id);
+              lastMove.delete(item.id);
+              return Promise.resolve(null);
+            }}
+            onSeen={(item) => chats.seen(item.id)}
+            onUnread={(item) => chats.unread(item.id)}
+            onApprove={(item, _requestId, behavior) => chats.decide(item.id, behavior !== "deny")}
+            onReply={(item, text) => chats.reply(item.id, text)}
+            onAnswer={(item, _requestId, answers) => chats.answer(item.id, answers)}
+            onOpenDesk={() => {}}
+          />
+        </PlaceSlotsProvider>
       </div>
       <button type="button" className="site-start-over" onClick={startOver}>
         start over

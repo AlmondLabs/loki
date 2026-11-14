@@ -2,13 +2,14 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
-import { ItemHeader } from "../app/src/item/item-header.tsx";
-import { ActionBar, type VerbControl } from "../app/src/item/action-bar.tsx";
-import { chatItem, outsideItem, type ItemVerb } from "../app/src/item/item-view.ts";
-import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-card.tsx";
+import { chatItem, outsideItem } from "../app/src/item/item-view.ts";
+import type { ToolbarMove } from "../app/src/item/toolbar.tsx";
+import type { AttentionItem } from "../core/attention/model.ts";
+import { ChatItemHeader, type ChatMoves } from "../app/src/desk/catch-up-parts.tsx";
+import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-toolbar.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
-// Plan 097, U8: the item's header and its moves in one bar.
+// Plan 097, U8: the item's header; plan 2026-11-14-1330, U6: a Flow card's toolbar, its moves as symbols.
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({
@@ -40,26 +41,13 @@ function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>>
   return [node, ...elements(node.props.children as ReactNode)];
 }
 
-describe("the item header", () => {
-  test("a 200-character subject is one line, cut with an ellipsis, whole in its title", () => {
+describe("the item's title", () => {
+  test("a 200-character subject is one line in the toolbar, whole in its tooltip", () => {
     const subject = "a".repeat(200);
-    const view = outsideItem({ facts: facts({ subject }), messages: [], unread: false });
-    const out = html(createElement(ItemHeader, { view: view.header }));
-    expect(out).toMatch(/<h2[^>]*class="[^"]*\btruncate\b[^"]*"[^>]*title="a{200}"/);
-  });
-
-  test("the unread flag shows only while the item is unread", () => {
-    const unread = html(createElement(ItemHeader, { view: chatItem({ item: attentionItem("c1", { unread: true }), live: null, turns: [] }).header }));
-    expect(unread).toContain('data-flag="unread"');
-    const read = html(createElement(ItemHeader, { view: chatItem({ item: attentionItem("c1", { unread: false }), live: null, turns: [] }).header }));
-    expect(read).not.toContain("data-flag");
-  });
-
-  test("an editable property opens its picker only where the surface has one", () => {
-    const view = chatItem({ item: attentionItem("c1", { labels: ["reports"] }), live: null, turns: [] }).header;
-    expect(html(createElement(ItemHeader, { view }))).not.toContain("<button");
-    const picking = html(createElement(ItemHeader, { view, onProperty: { labels: noop } }));
-    expect(picking).toMatch(/<button[^>]*data-property="labels"|data-property="labels"[^>]*<button/);
+    const out = html(
+      createElement(OutsideItemHeader, { facts: facts({ subject }), unread: false, flash: null, went: null, cameBack: false, thread: { kind: "loading" } }),
+    );
+    expect(out).toMatch(/<h2 class="loki-toolbar-name" title="a{200}"/);
   });
 
   test("a chat with no labels shows no empty label chip", () => {
@@ -68,28 +56,69 @@ describe("the item header", () => {
   });
 });
 
-describe("the action bar", () => {
-  const verbs = (run: (v: ItemVerb) => void): Partial<Record<ItemVerb, VerbControl>> => ({
-    archive: { run: () => run("archive"), keys: "⌘E" },
-    mark_read: { run: () => run("mark_read"), keys: "⌘]" },
-    later: { run: () => run("later"), keys: "⌘[" },
+/** The toolbar items drawn, by name, in order, each with whether it is prominent and whether it is off. */
+const items = (out: string) =>
+  [...out.matchAll(/<button[^>]*class="(loki-toolbar-item[^"]*)"[^>]*aria-label="([^"]+)"([^>]*)>/g)].map((m) => ({
+    label: m[2],
+    prominent: m[1].includes("--prominent"),
+    off: m[3].includes("disabled"),
+  }));
+
+describe("a chat card's moves as toolbar symbols (plan 2026-11-14-1330, R10)", () => {
+  const chatMoves = (item: AttentionItem, over: Partial<ChatMoves> = {}): ChatMoves => ({
+    current: item,
+    typing: false,
+    read: noop,
+    later: noop,
+    archive: noop,
+    onOpenDesk: noop,
+    onClose: noop,
+    ...over,
+  });
+  const chat = (over: Partial<ChatMoves> = {}, item = attentionItem("c1")) =>
+    html(createElement(ChatItemHeader, { current: item, cameBack: false, flash: null, moves: chatMoves(item, over) }));
+
+  test("Later, Mark as Read, then Archive, the one prominent item", () => {
+    const out = items(chat());
+    expect(out.map((i) => i.label)).toEqual(["Later", "Mark as Read", "Archive"]);
+    expect(out.filter((i) => i.prominent).map((i) => i.label)).toEqual(["Archive"]);
   });
 
-  test("draws the main move last and in full weight, and only the moves the surface can make", () => {
-    const view = chatItem({ item: attentionItem("c1"), live: null, turns: [] }).actions;
-    const out = html(createElement(ActionBar, { view, verbs: verbs(noop) }));
-    const order = [...out.matchAll(/data-verb="(\w+)"/g)].map((m) => m[1]);
-    // "open" is a chat's move in Flow; this surface did not offer it, so it is not drawn.
-    expect(order).toEqual(["later", "mark_read", "archive"]);
-    expect(out).toMatch(/data-verb="archive"[^>]*data-main="true"/);
-    expect(out).toContain("⌘E");
+  test("an approval card's toolbar shows Approve and Deny before the moves; a card with nothing to approve has neither", () => {
+    const pendingApproval = { requestId: "r1", toolName: "edit", input: {}, at: "" } as unknown as AttentionItem["pendingApproval"];
+    const item = attentionItem("c1", { status: "approval", pendingApproval });
+    expect(items(chat({ approve: noop }, item)).map((i) => i.label)).toEqual(["Approve", "Deny", "Later", "Mark as Read", "Archive"]);
+    expect(items(chat({ approve: noop })).map((i) => i.label)).not.toContain("Approve");
   });
 
-  test("while a decision waits, the main move keeps its place but gives up its fill", () => {
-    const view = chatItem({ item: attentionItem("c1"), live: null, turns: [] }).actions;
-    const out = html(createElement(ActionBar, { view, verbs: verbs(noop), quiet: true }));
-    expect(out).toMatch(/data-verb="archive"[^>]*data-main="true"[^>]*data-muted="true"/);
-    expect(out).not.toContain("bg-primary-foreground/15");
+  test("a card answered elsewhere keeps its moves in view, every one of them off", () => {
+    expect(items(chat({ off: true })).every((i) => i.off)).toBe(true);
+  });
+
+  test("pressing Mark as Read runs the card's read", () => {
+    const ran: string[] = [];
+    const item = attentionItem("c1");
+    const group = elements(ChatItemHeader({ current: item, cameBack: false, flash: null, moves: chatMoves(item, { read: () => ran.push("read") }) })).find(
+      (e) => e.props.label === "Chat actions",
+    );
+    const moves = (group?.props.moves ?? []) as ToolbarMove[];
+    moves.find((m) => m.label === "Mark as Read")?.run();
+    expect(ran).toEqual(["read"]);
+  });
+});
+
+describe("an outside card's toolbar and moves", () => {
+  const head = (over: Partial<Parameters<typeof OutsideItemHeader>[0]> = {}) =>
+    html(createElement(OutsideItemHeader, { facts: facts(), unread: true, flash: null, went: null, cameBack: false, thread: { kind: "loading" }, ...over }));
+  const bar = (over: Partial<Parameters<typeof OutsideItemActions>[0]> = {}) =>
+    html(createElement(OutsideItemActions, { facts: facts(), thread: { kind: "loading" }, typing: false, moves, picking: false, ...over }));
+
+  test("a mail's toolbar is its subject over a grey line that says it is unread; its moves are what it is given", () => {
+    const out = head();
+    expect(out).toMatch(/<h2[^>]*>Your invoice</);
+    expect(out).toContain('class="loki-toolbar-dot"');
+    expect(out).not.toContain("loki-toolbar-item");
+    expect(head({ actions: createElement("span", null, "the moves") })).toContain("the moves");
   });
 
   test("read is the main move on Slack and Jira, archive on a mail", () => {
@@ -98,40 +127,31 @@ describe("the action bar", () => {
     expect(outsideItem({ facts: facts(), messages: [], unread: true }).actions.main).toBe("archive");
   });
 
-  test("pressing read runs the surface's read", () => {
-    const ran: ItemVerb[] = [];
-    const view = outsideItem({ facts: facts({ provider: "slack", place: "#web-launch" }), messages: [], unread: true }).actions;
-    const button = elements(ActionBar({ view, verbs: verbs((v) => ran.push(v)) })).find((e) => e.props.verb === "mark_read");
-    const control = button?.props.control as VerbControl | undefined;
-    control?.run();
-    expect(ran).toEqual(["mark_read"]);
-  });
-});
-
-describe("an outside card's header and moves", () => {
-  const head = (over: Partial<Parameters<typeof OutsideItemHeader>[0]> = {}) =>
-    html(createElement(OutsideItemHeader, { facts: facts(), unread: true, flash: null, went: null, cameBack: false, thread: { kind: "loading" }, ...over }));
-  const bar = (over: Partial<Parameters<typeof OutsideItemActions>[0]> = {}) =>
-    html(createElement(OutsideItemActions, { facts: facts(), thread: { kind: "loading" }, typing: false, moves, picking: false, ...over }));
-
-  test("a mail's header is its subject and unread flag, with no moves in it", () => {
-    const out = head();
-    expect(out).toMatch(/<h2[^>]*>Your invoice</);
-    expect(out).toContain('data-flag="unread"');
-    expect(out).not.toContain("data-verb");
+  test("a mail card's moves: Hand Off, Label, Later, Mark as Read, and Archive the one prominent item", () => {
+    const out = items(bar({ onHandoff: noop }));
+    expect(out.map((i) => i.label)).toEqual(["Hand Off", "Label", "Later", "Mark as Read", "Archive"]);
+    expect(out.filter((i) => i.prominent).map((i) => i.label)).toEqual(["Archive"]);
   });
 
-  test("a mail's moves: archive named, hand off, label, later and read before it", () => {
-    expect([...bar({ onHandoff: noop }).matchAll(/data-verb="(\w+)"/g)].map((m) => m[1])).toEqual(["handoff", "label", "later", "mark_read", "archive"]);
+  test("a Jira card has no Archive, and Mark as Read is its prominent item", () => {
+    const out = items(bar({ facts: facts({ provider: "jira", account_id: "jira:acme", account_label: "acme.atlassian.net", subject: "WEB-412 checkout" }) }));
+    expect(out.map((i) => i.label)).not.toContain("Archive");
+    expect(out.filter((i) => i.prominent).map((i) => i.label)).toEqual(["Mark as Read"]);
   });
 
-  test("a Jira card has no archive, and read is its main move", () => {
-    const out = bar({ facts: facts({ provider: "jira", account_id: "jira:acme", account_label: "acme.atlassian.net", subject: "WEB-412 checkout" }) });
-    expect(out).not.toContain('data-verb="archive"');
-    expect(out).toMatch(/data-verb="mark_read"[^>]*data-main="true"/);
+  test("a card whose account needs a sign-in shows Sign In…, and Read, Later and Archive still work", () => {
+    const out = items(bar({ facts: facts({ disconnected: "sign_in_again" }), onHandoff: noop, onSignIn: noop }));
+    const on = out.filter((i) => !i.off).map((i) => i.label);
+    expect(on).toEqual(["Sign In…", "Later", "Mark as Read", "Archive"]);
+    // Without a way to mend it there is nothing to press.
+    expect(items(bar({ facts: facts({ disconnected: "sign_in_again" }) })).map((i) => i.label)).not.toContain("Sign In…");
   });
 
-  test("a read card has no unread flag", () => {
-    expect(head({ unread: false })).not.toContain("data-flag");
+  test("a card answered elsewhere has every move off", () => {
+    expect(items(bar({ off: true, onHandoff: noop })).every((i) => i.off)).toBe(true);
+  });
+
+  test("a read card has no unread dot", () => {
+    expect(head({ unread: false })).not.toContain("loki-toolbar-dot");
   });
 });

@@ -305,13 +305,25 @@ body {
   color: var(--loki-fg);
 }
 
-/* The Inbox demo: the app's deck in a window of a fixed height, as the app's pane would hold it. */
+/* The Inbox demo: the app's Flow in a window of a fixed height, its list beside the selected card, as the app's columns
+   hold them. */
 .site-inbox-deck {
   position: relative;
   height: 620px;
   overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+}
+.site-inbox-list {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--loki-border);
+}
+.site-inbox-detail {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
 }
 .site-start-over {
   position: absolute;

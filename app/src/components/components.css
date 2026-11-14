@@ -1241,10 +1241,65 @@ button.loki-list-section-toggle {
   color: var(--loki-on-affirm);
 }
 .loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-preview,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-flow-row-subject,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-flow-row-mark,
 .loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-time,
 .loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-badge {
   background: transparent;
   color: var(--loki-on-affirm);
+}
+/* Flow (plan 2026-11-14-1330, U6): its list in the list column, its selected card as the detail, the card without a box. */
+.loki-flow-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.loki-flow-detail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--loki-bg);
+}
+.loki-flow-card {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* A Flow row's subject and its line of preview, each one line under the sender (desk/flow-column.tsx). */
+.loki-flow-row-subject,
+.loki-flow-row-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-flow-row-subject {
+  color: var(--loki-fg);
+}
+/* A card whose account needs mending: a muted mark after the sender, never red. */
+.loki-flow-row-mark {
+  flex: none;
+  font-size: var(--loki-text-tag);
+  font-weight: 400;
+  color: var(--loki-muted);
+}
+/* The visit's summary in Flow's detail: what it did, then the way back to Everything in a lane. */
+.loki-empty-pane-summary {
+  margin: 0 0 6px;
+  font-size: var(--loki-text-body);
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-empty-pane-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
 }
 .loki-column-body {
   position: absolute;
@@ -1614,20 +1669,15 @@ button.loki-list-section-toggle {
     font-weight: 600;
     color: var(--loki-fg);
   }
-  /* Flow's toolbar (plan 2026-11-14-1300, 3): the pane's anatomy over the deck, lined up with the card under it. */
-  .loki-deck-header {
-    margin: -12px 0 8px;
-  }
-  .loki-deck-header .loki-pane-header-line {
-    padding-left: 6px;
-  }
-  /* A Flow card's toolbar (U16): the chat's title and facts, its moves at the trailing edge; the title opens the chat. */
+  /* A Flow card's toolbar (U16; plan 2026-11-14-1330, R10), the detail's top band as the chat's is: the card's title
+     and facts, its moves as symbols at the trailing edge, which leaves room for the Update button; the title opens the
+     chat. An outside card's sender face leads it. */
   .loki-card-toolbar {
     display: flex;
     align-items: center;
     gap: 12px;
     min-height: 52px;
-    padding: 6px 12px 6px 20px;
+    padding: 6px calc(12px + var(--loki-toolbar-room)) 6px 20px;
   }
   .loki-card-toolbar > .loki-toolbar-title {
     flex: 1;
@@ -1636,7 +1686,6 @@ button.loki-list-section-toggle {
   .loki-card-toolbar {
     position: relative;
     z-index: 2;
-    border-radius: var(--loki-radius-lg) var(--loki-radius-lg) 0 0;
     background: var(--loki-bg);
   }
   .loki-card-toolbar::after {
@@ -1817,6 +1866,12 @@ button.loki-list-section-toggle {
   }
   .loki-toolbar-item:disabled {
     opacity: 0.35;
+  }
+  /* The group's one prominent item (plan 2026-11-14-1330, R10): tinted in the accent, as a Mac toolbar's. */
+  .loki-toolbar-item--prominent,
+  .loki-toolbar-item--prominent:hover:not(:disabled) {
+    background: var(--loki-affirm);
+    color: var(--loki-on-affirm);
   }
   .loki-toolbar-item svg {
     width: 16px;

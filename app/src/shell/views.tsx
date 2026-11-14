@@ -7,7 +7,8 @@ import { runAction } from "./keymap";
 import { SETTINGS_PAGE_KEY, type SettingsPage } from "../settings/pages";
 import { SETTINGS_WINDOW, openSettingsWindow } from "./settings-window";
 import { lastInput } from "../kit/motion";
-import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/catch-up";
+import { FlowPlace } from "../desk/catch-up";
+import type { PassSummaryHandler } from "../desk/use-flow-deck";
 import { Agents } from "../agents/agents";
 import { Recall } from "../recall/recall";
 import type { Recall as RecallModel } from "./use-recall";
@@ -53,8 +54,7 @@ export function RecallView({
 const via = () => (lastInput() === "key" ? "key" : "click");
 
 /**
- * Preferences on one of its pages: Flow's, where lanes are made (plan 087, R8), or Accounts, where a card's account
- * signs in again (plan 2026-11-14-0852, 1). The Mac app's Preferences window is told the page; the sheet reads it.
+ * Preferences on one of its pages: Accounts, where a card's account signs in again (plan 2026-11-14-0852, 1). The Mac app's Preferences window is told the page; the sheet reads it.
  */
 function openPreferencesOn(page: SettingsPage) {
   if (SETTINGS_WINDOW) return openSettingsWindow(page);
@@ -66,7 +66,7 @@ function openPreferencesOn(page: SettingsPage) {
   runAction("segment.settings");
 }
 
-/** The inbox: every conversation's cards, with the model and mode pickers per conversation. */
+/** Flow's owner (plan 2026-11-14-1330, KTD1): its list and its detail, with the model and mode pickers per conversation. */
 export function InboxView({
   desk,
   catchUp,
@@ -92,15 +92,12 @@ export function InboxView({
   onPass: PassSummaryHandler;
 }) {
   return (
-    <Inbox
-      open
+    <FlowPlace
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
       lane={catchUp.flow.lane}
-      lanes={catchUp.flow.lanes}
       onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
-      onNewLane={() => openPreferencesOn("inbox")}
       onSignIn={() => openPreferencesOn("accounts")}
       labelList={catchUp.labels.list}
       onRead={(item) => catchUp.read(item, via())}

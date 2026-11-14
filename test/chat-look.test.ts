@@ -5,14 +5,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PendingApproval } from "../core/attention/model.ts";
 import { ThemeProvider } from "../app/src/theme.tsx";
-import { ActionBar } from "../app/src/item/action-bar.tsx";
 import { ApprovalProposal } from "../app/src/item/proposal.tsx";
 
 // Plan 2026-11-12-1505, U4: the chat pane on Liquid Glass, loki's one look.
 
 const noop = () => {};
 const approval: PendingApproval = { requestId: "r1", toolName: "Edit notes.txt", input: { path: "notes.txt" }, at: "2026-11-12T09:00:00Z" };
-const verbs = { archive: { run: noop, keys: "⌘E" }, later: { run: noop }, mark_read: { run: noop } };
 
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 
@@ -23,15 +21,6 @@ describe("the approval", () => {
     expect([...out.matchAll(/data-action="(\w+)"/g)].map((m) => m[1])).toEqual(["deny", "always", "approve"]);
     expect(out).toContain(">Allow</button>");
     expect(out).toContain("&quot;path&quot;: &quot;notes.txt&quot;");
-  });
-});
-
-describe("the moves under the box", () => {
-  test("take Apple's words, and the key moves from the face into the tooltip", () => {
-    const out = html(createElement(ActionBar, { view: { main: "archive", more: ["later", "mark_read"] }, verbs }));
-    expect(out).toContain(">Mark as Read</button>");
-    expect(out).toMatch(/title="Archive \(⌘E\)"[^>]*>Archive<\/button>/);
-    expect(out).not.toContain("<kbd");
   });
 });
 
@@ -73,8 +62,8 @@ describe("the keyboard (U5)", () => {
 });
 
 describe("Flow (U6)", () => {
-  test("a Gmail card's moves take Apple's words, archive last and filled", async () => {
-    const { OutsideItemActions } = await import("../app/src/desk/outside-card.tsx");
+  test("a Gmail card's moves are symbols named in Apple's words, their keys in the tooltip, Archive last and prominent", async () => {
+    const { OutsideItemActions } = await import("../app/src/desk/outside-toolbar.tsx");
     const facts = {
       provider: "gmail" as const,
       account_id: "gmail:ada@example.com",
@@ -95,7 +84,8 @@ describe("Flow (U6)", () => {
     };
     const moves = { read: noop, later: noop, archive: noop, label: noop };
     const out = html(createElement(OutsideItemActions, { facts, thread: { kind: "loading" }, typing: false, moves, picking: false, onHandoff: noop }));
-    expect([...out.matchAll(/>([A-Z][A-Za-z ]+)<\/button>/g)].map((m) => m[1])).toEqual(["Hand Off", "Label", "Later", "Mark as Read", "Archive"]);
+    expect([...out.matchAll(/aria-label="([^"]+)"/g)].map((m) => m[1])).toEqual(["Card actions", "Hand Off", "Label", "Later", "Mark as Read", "Archive"]);
+    expect(out).toMatch(/class="loki-toolbar-item loki-toolbar-item--prominent" aria-label="Archive" title="[^"]*\(E\)"/);
     expect(out).not.toContain("<kbd");
   });
 
@@ -125,7 +115,7 @@ describe("the wording pass", () => {
     const { AgentTurn } = await import("../app/src/item/agent-turn.tsx");
     const { AgentPlan } = await import("../app/src/item/agent-plan.tsx");
     const { Thought } = await import("../app/src/item/thought.tsx");
-    const { ItemHeader } = await import("../app/src/item/item-header.tsx");
+    const { OutsideItemHeader } = await import("../app/src/desk/outside-toolbar.tsx");
     const turn = html(createElement(AgentTurn, { agentName: "friday", state: "needs you", failed: 0, took: "2 min", parts: [], draw: () => null }));
     expect(turn).toContain("Worked 2 min");
     expect(turn).toContain("Needs you");
@@ -133,7 +123,26 @@ describe("the wording pass", () => {
     expect(html(createElement(Thought, { rows: [{ role: "assistant" as const, text: "x", thought: "y", thought_ms: 2000 }] }))).toContain(
       "Thought for 2 seconds",
     );
-    expect(html(createElement(ItemHeader, { view: { title: "t", properties: [], flags: ["unread" as const] } }))).toContain("Unread");
+    const facts = {
+      provider: "slack" as const,
+      account_id: "slack:acme",
+      account_label: "acme",
+      sender: "Ada",
+      sender_address: null,
+      subject: "t",
+      thread_id: "t1",
+      generation: 0,
+      owner_agent_id: "a1",
+      owner_name: "friday",
+      lines: [],
+      newest_message_id: "m1",
+      newest_at: "2026-11-11T08:15:00.000Z",
+      handoff_conversation_id: null,
+      disconnected: null,
+    };
+    expect(html(createElement(OutsideItemHeader, { facts, unread: true, flash: null, went: null, cameBack: false, thread: { kind: "loading" } }))).toContain(
+      "Unread",
+    );
   });
 
   test("a chat's icon is a speech bubble, not Slack's #", async () => {
@@ -210,7 +219,7 @@ describe("a Flow card asks one thing at a time (U16)", () => {
 
   test("the card's moves are its header's, and the box has no row of buttons under it", () => {
     const card = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up.tsx"), "utf8");
-    expect(card).toContain("moves={{ current, ...moves }}");
+    expect(card).toContain("moves={moves}");
     expect(card).not.toContain("footer=");
     const parts = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up-parts.tsx"), "utf8");
     for (const key of ["inbox.later", "inbox.next", "inbox.archive", "inbox.open"]) expect(parts).toContain(`deckKey("${key}", moves.typing)`);

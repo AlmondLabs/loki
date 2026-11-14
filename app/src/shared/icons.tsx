@@ -10,6 +10,7 @@ import {
   EllipsisIcon,
   FileTextIcon,
   FolderIcon,
+  HashIcon,
   HistoryIcon,
   HouseIcon,
   InboxIcon,
@@ -19,6 +20,7 @@ import {
   LightbulbIcon,
   LinkIcon,
   ListFilterIcon,
+  MailIcon,
   MenuIcon,
   MessageSquareIcon,
   MicIcon,
@@ -37,6 +39,7 @@ import {
   SquarePenIcon,
   SquareTerminalIcon,
   SunIcon,
+  TicketIcon,
   UnlinkIcon,
   UserIcon,
   UsersIcon,
@@ -91,6 +94,9 @@ const ICONS = {
   skill: SparkleIcon,
   history: HistoryIcon,
   unlink: UnlinkIcon,
+  mail: MailIcon,
+  hash: HashIcon,
+  ticket: TicketIcon,
 } satisfies Record<string, LucideIcon>;
 
 /** The name of one of loki's icons. */
