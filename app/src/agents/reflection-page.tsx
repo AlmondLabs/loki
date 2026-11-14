@@ -73,7 +73,7 @@ export function ReflectionPage({
 
   return (
     <Pane>
-      <div style={{ display: "grid", gap: 14, maxWidth: 760, marginBottom: 24 }}>
+      <div style={{ display: "grid", gap: 16, maxWidth: 760, marginBottom: 24 }}>
         <div className="loki-label">Reflection</div>
         {settings === undefined ? (
           <Meta>Reading the settings…</Meta>

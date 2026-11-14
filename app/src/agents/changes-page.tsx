@@ -47,7 +47,7 @@ export function CommitView({ commit, reading, onRevert }: { commit: MemoryCommit
   const { content, loadingView } = reading;
   return (
     <>
-      <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ color: "var(--loki-fg)" }}>
           Commit <span className="loki-mono">{commit.sha.slice(0, 8)}</span>
         </span>

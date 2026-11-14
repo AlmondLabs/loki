@@ -50,7 +50,7 @@ export function NewAgent({
       style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void submit()}
     >
-      <div style={{ maxWidth: 640, display: "grid", gap: 14 }}>
+      <div style={{ maxWidth: 640, display: "grid", gap: 16 }}>
         <Labelled label="Name">
           <Field
             autoFocus

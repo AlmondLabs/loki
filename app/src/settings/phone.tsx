@@ -216,7 +216,7 @@ function RouteRow({
     >
       <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 5 }} />
       <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
-        <span style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+        <span style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
           <span style={{ fontSize: "var(--loki-text-body)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{sentence(ROUTE_NAME[via])}</span>
           <span className="loki-meta loki-meta--wrap">{hint}</span>
         </span>
@@ -255,7 +255,7 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
   const left = countdown(code.expiresAt, now);
   const expired = left === "expired";
   return (
-    <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", paddingBottom: 12 }}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", paddingBottom: 12 }}>
       <div
         aria-label={`QR code for ${url}`}
         role="img"

@@ -52,7 +52,7 @@ export function ProfilePage({
   const myDesks = useMemo(() => desks.filter((x) => x.agent_id === selected && x.status === "live"), [desks, selected]);
   return (
     <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
-      <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
+      <div style={{ maxWidth: 760, display: "grid", gap: 24 }}>
         <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} macs={macs} />
         <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
@@ -197,7 +197,7 @@ function Identity({
     settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null,
   ].filter(Boolean);
   return (
-    <section style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 14, alignItems: "start" }}>
+    <section style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 12, alignItems: "start" }}>
       <AgentFace name={d.agent.name} src={avatar} size={64} />
       <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
         <Field
@@ -293,7 +293,7 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
         {view?.servers.map((s) => {
           const on = !s.off_for.includes(agentId);
           return (
-            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Switch on={on} onToggle={() => void mcp.agent(agentId, s.name, !on).then(apply)} label={s.entry} small />
               <span className="loki-meta">{s.state === "connected" ? `${s.tools.length} tools` : s.state}</span>
             </div>

@@ -42,7 +42,7 @@ export function Providers({
 
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Field
           size="sm"
           type="search"
@@ -303,7 +303,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         <label
           key={f.key}
           htmlFor={`${fieldId}-${f.key}`}
-          style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
+          style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 12, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
         >
           <span style={{ color: "var(--loki-muted)" }}>
             {f.label}
@@ -349,7 +349,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
       {signIn && busy && (
         <label
           htmlFor={`${fieldId}-address`}
-          style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 10, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
+          style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 12, alignItems: "center", fontSize: "var(--loki-text-meta)" }}
         >
           <span style={{ color: "var(--loki-muted)" }}>Browser didn't come back?</span>
           <Field

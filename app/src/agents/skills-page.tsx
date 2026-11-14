@@ -93,7 +93,7 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
 function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: AgentSkill; loadingView: boolean }) {
   const { refreshing, refreshSkill, removeSkill, flash } = store;
   return (
-    <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+    <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
       <span className="loki-mono" style={{ color: "var(--loki-fg)" }}>
         {skill.path}
       </span>

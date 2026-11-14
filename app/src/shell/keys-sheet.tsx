@@ -56,7 +56,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
             ))}
           </section>
         ))}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Meta wrap>{sentence(keysSheetNote())}</Meta>
           <span style={{ flex: 1 }} />
           <Button size="sm" onClick={onSettings} title={`Open Keys (${keyFor("segment.settings", keyboard, 1)})`}>

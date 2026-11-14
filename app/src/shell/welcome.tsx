@@ -62,7 +62,7 @@ export function Welcome({
 
   return (
     // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
-    <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 18 }}>
+    <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 16 }}>
       <div>
         {/* loki's mark, the L (app/public/mark.png). */}
         <img src="/mark.png" alt="" aria-hidden width={48} height={48} style={{ display: "block", borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
@@ -114,7 +114,7 @@ function ProviderStep({
   if (nodeStep) return <span className="loki-meta loki-meta--wrap">Once loki is running</span>;
   if (!showAgent)
     return (
-      <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gap: 12 }}>
         <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onModelsChanged} shortlist />
         <div className="loki-meta loki-meta--wrap" style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span>Keys are checked with the provider and kept in this computer's keychain.</span>
@@ -154,7 +154,7 @@ function AgentForm({
 }) {
   const { name, setName, description, setDescription, persona, setPersona, model, setModel, busy, error, create } = draft;
   return (
-    <div style={{ display: "grid", gap: 10 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
+    <div style={{ display: "grid", gap: 12 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
       <Labelled label="Name">
         <Field
           ref={nameRef}
@@ -275,7 +275,7 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
 
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active: boolean; children: React.ReactNode }) {
   return (
-    <section style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 14, opacity: active || done ? 1 : 0.7 }}>
+    <section style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 12, opacity: active || done ? 1 : 0.7 }}>
       <span
         aria-hidden
         style={{
@@ -303,7 +303,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 /** A labelled line of the form: the label column matches Settings' facts. */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "start", fontSize: "var(--loki-text-meta)" }}>
+    <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 12, alignItems: "start", fontSize: "var(--loki-text-meta)" }}>
       <span className="loki-label" style={{ paddingTop: 9 }}>
         {label}
       </span>

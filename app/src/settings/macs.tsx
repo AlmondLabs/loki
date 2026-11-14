@@ -85,7 +85,7 @@ function Pair({ macs }: { macs: MacsApi }) {
         </Setting>
         {macs.lastCode && <PairCode code={macs.lastCode} />}
       </div>
-      <div style={{ display: "grid", gap: 10, paddingBottom: 12 }}>
+      <div style={{ display: "grid", gap: 12, paddingBottom: 12 }}>
         <Setting label="From the other Mac" help="Pick it on your tailnet, or type its address, then the code it shows." />
         <TailnetList devices={macs.view?.tailnet ?? []} picked={host} onPick={setHost} />
         <form

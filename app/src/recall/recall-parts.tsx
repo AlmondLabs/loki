@@ -55,7 +55,7 @@ export function CardEditor({
   const [front, setFront] = useState(c.card.front);
   const [back, setBack] = useState(c.card.back);
   return (
-    <div style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "grid", gap: 12 }}>
       <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="Front" autoFocus={autoFocus} />
       <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="Back" />
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -93,7 +93,7 @@ const DETAIL: CSSProperties = {
   boxShadow: "var(--loki-shadow-sheet)",
   padding: "18px 24px 16px",
   display: "grid",
-  gap: 14,
+  gap: 16,
 };
 /** The row of a detail's buttons under a hairline. */
 const MOVES: CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 };
@@ -189,7 +189,7 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
   const [more, setMore] = useState(false);
   return (
-    <section aria-labelledby="learn-welcome" style={{ display: "grid", gap: 20, justifyItems: "center", maxWidth: 440, margin: "0 auto" }}>
+    <section aria-labelledby="learn-welcome" style={{ display: "grid", gap: 16, justifyItems: "center", maxWidth: 440, margin: "0 auto" }}>
       <div style={{ display: "grid", gap: 4, textAlign: "center" }}>
         <h2 id="learn-welcome" style={{ margin: 0, fontSize: "var(--loki-text-hero)", fontWeight: 700 }}>
           {WELCOME_TITLE}

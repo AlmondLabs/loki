@@ -63,7 +63,7 @@ function SpendSection({
       <Fact
         label="Estimated"
         value={
-          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
             <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>{money(summary.cost.total)}</span>
             <span className="loki-meta">{tokenCount(summary.tokens.total)} tokens</span>
           </span>

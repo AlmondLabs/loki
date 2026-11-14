@@ -172,7 +172,7 @@ export function Workbench() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-8">
+      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
         <Section title="Glass over content" note="The bar, the view switch, the approval and the composer are glass; the page under them is solid.">
           <div className="relative h-[480px] overflow-hidden rounded-lg border bg-background">
             <div className="absolute inset-0 overflow-auto px-10 pt-20 pb-56">

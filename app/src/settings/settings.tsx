@@ -275,7 +275,7 @@ export function Settings({
           </div>
         )}
         {/* Keyed by page so a new page starts at its top. */}
-        <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
+        <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 24, alignContent: "start" }}>
           {pageBody[page]()}
         </div>
       </div>

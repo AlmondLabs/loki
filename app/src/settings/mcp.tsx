@@ -158,7 +158,7 @@ function ServerRow({
         onClick={onToggle}
         aria-expanded={open}
         aria-label={`${s.entry}, ${s.kind} server, ${s.state === "connected" ? `${s.tools.length} tools` : s.state === "signin" ? "needs sign-in" : s.state}`}
-        style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}
+        style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12 }}
       >
         <Dot color={STATE_TONE[s.state]} />
         <span style={{ minWidth: 0 }}>

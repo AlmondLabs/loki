@@ -58,7 +58,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
   const chats = `${label.chats} ${label.chats === 1 ? "chat" : "chats"}`;
   return (
     <div role="group" aria-label={`${label.name}, ${chats}`} style={{ display: "grid", gap: 8, padding: "12px 0" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12 }}>
         <span aria-hidden className="loki-label-dot" style={{ "--label-tone": labelColor(label.name, list) } as CSSProperties} />
         <span style={{ minWidth: 0 }}>
           <strong>{label.name}</strong>

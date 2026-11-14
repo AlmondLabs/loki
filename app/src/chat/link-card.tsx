@@ -30,7 +30,7 @@ function LinkCardFor({ ask, onAnswer }: { ask: LinkAsk; onAnswer: (answers: Reco
   );
   return (
     <div data-link className="loki-question">
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
         <span className="loki-label loki-question-kicker">Wants to message another chat</span>
         <span className="loki-question-text">{to}</span>
       </div>

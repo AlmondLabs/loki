@@ -46,7 +46,7 @@ export function MemoryPage({
   const { content, loadingView } = reading;
   return (
     <Pane>
-      <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span className="loki-mono" style={{ color: "var(--loki-fg)" }}>
           {filePath}
         </span>

@@ -25,7 +25,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
   const stop = groups.some((r) => r.g === current) ? current : groups[0]?.g;
   return (
     // The heading and the filter stay; the list under them scrolls when the window is short.
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
       <Field
         size="sm"
         type="search"

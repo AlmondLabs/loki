@@ -324,7 +324,7 @@ export function ChangeFolder({
           {agentName ? ` · ${agentName}` : ""}
         </div>
       </div>
-      <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
+      <div style={{ padding: "14px 18px", display: "grid", gap: 16 }}>
         <FolderPicker
           inputRef={field.inputRef}
           folder={folder}

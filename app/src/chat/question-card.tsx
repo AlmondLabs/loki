@@ -66,7 +66,7 @@ function QuestionCardFor({
         const shown = q.options.find((o) => o.label === peek) ?? q.options.find((o) => sel.includes(o.label));
         return (
           <div key={qi} style={{ display: "grid", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
               <span className="loki-label loki-question-kicker">
                 {qi === 0 ? (many ? `Asks you · ${question.questions.length}` : "Asks you") : `${qi + 1}`}
               </span>

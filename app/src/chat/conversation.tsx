@@ -582,7 +582,7 @@ export function ConversationHeader({
             {purpose}
           </div>
         )}
-        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
           <AgentChip name={agentName} />
           {children}

@@ -61,7 +61,7 @@ export function AgentChip({ name, size = 10.5 }: { name: string | null | undefin
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 5,
+        gap: 4,
         fontSize: size,
         fontWeight: 600,
         padding: "1px 8px",
