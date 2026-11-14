@@ -1,6 +1,5 @@
 // The way calls are made with a desktop session (form-encoded POSTs to the workspace's own address, carrying the token
-// and the `d` cookie) and the drafts endpoints' shape are ported from agent-slack
-// (https://github.com/stablyai/agent-slack, src/slack/client.ts and src/slack/drafts.ts):
+// and the `d` cookie) is ported from agent-slack (https://github.com/stablyai/agent-slack, src/slack/client.ts):
 //
 // MIT License. Copyright (c) 2026 Stably. Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal in the Software without restriction,
@@ -9,7 +8,6 @@
 // conditions: The above copyright notice and this permission notice shall be included in all copies or substantial
 // portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 
-import { randomUUID } from "node:crypto";
 import type { AccountStatus } from "../core/frame-types.ts";
 import { messageOf } from "../core/errors.ts";
 import { log } from "./log.ts";
@@ -18,7 +16,7 @@ import { withMentions } from "./slack-people.ts";
 
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
- * desktop app's session. It reads, lists activity and counts, marks a DM read, writes and deletes drafts, and posts the
+ * desktop app's session. It reads, lists activity and counts, marks a DM read, and posts the
  * person's own reply (plan 068), with files when it has them (plan 2026-11-14-1134), and nothing more: no call that edits,
  * deletes or schedules a message exists here, and every request names one of SLACK_METHODS, besides a file's bytes,
  * which go only to files.slack.com. Agents never send (R18): no agent tool is given `postReply` or `postWithFiles`, which
@@ -43,9 +41,6 @@ export const SLACK_METHODS = [
   "users.prefs.get",
   "emoji.list",
   "conversations.mark",
-  "drafts.list",
-  "drafts.create",
-  "drafts.delete",
   "chat.postMessage",
   "files.getUploadURLExternal",
   "files.completeUploadExternal",
@@ -189,17 +184,8 @@ export interface SlackUser {
   image?: string;
 }
 
-/** A draft as drafts.list returns it, with its text read out of its blocks. */
-export interface SlackDraft {
-  id: string;
-  text: string;
-  destinations: Array<{ channel_id: string; thread_ts: string | null }>;
-  last_updated_ts: string | null;
-  date_created: number | null;
-}
-
-/** A reply to keep as a draft in one conversation, in a thread when `thread_ts` is given; the person sends it from Slack. */
-export interface SlackDraftInput {
+/** A reply to post in one conversation, in a thread when `thread_ts` is given. */
+export interface SlackPostInput {
   channel: string;
   thread_ts?: string;
   text: string;
@@ -259,33 +245,6 @@ const parsePage = (r: Record<string, unknown>): SlackMessagePage => ({
   has_more: r.has_more === true,
   next_cursor: strOrNull(rec(r.response_metadata).next_cursor),
 });
-
-/** The text of rich_text blocks: their text, links, mentions and emoji, section by section. */
-function blocksText(blocks: unknown): string {
-  const out: string[] = [];
-  const walk = (el: unknown): string => {
-    const e = rec(el);
-    if (e.type === "text") return str(e.text);
-    if (e.type === "link") return str(e.text) || str(e.url);
-    if (e.type === "user") return `<@${str(e.user_id)}>`;
-    if (e.type === "channel") return `<#${str(e.channel_id)}>`;
-    if (e.type === "emoji") return `:${str(e.name)}:`;
-    return list(e.elements).map(walk).join("");
-  };
-  for (const b of list(blocks)) for (const section of list(rec(b).elements)) out.push(walk(section));
-  return out.join("\n").trim();
-}
-
-function parseDraft(v: unknown): SlackDraft {
-  const r = rec(v);
-  return {
-    id: str(r.id),
-    text: blocksText(r.blocks),
-    destinations: list(r.destinations).map((d) => ({ channel_id: str(rec(d).channel_id), thread_ts: strOrNull(rec(d).thread_ts) })),
-    last_updated_ts: strOrNull(r.last_updated_ts),
-    date_created: typeof r.date_created === "number" ? r.date_created : null,
-  };
-}
 
 /**
  * The person's text as Slack should show it: Slack reads <, > and & as its markup, so they are escaped to arrive as
@@ -481,38 +440,11 @@ export class SlackClient {
     await this.call(read ? "activity.markRead" : "activity.markUnread", { entries });
   }
 
-  /** The person's drafts, active ones unless told otherwise. */
-  async draftsList(opts: { activeOnly?: boolean } = {}): Promise<SlackDraft[]> {
-    const r = await this.call("drafts.list", { is_active: opts.activeOnly === false ? undefined : true });
-    return list(r.drafts).map(parseDraft);
-  }
-
-  /** Keep a reply as a draft where the person will find it in Slack; loki never sends it. */
-  async draftsCreate(input: SlackDraftInput): Promise<SlackDraft> {
-    const destination = input.thread_ts ? { channel_id: input.channel, thread_ts: input.thread_ts, broadcast: false } : { channel_id: input.channel };
-    const r = await this.call("drafts.create", {
-      blocks: [{ type: "rich_text", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: input.text }] }] }],
-      destinations: [destination],
-      client_msg_id: randomUUID(),
-      file_ids: [],
-      is_from_composer: true,
-    });
-    return parseDraft(r.draft);
-  }
-
-  /**
-   * Take one of the person's drafts away, as replacing the draft in a place does (KTD9). A draft is the person's own
-   * unsent text, so this touches no message anyone else sees.
-   */
-  async draftsDelete(draftId: string): Promise<void> {
-    await this.call("drafts.delete", { draft_id: draftId });
-  }
-
   /**
    * Post the person's own reply (plan 068): in the thread when `thread_ts` names one, else in the conversation. Only the
    * person's reply frame calls this; no agent tool is given it.
    */
-  async postReply(input: SlackDraftInput & { mentions?: ReadonlyMap<string, string> }): Promise<{ ts: string }> {
+  async postReply(input: SlackPostInput & { mentions?: ReadonlyMap<string, string> }): Promise<{ ts: string }> {
     const text = replyText(input.text, input.mentions);
     const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
     return { ts: typeof r.ts === "string" ? r.ts : "" };
@@ -525,7 +457,7 @@ export class SlackClient {
    * is sent there, so the session never leaves Slack. Nothing is retried: Slack takes a completion only once.
    */
   async postWithFiles(
-    input: SlackDraftInput & { mentions?: ReadonlyMap<string, string>; files: ReadonlyArray<{ name: string; data: Uint8Array }> },
+    input: SlackPostInput & { mentions?: ReadonlyMap<string, string>; files: ReadonlyArray<{ name: string; data: Uint8Array }> },
   ): Promise<void> {
     const uploaded: Array<{ id: string; title: string }> = [];
     for (const file of input.files) {

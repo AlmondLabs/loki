@@ -15,7 +15,7 @@ import type {
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { OUTBOX_HEADER, type GmailAttachment, type GmailClient, type GmailMessage, type GmailSendAs } from "./gmail.ts";
-import type { JiraClient } from "./jira.ts";
+import { JiraError, type JiraClient } from "./jira.ts";
 import { mailAttachments, mailParts } from "./account-ops/gmail.ts";
 import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import type { CardView } from "./slack-view.ts";
@@ -25,7 +25,7 @@ import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type Mail
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
-import { checkedFiles, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
+import { MAY_HAVE_GONE, checkedFiles, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
 import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
 import type { SlackPeople } from "./slack-people.ts";
@@ -482,8 +482,13 @@ export class OutsideThreads {
         const mentions = (await this.opts.slackPeople?.mentions(accountId, body).catch(() => null)) ?? new Map<string, string>();
         const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions };
         // With files, the text rides with them as one message (KTD7).
-        if (files.length) await sender.client.postWithFiles({ ...where, files });
-        else await sender.client.postReply(where);
+        try {
+          if (files.length) await sender.client.postWithFiles({ ...where, files });
+          else await sender.client.postReply(where);
+        } catch (err) {
+          if (agent) throw unclearPost(err, "Slack");
+          throw err;
+        }
         break;
       }
       case "jira":
@@ -499,7 +504,12 @@ export class OutsideThreads {
         }
         // Posted once: a post that fails or times out is reported and never tried again, since a retry could post the
         // comment twice (plan 2026-11-10-1451, KTD11). The thread id is the ticket's own id.
-        await sender.client.postComment(threadId, body);
+        try {
+          await sender.client.postComment(threadId, body);
+        } catch (err) {
+          if (agent) throw unclearPost(err, "Jira");
+          throw err;
+        }
         deals = false;
         // The box held any comment the person approved, so what they sent is it, as they left it (KTD18). An agent's
         // comment is not what the box held, so the box keeps it.
@@ -602,6 +612,20 @@ export class OutsideThreads {
     if (!account) throw new Error("that account is not connected on this Mac");
     return account;
   }
+}
+
+/**
+ * What an agent's Slack or Jira post that failed tells its card (KTD9, R13). A refusal names a Slack error code or an
+ * HTTP status, so nothing went and it is passed on as it is. A post cut off by its time running out or by a lost
+ * connection may have reached the thread before the answer was lost, and only Gmail can be searched for it, so the
+ * card says to look in the thread before sending again.
+ */
+function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
+  const timedOut = (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) || (err instanceof JiraError && err.code === "timeout");
+  if (timedOut) return new Error(`${service} did not answer in time: ${MAY_HAVE_GONE}`);
+  // fetch throws a TypeError when the connection fails, which may be after the request reached the service.
+  if (err instanceof TypeError) return new Error(`the connection to ${service} was lost: ${MAY_HAVE_GONE}`);
+  return err instanceof Error ? err : new Error(messageOf(err));
 }
 
 /** Why an agent's Gmail reply did not go when its thread's people changed, in the person's words. */

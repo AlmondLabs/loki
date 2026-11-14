@@ -6,7 +6,7 @@ import { GOOGLE_TIMEOUT_MS, GoogleAuth, GoogleError } from "./google-auth.ts";
 
 /**
  * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, labels and label changes,
- * create a draft, and send. `sendReply` is reached by the reply frame the person's own devices send
+ * and send. `sendReply` is reached by the reply frame the person's own devices send
  * (mod/outside-threads.ts) and by the scripts' Gmail tool (mod/google-tools/gmail.ts, plan 2026-11-11 scripts); no tool
  * the model calls directly sends. Its calls go through the account's sign-in (mod/google-auth.ts), which refreshes the
  * tokens in the keychain and marks the account disconnected when Google refuses them, so the Inbox can say how to
@@ -114,8 +114,7 @@ export interface GmailAttachment {
 }
 
 /**
- * A reply to keep as a draft in the thread it answers (loki writes it, the person sends it from Gmail), or the person's
- * own to send. `body` is plain text; with `html` the message carries both (plan 076), as Gmail's own replies do.
+ * A message to send: a reply in the thread it answers, or a script's new mail with no thread yet. `body` is plain text; with `html` the message carries both (plan 076), as Gmail's own replies do.
  */
 export interface GmailDraftInput {
   threadId: string;
@@ -433,17 +432,10 @@ export class GmailClient {
     return list(r.labels).map((l) => ({ id: str(rec(l).id), name: str(rec(l).name), type: rec(l).type === "system" ? "system" : "user" }));
   }
 
-  /** Keep a reply as a draft in its thread, for the person to read and send from Gmail; the draft's id. */
-  async createDraft(draft: GmailDraftInput): Promise<{ id: string; messageId: string }> {
-    const raw = Buffer.from(rfc2822(draft), "utf8").toString("base64url");
-    const r = rec(await this.call("POST", "/drafts", undefined, { message: { raw, threadId: draft.threadId } }));
-    return { id: str(r.id), messageId: str(rec(r.message).id) };
-  }
-
   /**
-   * Send a message now: the person's own reply in its thread (plan 068), the message `createDraft` would keep, or a
-   * script's mail (mod/google-tools/gmail.ts, plan 2026-11-11 scripts). Those two are its only callers; no tool the model
-   * calls directly sends. A message with files goes through the upload route, one without as JSON. Answers with the
+   * Send a message now: a reply in its thread, the person's own (plan 068) or an agent's on the person's Send (plan
+   * 2026-11-14-1134), both from mod/outside-threads.ts, or a script's mail (mod/google-tools/gmail.ts, plan 2026-11-11
+   * scripts). Those two are its only callers; no tool the model calls directly sends. A message with files goes through the upload route, one without as JSON. Answers with the
    * sent message's id and the thread Gmail put it in.
    */
   async sendReply(reply: GmailDraftInput): Promise<{ id: string; threadId?: string }> {

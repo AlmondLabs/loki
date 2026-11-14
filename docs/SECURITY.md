@@ -237,7 +237,7 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
   copy is removed at once. The session stays in the daemon's memory and is never written anywhere; loki reads it again
   when Slack refuses it.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
-  activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), listing, writing and deleting drafts, and `chat.postMessage` and the file upload
+  activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), and `chat.postMessage` and the file upload
   (`files.getUploadURLExternal`, `files.completeUploadExternal`) for a reply you send, your own or an agent's on your
   Send; no agent tool reaches them, and nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, and a file's bytes only to the

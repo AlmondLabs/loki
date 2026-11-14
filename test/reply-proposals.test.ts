@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReplyProposalCards, sentText } from "../app/src/desk/reply-proposal-card.tsx";
-import { SENT_MS, justSent, replySend, revealLabel } from "../app/src/desk/use-reply-card.ts";
+import { SENT_MS, cardReason, failedAction, justSent, replySend, revealLabel } from "../app/src/desk/use-reply-card.ts";
 import { ReplyProposalView } from "../app/src/item/proposal.tsx";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { buildItems, type ConversationInfo } from "../core/attention/model.ts";
@@ -86,12 +86,17 @@ function mailOf(raw: string): { headers: Partial<Record<string, string>>; text: 
   return { headers, text: Buffer.from(plain.replace(/\r\n/g, ""), "base64").toString("utf8"), files };
 }
 
-/** A Slack workspace as a fake client keeps what is posted in it. */
+/**
+ * A Slack workspace as a fake client keeps what is posted in it. While `answers.timesOut` says so, a post lands but its
+ * answer is lost to the timeout, as a slow Slack's can be.
+ */
 function fakeSlack() {
   const posted: Array<{ channel: string; thread_ts?: string; text: string; files: string[] }> = [];
+  const answers = { timesOut: false };
   const client: SendSlack & ReplySlack = {
     postReply: (r) => {
       posted.push({ channel: r.channel, ...(r.thread_ts ? { thread_ts: r.thread_ts } : {}), text: r.text, files: [] });
+      if (answers.timesOut) return Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
       return Promise.resolve({ ts: "2.0" });
     },
     postWithFiles: (r) => {
@@ -113,7 +118,7 @@ function fakeSlack() {
         last_read: null,
       }),
   };
-  return { client, posted };
+  return { client, posted, answers };
 }
 
 /** The reply tools loaded as a mod, so a test calls them as a chat would, with the notices and prompt line they add. */
@@ -196,10 +201,11 @@ async function fixture() {
   });
 
   // Gmail's own API, with the two send routes the mailbox fake leaves out. A sent mail lands in its thread with its
-  // outbox header, as Gmail keeps it; `gmailAnswers` makes a send that went answer with an error, as one that timed out.
+  // outbox header, as Gmail keeps it; `gmailAnswers` makes a send that went answer with an error, as one that timed out,
+  // or never answer, as one loki stopped in the middle of, and makes reading a thread fail.
   const requests: Array<{ method: string; path: string }> = [];
   const sentMail: Array<{ threadId: string; raw: string }> = [];
-  const gmailAnswers = { status: 200 };
+  const gmailAnswers = { status: 200, hangs: false, threadReadFails: false };
   const fetchFn = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const method = init?.method ?? "GET";
@@ -229,18 +235,22 @@ async function fixture() {
         headers: { "Message-ID": `<sent${String(sentMail.length)}@acme.com>`, "X-Loki-Outbox": headers["X-Loki-Outbox"] ?? "" },
         labels: ["SENT"],
       });
+      if (gmailAnswers.hangs) return new Promise<Response>(() => {});
       if (gmailAnswers.status !== 200)
         return Promise.resolve(new Response(JSON.stringify({ error: { code: 503, message: "Backend Error" } }), { status: 503 }));
       return Promise.resolve(new Response(JSON.stringify({ id: `s${String(sentMail.length)}`, threadId: sent.threadId }), { status: 200 }));
     }
+    if (gmailAnswers.threadReadFails && method === "GET" && path.startsWith("/threads/"))
+      return Promise.resolve(new Response(JSON.stringify({ error: { code: 500, message: "Backend Error" } }), { status: 500 }));
     return box.fetch(input, init);
   };
   const gmail = new GmailClient({ accounts, account_id: MAIL, fetch: fetchFn, now });
   const slack = fakeSlack();
 
-  // Jira's attach call, which the site fake leaves out, and a comment post that fails while `jiraAnswers` says so.
+  // Jira's attach call, which the site fake leaves out, and a comment post that fails while `jiraAnswers` says so, or
+  // that lands on the ticket with its answer lost to the timeout.
   const attached: Array<{ ticket: string; names: string[] }> = [];
-  const jiraAnswers = { commentFails: false };
+  const jiraAnswers = { commentFails: false, commentTimesOut: false };
   const jiraFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const attach = /^\/rest\/api\/3\/issue\/([^/]+)\/attachments$/.exec(url.pathname);
@@ -252,6 +262,8 @@ async function fixture() {
     }
     if (jiraAnswers.commentFails && init?.method === "POST" && url.pathname.endsWith("/comment"))
       return Promise.resolve(new Response(JSON.stringify({ errorMessages: ["Jira is down for maintenance."] }), { status: 500 }));
+    if (jiraAnswers.commentTimesOut && init?.method === "POST" && url.pathname.endsWith("/comment"))
+      return jira.fetch(input, init).then(() => Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError")));
     return jira.fetch(input, init);
   };
   const jiraClient = jiraAccountClient(accounts, SITE, { fetch: jiraFetch, now });
@@ -801,6 +813,67 @@ describe("a Send that loki stops in the middle of, or that failed (plan 2026-11-
     expect(f.nextMessage()).toBe("hello");
   });
 
+  test("a Gmail reply cut short by loki stopping, already in its thread, is sent after the restart and never sent again", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Friday works." });
+    f.gmailAnswers.hangs = true;
+    await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
+    await until(() => f.tm.pending().length === 1);
+    f.tm.fire();
+    // The mail reached Gmail, and loki stops before the answer comes.
+    await until(() => f.sentMail.length === 1);
+    f.gmailAnswers.hangs = false;
+    const again = f.restart();
+    await until(() => f.only().status === "sent");
+    expect(f.nextMessage()).toMatch(/The person sent your reply in ada@acme.com, thread t-plan/);
+    await until(() => !again.outside.holds(f.only().outbox_id ?? ""));
+    const third = f.restart();
+    await settled();
+    expect([third.tm.pending(), f.sentMail.length, f.nextMessage()]).toEqual([[], 1, "hello"]);
+  });
+
+  test("a Send again when the thread cannot be read to look for the last send keeps the reply waiting, and holds nothing", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Friday works." });
+    const id = f.only().id;
+    f.gmailAnswers.status = 503;
+    await f.sendAndWait(id);
+    expect(f.only()).toMatchObject({ status: "pending" });
+    f.gmailAnswers.status = 200;
+    f.gmailAnswers.threadReadFails = true;
+    const why = "the thread could not be read to check the last send did not go: try again";
+    expect(await f.replies.decide(f.chat, id, "approve", "desktop")).toMatchObject({ done: false, message: why });
+    expect(f.only()).toMatchObject({ status: "pending", reason: why });
+    await settled();
+    expect([f.tm.pending(), f.sentMail.length, f.nextMessage()]).toEqual([[], 1, "hello"]);
+  });
+
+  test("a Slack post whose answer timed out waits on the card saying it may have gone, and nothing posts again by itself", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "D1", text: "See you at 1." });
+    f.slack.answers.timesOut = true;
+    await f.sendAndWait(f.only().id);
+    expect(f.only()).toMatchObject({ status: "pending", reason: `Slack did not answer in time: ${MAY_HAVE_GONE}` });
+    f.slack.answers.timesOut = false;
+    f.restart();
+    await settled();
+    expect([f.slack.posted.length, f.tm.pending(), f.only().status]).toEqual([1, [], "pending"]);
+    expect(f.nextMessage()).toBe("hello");
+  });
+
+  test("a Jira comment whose answer timed out waits on the card saying it may have gone, and nothing posts again by itself", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." });
+    f.jiraAnswers.commentTimesOut = true;
+    await f.sendAndWait(f.only().id);
+    expect(f.only()).toMatchObject({ status: "pending", reason: `Jira did not answer in time: ${MAY_HAVE_GONE}` });
+    f.jiraAnswers.commentTimesOut = false;
+    f.restart();
+    await settled();
+    expect([f.jira.posted.length, f.tm.pending(), f.only().status]).toEqual([1, [], "pending"]);
+    expect(f.nextMessage()).toBe("hello");
+  });
+
   test("a Gmail send that timed out but went, then Send again: nothing new is sent and the reply settles as sent", async () => {
     const f = await fixture();
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Friday works." });
@@ -1199,6 +1272,18 @@ describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
     expect(replySend(null, p, new Set())).toEqual({ text: null, files: ["invoice.pdf", "hours.csv"] });
     expect(replySend("Friday at 3.", p, new Set(["hours.csv"]))).toEqual({ text: "Friday at 3.", files: ["invoice.pdf"] });
     expect(replySend("Friday works.", proposal, new Set())).toEqual({ text: null, files: [] });
+  });
+
+  test("a late Undo's refusal shows until the send it could not stop fails, then the card says why the send failed", () => {
+    const sending = { ...proposal, status: "sending" as const, reason: null };
+    const tooLate = failedAction("it is already going, too late to undo", sending);
+    // While it still sends the card says nothing is wrong; the refusal answered that state alone.
+    expect(cardReason(sending, tooLate)).toBeNull();
+    expect(cardReason({ ...proposal, status: "pending", reason: "Slack did not answer in time" }, tooLate)).toBe("Slack did not answer in time");
+    // A refusal the proposal has not moved on from still shows, and a card with no failed action shows the reason.
+    const pending = { ...proposal, status: "pending" as const, reason: null };
+    expect(cardReason(pending, failedAction("that reply is not being sent", pending))).toBe("that reply is not being sent");
+    expect(cardReason({ ...pending, reason: "the thread could not be read" }, null)).toBe("the thread could not be read");
   });
 
   test("shows nothing without replies waiting, or on a host whose source has no way to decide them", () => {

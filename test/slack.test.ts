@@ -249,54 +249,6 @@ describe("what the client reads", () => {
       threads: { has_unreads: true, mention_count: 2 },
     });
   });
-
-  test("a draft reply in a thread is written to that thread, and drafts.list reads its text back", async () => {
-    const { c, sent } = client((method) =>
-      method === "drafts.create"
-        ? { body: { ok: true, draft: { id: "Dr1", destinations: [{ channel_id: "D0DM", thread_ts: "1.0" }], blocks: [], last_updated_ts: "3.0" } } }
-        : {
-            body: {
-              ok: true,
-              drafts: [
-                {
-                  id: "Dr1",
-                  destinations: [{ channel_id: "D0DM" }],
-                  blocks: [
-                    {
-                      type: "rich_text",
-                      elements: [
-                        {
-                          type: "rich_text_section",
-                          elements: [
-                            { type: "text", text: "hi " },
-                            { type: "user", user_id: "U0YOU" },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-    );
-    expect((await c.draftsCreate({ channel: "D0DM", thread_ts: "1.0", text: "sounds good" })).id).toBe("Dr1");
-    const params = sent[0]?.params ?? {};
-    expect(JSON.parse(params.destinations)).toEqual([{ channel_id: "D0DM", thread_ts: "1.0", broadcast: false }]);
-    expect(JSON.parse(params.blocks)).toEqual([
-      { type: "rich_text", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: "sounds good" }] }] },
-    ]);
-    expect(await c.draftsList()).toEqual([
-      { id: "Dr1", text: "hi <@U0YOU>", destinations: [{ channel_id: "D0DM", thread_ts: null }], last_updated_ts: null, date_created: null },
-    ]);
-    expect(sent[1]?.params.is_active).toBe("true");
-  });
-
-  test("a draft is taken away by its id, as replacing one does", async () => {
-    const { c, sent } = client(() => ({ body: { ok: true } }));
-    await c.draftsDelete("Dr1");
-    expect(sent.map((s) => [new URL(s.url).pathname, s.params.draft_id])).toEqual([["/api/drafts.delete", "Dr1"]]);
-  });
 });
 
 describe("the workspace's people and mentions in a reply (plan 082)", () => {
@@ -500,11 +452,8 @@ describe("a reply with files (plan 2026-11-14-1134, U3)", () => {
 
 describe("only the person's own reply posts on Slack (plan 068)", () => {
   const SEND = /send|post|update|delete|schedule|share|chat\./i;
-  /**
-   * Deleting one of the person's own drafts touches no message anyone sees; posting the person's own reply, with or
-   * without files, is the one send, reached only from the person's own Send.
-   */
-  const ALLOWED = ["draftsDelete", "/api/drafts.delete", "postReply", "postWithFiles"];
+  /** Posting the person's own reply, with or without files, is the one send, reached only from the person's own Send. */
+  const ALLOWED = ["postReply", "postWithFiles"];
 
   test("the person's reply posts in its thread, with Slack's markup characters escaped so it arrives as typed", async () => {
     const { c, sent } = client(() => ({ body: { ok: true, ts: "2.0" } }));
@@ -519,13 +468,13 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     expect(names.filter((n) => SEND.test(n) && !ALLOWED.includes(n))).toEqual([]);
   });
 
-  test("every call the client makes goes to a method that reads, marks a DM read, writes a draft or uploads the person's files", async () => {
+  test("every call the client makes goes to a method that reads, marks a DM read or uploads the person's files", async () => {
     const { c, sent } = client((method) =>
       method === "conversations.info"
         ? { body: { ok: true, channel: { id: "D0DM", is_im: true } } }
         : method === "files.getUploadURLExternal"
           ? { body: { ok: true, upload_url: "https://files.slack.com/upload/v1/up1", file_id: "F1" } }
-          : { body: { ok: true, draft: {} } },
+          : { body: { ok: true } },
     );
     await c.authTest();
     await c.clientCounts();
@@ -535,9 +484,6 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     await c.conversationsInfo("D0DM");
     await c.usersInfo("U0YOU");
     await c.markDm("D0DM", "1.0");
-    await c.draftsList();
-    await c.draftsCreate({ channel: "D0DM", text: "x" });
-    await c.draftsDelete("Dr1");
     await c.postWithFiles({ channel: "D0DM", text: "x", files: [{ name: "a.txt", data: new Uint8Array([1]) }] });
     expect([...new Set(sent.map((s) => new URL(s.url).host))].sort()).toEqual(["acme.slack.com", "files.slack.com"]);
     const paths = [...new Set(sent.map((s) => new URL(s.url).pathname))].sort();
@@ -553,9 +499,6 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
         "/api/conversations.info",
         "/api/conversations.mark",
         "/api/conversations.replies",
-        "/api/drafts.create",
-        "/api/drafts.delete",
-        "/api/drafts.list",
         "/api/users.info",
       ].sort(),
     );

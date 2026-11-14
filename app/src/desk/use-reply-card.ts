@@ -34,6 +34,30 @@ export function replySend(edited: string | null, p: Pick<ReplyProposal, "text" |
   return { text: replyEdit(edited, p.text), files: (p.attachments ?? []).filter((f) => !removed.has(f.name)).map((f) => f.name) };
 }
 
+/** The proposal's status and reason in one string, so a last action's message can be tied to the state it answered. */
+const answeredKey = (p: Pick<ReplyProposal, "status" | "reason">): string => `${p.status}:${p.reason ?? ""}`;
+
+/** Why the last action did not go through, with the proposal state it was pressed on. */
+export interface FailedAction {
+  message: string;
+  answered: string;
+}
+
+/** A last action's message, tied to the proposal as it was when the action was pressed. */
+export function failedAction(message: string, p: Pick<ReplyProposal, "status" | "reason">): FailedAction {
+  return { message, answered: answeredKey(p) };
+}
+
+/**
+ * What the card says is wrong: nothing while it sends; else the last action's message while the proposal is as it was
+ * when that action was pressed, and the proposal's own reason once the server has said more since. So a late Undo's
+ * "too late to undo" does not hide why the send then failed.
+ */
+export function cardReason(p: Pick<ReplyProposal, "status" | "reason">, failed: FailedAction | null): string | null {
+  if (p.status === "sending") return null;
+  return failed?.answered === answeredKey(p) ? failed.message : p.reason;
+}
+
 /** One card's state and its three actions; `undoRef` goes on Undo, which takes the focus when Send is pressed. */
 export interface ReplyCard {
   /** The text as the card shows it: the person's edit, or the proposal's as it is now. */
@@ -61,17 +85,17 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
   const [edited, setEdited] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<FailedAction | null>(null);
   // Set by Send, so Undo takes the focus when it appears, and only then: a card opened mid-send leaves the focus alone.
   const [focusUndo, setFocusUndo] = useState(false);
   const act = async (action: ReplyAction, opts: ReplyDecideOptions) => {
     setBusy(true);
     try {
       const out = await onDecide(action, opts);
-      setFailed(out.done ? null : out.message);
+      setFailed(out.done || out.message === null ? null : failedAction(out.message, p));
     } catch (err: unknown) {
       // A call that throws leaves the card usable and says why, rather than holding its buttons off for good.
-      setFailed(messageOf(err));
+      setFailed(failedAction(messageOf(err), p));
     } finally {
       setBusy(false);
     }
@@ -95,7 +119,7 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
       }),
     sending,
     busy,
-    reason: sending ? null : (failed ?? p.reason),
+    reason: cardReason(p, failed),
     send: () => {
       setFocusUndo(true);
       void act("approve", replySend(edited, p, removed));

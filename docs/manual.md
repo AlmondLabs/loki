@@ -1284,7 +1284,7 @@ thread's own people, after 10 seconds in which **Undo** takes it back with your 
 
 A reply can carry files from the chat's folder, up to 10 and 17 MB together, on all three: attached to the mail,
 posted with the Slack message, or attached to the Jira ticket with the comment naming them. The card names each file
-with its size ("Attached: invoice.pdf (482 KB)"). On the Mac, **Show in Finder** shows you the file itself before you
+with its size ("invoice.pdf (482 KB)"). On the Mac, **Show in Finder** shows you the file itself before you
 send it: mail can steer an agent to attach a private file under an innocent name, so look before a reply with files
 goes. Take a file off and it does not go. If a file changed or went away after the reply was proposed, Send is
 refused with which file; reject it and ask again. A file from another mail reaches the folder through a script first.

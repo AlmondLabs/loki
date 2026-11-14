@@ -40,7 +40,7 @@ import { OutsideThreads, type AgentReply, type PeopleChanged } from "../mod/outs
 import { md5 } from "../mod/google-tools/core.ts";
 import type { HeldFile, HeldProposal, HeldReply } from "../mod/mail-outbox.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
-import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
+import { SlackError, type SlackPostInput } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { JIRA_ADA, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
@@ -112,7 +112,7 @@ function threads(
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
   const frequentReads = { n: 0 };
-  const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
+  const posted: Array<SlackPostInput & { mentions?: ReadonlyMap<string, string> }> = [];
   /** Each Jira comment posted, as `[ticket, text]`. */
   const commented: Array<[string, string]> = [];
   /** Each Slack message posted with files: where, the text, and each file's name and bytes as text. */

@@ -231,9 +231,9 @@ describe("the Gmail client's calls", () => {
     ]);
   });
 
-  test("a draft is an RFC 2822 reply in its thread, and a header value cannot add a header", async () => {
+  test("a reply is an RFC 2822 message in its thread, and a header value cannot add a header", async () => {
     const { client, google } = await connected();
-    const draft = await client.createDraft({
+    const out = await client.sendReply({
       threadId: "t1",
       inReplyTo: "<m1@acme.com>",
       references: ["<m0@acme.com>"],
@@ -242,8 +242,8 @@ describe("the Gmail client's calls", () => {
       subject: "Re: Lunch\r\nBcc: eve@evil.example",
       body: "Friday works.\nSee you — Ada",
     });
-    expect(draft).toEqual({ id: "d1", messageId: "dm1" });
-    const sent = must(google.drafts[0], "a draft");
+    expect(out).toEqual({ id: "s1", threadId: "t1" });
+    const sent = must(google.sentMail[0], "a sent message");
     expect(sent.threadId).toBe("t1");
     const raw = Buffer.from(sent.raw, "base64url").toString("utf8");
     const [head = "", body = ""] = raw.split("\r\n\r\n");
@@ -262,15 +262,15 @@ describe("the Gmail client's calls", () => {
 
   test("a subject that is not plain ASCII is encoded as RFC 2047 asks", async () => {
     const { client, google } = await connected();
-    await client.createDraft({ threadId: "t1", inReplyTo: "", references: [], to: ["bob@acme.com"], cc: [], subject: "Re: Café", body: "ok" });
-    const raw = Buffer.from(must(google.drafts[0], "a draft").raw, "base64url").toString("utf8");
+    await client.sendReply({ threadId: "t1", inReplyTo: "", references: [], to: ["bob@acme.com"], cc: [], subject: "Re: Café", body: "ok" });
+    const raw = Buffer.from(must(google.sentMail[0], "a sent message").raw, "base64url").toString("utf8");
     expect(raw).toContain(`Subject: =?UTF-8?B?${Buffer.from("Re: Café").toString("base64")}?=`);
     expect(raw).not.toContain("In-Reply-To");
   });
 });
 
 describe("only the person's own reply sends from Gmail (plan 068)", () => {
-  test("the person's reply goes to Gmail's send in its thread, as the same RFC 2822 message a draft is", async () => {
+  test("the person's reply goes to Gmail's send in its thread, as an RFC 2822 message", async () => {
     const { client, google } = await connected();
     expect(
       await client.sendReply({
@@ -307,8 +307,7 @@ describe("only the person's own reply sends from Gmail (plan 068)", () => {
     await client.batchModify(["m1"], { removeLabels: ["UNREAD"] });
     await client.batchModify(["m1"], { addLabels: ["UNREAD"] });
     await client.labels();
-    await client.createDraft({ threadId: "t1", inReplyTo: "<m1@acme.com>", references: [], to: ["bob@acme.com"], cc: [], subject: "Re", body: "ok" });
-    expect(google.requests.length).toBeGreaterThan(9);
+    expect(google.requests.length).toBeGreaterThan(8);
     expect(google.requests.filter((r) => r.url.pathname.split("/").includes("send"))).toEqual([]);
   });
 });

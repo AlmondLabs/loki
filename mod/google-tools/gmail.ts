@@ -24,8 +24,8 @@ import {
  * Gmail for scripts (plan 2026-11-11 scripts, U7): search, read, change labels, send, and save attachments, to the
  * chat's folder or straight to Drive (R20), whose bytes never pass through the script. These go to Gmail directly,
  * never through Flow's own moves (mod/account-threads.ts): Flow sees what they change as it sees a change made in
- * Gmail, and nothing a script does is taken for the person's own pick (R22). A script may send (R15); a reply card in
- * Flow still drafts.
+ * Gmail, and nothing a script does is taken for the person's own pick (R22). A script may send (R15); an agent's reply
+ * card in Flow sends only on the person's Send.
  */
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
