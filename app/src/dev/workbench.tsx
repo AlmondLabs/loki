@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowUpIcon, PlusIcon, SearchIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import type { OutsideFacts } from "../../../core/frame-types.ts";
@@ -9,6 +9,7 @@ import { Input } from "@/ui/input";
 import { Kbd } from "@/ui/kbd";
 import { cn } from "@/lib/utils";
 import { keyFor } from "../shell/keymap";
+import { ContentList, NothingSelected, type ContentRow } from "../shell/content-list";
 import { ActionBar } from "../item/action-bar";
 import { AgentPlan } from "../item/agent-plan";
 import { AgentTurn } from "../item/agent-turn";
@@ -280,6 +281,13 @@ export function Workbench() {
           </div>
         </Section>
 
+        <Section
+          title="A list"
+          note={`ContentList with made-up chats: the arrows highlight and commit after 150 ms, Return or Tab go to the detail, ${keyFor("list.search")} finds; the window line shows what reached the window.`}
+        >
+          <ListBench />
+        </Section>
+
         <Section title="Plan" note="Closed to its line until pressed.">
           <AgentPlan items={ROWS[0].tool?.plan ?? []} />
         </Section>
@@ -304,6 +312,67 @@ export function Workbench() {
           />
         </Section>
       </main>
+    </div>
+  );
+}
+
+const CHATS: ContentRow[] = [
+  { id: "c1", title: "Signups by week", time: "9:41", section: "Today" },
+  { id: "c2", title: "Pricing page copy", badge: 2, section: "Today" },
+  { id: "c3", title: "Safari checkout bug", live: true, liveAtEnd: true, section: "Today" },
+  { id: "c4", title: "Quarterly numbers", time: "Yesterday", section: "Earlier" },
+  { id: "c5", title: "Launch checklist", time: "Mon", section: "Earlier" },
+  { id: "c6", title: "Hiring plan", time: "Sun", section: "Earlier" },
+];
+
+/** ContentList beside a stand-in detail, with what it committed, what took focus, and the last key the window saw. */
+function ListBench() {
+  const [rows, setRows] = useState(CHATS);
+  const [selected, setSelected] = useState<string | null>("c2");
+  const [query, setQuery] = useState("");
+  const [log, setLog] = useState<string[]>([]);
+  const [windowKey, setWindowKey] = useState("none");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => setWindowKey(e.key);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const shown = useMemo(() => rows.filter((r) => typeof r.title === "string" && r.title.toLowerCase().includes(query.trim().toLowerCase())), [rows, query]);
+  const say = (line: string) => setLog((l) => [line, ...l].slice(0, 6));
+  const title = CHATS.find((c) => c.id === selected)?.title;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex h-[360px] overflow-hidden rounded-lg border bg-background">
+        <div className="loki-list-column relative w-[300px]">
+          <ContentList
+            label="Friday"
+            title="Friday"
+            count={shown.length}
+            rows={shown}
+            selectedId={selected}
+            onSelect={(id) => {
+              setSelected(id);
+              say(`commit ${id}`);
+            }}
+            onEnter={(id) => say(`detail ${id}`)}
+            empty="No chats with friday yet."
+            newAction={{ label: "New Chat", run: () => say("new"), keys: keyFor("desk.new") }}
+            query={query}
+            onQuery={setQuery}
+          />
+        </div>
+        <div className="relative flex-1">{title ? <p className="m-0 p-6 text-body">{title}</p> : <NothingSelected noun="Chat" />}</div>
+      </div>
+      <div className="flex items-center gap-3 text-meta text-muted-foreground">
+        <span>window saw: {windowKey}</span>
+        <span>{log.join(" · ")}</span>
+        <Button size="sm" variant="outline" onClick={() => setRows((r) => r.filter((x) => x.id !== selected))}>
+          Remove Selected
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setRows((r) => (r.length ? [] : CHATS))}>
+          {rows.length ? "Empty" : "Refill"}
+        </Button>
+      </div>
     </div>
   );
 }

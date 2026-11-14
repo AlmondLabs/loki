@@ -65,7 +65,7 @@ describe("desk pane: the sidebar", () => {
   test("no tab hides the sidebar: the Canvas tab keeps it, as Finder keeps its sidebar in every view (plan 2026-11-14-1130, 2)", () => {
     const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
     expect(shell).not.toMatch(/sidebarHidden|immersive/);
-    expect(shell).toMatch(/const columnShown = column\.shown;/);
+    expect(shell).toMatch(/const sidebarShown = layout\.sidebarShown;/);
   });
 });
 

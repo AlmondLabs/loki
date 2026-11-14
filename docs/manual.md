@@ -119,40 +119,49 @@ along the top drags the window (double-click zooms). The window title still name
 Chat Selected" with **New Chat**. On the left, one **sidebar**
 on the Mac's own material, the traffic lights in its top row: its first rows are the places, **Chats**, **Flow**,
 **Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
-filled; under them, the place's own list. The chosen item fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
+filled. Chats lists its sources one level under its row; the other places keep their own list under the places. In
+Chats, the source's chats fill a list beside the sidebar, as Mail's messages do, and the chosen chat fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
 Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
 hides it; drag its edge (or
 focus it and use the arrows) for a width between 220 and 420. A window under 800 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
-- **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
-  with its face, the Mac it lives on and a "+" for a new chat with that agent), then **Archived**, folded. Each chat
-  is one line, its name alone, the main chat included; the phone's Home draws it the same. A chat's name goes bold
-  when its agent wrote since you looked. On the right of each row, one thing: a blue count when it waits on you, else a
-  green dot that breathes while its agent is working, else when it last spoke ("5m", "3h", "2d"). Opening a chat (or having it open, the window in front, when a
+- **Chats** (⌘1): under **Chats** the sidebar lists its sources: **Pinned**, one per agent with its face (an agent
+  with no chats yet too), and **Archived**, each with a grey count of the chats that wait on you. The chevron at the
+  end of the Chats row folds them, and the fold is kept across restarts. Click **Chats** itself for every chat, under a
+  heading per agent (Pinned first), so each agent's main chat stays apart; click a source for its chats alone. Choosing a
+  source keeps the chat open when the source holds it; otherwise the chat pane says "No Chat Selected" until you pick
+  one. The list's toolbar names the source, with **New Chat** (an agent's starts a chat with that agent) and
+  **Search** (⌥⌘F), which filters the source's chats by chat or agent name. Each chat is one line, its name alone,
+  the main chat included; the phone's Home draws it the same. A chat's name goes bold when its agent wrote since you
+  looked. On the right of each row, one thing: a blue count when it waits on you, else a green dot that breathes
+  while its agent is working, else when it last spoke ("5m", "3h", "2d"). ↑↓ move through the list and show each
+  chat once you stop, while the keys stay in the list; ↵ or Tab moves into the chat's message box, and a click
+  shows a chat at once. ⌘[ and ⌘] step through the chats the list shows. Opening a chat from elsewhere (⌘K, a
+  notification, a label, Flow's **Open**) chooses the source that holds it, its agent's when the one showing does not,
+  and selects its row. Opening a chat (or having it open, the window in front, when a
   message arrives) marks it **viewed**, which clears the bold: the list shows what is new to you, nothing more. The
   Flow keeps the chat until it is **read**: what Flow's → does, a reply, an approval or an answer; by hand
   it is **Mark as read** (⌘⇧↵ on the open chat, or the row's right-click menu), and **Mark as unread** in the
   same menu puts it back in Flow. None of these is done: a chat is done only when it is archived. Viewed
-  and read are kept by the mod, so the phone and the Mac agree on both. "Find a
-  chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
+  and read are kept by the mod, so the phone and the Mac agree on both.
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
   most 80 characters. Its second line is the chat's **purpose**, one line on what the chat is for, which agents read
   (see [Suggestions](#suggestions)). An agent's main chat is named after the agent and cannot be renamed. A rename, an archive, a label or a purpose shows at once in every other window, on the phone and on a paired Mac. When a chat that waits on
-  you is scrolled out of sight, a "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
-  its scroll and folds across restarts.
+  you is scrolled out of sight, a "Needs you" pill at the top or bottom edge scrolls to it. The list keeps its
+  scroll while you visit the other places.
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
   word with its own colour. Add them from the row's **Labels…**, from **Label** in the chat's toolbar, or with
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
   the first match or makes the label when none matches. A chat's header and its card in Flow show its labels as chips;
-  the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
+  the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in the list's Search, to list that label's chats
   (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions, and Home's menu lists every label: a tap filters Home to it, as
   `label:` does on the Mac, and a second tap takes it off.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
-  Opening a chat — from the sidebar, ⌘K, Flow, Agents or Learn — shows it with a Mac toolbar: its name over a grey
+  Opening a chat — from the list, ⌘K, Flow, Agents or Learn — shows it with a Mac toolbar: its name over a grey
   line of its agent, what the agent is doing, its folder and labels, then **Messages** and **Canvas** as a segmented
-  control and its moves as symbols (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
+  control in the middle of the toolbar and its moves as symbols at its right edge (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
   Canvas tab, a ⋯ menu to arrange, fit and toggle the chat; find is ⌘F). **Messages** is the conversation, the message
   box focused: your messages as bubbles and the agent's turns as prose, the time told at gaps, a **New** line before
   what came since you last looked (it stays put while the chat is open and moves on the next open), a copy button on
@@ -289,7 +298,7 @@ Backspace in the empty field, or the chip's ×, steps back out.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
-Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in Flow
+Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
@@ -387,7 +396,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. When a newer loki is out, a notice says so once, with **Update…** (Preferences › loki) and **Later**. If the icon opens on
+locks it out. When a newer loki is out, the Mac's window shows an **Update…** button at the top right of its main pane; it opens Preferences › loki, and its menu's **Later** hides it until the next version. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.
@@ -598,8 +607,8 @@ a proposed reply in the box (it edits in its card), and going back to a compacti
 
 ## New chat
 
-Press ⌘N, or the "+" at the top of the Chats sidebar or beside an agent's section: an empty chat shows in place of the
-open one, as Messages opens a new message, and the sidebar's list leads with a **New Chat** row while it is open. Its
+Press ⌘N, or **New Chat** in the Chats list's toolbar (an agent's source starts it with that agent): an empty chat shows
+in place of the open one, as Messages opens a new message, and the list leads with a **New Chat** row while it is open. Its
 **To:** line holds the agent (the one you were talking to, or the one whose "+" you pressed): click it for the list of
 agents, or with the caret on it type the start of a name. The folder the chat will work in is at the end of that line
 (the open chat's folder for its own agent, else the agent's most recent); click it for the folder field (recents, typed

@@ -154,7 +154,7 @@ type OpenableDesk = DeskSummary & { agent_id: string; conversation_id: string };
 /** Desks search can open: a real conversation, not the shared scope, not deleted. */
 const openable = (d: DeskSummary): d is OpenableDesk => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
-/** The sidebar's name for a desk (DeskSidebar): its title, else Main chat, New desk, or its scope. */
+/** The Chats list's name for a desk (ChatList): its title, else Main chat, New desk, or its scope. */
 const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversation_id === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
 
 const agentNamer = (src: SearchSources) => {

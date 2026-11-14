@@ -3,10 +3,12 @@ import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
 import { labelQuery } from "../../../core/labels.ts";
 
 /**
- * The desk sidebar's model (plan 013 U4), pure so its rules are tested without a window: Pinned, then one
+ * The Chats model (plan 013 U4), pure so its rules are tested without a window: Pinned, then one
  * section per agent ordered by the agent's most recent activity, each live desk once (a pinned desk only
  * under Pinned), the agent's main chat first in its section; the filter by desk title or agent name; the
- * marks each row carries; the archive below; the "needs you" pills; and what is kept across restarts.
+ * marks each row carries; the archive below; the "needs you" pills; and what is kept across restarts. The
+ * phone's Home groups its chats by `sidebarModel`; the Mac splits the same sections into the sidebar's sources
+ * and the list's rows (plan 2026-11-14-1330, KTD2).
  */
 
 /** The mark before a chat: waiting on you, failed, finished unread, running, archived, deleted, or none. */
@@ -182,12 +184,107 @@ export function sidebarModel(
     const list = desksOfAgent.sort((a, b) => Number(b.conversation_id === "default") - Number(a.conversation_id === "default") || byRecent(a, b));
     sections.push(section(`agent:${k}`, agentName(list[0]), k || null, list.map(row)));
   }
-  const archived = desks.filter((d) => d.status !== "live" && matches(d)).map(row);
+  // "none" is a scope with no conversation (the canvas's shared one), which is neither live nor in the archive.
+  const archived = desks.filter((d) => isArchived(d.status) && matches(d)).map(row);
   return { sections, archived, empty: filtering && sections.length === 0 && archived.length === 0 };
 }
 
+/** An archived chat, or a deleted one the list still has. */
+const isArchived = (status: DeskSummary["status"]) => status === "archived" || status === "deleted";
+
 function section(id: string, title: string, agentId: string | null, rows: SidebarRow[]): SidebarSection {
   return { id, title, agentId, rows, waiting: rows.filter((r) => r.kind === "waits").length };
+}
+
+/** The Chats row itself: every live chat, under agent headings (R4). */
+export const ALL_CHATS = "all";
+/** The Pinned source: the pinned chats, which no agent's source repeats. */
+export const PINNED_CHATS = "pinned";
+/** The Archived source: archived chats, and deleted ones while the list still has them. */
+export const ARCHIVED_CHATS = "archived";
+/** One agent's source, by the same key as its section in `sidebarModel`; chats with no agent share `agent:`. */
+export const agentSource = (agentId: string | null | undefined): string => `agent:${agentId ?? ""}`;
+
+/** A source under Chats in the sidebar: its id (see the constants above), its name, its agent, and what waits in it. */
+export interface ChatSource {
+  id: string;
+  title: string;
+  /** The source's agent, whose New Chat starts a chat with them; null for Pinned, Archived and chats with no agent. */
+  agentId: string | null;
+  /** Its chats that wait on you, the sidebar's grey count. */
+  waiting: number;
+}
+
+/**
+ * Chats' sources (plan 2026-11-14-1330, KTD2): Pinned, one per agent in `sidebarModel`'s order, then the agents with no
+ * unpinned chat by name, so an agent with no chats is still somewhere to start one, then Archived.
+ */
+export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents: Array<{ id: string; name: string }> = []): ChatSource[] {
+  const m = sidebarModel(desks, items, { agents });
+  const listed = m.sections.filter((s) => s.id !== PINNED_CHATS);
+  const has = new Set(listed.map((s) => s.agentId));
+  const rest = agents.filter((a) => !has.has(a.id)).sort((a, b) => a.name.localeCompare(b.name));
+  return [
+    { id: PINNED_CHATS, title: "Pinned", agentId: null, waiting: m.sections.find((s) => s.id === PINNED_CHATS)?.waiting ?? 0 },
+    ...listed.map((s) => ({ id: s.id, title: s.title, agentId: s.agentId, waiting: s.waiting })),
+    ...rest.map((a) => ({ id: agentSource(a.id), title: a.name, agentId: a.id, waiting: 0 })),
+    { id: ARCHIVED_CHATS, title: "Archived", agentId: null, waiting: 0 },
+  ];
+}
+
+/** A row of the Chats list: the sidebar's row, and in every chat's list the agent heading it sits under. */
+export interface SourceRow extends SidebarRow {
+  section?: string;
+}
+
+/**
+ * The rows the list shows for `source`, with `query` (titles, agent names and `label:`) filtering that source only
+ * (R6): every chat under its Pinned or agent heading, one agent's or Pinned's with no heading, or the archive.
+ */
+export function sourceRows(
+  desks: DeskSummary[],
+  items: AttentionItem[],
+  opts: { source: string; query?: string; agents?: Array<{ id: string; name: string }> },
+): SourceRow[] {
+  const m = sidebarModel(desks, items, { query: opts.query, agents: opts.agents });
+  if (opts.source === ARCHIVED_CHATS) return m.archived;
+  if (opts.source === ALL_CHATS) return m.sections.flatMap((s) => s.rows.map((r) => ({ ...r, section: s.title })));
+  return m.sections.find((s) => s.id === opts.source)?.rows ?? [];
+}
+
+/** The part of a chat that says which sources hold it. */
+type Placed = Pick<DeskSummary, "status" | "pinned" | "agent_id">;
+
+/** Whether `source` lists the chat, before any Search. */
+export function sourceHolds(source: string, d: Placed): boolean {
+  if (source === ARCHIVED_CHATS) return isArchived(d.status);
+  if (d.status !== "live") return false;
+  if (source === ALL_CHATS) return true;
+  if (source === PINNED_CHATS) return !!d.pinned;
+  return !d.pinned && source === agentSource(d.agent_id);
+}
+
+/** The one source that is the chat's own: Archived for an archived chat, Pinned for a pinned one, else its agent's. */
+export function sourceFor(d: Placed): string {
+  if (isArchived(d.status)) return ARCHIVED_CHATS;
+  return d.pinned ? PINNED_CHATS : agentSource(d.agent_id);
+}
+
+/**
+ * Where the list goes to show a chat opened from outside it (⌘K, a notification, Flow's Open; KTD8): the source and
+ * the Search as they are when the source holds the chat and the Search shows it; else the chat's own source, and no
+ * Search. A chat the list does not know yet (one just made) is a live chat of its agent's.
+ */
+export function openIn(
+  target: { scope: string; agent_id: string | null },
+  at: { source: string; query: string },
+  desks: DeskSummary[],
+  agents?: Array<{ id: string; name: string }>,
+): { source: string; query: string } {
+  const d = desks.find((x) => x.scope === target.scope) ?? { status: "live" as const, pinned: false, agent_id: target.agent_id };
+  const source = sourceHolds(at.source, d) ? at.source : sourceFor(d);
+  const shows = !at.query.trim() || sourceRows(desks, [], { source, query: at.query, agents }).some((r) => r.desk.scope === target.scope);
+  return { source, query: shows ? at.query : "" };
 }
 
 /**
@@ -208,33 +305,26 @@ export function offscreenWaits(
   return { up: up?.id ?? null, down: down?.id ?? null };
 }
 
-/** The localStorage key the sidebar's folds and scroll are kept under. */
+/** The localStorage key the sidebar's folds are kept under. */
 export const SIDEBAR_KEY = "loki.desktop.sidebar";
 
-/** The sidebar as the person left it: folded sections, the Archived entry, and the scroll. */
+/**
+ * The sidebar as the person left it: the places whose sources they folded. An older save also kept the archive's
+ * fold and the list's scroll; the archive is a source now, and the list keeps its scroll by staying mounted.
+ */
 export interface SidebarPref {
-  /** Section ids folded shut. */
+  /** Folded ids: a place's (its sources hidden). */
   collapsed: string[];
-  /** The Archived entry is open; it starts folded. */
-  archivedOpen: boolean;
-  /** The list's scrollTop. */
-  scroll: number;
 }
 
-const FRESH: SidebarPref = { collapsed: [], archivedOpen: false, scroll: 0 };
-
-/** Stored sidebar settings read back; anything missing, malformed or out of range is the fresh default. */
+/** Stored sidebar settings read back; anything missing or malformed is the fresh default. */
 export function parseSidebar(raw: string | null): SidebarPref {
-  if (!raw) return { ...FRESH };
+  if (!raw) return { collapsed: [] };
   try {
     const v = JSON.parse(raw) as Partial<Record<keyof SidebarPref, unknown>>;
-    return {
-      collapsed: Array.isArray(v.collapsed) ? v.collapsed.filter((x): x is string => typeof x === "string") : [],
-      archivedOpen: v.archivedOpen === true,
-      scroll: typeof v.scroll === "number" && Number.isFinite(v.scroll) && v.scroll > 0 ? Math.round(v.scroll) : 0,
-    };
+    return { collapsed: Array.isArray(v.collapsed) ? v.collapsed.filter((x): x is string => typeof x === "string") : [] };
   } catch {
-    return { ...FRESH };
+    return { collapsed: [] };
   }
 }
 
@@ -245,7 +335,7 @@ export function loadSidebar(store: Store): SidebarPref {
   try {
     return parseSidebar(store.getItem(SIDEBAR_KEY));
   } catch {
-    return { ...FRESH };
+    return { collapsed: [] };
   }
 }
 
@@ -254,11 +344,11 @@ export function saveSidebar(store: Store, pref: SidebarPref): void {
   try {
     store.setItem(SIDEBAR_KEY, JSON.stringify(pref));
   } catch {
-    // a blocked store only costs the folds and the scroll across restarts
+    // a blocked store only costs the folds across restarts
   }
 }
 
-/** The settings with one section's fold flipped. */
+/** The settings with one fold flipped. */
 export function toggleFold(pref: SidebarPref, id: string): SidebarPref {
   return { ...pref, collapsed: pref.collapsed.includes(id) ? pref.collapsed.filter((c) => c !== id) : [...pref.collapsed, id] };
 }

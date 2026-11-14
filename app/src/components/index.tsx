@@ -656,6 +656,12 @@ export interface ListRowProps {
   actions?: ReactNode;
   /** `data-launch`, so a caller can hand focus back to this row. */
   launch?: string;
+  /** `data-row`: the item's id, so a list with a roving tab stop can find the row to focus (shell/content-list.tsx). */
+  rowId?: string;
+  /** The row button's tab stop: -1 on every row of a roving list but the one Tab lands on. */
+  tabIndex?: number;
+  /** Keys on the row button itself, for a list that takes its own arrows (shell/content-list.tsx). */
+  onKeyDown?: (e: KeyboardEvent<HTMLButtonElement>) => void;
 }
 
 /**
@@ -682,6 +688,9 @@ export function ListRow({
   onMenu,
   actions,
   launch,
+  rowId,
+  tabIndex,
+  onKeyDown,
 }: ListRowProps) {
   const count = badge != null && badge > 0 ? badge : null;
   const status = rowStatus({ unread, badge: count, badgeNoun, live, note });
@@ -700,8 +709,11 @@ export function ListRow({
         className={cx("loki-list-row", unread && "loki-list-row--unread")}
         aria-current={current ? "page" : undefined}
         aria-label={label}
+        tabIndex={tabIndex}
         data-launch={launch}
+        data-row={rowId}
         onClick={onOpen}
+        onKeyDown={onKeyDown}
         onContextMenu={
           onMenu
             ? (e) => {
@@ -860,7 +872,7 @@ export function TabRow<T extends string>({
   );
 }
 
-/** The props of `PaneHeader`: the title line's parts and an optional tab row. */
+/** The props of `PaneHeader`: the title line's parts, optional tab views and the trailing symbols. */
 export interface PaneHeaderProps<T extends string = string> {
   title: ReactNode;
   /** Before the title: a # icon or the agent's face. */
@@ -871,7 +883,10 @@ export interface PaneHeaderProps<T extends string = string> {
   subtitle?: ReactNode;
   /** On the right: the pane's actions (IconButtons, a menu). */
   actions?: ReactNode;
-  /** The tab row under the line; omitted, the header is one line. */
+  /**
+   * The tab views, centred in the toolbar between the title and the trailing symbols (plan 2026-11-14-1330, KTD11);
+   * omitted, the title has the line to itself.
+   */
   tabs?: ReadonlyArray<Tab<T>>;
   tab?: T;
   onTab?: (id: T) => void;
@@ -882,11 +897,15 @@ export interface PaneHeaderProps<T extends string = string> {
   titleId?: string;
   /** A whole line drawn in place of the lead, title, aside and actions: the chat pane's item header (plan 097). */
   line?: ReactNode;
-  /** After the tabs, at the trailing edge: Liquid Glass's toolbar items (plan 2026-11-12-1505, U13). */
+  /** At the trailing edge, after the tabs: Liquid Glass's toolbar items (plan 2026-11-12-1505, U13). */
   trailing?: ReactNode;
 }
 
-/** The main pane's header, Slack's: the name, a quiet aside and the actions on one line, the tab row under it. */
+/**
+ * The detail's toolbar, one band as Mail's: the name over its grey line, the tab views centred, the symbols at the
+ * trailing edge. The trailing side is always there, even empty, so it can leave room for the Update button the shell
+ * lays over the detail's top right (plan 2026-11-14-1330, U4).
+ */
 export function PaneHeader<T extends string>({
   title,
   lead,
@@ -919,7 +938,7 @@ export function PaneHeader<T extends string>({
       </div>
       {subtitle && <div className="loki-pane-header-subtitle">{subtitle}</div>}
       {tabs && tab !== undefined && onTab && <TabRow label={tabsLabel} tabs={tabs} current={tab} onChange={onTab} panelId={panelId} />}
-      {trailing && <div className="loki-pane-header-trailing">{trailing}</div>}
+      <div className="loki-pane-header-trailing">{trailing}</div>
     </header>
   );
 }

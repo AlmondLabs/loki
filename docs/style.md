@@ -216,7 +216,13 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 - `docs/architecture.md` is for whoever changes the code; `docs/SECURITY.md` says what reaches the network, what
   runs, and where secrets live, and changes with anything that touches those.
 - `docs/plans/` holds dated design notes for new behaviour; they record the decision, and are not kept up to date
-  afterwards.
+  afterwards. A plan ships in the PR that builds it, not in a PR of its own.
+- Agents work through the `ce-*` skills:
+  - `ce-brainstorm` to scope an idea
+  - `ce-plan` to write the plan
+  - `ce-doc-review` to review the plan
+  - `ce-work` to build it
+  - `ce-code-review` to review the change
 - Links over repetition: say a thing once and link to it.
 
 ## 8. Tests

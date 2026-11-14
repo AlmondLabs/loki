@@ -1151,6 +1151,101 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
 }
+/* The list column (shell/shell.tsx, plan 2026-11-14-1330 KTD1): a place's items between the sidebar and the detail, on the
+   detail's ground with a hairline before it, as Mail's message list. */
+.loki-list-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+  border-right: 1px solid var(--loki-border);
+  background: var(--loki-bg);
+}
+/* The slot the place's list is drawn into (shell/place-columns.tsx). */
+.loki-list-column-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+/* The place's list inside it (shell/content-list.tsx, KTD3): Mail's message list, a toolbar over the rows. */
+.loki-content-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.loki-content-list-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 8px 0 16px;
+}
+.loki-content-list-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--loki-font);
+  font-size: var(--loki-text-row);
+  font-weight: 700;
+  color: var(--loki-fg);
+}
+.loki-content-list-count {
+  flex: none;
+  font-size: var(--loki-text-meta);
+  color: var(--loki-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* New keeps the toolbar's trailing edge, with or without a count. */
+.loki-content-list-bar > .loki-btn {
+  margin-left: auto;
+}
+.loki-content-list-search {
+  flex: none;
+  padding: 0 10px 8px;
+}
+.loki-content-list-search .loki-field {
+  width: 100%;
+  box-sizing: border-box;
+}
+.loki-content-list-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 8px;
+}
+.loki-content-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  font-size: var(--loki-text-body);
+  color: var(--loki-muted);
+}
+.loki-content-list-empty-title {
+  margin: 0;
+  font-weight: 600;
+}
+/* The selection while the rows have focus: the accent with white ink, as a Mac list's (R15); grey otherwise
+   (.loki-list-row[aria-current]). The affirmative fill is the accent's blue that holds white at AA in both themes, which
+   the tokens test checks; the row's grey words and its badge take the same white. */
+.loki-content-list-rows:focus-within .loki-list-item[data-current] > .loki-list-row,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-actions {
+  background: var(--loki-affirm);
+  color: var(--loki-on-affirm);
+}
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-preview,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-time,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-badge {
+  background: transparent;
+  color: var(--loki-on-affirm);
+}
 .loki-column-body {
   position: absolute;
   inset: 0;
@@ -1282,7 +1377,9 @@ button.loki-list-section-toggle {
 /* Liquid Glass's places (shell/sidebar.tsx Places, U12): the source list's first rows, as Mail lists its mailboxes. A
    symbol in the accent, the name, a grey count; the place showing is filled, never bold. */
 .loki-places {
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -1328,6 +1425,51 @@ button.loki-list-section-toggle {
   font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
+}
+/* A place's sources (plan 2026-11-14-1330, R1): one level under its row, and a chevron at the row's trailing edge that
+   folds them, shown on hover as Mail's is. */
+.loki-place-group,
+.loki-place-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.loki-place-head {
+  position: relative;
+  display: flex;
+}
+.loki-place-head > .loki-place {
+  flex: 1;
+  min-width: 0;
+}
+.loki-place-fold {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  opacity: 0;
+}
+.loki-place-head:hover .loki-place-fold,
+.loki-place-fold:focus-visible,
+.loki-place-fold[aria-expanded="false"] {
+  opacity: 1;
+}
+.loki-place-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.loki-place--source {
+  width: 100%;
+  padding-left: 20px;
 }
 /* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
 .loki-sidebar-toggle[aria-pressed] {
@@ -1422,6 +1564,12 @@ button.loki-list-section-toggle {
       0 0 0 0.5px var(--loki-glass-edge),
       var(--loki-shadow-low);
   }
+  /* Tab views are centred in the toolbar (plan 2026-11-14-1330, KTD11): two equal sides hold them in the middle, and
+     the trailing side never shrinks below its symbols, so on a narrow detail the tabs fall in line just before them and
+     the title gives way. */
+  .loki-pane-header:has(> .loki-tabs) {
+    grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  }
   .loki-pane-header .loki-tab {
     min-height: 28px;
     padding: 0 12px;
@@ -1442,11 +1590,14 @@ button.loki-list-section-toggle {
     padding: 0 10px;
     font-size: var(--loki-text-meta);
   }
+  /* The symbols, and room for the Update button the shell lays over the detail's top right (shell/update-button.tsx). */
   .loki-pane-header-trailing {
     grid-area: tools;
+    justify-self: end;
     display: flex;
     align-items: center;
     gap: 8px;
+    padding-right: var(--loki-toolbar-room);
   }
   .loki-toolbar-title {
     display: flex;
@@ -1671,6 +1822,36 @@ button.loki-list-section-toggle {
     width: 16px;
     height: 16px;
     stroke-width: 1.75;
+  }
+  /* A newer loki (shell/update-button.tsx, plan 2026-11-14-1330 R18): a glass group over the detail's top right, the
+     same spot in every place, centred on the toolbar's 52px line; Update… in words, then the menu that holds Later. */
+  .loki-update-slot {
+    position: absolute;
+    top: 0;
+    right: 12px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    height: 52px;
+  }
+  /* The menu that holds Later hangs from the group, not from the taller slot. */
+  .loki-update-slot > .loki-toolbar-group {
+    position: relative;
+  }
+  .loki-toolbar-item--text {
+    width: auto;
+    padding: 0 10px;
+    font-family: var(--loki-font);
+    font-size: var(--loki-text-meta);
+    font-weight: 600;
+    color: var(--loki-accent);
+  }
+  .loki-toolbar-item--menu {
+    width: 24px;
+  }
+  .loki-toolbar-item--menu svg {
+    width: 14px;
+    height: 14px;
   }
 
   /* The chat pane (U4): the header and the dock float, and the thread scrolls on beneath both, padded by their

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
@@ -25,12 +25,18 @@ import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome"
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
 import { useLokiUpdate } from "./use-loki-update";
+import { UpdateButton, offeredVersion, readLater, saveLater } from "./update-button";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useShellKeys } from "./use-shell-keys";
 import { KeysSheet } from "./keys-sheet";
 import { useColumn } from "./use-column";
-import { ListColumn } from "./list-column";
-import { DeskSidebarView } from "./desk-sidebar";
+import { ColumnEdge, ListColumn } from "./list-column";
+import { LIST_MAX, LIST_MIN } from "./columns";
+import { PlaceSlotsProvider } from "./place-columns";
+import { ChatListView } from "./desk-sidebar";
+import type { ContentListHandle } from "./content-list";
+import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows } from "./sidebar-model";
+import { AgentFace } from "../desk/agent-chip";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
@@ -50,20 +56,6 @@ const SEGMENT_KEY = "loki.segment";
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
   return s === "inbox" || s === "agents" || s === "learn" ? s : "desk";
-}
-
-/** The key the last version announced is kept under, so a newer loki is said once, not at every launch. */
-const ANNOUNCED_KEY = "loki.update.announced";
-
-/** Whether `version` has yet to be announced on this Mac; it is marked announced. Without storage, it is said each time. */
-function announceOnce(version: string): boolean {
-  try {
-    if (localStorage.getItem(ANNOUNCED_KEY) === version) return false;
-    localStorage.setItem(ANNOUNCED_KEY, version);
-  } catch {
-    // Blocked storage only costs saying it again next launch.
-  }
-  return true;
 }
 
 /** First launch: nothing to talk to yet. Only while the daemon could not start, or has answered and lists no agents. */
@@ -117,8 +109,15 @@ export function Shell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchScope, setSearchScope] = useState<CommandScope>("all");
   const sharedModels = useSharedModels();
-  /** The Chats sidebar's filter, held here so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
+  /** The Chats list's Search, held here so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
   const [sidebarQuery, setSidebarQuery] = useState("");
+  /** The Chats source the sidebar has chosen and the list shows (plan 2026-11-14-1330, R4): every chat to begin with. */
+  const [chatSource, setChatSource] = useState(ALL_CHATS);
+  /**
+   * The source chosen does not hold the chat open (KTD8): the detail says "No Chat Selected", and the chat's link stays
+   * as it is until a row is picked.
+   */
+  const [unselected, setUnselected] = useState(false);
   /** Preferences: the Settings sheet over the section showing (KTD11). The rail keeps that section highlighted underneath. */
   const [prefsOpen, setPrefsOpen] = useState(false);
   // The view on screen, the desk under it, the chat open or closed — an event on each change.
@@ -211,29 +210,28 @@ export function Shell() {
    */
   const switchTo = desk.desks.switchTo;
   const paneOpen = pane.open;
+  const deskList = desk.desks.list;
+  const agentList = catchUp.agents;
   const openDesk = useCallback(
     (agentId: string, conversationId: string, _opts: { chat?: boolean } = {}) => {
       const scope = scopeFor(conversationId, agentId);
+      // The list follows (KTD8): the source that holds the chat, a Search that shows it, and its row selected.
+      const to = openIn({ scope, agent_id: agentId }, { source: chatSource, query: sidebarQuery }, deskList, agentList);
+      setChatSource(to.source);
+      setSidebarQuery(to.query);
+      setUnselected(false);
       switchTo(scope);
       paneOpen(scope);
       setSegment("desk");
       setNewChat(null);
       setFocusChat((n) => n + 1);
     },
-    [setSegment, paneOpen, switchTo],
+    [setSegment, paneOpen, switchTo, chatSource, sidebarQuery, deskList, agentList],
   );
   /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message. */
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
     openDesk(agentId, conversationId, { chat: true });
     catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title, origin: "lesson" });
-  };
-  const stepDesk = (dir: 1 | -1) => {
-    const live = desk.desks.list.filter((d) => d.status === "live");
-    if (live.length < 2) return;
-    const i = live.findIndex((d) => d.scope === desk.scope);
-    const next = live[(i + dir + live.length) % live.length];
-    desk.desks.switchTo(next.scope);
-    setSegment("desk");
   };
 
   const recall = useRecall(desk, segment, notice);
@@ -296,6 +294,8 @@ export function Shell() {
     setLanded(true);
     if (where.kind === "flow") setSegment("inbox");
     else if (where.kind === "chat") {
+      setChatSource(where.source);
+      setUnselected(false);
       desk.desks.switchTo(where.scope);
       pane.open(where.scope);
     }
@@ -313,26 +313,54 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // The list column is the window's one sidebar (U12), beside every section, its places on top; the pane starts where it
-  // ends.
-  const column = useColumn(segment);
-  /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
-  const showLabel = (name: string) => {
-    setSidebarQuery(`label:${name}`);
+  // A place moved onto the three columns draws its list and its detail from one owner component, which goes here
+  // (plan 2026-11-14-1330, KTD1); a place without one keeps its body in the sidebar and has no list column. Chats is
+  // drawn by the shell itself: its list and its chat pane both stay mounted across places, for the link and the scroll.
+  const placeOwners: Partial<Record<Segment, ReactNode>> = {};
+  const placeOwner = placeOwners[segment];
+  const hasList = segment === "desk" || placeOwner !== undefined;
+  const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
+  const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
+  // The sidebar is the window's one place list (U12), beside every section, its places on top; the list column and the
+  // detail start where columns.ts puts them.
+  const column = useColumn(segment, hasList);
+  const { layout } = column;
+  /** Chats' sources in the sidebar and the chosen one's rows in the list, Search applied (sidebar-model.ts, KTD2). */
+  const sources = useMemo(() => chatSources(deskList, catchUp.items, agentList), [deskList, catchUp.items, agentList]);
+  const source = sources.find((x) => x.id === chatSource) ?? { id: ALL_CHATS, title: "Chats", agentId: null, waiting: 0 };
+  const chatRows = useMemo(
+    () => sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList }),
+    [deskList, catchUp.items, source.id, sidebarQuery, agentList],
+  );
+  /**
+   * A source chosen in the sidebar (KTD8): Chats shows it, and the chat open stays selected when the source holds it;
+   * else the detail says "No Chat Selected", and nothing switches until a row is picked.
+   */
+  const chooseSource = (id: string) => {
+    column.dismiss();
+    setChatSource(id);
     setPrefsOpen(false);
     setSegment("desk");
-    if (!column.open) column.toggle();
+    const open = deskList.find((d) => d.scope === desk.scope);
+    setUnselected(!open || !sourceHolds(id, open));
+  };
+  /** A label's chats: every chat's list, searched for the label. */
+  const showLabel = (name: string) => {
+    chooseSource(ALL_CHATS);
+    setSidebarQuery(`label:${name}`);
   };
   // A chat not started yet shows in place of the open one, which stays mounted behind it and takes no keys meanwhile.
   const drafting = newChat !== null && segment === "desk";
   const onChat = segment === "desk" && !drafting;
-  /** The window holds no chat: the desk's shared scope is the canvas's own, never a chat to draw. */
-  const noChat = desk.scope === SHARED_SCOPE;
+  /** The window holds no chat to show: the desk's shared scope is the canvas's own, or the source chosen does not hold it. */
+  const noChat = desk.scope === SHARED_SCOPE || unselected;
+  /** The chat selected in the list, if the list holds one. */
+  const listSelected = noChat ? null : desk.scope;
   // The sidebar stays on every tab, the Canvas one too, as Finder's does whatever the view (plan 2026-11-14-1130, 2);
   // ⌃⌘S folds it for a wider canvas.
-  const columnShown = column.shown;
-  // The sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
-  const paneLeft = columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36;
+  const sidebarShown = layout.sidebarShown;
+  // A folded sidebar asked for shows over the list and the detail rather than moving them.
+  const sidebarLayer = layout.sidebarOver ? 1 : undefined;
   // In the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); elsewhere the sheet.
   const settingsWindow = SETTINGS_WINDOW;
   const showPreferences = (page?: string | null) => {
@@ -340,25 +368,37 @@ export function Shell() {
     if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
     setPrefsOpen(true);
   };
-  // A newer loki is said once per version, as a notice with the way to it (plan 2026-11-14-1300, 4), not a row kept at
-  // the sidebar's foot: Preferences › loki has it for as long as it is newer.
-  const newer = update.newer ? update.latest : null;
-  const announce = useEffectEvent((version: string) => {
-    if (!announceOnce(version)) return;
-    notify(`loki ${version} is available`, {
-      duration: Infinity,
-      action: { label: "Update…", onClick: () => showPreferences("loki") },
-      cancel: { label: "Later", onClick: () => {} },
-    });
-  });
-  useEffect(() => {
-    if (newer) announce(newer);
-  }, [newer]);
+  // A newer loki is an Update button at the detail toolbar's trailing edge until Later puts that version off (plan
+  // 2026-11-14-1330, R18), not a notice over the content; Preferences › loki has it for as long as it is newer.
+  const [laterVersion, setLaterVersion] = useState(readLater);
+  const offered = offeredVersion(update, laterVersion);
+  const putOffUpdate = (version: string) => {
+    saveLater(version);
+    setLaterVersion(version);
+  };
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
     if (to) run(to === "inset");
   };
+
+  /**
+   * A chat committed in the list (KTD4): an arrow's rest, a click, ⌘[ ⌘]. It shows in the detail and its link opens,
+   * once per commit, while focus stays in the list; Return or Tab then goes into its message box (`enterChat`).
+   */
+  const selectChat = (scope: string) => {
+    desk.desks.switchTo(scope);
+    pane.open(scope);
+    setSegment("desk");
+    setNewChat(null);
+    setUnselected(false);
+  };
+  const enterChat = () => setFocusChat((n) => n + 1);
+  /**
+   * The Chats list, for ⌘[ ⌘] (R16): it steps the rows it draws, a held row included, from the row the person sees, a
+   * pending arrow highlight included, and commits through `selectChat`.
+   */
+  const chatList = useRef<ContentListHandle>(null);
 
   /** ⌘1-6 and ⌘,: ⌘, (⌘6) toggles Preferences over the section; the others close it and go (settings/preferences.ts). */
   const segmentKey = (id: string) => {
@@ -378,8 +418,8 @@ export function Shell() {
       "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
       "desk.new": () => startNewChat(null),
       "keys.sheet": () => setKeysOpen((v) => !v),
-      "desk.prev": () => stepDesk(-1),
-      "desk.next": () => stepDesk(1),
+      "desk.prev": () => chatList.current?.step(-1),
+      "desk.next": () => chatList.current?.step(1),
       "column.toggle": () => {
         if (column.has) column.toggle();
       },
@@ -400,15 +440,6 @@ export function Shell() {
     },
     { toDesk: () => setSegment("desk"), toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
   );
-
-  /** A desk chosen in the sidebar: an open, so its Messages tab with the box focused. */
-  const switchDesk = (scope: string) => {
-    desk.desks.switchTo(scope);
-    pane.open(scope);
-    setSegment("desk");
-    setNewChat(null);
-    setFocusChat((n) => n + 1);
-  };
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (search-model.ts SearchTarget). */
   const searchSources = useMemo(
@@ -436,13 +467,14 @@ export function Shell() {
         <div
           aria-hidden
           className="loki-shell-glass glass"
-          data-empty={!columnShown ? "" : undefined}
+          data-empty={!sidebarShown ? "" : undefined}
           style={{
             position: "absolute",
+            zIndex: sidebarLayer,
             left: GLASS_INSET,
             top: GLASS_INSET,
             bottom: GLASS_INSET,
-            width: columnShown ? column.width : 0,
+            width: sidebarShown ? column.sidebar : 0,
             borderRadius: "var(--loki-radius-lg)",
           }}
         />
@@ -455,25 +487,38 @@ export function Shell() {
 
         <ListColumn
           segment={segment}
-          shown={columnShown}
-          width={column.width}
-          onWidth={column.setWidth}
+          shown={sidebarShown}
+          width={column.sidebar}
+          onWidth={column.setSidebar}
+          layer={sidebarLayer}
           left={GLASS_INSET}
           top={GLASS_INSET + GLASS_HEAD}
-          head={<Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} />}
+          head={
+            <Places
+              segment={segment}
+              onSelect={(s) => {
+                column.dismiss();
+                setSegment(s);
+              }}
+              waiting={waiting}
+              dueCards={recall.due}
+              sources={{
+                desk: {
+                  items: sources.map((x) => ({
+                    id: x.id,
+                    title: x.title,
+                    icon: x.id === PINNED_CHATS ? "pin" : x.id === ARCHIVED_CHATS ? "archive" : undefined,
+                    face: x.agentId ? <AgentFace name={x.title} src={avatarUrl(x.agentId)} size={16} /> : undefined,
+                    count: x.waiting,
+                  })),
+                  selected: source.id,
+                  all: ALL_CHATS,
+                  onSelect: chooseSource,
+                },
+              }}
+            />
+          }
           sections={{
-            desk: (
-              <DeskSidebarView
-                desk={desk}
-                catchUp={catchUp}
-                notice={notice}
-                onOpen={switchDesk}
-                onNew={startNewChat}
-                query={sidebarQuery}
-                onQuery={setSidebarQuery}
-                drafting={drafting}
-              />
-            ),
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
             learn: <LearnColumn recall={recall} />,
             inbox: (
@@ -488,14 +533,55 @@ export function Shell() {
           }}
         />
 
+        {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. Its
+            ContentList is the landmark, named for the source (KTD13); the edge beside it resizes the column. */}
+        {/* Always mounted, hidden in a place with no list, so Chats' list keeps its scroll across places (KTD1). */}
+        <div
+          className="loki-list-column"
+          aria-hidden={!hasList}
+          style={{
+            position: "absolute",
+            top: TITLEBAR_HEIGHT,
+            left: layout.listLeft,
+            width: Math.max(layout.list, LIST_MIN),
+            bottom: 0,
+            visibility: hasList ? "visible" : "hidden",
+          }}
+        >
+          <div className="loki-list-column-slot" style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? undefined : "hidden" }}>
+            <ChatListView
+              ref={chatList}
+              desk={desk}
+              catchUp={catchUp}
+              notice={notice}
+              rows={chatRows}
+              source={source}
+              selected={listSelected}
+              shown={segment === "desk"}
+              onSelect={selectChat}
+              onEnter={enterChat}
+              onNew={startNewChat}
+              query={sidebarQuery}
+              onQuery={setSidebarQuery}
+              drafting={drafting}
+            />
+          </div>
+          {/* The owner's portal slot covers the column; with no owner showing it must not swallow clicks meant for Chats' list underneath. */}
+          <div ref={setListSlot} className="loki-list-column-slot" style={{ position: "absolute", inset: 0, pointerEvents: placeOwner ? undefined : "none" }} />
+          {hasList && <ColumnEdge label="Resize list" min={LIST_MIN} max={LIST_MAX} width={layout.list} onWidth={column.setList} />}
+        </div>
+
         {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
-        <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
+        <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.detailLeft, right: 0, bottom: 0 }}>
+          {hasList && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
+          <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>{placeOwner}</PlaceSlotsProvider>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
             <DeskPane
               desk={desk}
+              onOpenChat={openDesk}
               catchUp={catchUp}
-              active={onChat}
+              active={onChat && !unselected}
               tab={pane.tab}
               onTab={pane.setTab}
               frameRequest={pane.frameRequest}
@@ -523,7 +609,7 @@ export function Shell() {
           {/* No chat to show: say so, as Messages and Mail do, rather than draw an empty room (plan 2026-11-14-1300, 1). */}
           {onChat && noChat && (
             <EmptyPane icon="desk" title="No Chat Selected" style={{ position: "absolute", inset: 0 }}>
-              <p className="loki-meta">Choose a chat in the sidebar, or start one.</p>
+              <p className="loki-meta">Choose a chat in the list, or start one.</p>
               <div>
                 <Button tone="positive" onClick={() => startNewChat(null)}>
                   New Chat
@@ -547,7 +633,7 @@ export function Shell() {
                 requirements={desk.attention.requirements}
                 onStart={startChat}
                 onClose={() => setNewChat(null)}
-                focusTick={newChat.n}
+                focusTick={newChat.n + focusChat}
               />
             </div>
           )}
@@ -594,6 +680,8 @@ export function Shell() {
               onDone={(agentId) => openDesk(agentId, "default", { chat: true })}
             />
           )}
+          {/* Over the detail's top right, the same spot in every place; each toolbar's trailing side leaves it room. */}
+          {offered && <UpdateButton version={offered} onUpdate={() => showPreferences("loki")} onLater={() => putOffUpdate(offered)} />}
         </main>
       </div>
 

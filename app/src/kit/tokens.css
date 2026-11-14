@@ -235,6 +235,8 @@
   /* What the chat pane's floating header and dock measure (shared/use-height-var.ts); 0 until measured. */
   --loki-header-height: 0px;
   --loki-dock-height: 0px;
+  /* The width the Update button takes at the detail toolbar's trailing edge (shell/update-button.tsx); 0 without one. */
+  --loki-toolbar-room: 0px;
 }
 :root {
   --loki-layer-panel: 100;
