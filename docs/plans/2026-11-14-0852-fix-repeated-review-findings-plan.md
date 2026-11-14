@@ -35,7 +35,9 @@ a chat or an email, Mark as Read for Slack and Jira (`item/action-bar.tsx`, R13)
    (the window's notices, four seconds, in a sentence: "Couldn't put this off. Gmail needs you to sign in again.") with
    **Sign In…** as its action where the reason is a sign-in. The flash stays for the words that confirm ("Read",
    "Later"). A card whose source needs a sign-in draws one line in place of its two red ones, "Gmail needs you to sign
-   in again", with **Sign In…**, and Later on it rests the card here without writing back, so the deck always moves.
+   in again", with **Sign In…**, and Later on it passes the card for this visit without writing back, so the deck
+   always moves. (Built: the card's line keeps the account's own words, `disconnectedText`, beside the button, which
+   reads Add Token… for Jira and Connect Again… after an admin's block; Sign In… opens Preferences › Accounts.)
 2. **Option 1, and the deck becomes Mail's list with a reading pane**, so a stuck card is one row among others and
    ↓ always reaches the next. This answers 2026-11-13's "no list", but it is a redesign of Flow, not a fix.
 3. **Only lengthen the flash.** Smallest, and still a grey word in a header.

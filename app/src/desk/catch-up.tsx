@@ -61,6 +61,8 @@ interface CatchUpProps {
   onLane: (lane: ResolvedLane | null) => void;
   /** "new lane…" in the menu: open Preferences › Flow. */
   onNewLane?: () => void;
+  /** Sign In… on a card whose account lost its sign-in: open Preferences › Accounts (plan 2026-11-14-0852, 1). */
+  onSignIn?: () => void;
   /** Read (⌘]): marked read here and out there, and rested (plan 070, R5). */
   onRead: (item: AttentionItem) => Promise<MoveResult>;
   /** Later (⌘[): left unread and put off, until `until` (ISO) when the person picked (R6, R7). */
@@ -187,6 +189,7 @@ function CatchUpDeck(props: DeckProps) {
     setDecided,
     setQueue,
     moves: deckMoveApi(props, replyOutside, unsendOutside),
+    onSignIn: props.onSignIn,
   });
   /** ⇧R and F on a mail card (plan 076): the reply goes to the sender alone, or is forwarded, and the box takes focus. */
   const mailMode = (mode: "reply" | "forward") => {
@@ -334,6 +337,7 @@ function CatchUpDeck(props: DeckProps) {
               moves={{ read: actions.read, later: actions.later, archive: actions.archive, label: props.labelsOf ? actions.label : () => {} }}
               went={wentTo(current.outside, items)}
               onHandoff={handoffSource ? () => actions.openPicker("handoff") : undefined}
+              onSignIn={props.onSignIn}
               source={outsideSource}
               box={
                 replyOutside

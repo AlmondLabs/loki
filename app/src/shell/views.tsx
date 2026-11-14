@@ -4,7 +4,8 @@ import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
 import { saveLabels } from "../desk/desk-conversation";
 import { runAction } from "./keymap";
-import { SETTINGS_PAGE_KEY } from "../settings/pages";
+import { SETTINGS_PAGE_KEY, type SettingsPage } from "../settings/pages";
+import { SETTINGS_WINDOW, openSettingsWindow } from "./settings-window";
 import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/catch-up";
 import { Agents } from "../agents/agents";
@@ -51,12 +52,16 @@ export function RecallView({
 /** How the Inbox's last move was made, for analytics: the last input was a key or a click. */
 const via = () => (lastInput() === "key" ? "key" : "click");
 
-/** "new lane…" in Flow's title: Preferences opens on its Flow page, where lanes are made (plan 087, R8). */
-function openFlowPreferences() {
+/**
+ * Preferences on one of its pages: Flow's, where lanes are made (plan 087, R8), or Accounts, where a card's account
+ * signs in again (plan 2026-11-14-0852, 1). The Mac app's Preferences window is told the page; the sheet reads it.
+ */
+function openPreferencesOn(page: SettingsPage) {
+  if (SETTINGS_WINDOW) return openSettingsWindow(page);
   try {
-    sessionStorage.setItem(SETTINGS_PAGE_KEY, "inbox");
+    sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
   } catch {
-    // Without storage Preferences opens on its first page; the person goes to Flow from there.
+    // Without storage Preferences opens on its first page; the person goes on from there.
   }
   runAction("segment.settings");
 }
@@ -95,7 +100,8 @@ export function InboxView({
       lane={catchUp.flow.lane}
       lanes={catchUp.flow.lanes}
       onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
-      onNewLane={openFlowPreferences}
+      onNewLane={() => openPreferencesOn("inbox")}
+      onSignIn={() => openPreferencesOn("accounts")}
       labelList={catchUp.labels.list}
       onRead={(item) => catchUp.read(item, via())}
       onLater={(item, until) => catchUp.later(item, via(), until)}

@@ -334,7 +334,7 @@ describe("reading a card's whole thread", () => {
     const shown = renderToStaticMarkup(
       createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "failed", message: "Jira did not accept the API token" } }),
     );
-    expect(shown).toContain("could not read the whole thread: Jira did not accept the API token");
+    expect(shown).toContain("Could not read the whole thread: Jira did not accept the API token");
     expect(shown).toContain("Can you look at the rotation?");
   });
   test("an account not on this Mac is refused", async () => {
@@ -937,7 +937,7 @@ describe("the card", () => {
     expect(read).toContain(">you<");
     expect(read).toContain("Looking now");
     const loading = renderToStaticMarkup(createElement(OutsideThread, { facts: FACTS, state: { kind: "loading" } }));
-    expect(loading).toContain("reading the whole thread");
+    expect(loading).toContain("Reading the whole thread");
     expect(loading).toContain("Please review this PR");
   });
 });
@@ -1103,7 +1103,7 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
   test("a ticket with no comments yet still draws the ticket", () => {
     const html = thread(read({ messages: [] }));
     expect(html).toContain(">Description<");
-    expect(html).not.toContain("reading the whole thread");
+    expect(html).not.toContain("Reading the whole thread");
   });
   test("a read without the ticket, from an older Mac, draws the card as before", () => {
     const html = thread({ kind: "read", messages: JIRA_COMMENTS });

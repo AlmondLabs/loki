@@ -768,7 +768,10 @@ them:
 5. **Undo**, Z or ⌘Z, takes back the last move on any card, a rest, a chat's read mark or archive, or what a move did
    in Gmail (the thread comes back unread or in the inbox, as it was). The ⌘ forms work while you type a reply.
 
-A move that loki or Gmail refuses brings the card back on top with the reason. Approval and question cards never
+A move that loki or Gmail refuses brings the card back on top, and a notice at the top right says why, with
+**Sign In…** (or **Add Token…**, **Connect Again…**) when the card's account needs mending; it opens Preferences ›
+Accounts. A card whose account needs a sign-in says so once, above its thread, with the same button, and Later passes
+it for this visit without writing anything, so it never holds up the cards behind it. Approval and question cards never
 rest: an approval leaves only by Approve or Deny, and read or later on it only moves past it for this visit. Once
 only resting cards are left, Flow says "You're caught up", how many rest, and **go through them**. A or ⌘↵
 approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused,
@@ -1273,7 +1276,8 @@ card's comment box (a card that had ended comes back, unread) until you send it 
 approval. The owner can propose a comment only on a ticket that has had a card in Flow. The agent cannot take a
 proposal back: you reject the card, or clear an approved comment from the ticket card's box.
 
-**When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
+**When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines,
+with a button that opens Preferences › Accounts where a sign-in or a token mends it:
 
 1. "Gmail wants a new sign-in": the sign-in expired or was revoked; **reconnect gmail** signs in again.
 2. "a workspace admin blocks loki in Gmail" (or Slack): ask the admin, or use your own Google app, then connect again.

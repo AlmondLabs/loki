@@ -41,6 +41,9 @@ function deck(
     read?: MoveResult;
     /** Mail replies are held for their undo (plan 076): what stopping one answers. */
     unsend?: (outboxId: string) => boolean;
+    /** The host's notices; absent, refusals flash on the badge. */
+    notices?: string[];
+    later?: MoveResult;
   } = {},
 ) {
   const calls: Array<[string, ...unknown[]]> = [];
@@ -62,13 +65,14 @@ function deck(
       setDecided: (v) => (state.decided = apply(v, state.decided)),
       setQueue: (v) => (state.queue = apply(v, state.queue)),
       say: (w) => state.flash.push(w),
+      ...(over.notices ? { notice: (_item: AttentionItem, w: string) => over.notices?.push(w) } : {}),
       setDir: () => {},
       pick: (k) => (state.picker = k),
       sent: () => calls.push(["sent"]),
       newId: () => "o1",
       moves: {
         read: (item) => (calls.push(["read", item.id]), Promise.resolve(over.read ?? DONE)),
-        later: (item, until) => (calls.push(["later", item.id, until]), Promise.resolve(DONE)),
+        later: (item, until) => (calls.push(["later", item.id, until]), Promise.resolve(over.later ?? DONE)),
         laterAsks: () => over.asks ?? false,
         archive: (item) => (calls.push(["archive", item.id]), Promise.resolve(null)),
         label: (item, ids) => (calls.push(["label", item.id, ids]), Promise.resolve(null)),
@@ -453,5 +457,52 @@ describe("the word on the badge", () => {
     flash.stop();
     vi.advanceTimersByTime(FLASH_MS * 2);
     expect(shown.at(-1)).toBe("later");
+  });
+});
+
+describe("a refusal says so, and a card whose account needs a sign-in never stops the deck (plan 2026-11-14-0852, 1)", () => {
+  const signedOut = () => {
+    const item = outsideItem("Lunch");
+    const outside = must(item.outside, "the card's account");
+    return { ...item, outside: { ...outside, disconnected: "sign_in_again" as const } };
+  };
+
+  test("a refused move goes to a notice, which stays to be read, not the badge's 900 ms flash", async () => {
+    const notices: string[] = [];
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { read: { error: "Gmail refused", ask: false, rest: null }, notices });
+    d.moves().read();
+    await settle();
+    expect(d.state.flash).toEqual(["Read"]);
+    expect(notices).toEqual(["Not marked read: Gmail refused"]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+  });
+
+  test("Later on a card that needs a sign-in passes it for this visit, writes nothing, and says why", async () => {
+    const notices: string[] = [];
+    const d = deck([signedOut(), attentionItem("c2")], { notices });
+    d.moves().later();
+    await settle();
+    expect(d.calls).toEqual([]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
+    expect(notices).toEqual(["Skipped for this visit: nothing changed in its account"]);
+  });
+
+  test("an account that is only failing for now still writes Later as usual", async () => {
+    const item = outsideItem("Lunch");
+    const failing = { ...item, outside: { ...must(item.outside, "the card's account"), disconnected: "temporarily_failing" as const } };
+    const d = deck([failing, attentionItem("c2")], { notices: [] });
+    d.moves().later();
+    await settle();
+    expect(d.calls).toEqual([["later", "t1#1", undefined]]);
+  });
+});
+
+describe("the control that mends a disconnected account", () => {
+  test("Sign In… for Gmail and Slack, Add Token… for Jira, Connect Again… after a block, nothing while it only fails for now", async () => {
+    const { mendLabel } = await import("../app/src/desk/outside-words.ts");
+    expect(mendLabel("sign_in_again", "gmail")).toBe("Sign In…");
+    expect(mendLabel("sign_in_again", "jira")).toBe("Add Token…");
+    expect(mendLabel("admin_blocks", "slack")).toBe("Connect Again…");
+    expect(mendLabel("temporarily_failing", "gmail")).toBeNull();
   });
 });

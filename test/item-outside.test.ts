@@ -73,7 +73,7 @@ describe("the outside thread's seam", () => {
   });
 
   test("while the thread is read, the card's last lines stand in", () => {
-    expect(html(createElement(OutsideThread, { facts: facts(), state: { kind: "loading" }, items: true }))).toContain("reading the whole thread");
+    expect(html(createElement(OutsideThread, { facts: facts(), state: { kind: "loading" }, items: true }))).toContain("Reading the whole thread");
   });
 });
 

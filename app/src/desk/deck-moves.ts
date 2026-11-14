@@ -86,6 +86,11 @@ export interface DeckMovesHost {
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
   say: (word: string) => void;
+  /**
+   * A refusal, or a move that could not write back, as a notice that stays long enough to read, with Sign In… when the
+   * card's account needs one (plan 2026-11-14-0852, 1). Absent, the badge flashes it as any word.
+   */
+  notice?: (item: AttentionItem, words: string) => void;
   setDir: (dir: "next" | "back") => void;
   /** Open a picker on the card on top, or close it with null. */
   pick: (kind: PickerKind | null) => void;
@@ -109,6 +114,12 @@ const DECISION: Record<Move, { action: Decision["action"]; via: NonNullable<Deci
 /** What a refused move flashes, before the reason. */
 const REFUSED: Record<Move, string> = { read: "Not marked read", later: "Not put off", archive: "Not archived" };
 
+/** Whether a card's account has lost what lets loki write to it, so every move there is refused until it is mended. */
+export const needsSignIn = (item: AttentionItem | undefined): boolean => {
+  const cause = item?.outside?.disconnected;
+  return !!cause && cause !== "temporarily_failing";
+};
+
 /** Whether a card takes labels: an email card only (R12); a chat or a Slack message has none. */
 export const takesLabels = (item: AttentionItem | undefined): boolean => item?.outside?.provider === "gmail";
 
@@ -128,6 +139,8 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item) }]);
     host.setQueue(popHead);
   };
+  /** A move refused out there: said as a notice where the host has one, the flash otherwise. */
+  const refuse = (item: AttentionItem, words: string) => (host.notice ? host.notice(item, words) : host.say(words));
   /** The card is still where it was: its decision goes and it is back on top. */
   const restore = (item: AttentionItem, action: Decision["action"]) => {
     host.setDecided((d) => d.filter((x) => !(x.item === item && x.action === action)));
@@ -239,7 +252,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     void moves.read(item).then((r) => {
       if (!r.error) return;
       restore(item, "seen");
-      host.say(`${REFUSED.read}: ${r.error}`);
+      refuse(item, `${REFUSED.read}: ${r.error}`);
     });
   };
 
@@ -248,13 +261,21 @@ export function createDeckMoves(host: DeckMovesHost) {
     const item = host.current;
     if (!item || host.reply.busy) return;
     if (hasReply(item)) return void sendThen(item, "later");
+    // An account that needs a sign-in refuses every write, so Later would bring the card straight back and the deck
+    // could never get past it: the card is passed over for this visit, nothing is written, and the notice says why.
+    if (needsSignIn(item)) {
+      decide(item, "later");
+      host.say("Later");
+      refuse(item, "Skipped for this visit: nothing changed in its account");
+      return;
+    }
     if (moves.laterAsks(item)) return host.pick("later");
     decide(item, "later");
     host.say("Later");
     void moves.later(item).then((r) => {
       if (r.error) {
         restore(item, "later");
-        host.say(`${REFUSED.later}: ${r.error}`);
+        refuse(item, `${REFUSED.later}: ${r.error}`);
       } else if (r.ask) {
         // The card's rest moved under the press: it asks after all.
         restore(item, "later");
@@ -273,7 +294,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     void moves.later(item, until).then((r) => {
       if (!r.error) return;
       restore(item, "later");
-      host.say(`${REFUSED.later}: ${r.error}`);
+      refuse(item, `${REFUSED.later}: ${r.error}`);
     });
   };
 
@@ -293,7 +314,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     void moves.archive(item).then((err) => {
       if (!err) return;
       restore(item, "archived");
-      host.say(`${REFUSED.archive}: ${err}`);
+      refuse(item, `${REFUSED.archive}: ${err}`);
     });
   };
 

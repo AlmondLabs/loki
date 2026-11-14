@@ -11,6 +11,16 @@ import { senderName } from "./mail-thread";
 /** The service's own name, as the card's meta and notices say it. */
 const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 
+/**
+ * The control that mends a disconnected account, in Apple's words, or null where waiting is the only cure (plan
+ * 2026-11-14-0852, 1): a Gmail or Slack sign-in, a Jira API token, or connecting again after an admin's block.
+ */
+export function mendLabel(cause: AccountDisconnectCause, provider: AccountProvider): string | null {
+  if (cause === "temporarily_failing") return null;
+  if (cause === "sign_in_again") return provider === "jira" ? "Add Token…" : "Sign In…";
+  return "Connect Again…";
+}
+
 /** What a disconnected account's cards say (R22): what happened and how to reconnect, lowercase as desktop meta. */
 export function disconnectedText(cause: AccountDisconnectCause, provider: AccountProvider): string {
   const service = SERVICE[provider];

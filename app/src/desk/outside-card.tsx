@@ -4,6 +4,7 @@ import { ItemHeader } from "../item/item-header";
 import { ActionBar, type VerbControl } from "../item/action-bar";
 import { outsideItem, type ItemVerb } from "../item/item-view";
 import type {
+  AccountDisconnectCause,
   EmojiChoice,
   JiraCardTicket,
   SlackPerson,
@@ -33,7 +34,7 @@ import {
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { sentKey, type SentReplies, type SentReply, type SentSnapshot } from "../../../core/attention/sent-replies.ts";
-import { Button, Chip, Meta, TextArea } from "../components";
+import { Button, Chip, Meta, TextArea, sentence } from "../components";
 import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
@@ -59,6 +60,7 @@ import {
   SEND_NOTE,
   SEND_TITLE,
   disconnectedText,
+  mendLabel,
   replyPlace,
   ticketAddress,
 } from "./outside-words";
@@ -555,11 +557,15 @@ function SlackRows({
 /** The card's own last lines while its thread is read, or when it could not be, with a line saying which. */
 function ThreadStandIn({ facts, state, touch }: { facts: OutsideFacts; state: ThreadState; touch: boolean }) {
   const failed = state.kind === "failed" ? state.message : null;
+  // A disconnected account's card already says why above the thread (Disconnected): a failed read says it only once.
+  const said = failed !== null && !!facts.disconnected;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
-      <Meta wrap negative={failed !== null}>
-        {failed !== null ? `could not read the whole thread: ${failed}` : "reading the whole thread…"}
-      </Meta>
+      {!said && (
+        <Meta wrap negative={failed !== null}>
+          {failed !== null ? `Could not read the whole thread: ${failed}` : "Reading the whole thread…"}
+        </Meta>
+      )}
       <OutsideLines facts={facts} touch={touch} />
     </div>
   );
@@ -1219,6 +1225,26 @@ function DeckReply({
 }
 
 /**
+ * What a disconnected account's card says, once (plan 2026-11-14-0852, 1): the one line that names what happened, and
+ * the control that mends it where one can. The thread under it does not say it again.
+ */
+function Disconnected({ facts, cause, onSignIn }: { facts: OutsideFacts; cause: AccountDisconnectCause; onSignIn?: () => void }) {
+  const mend = mendLabel(cause, facts.provider);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <Meta negative wrap>
+        {sentence(disconnectedText(cause, facts.provider))}
+      </Meta>
+      {mend && onSignIn && (
+        <Button size="sm" tone="brass" onClick={onSignIn}>
+          {mend}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
  * The desktop card for an outside thread: the header (who, where and when, and the badge's flash), the whole thread,
  * the reply box, and the deck's moves. Read marks the thread read out there, later keeps it unread and brings it back,
  * archive archives it in its account, label adds a Gmail label; hand off opens `picker`, where the thread goes to its
@@ -1233,6 +1259,7 @@ export function OutsideCard({
   moves,
   went = null,
   onHandoff,
+  onSignIn,
   picker = null,
   source = null,
   box,
@@ -1251,6 +1278,8 @@ export function OutsideCard({
   went?: string | null;
   /** Open the hand-off picker; absent, the card has no hand off. */
   onHandoff?: () => void;
+  /** Open where a disconnected account is mended; absent, the card only says what happened. */
+  onSignIn?: () => void;
   /** The picker open on the card, the hand-off's, the return time's or the labels'. */
   picker?: ReactNode;
   /** Reading the thread, reacting on a Slack card (plan 079) and its people to mention (plan 082); absent, the card shows its last lines. */
@@ -1289,11 +1318,7 @@ export function OutsideCard({
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <OutsideItemHeader facts={facts} unread={current.unread} flash={flash} went={went} cameBack={cameBack} thread={thread} />
       <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
-        {facts.disconnected && (
-          <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>
-            {disconnectedText(facts.disconnected, facts.provider)}
-          </Meta>
-        )}
+        {facts.disconnected && <Disconnected facts={facts} cause={facts.disconnected} onSignIn={onSignIn} />}
         <OutsideThread facts={facts} state={thread} own={own} items />
         {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>
