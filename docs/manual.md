@@ -1186,10 +1186,12 @@ takes back the move only; the reply stays sent. On the phone, **Send** sends the
 your swipe. Only you send this way: no agent can, and an agent's own reply goes only when you press Send on its card.
 
 **Mention people.** Type @ and a few letters in the reply box to see the people who match; ↑ and ↓ move, Enter or Tab
-takes one, and Esc puts the list away. On a Slack card the list is your workspace's people, and a pick writes their
-handle (`@ravi.kumar`): when the reply goes, each handle of someone in the workspace becomes a Slack mention, so Slack
-tells them. On an email card the list is the people you have mail with, as Gmail's is: a pick writes their name and
-adds them to To when they are not already on the reply. Both work on the phone too.
+takes one, and Esc puts the list away. The list stays open while you type a full name, spaces and all, as long as
+someone matches. On a Slack card the list is your workspace's people, and a pick writes their full name
+(`@Ravi Kumar`): when the reply goes, each person you picked whose name is still in it becomes a Slack mention, so Slack
+tells them. An @ you type without picking from the list goes as plain text and tells no one. On an email card the list
+is the people you have mail with, as Gmail's is: a pick writes their name and adds them to To when they are not
+already on the reply. Both work on the phone too.
 
 **How an email card reads.** On the Mac an email card is laid out the way Gmail lays out a thread. The subject is
 the card's title. With more than one mailbox connected, the header ends with the one it came to ("in
@@ -1272,7 +1274,8 @@ changes the ticket except a comment you send. **To comment**, type in the card's
 phone): the comment is posted on the ticket as you, in plain text, and the card stays, unread, with its events still
 marked new, so you choose the next move. Your comment shows on the card as yours. ⌘] or ⌘[ with text in the box posts
 it first, then makes its move. A comment that fails is not sent again on its own: your text stays in the box and the
-card says why. There is no @ list of people on a Jira card.
+card says why. There is no @ list of people in a Jira card's own box; an agent's proposed comment can mention people
+(see "Mentions on a reply").
 
 **What loki keeps of your moves.** Each read, later, archive, label, reply, hand-off and undo on an outside card is
 written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. Each line holds:
@@ -1309,8 +1312,9 @@ chat with a different agent cannot read or draft there even if you ask it to. Un
 reads were three tools of their own, `account_list`, `account_read` and `account_search`; old chats show those calls as
 they were. For a Google account the owner's scripts can do more, sending included.
 
-**You send an agent's reply from its card.** The owner may propose a reply in any thread of its accounts: one you
-handed to its chat, or one it found or read with a script, so you can simply ask it to write a reply in a chat. The
+**You send an agent's reply from its card.** The owner may propose a reply in any thread of its accounts, whether
+or not it ever had a card in Flow: one you handed to its chat, one it found or read with a script, or one you name to
+it by a link or a key ("comment on FMOS-13190", "reply in #ops"), so you can simply ask it to write a reply in a chat. The
 reply always waits for you, in every permission mode: it shows in its chat and as a card in Flow, on the Mac and the
 phone. Read it, edit its words if you like, and press **Send**; it goes as you, in the same thread and to that
 thread's own people, after 10 seconds in which **Undo** takes it back with your edits kept. The agent cannot send it.
@@ -1320,7 +1324,27 @@ thread's own people, after 10 seconds in which **Undo** takes it back with your 
    as your own reply does. If someone joined or left the thread before it went, it does not go: the card shows who was
    added or removed, and you press Send again.
 2. **Slack** posts in the same conversation, or the same thread.
-3. **Jira** posts a comment on the ticket; the owner can propose one only on a ticket that has had a card in Flow.
+3. **Jira** posts a comment on any ticket of the site you can see.
+
+The card names where the reply lands as the service itself says it, never only in the agent's words: the mail's
+subject and everyone it goes to, the Slack conversation by name (a DM by the other person's name) and, for a thread,
+its first line, or the Jira ticket's key and title. So a mistyped key or a thread a stranger's mail pointed the agent
+at shows on the card before anything goes. Beneath it the card says, when it holds, that the thread has no card in
+Flow, that a Slack conversation is shared with people outside your workspace, who Jira usually tells of a comment
+(the assignee, the reporter and the watchers), and that a service desk's customer sees the comment. Sending a reply
+in a thread with no card does not put it in Flow; an answer to it comes in as any other would.
+
+**Mentions on a reply.** Ask the owner to tell someone ("comment on FMOS-13190 and let Vivek know") and its reply
+mentions them, each by their full name as the service shows it: Slack and Jira notify them, and on Gmail they are added
+to cc with `@Ana Ruiz` left in the text, as Gmail's own @ does. The owner finds them among your workspace's people
+on Slack, among the people who can see the ticket on Jira, and in your contacts, other contacts and your
+organisation's directory on Gmail. A name that fits more than one person, or nobody, is not guessed: the owner is told
+who matched and asks you which one you mean. On the card each mention is marked; a Gmail card says whom a mention adds
+to cc, and a Slack card says when someone mentioned is not in the conversation and so will not be notified. While
+you edit, type @ to pick someone from the account as in your own reply box; delete a mention's name and that person is
+neither mentioned nor, on Gmail, added to cc. A Gmail account signed in before loki asked for your contacts finds
+people only by address until you sign it in again from Preferences › Accounts, which says so on its row. Words like
+`@channel`, an address, or someone's handle quoted from a message are never mentions unless the owner resolved them.
 
 A reply can carry files from the chat's folder, up to 10 and 17 MB together, on all three: attached to the mail,
 posted with the Slack message, or attached to the Jira ticket with the comment naming them. The card names each file
@@ -1383,8 +1407,10 @@ and a value one script stores is not kept for the next.
    Mac, connected, and allowed that service.
 4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `jira_read` a ticket with its comments and field
    changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
-   subject, time and the chat it went to. They only read; a reply to Slack or Jira still goes through `reply_propose`.
-   Each checks that the account is the agent's, and names none that is not.
+   subject, time and the chat it went to. `people_find` finds people in one of the agent's accounts by name, with the
+   address, Slack handle or Jira account id that names each one, so the agent can mention the right person. They only
+   read; a reply to Slack or Jira still goes through `reply_propose`. Each checks that the account is the agent's, and
+   names none that is not.
    A script that read any account's content (mail, messages, tickets, files, Flow's list) answers fenced: the agent
    is told it is content from other people, not instructions, as with a thread you hand it.
 5. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script

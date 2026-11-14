@@ -822,7 +822,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose, with `attachments` for its files: the person reviews the reply on a card and sends it from there; you cannot send it. Never send mail, Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), use reply_propose, with `attachments` for its files and `mentions` for the people it should tell: the person reviews the reply on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

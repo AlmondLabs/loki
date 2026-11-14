@@ -168,7 +168,7 @@ integration, connector, source (a Source is where a thread's steps come from).
 
 **Owner** (`owner_agent_id` on an account): the one agent an account belongs to. It receives the account's hand-offs
 and is the only agent with its tools (`reply_propose`, and the script-only reads: `flow_list`, `slack_read`,
-`jira_read`, and for a Google account the `google_*` tools); moving the account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
+`jira_read`, `people_find`, and for a Google account the `google_*` tools); moving the account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
 disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): a card in Flow for one thread in
@@ -197,11 +197,16 @@ to the message handed, unless a newer one came meanwhile (`AccountThreads.archiv
 hand-off sends the whole ticket and keeps the card, open and unread. Not the
 Handoff above, which is a history page taking over tail rows. _Avoid_: forward, delegate.
 
-**Reply proposal** (`mod/reply-proposals.ts`, plans 067, 071 and 2026-11-14-1134): a reply the owner writes with
-`reply_propose` in any thread of its accounts, handed to its chat or found by search, with any files from the chat's
-folder. It waits for the person, in the chat and as a card in Flow, in every permission mode; the person may edit it
-or take files off, and **Send** sends it as them in that thread, on Gmail, Slack or Jira, after a 10-second hold they
-can undo. Only the person's Send sends it. _Avoid_: draft, approved reply.
+**Reply proposal** (`mod/reply-proposals.ts`, plans 067, 071, 2026-11-14-1134 and 2026-11-14-1530): a reply the owner
+writes with `reply_propose` in any thread of its accounts, in Flow or not, named by its id, a link, a `#channel` or a
+Jira key, with any files from the chat's folder and any people it mentions. Its card shows where it lands as the
+service says it. It waits for the person, in the chat and as a card in Flow, in every permission mode; the person may
+edit it, mention someone with @, or take files off, and **Send** sends it as them in that thread, on Gmail, Slack or
+Jira, after a 10-second hold they can undo. Only the person's Send sends it. _Avoid_: draft, approved reply.
+
+**Mention** (`core/mentions.ts`, plan 2026-11-14-1530): a person a reply names as `@Full Name` whom loki resolved in
+the account and stored with the reply: Slack and Jira notify them, and Gmail adds them to cc. Only a stored mention
+whose name is still in the text counts; any other `@` is text. _Avoid_: tag, ping.
 
 **Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program any agent runs with its
 `codemode` tool (plan 099), or loki's `script` tool in an ACP chat, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools
