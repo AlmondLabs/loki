@@ -167,8 +167,10 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 
 **review**:
 
-- Styles: tokens and primitives first (design.md). Inline `style` is fine for one-off layout and checked against the
-  scales; anything shared or stateful (`:hover`, `[data-state]`) is a class in the area's CSS file.
+- Styles: tokens and primitives first (design.md). Fixed layout is Tailwind classes on the spacing scale
+  (`flex items-center gap-2`); inline `style` is for one-off padding, sizes and colour, and for values computed from
+  state or props, and is checked against the scales. Mono and an ellipsis are `loki-mono` and `loki-truncate`. Anything
+  shared or stateful (`:hover`, `[data-state]`) is a class in the area's CSS file.
 - Accessibility: every control has a name (`aria-label` where there is no visible text), lists are lists, a custom
   widget has its role, and everything works from the keyboard. Shortcuts go in `shell/keymap.ts`, nowhere else.
 

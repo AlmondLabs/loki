@@ -82,6 +82,13 @@ const contrast = (a: Rgb, b: Rgb) => {
 
 /** Type scale (px): micro, meta, label (.loki-label), small, body, row title, card title, display, hero. */
 const FONT_SCALE = new Set([9.5, 10.5, 11, 12, 13.5, 15, 17, 22, 28]);
+/**
+ * Spacing (px), the desktop's gaps: a hairline, then loki's 4px grid. They are Tailwind's steps 0, px, 0.5, 1, 1.5, 2, 3,
+ * 4 and 6, because styles.css sets one step to 4px. The phone keeps its own scale, --phone-space-1 to 6.
+ */
+const SPACE = new Set([0, 1, 2, 4, 6, 8, 12, 16, 24]);
+/** The spacing steps a gap or space class may name; anything else, an arbitrary value included, is off the scale. */
+const SPACE_STEPS = new Set(["0", "px", "0.5", "1", "1.5", "2", "3", "4", "6"]);
 /** Radii: control, row, card/sheet, pill — plus the geometric ones used for circles and hairlines. */
 const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
 /**
@@ -111,6 +118,13 @@ describe("design tokens: every style stays on the scales", () => {
     const off = inline.filter((h) => numbers(value(h)).some((n) => !FONT_SCALE.has(n)));
     const inCss = findAll(files, /font-size:\s*([\d.]+)px/g, (m) => m[1]).filter((h) => !FONT_SCALE.has(Number(value(h))));
     expect([...off, ...inCss]).toEqual([]);
+  });
+  test("desktop gaps come from the spacing scale (a gap from the phone's scale on touch is the phone's)", () => {
+    // .tsx only: a gap: in plain .ts is an argument, not a style (chat/use-transcript-scroll.ts)
+    const desktop = code.filter((f) => f.path.endsWith(".tsx") && !f.path.startsWith("phone/") && !f.path.startsWith("ui/"));
+    const inline = findAll(desktop, /\b(?:gap|rowGap|columnGap): ([^,}\n]+)/g, (m) => m[1].trim());
+    const off = inline.filter((h) => numbers(value(h).replace(/var\([^)]*\)/g, "")).some((n) => !SPACE.has(n)));
+    expect(off).toEqual([]);
   });
   test("radii come from the radius scale", () => {
     const inline = findAll(code, /borderRadius: ([^,}\n]+)/g, (m) => m[1].trim());
@@ -635,8 +649,14 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     visit(src);
     return out;
   };
+  /** A gap or space class whose step is off the spacing scale; shadcn's own files in ui/ keep theirs. */
+  const offSpacing = (path: string, text: string): boolean =>
+    !path.startsWith("ui/") && [...text.matchAll(/(?:^|[\s:])(?:gap(?:-[xy])?|space-[xy])-(\S+)/g)].some((m) => !SPACE_STEPS.has(m[1]));
   const offScale = (path: string, text: string) =>
-    classStrings(path, text).flatMap((s) => OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`));
+    classStrings(path, text).flatMap((s) => [
+      ...OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`),
+      ...(offSpacing(path, s.text) ? [`${s.at}: a gap off the spacing scale in "${s.text}"`] : []),
+    ]);
 
   test("the fence catches what it should and passes loki's names", () => {
     expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
@@ -644,6 +664,14 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     expect(offScale("x.tsx", 'const a = <b className="bg-primary text-body text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
       [],
     );
+  });
+
+  test("the fence holds gap and space classes to the spacing scale, outside shadcn's own files", () => {
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-5" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="grid gap-x-2.5" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-[10px]" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-1.5 gap-px space-y-2 sm:gap-3 gap-y-0.5" />;')).toEqual([]);
+    expect(offScale("ui/x.tsx", 'const a = <b className="flex gap-2.5" />;')).toEqual([]);
   });
 
   test("no class string in loki's source leaves the scales", () => {

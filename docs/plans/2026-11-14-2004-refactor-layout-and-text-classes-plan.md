@@ -61,7 +61,7 @@ Type, radii and colour each have a scale that `test/tokens.test.ts` checks, but 
 ### Key Decisions
 
 - **Layout is written as Tailwind classes** (session-settled: user-directed — chosen over new Stack and Inline layout components: the chat items already write layout this way, so it adds no component API and the token test can read the class strings). Governs R4, R5.
-- **The scale is Tailwind's own steps**, so the classes need no configuration. 10 and 14, about 27 places, snap to a neighbour; the user accepted this when confirming scope. Governs R1, R3.
+- **The scale is Tailwind's steps, with one step set to 4px** (session-settled: user-directed — chosen over pixel classes such as `gap-[8px]` and over keeping layout inline: one line of configuration puts the whole app on one 4px grid). loki's root is 15px, so Tailwind's default step was 3.75px. The chat items and shadcn widgets, already on Tailwind classes, grow by the same 1/15. 10 and 14, about 27 places, snap to a neighbour; the user accepted this when confirming scope. Governs R1, R3, R6.
 
 ### Scope Boundaries
 
@@ -90,6 +90,7 @@ Type, radii and colour each have a scale that `test/tokens.test.ts` checks, but 
 - KTD4. **The fence follows the type and radius checks in `test/tokens.test.ts`.** It adds a `SPACE` set and an inline check over desktop `.tsx` files for `gap`, `rowGap` and `columnGap`. That check strips `var(...)` before reading numbers, because the existing `numbers()` helper would read the 2 in `--phone-space-2`. It also adds an `OFF_SCALE` entry for `gap-*`, `gap-x-*`, `gap-y-*` and `space-x/y-*` classes off the scale, exempting `app/src/ui` for that entry only. The inline check reads `.tsx` files only, so `afterScroll(gap, …)` in `chat/use-transcript-scroll.ts` is not misread. Governs R2.
 - KTD5. **The kit's six objects move too.** `kit/index.tsx` renders inside the widget frame, which receives the page's stylesheets by message (`frame/main.tsx`), so Tailwind's utilities reach it. One kit widget is checked by hand. Governs R4, R6.
 
+- KTD7. **`--spacing: 4px` in `app/src/styles.css`'s `@theme`.** Tailwind sizes a step as 0.25rem and `app/index.html` sets the root to 15px, so without it every converted gap shrinks by 1/16 (`gap-3` drew 11.25px). It lands as its own commit before the move to classes, so its effect on the chat items is reviewable apart from the move. Applies the spacing Key Decision; governs R1, R6.
 - KTD6. **Snap first, then convert.** In each of U2 to U4, the R3 snaps land first, as their own commit with the values still inline, and the unit's baseline screenshots are taken after it. The move to classes then has to match that baseline exactly. Snapping and converting in one edit would let a real regression hide among the dozens of expected gap changes, such as a class losing to a loki rule or a dropped `min-width: 0`. Governs R6.
 
 ### Sequencing
