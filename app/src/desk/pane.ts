@@ -1,5 +1,3 @@
-import type { Segment } from "../shell/keymap";
-
 /**
  * The desk pane's state, apart from React (plan 013 U5; test/desk-pane.test.ts). A desk is a Slack channel:
  * its Messages tab is the conversation, its Desk tab today's canvas with the inset chat. The tab is kept per
@@ -36,9 +34,6 @@ export function escapeTab(s: PaneState, scope: string, { typing }: { typing: boo
   if (typing || tabOf(s, scope) !== "desk") return null;
   return chooseTab(s, scope, "messages");
 }
-
-/** The Desk tab gives the canvas the window: the list column hides, the rail stays. */
-export const sidebarHidden = (segment: Segment, tab: DeskTab): boolean => segment === "desk" && tab === "desk";
 
 /** The chat view that shows: none when the Chats section is off screen, else the one the tab shows. */
 export const paneView = (active: boolean, tab: DeskTab): PaneView | null => (!active ? null : tab === "messages" ? "messages" : "inset");

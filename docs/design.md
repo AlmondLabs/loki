@@ -272,7 +272,7 @@ Internals keep the name desk.
 - **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
   edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden.
-  A window under 1100 wide folds it away until asked for, without touching the saved choice. Each section's
+  A window under 800 wide folds it away until asked for, without touching the saved choice (1100 until 2026-11-14, which folded it in most windows beside another app; plan 2026-11-14-1130). Each section's
   list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. Each list's heading
   is a source-list heading under the places, small and grey, with its "+".
 - **Chats sidebar.** A filter ("Find a chat…", by chat or agent name; ↓ into the rows, ↑↓ between them, ↵ opens
@@ -289,7 +289,7 @@ Internals keep the name desk.
 - **Chat pane.** A chat opens on **Messages** with the composer focused, from anywhere (the sidebar, search,
   the Inbox's Enter or O, Agents, Learn). **Canvas** is the tab beside it: today's sheet edge to edge with the
   chat as a viewport **inset** (framing centres in the uncovered part, toggling the chat slides the sheet by its
-  width), the camera, arranging and the widget keys unchanged. The Canvas tab hides the sidebar. Esc, or the Messages tab, returns to the thread at the scroll it was left at, and focus to what it last
+  width), the camera, arranging and the widget keys unchanged. The Canvas tab keeps the sidebar, as Finder keeps its sidebar in every view; ⌃⌘S folds it for a wider canvas (it hid the sidebar until 2026-11-14). Esc, or the Messages tab, returns to the thread at the scroll it was left at, and focus to what it last
   held there. Both views are one conversation with one draft: a half-written reply follows you across the tabs.
   Only the view on screen draws the composer. Each chat remembers its tab for ⌘[ ⌘]; an open always lands on
   Messages. The pane stays mounted, hidden, behind the other sections, so the mod link, the camera and the
@@ -306,7 +306,9 @@ Internals keep the name desk.
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** is one card at a time, the card a solid page with the chat's toolbar; Enter or O on a card opens its chat
-  on Messages.
+  on Messages. Its sidebar lists the lanes as Mail lists its mailboxes (plan 2026-11-14-1130): Everything, the
+  person's lanes, then each agent with cards, each with the count of what needs the person, the active one chosen;
+  the title's menu is the same list, and the header's "+" is New Lane….
   Once two agents have cards waiting, pills over the deck filter the visit by agent (All, then each agent, busiest
   first, with its count); a pill that is on stays at 0 when its cards are archived, and undo takes back that
   agent's last decision.

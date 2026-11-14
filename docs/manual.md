@@ -121,7 +121,7 @@ on the Mac's own material, the traffic lights in its top row: its first rows are
 filled; under them, the place's own list. The chosen item fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
 Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
 hides it; drag its edge (or
-focus it and use the arrows) for a width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
+focus it and use the arrows) for a width between 220 and 420. A window under 800 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
@@ -157,7 +157,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   what came since you last looked (it stays put while the chat is open and moves on the next open), a copy button on
   hover, and a line each time the agent
   adds, changes or removes a widget ("friday added Revenue chart"). Click that line and the **Canvas** tab opens
-  framed on the widget. The Canvas tab is the sheet edge to edge with the chat over it, the sidebar hidden: the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
+  framed on the widget. The Canvas tab is the sheet beside the sidebar with the chat over it (⌃⌘S folds the sidebar for more room): the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
   box, ⌘/ toggles it, ⌘W closes it; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget
   move). A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part,
   and opening or closing a left chat slides the sheet so nothing ends up under it. Esc (outside a text box) or
@@ -869,6 +869,10 @@ later; a picked one does not. Deleting an agent or an account takes it out of ev
 chats from all agents, picked agents or none, then mail and Slack from all accounts, picked accounts or none. Each
 account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
 Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
+
+**Switching.** In Flow the sidebar lists the lanes: Everything, yours, then one per agent with cards, each with how
+many of its cards need you. Click one to switch; Flow's title is the same list as a menu, and the sidebar's **+**
+opens Preferences › Flow to make a new one.
 
 **Switching.** Flow's title names the lane you are in ("flow · work" on the desktop, "Work" on the phone); click or tap
 it for the switcher: **everything**, your lanes, then a lane for each agent with cards waiting (its chats and the
