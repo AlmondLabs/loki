@@ -602,6 +602,26 @@ describe("a mail reply that did not go (plan 096)", () => {
     expect(late.notes[0]?.reason).toMatch(/loki was closed when it was due/);
   });
 
+  test("a held reply with no move after it (stay) survives a restart and goes when due", async () => {
+    const file = join(scratch(), "outbox.json");
+    const closed = new MailOutbox({
+      file,
+      holdMs: 10_000,
+      now: () => new Date(AT),
+      key: Promise.resolve("the daemon's key"),
+      after: () => () => {},
+      send: () => Promise.reject(new Error("never")),
+    });
+    void closed.hold({ ...reply, then: "stay" });
+    await settle();
+    const after = box(file, AT + 20_000);
+    after.state.fails = null;
+    after.outbox.resume();
+    await settle();
+    await settle();
+    expect(after.sent).toEqual(["o3-abcdefgh"]);
+  });
+
   test("every held reply carries its id in a header, which is how its thread is searched for it", () => {
     const base = { threadId: "t1", inReplyTo: "", references: [], to: ["p@x.example"], cc: [], subject: "s", body: "b" };
     expect(rfc2822({ ...base, outboxId: "o3-abcdefgh" })).toContain("\r\nX-Loki-Outbox: o3-abcdefgh\r\n");
@@ -750,5 +770,128 @@ describe("the mail reply box as drawn", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts, onSend, items: true }));
     expect(html).toContain("Reply to all");
     expect(html).not.toContain("•••");
+  });
+});
+
+describe("the outbox holds any service's reply (plan 2026-11-14-1134, U1)", () => {
+  const AT = Date.parse("2026-11-14T10:00:00Z");
+  const KEY = "the daemon's key";
+  const proposal = { agent_id: "agent-work", conversation_id: "conv-1", proposal_id: "reply-1" };
+  const slackReply = {
+    outbox_id: "slack-0001",
+    account_id: "slack:T1:U1",
+    thread_id: "C9:1700.1",
+    text: "Deploying at 9.",
+    then: "stay" as const,
+    mail: null,
+    thread_ts: "1700.1",
+    files: [{ name: "plan.pdf", path: "/work/plan.pdf", size: 12, md5: "abc" }],
+    proposal,
+  };
+  const soon = (fn: () => void) => {
+    queueMicrotask(fn);
+    return () => {};
+  };
+  /** An outbox over `file` at `at`, with what it sent and what each proposal was told. */
+  const box = (file: string, at = AT, went: boolean | null = false) => {
+    const sent: string[] = [];
+    const told: Array<{ id: string; outcome: string }> = [];
+    const state = { fails: null as string | null, hang: false };
+    const outbox = new MailOutbox({
+      file,
+      holdMs: 0,
+      now: () => new Date(at),
+      key: Promise.resolve(KEY),
+      after: soon,
+      send: (held) => {
+        if (state.hang) return new Promise(() => {});
+        if (state.fails) return Promise.reject(new Error(state.fails));
+        sent.push(held.outbox_id);
+        return Promise.resolve({ sent: true, then_error: null, change: null });
+      },
+      wentOut: () => Promise.resolve(went),
+      onNotSent: (held, note) => told.push({ id: held.outbox_id, outcome: note ? `failed: ${note.reason}` : "settled" }),
+      onSent: (held) => told.push({ id: held.outbox_id, outcome: "sent" }),
+    });
+    const kept = () => (JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> }).held;
+    return { outbox, sent, told, state, kept };
+  };
+
+  test("an agent's Slack reply goes after its hold, stays in the file as sent until its proposal takes it, and is reported again after a restart", async () => {
+    const file = join(scratch(), "outbox.json");
+    const before = box(file);
+    await expect(before.outbox.hold(slackReply)).resolves.toMatchObject({ sent: true });
+    expect(before.sent).toEqual(["slack-0001"]);
+    expect(before.told).toEqual([{ id: "slack-0001", outcome: "sent" }]);
+    expect(before.kept()).toMatchObject([{ outbox_id: "slack-0001", state: "sent" }]);
+    // loki stops before the proposal saved it: the next start reports it again, and sends nothing.
+    const after = box(file, AT + 60_000);
+    after.outbox.resume();
+    await settle();
+    expect(after.sent).toEqual([]);
+    expect(after.told).toEqual([{ id: "slack-0001", outcome: "sent" }]);
+    after.outbox.acknowledge("slack-0001");
+    expect(after.kept()).toEqual([]);
+  });
+
+  test("a failed agent reply is reported until its proposal takes it, then never again", async () => {
+    const file = join(scratch(), "outbox.json");
+    const b = box(file);
+    b.state.fails = "Slack is unreachable";
+    await expect(b.outbox.hold(slackReply)).rejects.toThrow("Slack is unreachable");
+    await settle();
+    expect(b.told).toEqual([{ id: "slack-0001", outcome: "failed: Slack is unreachable" }]);
+    b.outbox.acknowledge("slack-0001");
+    const after = box(file, AT + 60_000);
+    after.outbox.resume();
+    await settle();
+    expect(after.told).toEqual([]);
+    expect(after.sent).toEqual([]);
+  });
+
+  test("a Slack reply cut short while sending is never sent again: it may have gone, so the person looks first", async () => {
+    const file = join(scratch(), "outbox.json");
+    const before = box(file);
+    before.state.hang = true;
+    void before.outbox.hold(slackReply);
+    await settle();
+    const after = box(file, AT + 60_000, null);
+    after.outbox.resume();
+    await settle();
+    await settle();
+    expect(after.sent).toEqual([]);
+    expect(after.told[0]?.outcome).toMatch(/look in the thread before sending it again/);
+  });
+
+  test("an entry whose thread, files or proposal was changed in the file is dropped unsent", async () => {
+    for (const change of [{ thread_ts: "1800.2" }, { files: [] }, { proposal: { ...proposal, proposal_id: "reply-9" } }]) {
+      const file = join(scratch(), "outbox.json");
+      const closed = new MailOutbox({
+        file,
+        holdMs: 10_000,
+        now: () => new Date(AT),
+        key: Promise.resolve(KEY),
+        after: () => () => {},
+        send: () => Promise.reject(new Error("never")),
+      });
+      void closed.hold(slackReply);
+      await settle();
+      const held = (JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> }).held;
+      writeFileSync(file, JSON.stringify({ version: 1, held: held.map((h) => ({ ...h, ...change })) }));
+      const after = box(file, AT + 20_000);
+      after.outbox.resume();
+      await settle();
+      await settle();
+      expect(after.sent).toEqual([]);
+      expect(after.kept()).toEqual([]);
+    }
+  });
+
+  test("a person's own reply, with no proposal, is still removed once sent", async () => {
+    const file = join(scratch(), "outbox.json");
+    const b = box(file);
+    await b.outbox.hold({ ...slackReply, outbox_id: "own-00001", proposal: null });
+    expect(b.kept()).toEqual([]);
+    expect(b.told).toEqual([]);
   });
 });
