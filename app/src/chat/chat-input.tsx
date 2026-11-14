@@ -308,7 +308,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
                     height: 56,
                     maxWidth: 120,
                     objectFit: "cover",
-                    borderRadius: "var(--loki-radius-sm)",
+                    borderRadius: "var(--radius-md)",
                     border: "1px solid var(--loki-border)",
                   }}
                 />
@@ -322,7 +322,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
                     right: -6,
                     width: 18,
                     height: 18,
-                    borderRadius: "var(--loki-radius-md)",
+                    borderRadius: "var(--radius-lg)",
                     border: "1px solid var(--loki-border)",
                     background: "var(--loki-panel)",
                     color: "var(--loki-fg)",

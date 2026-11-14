@@ -69,7 +69,7 @@
   overflow-wrap: anywhere;
   overflow-x: hidden;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
 }
 .loki-md pre code {
   background: transparent;
@@ -95,7 +95,7 @@
 .loki-md-img {
   max-width: 100%;
   height: auto;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 .loki-md-remote {
   font: inherit;
@@ -104,7 +104,7 @@
   background: transparent;
   cursor: pointer;
   border: 1px dashed var(--loki-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   padding: 2px 8px;
   margin: 2px 0;
   max-width: 100%;
@@ -249,7 +249,7 @@
   padding: 4px;
   margin-left: -4px;
   border: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: none;
   color: inherit;
   font: inherit;
@@ -280,7 +280,7 @@
   margin: 4px 0 8px;
   padding: 8px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   max-width: 720px;
 }
@@ -353,7 +353,7 @@
   max-height: 240px;
   overflow: auto;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   color: var(--loki-fg);
   font-family: var(--loki-mono);
@@ -366,7 +366,7 @@
   margin: 0;
   padding: 8px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   color: var(--loki-fg);
   line-height: 1.45;
@@ -398,7 +398,7 @@
   padding: 8px;
   background: var(--loki-well);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;
@@ -507,7 +507,7 @@
   padding: 12px;
   background: var(--loki-well);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   overflow-wrap: anywhere;
 }
 .loki-suggestion-text > :first-child {
@@ -576,7 +576,7 @@ button.loki-suggested-chip {
   padding: 12px;
   background: var(--loki-well);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;
@@ -603,7 +603,7 @@ button.loki-suggested-chip {
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--loki-control-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--loki-well);
   transition: border-color 120ms ease-out;
 }
@@ -645,7 +645,7 @@ button.loki-suggested-chip {
   min-height: 32px;
   padding: 4px 8px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   color: var(--loki-fg);
   font: inherit;
@@ -841,7 +841,7 @@ button.loki-file-chip {
 }
 .loki-model-card {
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   overflow: hidden;
 }
@@ -889,7 +889,7 @@ button.loki-file-chip {
   display: flex;
   gap: 2px;
   padding: 2px;
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-well);
 }
 .loki-model-tab {
@@ -898,7 +898,7 @@ button.loki-file-chip {
   min-height: 26px;
   padding: 0 8px;
   border: 0;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -1019,7 +1019,7 @@ button.loki-file-chip {
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 .loki-chat-link-row .loki-chat-link-name {
   flex: 1;
@@ -1067,7 +1067,7 @@ button.loki-file-chip {
   max-height: 160px;
   overflow: auto;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   font-family: var(--loki-mono);
   font-size: var(--text-xs);
@@ -1254,14 +1254,14 @@ button.loki-file-chip {
   color: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 /* A widget drawn live in the thread, under its latest row (chat/inline-widget.tsx): a card as wide as the thread allows. */
 .loki-inline-widget {
   margin: 4px 0 8px calc(var(--loki-msg-face) + 8px);
   max-width: 760px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--loki-panel);
   overflow: hidden;
 }
@@ -1445,7 +1445,7 @@ button.loki-label-chip:focus-visible {
 .loki-desk-pane-label-add:focus-visible {
   outline: 2px solid var(--loki-accent);
   outline-offset: 2px;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 /* The picker: a field, then the labels as a checklist with the chat's own first and a check on each it has. */
 .loki-labels-dialog {
@@ -1479,7 +1479,7 @@ button.loki-label-chip:focus-visible {
   max-height: 260px;
   overflow-y: auto;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
 }
 .loki-label-option {
@@ -1613,7 +1613,7 @@ button.loki-label-chip:focus-visible {
   height: 18px;
   display: grid;
   place-items: center;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   border: 1px solid var(--loki-border);
   background: var(--loki-panel);
   font-size: var(--text-xs);
@@ -1691,7 +1691,7 @@ button.loki-label-chip:focus-visible {
   margin: 0;
   padding: 12px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel-header);
 }
 /* Each field's label and value sit in the plate's two columns. */
@@ -1749,7 +1749,7 @@ button.loki-label-chip:focus-visible {
   display: block;
   width: 100%;
   border: 0;
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   color-scheme: light;
 }
 /* A mail before the newest in its thread, folded to one line; a press opens it. */
@@ -1760,7 +1760,7 @@ button.loki-label-chip:focus-visible {
   min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -1835,7 +1835,7 @@ button.loki-label-chip:focus-visible {
   padding: 4px;
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--loki-shadow-float);
 }
 /* The people to mention (plan 082) open above the reply box, so the box and what is typed stay in sight. */
@@ -1850,7 +1850,7 @@ button.loki-label-chip:focus-visible {
   min-width: 0;
   padding: 4px 8px;
   border: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -1934,7 +1934,7 @@ button.loki-label-chip:focus-visible {
 }
 .loki-mention {
   padding: 0 2px;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: var(--loki-brass-soft);
   font-weight: 600;
 }
@@ -1956,7 +1956,7 @@ button.loki-label-chip:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 .loki-slack-quote {
   margin: 0;
@@ -2013,7 +2013,7 @@ img.loki-emoji,
   margin: 0 -8px;
   padding: 0 8px 0 calc(8px - 2px);
   border-left: 2px solid var(--loki-mention-bar);
-  border-radius: 0 var(--loki-radius-sm) var(--loki-radius-sm) 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   background: var(--loki-mention);
 }
 /* A reply that brought the card keeps its place under the thread; the mention bar takes the thread line's place. */
@@ -2027,7 +2027,7 @@ img.loki-emoji,
   margin: 8px 0;
   padding: 4px 8px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: none;
   color: var(--loki-accent);
   font: inherit;
@@ -2123,7 +2123,7 @@ img.loki-emoji,
   max-width: 100%;
   height: auto;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-well);
 }
 .loki-slack-preview figcaption {
@@ -2140,7 +2140,7 @@ img.loki-emoji,
   display: flex;
   flex-direction: column;
   border: 1px solid var(--loki-control-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-well);
 }
 .loki-mail-compose-head {
@@ -2177,7 +2177,7 @@ img.loki-emoji,
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
   box-shadow: var(--loki-shadow-sheet);
   opacity: 0;
@@ -2196,7 +2196,7 @@ img.loki-emoji,
   height: 30px;
   padding: 0;
   border: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-muted);
   font: inherit;
@@ -2247,13 +2247,13 @@ img.loki-emoji,
   margin-top: 8px;
   padding: 8px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-panel);
 }
 .loki-emoji-search {
   padding: 4px 8px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: none;
   color: var(--loki-fg);
   font: inherit;
@@ -2270,7 +2270,7 @@ img.loki-emoji,
   gap: 4px;
   padding: 2px 4px;
   border: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: none;
   font: inherit;
   font-size: var(--text-sm);

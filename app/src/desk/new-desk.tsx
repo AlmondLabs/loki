@@ -520,7 +520,7 @@ function FolderList({
         marginTop: 4,
         background: "var(--loki-panel)",
         border: "1px solid var(--loki-border)",
-        borderRadius: "var(--loki-radius-md)",
+        borderRadius: "var(--radius-lg)",
         boxShadow: "var(--loki-shadow-float)",
         maxHeight: 240,
         overflowY: "auto",

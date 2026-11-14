@@ -454,7 +454,7 @@ function Deck({
       style={{
         background: "var(--loki-panel)",
         border: "1px solid var(--loki-border)",
-        borderRadius: "var(--loki-radius-lg)",
+        borderRadius: "var(--radius-xl)",
         boxShadow: "var(--loki-shadow-sheet)",
         padding: "16px 24px",
         animation: "loki-card-next 200ms ease-out",

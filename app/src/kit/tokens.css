@@ -67,10 +67,6 @@
    * Radii: sm 6 (fields, icon buttons, dense rows, code) · md 8 (buttons, rows, plates) ·
    *        lg 12 (cards, sheets, popovers, panels) · pill 999 (chips, badges, toasts); circles use half their size.
    */
-  --loki-radius: 12px;
-  --loki-radius-sm: 6px;
-  --loki-radius-md: 8px;
-  --loki-radius-lg: 12px;
   --loki-radius-pill: 999px;
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
@@ -218,7 +214,6 @@
   --sidebar-accent-foreground: var(--loki-fg);
   --sidebar-border: var(--loki-border);
   --sidebar-ring: var(--loki-accent);
-  --radius: var(--loki-radius-md);
 }
 :root {
   /* What the chat pane's floating header and dock measure (shared/use-height-var.ts); 0 until measured. */

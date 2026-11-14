@@ -53,7 +53,7 @@ describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", ()
 
 describe("Preferences and every tab row on Liquid Glass (U8)", () => {
   test("settings sit in a rounded group and a segmented control raises its chosen value", () => {
-    expect(must(/\.loki-settings-block \{([^}]*)\}/.exec(glass), "the block rule")[1]).toContain("border-radius: var(--loki-radius-lg)");
+    expect(must(/\.loki-settings-block \{([^}]*)\}/.exec(glass), "the block rule")[1]).toContain("border-radius: var(--radius-xl)");
     expect(must(/\.loki-segmented > button\[aria-pressed="true"\] \{([^}]*)\}/.exec(glass), "the chosen segment")[1]).toContain("var(--loki-segment)");
   });
 

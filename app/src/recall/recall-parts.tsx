@@ -102,7 +102,7 @@ export function LearnColumn({ view, children }: { view: LearnView; children: Rea
 const DETAIL: CSSProperties = {
   background: "var(--loki-panel)",
   border: "1px solid var(--loki-border)",
-  borderRadius: "var(--loki-radius-lg)",
+  borderRadius: "var(--radius-xl)",
   boxShadow: "var(--loki-shadow-sheet)",
   padding: "16px 24px",
 };

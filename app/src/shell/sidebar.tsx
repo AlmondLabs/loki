@@ -283,7 +283,7 @@ export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () =
         width: 28,
         height: 28,
         border: "1px solid transparent",
-        borderRadius: "var(--loki-radius-md)",
+        borderRadius: "var(--radius-lg)",
         background: "transparent",
         color: "var(--loki-muted)",
         cursor: "pointer",

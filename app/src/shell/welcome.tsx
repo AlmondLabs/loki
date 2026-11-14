@@ -65,7 +65,7 @@ export function Welcome({
     <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
       <div>
         {/* loki's mark, the L (app/public/mark.png). */}
-        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--loki-radius-md)", marginBottom: 16 }} />
+        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--radius-lg)", marginBottom: 16 }} />
         <Title page>Welcome to loki</Title>
         <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
@@ -280,7 +280,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
         style={{
           width: 24,
           height: 24,
-          borderRadius: "var(--loki-radius-lg)",
+          borderRadius: "var(--radius-xl)",
           fontSize: "var(--text-xs)",
           fontWeight: 600,
           border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`,

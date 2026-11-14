@@ -463,9 +463,10 @@ describe("design tokens: the desktop's faces, focus and radii", () => {
       expect(rule, sel).toMatch(/animation: none/);
     }
   });
-  test("radius roles are named on :root: sm 6 · md 8 · lg 12 · pill 999", () => {
-    const radius = (name: string) => Number(new RegExp(`--loki-radius-${name}:\\s*([\\d.]+)px`).exec(root)?.[1]);
-    expect([radius("sm"), radius("md"), radius("lg"), radius("pill")]).toEqual([6, 8, 12, 999]);
+  test("loki names one radius, the pill; every other corner is Tailwind's rounded-sm, -md, -lg or -xl", () => {
+    expect(root).toMatch(/--loki-radius-pill:\s*999px/);
+    expect(root).not.toMatch(/--loki-radius(-sm|-md|-lg)?:/);
+    expect(readFileSync(join(APP, "styles.css"), "utf8")).not.toMatch(/--radius-(sm|md|lg|xl|loki):/);
   });
   test("no literal brass left in tokens.css", () => {
     expect(tokens).not.toMatch(/201,\s*164,\s*92/);

@@ -24,7 +24,7 @@ export function UsageBars({ series, hourly }: { series: UsagePoint[]; hourly: bo
               minWidth: 2,
               height: top > 0 ? `${Math.max(value(p) > 0 ? 4 : 0, (value(p) / top) * 100)}%` : 0,
               background: "var(--loki-accent)",
-              borderRadius: "var(--loki-radius-sm)",
+              borderRadius: "var(--radius-md)",
             }}
           />
         ))}

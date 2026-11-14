@@ -253,7 +253,7 @@ function ProviderRow({
     <div
       style={{
         border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`,
-        borderRadius: "var(--loki-radius-md)",
+        borderRadius: "var(--radius-lg)",
         background: open ? "var(--loki-panel)" : "transparent",
       }}
     >
