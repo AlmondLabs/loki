@@ -956,6 +956,11 @@ export type AccountProvider = "gmail" | "slack" | "jira";
 export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_signed_out" | "temporarily_failing";
 /** The Google services a Google account can let loki use (plan 2026-11-11 scripts, R16), as the app names them. */
 export type GoogleService = "gmail" | "drive" | "sheets" | "docs" | "calendar";
+/**
+ * Where a Google account lets loki look people up by name (plan 2026-11-14-1530, KTD7): its saved contacts, the people
+ * it has mailed (other contacts), and its organisation's directory. A grant apart from the services scripts use.
+ */
+export type GoogleContactSource = "contacts" | "other_contacts" | "directory";
 /** Whether an account is watched: connected, or disconnected with its cause. */
 export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
 
@@ -979,6 +984,11 @@ export interface AccountView {
    * in before loki asked for more than Gmail, which reads as Gmail only; absent on Slack and Jira accounts.
    */
   services?: GoogleService[];
+  /**
+   * Where a Gmail account's sign-in lets loki find people by name (KTD7). Absent on an account signed in before loki
+   * asked, which finds people by address only until it signs in again; absent on Slack and Jira accounts.
+   */
+  contacts?: GoogleContactSource[];
 }
 
 /** A workspace signed in to the Slack desktop app on this Mac, as the person picks one to connect (plan 067, R21). */

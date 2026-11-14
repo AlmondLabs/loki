@@ -9,8 +9,8 @@ import { log } from "./log.ts";
  * A thin Jira Cloud client over fetch for one connected site (plan 2026-11-10-1451, U2), calling as the person with
  * their email and a classic API token as basic auth against the site's own API host (KTD3). It reads who the token
  * belongs to, where the site lives, the tickets the person watches, and a ticket's fields, comments and history, and it posts
- * the person's own comment with its files, and it reads a ticket's attachment list and a picture's thumbnail (plan 093).
- * Nothing else here can change a ticket (R20): `postComment` and `attachFiles` are the only requests that are not a GET,
+ * the person's own comment with its files, and it reads a ticket's attachment list and a picture's thumbnail (plan 093),
+ * and it searches the site's people for mentions (plan 2026-11-14-1530, U2). Nothing else here can change a ticket (R20): `postComment` and `attachFiles` are the only requests that are not a GET,
  * and no agent tool is given either.
  *
  * Every call goes through one wrapper that tells three answers apart (KTD5). Jira rejecting the token marks the
@@ -210,6 +210,28 @@ export interface JiraTicketPage {
   next_page_token: string | null;
 }
 
+/** Someone on the site as a user search gives them: their id, the name Jira shows, and their address when Jira shares it. */
+export interface JiraUser {
+  account_id: string;
+  display_name: string;
+  /** Jira hides most people's address unless their profile shares it. */
+  email: string | null;
+}
+
+/**
+ * Which people a user search looks among: anyone on the site, those who can see a ticket, those who can browse a
+ * project, or those a ticket (or a project's new tickets) can be assigned to. A ticket is named by its key or id.
+ */
+export type JiraUserScope =
+  | { kind: "site" }
+  | { kind: "ticket"; ticket: string }
+  | { kind: "project"; project: string }
+  | { kind: "assignee"; ticket: string }
+  | { kind: "assignee"; project: string };
+
+/** How many people one user search asks for: a name shared by more than this many is refused anyway. */
+const USER_PAGE = 50;
+
 /** Someone who wrote a comment or changed a ticket. */
 export interface JiraPerson {
   account_id: string;
@@ -275,6 +297,28 @@ export function jiraTime(value: string): string {
 /** The id of a comment (`c`) or a history entry (`h`) made at `created`, which sorts by time and then by Jira's id (KTD8). */
 export function jiraEventId(created: string, kind: "c" | "h", jiraId: string): string {
   return `${jiraTime(created)}:${kind}${jiraId.padStart(ID_DIGITS, "0")}`;
+}
+
+/** A user search's path and the parameters that say whom it looks among. */
+function userSearchOf(among: JiraUserScope): [string, Record<string, string>] {
+  switch (among.kind) {
+    case "site":
+      return ["/rest/api/3/user/search", {}];
+    case "ticket":
+      return ["/rest/api/3/user/viewissue/search", { issueKey: among.ticket }];
+    case "project":
+      return ["/rest/api/3/user/permission/search", { permissions: "BROWSE_PROJECTS", projectKey: among.project }];
+    case "assignee":
+      return ["/rest/api/3/user/assignable/search", "ticket" in among ? { issueKey: among.ticket } : { project: among.project }];
+  }
+}
+
+/** A user as a search gives them, or nothing for an app, a deactivated person, or an answer without an id. */
+function parseUser(v: unknown): JiraUser[] {
+  const r = rec(v);
+  const id = str(r.accountId);
+  if (!id || r.active === false || r.accountType === "app") return [];
+  return [{ account_id: id, display_name: str(r.displayName), email: strOrNull(r.emailAddress) }];
 }
 
 /** Someone as Jira gives them: their id, their name, and their 48 px picture when it is a web address (plan 091). */
@@ -468,6 +512,19 @@ export class JiraClient {
     return this.page(`/rest/api/3/issue/${encodeURIComponent(ticket)}/changelog`, opts, (r) =>
       (Array.isArray(r.values) ? list(r.values) : list(r.histories)).map(parseHistory),
     );
+  }
+
+  /**
+   * The people on the site matching `by` among those `among` names (plan 2026-11-14-1530, U2, KTD4): anyone, those who
+   * can see a ticket, those who can browse a project, or those a ticket or a project's tickets can be assigned to. A
+   * name or address is matched by Jira's own search; an account id is asked for as itself. Apps and deactivated
+   * people are left out, since nobody mentions them. Jira gives nobody when the token's owner may not browse users.
+   */
+  async searchUsers(among: JiraUserScope, by: { query: string } | { account_id: string }): Promise<JiraUser[]> {
+    const who: Record<string, string> = "query" in by ? { query: by.query } : { accountId: by.account_id };
+    const [path, scope] = userSearchOf(among);
+    const answer = await this.request("GET", path, { ...scope, ...who, maxResults: String(USER_PAGE) });
+    return list(answer).flatMap(parseUser);
   }
 
   /**

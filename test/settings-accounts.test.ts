@@ -80,8 +80,10 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         reconnect: null,
         more: {
           reconnect: { provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null },
-          services: "Drive, Sheets, Docs and Calendar",
+          services: "Drive, Sheets, Docs, Calendar and Contacts",
         },
+        // Nor did it grant contacts (plan 2026-11-14-1530, R15): agents name people there by address only.
+        people: "Agents can find people here only by address until it signs in again for Contacts",
       },
       {
         account_id: "slack:T01:U02",
@@ -93,6 +95,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         problem: false,
         reconnect: null,
         more: null,
+        people: null,
       },
     ]);
   });
@@ -100,13 +103,32 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
   test("a Google account that granted every service is just connected; one that left some unticked names them", () => {
     const [all, some] = accountRows(
       [
-        { ...MAIL, services: ["gmail", "drive", "sheets", "docs", "calendar"] },
-        { ...MAIL, account_id: "gmail:bo@acme.com", services: ["gmail", "sheets"] },
+        { ...MAIL, services: ["gmail", "drive", "sheets", "docs", "calendar"], contacts: ["contacts", "other_contacts", "directory"] },
+        { ...MAIL, account_id: "gmail:bo@acme.com", services: ["gmail", "sheets"], contacts: ["contacts"] },
       ],
       AGENTS,
     );
-    expect([all.state, all.more]).toEqual(["Connected", null]);
+    expect([all.state, all.more, all.people]).toEqual(["Connected", null, null]);
     expect(some.more?.services).toBe("Drive, Docs and Calendar");
+  });
+
+  test("KTD7: a Gmail account without the contacts grant keeps its scripts line and adds one about finding people", () => {
+    const [noContacts, stale, slack] = accountRows(
+      [
+        { ...MAIL, services: ["gmail", "drive", "sheets", "docs", "calendar"] },
+        { ...MAIL, account_id: "gmail:bo@acme.com", status: { disconnected: "sign_in_again" } },
+        SLACK,
+      ],
+      AGENTS,
+    );
+    expect(noContacts.state).toBe("Connected");
+    expect(noContacts.people).toBe("Agents can find people here only by address until it signs in again for Contacts");
+    expect(noContacts.more).toEqual({
+      reconnect: { provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null },
+      services: "Contacts",
+    });
+    // A disconnected account says only how to reconnect; Slack and Jira have no contacts grant to ask for.
+    expect([stale.people, slack.people]).toEqual([null, null]);
   });
 
   test("AE8: a workspace whose Slack app signed out shows that state and a reconnect with its team", () => {

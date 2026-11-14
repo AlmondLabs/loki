@@ -32,6 +32,9 @@ export const ALL_SCOPES = [
   "https://www.googleapis.com/auth/spreadsheets",
   "https://www.googleapis.com/auth/documents",
   "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/contacts.readonly",
+  "https://www.googleapis.com/auth/contacts.other.readonly",
+  "https://www.googleapis.com/auth/directory.readonly",
   "openid",
   "https://www.googleapis.com/auth/userinfo.email",
 ];

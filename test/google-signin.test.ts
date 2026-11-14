@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { Accounts } from "../mod/accounts.ts";
-import { GOOGLE_OAUTH_CALLBACK, GoogleSignIn } from "../mod/google-signin.ts";
+import { GOOGLE_OAUTH_CALLBACK, GOOGLE_SCOPES, GoogleSignIn } from "../mod/google-signin.ts";
 import { startServer } from "../mod/server.ts";
 import { ALL_SCOPES, fakeGoogle } from "./fixtures/gmail.ts";
 import { must } from "./fixtures/must.ts";
@@ -38,12 +38,21 @@ function fixture(sharedApp = SHARED) {
 }
 
 describe("signing in to Gmail", () => {
-  test("the authorization page asks for the five Google services and the address, keeping earlier grants, offline, with consent and PKCE", () => {
+  test("the authorization page asks for the five Google services, read-only contacts and the address, keeping earlier grants, offline, with consent and PKCE", () => {
     const { signIn } = fixture();
     const url = new URL(signIn.start({ owner_agent_id: "agent-work" }));
     expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
     const q = url.searchParams;
     expect(q.get("scope")?.split(" ")).toEqual(ALL_SCOPES);
+    // The three People API scopes find people by name (plan 2026-11-14-1530, KTD7), and none of them can change a contact.
+    expect(GOOGLE_SCOPES).toEqual(
+      expect.arrayContaining([
+        "https://www.googleapis.com/auth/contacts.readonly",
+        "https://www.googleapis.com/auth/contacts.other.readonly",
+        "https://www.googleapis.com/auth/directory.readonly",
+      ]),
+    );
+    expect(GOOGLE_SCOPES.filter((s) => /contacts|directory/.test(s)).every((s) => s.endsWith(".readonly"))).toBe(true);
     expect(q.get("include_granted_scopes")).toBe("true");
     expect([q.get("access_type"), q.get("prompt"), q.get("code_challenge_method"), q.get("redirect_uri"), q.get("client_id")]).toEqual([
       "offline",
@@ -161,6 +170,25 @@ describe("signing in to Gmail", () => {
     expect(noGmail).toMatchObject({ ok: false, message: expect.stringContaining("Gmail was unticked") as unknown });
     expect(accounts.get("gmail:bo@acme.com")).toBeNull();
     expect(secrets.entries.has("account:gmail:bo@acme.com")).toBe(false);
+  });
+
+  test("KTD7: contacts are kept as a grant apart from the services, each place as ticked; a sign-in without them grants none", async () => {
+    const { accounts, google, signIn } = fixture();
+    const record = () => must(accounts.get("gmail:ada@acme.com"), "the account");
+    await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" })));
+    expect([record().services, record().contacts]).toEqual([
+      ["gmail", "drive", "sheets", "docs", "calendar"],
+      ["contacts", "other_contacts", "directory"],
+    ]);
+
+    // A personal account may untick the directory; the other two places are still searched.
+    const [gmail, , , , , contacts, other] = ALL_SCOPES;
+    const again = () => signIn.start({ owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com" });
+    await signIn.finish(google.authorize(again(), [gmail, contacts, other, "openid"]));
+    expect([record().services, record().contacts]).toEqual([["gmail"], ["contacts", "other_contacts"]]);
+
+    await signIn.finish(google.authorize(again(), [gmail, "openid"]));
+    expect(record().contacts).toEqual([]);
   });
 
   test("R18: a connected account signs in again for more services, keeping its owner; the change is heard", async () => {
