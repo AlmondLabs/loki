@@ -567,7 +567,7 @@ export function Switch({
             left: 2,
             width: 12,
             height: 12,
-            borderRadius: "var(--loki-radius-sm)",
+            borderRadius: "var(--radius-md)",
             background: on ? "var(--loki-bg)" : "var(--loki-muted)",
             transform: on ? "translateX(12px)" : "none",
             transition: "transform 160ms ease-out, background-color 160ms ease-out",

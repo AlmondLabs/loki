@@ -188,7 +188,7 @@ export function WidgetFrame({
         ...(pinnedSize ? { width: pinnedSize.w, height: pinnedSize.h } : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
         background: "var(--loki-panel)",
         border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
-        borderRadius: "var(--loki-radius)",
+        borderRadius: "var(--radius-xl)",
         animationDelay: `${Math.min(order, 12) * 35}ms`,
         boxShadow: "var(--loki-shadow-panel)",
         transition: "border-color 500ms ease-out",

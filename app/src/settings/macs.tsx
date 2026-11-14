@@ -139,7 +139,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
               style={{
                 padding: "4px 12px",
                 border: "1px solid var(--loki-border)",
-                borderRadius: "var(--loki-radius-md)",
+                borderRadius: "var(--radius-lg)",
                 cursor: d.online && !d.paired ? undefined : "default",
                 opacity: d.online && !d.paired ? 1 : 0.55,
               }}

@@ -49,6 +49,6 @@
   padding: 4px;
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--loki-shadow-float);
 }

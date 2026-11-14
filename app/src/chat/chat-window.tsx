@@ -143,7 +143,7 @@ function placementStyle(placement: ChatPlacement, width: ChatWidth): CSSProperti
           width: CHAT_CENTER_WIDTH,
           maxWidth: "calc(100% - 48px)",
           border: "1px solid var(--loki-border)",
-          borderRadius: "var(--loki-radius-lg)",
+          borderRadius: "var(--radius-xl)",
         }
       : placement === "right"
         ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border)" }
@@ -226,7 +226,7 @@ export function ChatBubble({
             right: -2,
             width: 12,
             height: 12,
-            borderRadius: "var(--loki-radius-sm)",
+            borderRadius: "var(--radius-md)",
             background: "var(--loki-attention)",
             border: "2px solid var(--loki-bg)",
           }}

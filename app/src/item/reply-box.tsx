@@ -72,6 +72,7 @@ export function ItemReplyBox({
               <Button
                 size="sm"
                 variant="ghost"
+                className="rounded-2xl"
                 disabled={discard.disabled}
                 onClick={discard.onDiscard}
                 title={WORDS.line("clear the reply and its recipients")}
@@ -83,6 +84,7 @@ export function ItemReplyBox({
           <PromptInputTools>
             <PromptInputSubmit
               type="button"
+              className="rounded-2xl"
               aria-label={send.busy ? WORDS.sending : WORDS.send}
               title={WORDS.sendTitle(send.title, send.keys)}
               disabled={send.disabled}

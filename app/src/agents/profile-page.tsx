@@ -132,7 +132,7 @@ function ConfirmDelete({
       style={{
         padding: 12,
         border: "1px solid var(--loki-negative)",
-        borderRadius: "var(--loki-radius-md)",
+        borderRadius: "var(--radius-lg)",
         fontSize: "var(--text-xs)",
         color: "var(--loki-fg)",
         lineHeight: 1.5,

@@ -186,7 +186,7 @@ function SkillAdd({
         margin: "0 0 12px",
         padding: "8px 12px",
         border: "1px solid var(--loki-border)",
-        borderRadius: "var(--loki-radius-md)",
+        borderRadius: "var(--radius-lg)",
       }}
     >
       {mode === "write" ? (
@@ -255,7 +255,7 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     }
   };
   return (
-    <div className="grid gap-2" style={{ padding: "8px 12px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
+    <div className="grid gap-2" style={{ padding: "8px 12px", border: "1px solid var(--loki-border)", borderRadius: "var(--radius-lg)" }}>
       <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
         Nobody wrote down where {name} came from. Say once; it is remembered.
       </span>

@@ -327,7 +327,7 @@ export function ReplyProposalView({
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
         {[...destinationNotes(p), ...mentionNotes(p, card.mentions)].map((note) => (
-          <p key={note} className="m-0 text-meta text-muted-foreground" data-destination-note>
+          <p key={note} className="m-0 text-xs text-muted-foreground" data-destination-note>
             {note}
           </p>
         ))}

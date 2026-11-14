@@ -59,7 +59,7 @@
   font-family: var(--loki-font);
   font-size: var(--text-xs);
   cursor: pointer;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 @media (hover: hover) and (pointer: fine) {
   .loki-search-clear:hover {

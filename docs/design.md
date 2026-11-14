@@ -84,10 +84,7 @@ stylesheets sit outside Tailwind's cascade layers, so their rules beat a utility
 grid over `.loki-row`'s flex). Two classes carry text: `loki-mono` for code, paths, hosts and keys, and `loki-truncate`
 for one line cut with an ellipsis. Both sit after `.loki-meta`, so a meta line can take either.
 
-Radii: `--loki-radius-sm` **6** fields, icon buttons, dense rows · `--loki-radius-md` **8** buttons, rows,
-plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-radius-pill` **999** chips, badges,
-toasts; circles use half their size. A radius with a role is written as its token (`"var(--loki-radius-md)"`), never
-as the number; the tokens test fails a bare 6, 8, 12 or 999 outside the phone. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
+Radii are Tailwind's own, at the 16px root: `rounded-sm` **4** and `rounded-md` **6** for fields, icon buttons and rows, `rounded-lg` **8** and `rounded-xl` **12** for buttons, cards, sheets, popovers and panels, `rounded-2xl` **16** and `rounded-3xl` **24** for the reply box and the bubble. The one loki token is `--loki-radius-pill` **999**, for chips, badges and toasts; circles use half their size. A radius is written as its Tailwind class or its `var(--radius-*)`, never as a bare number outside the phone. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
 `--loki-shadow-panel` (the chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in
 `app/src/kit/layers.ts` (panel 100, bubble 101, rail 110 (the sidebar toggle), modal 200, strip 250, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
@@ -155,7 +152,7 @@ row's input and output (`core/attention/transcript.ts`), and the row fetches the
 
 `test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines). The radius check
-allows the scale and the geometric radii for circles and hairlines it lists (1, 3, 4, 9, 24); the shadow check covers
+allows the scale: 2, 4, 6, 8, 12, 16, 24 and 999; the shadow check covers
 inline `boxShadow` only. Padding, margins and gaps stay on the spacing scale, in the desktop stylesheets, inline and in a
 padding, margin, gap or space class (shadcn's own files in `ui/` keep theirs; a `calc()` passes when each term is on
 the scale, and a value from `var()` or `env()` is not read), and views set mono and an ellipsis with their classes, never inline; the phone has its own scale,

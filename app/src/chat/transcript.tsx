@@ -542,7 +542,7 @@ function Bubble({
             maxWidth: "78%",
             overflowWrap: "anywhere",
             padding: "8px 12px",
-            borderRadius: "var(--loki-radius-lg)",
+            borderRadius: "var(--radius-xl)",
             background: m.role === "user" ? "var(--loki-user-bubble)" : "var(--loki-bubble)",
             // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.
             border: m.queued ? "1px dashed var(--loki-accent)" : undefined,
@@ -718,7 +718,7 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
               src={chatImageUrl(src)}
               alt=""
               className="block"
-              style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)" }}
+              style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--radius-md)", border: "1px solid var(--loki-border)" }}
             />
           ))}
         </div>

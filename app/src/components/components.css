@@ -17,7 +17,7 @@
   gap: 8px;
   box-sizing: border-box;
   border: 1px solid var(--loki-control-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -119,7 +119,7 @@
 /* A square glyph button; the size is set inline (24, 28, 36, 40). */
 .loki-btn--icon {
   padding: 0;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--text-xs);
 }
 /* Fills its row; the label sits left. */
@@ -137,7 +137,7 @@
   text-align: left;
   padding: 8px;
   border: 1px solid transparent;
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -259,7 +259,7 @@
   min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
   padding: 4px 12px;
   border: 1px solid var(--loki-control-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: var(--loki-well);
   color: var(--loki-fg);
   font-family: var(--loki-font);
@@ -347,7 +347,7 @@ textarea.loki-field {
   text-align: left;
   padding: 4px 8px;
   border: 1px solid transparent;
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--loki-fg);
   font: inherit;
@@ -369,7 +369,7 @@ textarea.loki-field {
 }
 .loki-row--dense {
   padding: 4px 8px;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 .loki-row--touch {
   min-height: 44px;
@@ -425,7 +425,7 @@ textarea.loki-field {
   flex-direction: column;
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--loki-shadow-sheet);
   overflow: hidden;
 }
@@ -433,7 +433,7 @@ textarea.loki-field {
   width: 100%;
   max-width: none;
   max-height: 92vh;
-  border-radius: var(--loki-radius-lg) var(--loki-radius-lg) 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   border-width: 1px 0 0;
 }
 .loki-popover {
@@ -444,7 +444,7 @@ textarea.loki-field {
   max-width: calc(100% - 16px);
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--loki-shadow-float);
   overflow: hidden;
 }
@@ -487,7 +487,7 @@ textarea.loki-field {
   --normal-bg: var(--loki-panel);
   --normal-border: var(--loki-border);
   --normal-text: var(--loki-fg);
-  --border-radius: var(--loki-radius-md);
+  --border-radius: var(--radius-lg);
   font-family: var(--loki-font);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] {
@@ -500,14 +500,14 @@ textarea.loki-field {
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] .loki-notice-action {
   background: var(--loki-affirm);
   color: var(--loki-on-affirm);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   font-weight: 600;
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] .loki-notice-cancel {
   background: transparent;
   color: var(--loki-muted);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
 }
 .loki-banner {
   flex: 0 0 auto;
@@ -587,7 +587,7 @@ textarea.loki-field {
   max-width: none;
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   padding: 32px;
 }
 .loki-empty > .loki-title {
@@ -648,7 +648,7 @@ textarea.loki-field {
   box-sizing: border-box;
   padding: 4px 12px;
   border: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   /* Full ink, as Mail titles every message: what is new is told by weight and its mark, never by greying the rest. */
   color: var(--loki-fg);
@@ -796,7 +796,7 @@ textarea.loki-field {
   gap: 2px;
   opacity: 0;
   pointer-events: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: var(--loki-hover);
   transition: opacity 120ms ease-out;
 }
@@ -840,7 +840,7 @@ textarea.loki-field {
   box-sizing: border-box;
   padding: 4px 12px;
   border: none;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -967,7 +967,7 @@ button.loki-list-section-toggle {
   padding: 4px;
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--loki-shadow-float);
 }
 .loki-title-submenu {
@@ -1407,14 +1407,14 @@ button.loki-list-section-toggle {
   padding: 2px;
   gap: 2px;
   border: 1px solid var(--loki-control-border);
-  border-radius: var(--loki-radius-md);
+  border-radius: var(--radius-lg);
   background: var(--loki-well);
 }
 .loki-segmented > button {
   min-height: 26px;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -1480,7 +1480,7 @@ button.loki-list-section-toggle {
   height: 28px;
   padding: 0 8px;
   border: 0;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-fg);
   font-family: var(--loki-font);
@@ -1547,7 +1547,7 @@ button.loki-list-section-toggle {
   height: 20px;
   padding: 0;
   border: 0;
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-muted);
   opacity: 0;
@@ -2133,13 +2133,13 @@ button.loki-list-section-toggle {
      control as a grey track with the chosen value raised. */
   .loki-settings-block {
     padding: 0 12px;
-    border-radius: var(--loki-radius-lg);
+    border-radius: var(--radius-xl);
     background: var(--loki-bg);
     box-shadow: 0 0 0 0.5px var(--loki-border);
   }
   .loki-segmented {
     border: 0;
-    border-radius: var(--loki-radius-md);
+    border-radius: var(--radius-lg);
     background: var(--loki-hover);
   }
   .loki-segmented > button[aria-pressed="true"] {

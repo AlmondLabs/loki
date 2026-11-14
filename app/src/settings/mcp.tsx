@@ -367,7 +367,7 @@ function ServerForm({
   };
 
   return (
-    <div className="grid gap-2" style={{ padding: 12, marginTop: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
+    <div className="grid gap-2" style={{ padding: 12, marginTop: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--radius-xl)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>

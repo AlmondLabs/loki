@@ -560,7 +560,7 @@ export function Shell() {
             top: GLASS_INSET,
             bottom: GLASS_INSET,
             width: sidebarShown ? column.sidebar : 0,
-            borderRadius: "var(--loki-radius-lg)",
+            borderRadius: "var(--radius-xl)",
           }}
         />
         <TitleStrip />

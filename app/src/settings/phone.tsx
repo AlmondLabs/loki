@@ -137,7 +137,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
         role="radiogroup"
         aria-label="Route"
         className="grid"
-        style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", overflow: "hidden" }}
+        style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}
       >
         {(ts?.installed || running) && (
           <RouteRow
@@ -253,7 +253,7 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
         aria-label={`QR code for ${url}`}
         role="img"
         className="flex-none"
-        style={{ width: 168, height: 168, borderRadius: "var(--loki-radius-md)", overflow: "hidden", opacity: expired ? 0.35 : 1 }}
+        style={{ width: 168, height: 168, borderRadius: "var(--radius-lg)", overflow: "hidden", opacity: expired ? 0.35 : 1 }}
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
       <div className="grid gap-2 min-w-0 flex-1">
