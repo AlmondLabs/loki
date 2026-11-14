@@ -63,7 +63,7 @@ export function Archive({
             />
           </div>
         )}
-        <ul aria-label="archived chats" className="loki-phone-list">
+        <ul aria-label="Archived chats" className="loki-phone-list">
           {shown.map((d) => (
             <DeskRow key={d.scope} desk={d} mark={undefined} onActions={() => setActing(d)} />
           ))}
@@ -80,7 +80,7 @@ export function Archive({
             <div className="loki-phone-empty">
               <p>No archived chats match.</p>
               <Button size="touch" tone="paper" onClick={() => setQuery("")}>
-                Clear filter
+                Clear Filter
               </Button>
             </div>
           )

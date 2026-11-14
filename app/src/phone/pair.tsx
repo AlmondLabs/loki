@@ -92,7 +92,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
               spellCheck={false}
               maxLength={CODE_LENGTH}
               placeholder="ABC234"
-              aria-label="six-character pairing code"
+              aria-label="Six-character pairing code"
               aria-invalid={!!error}
             />
           </label>

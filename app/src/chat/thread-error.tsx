@@ -25,7 +25,7 @@ export function ThreadError({
       <span>{e.text}</span>
       {moving && (
         <Button size="sm" onClick={() => void onKeepHere()}>
-          keep it here
+          Keep It Here
         </Button>
       )}
       {retry && (
@@ -35,7 +35,7 @@ export function ThreadError({
       )}
       {e.raw && (
         <details className="loki-thread-error-raw">
-          <summary>details</summary>
+          <summary>Details</summary>
           <pre>{e.raw}</pre>
         </details>
       )}

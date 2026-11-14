@@ -112,7 +112,7 @@ export function Fold({ title, children }: { title: string; children: React.React
           {title}
         </h4>
         <Button size="sm" bare onClick={() => setOpen(!open)} aria-expanded={open}>
-          {open ? "hide" : "show"}
+          {open ? "Hide" : "Show"}
         </Button>
       </div>
       {open && <div className="loki-settings-block">{children}</div>}

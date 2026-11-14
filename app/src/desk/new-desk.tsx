@@ -309,7 +309,7 @@ export function ChangeFolder({
   };
   const sheet = (
     <Sheet
-      label="change folder"
+      label="Change folder"
       onClose={onClose}
       width={560}
       top="18vh"
@@ -350,7 +350,7 @@ export function ChangeFolder({
         <span className="loki-label">Enter move · esc close</span>
         <span style={{ flex: 1 }} />
         <Button size="sm" onClick={onClose}>
-          cancel
+          Cancel
         </Button>
         <Button size="sm" tone="positive" onClick={() => void move()} disabled={!canMove}>
           {moving ? "moving…" : "move"}
@@ -476,13 +476,13 @@ export function FolderPicker({
             }
           }}
           placeholder={osWords().folderExample}
-          aria-label="folder"
+          aria-label="Folder"
           autoComplete="off"
           spellCheck={false}
           aria-invalid={status ? !status.ok : undefined}
         />
         {browser && (
-          <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title={`choose a folder in ${osWords().fileManager}`}>
+          <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title={`Choose a folder in ${osWords().fileManager}`}>
             {busy === "picking" ? "Choosing…" : !canBrowse ? "Loading…" : "Browse…"}
           </Button>
         )}
@@ -511,7 +511,7 @@ function FolderList({
   return (
     <div
       role="listbox"
-      aria-label="folders"
+      aria-label="Folders"
       style={{
         position: "absolute",
         left: 0,

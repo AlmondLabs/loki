@@ -80,7 +80,7 @@ export function LabelChips({
           </>
         );
         return onPick ? (
-          <button key={name} type="button" className="loki-label-chip" style={style} onClick={() => onPick(name)} title={`show the chats labelled ${name}`}>
+          <button key={name} type="button" className="loki-label-chip" style={style} onClick={() => onPick(name)} title={`Show the chats labelled ${name}`}>
             {inner}
           </button>
         ) : (

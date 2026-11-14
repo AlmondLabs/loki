@@ -7,12 +7,9 @@ import { LinkedText } from "./mail-html";
 /**
  * A Jira card drawn as the ticket (plan 089): its type, key and project over the summary, its fields with what someone
  * else changed since the card was last read, the fields it does not show in one line, the description folded after
- * six lines, and the comments under their count. The desktop and the phone draw the same parts in the same order; the
- * phone in sentence case. `outside-card` draws the comments themselves and the desktop header's tag and link.
+ * six lines, and the comments under their count. The desktop and the phone draw the same parts in the same order, in
+ * sentence case. `outside-card` draws the comments themselves and the desktop header's tag and link.
  */
-
-/** Desktop words stay lowercase; the phone's start with a capital. */
-const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);
 
 /** The description shows this many lines before "show more". */
 const FOLD_AT = 6;
@@ -26,7 +23,7 @@ const HEAD_FIELDS = new Map<string, string>([
 
 /**
  * The fields the card shows, in order, by the name Jira's history gives each (`Sprint` with its capital). Labels are
- * written lowercase, as desktop labels are, and `say` gives the phone its sentence case.
+ * written lowercase, and `sentence` gives them their capital where they are shown.
  */
 const FIELDS: Array<{ key: keyof JiraCardFields; label: string; history: string }> = [
   { key: "status", label: "status", history: "status" },
@@ -50,10 +47,10 @@ function wasText(change: JiraFieldChange): string {
 const byWhen = (c: { by: string; at: string }) => [c.by, ago(c.at)].filter(Boolean).join(" · ");
 
 /** The small mark beside a part someone else changed since the card was last read. */
-function NewMark({ touch, title }: { touch: boolean; title?: string }) {
+function NewMark({ title }: { title?: string }) {
   return (
     <span className="loki-jira-new" title={title}>
-      {say(touch, "new")}
+      New
     </span>
   );
 }
@@ -76,7 +73,7 @@ export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket:
   const text = (
     <div className={touch ? "loki-jira-head" : "loki-jira-head loki-card-head-text"}>
       <div className="loki-jira-key-line" style={touch ? { fontSize: "var(--phone-text-meta)" } : undefined}>
-        <span className="loki-jira-type" aria-label="from Jira">
+        <span className="loki-jira-type" aria-label="From Jira">
           ◆
         </span>
         {/* The key is an id, so it is mono, as task ids are. */}
@@ -84,7 +81,7 @@ export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket:
           {ticket.key}
         </span>
         {kind && <span className="loki-jira-kind">· {kind}</span>}
-        {change && <NewMark touch={touch} title={`${HEAD_FIELDS.get(change.field) ?? change.field} changed · ${byWhen(change)}`} />}
+        {change && <NewMark title={sentence(`${HEAD_FIELDS.get(change.field) ?? change.field} changed · ${byWhen(change)}`)} />}
       </div>
       {touch ? (
         <div className="loki-jira-summary" style={{ fontSize: "var(--phone-text-emph)" }}>
@@ -129,13 +126,13 @@ function JiraFields({ ticket, touch }: { ticket: JiraCardTicket; touch: boolean 
     <dl className="loki-jira-fields" style={{ fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}>
       {rows.map((f) => (
         <div key={f.key} className="loki-jira-field">
-          <dt className={touch ? "loki-phone-meta" : "loki-meta"}>{say(touch, f.label)}</dt>
+          <dt className={touch ? "loki-phone-meta" : "loki-meta"}>{sentence(f.label)}</dt>
           <dd className="loki-jira-field-value">
             <span className="loki-jira-field-now">
               <FieldValue field={f.key} fields={fields} />
-              {f.change && <NewMark touch={touch} />}
+              {f.change && <NewMark />}
             </span>
-            {f.change && <Quiet touch={touch}>{say(touch, `was ${wasText(f.change)} · ${byWhen(f.change)}`)}</Quiet>}
+            {f.change && <Quiet touch={touch}>{sentence(`was ${wasText(f.change)} · ${byWhen(f.change)}`)}</Quiet>}
           </dd>
         </div>
       ))}
@@ -185,8 +182,8 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
       <Heading touch={touch}>Description</Heading>
       {edit && (
         <span className="loki-jira-field-now">
-          <NewMark touch={touch} />
-          <Quiet touch={touch}>{say(touch, `edited · ${byWhen(edit)}`)}</Quiet>
+          <NewMark />
+          <Quiet touch={touch}>{sentence(`edited · ${byWhen(edit)}`)}</Quiet>
         </span>
       )}
       {lines.length > 0 ? (
@@ -194,11 +191,11 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
           <LinkedText text={shown.join("\n")} />
         </div>
       ) : (
-        <Quiet touch={touch}>{say(touch, "no description")}</Quiet>
+        <Quiet touch={touch}>No description</Quiet>
       )}
       {folds && (
         <Button size={touch ? "touch" : "sm"} bare aria-expanded={open} onClick={() => setOpen(!open)} style={{ alignSelf: "flex-start" }}>
-          {say(touch, open ? "show less" : "show more")}
+          {open ? "Show Less" : "Show More"}
         </Button>
       )}
     </section>
@@ -217,7 +214,7 @@ export function JiraTicket({ ticket, touch = false, children }: { ticket: JiraCa
       {touch && <JiraTicketHead ticket={ticket} touch />}
       <div className="loki-jira-part">
         <JiraFields ticket={ticket} touch={touch} />
-        {also && <Quiet touch={touch}>{say(touch, also)}</Quiet>}
+        {also && <Quiet touch={touch}>{sentence(also)}</Quiet>}
       </div>
       <JiraDescription ticket={ticket} touch={touch} />
       <section className="loki-jira-part">

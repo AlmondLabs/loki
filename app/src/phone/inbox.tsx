@@ -782,18 +782,18 @@ function EmptyDeck({
           {!macProblem && others && <p className="loki-phone-meta">{others}</p>}
           {macProblem ? (
             <Button size="touch" tone="paper" onClick={onConnection}>
-              Connection details
+              Connection Details
             </Button>
           ) : (
             <div className="loki-phone-empty-actions">
               {again && (
                 <Button size="touch" tone="paper" onClick={onAgain}>
-                  Go through again
+                  Go Through Again
                 </Button>
               )}
               {!again && resting > 0 && (
                 <Button size="touch" tone="paper" onClick={onResting}>
-                  Go through them
+                  Go Through Them
                 </Button>
               )}
               {onEverything && (
@@ -1272,9 +1272,9 @@ function OutsideBody({
             tone="positive"
             disabled={!!facts.disconnected}
             onClick={() => setPicking(true)}
-            aria-label={`Hand off to ${facts.owner_name ?? "its agent"}`}
+            aria-label={`Hand Off to ${facts.owner_name ?? "its agent"}`}
           >
-            Hand off
+            Hand Off
           </Button>
         ))}
     </div>

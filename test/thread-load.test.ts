@@ -12,13 +12,13 @@ describe("a thread before its first page", () => {
 
   for (const phone of [false, true]) {
     test(`${phone ? "phone" : "desktop"}: loading says from which Mac; a page that did not come says so with a way to try again, never 'nothing here yet'`, () => {
-      expect(html({ phone, rows: undefined })).toContain("loading the thread…");
-      expect(html({ phone, rows: undefined, home: "Demo Mini" })).toContain("loading from Demo Mini…");
+      expect(html({ phone, rows: undefined })).toContain("Loading the thread…");
+      expect(html({ phone, rows: undefined, home: "Demo Mini" })).toContain("Loading from Demo Mini…");
       const failed = html({ phone, rows: undefined, home: "Demo Mini", loadFailed: () => {} });
-      expect(failed).toContain("could not load this chat from Demo Mini");
+      expect(failed).toContain("Could not load this chat from Demo Mini");
       expect(failed).toMatch(/>try again</i);
-      expect(failed).not.toContain("nothing here yet");
-      expect(html({ phone, rows: [], agentName: "Wren" })).toContain("nothing here yet");
+      expect(failed).not.toContain("Nothing here yet");
+      expect(html({ phone, rows: [], agentName: "Wren" })).toContain("Nothing here yet");
     });
   }
 });
@@ -28,10 +28,10 @@ describe("a chat held for a move to a Mac out of reach (plan 096)", () => {
   const error = `this message may not have been sent: this chat is moving to Mac mini, ${MOVE_OUT_OF_REACH} to use it on this Mac`;
 
   for (const phone of [false, true]) {
-    test(`${phone ? "phone" : "desktop"}: its error line offers Keep it here; any other error does not, and nor does a view with no way to keep it`, () => {
-      expect(html({ phone, rows: [], status: "idle", error, onKeepHere: () => Promise.resolve(null) })).toContain(">Keep it here<");
-      expect(html({ phone, rows: [], status: "idle", error })).not.toContain(">Keep it here<");
-      expect(html({ phone, rows: [], status: "idle", error: "the model refused", onKeepHere: () => Promise.resolve(null) })).not.toContain(">Keep it here<");
+    test(`${phone ? "phone" : "desktop"}: its error line offers Keep It Here; any other error does not, and nor does a view with no way to keep it`, () => {
+      expect(html({ phone, rows: [], status: "idle", error, onKeepHere: () => Promise.resolve(null) })).toContain(">Keep It Here<");
+      expect(html({ phone, rows: [], status: "idle", error })).not.toContain(">Keep It Here<");
+      expect(html({ phone, rows: [], status: "idle", error: "the model refused", onKeepHere: () => Promise.resolve(null) })).not.toContain(">Keep It Here<");
     });
   }
 });

@@ -57,7 +57,7 @@ export function AgentChip({ name, size = 10.5 }: { name: string | null | undefin
   const hue = agentHue(name);
   return (
     <span
-      title={`agent: ${name}`}
+      title={`Agent: ${name}`}
       style={{
         display: "inline-flex",
         alignItems: "center",

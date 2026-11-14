@@ -86,7 +86,7 @@ describe("an opened step", () => {
       tool: { name: "Task", description: "reproduce the login loop in Safari", output: "Reproduced: SameSite=Strict drops the cookie." },
     };
     const out = html(createElement(StepOpened, { row, running: false }));
-    expect(out).toContain("asked: reproduce the login loop in Safari");
+    expect(out).toContain("Asked: reproduce the login loop in Safari");
     expect(out).toContain("Reproduced: SameSite=Strict drops the cookie.");
     expect(out).not.toContain(">command<");
   });

@@ -180,7 +180,7 @@ export function Agents({
     return frame(
       <>
         {header(false)}
-        <EmptyPane title="reading the agent…" />
+        <EmptyPane title="Reading the agent…" />
       </>,
     );
   }
@@ -228,7 +228,7 @@ export function Agents({
       <div
         id={`loki-agent-page-${page}`}
         role="tabpanel"
-        aria-label={page}
+        aria-label={AGENT_PAGE_LABEL[page]}
         style={{ flex: 1, minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)" }}
       >
         {pages[page]}
@@ -245,11 +245,11 @@ const PAGE_TABS: ReadonlyArray<Tab<AgentPage>> = AGENT_PAGES.map((p) => ({ id: p
 /** Before the first agent: an invitation, as the pane's empty state. */
 function NoAgents({ onNew }: { onNew: () => void }) {
   return (
-    <EmptyPane title="No agents yet.">
+    <EmptyPane title="No agents yet">
       <p>An agent keeps its own memory, chats and skills here.</p>
       <div style={{ marginTop: 12 }}>
         <Button tone="brass" onClick={onNew}>
-          new agent
+          New Agent
         </Button>
       </div>
     </EmptyPane>

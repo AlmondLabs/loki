@@ -135,7 +135,7 @@ export function ListCard({ data, onSet }: KitProps) {
           </span>
         </label>
       ))}
-      {items.length === 0 && <span className="loki-muted">empty list</span>}
+      {items.length === 0 && <span className="loki-muted">Empty list</span>}
     </div>
   );
 }

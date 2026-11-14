@@ -52,16 +52,16 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
         <Head>Reflection</Head>
         <div style={{ display: "grid", gap: 14, padding: "4px 8px 0" }}>
           {settings === undefined ? (
-            <Meta>reading the settings…</Meta>
+            <Meta>Reading the settings…</Meta>
           ) : settings === null ? (
             <Meta wrap>loki's daemon did not answer for this setting — it has to be running.</Meta>
           ) : (
             <span style={{ display: "inline-flex", gap: 6 }}>
               <Chip label active={settings.reflection.enabled} aria-pressed={settings.reflection.enabled} onClick={() => void toggle(true)}>
-                on
+                On
               </Chip>
               <Chip label active={!settings.reflection.enabled} aria-pressed={!settings.reflection.enabled} onClick={() => void toggle(false)}>
-                off
+                Off
               </Chip>
             </span>
           )}
@@ -74,16 +74,16 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
           {settings && (
             <span style={{ display: "inline-flex", gap: 6 }}>
               <Chip label active={settings.acp.enabled} aria-pressed={settings.acp.enabled} onClick={() => void toggleAcp(true)}>
-                use claude code or cursor
+                Use Claude Code or Cursor
               </Chip>
               <Chip label active={!settings.acp.enabled} aria-pressed={!settings.acp.enabled} onClick={() => void toggleAcp(false)}>
-                wait
+                Wait
               </Chip>
             </span>
           )}
           <Meta wrap>
             An agent whose model loki cannot reach, with no provider set up, runs reflection, Learn and /doctor on the agent its newest Claude Code or Cursor
-            chat uses. Each run spends a little of that allowance. Set to wait, they run only once a provider is set up.
+            chat uses. Each run spends a little of that allowance. Set to Wait, they run only once a provider is set up.
           </Meta>
         </div>
       </ListPane>
@@ -92,13 +92,13 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
           Last change
         </div>
         {state === undefined ? (
-          <Meta>reading…</Meta>
+          <Meta>Reading…</Meta>
         ) : state?.last_commit ? (
           <Meta wrap>
             {ago(state.last_commit.at)} · {state.last_commit.message}
           </Meta>
         ) : (
-          <Meta wrap>reflection has not changed {agentName}'s memory yet</Meta>
+          <Meta wrap>Reflection has not changed {agentName}'s memory yet</Meta>
         )}
       </Pane>
     </div>

@@ -68,7 +68,7 @@ export function EventEntry({ row: m, arrived }: { row: TranscriptRow; arrived: b
       <Marker
         data-row="event"
         data-arrived={arrived || undefined}
-        render={go ? <button type="button" onClick={go} title="open the chat it came from" /> : undefined}
+        render={go ? <button type="button" onClick={go} title="Open the chat it came from" /> : undefined}
       >
         <MarkerIcon>
           <CornerUpLeftIcon />

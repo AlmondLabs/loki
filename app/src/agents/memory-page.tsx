@@ -30,7 +30,7 @@ export function MemoryPage({
   return (
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
       <ListPane>
-        <Head>Files{d.lastCommit ? <span style={{ marginLeft: "auto", fontWeight: 400 }}>last change {ago(d.lastCommit.at)}</span> : null}</Head>
+        <Head>Files{d.lastCommit ? <span style={{ marginLeft: "auto", fontWeight: 400 }}>Last change {ago(d.lastCommit.at)}</span> : null}</Head>
         <Tree files={d.files.filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")} current={filePath} onPick={onPickFile} />
       </ListPane>
       <Pane>
@@ -42,12 +42,12 @@ export function MemoryPage({
             size="sm"
             tone="brass"
             onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)}
-            title="opens the agent's main chat with the request started"
+            title="Opens the agent's main chat with the request started"
           >
-            ask {d.agent.name} to update this
+            Ask {d.agent.name} to Update This
           </Button>
         </div>
-        <Prose content={content} loadingView={loadingView} empty="nothing to show here (binary, too large, or gone)" />
+        <Prose content={content} loadingView={loadingView} empty="Nothing to show here (binary, too large, or gone)" />
       </Pane>
     </div>
   );

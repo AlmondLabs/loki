@@ -140,7 +140,7 @@ export const ChatMessage = memo(function ChatMessage({
         {m.queued && (
           <MessageActions className="justify-end text-meta text-muted-foreground">
             <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="h-auto px-0">
-              Sends when this turn ends{onCancelQueued ? " · Take Back" : ""}
+              Queued · sends when this turn ends{onCancelQueued ? " · Take Back" : ""}
             </Button>
           </MessageActions>
         )}
@@ -240,7 +240,7 @@ function FileAttachment({ file }: { file: FileRef }) {
         <AttachmentTitle>{file.name}</AttachmentTitle>
         {file.size !== undefined && <AttachmentDescription>{fileSize(file.size)}</AttachmentDescription>}
       </AttachmentContent>
-      {inTauri && <AttachmentTrigger aria-label={`show ${file.name} in its folder`} onClick={reveal} />}
+      {inTauri && <AttachmentTrigger aria-label={`Show ${file.name} in its folder`} onClick={reveal} />}
     </Attachment>
   );
 }

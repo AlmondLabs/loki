@@ -22,7 +22,7 @@ const key = (k: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altK
 });
 
 /** Both the desktop's chips and the phone's row are named "quick replies". */
-const OFFERED = 'aria-label="quick replies"';
+const OFFERED = 'aria-label="Quick replies"';
 const draw = (rows: TranscriptRow[], status: ChatStatus = "idle", question: PendingQuestion | null = null, touch = false) =>
   renderToStaticMarkup(createElement(Conversation, { touch, view: { rows, status, question }, actions: { onSend: () => {}, onAnswer: () => {} } }));
 

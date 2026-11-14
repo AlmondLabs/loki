@@ -215,7 +215,7 @@ export function DeskPane(props: DeskPaneProps) {
             {runtime && (
               <span className="loki-desk-pane-labels">
                 <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
-                <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
+                <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="Label this chat (/label)">
                   {chatLabels.length ? "Edit Labels" : "Add Label"}
                 </button>
               </span>

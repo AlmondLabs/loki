@@ -23,7 +23,7 @@ export function ReturnTimeSheet({ title, onPick, onClose }: { title: string; onP
       ))}
       <Field size="touch" type="date" aria-label="A date" value={day} onChange={(e) => setDay(e.target.value)} />
       <Button size="touch" tone="positive" block disabled={!picked} onClick={() => picked && onPick(picked)}>
-        Come back that day
+        Come Back That Day
       </Button>
       <Button size="touch" tone="paper" block onClick={onClose}>
         Cancel

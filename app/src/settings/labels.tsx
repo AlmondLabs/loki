@@ -20,10 +20,10 @@ type RowMode = "show" | "rename" | "color" | "remove";
  */
 export function Labels({ api }: { api: LabelsApi }) {
   const [error, setError] = useState<string | null>(null);
-  if (!api.list) return <Setting label="Labels" help="asking loki…" />;
+  if (!api.list) return <Setting label="Labels" help="Asking loki…" />;
   return (
     <Block
-      help={`labels gather related chats across agents. Add them from a chat's row, its header, or /label in the message box; find a label's chats with label:name in the sidebar's filter or ${keyFor("search.open")}.`}
+      help={`Labels gather related chats across agents. Add them from a chat's row, its header, or /label in the message box; find a label's chats with label:name in the sidebar's filter or ${keyFor("search.open")}.`}
     >
       {error && (
         <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
@@ -67,14 +67,14 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
           </span>
         </span>
         <span style={{ display: "flex", gap: 6 }}>
-          <Button size="sm" onClick={() => (setName(label.name), setMode(mode === "rename" ? "show" : "rename"))} aria-label={`rename ${label.name}`}>
-            rename
+          <Button size="sm" onClick={() => (setName(label.name), setMode(mode === "rename" ? "show" : "rename"))} aria-label={`Rename ${label.name}`}>
+            Rename…
           </Button>
-          <Button size="sm" onClick={() => setMode(mode === "color" ? "show" : "color")} aria-label={`colour of ${label.name}`}>
-            colour
+          <Button size="sm" onClick={() => setMode(mode === "color" ? "show" : "color")} aria-label={`Colour of ${label.name}`}>
+            Colour
           </Button>
-          <Button size="sm" tone="negative" onClick={() => setMode(mode === "remove" ? "show" : "remove")} aria-label={`delete ${label.name}`}>
-            delete
+          <Button size="sm" tone="negative" onClick={() => setMode(mode === "remove" ? "show" : "remove")} aria-label={`Delete ${label.name}`}>
+            Delete…
           </Button>
         </span>
       </div>
@@ -89,7 +89,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
           <Field
             size="sm"
             name="label-name"
-            aria-label={`new name for ${label.name}`}
+            aria-label={`New name for ${label.name}`}
             autoComplete="off"
             spellCheck={false}
             maxLength={LABEL_MAX + 8}
@@ -98,19 +98,19 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
             style={{ flex: 1 }}
           />
           <Button size="sm" tone="positive" type="submit" disabled={busy || !renamed || renamed === label.name}>
-            {busy ? "saving…" : renamed && renamed !== name.trim() ? `save as ${renamed}` : "save"}
+            {busy ? "Saving…" : renamed && renamed !== name.trim() ? `Save as ${renamed}` : "Save"}
           </Button>
         </form>
       )}
       {mode === "color" && (
-        <div role="radiogroup" aria-label={`colour of ${label.name}`} style={{ display: "flex", gap: 6 }}>
+        <div role="radiogroup" aria-label={`Colour of ${label.name}`} style={{ display: "flex", gap: 6 }}>
           {Array.from({ length: LABEL_COLORS }, (_, color) => (
             <button
               key={color}
               type="button"
               role="radio"
               aria-checked={color === label.color}
-              aria-label={`colour ${color + 1}`}
+              aria-label={`Colour ${color + 1}`}
               className="loki-label-swatch"
               style={{ "--label-tone": paletteColor(color) } as CSSProperties}
               disabled={busy}
@@ -125,10 +125,10 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
             Take {label.name} off {chats}? The chats stay.
           </span>
           <Button size="sm" tone="negative" disabled={busy} onClick={() => void run({ name: label.name, remove: true })}>
-            {busy ? "deleting…" : "delete"}
+            {busy ? "Deleting…" : "Delete"}
           </Button>
           <Button size="sm" onClick={() => setMode("show")}>
-            cancel
+            Cancel
           </Button>
         </div>
       )}

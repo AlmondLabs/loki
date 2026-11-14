@@ -111,7 +111,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
           <Field
             name="desk-purpose"
             aria-label="Chat purpose"
-            placeholder="what this chat is for (agents read it)"
+            placeholder="What this chat is for (agents read it)"
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"

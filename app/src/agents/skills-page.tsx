@@ -38,10 +38,10 @@ export function SkillsPage({
           Skills
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
             <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>
-              write
+              Write
             </Chip>
             <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>
-              install
+              Install
             </Chip>
           </span>
         </Head>
@@ -57,7 +57,7 @@ export function SkillsPage({
         )}
         {d.skills.length === 0 && !adding && (
           <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
-            none in memory
+            None in memory
           </div>
         )}
         <SkillList skills={d.skills} shown={viewSkill} onPick={onPickSkill} />
@@ -108,9 +108,9 @@ function SkillList({ skills, shown, onPick }: { skills: AgentSkill[]; shown: Age
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
-                      title={x.source ? `from ${x.source.label}` : "source unknown"}
+                      title={x.source ? `From ${x.source.label}` : "Source unknown"}
                     >
-                      {x.source ? x.source.label : "source?"}
+                      {x.source ? x.source.label : "Source?"}
                     </span>
                   )}
                 </Row>
@@ -139,7 +139,7 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
           <SourceAsk name={skill.name} onGo={(src) => store.refreshSkill(skill, src)} onCancel={() => store.setNeedsSource(null)} />
         )}
       </div>
-      <Prose content={content} loadingView={loadingView} empty="nothing to show here" />
+      <Prose content={content} loadingView={loadingView} empty="Nothing to show here" />
     </>
   );
 }
@@ -159,15 +159,15 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
           disabled={refreshing === skill.name}
           title={
             skill.source
-              ? `pull the latest from ${skill.source.label} and reconcile with ${d.agent.name}'s copy`
-              : "say where this skill came from, then pull the latest"
+              ? `Pull the latest from ${skill.source.label} and reconcile with ${d.agent.name}'s copy`
+              : "Say where this skill came from, then pull the latest"
           }
         >
-          {refreshing === skill.name ? "refreshing…" : "refresh"}
+          {refreshing === skill.name ? "Refreshing…" : "Refresh"}
         </Button>
       )}
-      <Button tone="negative" onClick={() => void removeSkill(skill)} title={`remove ${skill.name} from ${d.agent.name}'s memory`}>
-        remove
+      <Button tone="negative" onClick={() => void removeSkill(skill)} title={`Remove ${skill.name} from ${d.agent.name}'s memory`}>
+        Remove
       </Button>
     </div>
   );
@@ -177,7 +177,7 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
 function SkillOrigin({ skill, agentName }: { skill: AgentSkill; agentName: string }) {
   return (
     <div style={{ fontSize: "var(--loki-text-fine)", color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
-      {skill.origin === "self" ? `written by ${agentName}` : skill.source ? `from ${skill.source.label}` : "installed · source unknown"}
+      {skill.origin === "self" ? `Written by ${agentName}` : skill.source ? `From ${skill.source.label}` : "Installed · source unknown"}
       {skill.origin === "other" && skill.edited ? ` · edited by ${agentName} since` : ""}
     </div>
   );
@@ -224,10 +224,10 @@ function SkillAdd({
                   .replace(/^#+\s*/, "")
                   .slice(0, 120)}\n---\n\n${text.trim()}\n`,
               )
-            : "a name and some text"
+            : "A name and some text"
           : source.trim()
             ? await onInstall(source)
-            : "a source";
+            : "A source";
     } finally {
       setBusy(false);
     }
@@ -253,7 +253,7 @@ function SkillAdd({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="skill name (becomes skills/<name>/SKILL.md)"
+            placeholder="Skill name (becomes skills/<name>/SKILL.md)"
             autoComplete="off"
             data-form-type="other"
           />
@@ -279,15 +279,15 @@ function SkillAdd({
             autoComplete="off"
             data-form-type="other"
           />
-          <span className="loki-meta loki-meta--wrap">copies it into {agentName}'s memory; can take a minute</span>
+          <span className="loki-meta loki-meta--wrap">Copies it into {agentName}'s memory; can take a minute</span>
         </>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
-        <Button onClick={onClose}>cancel</Button>
+        <Button onClick={onClose}>Cancel</Button>
         <Button tone="positive" onClick={() => void go()} disabled={busy}>
-          {busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}
+          {busy ? (mode === "install" ? "Installing…" : "Writing…") : mode === "install" ? "Install" : "Add"}
         </Button>
       </div>
     </div>
@@ -329,9 +329,9 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
-        <Button onClick={onCancel}>cancel</Button>
+        <Button onClick={onCancel}>Cancel</Button>
         <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>
-          {busy ? "refreshing…" : "refresh"}
+          {busy ? "Refreshing…" : "Refresh"}
         </Button>
       </div>
     </div>

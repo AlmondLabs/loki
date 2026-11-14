@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
+import { GaugeIcon, MessagesSquareIcon, RepeatIcon, type LucideIcon } from "lucide-react";
 import { useNow } from "../components/use-now";
 import { ANSWERS, describeGap, isNew, previews, type Grade } from "../../../core/recall/fsrs.ts";
 import { learnTitle, updatedSinceReview, type CardSource, type CardWithSchedule, type Lead } from "../../../core/recall/model.ts";
@@ -7,6 +8,8 @@ import { lessonBrief } from "../../../core/recall/extract.ts";
 import type { Recall as RecallModel } from "../shell/use-recall";
 import type { useDeckPass } from "../recall/use-deck-pass";
 import { ago } from "../shared/ago";
+import { Glyph } from "../shared/icons";
+import { WELCOME_LINE, welcomeRows, type WelcomeRow } from "../recall/welcome";
 import { avatarUrl } from "../desk/env";
 import { Button, sentence } from "../components";
 import { useLeave, type LeaveFrames } from "../kit/leave";
@@ -193,15 +196,15 @@ function Leads({
               <p className="loki-phone-headline">No leads yet</p>
               <p>
                 {snap.worker.enabled
-                  ? "When a conversation goes quiet, the writer names what went by in it without being understood: a concept, an acronym, something you took the agent's word for. Each is a lesson away."
-                  : "Leads come from the writer on the Mac, and it is off. Turn it on from the Mac: Learn, or Preferences › Learn."}
+                  ? "When a chat goes quiet, Learn names what went by in it without being understood: a concept, an acronym, something you took the agent's word for. Each is a lesson away."
+                  : "Leads come from Learn on the Mac, and it is off. Turn it on from the Mac: Learn, or Preferences › Learn."}
               </p>
             </div>
           ) : (
             leads.map((l) => {
               const busy = recall.starting === l.id;
               return (
-                <section key={l.id} aria-label={`lead: ${l.title}`} className="loki-phone-learn-card">
+                <section key={l.id} aria-label={`Lead: ${l.title}`} className="loki-phone-learn-card">
                   <Source source={l.source} at={l.created_at} />
                   <div className="loki-phone-learn-front">{l.title}</div>
                   <p className="loki-phone-lead-why">{l.why}</p>
@@ -218,7 +221,7 @@ function Leads({
                   </Button>
                   <div className="loki-phone-learn-foot">
                     <Button size="touch" onClick={() => void recall.dismissLead(l.id)}>
-                      Not this
+                      Not This
                     </Button>
                     {l.source.agent_id && l.source.conversation_id && (
                       <Button
@@ -229,7 +232,7 @@ function Leads({
                           if (agentId && conversationId) onOpen(agentId, conversationId);
                         }}
                       >
-                        Where it came up
+                        Where It Came Up
                       </Button>
                     )}
                   </div>
@@ -272,7 +275,7 @@ function Lessons({
             <p>A lead you start becomes a lesson: a conversation with the agent who was there, kept out of Flow.</p>
           </div>
         ) : (
-          <ul className="loki-phone-list" aria-label="lessons under way">
+          <ul className="loki-phone-list" aria-label="Lessons under way">
             {lessons.map((s) => (
               <li key={s.conversation_id} className="loki-phone-row-item">
                 <button type="button" className="loki-phone-row" onClick={() => onOpen(s.agent_id, s.conversation_id)}>
@@ -326,14 +329,14 @@ function Deleted({ recall, banner, back }: { recall: RecallModel; banner: ReactN
             {cards.length > 0 && (
               <RowGroup title="Cards">
                 {cards.map((r) => (
-                  <DeletedRow key={r.card.id} title={r.card.front} line={`deleted ${ago(r.at)}`} onRestore={() => void recall.restore(r.card.id)} />
+                  <DeletedRow key={r.card.id} title={r.card.front} line={`Deleted ${ago(r.at)}`} onRestore={() => void recall.restore(r.card.id)} />
                 ))}
               </RowGroup>
             )}
             {leads.length > 0 && (
               <RowGroup title="Leads">
                 {leads.map((d) => (
-                  <DeletedRow key={d.lead.id} title={d.lead.title} line={`set aside ${ago(d.at)}`} onRestore={() => void recall.restoreLead(d.lead.id)} />
+                  <DeletedRow key={d.lead.id} title={d.lead.title} line={`Set aside ${ago(d.at)}`} onRestore={() => void recall.restoreLead(d.lead.id)} />
                 ))}
               </RowGroup>
             )}
@@ -362,19 +365,33 @@ function DeletedRow({ title, line, onRestore }: { title: string; line: string; o
   );
 }
 
-/** The writer is off and nothing is written: what Learn is, what it costs, and where it is switched on (the Mac). */
+/**
+ * Learn is off and nothing is written: the Mac's welcome at the phone's sizes (plan 2026-11-14-0852, 2), the same three
+ * rows, and where it is switched on (the Mac).
+ */
 function Off({ dailyCap }: { dailyCap: number }) {
   return (
     <div className="loki-phone-empty">
       <p className="loki-phone-headline">Learn is off</p>
-      <p>
-        Once it is on, a writer on the Mac turns conversations that have gone quiet into flashcards, and they wait here on a schedule. Each run spends a little
-        of your provider budget, up to {dailyCap} cards a day.
-      </p>
+      <p>{WELCOME_LINE}</p>
+      <ul className="loki-phone-welcome">
+        {welcomeRows(dailyCap).map((row) => (
+          <li key={row.icon}>
+            <Glyph icon={WELCOME_ICON[row.icon]} size={22} />
+            <span>
+              <b>{row.head}</b>
+              <span>{row.line}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
       <p className="loki-phone-meta">Turn it on from the Mac: Learn, or Preferences › Learn.</p>
     </div>
   );
 }
+
+/** The welcome's symbols, as the Mac's: chats, the spaced repeat, the budget's gauge. */
+const WELCOME_ICON: Record<WelcomeRow["icon"], LucideIcon> = { chats: MessagesSquareIcon, spaced: RepeatIcon, budget: GaugeIcon };
 
 /** No card to show: none written yet, none due, or the sitting is done. */
 function Rest({ cards, passed, nextDue }: { cards: number; passed: number; nextDue: number | undefined }) {
@@ -408,7 +425,7 @@ function Source({ source, at, fresh = null, tags = [] }: { source: CardSource; a
           {fresh && <span className="loki-phone-learn-tag">{fresh}</span>}
         </span>
         <span className="loki-phone-row-preview">
-          {source.title ?? "a conversation"}
+          {source.title ?? "A conversation"}
           {at ? ` · ${ago(at)}` : ""}
           {tags.length ? ` · ${tags.join(", ")}` : ""}
         </span>
@@ -482,7 +499,7 @@ function PhoneCard({
     away.finished.then(round, round);
   };
   return (
-    <section ref={ref} aria-label={`card ${position} of ${total}`} className="loki-phone-learn-card" data-rise={rises || undefined}>
+    <section ref={ref} aria-label={`Card ${position} of ${total}`} className="loki-phone-learn-card" data-rise={rises || undefined}>
       <Source
         source={c.card.source}
         at={c.card.source.at}
@@ -494,7 +511,7 @@ function PhoneCard({
         <div className="loki-phone-learn-back">{c.card.back}</div>
       ) : (
         <Button size="touch" tone="paper" block onClick={reveal}>
-          Show the answer
+          Show the Answer
         </Button>
       )}
       {revealed && (
@@ -515,10 +532,10 @@ function PhoneCard({
       )}
       <div className="loki-phone-learn-foot">
         <Button size="touch" tone="negative" onClick={() => leave(DROP, onDelete)}>
-          Delete card
+          Delete Card
         </Button>
         <Button size="touch" onClick={onUndo}>
-          Undo delete
+          Undo Delete
         </Button>
       </div>
     </section>

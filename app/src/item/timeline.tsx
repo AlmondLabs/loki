@@ -191,17 +191,17 @@ function ThreadBody({
     <MessageScroller data-new-thread className="flex-1">
       <MessageScrollerViewport preserveScrollOnPrepend onScroll={(ev: UIEvent<HTMLDivElement>) => nearTop(ev.currentTarget)} data-thread-scroll style={style}>
         <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-5 px-6 py-5 text-body text-foreground">
-          {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `loading from ${home}…` : "loading the thread…"}</p>}
+          {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
           {!rows && loadFailed && (
             <div role="alert" className="flex items-center gap-2 text-meta text-destructive">
-              <span>{home ? `could not load this chat from ${home}` : "could not load this chat"}</span>
+              <span>{home ? `Could not load this chat from ${home}` : "Could not load this chat"}</span>
               <Button size="sm" variant="outline" onClick={loadFailed}>
-                try again
+                Try Again
               </Button>
             </div>
           )}
           {rows?.length === 0 && !blank && (
-            <p className="m-0 text-meta text-muted-foreground">nothing here yet — everything you send lands in {who}'s transcript</p>
+            <p className="m-0 text-meta text-muted-foreground">Nothing here yet — everything you send lands in {who}'s transcript</p>
           )}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
@@ -214,7 +214,7 @@ function ThreadBody({
           {status === "thinking" && !waiting && !turnWorking && (
             <Trace role="status">
               <TraceLine status="running">
-                <TraceTitle>thinking</TraceTitle>
+                <TraceTitle>Thinking</TraceTitle>
               </TraceLine>
             </Trace>
           )}

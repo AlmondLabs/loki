@@ -101,13 +101,13 @@ type Move = Exclude<ReplyThen, "stay">;
 
 /** The decision each key leaves behind, and how it reads in the visit's summary. */
 const DECISION: Record<Move, { action: Decision["action"]; via: NonNullable<Decision["via"]>; word: string }> = {
-  read: { action: "seen", via: "next", word: "read" },
-  later: { action: "later", via: "later", word: "later" },
-  archive: { action: "archived", via: "archive", word: "archived" },
+  read: { action: "seen", via: "next", word: "Read" },
+  later: { action: "later", via: "later", word: "Later" },
+  archive: { action: "archived", via: "archive", word: "Archived" },
 };
 
 /** What a refused move flashes, before the reason. */
-const REFUSED: Record<Move, string> = { read: "not marked read", later: "not put off", archive: "not archived" };
+const REFUSED: Record<Move, string> = { read: "Not marked read", later: "Not put off", archive: "Not archived" };
 
 /** Whether a card takes labels: an email card only (R12); a chat or a Slack message has none. */
 export const takesLabels = (item: AttentionItem | undefined): boolean => item?.outside?.provider === "gmail";
@@ -151,7 +151,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setDir("next");
     host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item), held: { outbox_id: outbox, text, mail } }]);
     host.setQueue(popHead);
-    host.say("sending · z undo");
+    host.say("Sending · z undo");
     const r = await send(item, text, then, { mail, outbox_id: outbox });
     // Undo stopped it and already put the card and the words back.
     if (r.undone) return;
@@ -159,17 +159,17 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (r.sent && !r.error) {
       // Sent: from here undo takes back the key's move, as for any card.
       host.setDecided((d) => d.map((x) => (mine(x) ? { item: x.item, action: x.action, via: x.via, stamp: x.stamp } : x)));
-      host.say("sent");
+      host.say("Sent");
       return;
     }
     host.setDecided((d) => d.filter((x) => !mine(x)));
     host.setQueue((q) => [item, ...q.filter((i) => idOf(i) !== id)]);
     if (r.sent) {
       host.setReply(id, { error: r.error });
-      host.say(`sent, ${REFUSED[then]}`);
+      host.say(`Sent, ${REFUSED[then].toLowerCase()}`);
     } else {
       host.setReply(id, { text, mail, error: r.error });
-      host.say("not sent");
+      host.say("Not sent");
     }
   };
 
@@ -182,18 +182,18 @@ export function createDeckMoves(host: DeckMovesHost) {
     const { text, mail } = host.reply;
     const outbox = host.newId?.() ?? newId();
     host.setReply(id, { text: "", mail: null, error: null, held: { outbox_id: outbox, text, mail } });
-    host.say("sending · z undo");
+    host.say("Sending · z undo");
     const r = await send(item, text, "stay", { mail, outbox_id: outbox });
     // Undo stopped it and already put the words back.
     if (r.undone) return;
     if (r.sent) {
       host.setReply(id, { held: null });
       host.sent();
-      host.say("sent");
+      host.say("Sent");
       return;
     }
     host.setReply(id, { text, mail, error: r.error, held: null });
-    host.say("not sent");
+    host.say("Not sent");
   };
 
   /** Send the box's text, then the key's move; the card moves on only when both went, and keeps the error when not. */
@@ -217,12 +217,12 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (r.error) {
       // The reply went but its move did not, or nothing went: the card stays, saying why.
       host.setReply(id, { error: r.error });
-      if (r.sent) host.say("sent");
+      if (r.sent) host.say("Sent");
       return;
     }
     if (!r.sent) return;
     if (then === "stay") {
-      host.say("sent");
+      host.say("Sent");
       return;
     }
     decide(item, then);
@@ -235,7 +235,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (!item || host.reply.busy) return;
     if (hasReply(item)) return void sendThen(item, "read");
     decide(item, "read");
-    host.say("read");
+    host.say("Read");
     void moves.read(item).then((r) => {
       if (!r.error) return;
       restore(item, "seen");
@@ -250,7 +250,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (hasReply(item)) return void sendThen(item, "later");
     if (moves.laterAsks(item)) return host.pick("later");
     decide(item, "later");
-    host.say("later");
+    host.say("Later");
     void moves.later(item).then((r) => {
       if (r.error) {
         restore(item, "later");
@@ -269,7 +269,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (!item) return;
     host.pick(null);
     decide(item, "later");
-    host.say("later");
+    host.say("Later");
     void moves.later(item, until).then((r) => {
       if (!r.error) return;
       restore(item, "later");
@@ -285,11 +285,11 @@ export function createDeckMoves(host: DeckMovesHost) {
   const archive = () => {
     const item = host.current;
     if (!item || host.reply.busy) return;
-    if (!item.outside && item.id === "default") return host.say("main chats stay");
-    if (item.outside && !OUTSIDE_ENDS[item.outside.provider].archive) return host.say("a jira card ends with read");
+    if (!item.outside && item.id === "default") return host.say("Main chats stay");
+    if (item.outside && !OUTSIDE_ENDS[item.outside.provider].archive) return host.say("A Jira card ends with read");
     if (hasReply(item)) return void sendThen(item, "archive");
     decide(item, "archive");
-    host.say("archived");
+    host.say("Archived");
     void moves.archive(item).then((err) => {
       if (!err) return;
       restore(item, "archived");
@@ -310,7 +310,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (err) return err;
     host.pick(null);
     host.setDecided((d) => [...d, { item, action: "label", via: "label", stamp: stampOf(item) }]);
-    host.say("labelled");
+    host.say("Labelled");
     return null;
   };
 
@@ -331,9 +331,9 @@ export function createDeckMoves(host: DeckMovesHost) {
     const here = host.current;
     if (waiting && here && moves.unsendOutside) {
       void moves.unsendOutside(here, waiting.outbox_id).then((stopped) => {
-        if (!stopped) return host.say("already sent");
+        if (!stopped) return host.say("Already sent");
         host.setReply(idOf(here), { text: waiting.text, mail: waiting.mail, error: null, held: null });
-        host.say("not sent");
+        host.say("Not sent");
       });
       return;
     }
@@ -346,10 +346,10 @@ export function createDeckMoves(host: DeckMovesHost) {
     const held = last.held;
     if (held && moves.unsendOutside) {
       void moves.unsendOutside(last.item, held.outbox_id).then((stopped) => {
-        if (!stopped) return host.say("already sent");
+        if (!stopped) return host.say("Already sent");
         back(last);
         host.setReply(idOf(last.item), { text: held.text, mail: held.mail, error: null });
-        host.say("not sent");
+        host.say("Not sent");
       });
       return;
     }
@@ -359,8 +359,8 @@ export function createDeckMoves(host: DeckMovesHost) {
       return back(last);
     }
     void moves.undo(last.item).then((err) => {
-      if (err === "handed off") host.say("handed off: not undone");
-      else if (err) host.say(`not undone: ${err}`);
+      if (err === "handed off") host.say("Handed off: not undone");
+      else if (err) host.say(`Not undone: ${err}`);
       else back(last);
     });
   };
@@ -375,7 +375,7 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setDir("next");
     host.setDecided((d) => [...d, { item, action: "seen", via, stamp: stampOf(item) }]);
     host.setQueue(popHead);
-    host.say(behavior !== "deny" ? "approved" : "denied");
+    host.say(behavior !== "deny" ? "Approved" : "Denied");
   };
 
   /**

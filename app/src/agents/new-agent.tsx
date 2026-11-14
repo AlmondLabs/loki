@@ -5,7 +5,7 @@ import { formatKeys } from "../shell/keymap";
 
 /** What the persona box says before anything is typed: what goes there, and where it ends up. */
 export const PERSONA_HINT =
-  "who this agent is and how it works, in your words (optional) — it starts the agent's memory, system/persona.md, which the agent keeps up from there";
+  "Who this agent is and how it works, in your words (optional) — it starts the agent's memory, system/persona.md, which the agent keeps up from there";
 
 /** The form for a new agent: name, description, persona (in the person's own words), a model. */
 export function NewAgent({
@@ -66,7 +66,7 @@ export function NewAgent({
           <Field
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="what this agent is for (optional)"
+            placeholder="What this agent is for (optional)"
             autoComplete="off"
             data-form-type="other"
           />
@@ -79,7 +79,7 @@ export function NewAgent({
             list="loki-new-agent-models"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={models?.length ? "the harness default, or pick one" : "the harness default"}
+            placeholder={models?.length ? "The harness default, or pick one" : "The harness default"}
             autoComplete="off"
             data-form-type="other"
           />
@@ -95,7 +95,7 @@ export function NewAgent({
             <span style={{ flex: 1 }} />
             {canCancel && <Button onClick={onCancel}>Cancel</Button>}
             <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>
-              {busy ? "Creating…" : "Create agent"}
+              {busy ? "Creating…" : "Create Agent"}
             </Button>
           </div>
         </Labelled>

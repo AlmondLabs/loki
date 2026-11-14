@@ -121,8 +121,8 @@ function QuestionCardFor({
                     }
                     e.stopPropagation();
                   }}
-                  placeholder="or your own…"
-                  aria-label={`other answer: ${q.question}`}
+                  placeholder="Or your own…"
+                  aria-label={`Other answer: ${q.question}`}
                   autoComplete="off"
                   style={{ flex: "1 1 140px", minWidth: 120 }}
                 />
@@ -138,7 +138,7 @@ function QuestionCardFor({
                     disabled={!complete}
                     title={complete ? "send these answers" : many ? "answer every question" : "pick one, or type below"}
                   >
-                    answer
+                    Answer
                   </Button>
                 </>
               )}
@@ -146,7 +146,7 @@ function QuestionCardFor({
             {q.options.some((o) => o.description) && (
               // Always one line tall, so hovering the pills never moves the thread above.
               <div className="loki-meta" style={{ lineHeight: 1.4, marginLeft: 2, minHeight: "1.4em" }} aria-live="polite">
-                {shown?.description ?? (sel.length ? "" : touch ? "tap an option for details" : "hover an option for details")}
+                {shown?.description ?? (sel.length ? "" : touch ? "Tap an option for details" : "Hover over an option for details")}
               </div>
             )}
           </div>

@@ -495,12 +495,12 @@ export function Conversation({
               {(() => {
                 const approve = (
                   <Button key="approve" size="touch" tone="positive" className="loki-approve" onClick={() => onApprove("allow")} kbd={hints?.approve}>
-                    approve
+                    Approve
                   </Button>
                 );
                 const deny = (
                   <Button key="deny" size="touch" tone="negative" className="loki-deny" onClick={() => onApprove("deny")} kbd={hints?.deny}>
-                    deny
+                    Deny
                   </Button>
                 );
                 // Allows this call and every later one of the same tool, in any chat, until taken back in Preferences › Chat (not in strict mode).
@@ -511,9 +511,9 @@ export function Conversation({
                     tone="paper"
                     className="loki-approve-always"
                     onClick={() => onApprove("always")}
-                    title="allow this tool from now on, in every chat (Preferences › Chat takes it back)"
+                    title="Allow this tool from now on, in every chat (Preferences › Chat takes it back)"
                   >
-                    always allow
+                    Always Allow
                   </Button>
                 );
                 // A script's card has no "always allow": each script is new code (offersAlways).
@@ -712,19 +712,19 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
         }}
       >
         {!rows && !loadFailed && (
-          <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>{home ? `loading from ${home}…` : "loading the thread…"}</div>
+          <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>{home ? `Loading from ${home}…` : "Loading the thread…"}</div>
         )}
         {!rows && loadFailed && (
           <div className="loki-thread-error" role="alert">
-            <span>{home ? `could not load this chat from ${home}` : "could not load this chat"}</span>
+            <span>{home ? `Could not load this chat from ${home}` : "Could not load this chat"}</span>
             <Button size="sm" onClick={loadFailed}>
-              try again
+              Try Again
             </Button>
           </div>
         )}
         {rows?.length === 0 && !blank && (
           <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>
-            nothing here yet — everything you send lands in {who}'s transcript
+            Nothing here yet — everything you send lands in {who}'s transcript
           </div>
         )}
         {rows && (
@@ -751,7 +751,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
         {tail}
         {status === "thinking" && !waiting && (
           <div className="loki-thinking" role="status">
-            thinking
+            Thinking
             {/* Three dots that rise in turn, as a typing bubble does (chat.css); read as "thinking". */}
             <span className="loki-thinking-dots" aria-hidden>
               <span />

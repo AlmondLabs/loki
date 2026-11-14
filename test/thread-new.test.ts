@@ -195,7 +195,7 @@ describe("the new thread's pieces", () => {
     const queued = renderToStaticMarkup(
       createElement(ChatMessage, { row: { ...user("later"), queued: true }, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }),
     );
-    expect(queued).toContain("Sends when this turn ends · Take Back");
+    expect(queued).toContain("Queued · sends when this turn ends · Take Back");
   });
 
   test("a turn's header says how long it worked and where it stands, and names the agent to a screen reader", () => {

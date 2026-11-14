@@ -12,12 +12,12 @@ import { Block, Fact, Segmented } from "./layout";
  */
 export function UsagePage({ usage }: { usage: UsageApi }) {
   const { period, pick, setFilter, failed, summary, priced, seededUntil, agentName, narrowed } = useUsage(usage);
-  if (!summary) return <Block title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "loading…"} />}</Block>;
+  if (!summary) return <Block title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "Loading…"} />}</Block>;
   return (
     <>
       <SpendSection summary={summary} period={period} onPeriod={pick} narrowed={narrowed} onShowAll={() => setFilter({})} seededUntil={seededUntil} />
       <TokensSection summary={summary} />
-      <Block title="By origin" help="your chats, the helpers they started, and loki's background passes">
+      <Block title="By origin" help="Your chats, the helpers they started, and loki's background passes">
         <Breakdown lines={summary.by_origin} name={originName} priced={() => true} onPick={(key) => setFilter({ origin: key as UsageOrigin })} />
       </Block>
       <Block title="By agent">
@@ -48,8 +48,8 @@ function SpendSection({
 }) {
   const hourly = period === "24h";
   return (
-    <Block title="Spend" help="estimated at each provider's API prices; a subscription sign-in is billed by its plan, not by these">
-      <Fact label="Period" value={<Segmented label="period" options={PERIODS} value={period} onPick={onPeriod} labels={PERIOD_LABELS} />} />
+    <Block title="Spend" help="Estimated at each provider's API prices; a subscription sign-in is billed by its plan, not by these">
+      <Fact label="Period" value={<Segmented label="Period" options={PERIODS} value={period} onPick={onPeriod} labels={PERIOD_LABELS} />} />
       {narrowed && (
         <Fact
           label="Showing"
@@ -87,7 +87,7 @@ function SpendSection({
 function TokensSection({ summary }: { summary: UsageSummary }) {
   const { tokens, cost } = summary;
   return (
-    <Block title="Tokens" help="what was sent fresh, read from the provider's cache or written to it, and what the model wrote back">
+    <Block title="Tokens" help="What was sent fresh, read from the provider's cache or written to it, and what the model wrote back">
       <Fact label="Input" value={<Amount tokens={tokens.input} cost={cost.input} />} />
       <Fact label="Cache read" value={<Amount tokens={tokens.cache_read} cost={cost.cache_read} />} />
       <Fact label="Cache write" value={<Amount tokens={tokens.cache_write} cost={cost.cache_write} />} />
@@ -126,7 +126,7 @@ function Breakdown({
   priced: (key: string) => boolean;
   onPick: (key: string) => void;
 }) {
-  if (lines.length === 0) return <Fact label="Nothing" value="no calls in this period" />;
+  if (lines.length === 0) return <Fact label="Nothing" value="No calls in this period" />;
   // A line of tokens with no cost at all was spent on models with no known price (an agent on a local model, say).
   const known = (l: UsageLine) => priced(l.key) && (l.cost > 0 || l.tokens === 0);
   return (
@@ -157,7 +157,7 @@ function Breakdown({
                 }}
               />
             </span>
-            <span style={{ textAlign: "right" }}>{known(l) ? money(l.cost) : "no price"}</span>
+            <span style={{ textAlign: "right" }}>{known(l) ? money(l.cost) : "No price"}</span>
             <span className="loki-meta" style={{ textAlign: "right" }}>
               {known(l) ? shareText(l.share) : tokenCount(l.tokens)}
             </span>

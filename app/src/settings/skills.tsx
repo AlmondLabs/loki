@@ -29,20 +29,20 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
   };
   return (
     <>
-      <Block help="the folder every agent reads, ~/.agents/skills. An agent's own skills are on its page in Agents.">
-        {skills === null && <Setting label="Skills" help="reading…" />}
+      <Block help="The folder every agent reads, ~/.agents/skills. An agent's own skills are on its page in Agents.">
+        {skills === null && <Setting label="Skills" help="Reading…" />}
         {skills?.length === 0 && <Setting label="None yet" help="Enable a folder below." />}
         {(skills ?? []).map((g) => (
-          <Setting key={g.name} label={g.name} help={g.description ?? g.source ?? (g.is_link ? "a link" : "a copy")}>
+          <Setting key={g.name} label={g.name} help={g.description ?? g.source ?? (g.is_link ? "A link" : "A copy")}>
             <Button size="sm" onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))}>
-              disable
+              Disable
             </Button>
           </Setting>
         ))}
         {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
       </Block>
-      <Block title="Enable a skill" help="a folder holding a SKILL.md, linked into ~/.agents/skills.">
-        <PathAdd onAdd={(path) => api.enable(path).then((err) => (err ? err : (flash("enabled"), load(), null)))} />
+      <Block title="Enable a skill" help="A folder holding a SKILL.md, linked into ~/.agents/skills.">
+        <PathAdd onAdd={(path) => api.enable(path).then((err) => (err ? err : (flash("Enabled"), load(), null)))} />
       </Block>
     </>
   );
@@ -80,7 +80,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
           style={{ flex: 1 }}
         />
         <Button size="sm" onClick={() => void go()} disabled={busy || !path.trim()}>
-          {busy ? "enabling…" : "enable"}
+          {busy ? "Enabling…" : "Enable"}
         </Button>
       </div>
       {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}

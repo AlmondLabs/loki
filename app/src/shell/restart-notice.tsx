@@ -15,17 +15,17 @@ function offer(file: string, why: string | null, restart: (anyway: boolean) => P
   if (why && !showing()) return;
   notify(why ?? `loki's code changed (${file})`, {
     id: ID,
-    description: why ? undefined : "update to use it",
+    description: why ? undefined : "Update to use it",
     duration: Infinity,
     action: {
-      label: why ? "update anyway" : "update",
+      label: why ? "Update Anyway" : "Update",
       onClick: (e) => {
         e.preventDefault(); // the notice stays, saying what happens next
-        notify.loading("updating…", { id: ID, duration: Infinity });
+        notify.loading("Updating…", { id: ID, duration: Infinity });
         void restart(why !== null).then((err) => (err ? offer(file, err, restart) : undefined));
       },
     },
-    cancel: { label: "later", onClick: () => undefined },
+    cancel: { label: "Later", onClick: () => undefined },
   });
 }
 

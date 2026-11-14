@@ -244,7 +244,7 @@ describe("agents on the phone", () => {
     expect(liveDeskCount(desks, "a3")).toBe(0);
   });
   test("the label", () => {
-    expect(liveDesksLabel(0)).toBe("no chats live");
+    expect(liveDesksLabel(0)).toBe("No chats live");
     expect(liveDesksLabel(1)).toBe("1 chat live");
     expect(liveDesksLabel(3)).toBe("3 chats live");
   });
@@ -530,8 +530,8 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
   test("the preview says what is going on first, then who the agent is", () => {
     expect(agentLine(rows[0], "writes the plans")).toBe("2 waiting · writes the plans");
     expect(agentLine(rows[1], null)).toBe("Working · 1 chat live");
-    expect(agentLine(rows[2], "")).toBe("no chats live");
-    expect(agentLine(rows[2], undefined)).toBe("no chats live");
+    expect(agentLine(rows[2], "")).toBe("No chats live");
+    expect(agentLine(rows[2], undefined)).toBe("No chats live");
   });
 });
 
@@ -663,7 +663,7 @@ describe("a Jira card shaped like the ticket, on the phone (plan 089)", () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toContain(">New<");
     expect(html).toContain("Was In progress · Ada Lovelace · ");
-    expect(html).toContain(">Show more<");
+    expect(html).toContain(">Show More<");
     expect(html).not.toContain("line 7");
     expect(html).not.toContain("watching");
     expect(html).not.toContain("open in jira");

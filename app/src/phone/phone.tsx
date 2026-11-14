@@ -112,7 +112,7 @@ export function Phone() {
         <h1 className="loki-phone-large-title">The Mac did not answer</h1>
         <p className="loki-phone-body loki-phone-splash-line">Same Wi‑Fi, and loki open on the Mac with Preferences › Phone switched on.</p>
         <Button size="touch" tone="paper" onClick={check} className="loki-phone-splash-action">
-          Try again
+          Try Again
         </Button>
       </Splash>
     );
@@ -323,7 +323,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onArchive: ArchiveDesk | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
-          if (!d.conversation_id) return "this chat has no conversation";
+          if (!d.conversation_id) return "This chat has no conversation";
           const err = await catchUp.archiveConversation(d.conversation_id, archived, "phone_list", d.agent_id ?? undefined);
           if (!err) desk.desks.request();
           return err;
@@ -333,7 +333,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onRename: RenameDeskName | null =
     attention.available && catchUp.status === "open"
       ? async (d, name) => {
-          if (!d.conversation_id) return "this chat has no conversation";
+          if (!d.conversation_id) return "This chat has no conversation";
           const err = await catchUp.renameConversation(d.conversation_id, name);
           if (err) return err;
           desk.setDeskTitle(d.scope, name);

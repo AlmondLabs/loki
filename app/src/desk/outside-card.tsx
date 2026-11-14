@@ -462,7 +462,7 @@ function MessageRow({ m, folded }: { m: OutsideMessage; folded: boolean }) {
         {m.at && <Meta>{ago(m.at)}</Meta>}
       </div>
       {m.html ? (
-        <MailHtml html={m.html} title={`mail from ${senderName(m.sender)}`} />
+        <MailHtml html={m.html} title={`Mail from ${senderName(m.sender)}`} />
       ) : (
         <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: size }}>
           <LinkedText text={m.text} />
@@ -782,7 +782,7 @@ export function OutsideReply({
     }
   };
   // The recipients line says who a mail goes to, so the box says only what is written in it.
-  const hint = !isMail ? replyPlace(facts, inThread) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
+  const hint = !isMail ? replyPlace(facts, inThread) : shown?.mode === "forward" ? "Add a note" : compose ? "Reply" : replyPlace(facts);
   const sendKey = isMail ? "cmd+enter" : undefined;
   const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
   const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
@@ -847,7 +847,7 @@ export function OutsideReply({
           send={{
             busy,
             disabled: off || !text.trim(),
-            title: nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider],
+            title: nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider],
             keys: sendKey ? formatKeys(sendKey) : keyFor("chat.send"),
             onSend: () => void send(),
           }}
@@ -891,7 +891,7 @@ export function OutsideReply({
           value={text}
           rows={touch ? 4 : 3}
           disabled={off}
-          placeholder={touch ? `${hint[0].toUpperCase()}${hint.slice(1)}` : hint}
+          placeholder={hint}
           aria-label={hint}
           onChange={(e) => {
             setText(e.target.value);
@@ -915,7 +915,7 @@ export function OutsideReply({
                   {`-- \n${signature}`}
                 </span>
               ) : (
-                <Meta style={{ flex: 1 }}>{touch ? "No signature" : "no signature"}</Meta>
+                <Meta style={{ flex: 1 }}>No signature</Meta>
               )}
               <button
                 type="button"
@@ -924,7 +924,7 @@ export function OutsideReply({
                 disabled={off}
                 onClick={() => shown && setMail({ ...shown, signature: !signature })}
               >
-                {signature ? (touch ? "Remove" : "remove") : touch ? "Add signature" : "add signature"}
+                {signature ? "Remove" : "Add Signature"}
               </button>
             </div>
           )}
@@ -934,13 +934,13 @@ export function OutsideReply({
                 type="button"
                 className="loki-mail-quote-toggle"
                 aria-expanded={quoteOpen}
-                aria-label={touch ? "Show the quoted mail" : "show the quoted mail"}
+                aria-label="Show the quoted mail"
                 title={
                   touch
                     ? undefined
                     : shown?.mode === "forward"
-                      ? "the mail goes under your note, with its files"
-                      : "the mail you answer goes quoted under your reply"
+                      ? "The mail goes under your note, with its files"
+                      : "The mail you answer goes quoted under your reply"
                 }
                 onClick={() => setQuoteOpen(!quoteOpen)}
               >
@@ -962,9 +962,9 @@ export function OutsideReply({
           disabled={off || !text.trim()}
           onClick={() => void send()}
           kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
-          title={touch ? "send it as you; the card stays" : nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider]}
+          title={touch ? "Send it as you; the card stays" : nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider]}
         >
-          {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
+          {busy ? "Sending…" : "Send"}
         </Button>
         {touch && busy && onUndo && (
           <Button size="touch" onClick={onUndo}>
@@ -984,9 +984,9 @@ export function OutsideReply({
             disabled={off || (!text && mail === null)}
             onClick={discard}
             style={{ marginLeft: "auto" }}
-            title="clear the reply and its recipients"
+            title="Clear the reply and its recipients"
           >
-            discard
+            Discard
           </Button>
         ) : (
           actions
@@ -1072,14 +1072,14 @@ export function OutsideItemActions({
       run: moves.label,
       keys: typing ? undefined : keyFor("inbox.label"),
       disabled: off,
-      title: "add a Gmail label to the thread; the card stays",
+      title: "Add a Gmail label to the thread; the card stays",
     };
   if (onHandoff)
     verbs.handoff = {
       run: onHandoff,
       disabled: off,
       title: facts.disconnected
-        ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
+        ? `Cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
         : HANDOFF_TITLE[facts.provider](facts.owner_name ?? "its agent"),
     };
   if (address) verbs.open_out = { run: () => openExternal(address), title: address };
@@ -1151,7 +1151,7 @@ function NotSentLine({
   return (
     <div role="alert" style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-1)" : 4 }}>
       <Meta negative wrap>
-        {touch ? "Not sent" : "not sent"}: {error ?? note.reason}
+        Not sent: {error ?? note.reason}
       </Meta>
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <Meta style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={note.text}>
@@ -1159,11 +1159,11 @@ function NotSentLine({
         </Meta>
         {onUnsent && (
           <>
-            <Button size={size} tone="positive" disabled={!!busy} onClick={() => void act("resend")} title="looks in the thread first, so it never goes twice">
-              {busy === "resend" ? (touch ? "Sending…" : "sending…") : touch ? "Send again" : "send again"}
+            <Button size={size} tone="positive" disabled={!!busy} onClick={() => void act("resend")} title="Looks in the thread first, so it never goes twice">
+              {busy === "resend" ? "Sending…" : "Send Again"}
             </Button>
-            <Button size={size} bare disabled={!!busy} onClick={() => void act("discard")} title="let it go; the card stops saying it was not sent">
-              {touch ? "Discard" : "discard"}
+            <Button size={size} bare disabled={!!busy} onClick={() => void act("discard")} title="Let it go; the card stops saying it was not sent">
+              Discard
             </Button>
           </>
         )}

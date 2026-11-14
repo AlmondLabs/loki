@@ -257,7 +257,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         chats and for email, and **Later brings a card back after**, for chats, email, Slack and Jira, on every device
         (see "Return times"); and, under "How the
         order works", what each card's score is made of (see "The order").
-     2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
+     2. **Learn**: Learn's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
         something new, at once), and the last run.
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
@@ -813,8 +813,10 @@ The mental model — what the writer reads, asks, writes and costs, and how lead
 [docs/learn.md](learn.md); this section is the reference for the keys and the files.
 
 Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
-writer spends your provider budget in the background, so the section's first visit explains what it does and
-offers the switch (Preferences › Learn has it too, with the knobs). Nothing about the cards happens in
+writer spends your provider budget in the background, so the section's first visit is a welcome: three rows (cards
+from what you discuss, reviewed when you'd forget, up to the day's cap from your provider budget), **Turn On Learn**,
+and **Learn More…** for the rest (Preferences › Learn has the switch too, with the knobs). On screen the writer is
+simply Learn. Nothing about the cards happens in
 chat: the daemon's Learn pass, one of its background passes, watches for conversations that have gone quiet, hands their new stretches of
 transcript to the agent together — one question per agent, the stretches most worth reading first, up to a
 budget; what does not fit waits for the next tick — and writes whatever comes back: one fact per card, a

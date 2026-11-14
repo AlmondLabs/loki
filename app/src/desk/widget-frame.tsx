@@ -172,7 +172,7 @@ export function WidgetFrame({
       className="loki-frame loki-no-pan"
       tabIndex={0}
       role="group"
-      aria-label={`widget ${entry.title}`}
+      aria-label={`Widget ${entry.title}`}
       onKeyDown={onKeyDown}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -265,14 +265,14 @@ function FrameTitleBar({
         <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", marginRight: 6 }}>
           {entry.name}
         </span>
-        <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
+        <FrameButton label={`Focus ${entry.title}`} title="Focus" onClick={() => onFocus?.(entry.id)}>
           {/* target */}
           <Glyph icon={CrosshairIcon} size={13} />
         </FrameButton>
-        <FrameButton label={`minimise ${entry.title}`} title="minimise to tray" onClick={() => gesture({ kind: "close", id: entry.id })}>
+        <FrameButton label={`Minimise ${entry.title}`} title="Minimise to tray" onClick={() => gesture({ kind: "close", id: entry.id })}>
           <Glyph icon={MinusIcon} size={13} />
         </FrameButton>
-        <FrameButton label={`trash ${entry.title}`} title="delete the widget file" onClick={() => onTrash?.(entry.id)}>
+        <FrameButton label={`Trash ${entry.title}`} title="Delete the widget file" onClick={() => onTrash?.(entry.id)}>
           <Glyph icon={Trash2Icon} size={13} />
         </FrameButton>
       </span>
@@ -294,7 +294,7 @@ function ResizeGrip({
     <div
       className="loki-frame-resize"
       aria-hidden
-      title="drag to resize"
+      title="Drag to resize"
       onPointerDown={onResizeStart}
       onPointerMove={onResizeMove}
       onPointerUp={onResizeEnd}

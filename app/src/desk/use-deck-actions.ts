@@ -117,7 +117,7 @@ export function useDeckActions({
    */
   const sent = () => {
     setReplies((n) => n + 1);
-    say("sent");
+    say("Sent");
   };
   return {
     flash,

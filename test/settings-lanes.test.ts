@@ -56,8 +56,8 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
   });
 
   test("an empty name or one another lane has, case aside, is refused with a reason and nothing to send", () => {
-    expect(saveLane([HOME], { ...newDraft("lane-new"), name: "  " })).toBe("a lane needs a name");
-    expect(saveLane([HOME], { ...newDraft("lane-new"), name: "home" })).toBe("another lane is called Home");
+    expect(saveLane([HOME], { ...newDraft("lane-new"), name: "  " })).toBe("A lane needs a name");
+    expect(saveLane([HOME], { ...newDraft("lane-new"), name: "home" })).toBe("Another lane is called Home");
     // A lane keeps its own name when saved again.
     expect(saveLane([HOME], { ...draftOf(HOME), name: "home" })).toEqual([{ ...HOME, name: "home" }]);
   });
@@ -70,7 +70,7 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
           lanes: [HOME],
           agents: AGENTS,
           accounts: [],
-          error: "another lane is called Home",
+          error: "Another lane is called Home",
           onDraft: () => {},
           onSave: () => {},
           onDelete: null,
@@ -78,7 +78,7 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
       ),
     );
     expect(out).toContain('role="alert"');
-    expect(out).toContain("another lane is called Home");
+    expect(out).toContain("Another lane is called Home");
   });
 
   test("deleting a lane sends the list without it", () => {
@@ -100,7 +100,7 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
     );
     expect(out).toContain("Studio");
     expect(out).toContain("Slack · Home · Studio Mac");
-    expect(out).toContain('aria-label="pick Studio"');
+    expect(out).toContain('aria-label="Pick Studio"');
     expect(ticked([], STUDIO.account_id, true)).toEqual([STUDIO.account_id]);
     expect(ticked([STUDIO.account_id], STUDIO.account_id, false)).toEqual([]);
   });
@@ -112,10 +112,10 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
 
   test("while the lanes are not in yet the editor says it is loading, not that there are none", () => {
     const loading = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: null, set: () => {} }, accounts: noAccounts, agents: AGENTS })));
-    expect(loading).toContain("asking loki…");
-    expect(loading).not.toContain("New lane");
+    expect(loading).toContain("Asking loki…");
+    expect(loading).not.toContain("New Lane");
     const none = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: [], set: () => {} }, accounts: noAccounts, agents: AGENTS })));
-    expect(none).toContain("New lane");
+    expect(none).toContain("New Lane");
     expect(none).toContain("No lanes yet");
   });
 
@@ -129,6 +129,6 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
       ),
     );
     expect(out.indexOf("Home")).toBeGreaterThan(-1);
-    expect(out.indexOf("New lane")).toBeLessThan(out.indexOf("Read rests a card for"));
+    expect(out.indexOf("New Lane")).toBeLessThan(out.indexOf("Read rests a card for"));
   });
 });

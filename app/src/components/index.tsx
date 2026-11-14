@@ -730,7 +730,7 @@ export function ListRow({
             {countText(count)}
           </span>
         ) : live && liveAtEnd ? (
-          <span aria-hidden className="loki-list-row-live loki-list-row-live--end" title="working" />
+          <span aria-hidden className="loki-list-row-live loki-list-row-live--end" title="Working" />
         ) : time ? (
           <span className="loki-list-row-time">{time}</span>
         ) : null}

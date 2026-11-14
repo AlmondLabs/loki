@@ -211,13 +211,13 @@ function MinimisedTray({
         maxWidth: "60%",
         transition: "transform 220ms ease-out",
       }}
-      aria-label="minimised widgets"
+      aria-label="Minimised widgets"
     >
       <span className="loki-label" style={{ marginRight: 4 }}>
         Minimised
       </span>
       {closed.map((entry) => (
-        <Chip key={entry.id} onClick={() => gesture({ kind: "open", id: entry.id })} title={`restore ${entry.title}`} float>
+        <Chip key={entry.id} onClick={() => gesture({ kind: "open", id: entry.id })} title={`Restore ${entry.title}`} float>
           {entry.title}
         </Chip>
       ))}

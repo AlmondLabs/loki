@@ -239,7 +239,7 @@ export function waitingSince(
   const since = lastSeen(at, now);
   const asks = !!item.pendingQuestion || item.status === "question";
   const blocked = !!item.pendingApproval || asks;
-  return blocked ? (since === "just now" ? "waiting under a minute" : `waiting ${since.replace(" ago", "")}`) : since;
+  return blocked ? (since === "just now" ? "Waiting under a minute" : `Waiting ${since.replace(" ago", "")}`) : since;
 }
 
 /** How many live desks an agent has — the "n desks live" under its row. */
@@ -247,9 +247,9 @@ export function liveDeskCount(desks: Array<{ agent_id: string | null; status: st
   return desks.filter((d) => d.agent_id === agentId && d.status === "live").length;
 }
 
-/** "3 desks live", "1 desk live", "no desks live". */
+/** "3 chats live", "1 chat live", "No chats live". */
 export function liveDesksLabel(n: number): string {
-  return n === 0 ? "no chats live" : `${n} chat${n === 1 ? "" : "s"} live`;
+  return n === 0 ? "No chats live" : `${n} chat${n === 1 ? "" : "s"} live`;
 }
 
 /**
@@ -516,15 +516,15 @@ export function threadLine({
   desk: string | null;
 }): string {
   const live = approval
-    ? "needs approval"
+    ? "Needs approval"
     : question
-      ? "asked you"
+      ? "Asked you"
       : status === "streaming"
-        ? "writing"
+        ? "Writing"
         : status === "thinking"
-          ? "working"
+          ? "Working"
           : waiting
-            ? "waiting on you"
+            ? "Waiting on you"
             : null;
   return [live, desk].filter(Boolean).join(" · ");
 }
@@ -665,5 +665,5 @@ export function moreSections(s: {
 
 /** What a desk row is called: its title, or "new desk" while it is live and untitled, or its scope once archived. */
 export function deskName(d: DeskSummary): string {
-  return d.title ?? (d.status === "live" ? "new chat" : d.scope);
+  return d.title ?? (d.status === "live" ? "New chat" : d.scope);
 }

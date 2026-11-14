@@ -10,7 +10,7 @@ const MARK_CLASS: Record<CardMark, string> = {
   mail: "loki-card-mark loki-card-mark--mail",
   jira: "loki-card-mark loki-card-mark--jira",
 };
-const MARK_LABEL: Record<CardMark, string> = { slack: "from Slack", mail: "from mail", jira: "from Jira" };
+const MARK_LABEL: Record<CardMark, string> = { slack: "From Slack", mail: "From mail", jira: "From Jira" };
 
 /** A sender's or agent's face, 36 across, with the mark of where the card came from in its corner. */
 export function CardFace({ name, src, mark }: { name: string; src: string | null; mark?: CardMark }) {

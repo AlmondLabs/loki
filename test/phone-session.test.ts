@@ -394,13 +394,13 @@ describe("the conversation page", () => {
 
   test("the header's live line: what the agent is doing, then the desk", () => {
     const base = { status: "idle" as const, approval: null, question: null, waiting: false, desk: "Loki mobile" };
-    expect(threadLine({ ...base, status: "thinking" })).toBe("working · Loki mobile");
-    expect(threadLine({ ...base, status: "streaming" })).toBe("writing · Loki mobile");
-    expect(threadLine({ ...base, approval: {} })).toBe("needs approval · Loki mobile");
-    expect(threadLine({ ...base, question: {} })).toBe("asked you · Loki mobile");
-    expect(threadLine({ ...base, waiting: true })).toBe("waiting on you · Loki mobile");
+    expect(threadLine({ ...base, status: "thinking" })).toBe("Working · Loki mobile");
+    expect(threadLine({ ...base, status: "streaming" })).toBe("Writing · Loki mobile");
+    expect(threadLine({ ...base, approval: {} })).toBe("Needs approval · Loki mobile");
+    expect(threadLine({ ...base, question: {} })).toBe("Asked you · Loki mobile");
+    expect(threadLine({ ...base, waiting: true })).toBe("Waiting on you · Loki mobile");
     expect(threadLine(base)).toBe("Loki mobile");
-    expect(threadLine({ ...base, desk: null, status: "thinking" })).toBe("working");
+    expect(threadLine({ ...base, desk: null, status: "thinking" })).toBe("Working");
     expect(threadLine({ ...base, desk: null })).toBe("");
   });
   test("the notice over the box: the card's words while it waits, the agent at work, else nothing", () => {

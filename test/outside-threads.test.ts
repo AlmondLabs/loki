@@ -913,12 +913,12 @@ describe("the card", () => {
   });
   test("the reply box says where the reply goes", () => {
     expect([replyPlace(FACTS), replyPlace({ ...FACTS, thread_id: "C1:1.0" }), replyPlace({ ...FACTS, provider: "gmail" })]).toEqual([
-      "reply in the DM",
-      "reply in the thread",
-      "reply to all",
+      "Reply in the DM",
+      "Reply in the thread",
+      "Reply to all",
     ]);
     // A thread opened on a DM card is where the reply goes (plan 085).
-    expect(replyPlace(FACTS, true)).toBe("reply in the thread");
+    expect(replyPlace(FACTS, true)).toBe("Reply in the thread");
   });
   test("the thread draws each message with its sender, and the person's own as you; while it loads, the last lines stand in", () => {
     const read = renderToStaticMarkup(
@@ -990,14 +990,14 @@ describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
 
   test("is titled by its ticket's key and title, and its box comments on the ticket", () => {
     expect(outsideTitle(JIRA_FACTS)).toBe("OPS-7 · Rotate the keys");
-    expect(replyPlace(JIRA_FACTS)).toBe("comment on the ticket");
+    expect(replyPlace(JIRA_FACTS)).toBe("Comment on the ticket");
   });
   test("its header shows the Jira mark, the key and title, and names the site; its moves link to the ticket", () => {
     const html = itemHeader(JIRA_FACTS, read());
-    expect(html).toContain('aria-label="from Jira"');
+    expect(html).toContain('aria-label="From Jira"');
     expect(html).toContain("◆");
     expect(html).toContain("OPS-7 · Rotate the keys");
-    expect(html).toContain('title="the site it came from"');
+    expect(html).toContain('title="The site it came from"');
     expect(html).not.toContain("workspace");
     expect(itemActions(JIRA_FACTS, read())).toMatch(/data-verb="open_out" title="https:\/\/acme\.atlassian\.net\/browse\/OPS-7"[^>]*>Open in Jira</);
   });
@@ -1036,7 +1036,7 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
 
   test("its header is titled by the key and summary, with the ticket's fields beside it", () => {
     const html = head(jiraTicket({ changed: [] }));
-    expect(html).toContain('aria-label="from Jira"');
+    expect(html).toContain('aria-label="From Jira"');
     expect(html).toContain(">OPS-7 · Rotate the keys<");
     expect(html).toContain('data-property="status" title="In review"');
     expect(html).not.toContain('data-flag="changed"');
@@ -1047,17 +1047,17 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
   });
   test("the fields show what the ticket has, the changed status marked new with what it was and who changed it", () => {
     const html = thread();
-    // Desktop labels are lowercase (docs/style.md); the phone's are in sentence case.
-    expect(html).toContain(">status<");
+    // Labels are in sentence case on the desktop and the phone (docs/style.md).
+    expect(html).toContain(">Status<");
     expect(html).toContain(">In review<");
-    expect(html).toContain(">assignee<");
-    expect(html).toContain(">reporter<");
-    expect(html).toContain(">priority<");
-    expect(html).toContain(">labels<");
+    expect(html).toContain(">Assignee<");
+    expect(html).toContain(">Reporter<");
+    expect(html).toContain(">Priority<");
+    expect(html).toContain(">Labels<");
     expect(html).toContain("security, keys");
-    expect(html).not.toContain(">sprint<");
-    expect(html.match(/>new</g)?.length).toBe(1);
-    expect(html).toContain("was In progress · Ada Lovelace · ");
+    expect(html).not.toContain(">Sprint<");
+    expect(html.match(/loki-jira-new[^>]*>New</g)?.length).toBe(1);
+    expect(html).toContain("Was In progress · Ada Lovelace · ");
   });
   test("a labels change says what they were, parted by commas, and a status that had none says was none", () => {
     const by = { by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" };
@@ -1066,33 +1066,33 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
       { field: "status", from: null, to: "In review", ...by },
     ];
     const html = thread(read({ ticket: jiraTicket({ changed }) }));
-    expect(html).toContain("was security, ops · Ada Lovelace · ");
-    expect(html).toContain("was none · Ada Lovelace · ");
+    expect(html).toContain("Was security, ops · Ada Lovelace · ");
+    expect(html).toContain("Was none · Ada Lovelace · ");
   });
   test("the comment count is the ticket's, though the window shows fewer", () => {
     expect(thread(read({ ticket: jiraTicket({ comment_count: 40 }) }))).toContain("Comments · 40");
   });
   test("the fields it does not show are one line: also changed, with who", () => {
-    expect(thread()).toContain("also changed: Rank, Story points · Ada Lovelace · ");
-    expect(thread(read({ ticket: jiraTicket({ also_changed: [] }) }))).not.toContain("also changed");
+    expect(thread()).toContain("Also changed: Rank, Story points · Ada Lovelace · ");
+    expect(thread(read({ ticket: jiraTicket({ also_changed: [] }) }))).not.toContain("Also changed");
   });
   test("the description folds after six lines, with show more", () => {
     const html = thread();
     expect(html).toContain(">Description<");
     expect(html).toContain("line 6");
     expect(html).not.toContain("line 7");
-    expect(html).toContain(">Show more<");
+    expect(html).toContain(">Show More<");
     const short = thread(read({ ticket: jiraTicket({ description: ["one line"] }) }));
-    expect(short).not.toContain("Show more");
+    expect(short).not.toContain("Show More");
   });
   test("an edited description is marked under its heading", () => {
     const changed = [{ field: "description", from: null, to: null, by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
-    expect(thread(read({ ticket: jiraTicket({ changed }) }))).toContain("edited · Ada Lovelace · ");
+    expect(thread(read({ ticket: jiraTicket({ changed }) }))).toContain("Edited · Ada Lovelace · ");
   });
   test("the comments come last under their count, with the New line before the first unread", () => {
     const html = thread();
     expect(html).toContain("Comments · 2");
-    const order = [">status<", "also changed", "Description", "Comments · 2", "On it", "New since you last read", "Can you look at the rotation?"].map((s) =>
+    const order = [">Status<", "Also changed", "Description", "Comments · 2", "On it", "New since you last read", "Can you look at the rotation?"].map((s) =>
       html.indexOf(s),
     );
     expect(order.every((at) => at >= 0)).toBe(true);
@@ -1283,7 +1283,7 @@ describe("the moves a Jira card offers (plan 2026-11-10-1451, U6)", () => {
     expect(html).toContain(">Mark as Read<");
     expect(html).not.toContain(">Archive<");
     expect(html).not.toContain(">Label<");
-    expect(html).toContain("give the whole ticket to friday in one of its chats; the card stays until you read it");
+    expect(html).toContain("Give the whole ticket to friday in one of its chats; the card stays until you read it");
     // A Slack card keeps its archive and its hand-off words.
     const slack = card(FACTS);
     expect(slack).toContain(">Archive<");
@@ -1304,9 +1304,9 @@ describe("a Jira card's comment box (plan 2026-11-10-1451, U7)", () => {
   const box: ReplyBoxControl = { text: "On it", mail: null, busy: false, error: null, onText: () => {}, onMail: () => {}, onSend: () => {} };
   test("on the desktop it comments on the ticket, sends on Enter, and says the card stays unread", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts: JIRA_FACTS, box }));
-    expect(html).toContain('placeholder="comment on the ticket"');
+    expect(html).toContain('placeholder="Comment on the ticket"');
     // Enter sends: its key is in the send button's tooltip.
-    expect(html).toContain(`title="post it on the ticket as you; the card stays, unread, for your next move (${keyFor("chat.send")})"`);
+    expect(html).toContain(`title="Post it on the ticket as you; the card stays, unread, for your next move (${keyFor("chat.send")})"`);
     expect(html).not.toContain("loki-mail-compose");
   });
   test("on the phone it says the comment posts as the person and the card stays; Slack's and mail's lines are as they were", () => {
@@ -1341,7 +1341,7 @@ describe("a Jira card's files say jira where Slack's say Slack (plan 093, U5)", 
 
   test("a comment's PDF is a chip with its kind and size that opens in jira", () => {
     const html = draw(comment([{ name: "report.pdf", kind: "PDF", size: 2048, link: "https://acme.atlassian.net/rest/api/3/attachment/content/1" }]));
-    expect(html).toContain('title="open report.pdf in jira"');
+    expect(html).toContain('title="Open report.pdf in jira"');
     expect(html).toContain("PDF · 2.0 KB");
     expect(html).not.toContain("in Slack");
   });
@@ -1369,7 +1369,7 @@ describe("a Jira card's files say jira where Slack's say Slack (plan 093, U5)", 
     vi.unstubAllGlobals();
     expect(html).toContain(`/chat-images/${"b".repeat(32)}.png`);
     expect(html).toContain("<figcaption>shot.png</figcaption>");
-    expect(html).toContain('title="open shot.png in jira"');
+    expect(html).toContain('title="Open shot.png in jira"');
     expect(html).not.toContain("in Slack");
   });
 });

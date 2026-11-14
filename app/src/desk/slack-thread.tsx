@@ -184,7 +184,7 @@ function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullabl
   return (
     <figure className="loki-slack-preview">
       {link ? (
-        <button type="button" title={`open ${f.name} in ${where}`} onClick={() => openExternal(link)}>
+        <button type="button" title={`Open ${f.name} in ${where}`} onClick={() => openExternal(link)}>
           {picture}
         </button>
       ) : (
@@ -225,7 +225,7 @@ export function SlackFiles({ files, where }: { files: readonly SlackFile[]; wher
             </Chip>
           );
         return (
-          <Chip key={key} title={`open ${f.name} in ${where}`} onClick={() => openExternal(link)}>
+          <Chip key={key} title={`Open ${f.name} in ${where}`} onClick={() => openExternal(link)}>
             {words}
           </Chip>
         );
@@ -325,13 +325,13 @@ function AddReactionMark() {
 /** The bar that shows on the message under the pointer, as Slack's does: the person's quick reactions and the picker. */
 export function HoverBar({ reacting }: { reacting: RowReacting }) {
   return (
-    <div className="loki-slack-hoverbar" role="toolbar" aria-label="react">
+    <div className="loki-slack-hoverbar" role="toolbar" aria-label="React">
       {reacting.quick.slice(0, BAR_QUICK).map((c) => (
-        <button key={c.name} type="button" title={`react with :${c.name}:`} onClick={() => reacting.pick(c)}>
+        <button key={c.name} type="button" title={`React with :${c.name}:`} onClick={() => reacting.pick(c)}>
           <Emoji emoji={c.emoji} name={c.name} />
         </button>
       ))}
-      <button type="button" title={`add a reaction (${keyFor("inbox.react")} on the main message)`} aria-label="add a reaction" onClick={reacting.open}>
+      <button type="button" title={`Add a reaction (${keyFor("inbox.react")} on the main message)`} aria-label="Add a reaction" onClick={reacting.open}>
         <AddReactionMark />
       </button>
     </div>
@@ -630,7 +630,7 @@ export function SlackThread({
     <div className="loki-slack-thread" ref={top}>
       {controls?.back && (
         <button type="button" className="loki-slack-load loki-slack-back" onClick={controls.back}>
-          back to the conversation
+          Back to the Conversation
         </button>
       )}
       {pinned && (
@@ -654,7 +654,7 @@ export function SlackThread({
         </Fragment>
       ))}
       <LoadButton direction="after" window={window} controls={controls} onLoad={loadLater} />
-      {messages.at(-1)?.more_after === true && <div className="loki-slack-more">more messages in the channel since</div>}
+      {messages.at(-1)?.more_after === true && <div className="loki-slack-more">More messages in the channel since</div>}
     </div>
   );
 }

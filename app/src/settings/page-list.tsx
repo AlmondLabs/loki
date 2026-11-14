@@ -81,7 +81,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
         })}
         {!groups.length && (
           <div className="loki-meta loki-meta--wrap" style={{ padding: "8px 10px" }}>
-            no page matches
+            No page matches
           </div>
         )}
       </div>

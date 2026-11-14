@@ -51,7 +51,7 @@ export function QuickReplies({
     <div
       className={column ? "loki-quick-replies loki-quick-replies--column" : "loki-quick-replies"}
       role="group"
-      aria-label="quick replies"
+      aria-label="Quick replies"
       onKeyDown={touch ? undefined : replyKeyDown(options, onPick)}
     >
       {options.map((option, i) => (

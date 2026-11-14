@@ -109,7 +109,7 @@ export const Work = memo(
                 <ToggleGroup
                   size="sm"
                   variant="outline"
-                  aria-label="show"
+                  aria-label="Show"
                   value={[filter]}
                   onValueChange={(v: unknown[]) => {
                     if (isFilter(v[0])) setFilter(v[0]);
@@ -219,13 +219,13 @@ function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; ac
 /** What an opened step shows, fetched first for a lean row; a sub-agent's or background task's work reads as a Task. */
 export function StepOpened({ row, running }: { row: TranscriptRow; running: boolean }) {
   const { whole, state, retry } = useWhole(row);
-  if (state === "loading") return <p className="m-0 text-meta text-muted-foreground">loading this step…</p>;
+  if (state === "loading") return <p className="m-0 text-meta text-muted-foreground">Loading this step…</p>;
   if (state === "failed")
     return (
       <p className="m-0 flex items-center gap-2 text-meta text-muted-foreground">
-        could not load this step
+        Could not load this step
         <Button size="xs" variant="outline" onClick={retry}>
-          try again
+          Try Again
         </Button>
       </p>
     );
@@ -239,7 +239,7 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
       <Task defaultOpen>
         <TaskTrigger title={stepTarget(row) ?? stepName(row)} icon={ICON[kind]} />
         <TaskContent>
-          {asked && <TaskItem>asked: {asked}</TaskItem>}
+          {asked && <TaskItem>Asked: {asked}</TaskItem>}
           {said ? (
             <TaskItem>
               <pre className={failed ? "m-0 font-mono text-meta whitespace-pre-wrap text-loki-negative" : "m-0 font-mono text-meta whitespace-pre-wrap"}>

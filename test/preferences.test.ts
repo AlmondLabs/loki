@@ -224,14 +224,14 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     const out = text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: page().api })));
     expect(out).toContain("Read rests a card for");
     expect(out).toContain("Later brings a card back after");
-    for (const label of ["read rests chats for", "read rests email for"]) {
-      expect(choices(out, label)).toEqual({ all: ["10 min", "30 min", "1 hour", "3 hours"], chosen: "1 hour" });
+    for (const label of ["Read rests chats for", "Read rests email for"]) {
+      expect(choices(out, label)).toEqual({ all: ["10 Min", "30 Min", "1 Hour", "3 Hours"], chosen: "1 Hour" });
     }
-    for (const label of ["later brings chats back after", "later brings email back after", "later brings Slack back after", "later brings Jira back after"]) {
-      expect(choices(out, label)).toEqual({ all: ["3 hours", "1 day", "2 days", "1 week"], chosen: "1 day" });
+    for (const label of ["Later brings chats back after", "Later brings email back after", "Later brings Slack back after", "Later brings Jira back after"]) {
+      expect(choices(out, label)).toEqual({ all: ["3 Hours", "1 Day", "2 Days", "1 Week"], chosen: "1 Day" });
     }
-    expect(out).not.toContain("read rests Slack for");
-    expect(out).not.toContain("read rests Jira for");
+    expect(out).not.toContain("Read rests Slack for");
+    expect(out).not.toContain("Read rests Jira for");
     expect(out).toContain("a Jira card is done once read");
     expect(out).toContain("A Jira card has no archive: read ends it.");
   });
@@ -240,16 +240,16 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     const sent: ReturnTimes[] = [];
     const older: ReturnTimes = { read_first: RETURN_TIMES_DEFAULT.read_first, later: { chat: "1d", email: "1d", slack: "1w" } };
     const api: ReturnTimesApi = { times: older, set: (t) => sent.push(t) };
-    expect(choices(text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: api }))), "later brings Jira back after").chosen).toBe("1 day");
-    must(controls(InboxPage({ returnTimes: api })).get("later brings Jira back after"), "Jira's later control")("3h");
+    expect(choices(text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: api }))), "Later brings Jira back after").chosen).toBe("1 Day");
+    must(controls(InboxPage({ returnTimes: api })).get("Later brings Jira back after"), "Jira's later control")("3h");
     expect(sent).toEqual([{ ...older, later: { ...older.later, jira: "3h" } }]);
   });
 
   test("picking 2 days for email's later return sends that one change to the daemon, the rest as they were", () => {
     const { api, sent } = page();
-    must(controls(InboxPage({ returnTimes: api })).get("later brings email back after"), "email's later control")("2d");
+    must(controls(InboxPage({ returnTimes: api })).get("Later brings email back after"), "email's later control")("2d");
     expect(sent).toEqual([{ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "2d", slack: "1d", jira: "1d" } }]);
-    must(controls(InboxPage({ returnTimes: api })).get("read rests chats for"), "chats' read control")("10m");
+    must(controls(InboxPage({ returnTimes: api })).get("Read rests chats for"), "chats' read control")("10m");
     expect(sent[1]).toEqual({ ...RETURN_TIMES_DEFAULT, read_first: { chat: "10m", email: "1h" } });
   });
 });

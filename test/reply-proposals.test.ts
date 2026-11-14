@@ -734,9 +734,9 @@ describe("the reply card (plan 067, U10)", () => {
     const jira = { ...proposal, provider: "jira" as const, to: [], cc: [], place: "OPS-7", subject: "Rotate the keys" };
     const desk = html({ source: source([jira]), rt });
     expect(desk).toContain("on OPS-7");
-    expect(desk).toContain(">comment<");
-    expect(desk).toContain("goes in the ticket&#x27;s comment box in Flow; you post it from there");
-    expect(html({ source: source([{ ...jira, status: "drafting" }]), rt })).toContain("putting the comment on the card");
+    expect(desk).toContain(">Comment<");
+    expect(desk).toContain("Goes in the ticket&#x27;s comment box in Flow; you post it from there");
+    expect(html({ source: source([{ ...jira, status: "drafting" }]), rt })).toContain("Putting the comment on the card");
   });
 
   test("shows nothing without replies waiting, or on a host whose source has no way to decide them", () => {
@@ -746,7 +746,7 @@ describe("the reply card (plan 067, U10)", () => {
 
   test("one being drafted says so and offers nothing to press", () => {
     const out = html({ source: source([{ ...proposal, status: "drafting" }]), rt });
-    expect(out).toContain("writing the draft in Gmail");
+    expect(out).toContain("Writing the draft in Gmail");
     expect(out).not.toContain(">Approve<");
   });
 });

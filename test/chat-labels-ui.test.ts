@@ -176,10 +176,10 @@ describe("Preferences › Labels (R6)", () => {
     const html = renderToStaticMarkup(createElement(Labels, { api: api(LIST) }));
     expect(html).toContain('aria-label="billing, 1 chat"');
     expect(html).toContain('aria-label="infra, 2 chats"');
-    for (const verb of ["rename infra", "colour of infra", "delete infra"]) expect(html).toContain(`aria-label="${verb}"`);
+    for (const verb of ["Rename infra", "Colour of infra", "Delete infra"]) expect(html).toContain(`aria-label="${verb}"`);
   });
   test("before the list arrives it says so; with none it says there are none", () => {
-    expect(renderToStaticMarkup(createElement(Labels, { api: api(null) }))).toContain("asking loki…");
+    expect(renderToStaticMarkup(createElement(Labels, { api: api(null) }))).toContain("Asking loki…");
     expect(renderToStaticMarkup(createElement(Labels, { api: api([]) }))).toContain("None yet");
   });
 });

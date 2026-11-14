@@ -114,7 +114,7 @@ export function Agents({
             ))}
           </div>
         )}
-        <ul aria-label="agents" className="loki-phone-list">
+        <ul aria-label="Agents" className="loki-phone-list">
           {shown.map((r) => (
             <AgentRow key={r.id} row={r} api={api} />
           ))}
@@ -137,7 +137,7 @@ export function Agents({
             <div className="loki-phone-empty">
               <p>{filter === "running" ? "No agent is working right now." : "Nothing waits on you."}</p>
               <Button size="touch" tone="paper" onClick={() => setFilter("all")}>
-                Show all agents
+                Show All Agents
               </Button>
             </div>
           )

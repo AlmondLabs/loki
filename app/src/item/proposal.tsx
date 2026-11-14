@@ -223,7 +223,7 @@ export function ReplyProposalView({
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
         {editing ? (
-          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="reply text" />
+          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="Reply text" />
         ) : (
           <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{text}</blockquote>
         )}
@@ -245,11 +245,11 @@ export function ReplyProposalView({
             </Button>
             {!editing && (
               <Button size="sm" variant="outline" disabled={off} onClick={() => setEditing(true)} data-action="edit">
-                edit
+                Edit
               </Button>
             )}
             <Button size="sm" variant="ghost" disabled={off} onClick={() => void act("reject")} data-action="reject">
-              reject
+              Reject
             </Button>
             <span className="text-meta text-muted-foreground">{words.after}</span>
           </div>
@@ -266,7 +266,7 @@ export function ReplyProposalView({
  */
 export function QuickReplyChips({ options, onPick }: { options: readonly string[]; onPick: (text: string) => void }) {
   return (
-    <SuggestionChips role="group" aria-label="quick replies" className="py-1" onKeyDown={replyKeyDown(options, onPick)}>
+    <SuggestionChips role="group" aria-label="Quick replies" className="py-1" onKeyDown={replyKeyDown(options, onPick)}>
       {options.map((option, i) => (
         <SuggestionChip key={option} suggestion={option} onClick={onPick} title={`Send “${option}” (${i + 1})`} className="px-3">
           {option}
