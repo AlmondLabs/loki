@@ -46,8 +46,10 @@ describe("the outside thread's seam", () => {
     expect(plain).not.toContain("data-row-item");
     const items = html(createElement(OutsideThread, { facts: facts(), state: read(SLACK), items: true }));
     expect(items).toContain("data-row-item");
-    expect(items).toContain('data-row="person"');
-    expect(items).toContain('data-row="user"');
+    // Yours sits in the run as everyone else's does in a Slack channel, not in the block a mail or chat gives it.
+    expect(items.match(/data-row="person"/g)?.length).toBe(3);
+    expect(items).not.toContain('data-row="user"');
+    expect(items).toContain(">You<");
   });
 
   test("a run from one sender shows their name once, and the person's own reaction is marked", () => {
