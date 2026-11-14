@@ -125,7 +125,7 @@ describe("the history section", () => {
     return section.render(input as unknown as PromptInput, ctx);
   }
 
-  test("shows once the chat has been compacted, and only where history_search is offered", async () => {
+  test("shows once the chat has been compacted, and only where scripts, which call the history tools, are offered (plan 099)", async () => {
     const chats = new ChatProjection(ctx, () => null);
     const compacted = await agentWith(chats, "agent-a", "c");
     const whole = await agentWith(
@@ -135,9 +135,9 @@ describe("the history section", () => {
       sampleEntries().filter((e) => e.kind !== "pi.compaction"),
     );
     try {
-      expect(await render(chats, compacted.store, compacted.chat.id, ["history_search"])).toContain("history_search");
+      expect(await render(chats, compacted.store, compacted.chat.id, ["codemode"])).toContain("history_search");
       expect(await render(chats, compacted.store, compacted.chat.id, ["memory_read"])).toBeUndefined();
-      expect(await render(chats, whole.store, whole.chat.id, ["history_search"])).toBeUndefined();
+      expect(await render(chats, whole.store, whole.chat.id, ["codemode"])).toBeUndefined();
     } finally {
       await compacted.store.close(ctx);
       await whole.store.close(ctx);

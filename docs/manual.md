@@ -493,9 +493,9 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 - keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - keeps pins in `~/.loki/state/pins.json`
-- tools: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
-- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` and
-  `suggestion_create` (see [Suggestions](#suggestions))
+- tools, for scripts: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes, which every chat's prompt explains.
+- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` (for scripts)
+  and `suggestion_create` (see [Suggestions](#suggestions))
 
 ## Install (development)
 
@@ -648,11 +648,12 @@ Node and a `claude` that is signed in (`claude /login` in a terminal). In such a
   a little of that allowance. **Agents › Reflection › Without a provider** turns this off (**wait**), and they then
   wait until a provider is set up;
 - the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
-  committed as in loki's chats), schedules, questions in loki's card, the canvas, `chat_list` and the suggestion
-  tools, and any your mods add. Claude Code's own tools cover files, commands, web search and subagents;
+  committed as in loki's chats), questions in loki's card, the suggestion tools, any your mods add, and loki's
+  `script` tool, through which it reaches its schedules, the canvas, `chat_list` and its history (see
+  [Scripts](#scripts)). Claude Code's own tools cover files, commands, web search and subagents;
 - Claude Code compacts its context by its own rules, and `/compact` is Claude Code's. Every turn stays in loki's
   history all the same, and the agent can search the whole chat (`history_search`) and read any part of it back
-  (`history_read`), so what a compaction dropped, or a session that couldn't be picked up again, isn't lost to it;
+  (`history_read`), with a script, so what a compaction dropped, or a session that couldn't be picked up again, isn't lost to it;
 - every MCP server the agent has on in loki (Agents › Profile) is there too, under its own name: loki hands Claude
   Code each one's settings and Claude Code connects to it. A server that signs in (Notion, say) asks once, the first
   time a Claude Code chat uses it: a card in the chat asks to open its sign-in page, and **allow** opens it in this
@@ -788,7 +789,7 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/flow` (`/inbox`
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays). A summary, yours or the one the agent makes when its context fills, loses nothing: every turn stays
   stored, and the agent can search the whole chat (`history_search`) and read any part of it back (`history_read`),
-  by the same row numbers the thread has. Each summary leaves one quiet "chat compacted" row where it was written:
+  with a script, by the same row numbers the thread has. Each summary leaves one quiet "chat compacted" row where it was written:
   below it the agent has every turn word for word, above it only the summary, which opening the row shows. While a
   summary holds the turn up the row reads "compacting the chat", and a summary that fails says "compaction failed"
   and why.
@@ -1284,24 +1285,32 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 
 ## Scripts
 
-An agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool, when it has
-tools only scripts may call: the Google tools for the Google accounts it owns on this Mac, and the Slack, Jira and
-Flow reads for any account it owns. A script runs in a
-sandbox with no files, network or programs of its own; it reaches anything only by calling those tools and loki's
-file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have: the model uses `bash`), never
-`bash`. So one script can page through every Drive
-file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
-browser. A chat on Claude Code or another ACP agent gets the same scripts as a `script` tool on loki's tool server
-(`mcp__loki__script`), over the same account tools, with the same limits, asking and fencing; it has no file tools
-there, and a value one script stores is not kept for the next.
+Every agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool. A script
+runs in a sandbox with no files, network or programs of its own; it reaches anything only by calling the tools only
+scripts may call and loki's file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have:
+the model uses `bash`), never `bash`. The tools only scripts may call are:
+
+- every agent's: its chat's history (`history_search`, `history_read`), its scheduled tasks (`schedule_create`,
+  `schedule_list`, `schedule_delete`), the canvas (`canvas_read`, `canvas_focus`) and the list of your agents and
+  chats (`chat_list`);
+- an account owner's: the Google tools for the Google accounts it owns on this Mac, and the Slack, Jira and Flow reads
+  for any account it owns.
+
+The model is offered none of these directly, so each costs nothing a turn until a script looks it up; the prompt names
+only their families. So one script can page through every Drive file, move forty attachments into a folder, or search
+a long chat's history and read around each hit, in one step and without a browser. A chat on Claude Code or another
+ACP agent gets the same scripts as a `script` tool on loki's tool server (`mcp__loki__script`), over the same tools,
+with the same limits, asking and fencing, and runs it without Claude Code asking first; it has no file tools there,
+and a value one script stores is not kept for the next.
 
 1. **Asking.** A script asks by what it does, in the chat's permission mode. One that only reads (mail, Slack, Jira,
-   files) runs without a card in standard mode. One that changes or sends something asks once, at its first such call:
+   files, history, the canvas, schedules) runs without a card in standard mode; one that creates or cancels a
+   scheduled task asks. One that changes or sends something asks once, at its first such call:
    the card shows the script and that call, and your answer stands for the rest of the run, so moving forty files is
    one card. Declining refuses every change the script tries after. Strict mode asks for the script and for each call.
    "always allow" is never offered for a script: each one is new code.
 2. **Limits.** A script runs for at most 10 minutes and 64 MB, four at once across every chat; the agent is told which
-   limit it reached. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
+   limit it reached, and the daemon's log notes each script refused because four were running. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
 3. **What it can do with Google.** Read, label, archive and send mail, and save attachments; list, download, upload,
    move, copy, trash and delete Drive files; read and write Sheets; read Docs and edit them; list, create, change and
    delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
@@ -1320,7 +1329,7 @@ there, and a value one script stores is not kept for the next.
 
 ## Scheduled tasks
 
-An agent sets a scheduled task with its `schedule_create` tool: a prompt that arrives in a chat on a cron schedule,
+An agent sets a scheduled task with `schedule_create`, in a script (see [Scripts](#scripts)): a prompt that arrives in a chat on a cron schedule,
 in a timezone, once or again and again (`schedule_list` and `schedule_delete` show and remove them). The prompt
 begins "Scheduled task", so Flow knows it is not yours, and a slot missed while loki was closed fires once at the
 next start.
@@ -1388,7 +1397,8 @@ suggestion is already yours to decide.
 
 - `chat_list` lists your agents (with the Mac each lives on and whether it is in reach) and the open chats on this Mac
   and your paired Macs, one line each: name, agent, folder, labels, pinned, last active and purpose line. Archived
-  chats are left out. An agent calls it when it needs to pick a chat; the list never rides along in its context.
+  chats are left out. An agent calls it from a script when it needs to pick a chat; the list never rides along in its
+  context.
 - `suggestion_create` makes a suggestion for an open chat or for a new chat with an agent in a folder; a target that
   is not in `chat_list` is refused with the valid choices.
 

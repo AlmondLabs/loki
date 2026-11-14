@@ -168,8 +168,8 @@ chat it came from, and runs under that chat's own permission mode. A background 
 
 ## Scripts
 
-An agent on loki's own engine may run a short JavaScript program with its `codemode` tool (plan 2026-11-11 scripts,
-`daemon/scripts.ts`), when it owns a Google account on this Mac. The program runs in pi-durable's Code Mode: a QuickJS
+Every agent on loki's own engine may run a short JavaScript program with its `codemode` tool (plan 2026-11-11 scripts,
+`daemon/scripts.ts`; every agent since plan 099). The program runs in pi-durable's Code Mode: a QuickJS
 virtual machine on a worker thread, with no file, network or process access, no `fetch`, `require`, timers or
 modules. It reaches anything only by calling tools, and the `loki.scripts` extension hands it only the script-only
 tools (loki's `ls`, `find` and `grep` among them) and pi-durable's file tools (`read`, `write`, `edit`); `bash`, background runs, helpers and the
@@ -193,7 +193,12 @@ mode would not have asked.
 - **Slack, Jira and Flow.** `slack_read`, `jira_read` and `flow_list` (`mod/account-ops/script-tools.ts`, plan 097)
   only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
   another agent's account is refused without saying whose it is.
-- **Limits.** 10 minutes, a 64 MB memory cap and four scripts at once across every chat.
+- **loki's own tools.** The history, schedule, canvas and `chat_list` tools are script-only (plan 099). Their reads
+  run without a card in standard mode, as they did as the model's tools; creating or cancelling a scheduled task asks
+  once a script, at that call, where it asked once a call before. A chat on an ACP agent runs loki's `script` tool
+  without the agent asking first, as it ran the history tools before.
+- **Limits.** 10 minutes, a 64 MB memory cap and four scripts at once across every chat. The daemon's log notes each
+  script refused at the cap.
 
 
 

@@ -17,7 +17,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { kindOf } from "../approvals.ts";
 import { piTool, type ChatTool } from "../chat-tools.ts";
-import { isScriptOnly, SCRIPT_TOOL } from "../scripts.ts";
+import { SCRIPT_TOOL } from "../scripts.ts";
 import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import {
   MOD_API_VERSION,
@@ -217,10 +217,10 @@ export class ModRegistry {
   /**
    * Set a chat's tool filter before it runs on loki's engine (plan 067, KTD10): the mod tools whose `forAgent` says no
    * for the chat's agent are hidden, the rest shown, and the names others hid (MCP's, daemon/mcp/) are kept. Asked
-   * before each turn, so the list follows what `forAgent` answers now. The script tool is hidden too when none of the
-   * tools left is script-only: a script could then call only the file tools the model has already (plan 2026-11-11
-   * scripts, R1). A chat that names its tools outright (a background pass's) is left alone. Writes only when something
-   * changed.
+   * before each turn, so the list follows what `forAgent` answers now. The script tool is every chat's (plan 099): loki's
+   * own history, schedule, canvas and chat tools are scripts' only, so every agent has something to call. A chat that
+   * hid it before plan 099 shows it again, since its name is among loki's own here. A chat that names its tools outright
+   * (a background pass's) is left alone. Writes only when something changed.
    */
   async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
     const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
@@ -230,7 +230,7 @@ export class ModRegistry {
     const ours = new Set([...tools.map((t) => t.name), SCRIPT_TOOL]);
     const removed = settings?.tools?.remove ?? [];
     const shown = tools.filter((t) => !t.forAgent || t.forAgent(agentId));
-    const hide = [...tools.filter((t) => !shown.includes(t)).map((t) => t.name), ...(shown.some(isScriptOnly) ? [] : [SCRIPT_TOOL])];
+    const hide = tools.filter((t) => !shown.includes(t)).map((t) => t.name);
     const next = [...removed.filter((n) => !ours.has(n)), ...hide];
     if (sameSet(next, removed)) return;
     const registered = new Map(

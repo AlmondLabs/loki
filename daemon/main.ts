@@ -160,7 +160,7 @@ const nameImage = (image: { data: string; mimeType: string }) => chatImages.name
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
 // Scripts (daemon/scripts.ts): one sandbox for the daemon, closed before the stores at shutdown, so a script cut off by
 // it counts as undecided and resumes on the next start.
-const sandbox = scriptSandbox();
+const sandbox = scriptSandbox({}, (running) => report(`a script was refused: ${running} scripts were already running, the most at once (plan 099, R8)`));
 // Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
 const builtins = builtinExtensions({
   approvals,

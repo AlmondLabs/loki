@@ -2,6 +2,7 @@ import type { Context } from "@earendil-works/chord";
 import { defineExtension, section, type ConversationId, type DocumentReader, type Extension } from "@earendil-works/pi-durable";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";
+import { SCRIPT_TOOL } from "./scripts.ts";
 import type { ChatProjection } from "./chats.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 
@@ -15,6 +16,9 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 /** What the tools read: the daemon's projection of every chat (daemon/chats.ts). */
 export type ChatHistory = Pick<ChatProjection, "thread" | "compactedSince">;
 
+/** Only scripts call the history tools (plan 099): the model reaches them with one. */
+const SCRIPTS_ONLY = ["tools"] as const;
+
 /** The most hits a search returns, newest first: what costs is context, not time. */
 const HITS = 10;
 /** How much of a row a hit shows around its match. */
@@ -24,7 +28,7 @@ const READ_CHARS = 8000;
 
 /** The words the agent is shown once its chat has been compacted. */
 const SECTION =
-  "Earlier turns of this conversation were summarized; every one is stored. Find them with history_search and read them with history_read before you guess.";
+  "Earlier turns of this conversation were summarized; every one is stored. Find them with history_search and read them with history_read, in a script, before you guess.";
 
 /** The agent and the chat a call or a prompt is for. */
 async function chatOf(read: DocumentReader, conversationId: ConversationId, context: Context): Promise<{ agentId: string; chatId: string } | null> {
@@ -119,6 +123,7 @@ export function historyTools(history: ChatHistory): ChatTool[] {
     {
       kind: "read",
       name: "history_search",
+      callers: SCRIPTS_ONLY,
       description:
         "Search this conversation's whole history, including turns a compaction summarized away, for rows containing the words. Newest first, at most 10, each with its row number and an excerpt.",
       parameters: { type: "object", properties: { query: { type: "string", description: "Words to find; case does not matter" } }, required: ["query"] },
@@ -130,6 +135,7 @@ export function historyTools(history: ChatHistory): ChatTool[] {
     {
       kind: "read",
       name: "history_read",
+      callers: SCRIPTS_ONLY,
       description: "Read rows of this conversation's history by number, as history_search gives them; long reads stop and say where to go on.",
       parameters: {
         type: "object",
@@ -150,16 +156,16 @@ export function historyTools(history: ChatHistory): ChatTool[] {
 }
 
 /**
- * The history tools and the `history` section, as an extension. The section shows only in a chat that offers
- * history_search and has been compacted: it appears at a compaction, when the prompt cache is rebuilt anyway, and
- * stays the same after it.
+ * The history tools and the `history` section, as an extension. The section shows only in a chat that offers scripts,
+ * through which the history tools are called (plan 099), and has been compacted: it appears at a compaction, when the
+ * prompt cache is rebuilt anyway, and stays the same after it.
  */
 export function historyExtension(history: ChatHistory): Extension {
   return defineExtension({
     name: "loki.history",
     sections: [
       section("history", async (input, context) => {
-        if (!input.agent.tools.some((t) => t.name === "history_search")) return undefined;
+        if (!input.agent.tools.some((t) => t.name === SCRIPT_TOOL)) return undefined;
         const chat = await chatOf(input.read, input.conversationId, context);
         return chat && history.compactedSince(chat.chatId, chat.agentId, 0) ? SECTION : undefined;
       }),

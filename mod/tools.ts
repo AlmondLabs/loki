@@ -62,12 +62,17 @@ export interface ChatToolDeps {
  * the conversation making the call, else the mod's active desk. Never the
  * active desk when the call's own conversation is known — other conversations
  * (schedules, subagents, another chat) move the active desk under our feet.
+ * The calling agent counts: every agent's main chat is `default`, and its desk is `default-<agent>`.
  */
-export function scopeForCall(deps: ToolDeps, ctx: { args?: Record<string, unknown>; conversation?: { id: string | null } | null } | undefined): Scope {
+export function scopeForCall(
+  deps: ToolDeps,
+  ctx: { args?: Record<string, unknown>; conversation?: { id: string | null } | null; agent?: { id: string } | null } | undefined,
+): Scope {
   const desk = ctx?.args?.desk;
   if (typeof desk === "string" && desk) return scopeFor(desk);
   const conv = ctx?.conversation?.id;
-  if (conv) return deps.remember ? deps.remember(conv) : scopeFor(conv);
+  const agentId = ctx?.agent?.id || null;
+  if (conv) return deps.remember ? deps.remember(conv, agentId) : scopeFor(conv, agentId);
   return deps.activeScope();
 }
 
@@ -108,8 +113,15 @@ export interface LokiTool {
   annotations?: { readOnly?: boolean };
   /** The agents whose chats are offered the tool (plan 067, KTD10); absent, every agent's. */
   forAgent?: (agentId: string) => boolean;
+  /** Who may call it (ModTool.callers); `["tools"]` is for scripts only (plan 099). */
+  callers?: ReadonlyArray<"model" | "tools">;
+  /** JSON Schema of the value scripts get, for a tool whose result is JSON text (ModTool.outputSchema). */
+  outputSchema?: object;
   run(ctx: Call): unknown;
 }
+
+/** Who calls the canvas tools and chat_list: scripts only (plan 099). The model reaches them with one. */
+const SCRIPTS_ONLY = ["tools"] as const;
 
 /** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
 export const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
@@ -127,6 +139,8 @@ export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () =
         parameters: tool.parameters,
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
         ...(tool.forAgent ? { forAgent: tool.forAgent } : {}),
+        ...(tool.callers ? { callers: tool.callers } : {}),
+        ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
         execute: async (args, c) => {
           const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName }, signal: c.signal });
           if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") {
@@ -151,18 +165,30 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
 
   const disposers: Array<() => void> = [];
 
+  // How to make a widget reaches every chat as a section (plan 099, KTD5): canvas_read, which said it before, is a
+  // script's now, and the model would not see its description.
+  disposers.push(
+    api.prompt.section(
+      "canvas",
+      () =>
+        "The canvas beside this chat shows widgets you make by writing files, never through a tool: " +
+        `${deps.widgetsDir}/<desk>/<name>.json for a kit widget ({ "type", "title", "data" }; kit types: ${kitLine}) ` +
+        `or <name>.tsx for a custom React component (export default function Widget({ data, onSet }); import kit pieces from "@loki/kit"). ` +
+        'The desk is this chat\'s canvas id, or "shared" for every chat. A file appears at once; read the canvas with canvas_read in a script to find your desk and confirm a widget mounted without error.',
+    ),
+  );
+
   disposers.push(
     tools.register({
       name: "canvas_read",
       annotations: { readOnly: true },
+      callers: SCRIPTS_ONLY,
+      outputSchema: { type: "object" },
       description:
         "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
         "and on the shared canvas: file, type, title, data (with the user's gesture edits applied), position, and any " +
-        "build/runtime error. To ADD or CHANGE a widget, write a file — do not look for a render tool: " +
-        `${deps.widgetsDir}/<desk>/<name>.json for a kit widget ({ "type", "title", "data" }; kit types — ${kitLine}) ` +
-        `or <name>.tsx for a custom React component (export default function Widget({ data, onSet }); import kit pieces from "@loki/kit"). ` +
-        "The result is for the conversation you are in (pass `desk` to look at another). Files appear on the canvas instantly; call this again to confirm they mounted without error. " +
-        "User gestures are also attached automatically to your next turn.",
+        "build/runtime error, and each canvas's folder. The result is for the conversation you are in (pass `desk` to " +
+        "look at another). User gestures are also attached automatically to your next turn.",
       parameters: {
         type: "object",
         properties: {
@@ -197,6 +223,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
     tools.register({
       name: "canvas_focus",
       annotations: { readOnly: true },
+      callers: SCRIPTS_ONLY,
       description:
         "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
         "highlighted for a few seconds). Use it to direct attention after writing a widget or when referring to " +
@@ -276,6 +303,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
   const chatList: LokiTool = {
     name: "chat_list",
     annotations: { readOnly: true },
+    callers: SCRIPTS_ONLY,
     description:
       "List the person's agents (id, name, the Mac each lives on, whether it is in reach) and their open chats on this Mac " +
       "and paired Macs, one line each: conversation id, agent, name, folder, labels, pinned, last active, the person's " +
@@ -316,7 +344,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       "be done better in another chat: a themed chat it belongs to, another agent, or a new chat running in parallel. " +
       "Suggest never for work you can do in this chat. One piece of work per suggestion. The text must stand alone, " +
       "as if the person typed it there: what to do and why, with absolute paths, since it may go to another agent or " +
-      "folder. Call chat_list first to pick the target. The " +
+      "folder. Pick the target with chat_list, in a script, first. The " +
       "target is an open chat { agent_id, conversation_id } or a new chat { agent_id, folder }. It returns the " +
       "suggestion's id at once; name the suggestion in one line of your reply.",
     parameters: {
@@ -394,7 +422,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       if (deps.passChat(ctx.conversation.id)) return failed("a background pass has no chat screen to ask the person in, so it cannot message chats");
       if (!deps.messages) return failed("chat links are not kept by this daemon");
       const target = { agent_id: argText(ctx.args.agent_id), conversation_id: argText(ctx.args.conversation_id) };
-      if (!target.agent_id || !target.conversation_id) return failed("chat_message needs agent_id and conversation_id: call chat_list for them");
+      if (!target.agent_id || !target.conversation_id) return failed("chat_message needs agent_id and conversation_id: list them with chat_list in a script");
       const chat = openChats(deps.chats()).find((d) => d.conversation_id === target.conversation_id);
       if (chat && chat.agent_id !== target.agent_id) return failed(`chat ${target.conversation_id} belongs to agent ${chat.agent_id}, not ${target.agent_id}`);
       try {

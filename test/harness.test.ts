@@ -31,7 +31,7 @@ describe("harness markup", () => {
 describe("the mod's desk block and a loaded skill are events, not the user's words", () => {
   test("desk activity becomes one event with the gestures as detail; older 'loci' builds are read too", () => {
     const text =
-      'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.loki/widgets/local-conv-1/; call canvas_read for the full picture.\n</loci-desk>';
+      'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.loki/widgets/local-conv-1/; read the canvas with canvas_read in a script for the full picture.\n</loci-desk>';
     expect(extractHarnessEvents(text)).toEqual([
       {
         text: "canvas activity",

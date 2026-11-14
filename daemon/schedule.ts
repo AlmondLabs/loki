@@ -322,7 +322,13 @@ export class Schedules {
   }
 }
 
-/** The scheduling tools (`schedule_create`, `schedule_list`, `schedule_delete`) over `schedules`; each acts for the chat and agent it is called from. */
+/** Only scripts call the schedule tools (plan 099): the model reaches them with one. */
+const SCRIPTS_ONLY = ["tools"] as const;
+
+/**
+ * The scheduling tools (`schedule_create`, `schedule_list`, `schedule_delete`) over `schedules`; each acts for the chat
+ * and agent it is called from, and only scripts call them.
+ */
 export function scheduleTools(schedules: Schedules): ChatTool[] {
   const caller = async (call: ChatCall, context: Context) => {
     const [agent, chat] = await Promise.all([call.read.snapshot(AgentInfoDoc, context), call.read.snapshot(ChatDoc, call.conversationId, context)]);
@@ -333,6 +339,7 @@ export function scheduleTools(schedules: Schedules): ChatTool[] {
     {
       kind: "command",
       name: "schedule_create",
+      callers: SCRIPTS_ONLY,
       description:
         "Schedule a prompt to arrive in this chat on a cron schedule (minute hour day month weekday), in a timezone such as Asia/Kolkata; once (recurring false) or every time it comes due.",
       parameters: {
@@ -366,6 +373,7 @@ export function scheduleTools(schedules: Schedules): ChatTool[] {
     {
       kind: "read",
       name: "schedule_list",
+      callers: SCRIPTS_ONLY,
       description: "Your scheduled tasks that are still active.",
       parameters: { type: "object", properties: {} },
       run: async (_args, call, context) => {
@@ -381,6 +389,7 @@ export function scheduleTools(schedules: Schedules): ChatTool[] {
     {
       kind: "command",
       name: "schedule_delete",
+      callers: SCRIPTS_ONLY,
       description: "Cancel one of your scheduled tasks by its name or id.",
       parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
       run: async (args, call, context) => {

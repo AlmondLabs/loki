@@ -59,9 +59,12 @@ describe("the built-in tools", () => {
           "write",
         ].sort(),
       );
-      // ls, find and grep are there for scripts only; bash does their work for the model (plan 094).
+      // ls, find and grep are there for scripts only; bash does their work for the model (plan 094). History and
+      // schedules are scripts' too (plan 099).
       const scriptsOnly = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.callers?.includes("model") === false);
-      expect(scriptsOnly.map((t) => t.name).sort()).toEqual(["find", "grep", "ls"]);
+      expect(scriptsOnly.map((t) => t.name).sort()).toEqual(
+        ["find", "grep", "history_read", "history_search", "ls", "schedule_create", "schedule_delete", "schedule_list"].sort(),
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
