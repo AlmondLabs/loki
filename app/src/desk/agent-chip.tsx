@@ -72,7 +72,7 @@ export function AgentChip({ name, size = "var(--text-xs)" }: { name: string | nu
         whiteSpace: "nowrap",
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: 3, background: `hsl(${hue} 70% 60%)` }} />
+      <span style={{ width: 6, height: 6, borderRadius: "var(--loki-radius-pill)", background: `hsl(${hue} 70% 60%)` }} />
       {name}
     </span>
   );

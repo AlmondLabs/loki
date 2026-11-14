@@ -100,7 +100,7 @@ export type QueueItemFileProps = ComponentProps<"span">;
 export const QueueItemFile = ({ children, className, ...props }: QueueItemFileProps) => (
   <span className={cn("flex items-center gap-1 rounded border bg-muted px-2 py-1 text-xs", className)} {...props}>
     <PaperclipIcon size={12} />
-    <span className="max-w-[100px] truncate">{children}</span>
+    <span className="max-w-25 truncate">{children}</span>
   </span>
 );
 
