@@ -29,9 +29,10 @@
   /* What waits on you is blue, as Mail's unread dot is (plan 2026-11-12-1505, U17); red stays for failures and the Dock. */
   --loki-attention: #3d9bff;
   --loki-on-attention: #001d3d;
-  /* An agent with no picture: Messages' grey monogram, a soft top-to-bottom gradient under a white initial. */
-  --loki-monogram-top: #8e8e93;
-  --loki-monogram-bottom: #636366;
+  /* An agent with no picture: Messages' grey monogram, a soft top-to-bottom gradient under a white initial that reads
+     at 4.5:1 or more even at the gradient's lightest. */
+  --loki-monogram-top: #737378;
+  --loki-monogram-bottom: #545458;
   --loki-on-monogram: #ffffff;
   --loki-affirm: #0a6cff;
   --loki-on-affirm: #ffffff;
@@ -135,8 +136,8 @@
   --loki-negative: #c4170f;
   --loki-attention: #0064d6;
   --loki-on-attention: #ffffff;
-  --loki-monogram-top: #a5abb8;
-  --loki-monogram-bottom: #858994;
+  --loki-monogram-top: #6c717e;
+  --loki-monogram-bottom: #565a64;
   --loki-on-monogram: #ffffff;
   --loki-affirm: #0064d6;
   --loki-on-affirm: #ffffff;
