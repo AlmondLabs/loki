@@ -29,7 +29,8 @@ import { useGlobalShortcut } from "./use-global-shortcut";
 import { useShellKeys } from "./use-shell-keys";
 import { KeysSheet } from "./keys-sheet";
 import { useColumn } from "./use-column";
-import { ListColumn } from "./list-column";
+import { ColumnEdge, ListColumn } from "./list-column";
+import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
 import { DeskSidebarView } from "./desk-sidebar";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
@@ -499,14 +500,13 @@ export function Shell() {
           }}
         />
 
-        {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. */}
+        {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. Its
+            ContentList is the landmark, named for the source (KTD13); the edge beside it resizes the column. */}
         {hasList && (
-          <section
-            ref={setListSlot}
-            className="loki-list-column"
-            aria-label="List"
-            style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.listLeft, width: layout.list, bottom: 0 }}
-          />
+          <div className="loki-list-column" style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.listLeft, width: layout.list, bottom: 0 }}>
+            <div ref={setListSlot} className="loki-list-column-slot" />
+            <ColumnEdge label="Resize list" min={LIST_MIN} max={LIST_MAX} width={layout.list} onWidth={column.setList} />
+          </div>
         )}
 
         {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}

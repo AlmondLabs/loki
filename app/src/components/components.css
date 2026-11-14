@@ -1161,6 +1161,91 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
+/* The slot the place's list is drawn into (shell/place-columns.tsx). */
+.loki-list-column-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+/* The place's list inside it (shell/content-list.tsx, KTD3): Mail's message list, a toolbar over the rows. */
+.loki-content-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.loki-content-list-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 8px 0 16px;
+}
+.loki-content-list-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--loki-font);
+  font-size: var(--loki-text-row);
+  font-weight: 700;
+  color: var(--loki-fg);
+}
+.loki-content-list-count {
+  flex: none;
+  font-size: var(--loki-text-meta);
+  color: var(--loki-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* New keeps the toolbar's trailing edge, with or without a count. */
+.loki-content-list-bar > .loki-btn {
+  margin-left: auto;
+}
+.loki-content-list-search {
+  flex: none;
+  padding: 0 10px 8px;
+}
+.loki-content-list-search .loki-field {
+  width: 100%;
+  box-sizing: border-box;
+}
+.loki-content-list-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 8px;
+}
+.loki-content-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  font-size: var(--loki-text-body);
+  color: var(--loki-muted);
+}
+.loki-content-list-empty-title {
+  margin: 0;
+  font-weight: 600;
+}
+/* The selection while the rows have focus: the accent with white ink, as a Mac list's (R15); grey otherwise
+   (.loki-list-row[aria-current]). The affirmative fill is the accent's blue that holds white at AA in both themes, which
+   the tokens test checks; the row's grey words and its badge take the same white. */
+.loki-content-list-rows:focus-within .loki-list-item[data-current] > .loki-list-row,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-actions {
+  background: var(--loki-affirm);
+  color: var(--loki-on-affirm);
+}
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-preview,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-time,
+.loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-badge {
+  background: transparent;
+  color: var(--loki-on-affirm);
+}
 .loki-column-body {
   position: absolute;
   inset: 0;

@@ -77,6 +77,17 @@ export const KEYMAP: Binding[] = [
     labelOn: { windows: "Minimise loki", linux: "Minimise loki" },
     typing: true,
   },
+  // Mail's Mailbox Search: the showing list's Search field, from anywhere in the place (plan 2026-11-14-1330, R16). The
+  // list registers it while it has a Search. Off the Mac a Ctrl+Alt chord is AltGr's, so it is Ctrl Shift F there.
+  {
+    id: "list.search",
+    keys: ["alt+cmd+f"],
+    keysOn: { windows: ["cmd+shift+f"], linux: ["cmd+shift+f"] },
+    where: "anywhere",
+    label: "Search List",
+    typing: true,
+    menu: "View/list",
+  },
   { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
@@ -335,7 +346,8 @@ export function matches(e: KeyboardEvent, spec: string): boolean {
     default:
       // Letters compare case-insensitively (shift is checked above); punctuation compares as typed,
       // with the shifted forms of the digits and punctuation accepted for chords ("cmd+shift+0" arrives as "0" or ")").
-      if (/^[a-z]$/.test(key)) return k.toLowerCase() === key;
+      // On the Mac ⌥ changes the letter a key types (⌥F is "ƒ"), so a chord with ⌥ also matches by the key's place.
+      if (/^[a-z]$/.test(key)) return k.toLowerCase() === key || (want.alt && e.code === `Key${key.toUpperCase()}`);
       if (key === "0") return k === "0" || k === ")";
       if (key === "=") return k === "=" || k === "+";
       if (key === "-") return k === "-" || k === "_";

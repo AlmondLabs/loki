@@ -347,6 +347,16 @@ describe("design tokens: Liquid Glass stays readable on both sides", () => {
       expect(css).toMatch(new RegExp(`\\.loki-list-row\\[aria-current\\] \\.loki-list-row-${part}[^{]*\\{[^}]*color: var\\(--loki-fg\\)`));
     }
   });
+
+  test("a focused list's selection is the affirmative blue under its white ink, the pair held to AA above", () => {
+    const css = flat(readFileSync(join(APP, "components", "components.css"), "utf8"));
+    const focused = String.raw`\.loki-content-list-rows:focus-within \.loki-list-item\[data-current\]`;
+    expect(css).toMatch(new RegExp(`${focused} > \\.loki-list-row,[^{]*\\{ background: var\\(--loki-affirm\\); color: var\\(--loki-on-affirm\\); \\}`));
+    for (const part of ["preview", "time", "badge"]) {
+      const cls = part === "badge" ? "loki-list-badge" : `loki-list-row-${part}`;
+      expect(css).toMatch(new RegExp(`${focused} \\.${cls}[^{]*\\{[^}]*color: var\\(--loki-on-affirm\\)`));
+    }
+  });
 });
 
 /**

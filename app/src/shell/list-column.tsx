@@ -43,6 +43,49 @@ export function ListColumn({
   const [mounted, setMounted] = useState<ReadonlySet<Segment>>(() => new Set(shown ? [segment] : []));
   if (shown && !mounted.has(segment)) setMounted(new Set(mounted).add(segment));
 
+  return (
+    <aside
+      className="loki-column"
+      aria-label="Sidebar"
+      aria-hidden={!shown}
+      onPointerDown={(e) => e.stopPropagation()}
+      style={{ top, left, width, zIndex: layer, visibility: shown ? "visible" : "hidden" }}
+    >
+      {head}
+      <div className="loki-column-bodies">
+        {[...mounted].map((s) => (
+          <div key={s} className="loki-column-body" style={{ visibility: shown && s === segment ? "visible" : "hidden" }} aria-hidden={s !== segment}>
+            {sections[s]}
+          </div>
+        ))}
+      </div>
+      {foot}
+      <ColumnEdge label="Resize sidebar" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={width} onWidth={onWidth} shown={shown} />
+    </aside>
+  );
+}
+
+/**
+ * A column's right edge, a separator: drag it, or focus it and use the arrows (Home / End for the ends). `onWidth`
+ * gets each width as it moves and `commit` once the drag ends or a key moves it, so the width is kept then. The sidebar
+ * and the list column each have one.
+ */
+export function ColumnEdge({
+  label,
+  min,
+  max,
+  width,
+  onWidth,
+  shown = true,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  width: number;
+  onWidth: (w: number, commit: boolean) => void;
+  /** A hidden column's edge leaves the Tab order. */
+  shown?: boolean;
+}) {
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -63,51 +106,24 @@ export function ListColumn({
     handle.addEventListener("pointercancel", up);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const next =
-      e.key === "ArrowLeft"
-        ? width - KEY_STEP
-        : e.key === "ArrowRight"
-          ? width + KEY_STEP
-          : e.key === "Home"
-            ? SIDEBAR_MIN
-            : e.key === "End"
-              ? SIDEBAR_MAX
-              : null;
+    const next = e.key === "ArrowLeft" ? width - KEY_STEP : e.key === "ArrowRight" ? width + KEY_STEP : e.key === "Home" ? min : e.key === "End" ? max : null;
     if (next === null) return;
     e.preventDefault();
     onWidth(next, true);
   };
-
   return (
-    <aside
-      className="loki-column"
-      aria-label="Sidebar"
-      aria-hidden={!shown}
-      onPointerDown={(e) => e.stopPropagation()}
-      style={{ top, left, width, zIndex: layer, visibility: shown ? "visible" : "hidden" }}
-    >
-      {head}
-      <div className="loki-column-bodies">
-        {[...mounted].map((s) => (
-          <div key={s} className="loki-column-body" style={{ visibility: shown && s === segment ? "visible" : "hidden" }} aria-hidden={s !== segment}>
-            {sections[s]}
-          </div>
-        ))}
-      </div>
-      {foot}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize sidebar"
-        aria-valuemin={SIDEBAR_MIN}
-        aria-valuemax={SIDEBAR_MAX}
-        aria-valuenow={width}
-        tabIndex={shown ? 0 : -1}
-        className="loki-column-edge"
-        onPointerDown={onPointerDown}
-        onKeyDown={onKeyDown}
-      />
-    </aside>
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={width}
+      tabIndex={shown ? 0 : -1}
+      className="loki-column-edge"
+      onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+    />
   );
 }
 

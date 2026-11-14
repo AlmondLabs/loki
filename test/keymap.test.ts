@@ -60,6 +60,22 @@ describe("keymap: table hygiene", () => {
   });
 });
 
+describe("keymap: the list's Search", () => {
+  test("⌥⌘F on the Mac, from a text box too, however ⌥ changes the letter; Ctrl Shift F on Windows and Linux", () => {
+    expect(resolve(ev("f", { meta: true, alt: true }), "desk", "macos")?.id).toBe("list.search");
+    expect(resolve(ev("f", { meta: true, alt: true }, true), "inbox", "macos")?.id).toBe("list.search");
+    // ⌥F types "ƒ" on a Mac: the key's place still says F
+    const typedWithOption = Object.assign(ev("ƒ", { meta: true, alt: true }), { code: "KeyF" });
+    expect(resolve(typedWithOption, "learn", "macos")?.id).toBe("list.search");
+    expect(resolve(ev("ƒ", { meta: true, alt: true }), "learn", "macos")).toBeNull();
+    for (const os of ["windows", "linux"] as const) {
+      expect(keyFor("list.search", os)).toBe("Ctrl Shift F");
+      expect(resolve(ev("F", { ctrl: true, shift: true }, true), "desk", os)?.id).toBe("list.search");
+    }
+    expect(keyFor("list.search", "macos")).toBe("⌥⌘F");
+  });
+});
+
 describe("keymap: matching", () => {
   test("cmd matches ⌘ or ctrl, and shifted digits arrive as symbols", () => {
     expect(matches(ev("k", { meta: true }), "cmd+k")).toBe(true);

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { clampSidebar, columnsLayout, columnsStore, loadColumns, saveColumns, sidebarFits, toggleSidebar, type ColumnsPref } from "./columns";
+import { clampList, clampSidebar, columnsLayout, columnsStore, loadColumns, saveColumns, sidebarFits, toggleSidebar, type ColumnsPref } from "./columns";
 import { GLASS_INSET, sidebarClearance } from "./sidebar";
 import type { Segment } from "./keymap";
 
 /**
  * The columns' state for the shell: the kept widths and fold (localStorage, columns.ts), the window's width for the
  * fold the widths decide, and a folded sidebar's peek. `layout` places the sidebar, the list (for a place with one)
- * and the detail; `setSidebar(w, commit)` moves the sidebar's edge live and keeps it when `commit` (the drag's end).
+ * and the detail; `setSidebar(w, commit)` moves the sidebar's edge live and keeps it when `commit` (the drag's end), and
+ * `setList` the list's.
  */
 export function useColumn(segment: Segment, hasList: boolean) {
   const [pref, setPref] = useState<ColumnsPref>(() => loadColumns(columnsStore()));
@@ -35,9 +36,18 @@ export function useColumn(segment: Segment, hasList: boolean) {
     },
     [pref],
   );
+  // The list's edge, as the sidebar's: live while dragged, kept when it ends.
+  const setList = useCallback(
+    (w: number, commit: boolean) => {
+      const list = clampList(w);
+      setPref((p) => ({ ...p, list }));
+      if (commit) saveColumns(columnsStore(), { ...pref, list });
+    },
+    [pref],
+  );
   // The sidebar carries the places, so it stands beside every section, Flow included; Settings is a window of its own.
   const has = segment !== "settings";
   const frame = { windowWidth, inset: GLASS_INSET, clearance: sidebarClearance(), hasList, peek: has && peek };
   const layout = columnsLayout(has ? pref : { ...pref, collapsed: true }, frame);
-  return { sidebar: pref.sidebar, layout, open: layout.sidebarShown, has, toggle, setSidebar };
+  return { sidebar: pref.sidebar, layout, open: layout.sidebarShown, has, toggle, setSidebar, setList };
 }

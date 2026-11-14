@@ -656,6 +656,12 @@ export interface ListRowProps {
   actions?: ReactNode;
   /** `data-launch`, so a caller can hand focus back to this row. */
   launch?: string;
+  /** `data-row`: the item's id, so a list with a roving tab stop can find the row to focus (shell/content-list.tsx). */
+  rowId?: string;
+  /** The row button's tab stop: -1 on every row of a roving list but the one Tab lands on. */
+  tabIndex?: number;
+  /** Keys on the row button itself, for a list that takes its own arrows (shell/content-list.tsx). */
+  onKeyDown?: (e: KeyboardEvent<HTMLButtonElement>) => void;
 }
 
 /**
@@ -682,6 +688,9 @@ export function ListRow({
   onMenu,
   actions,
   launch,
+  rowId,
+  tabIndex,
+  onKeyDown,
 }: ListRowProps) {
   const count = badge != null && badge > 0 ? badge : null;
   const status = rowStatus({ unread, badge: count, badgeNoun, live, note });
@@ -700,8 +709,11 @@ export function ListRow({
         className={cx("loki-list-row", unread && "loki-list-row--unread")}
         aria-current={current ? "page" : undefined}
         aria-label={label}
+        tabIndex={tabIndex}
         data-launch={launch}
+        data-row={rowId}
         onClick={onOpen}
+        onKeyDown={onKeyDown}
         onContextMenu={
           onMenu
             ? (e) => {
