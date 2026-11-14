@@ -13,7 +13,8 @@ import { chatKeyTarget } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
 import { avatarUrl, inTauri } from "../desk/env";
 import { agentSources } from "../agents/agents-column";
-import { LearnColumn } from "../recall/learn-column";
+import { learnSources } from "../recall/learn-column";
+import { useLearnView } from "../recall/use-learn-view";
 import { flowSources } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
@@ -71,8 +72,8 @@ function welcomeFor(
 }
 
 /**
- * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, the
- * section's list column (ListColumn; Desk, Agents, Learn) and one view in the space they leave. The desk and attention models live here so the desk view, the
+ * The window: loki's own top strip (the native title bar is hidden), the sidebar of places and their sources
+ * (ListColumn), the showing place's list column, and its detail in the space they leave. The desk and attention models live here so the desk view, the
  * inbox, ⌘K search and settings all read the same state.
  */
 export function Shell() {
@@ -313,9 +314,8 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // A place moved onto the three columns draws its list and its detail from one owner component, which goes here
-  // (plan 2026-11-14-1330, KTD1); a place without one keeps its body in the sidebar and has no list column. Chats is
-  // drawn by the shell itself: its list and its chat pane both stay mounted across places, for the link and the scroll.
+  // Each place but Chats draws its list and its detail from one owner component, which goes here (plan
+  // 2026-11-14-1330, KTD1). Chats is drawn by the shell itself: its list and its chat pane both stay mounted across places, for the link and the scroll.
   const placeOwners: Partial<Record<Segment, ReactNode>> = {
     // Drawn only while Flow shows, so leaving the place ends the visit (useFlowDeck).
     inbox: (
@@ -345,6 +345,8 @@ export function Shell() {
         onShowDesks={() => setSegment("desk")}
       />
     ),
+    // Drawn only while Learn shows; the view lives in a store for the window, so it outlasts the visit.
+    learn: <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />,
   };
   const placeOwner = placeOwners[segment];
   /** The agent and page chosen in Agents: Profile has no items, so its form spans the list and detail columns (R13). */
@@ -404,6 +406,15 @@ export function Shell() {
     setPrefsOpen(false);
     setSegment("agents");
     agentPlaces.onSelect(id);
+  };
+  /** Learn's views as its sources (plan 2026-11-14-1330, R14): choosing one shows its cards or leads in the list. */
+  const [learnView, setLearnView] = useLearnView();
+  const learnPlaces = learnSources({ snap: recall.snap, due: recall.due, view: learnView, onView: setLearnView });
+  const chooseView = (id: string) => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("learn");
+    learnPlaces.onSelect(id);
   };
   /** A label's chats: every chat's list, searched for the label. */
   const showLabel = (name: string) => {
@@ -547,7 +558,6 @@ export function Shell() {
         )}
 
         <ListColumn
-          segment={segment}
           shown={sidebarShown}
           width={column.sidebar}
           onWidth={column.setSidebar}
@@ -578,12 +588,10 @@ export function Shell() {
                 },
                 inbox: { ...lanes, onSelect: chooseLane },
                 agents: { ...agentPlaces, onSelect: chooseAgent },
+                learn: { ...learnPlaces, onSelect: chooseView },
               }}
             />
           }
-          sections={{
-            learn: <LearnColumn recall={recall} />,
-          }}
         />
 
         {/* The list column: the showing place's items, between the sidebar and the detail, for a place with one. Its
@@ -691,8 +699,6 @@ export function Shell() {
               />
             </div>
           )}
-
-          {segment === "learn" && <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
 
           {welcome && !prefsOpen && (
             <WelcomeView

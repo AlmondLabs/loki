@@ -1,15 +1,18 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { dueCount, type RecallSnapshot } from "../../core/recall/model.ts";
-import { LearnColumn } from "../../app/src/recall/learn-column";
+import { ListIcon, ListRow } from "../../app/src/components";
+import { learnSources } from "../../app/src/recall/learn-column";
 import { Recall } from "../../app/src/recall/recall";
+import { useLearnView } from "../../app/src/recall/use-learn-view";
+import { PlaceSlotsProvider } from "../../app/src/shell/place-columns";
 import { resolve, runAction } from "../../app/src/shell/keymap";
 import type { Recall as RecallModel } from "../../app/src/shell/use-recall";
 import { dismissLead, editCard, gradeCard, lessonOf, removeCard, restoreCard, restoreLead, startingLearn } from "./demo-learn";
 
 /**
- * The Learn section's live demo: loki's own Learn column and review deck over the made-up cards of demo-learn.ts.
- * Show the answer, answer it, delete or edit it; the leads view starts a lesson. Keys work while the window has
- * focus, through the app's keymap, as in the Inbox demo.
+ * The Learn section's live demo: loki's own Learn, its views as the sidebar lists them, a view's list and the deck or
+ * the item chosen beside it, over the made-up cards of demo-learn.ts. Show the answer, answer it, delete or edit it;
+ * the leads view starts a lesson. Keys work while the window has focus, through the app's keymap, as in the Inbox demo.
  */
 export function LearnDemo() {
   const recall = useDemoRecall();
@@ -17,6 +20,9 @@ export function LearnDemo() {
   const [lesson, setLesson] = useState<string | null>(null);
   /** Bumped by "start over", so the deck starts a fresh sitting. */
   const [visit, setVisit] = useState(0);
+  // Learn draws its list and its detail into two slots, as the app's shell gives them (shell/place-columns.tsx).
+  const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
+  const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const binding = resolve(e.nativeEvent, "learn");
@@ -33,9 +39,11 @@ export function LearnDemo() {
       </div>
       <div className="site-learn">
         <div className="site-learn-column">
-          <LearnColumn recall={recall} />
+          <LearnViews recall={recall} />
         </div>
-        <div className="site-learn-pane">
+        <div ref={setListSlot} className="site-learn-list" />
+        <div ref={setDetailSlot} className="site-learn-pane" />
+        <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>
           <Recall
             key={visit}
             recall={recall}
@@ -43,7 +51,7 @@ export function LearnDemo() {
             onOpenDesk={() => setLesson("In the app, this opens the chat the card came from.")}
             onBegin={(_agent, _conversation, _brief, title) => setLesson(`In the app, “${title}” opens as a chat of its own and the agent begins the lesson.`)}
           />
-        </div>
+        </PlaceSlotsProvider>
       </div>
       {lesson && (
         <div className="site-learn-note" role="status">
@@ -62,6 +70,26 @@ export function LearnDemo() {
         start over
       </button>
     </div>
+  );
+}
+
+/** Learn's views, as the app's sidebar lists them under Learn: Review with its due count, Leads, All Cards, Deleted. */
+function LearnViews({ recall }: { recall: RecallModel }) {
+  const [view, setView] = useLearnView();
+  const sources = learnSources({ snap: recall.snap, due: recall.due, view, onView: setView });
+  return (
+    <ul className="loki-list">
+      {sources.items.map((s) => (
+        <ListRow
+          key={s.id}
+          lead={s.icon && <ListIcon name={s.icon} />}
+          title={s.title}
+          time={s.count ? String(s.count) : null}
+          current={sources.selected === s.id}
+          onOpen={() => sources.onSelect(s.id)}
+        />
+      ))}
+    </ul>
   );
 }
 

@@ -29,6 +29,8 @@ export interface ContentListProps {
   title: string;
   /** The grey count after the title; none when null or left out. */
   count?: number | null;
+  /** A grey line under the toolbar saying how the source stands (All Cards: when Learn last wrote); none when left out. */
+  line?: string;
   rows: readonly ContentRow[];
   /** The committed row, as the place holds it. */
   selectedId: string | null;
@@ -93,6 +95,7 @@ export function ContentList({
   label,
   title,
   count = null,
+  line,
   rows,
   selectedId,
   onSelect,
@@ -161,6 +164,7 @@ export function ContentList({
   return (
     <section className="loki-content-list" aria-label={label}>
       <ListBar title={title} count={count} newAction={newAction} />
+      {line && <p className="loki-content-list-line">{line}</p>}
       {onQuery && <ListSearch label={label} query={query} onQuery={onQuery} />}
       <div ref={rowsRef} className="loki-content-list-rows">
         {shown.length === 0 ? (

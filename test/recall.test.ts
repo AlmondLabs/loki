@@ -4,7 +4,16 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
 import { isLearnTitle, learnTitle, type Card, type Lead, type RecallSnapshot } from "../core/recall/model.ts";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { newSchedule } from "../core/recall/fsrs.ts";
 import { learnViews, parseLearnView, stepLearnView } from "../app/src/recall/views.ts";
+import { learnSources } from "../app/src/recall/learn-column.tsx";
+import { cardRows, deletedRows, holdDeckKeys, leadRows, reviewRows } from "../app/src/recall/learn-list.ts";
+import { CardDetail } from "../app/src/recall/recall-parts.tsx";
+import { nextInDeck } from "../app/src/recall/use-deck-pass.ts";
+import { ContentList } from "../app/src/shell/content-list.tsx";
+import { resolve } from "../app/src/shell/keymap.ts";
 import { must } from "./fixtures/must.ts";
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
@@ -162,7 +171,7 @@ describe("leads and lessons", () => {
   });
 });
 
-describe("learn: the views in the list column", () => {
+describe("learn: the views as the sidebar's sources", () => {
   const snap = (over: Partial<RecallSnapshot> = {}): RecallSnapshot => ({
     cards: [],
     rejected: [],
@@ -186,7 +195,7 @@ describe("learn: the views in the list column", () => {
     expect(rows.map((r) => [r.view, r.label, r.count])).toEqual([
       ["review", "Review", 2],
       ["leads", "Leads", 1],
-      ["all", "All cards", 3],
+      ["all", "All Cards", 3],
       ["deleted", "Deleted", 3],
     ]);
   });
@@ -205,5 +214,121 @@ describe("learn: the views in the list column", () => {
     expect(parseLearnView("deleted")).toBe("deleted");
     expect(parseLearnView("cards")).toBe("review");
     expect(parseLearnView(null)).toBe("review");
+  });
+});
+
+/** A card with its fresh schedule, as the snapshot carries it; `due` moves it out of the queue. */
+const scheduled = (id: string, over: Partial<Card> = {}, due?: string): RecallSnapshot["cards"][number] => {
+  const schedule = newSchedule(T0);
+  return { card: card(id, over), schedule: due ? { ...schedule, due } : schedule };
+};
+const lead = (id: string): Lead => ({
+  id,
+  title: `lead ${id}`,
+  why: `why ${id}`,
+  depth: "primer",
+  source: card(id).source,
+  created_at: new Date(T0).toISOString(),
+});
+
+describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
+  test("the views are Learn's sources in the sidebar, Review with its due count; choosing one shows that view", () => {
+    const chosen: string[] = [];
+    const sources = learnSources({ snap: null, due: 4, view: "all", onView: (v) => chosen.push(v) });
+    expect(sources.items.map((s) => [s.id, s.title, s.count])).toEqual([
+      ["review", "Review", 4],
+      ["leads", "Leads", 0],
+      ["all", "All Cards", 0],
+      ["deleted", "Deleted", 0],
+    ]);
+    expect(sources.selected).toBe("all");
+    sources.onSelect("deleted");
+    sources.onSelect(sources.all); // Learn's own row keeps the view showing
+    expect(chosen).toEqual(["deleted"]);
+  });
+
+  /** A keydown on an element with focus: a row button in the list, or the detail's own element. */
+  const keydown = (key: string, tagName: string, mods: { meta?: boolean } = {}, stop = () => {}) =>
+    ({ key, metaKey: !!mods.meta, ctrlKey: false, shiftKey: false, altKey: false, target: { tagName }, stopPropagation: stop }) as unknown as KeyboardEvent;
+  /** A keydown in the Review list's column: whether the window's keymap (bubbling after it) would still see it, and what it would do. */
+  const inList = (key: string, mods: { meta?: boolean } = {}) => {
+    let stopped = false;
+    const e = keydown(key, "BUTTON", mods, () => (stopped = true));
+    holdDeckKeys(e);
+    return { reachesWindow: !stopped, binding: resolve(e, "learn")?.id ?? null };
+  };
+  test("with the detail focused, ↓ reveals and → grades, as before: the keys go to Learn's keymap", () => {
+    expect(resolve(keydown("ArrowDown", "DIV"), "learn")?.id).toBe("recall.reveal");
+    expect(resolve(keydown("ArrowRight", "DIV"), "learn")?.id).toBe("recall.good");
+  });
+  test("with the list focused, the deck's answers stay in the list: → and ← do not grade, space does not reveal", () => {
+    for (const key of ["ArrowRight", "ArrowLeft", " ", "1", "2", "ArrowDown", "Enter"]) expect(inList(key).reachesWindow, key).toBe(false);
+    // the rest act on the card as before, and ⌘] still steps the views
+    expect(inList("x")).toEqual({ reachesWindow: true, binding: "recall.delete" });
+    expect(inList("]", { meta: true })).toEqual({ reachesWindow: true, binding: "learn.nextView" });
+  });
+
+  test("the Review list mirrors the due queue; choosing a row makes it the next card, and the rest keep their order", () => {
+    const queue = ["a", "b", "c", "d"].map((id) => scheduled(id));
+    expect(reviewRows(queue, T0).map((r) => r.title)).toEqual(["q a", "q b", "q c", "q d"]);
+    // c chosen: it is the card now; after it come a, b and d, in the queue's order
+    const order: string[] = ["c"];
+    let left = queue.filter((c) => c.card.id !== "c");
+    let current = nextInDeck(queue, must(queue[2], "c"), true);
+    while (current) {
+      order.push(current.card.id);
+      const at = current;
+      current = nextInDeck(left, at, false);
+      left = left.filter((c) => c !== at);
+    }
+    expect(order).toEqual(["c", "a", "b", "d"]);
+    // with no choice, the card after the current one is next, as before
+    expect(nextInDeck(queue, queue[0], false)?.card.id).toBe("b");
+  });
+
+  test("All Cards' Search filters the rows; a card chosen opens its editor in the detail", () => {
+    const cards = [
+      scheduled("a", { front: "What is FSRS?", updated_at: "2026-09-10T09:00:00Z" }),
+      scheduled("b", { front: "Savings plans", tags: ["aws"], updated_at: "2026-09-11T09:00:00Z" }),
+    ];
+    expect(cardRows(cards, "", T0).map((r) => r.id)).toEqual(["b", "a"]); // newest edit first
+    expect(cardRows(cards, "fsrs", T0).map((r) => r.id)).toEqual(["a"]);
+    expect(cardRows(cards, "AWS", T0).map((r) => r.id)).toEqual(["b"]);
+    const out = renderToStaticMarkup(createElement(CardDetail, { c: cards[0], onSave: () => {}, onDelete: () => {} }));
+    expect(out).toContain('aria-label="Front"');
+    expect(out).toContain("What is FSRS?</textarea>");
+    expect(out).toContain(">Delete</button>");
+  });
+
+  test("Leads lists the open leads, then the lessons under way in a section of their own", () => {
+    const lesson = { lead: lead("l2"), agent_id: "a", conversation_id: "c9", started_at: new Date(T0).toISOString(), empty: true };
+    const rows = leadRows([lead("l1")], [lesson], T0);
+    expect(rows.map((r) => [r.id, r.title, r.section])).toEqual([
+      ["lead:l1", "lead l1", undefined],
+      ["lesson:c9", "lead l2", "Lessons Under Way"],
+    ]);
+  });
+
+  test("Deleted shows the rejected cards and the dismissed leads as two sections", () => {
+    const rejected = [{ card: card("r1"), at: new Date(T0).toISOString(), reps: 0 }];
+    const dismissed = [{ lead: lead("l1"), at: new Date(T0).toISOString() }];
+    const rows = deletedRows(rejected, dismissed, T0);
+    expect(rows.map((r) => [r.id, r.section])).toEqual([
+      ["card:r1", "Deleted Cards"],
+      ["lead:l1", "Dismissed Leads"],
+    ]);
+    const out = renderToStaticMarkup(
+      createElement(ContentList, {
+        label: "Deleted",
+        title: "Deleted",
+        rows,
+        selectedId: null,
+        onSelect: () => {},
+        onEnter: () => {},
+        empty: "Nothing deleted.",
+      }),
+    );
+    expect(out).toContain("Deleted Cards");
+    expect(out).toContain("Dismissed Leads");
   });
 });

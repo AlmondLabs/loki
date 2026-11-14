@@ -274,7 +274,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         order works", what each card's score is made of (see "The order").
      2. **Learn**: Learn's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
-        something new, at once), and the last run.
+        something new, at once), the last run, and Export for Anki (every card, in Anki's plain-text import format).
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
   6. **loki**
@@ -855,14 +855,18 @@ a revision, not a second card, for a later correction; a card the person keeps f
 conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space (or ↵ or ↓) for the answer, then one of two answers — ← again or → got it
 (1 and 2 do the same; space then stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
 the scheduler modern Anki uses.
-The sidebar lists four views, each with its count: **Review** (the deck), **Leads**, **All cards** and
-**Deleted**; ⌘[ and ⌘] step through them. New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
+Learn's views are its sources in the sidebar, under Learn: **Review** (the deck, with the count of cards due), **Leads**,
+**All Cards** and **Deleted**; ⌘[ and ⌘] step through them. The list beside the sidebar holds the view's cards or leads,
+and the detail the deck or the one you chose. In Review the list is the due queue with the card in front of you selected:
+the arrows browse it without answering anything, and choosing a row makes that card the next one, the rest keeping
+their order. The deck's keys answer while the detail has focus (Return or Tab from the list goes there). New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
 card (X or ⌫) is the signal.** Deleted cards move to a pile the worker reads before writing, as examples of what
 not to write, so a rejected card never comes back reworded; a card deleted after many failed reviews reads
 as "badly written", one deleted unseen as "not wanted". Cards you keep failing are offered back to the worker
-for a rewrite. E edits in place, O or ⌘O opens the chat it came from, Z undoes a delete, ⌘R refreshes. **All cards** lists every
-card with search and holds the writer's knobs — on/off, cards a day, run now — and an
-export in Anki's plain-text import format. Everything is files: `~/.loki/recall/{cards,schedule,rejected}/<id>.json`,
+for a rewrite. E edits in place, O or ⌘O opens the chat it came from, Z undoes a delete, ⌘R refreshes. **All Cards** lists every
+card, the newest edit first, with Search (⌥⌘F; fronts, backs and tags) and a grey line under its title saying when
+Learn last wrote and how many cards today; choosing one edits it in the detail, with Delete. The writer's knobs — on/off,
+cards a day, run now — and an export in Anki's plain-text import format are in Preferences › Learn. Everything is files: `~/.loki/recall/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the writer's edits never touch your schedule. The writer asks each agent in a
 hidden conversation of the agent's own, cleared before each run and with no tools, and only for concepts,
 principles and knowledge of your field that will still be true in months — never a detail of the task at hand;
@@ -872,13 +876,14 @@ conversations are never turned into the agent's memory.
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a
 lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — listed in the
-**Leads** view, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
+**Leads** view, newest first, at most twelve open. Choosing a lead shows it beside the list; **Start the Lesson** creates a `[Learn] · <title>` conversation
 with the agent that was there, puts an info card with the lead on its canvas, opens the chat on Messages and sends
 the brief as your first message: open with why this matters to you, furnish the canvas with the outline as a list you
 can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
-conversation is still empty) is listed under "lessons under way" with **send the brief**.
-**not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
-**Deleted**, with the deleted cards). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
+conversation is still empty) is listed under **Lessons Under Way** with **Send the Brief**.
+**Not This** moves the lead to a dismissed pile the writer reads before proposing again. **Deleted** lists the deleted
+cards and the dismissed leads in two sections, each with **Restore** (and **Forget** for a card, which drops it from the
+pile the writer reads). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
 Every chat row, chat header, message and card in Flow shows the face of the agent that owns the conversation (its

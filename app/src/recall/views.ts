@@ -1,11 +1,12 @@
 import type { RecallSnapshot } from "../../../core/recall/model.ts";
 
-/** Learn's four views, which the list column lists (plan 013 U11; they were tabs). */
+/** Learn's four views, its sources in the sidebar (plan 2026-11-14-1330, R14; they were tabs, then a list column). */
 export type LearnView = "review" | "leads" | "all" | "deleted";
-/** Learn's views, in the order the list column lists them and ⌘[ ⌘] step through them. */
+/** Learn's views, in the order the sidebar lists them and ⌘[ ⌘] step through them. */
 export const LEARN_VIEWS: LearnView[] = ["review", "leads", "all", "deleted"];
 
-const LABEL: Record<LearnView, string> = { review: "Review", leads: "Leads", all: "All cards", deleted: "Deleted" };
+/** Each view's name, in title case as a source's name is: the sidebar's row and the list's toolbar title. */
+export const LEARN_VIEW_LABEL: Record<LearnView, string> = { review: "Review", leads: "Leads", all: "All Cards", deleted: "Deleted" };
 
 /** Each view with the count of what it shows: cards due, leads, every card, the deleted cards and leads. */
 export function learnViews(snap: RecallSnapshot | null, due: number): Array<{ view: LearnView; label: string; count: number }> {
@@ -15,7 +16,7 @@ export function learnViews(snap: RecallSnapshot | null, due: number): Array<{ vi
     all: snap?.cards.length ?? 0,
     deleted: (snap?.rejected.length ?? 0) + (snap?.dismissed_leads.length ?? 0),
   };
-  return LEARN_VIEWS.map((view) => ({ view, label: LABEL[view], count: count[view] }));
+  return LEARN_VIEWS.map((view) => ({ view, label: LEARN_VIEW_LABEL[view], count: count[view] }));
 }
 
 /** ⌘[ / ⌘]: the view before or after, round the four. */

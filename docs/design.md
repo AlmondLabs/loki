@@ -280,16 +280,13 @@ Internals keep the name desk.
   for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
   hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
   (Pinned, each agent, Archived), Flow its lanes, and Agents its agents (face, name, a green dot while one works, the
-  count of what waits in Flow; the Agents row stands for no one agent, so choosing it keeps the agent shown); Learn
-  keeps its list under the places until it moves.
-- **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
-  edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
-  lights, which stays while the sidebar is hidden.
-  A window under 800 wide folds it away until asked for, without touching the saved choice (1100 until 2026-11-14, which folded it in most windows beside another app; plan 2026-11-14-1130). Each section's
-  list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. Each list's heading
-  is a source-list heading under the places, small and grey, with its "+", except where it would repeat the place
-  above it (Chats until it moved to the list column): there it is said to a screen reader only and its "+" keeps the trailing edge, as Mail
-  never names a mailbox twice; Learn's list starts at its Views.
+  count of what waits in Flow; the Agents row stands for no one agent, so choosing it keeps the agent shown), and Learn
+  its views (Review with its grey count of cards due, Leads, All Cards, Deleted; the Learn row keeps the view shown).
+- **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its
+  edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
+  lights, which stays while the sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list
+  and a detail of 480. Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
+  Learn's views were the last of them, and every place's items are in the list column now.
 - **Chats list.** Chats on the three columns (plan 2026-11-14-1330, U3): the sidebar's source chosen, its chats in the
   list column on `ContentList`, the chat in the detail. The toolbar names the source, with New Chat (an agent's starts
   one with that agent) and Search (⌥⌘F; chat or agent names and `label:`, the source's rows only). Every chat's list
@@ -322,7 +319,18 @@ Internals keep the name desk.
   Profile has no items, so its form spans the list and detail columns, and the list comes back on the other pages; so
   do the new-agent form and the invitation before the first agent. One owner (`agents/agents.tsx`) holds the file,
   the commit, the run and the skill chosen, so the list and the detail read the same choice. Each page's empty list
-  says so in a sentence. Until 2026-11-14 the agents were a list under the places, with the last thing each said. **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick. A window that opens with no chat remembered
+  says so in a sentence. Until 2026-11-14 the agents were a list under the places, with the last thing each said.
+- **Learn** on the three columns (plan 2026-11-14-1330, KTD10): its views are the sidebar's sources, and the list
+  column holds the view's items on `ContentList`: Review the due queue, the card under your hands selected; Leads the
+  open leads, then Lessons Under Way; All Cards every card, the newest edit first, with Search (front, back and tags)
+  and a grey line under the toolbar saying when Learn last wrote; Deleted in two sections, Deleted Cards and Dismissed
+  Leads. The detail is the deck in Review and the item chosen elsewhere, as a card in the deck's look: All Cards edits
+  the card there, without taking the caret. In Review the deck's answers (← → space 1 2, and ↓ Return) belong to the
+  detail: while the list has focus it keeps them (`recall/learn-list.ts` `holdDeckKeys`), so the arrows browse and
+  never grade, and choosing a row makes it the next card while the rest keep their order. The writer's knobs and the
+  export for Anki, once a strip under All Cards, are Preferences › Learn's. One owner (`recall/recall.tsx`) holds the
+  view, the Search, the row chosen in each view and the card being edited.
+- **Nothing chosen.** With nothing chosen, a pane shows one quiet line saying what to pick. A window that opens with no chat remembered
   lands on Flow when something waits, else the latest chat, else "No Chat Selected" with **New Chat** (plan
   2026-11-14-1300); the desk's shared scope is never drawn as a chat. Every pane's header is the chat's toolbar: its
   name over a grey line of facts (Flow's lane and what needs you, an agent's page, Learn's counts), its controls at

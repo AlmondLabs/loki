@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { GaugeIcon, MessagesSquareIcon, RepeatIcon, type LucideIcon } from "lucide-react";
-import { describeGap, isDue, isNew } from "../../../core/recall/fsrs.ts";
+import { isNew } from "../../../core/recall/fsrs.ts";
 import {
   updatedSinceReview,
   type CardWithSchedule,
@@ -10,13 +10,14 @@ import {
   type Rejected,
   type WorkerStatus,
 } from "../../../core/recall/model.ts";
-import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
+import { Button, Chip, Field, Meta, Switch, TextArea } from "../components";
 import { ago } from "../desk/catch-up-parts";
 import { Setting } from "../settings/layout";
 import { Glyph } from "../shared/icons";
+import { dueWord, writtenLine } from "./learn-list";
 import { WELCOME_LINE, WELCOME_MORE, WELCOME_TITLE, welcomeRows, type WelcomeRow } from "./welcome";
 
-/** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */
+/** The pieces around the deck: the source line, the card editor, the details of what Learn's lists hold, the key legend. */
 
 /** Where a card came from: the agent's name as a chip, then the chat's title and how long ago. */
 export function SourceLine({ c }: { c: CardWithSchedule }) {
@@ -39,20 +40,23 @@ export function SourceLine({ c }: { c: CardWithSchedule }) {
   );
 }
 
-/** Where a card stands: "Due", "In 3d", "New". */
-export function dueWord(c: CardWithSchedule, now = Date.now()): string {
-  if (isNew(c.schedule)) return "New";
-  if (isDue(c.schedule, now)) return "Due";
-  return `In ${describeGap(new Date(c.schedule.due).getTime() - now)}`;
-}
-
-/** Front and back as text boxes; save or cancel. */
-export function CardEditor({ c, onSave, onCancel }: { c: CardWithSchedule; onSave: (text: { front: string; back: string }) => void; onCancel: () => void }) {
+/** Front and back as text boxes; save or cancel. The deck's editor takes the caret; All Cards' detail leaves it (`autoFocus`). */
+export function CardEditor({
+  c,
+  autoFocus = true,
+  onSave,
+  onCancel,
+}: {
+  c: CardWithSchedule;
+  autoFocus?: boolean;
+  onSave: (text: { front: string; back: string }) => void;
+  onCancel: () => void;
+}) {
   const [front, setFront] = useState(c.card.front);
   const [back, setBack] = useState(c.card.back);
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="Front" autoFocus />
+      <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="Front" autoFocus={autoFocus} />
       <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="Back" />
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Button size="sm" onClick={onCancel}>
@@ -81,195 +85,88 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
   );
 }
 
-/** Every card, searchable, with its standing; a row opens for editing or deleting. */
-export function CardList({
-  cards,
-  onEdit,
+/** A detail's card: the deck's look, for the one item chosen in Leads, All Cards or Deleted. */
+const DETAIL: CSSProperties = {
+  background: "var(--loki-panel)",
+  border: "1px solid var(--loki-border)",
+  borderRadius: "var(--loki-radius-lg)",
+  boxShadow: "var(--loki-shadow-sheet)",
+  padding: "18px 24px 16px",
+  display: "grid",
+  gap: 14,
+};
+/** The row of a detail's buttons under a hairline. */
+const MOVES: CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 };
+/** A detail's title: the card's front, the lead's name. */
+const TITLE: CSSProperties = {
+  fontSize: "var(--loki-text-display)",
+  fontWeight: 600,
+  lineHeight: 1.3,
+  color: "var(--loki-fg)",
+  whiteSpace: "pre-wrap",
+  textWrap: "balance",
+  overflowWrap: "anywhere",
+};
+/** A detail's body text: the card's back, the line quoting where a lead came up. */
+const BODY: CSSProperties = { fontSize: "var(--loki-text-row)", lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
+
+/**
+ * A card chosen in All Cards, edited in the detail (R14): where it came from, its front and back in boxes, how it
+ * stands, and Delete. Cancel puts the saved wording back. Choosing it never moves focus into the boxes (KTD7).
+ */
+export function CardDetail({
+  c,
+  now,
+  onSave,
   onDelete,
 }: {
-  cards: CardWithSchedule[];
-  onEdit: (id: string, text: { front: string; back: string }) => void;
-  onDelete: (id: string) => void;
+  c: CardWithSchedule;
+  now?: number;
+  onSave: (text: { front: string; back: string }) => void;
+  onDelete: () => void;
 }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
-  const needle = q.trim().toLowerCase();
-  const shown = cards.filter(
-    (c) => !needle || c.card.front.toLowerCase().includes(needle) || c.card.back.toLowerCase().includes(needle) || c.card.tags.some((t) => t.includes(needle)),
-  );
-  const sorted = [...shown].sort((a, b) => b.card.updated_at.localeCompare(a.card.updated_at));
+  // Bumped by Cancel: the editor starts over from the card as saved.
+  const [round, setRound] = useState(0);
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <Field
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder={`Search ${cards.length} card${cards.length === 1 ? "" : "s"}…`}
-        aria-label="Search cards"
-      />
-      {sorted.length === 0 && (
-        <Empty title={needle ? "No card matches" : "No cards yet"}>
-          {needle ? "Try fewer words." : "The worker writes them from your conversations as they go quiet."}
-        </Empty>
-      )}
-      <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
-        {sorted.map((c) => (
-          <li key={c.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", padding: open === c.card.id ? 14 : 0 }}>
-            {open === c.card.id ? (
-              <div style={{ display: "grid", gap: 10 }}>
-                <SourceLine c={c} />
-                <CardEditor
-                  c={c}
-                  onSave={(text) => {
-                    onEdit(c.card.id, text);
-                    setOpen(null);
-                  }}
-                  onCancel={() => setOpen(null)}
-                />
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Meta>
-                    {dueWord(c)} · {c.schedule.reps} review{c.schedule.reps === 1 ? "" : "s"} · {c.schedule.lapses} forgotten
-                  </Meta>
-                  <span style={{ flex: 1 }} />
-                  <Button size="sm" tone="negative" onClick={() => onDelete(c.card.id)}>
-                    Delete
-                  </Button>
-                </div>
-                <PreviousText c={c} />
-              </div>
-            ) : (
-              <Row
-                flush
-                onClick={() => setOpen(c.card.id)}
-                style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "10px 12px" }}
-              >
-                <span style={{ minWidth: 0 }}>
-                  <div
-                    style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                  >
-                    {c.card.front}
-                  </div>
-                  <div className="loki-meta" style={{ marginTop: 2 }}>
-                    {c.card.back}
-                  </div>
-                </span>
-                <Meta brass={isDue(c.schedule)}>{dueWord(c)}</Meta>
-              </Row>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** Deleted cards: what the worker learns from. Restore one that was a mistake; forget one for good. */
-export function RejectedList({ rejected, onRestore, onForget }: { rejected: Rejected[]; onRestore: (id: string) => void; onForget: (id: string) => void }) {
-  if (!rejected.length)
-    return <Empty title="Nothing deleted">Deleting a card puts it here, where the worker reads it as an example of what not to write.</Empty>;
-  return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <Meta wrap>
-        These teach the worker: a card deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back reworded.
-      </Meta>
-      <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
-        {rejected.map((r) => (
-          <li
-            key={r.card.id}
-            style={{
-              border: "1px solid var(--loki-border)",
-              borderRadius: "var(--loki-radius-md)",
-              padding: "10px 12px",
-              display: "grid",
-              gridTemplateColumns: "1fr auto",
-              gap: 12,
-              alignItems: "center",
-            }}
-          >
-            <span style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {r.card.front}
-              </div>
-              <div className="loki-meta" style={{ marginTop: 2 }}>
-                {r.card.back}
-              </div>
-              <Meta>
-                Deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}
-              </Meta>
-            </span>
-            <span style={{ display: "flex", gap: 6 }}>
-              <Button size="sm" onClick={() => onRestore(r.card.id)}>
-                Restore
-              </Button>
-              <Button size="sm" tone="quiet" onClick={() => onForget(r.card.id)} title="Drop it from the pile too — the worker stops seeing it">
-                Forget
-              </Button>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** "3 of 5 written today", or, at the cap, that cards resume after midnight. */
-function writtenLine(worker: WorkerStatus): string {
-  if (worker.daily_cap > 0 && worker.written_today >= worker.daily_cap) return `today's ${worker.daily_cap} cards are written — more after midnight`;
-  return `${worker.written_today} of ${worker.daily_cap} written today`;
-}
-
-/** The worker's knobs and its last word, plus the export. */
-export function WorkerStrip({
-  worker,
-  running,
-  onSettings,
-  onRun,
-  onExport,
-  cardCount,
-}: {
-  worker: WorkerStatus;
-  running: boolean;
-  onSettings: (s: { enabled?: boolean; daily_cap?: number }) => void;
-  onRun: () => void;
-  onExport: () => void;
-  cardCount: number;
-}) {
-  const [cap, setCap] = useState(String(worker.daily_cap));
-  return (
-    <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="loki-label">The worker</span>
-        <Button size="sm" tone={worker.enabled ? "paper" : "quiet"} onClick={() => onSettings({ enabled: !worker.enabled })} aria-pressed={worker.enabled}>
-          {worker.enabled ? "On" : "Off"}
-        </Button>
-        <Meta wrap>
-          {worker.last_run_at ? `Last run ${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "Has not run yet"} · {writtenLine(worker)}
+    <section aria-label="Card" style={DETAIL}>
+      <SourceLine c={c} />
+      <CardEditor key={`${c.card.id}:${round}`} c={c} autoFocus={false} onSave={onSave} onCancel={() => setRound((r) => r + 1)} />
+      <div style={MOVES}>
+        <Meta>
+          {dueWord(c, now)} · {c.schedule.reps} review{c.schedule.reps === 1 ? "" : "s"} · {c.schedule.lapses} forgotten
         </Meta>
         <span style={{ flex: 1 }} />
-        <Button
-          size="sm"
-          onClick={onRun}
-          disabled={running}
-          title="Read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
-        >
-          {running ? "Running…" : "Run Now"}
-        </Button>
-        <Button size="sm" onClick={onExport} disabled={!cardCount} title="Copies every card as Anki's plain-text import: front, back, tags">
-          Export for Anki
+        <Button size="sm" tone="negative" onClick={onDelete} title="Delete — it joins the pile the worker reads as 'not this'">
+          Delete
         </Button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="loki-label">Cards a day</span>
-        <Field
-          size="sm"
-          mono
-          value={cap}
-          onChange={(e) => setCap(e.target.value)}
-          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ daily_cap: Number(cap) })}
-          style={{ width: 64 }}
-          aria-label="Cards a day"
-        />
+      <PreviousText c={c} />
+    </section>
+  );
+}
+
+/** A deleted card chosen in Deleted: what it said, when it went, and Restore or Forget. */
+export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRestore: () => void; onForget: () => void }) {
+  return (
+    <section aria-label="Deleted card" style={DETAIL}>
+      <Meta>
+        Deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}
+      </Meta>
+      <div style={TITLE}>{r.card.front}</div>
+      <div style={BODY}>{r.card.back}</div>
+      <Meta wrap>
+        Deleted cards teach the worker: one deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back
+        reworded.
+      </Meta>
+      <div style={MOVES}>
+        <Button size="sm" onClick={onRestore}>
+          Restore
+        </Button>
+        <Button size="sm" tone="quiet" onClick={onForget} title="Drop it from the pile too — the worker stops seeing it">
+          Forget
+        </Button>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -343,17 +240,24 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
 /** The welcome's symbols, from the one icon set (Lucide): chats, the spaced repeat, the budget's gauge. */
 const WELCOME_ICON: Record<WelcomeRow["icon"], LucideIcon> = { chats: MessagesSquareIcon, spaced: RepeatIcon, budget: GaugeIcon };
 
-/** Preferences › Learn: the writer's switch and knobs, in Settings' fact grid. */
+/**
+ * Preferences › Learn: the writer's switch and knobs, in Settings' fact grid, and the export for Anki. They were the
+ * strip under All Cards until Learn moved onto the list (plan 2026-11-14-1330, KTD10), which keeps only the grey line.
+ */
 export function RecallSettings({
   worker,
   onSettings,
   onRun,
   running,
+  onExport,
+  cardCount,
 }: {
   worker: WorkerStatus;
   onSettings: (s: { enabled?: boolean; daily_cap?: number }) => void;
   onRun: () => void;
   running: boolean;
+  onExport: () => void;
+  cardCount: number;
 }) {
   const [cap, setCap] = useState(String(worker.daily_cap));
   return (
@@ -392,6 +296,11 @@ export function RecallSettings({
           {running ? "Running…" : "Run Now"}
         </Button>
       </Setting>
+      <Setting label="Export" help="Copies every card as Anki's plain-text import: front, back and tags.">
+        <Button size="sm" onClick={onExport} disabled={!cardCount}>
+          Export for Anki
+        </Button>
+      </Setting>
     </>
   );
 }
@@ -399,186 +308,101 @@ export function RecallSettings({
 /** The word for a lead's depth. */
 const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting", course: "A course · several sittings" };
 
-/**
- * The leads: things the writer thinks the person could learn properly, newest first, each with start (the
- * lesson opens as a [Learn] desk) and "not this" (the dismissed pile the writer reads). Under them, the
- * lessons under way, each a link to its desk.
- */
-export function LeadList({
-  leads,
-  lessons,
-  worker,
-  starting,
-  onStart,
-  onResume,
-  onDismiss,
-  onOpen,
-}: {
-  leads: Lead[];
-  lessons: Lesson[];
-  worker: WorkerStatus;
-  starting: string | null;
-  onStart: (id: string) => void;
-  onResume: (lesson: Lesson) => void;
-  onDismiss: (id: string) => void;
-  onOpen: (agentId: string, conversationId: string) => void;
-}) {
+/** Where a lead came up: the agent's name as a chip, the chat's title and how long ago. */
+function LeadSource({ lead, at }: { lead: Lead; at: string }) {
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      {leads.length === 0 && (
-        <Empty card title="No leads yet">
-          {worker.enabled
-            ? "When a chat goes quiet, Learn names what went by in it without being understood — a concept, an acronym, something you took the agent's word for. They collect here, and each is a lesson away."
-            : "Leads come from Learn, and it is off. Turn it on in Review or in Preferences › Learn and they will collect here as chats go quiet."}
-        </Empty>
-      )}
-      {leads.map((l) => (
-        <section
-          key={l.id}
-          aria-label={`Lead: ${l.title}`}
-          style={{
-            background: "var(--loki-panel)",
-            border: "1px solid var(--loki-border)",
-            borderRadius: "var(--loki-radius-lg)",
-            overflow: "hidden",
-            display: "grid",
-          }}
-        >
-          {/* The card is the start: one click opens the lesson's chat with the chat and sends the brief. */}
-          <Row
-            flush
-            onClick={() => onStart(l.id)}
-            disabled={starting !== null}
-            title="A [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins"
-            style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {l.source.agent_name && <Chip static>{l.source.agent_name}</Chip>}
-              <Meta>
-                {l.source.title ?? "A conversation"} · {ago(l.created_at)}
-              </Meta>
-              <span style={{ flex: 1 }} />
-              <Meta>{DEPTH[l.depth]}</Meta>
-            </span>
-            <span
-              style={{
-                display: "block",
-                fontSize: "var(--loki-text-display)",
-                fontWeight: 700,
-                lineHeight: 1.3,
-                color: "var(--loki-fg)",
-                textWrap: "balance" as never,
-              }}
-            >
-              {l.title}
-            </span>
-            <span
-              style={{
-                display: "block",
-                fontSize: "var(--loki-text-body)",
-                lineHeight: 1.5,
-                color: "var(--loki-muted)",
-                fontStyle: "italic",
-                overflowWrap: "anywhere",
-              }}
-            >
-              {l.why}
-            </span>
-            <span
-              style={{
-                display: "block",
-                fontSize: "var(--loki-text-meta)",
-                color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)",
-                fontWeight: 600,
-              }}
-            >
-              {starting === l.id ? "Furnishing the canvas…" : "Start the lesson →"}
-            </span>
-          </Row>
-          <div
-            style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}
-          >
-            <Button size="sm" onClick={() => onDismiss(l.id)} title="Learn remembers not to propose this again">
-              Not This
-            </Button>
-            {l.source.agent_id && l.source.conversation_id && (
-              <Button
-                size="sm"
-                bare
-                onClick={() => {
-                  const { agent_id: agentId, conversation_id: conversationId } = l.source;
-                  if (agentId && conversationId) onOpen(agentId, conversationId);
-                }}
-              >
-                Where It Came Up
-              </Button>
-            )}
-          </div>
-        </section>
-      ))}
-      {lessons.length > 0 && (
-        <div style={{ display: "grid", gap: 6 }}>
-          <Meta>Lessons under way</Meta>
-          {lessons.map((s) => (
-            <div key={s.conversation_id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
-              <Row flush onClick={() => onOpen(s.agent_id, s.conversation_id)} title="Open the lesson's chat" style={{ minWidth: 0 }}>
-                <span
-                  style={{
-                    fontSize: "var(--loki-text-row)",
-                    fontWeight: 700,
-                    color: "var(--loki-fg)",
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1,
-                  }}
-                >
-                  {s.lead.title}
-                </span>
-                {s.lead.source.agent_name && <Chip static>{s.lead.source.agent_name}</Chip>}
-                <Meta>{s.empty ? "The brief never arrived" : `Started ${ago(s.started_at)}`}</Meta>
-              </Row>
-              {s.empty && (
-                <Button size="sm" tone="brass" onClick={() => onResume(s)} title="Open the chat and send the brief as your first message">
-                  Send the Brief
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      {lead.source.agent_name && <Chip static>{lead.source.agent_name}</Chip>}
+      <Meta>
+        {lead.source.title ?? "A conversation"} · {ago(at)}
+      </Meta>
+      <span style={{ flex: 1 }} />
+      <Meta>{DEPTH[lead.depth]}</Meta>
+    </span>
   );
 }
 
-/** Leads the person said "not this" to, with a way back. */
-export function DismissedLeadList({ dismissed, onRestore }: { dismissed: DismissedLead[]; onRestore: (id: string) => void }) {
-  if (dismissed.length === 0) return null;
+/**
+ * A lead chosen in Leads: something the writer thinks the person could learn properly, with Start the Lesson (the
+ * lesson opens as a [Learn] chat and its brief goes out), Not This (the dismissed pile the writer reads) and the chat
+ * where it came up.
+ */
+export function LeadDetail({
+  lead,
+  starting,
+  onStart,
+  onDismiss,
+  onOpen,
+}: {
+  lead: Lead;
+  starting: string | null;
+  onStart: () => void;
+  onDismiss: () => void;
+  onOpen: (agentId: string, conversationId: string) => void;
+}) {
+  const { agent_id: agentId, conversation_id: conversationId } = lead.source;
   return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <Meta>Dismissed leads</Meta>
-      {dismissed.map((d) => (
-        <Row key={d.lead.id}>
-          <span
-            style={{
-              fontSize: "var(--loki-text-body)",
-              color: "var(--loki-fg)",
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              flex: 1,
-            }}
-          >
-            {d.lead.title}
-          </span>
-          <Meta>{ago(d.at)}</Meta>
-          <Button size="sm" bare onClick={() => onRestore(d.lead.id)}>
-            Restore
+    <section aria-label={`Lead: ${lead.title}`} style={DETAIL}>
+      <LeadSource lead={lead} at={lead.created_at} />
+      <div style={TITLE}>{lead.title}</div>
+      <div style={{ ...BODY, color: "var(--loki-muted)", fontStyle: "italic" }}>{lead.why}</div>
+      <div style={MOVES}>
+        <Button
+          size="sm"
+          tone="positive"
+          onClick={onStart}
+          disabled={starting !== null}
+          title="A [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins"
+        >
+          {starting === lead.id ? "Starting…" : "Start the Lesson"}
+        </Button>
+        <Button size="sm" onClick={onDismiss} title="Learn remembers not to propose this again">
+          Not This
+        </Button>
+        {agentId && conversationId && (
+          <Button size="sm" bare onClick={() => onOpen(agentId, conversationId)}>
+            Where It Came Up
           </Button>
-        </Row>
-      ))}
-    </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** A lesson under way chosen in Leads: the lead it began from, a way to its chat, and Send the Brief when it never arrived. */
+export function LessonDetail({ lesson, onOpen, onResume }: { lesson: Lesson; onOpen: () => void; onResume: () => void }) {
+  return (
+    <section aria-label={`Lesson: ${lesson.lead.title}`} style={DETAIL}>
+      <LeadSource lead={lesson.lead} at={lesson.started_at} />
+      <div style={TITLE}>{lesson.lead.title}</div>
+      <Meta wrap>{lesson.empty ? "The brief never arrived: the lesson's chat is still empty." : `Started ${ago(lesson.started_at)}.`}</Meta>
+      <div style={MOVES}>
+        <Button size="sm" onClick={onOpen} title="Open the lesson's chat">
+          Open the Lesson
+        </Button>
+        {lesson.empty && (
+          <Button size="sm" tone="brass" onClick={onResume} title="Open the chat and send the brief as your first message">
+            Send the Brief
+          </Button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** A dismissed lead chosen in Deleted: what it was, when it was dismissed, and Restore. */
+export function DismissedDetail({ d, onRestore }: { d: DismissedLead; onRestore: () => void }) {
+  return (
+    <section aria-label={`Dismissed lead: ${d.lead.title}`} style={DETAIL}>
+      <Meta>Dismissed {ago(d.at)}</Meta>
+      <div style={TITLE}>{d.lead.title}</div>
+      <div style={{ ...BODY, color: "var(--loki-muted)", fontStyle: "italic" }}>{d.lead.why}</div>
+      <Meta wrap>Learn reads the dismissed leads before proposing again, so this one does not come back reworded.</Meta>
+      <div style={MOVES}>
+        <Button size="sm" onClick={onRestore}>
+          Restore
+        </Button>
+      </div>
+    </section>
   );
 }
