@@ -247,6 +247,28 @@ function ReplyFiles({
 }
 
 /**
+ * What the desktop card says under its files: that it is sending, why the last try did not go, and why nothing can
+ * be pressed, or that the reply still goes when the Mac is out of reach mid-hold. Its own component, so the card stays readable.
+ */
+function ReplyNotes({ sending, reason, blocked }: { sending: boolean; reason: string | null; blocked: string | null }) {
+  return (
+    <>
+      {sending && (
+        <p role="status" className="m-0 text-meta text-muted-foreground">
+          Sending…
+        </p>
+      )}
+      {reason && (
+        <p role="alert" className="m-0 text-meta text-destructive">
+          {reason}
+        </p>
+      )}
+      {blocked && <p className="m-0 text-meta text-muted-foreground">{sending ? STILL_GOES : blocked}</p>}
+    </>
+  );
+}
+
+/**
  * One reply proposal: a quiet quote of its text until Edit opens it, its files, then Send and Reject; while sending,
  * Undo. A refusal says why, and a change in the thread's people is spelled out.
  */
@@ -288,18 +310,7 @@ export function ReplyProposalView({
           <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{card.text}</blockquote>
         )}
         <ReplyFiles files={p.attachments ?? []} kept={card.kept} attached={p.attached ?? []} disabled={off} reveal={reveal} onToggle={card.toggleFile} />
-        {card.sending && (
-          <p role="status" className="m-0 text-meta text-muted-foreground">
-            Sending…
-          </p>
-        )}
-        {card.reason && (
-          <p role="alert" className="m-0 text-meta text-destructive">
-            {card.reason}
-          </p>
-        )}
-        {blocked && !card.sending && <p className="m-0 text-meta text-muted-foreground">{blocked}</p>}
-        {blocked && card.sending && <p className="m-0 text-meta text-muted-foreground">{STILL_GOES}</p>}
+        <ReplyNotes sending={card.sending} reason={card.reason} blocked={blocked} />
         <div className="flex flex-wrap items-center gap-2">
           {card.sending ? (
             <Button ref={undoRef} size="sm" variant="outline" disabled={card.busy || !!blocked} onClick={card.undo} data-action="undo">

@@ -188,6 +188,28 @@ function ReplyFiles({
   );
 }
 
+/**
+ * What a touch card says under its files: that it is sending, why the last try did not go, and why nothing can be
+ * pressed, or that the reply still goes when the Mac is out of reach mid-hold. Its own component, so the card stays readable.
+ */
+function ReplyNotes({ sending, reason, blocked }: { sending: boolean; reason: string | null; blocked: string | null }) {
+  return (
+    <>
+      {sending && (
+        <div className="loki-suggestion-note" role="status">
+          Sending…
+        </div>
+      )}
+      {reason && (
+        <div className="loki-suggestion-note" data-refused role="alert">
+          {reason}
+        </div>
+      )}
+      {blocked && <div className="loki-suggestion-note">{sending ? STILL_GOES : blocked}</div>}
+    </>
+  );
+}
+
 /** One reply: where it goes, its text and files to edit, then Send and Reject, or Undo while it is sending. */
 function ReplyProposalCard({
   proposal: p,
@@ -237,18 +259,7 @@ function ReplyProposalCard({
           onToggle={card.toggleFile}
           size={size}
         />
-        {card.sending && (
-          <div className="loki-suggestion-note" role="status">
-            Sending…
-          </div>
-        )}
-        {card.reason && (
-          <div className="loki-suggestion-note" data-refused role="alert">
-            {card.reason}
-          </div>
-        )}
-        {blocked && !card.sending && <div className="loki-suggestion-note">{blocked}</div>}
-        {blocked && card.sending && <div className="loki-suggestion-note">{STILL_GOES}</div>}
+        <ReplyNotes sending={card.sending} reason={card.reason} blocked={blocked} />
         <div className="loki-suggestion-actions">
           {card.sending ? (
             <Button ref={undoRef} size={size} disabled={card.busy || !!blocked} onClick={card.undo} data-action="undo">
