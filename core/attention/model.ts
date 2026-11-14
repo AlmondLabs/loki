@@ -65,7 +65,7 @@ export interface ConversationInfo {
   draft_text?: string | null;
   /** The folder the chat works in. */
   cwd?: string | null;
-  /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9), as the list has them. */
+  /** The replies its agent proposed that wait on the person or are being sent (plan 067; plan 2026-11-14-1134), as the list has them. */
   reply_proposals?: ReplyProposal[];
   /** An outside card: a Gmail or Slack thread or a Jira ticket, not a chat (plan 067, KTD1); absent on a chat. */
   kind?: "outside";
@@ -124,7 +124,7 @@ export interface Live {
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
   /**
-   * The replies proposed in this chat that wait on the person or are being drafted (plan 067), as heard live; null until
+   * The replies proposed in this chat that wait on the person or are being sent (plan 067), as heard live; null until
    * the chat's state or an event said, when the list's row is what counts.
    */
   replyProposals: ReplyProposal[] | null;
@@ -522,7 +522,7 @@ export function buildItems(
 
 /**
  * The replies proposed in a chat that wait on the person: as heard live once the chat is followed, else as its list row
- * has them. One being drafted is the person's decision already, so it waits on no one.
+ * has them. One being sent is the person's decision already, so it waits on no one.
  */
 export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: Pick<Live, "replyProposals"> | undefined): ReplyProposal[] {
   return (l?.replyProposals ?? c.reply_proposals ?? []).filter((p) => p.status === "pending");

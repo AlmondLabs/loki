@@ -1,5 +1,5 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
-import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
+import type { InputOf, ReplyAction, ReplyDecideOptions, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type {
   AccountLabel,
   HandoffProposal,
@@ -559,18 +559,18 @@ export class FrameChatClient {
   };
 
   /**
-   * The person's action on a reply an agent proposed in a chat (plan 067, KTD9), carried out by the Mac that chat lives
-   * on: approve with the text as edited (and `replace`, to replace a Slack draft already there), or reject.
+   * The person's action on a reply an agent proposed in a chat (plan 2026-11-14-1134, KTD3), carried out by the Mac
+   * that chat lives on: Send (`approve`) with the text as edited and the names of the files kept, Undo, or reject.
    */
   readonly replies = {
-    decide: (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}) =>
+    decide: (rt: Runtime, proposalId: string, action: ReplyAction, opts: ReplyDecideOptions = {}) =>
       this.call("reply_decide", {
         agent_id: rt.agent_id,
         conversation_id: rt.conversation_id,
         proposal_id: proposalId,
         action,
         ...(opts.text ? { text: opts.text } : {}),
-        replace: opts.replace === true,
+        ...(opts.files ? { files: [...opts.files] } : {}),
       }),
   };
 

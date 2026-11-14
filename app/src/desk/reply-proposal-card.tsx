@@ -92,14 +92,14 @@ function ReplyProposalCard({
   const [text, setText] = useState(p.text);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<{ message: string | null; replace: boolean } | null>(null);
-  const drafting = p.status === "drafting";
+  const drafting = p.status === "sending";
   const off = busy || drafting || !!blocked;
   const size = touch ? "touch" : "sm";
   const act = async (action: ReplyAction) => {
     setBusy(true);
     try {
       const out = await onDecide(action, action === "approve" ? { text: text === p.text ? null : text, replace: refused?.replace === true } : {});
-      setRefused(out.done ? null : { message: out.message, replace: out.replace });
+      setRefused(out.done ? null : { message: out.message, replace: false });
     } catch (err: unknown) {
       // A call that throws leaves the card usable and says why, rather than holding its buttons off for good.
       setRefused({ message: messageOf(err), replace: false });

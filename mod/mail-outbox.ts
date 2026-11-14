@@ -132,6 +132,14 @@ export class MailOutbox {
     if (held?.proposal && (held.state === "sent" || held.state === "failed")) this.remove(outboxId);
   }
 
+  /**
+   * Whether the outbox still has a reply by this id: waiting, being sent, or kept with an outcome its proposal has not
+   * acknowledged. An agent's proposal stored as sending with no entry here was cut short with no outcome saved.
+   */
+  has(outboxId: string): boolean {
+    return this.waiting.has(outboxId) || this.read().some((h) => h.outbox_id === outboxId);
+  }
+
   /** Stop a held reply before it goes; false when it already went, or was never held here. */
   undo(accountId: string, outboxId: string): boolean {
     const w = this.waiting.get(outboxId);

@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { AccountProvider, ReplyAttachment, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
-import type { ChatState, ReplyAction } from "../core/frames.ts";
+import type { ReplyAttachment, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import type { ChatState, ReplyAction, ReplyDecideOptions } from "../core/frames.ts";
 import { splitMailboxes } from "../core/mail-header.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
@@ -14,39 +14,38 @@ import type { ChatBackend } from "./frames/chat.ts";
 import { type GmailClient, type GmailMessage } from "./gmail.ts";
 import { GoogleError } from "./google-auth.ts";
 import { inert } from "./account-ops/fence.ts";
-import { fileTypeOf, inChatFolder, md5 } from "./google-tools/core.ts";
+import { inChatFolder, md5 } from "./google-tools/core.ts";
 import { causeWords } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
+import type { HeldProposal, HeldReply } from "./mail-outbox.ts";
+import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
 import type { SlackClient } from "./slack.ts";
 import type { ChatKey } from "./suggestions.ts";
 import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
 
 /**
- * Reply proposals (plan 067, U10, KTD9; plan 071): a reply the owning agent writes in a thread of its own account
- * reaches the person as an approval card, in every permission mode, and only their approve makes loki write it as a
- * draft in that same thread, which the person sends from Gmail or Slack; nothing here sends (R18, KTD4). The agent names
- * the thread and the text, never who it goes to: a Gmail draft replies to all of the newest message's people but the
- * person, a Slack draft sits in the same conversation and thread, so a stranger's mail that asks the agent to send
- * something elsewhere can at most yield a reply to the thread's own people.
- *
- * Jira has no drafts (plan 2026-11-10-1451, KTD18): an approved comment waits on the ticket's thread record instead,
- * and the card puts it in its comment box for the person to send from there. Only a ticket that has had a card can take
- * one (R28), and nothing here reaches Jira at all.
+ * Reply proposals (plan 067, U10, KTD9; plan 071; plan 2026-11-14-1134): a reply the owning agent writes in a thread of
+ * its own account reaches the person as a card, in every permission mode, and only their Send sends it: held 10
+ * seconds with Undo in the outbox the person's own replies use (mod/outside-threads.ts, KTD1), then sent in that same
+ * thread as the person. The agent has no way to send (R14). It names the thread, the text and files from its chat's
+ * folder, never who it goes to: a Gmail reply goes to all of the newest message's people but the person, exactly as
+ * the card showed them (a change stops it, KTD4), a Slack reply into the same conversation and thread, a Jira comment
+ * onto the ticket, so a stranger's mail that asks the agent to send something elsewhere can at most yield a reply to
+ * the thread's own people.
  *
  * Each chat's proposals live in `state/reply-proposals.json`, beside the notices its agent has yet to read. A proposal
- * moves from pending to drafting to drafted, rejected or withdrawn in one step under its chat's lock, so the first action
- * wins and a second is told what already happened, as a suggestion's are (mod/suggestions.ts).
+ * moves from pending to sending, and from there to sent, or back to pending on Undo or a send that did not go; or from
+ * pending to rejected or withdrawn. Each step is taken under its chat's lock, so the first action wins and a second is
+ * told what already happened, as a suggestion's are (mod/suggestions.ts). Send answers at once; what became of the
+ * reply reaches every client as the chat's `reply_proposals` event (KTD3).
  */
 
-/** What a Gmail draft needs of the mailbox's client: the thread, the person's own addresses, and the draft call. */
-export type ReplyGmail = Pick<GmailClient, "getThread" | "sendAsAddresses" | "createDraft">;
-/** What a Slack draft needs of the workspace's client: the drafts there, a conversation's name, and the draft calls. */
-export type ReplySlack = Pick<SlackClient, "draftsList" | "draftsCreate" | "draftsDelete" | "conversationsInfo">;
-/**
- * An account's client for drafts, by its provider. A Jira site has none: an approved comment waits on the card's record,
- * so approving cannot reach Jira (KTD18).
- */
+/** What reading the thread for a Gmail card needs of the mailbox's client: the thread and the person's own addresses. */
+export type ReplyGmail = Pick<GmailClient, "getThread" | "sendAsAddresses">;
+/** What naming a Slack card's place needs of the workspace's client: a conversation's name. */
+export type ReplySlack = Pick<SlackClient, "conversationsInfo">;
+/** An account's client for reading where a reply goes, by its provider. A Jira ticket's place comes from its card's record. */
 export type ReplyClient = { provider: "gmail"; client: ReplyGmail } | { provider: "slack"; client: ReplySlack } | { provider: "jira" };
 
 /** What the proposals are built from. `now` and `newId` exist for tests. */
@@ -54,8 +53,10 @@ export interface ReplyProposalsOptions {
   /** `state/reply-proposals.json`. */
   file: string;
   accounts: Pick<Accounts, "get" | "onChange">;
-  threads: Pick<AccountThreads, "get" | "list" | "seed">;
+  threads: Pick<AccountThreads, "get" | "list">;
   clientFor(account: AccountRecord): ReplyClient;
+  /** The person's send path (KTD1): the hold, its undo, and what the outbox still has and whether a reply went. */
+  outside: Pick<OutsideThreads, "holdAgentReply" | "unsend" | "holds" | "wentOutIn" | "acknowledge">;
   /** Tell every client following a chat what its open proposals now are. */
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
   /** The lists should be read again: a chat's card is blocked, or no longer. */
@@ -64,13 +65,11 @@ export interface ReplyProposalsOptions {
   newId?(): string;
 }
 
-/** What an action left: the proposal as it now stands, whether it took, why not, and whether to ask about replacing. */
+/** What an action left: the proposal as it now stands, whether it took, and why not. */
 export interface ReplyDecided {
   proposal: ReplyProposal;
   done: boolean;
   message: string | null;
-  /** A Slack draft already sits where this one goes: the person is asked before it is replaced. */
-  replace: boolean;
 }
 
 /** A reply as the agent proposes it: the account, a thread of that account, and the text. Nothing names a recipient. */
@@ -78,14 +77,17 @@ export interface ReplyInput {
   account_id: string;
   thread_id: string;
   text: string;
-  /** Full paths of files for a Gmail reply to carry, already found inside the chat's folder (R1). */
+  /** Full paths of files for the reply to carry, already found inside the chat's folder (R8). */
   attachments?: string[];
 }
 
-/** The most files one reply carries (plan 2026-11-14-1500, R2). */
+/** The most files one reply carries (R8). */
 export const MAX_REPLY_FILES = 10;
-/** The most bytes a reply's files come to together: Gmail's limit for a message (R2). */
-export const MAX_REPLY_BYTES = 25 * 1024 * 1024;
+/**
+ * The most bytes a reply's files come to together (R8): Gmail's 25 MB counts the encoded message, and files grow about
+ * a third when encoded, so 17 MB of files is what fits.
+ */
+export const MAX_REPLY_BYTES = 17 * 1024 * 1024;
 
 /** A size as the agent and the person read it: "482 KB", "3.1 MB". */
 export function bytesWords(bytes: number): string {
@@ -94,22 +96,35 @@ export function bytesWords(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
+/**
+ * A reply's files read once, each checked against the MD5 it had when the reply was proposed (KTD5): the bytes checked
+ * are the bytes a send hands on, so a file changed after the check cannot go out. Throws naming the first file that
+ * changed or is gone (R10).
+ */
+export async function checkedFiles(files: readonly ReplyAttachment[]): Promise<Array<{ name: string; data: Buffer }>> {
+  const read: Array<{ name: string; data: Buffer }> = [];
+  for (const f of files) {
+    const data = await readFile(f.path).catch(() => null);
+    if (!data) throw new Error(`${f.name} is no longer in the chat's folder: take it off, or reject the reply and ask for it again`);
+    if (md5(data) !== f.md5) throw new Error(`${f.name} changed since this reply was proposed: take it off, or reject the reply and ask for it again`);
+    read.push({ name: f.name, data });
+  }
+  return read;
+}
+
 interface ChatRecord extends ChatKey {
   proposals: ReplyProposal[];
-  /** What the chat's agent is told with the next message in it: drafts written, replies rejected or withdrawn. */
+  /** What the chat's agent is told with the next message in it: replies sent, rejected or withdrawn. */
   notices: string[];
 }
 
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
-const STATUSES: readonly ReplyProposalStatus[] = ["pending", "drafting", "drafted", "rejected", "withdrawn"];
-/** What a draft that threw on the way leaves on the card; the proposal waits again. */
-const UNFINISHED = "the draft was not written: try again";
-const INTERRUPTED = "interrupted: try again";
-/** What the person is asked when a Slack draft already waits in that place. */
-export const DRAFT_THERE = "a draft is already there: replace it?";
+/** The statuses a stored proposal may have; a `drafted` one is settled from before replies were sent (KTD3). */
+const STATUSES: readonly ReplyProposalStatus[] = ["pending", "sending", "sent", "drafted", "rejected", "withdrawn"];
+/** What a reply stored as sending, that the outbox no longer has, says on its card (KTD9, step 4). */
+export const MAY_HAVE_GONE = "it may have gone: check the thread before sending again";
 
-/** The statuses that still show on the card: waiting on the person, or being drafted. */
-const isOpen = (p: ReplyProposal) => p.status === "pending" || p.status === "drafting";
+/** The statuses that still show on the card: waiting on the person, or held for its undo and being sent. */
+const isOpen = (p: ReplyProposal) => p.status === "pending" || p.status === "sending";
 
 /** Who settled a proposal, as a refused action says it. */
 const byWords = (by: string | null | undefined) => (by === "phone" || by === "desktop" ? `the ${by}` : by || "another device");
@@ -117,8 +132,10 @@ const byWords = (by: string | null | undefined) => (by === "phone" || by === "de
 /** What a second action is told: what already happened (R17's rule for suggestions, kept here too). */
 function settledWords(p: ReplyProposal): string {
   switch (p.status) {
-    case "drafting":
-      return "already being drafted";
+    case "sending":
+      return "already sending";
+    case "sent":
+      return `already sent from ${byWords(p.decided_by)}`;
     case "drafted":
       return `already drafted from ${byWords(p.decided_by)}`;
     case "rejected":
@@ -132,8 +149,8 @@ function settledWords(p: ReplyProposal): string {
 
 /** What the agent is told when its reply goes because the account moved to another agent (U10, step 7). */
 const movedNotice = (p: ReplyProposal): string =>
-  `${p.account_label} moved to another agent, so your reply in thread ${p.thread_id} was withdrawn: nothing was written.`;
-/** What the person is told when they approve a reply whose account moved since. */
+  `${p.account_label} moved to another agent, so your reply in thread ${p.thread_id} was withdrawn: nothing was sent.`;
+/** What the person is told when they send a reply whose account moved since. */
 const MOVED = "that account moved to another agent: this reply was withdrawn";
 
 /** A Gmail message's header by name, any case; "" when it has none. */
@@ -230,11 +247,15 @@ function parseProposal(v: unknown): ReplyProposal | null {
     account = s("account_id"),
     thread = s("thread_id"),
     text = s("text");
-  const status = STATUSES.find((x) => x === r.status);
+  // One stored while its draft was written, before replies were sent (KTD3), waits on the person again.
+  const status = r.status === "drafting" ? "pending" : STATUSES.find((x) => x === r.status);
   const provider = r.provider === "gmail" || r.provider === "slack" || r.provider === "jira" ? r.provider : null;
   if (!id || !account || !thread || text === null || !status || !provider) return null;
   const strings = (k: string) => (Array.isArray(r[k]) ? r[k].filter((x): x is string => typeof x === "string") : []);
   const files = Array.isArray(r.attachments) ? r.attachments.map(parseAttachment).filter((a): a is ReplyAttachment => a !== null) : [];
+  const added = strings("people_added");
+  const removed = strings("people_removed");
+  const attached = strings("attached");
   return {
     id,
     account_id: account,
@@ -251,8 +272,11 @@ function parseProposal(v: unknown): ReplyProposal | null {
     created_at: s("created_at") ?? "",
     decided_by: s("decided_by"),
     decided_at: s("decided_at"),
-    draft_url: s("draft_url"),
     ...(files.length ? { attachments: files } : {}),
+    ...(s("outbox_id") ? { outbox_id: s("outbox_id") } : {}),
+    ...(added.length ? { people_added: added } : {}),
+    ...(removed.length ? { people_removed: removed } : {}),
+    ...(attached.length ? { attached } : {}),
   };
 }
 
@@ -277,14 +301,24 @@ function parseChat(v: unknown): ChatRecord | null {
 
 const keyOf = (chat: ChatKey) => `${chat.agent_id}/${chat.conversation_id}`;
 
+/** A proposal with its files as given: the field left out when there are none, as a proposal without files is stored. */
+function withFiles(p: ReplyProposal, files: readonly ReplyAttachment[]): ReplyProposal {
+  const { attachments: _was, ...rest } = p;
+  return files.length ? { ...rest, attachments: [...files] } : rest;
+}
+
+/** A proposal without the marks of who joined or left its thread, which a new Send clears. */
+function withoutPeopleMarks(p: ReplyProposal): ReplyProposal {
+  const { people_added: _added, people_removed: _removed, ...rest } = p;
+  return rest;
+}
+
 /** The reply proposals of every chat on this Mac, and the person's actions on them. */
-export class ReplyProposals {
+export class ReplyProposals implements AgentReplyReports {
   private readonly opts: ReplyProposalsOptions;
   private readonly chats = new Map<string, ChatRecord>();
   /** One change at a time per chat. */
   private readonly locks = keyedQueue();
-  /** Proposals this process is drafting now; one stored as drafting that is not here was left by a daemon that stopped. */
-  private readonly inFlight = new Set<string>();
   private readonly stopMoves: () => void;
 
   constructor(opts: ReplyProposalsOptions) {
@@ -306,16 +340,16 @@ export class ReplyProposals {
   /**
    * A new reply, pending, for a thread of one of the chat's agent's accounts (R18, plan 071): handed to this chat, found
    * by search, or read. The account must be the agent's, connected or not; the people it goes to are read from the
-   * thread now for the card, and again when it is drafted. A thread the account does not have is refused.
+   * thread now for the card, and checked again when it goes. A thread the account does not have is refused.
    */
   async propose(chat: ChatKey, input: ReplyInput): Promise<ReplyProposal> {
     if (!input.text.trim()) throw new Error("a reply needs text");
     const account = this.opts.accounts.get(input.account_id);
     if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
-    // Any thread of the agent's own account will do (plan 071): the person's approval on the card is the gate. A thread
-    // found by search has no record here, so its subject comes from the thread itself. A Jira comment waits on its
-    // ticket's card, so the ticket must have one, named by its id or its key (R28, KTD7).
-    const files = await this.files(account.provider, input.attachments ?? []);
+    // Any thread of the agent's own account will do (plan 071): the person's Send on the card is the gate. A thread
+    // found by search has no record here, so its subject comes from the thread itself. A Jira ticket is named by its
+    // id or its key, which only a ticket that has had a card can be found by (R28, KTD7).
+    const files = await this.files(input.attachments ?? []);
     const record = account.provider === "jira" ? this.ticketRecord(account, input.thread_id) : this.opts.threads.get(input.account_id, input.thread_id);
     const threadId = record?.thread_id ?? input.thread_id;
     const where = await this.where(account, threadId, record?.subject_or_first_line ?? "");
@@ -354,54 +388,18 @@ export class ReplyProposals {
   }
 
   /**
-   * The person's action (KTD9): reject, and nothing is written; approve, with the text as they edited it, and loki writes
-   * the draft in the thread, then tells the agent what it drafted. A Slack draft already in that place is replaced only
-   * on `replace`. A disconnected account refuses, with why.
+   * The person's action (KTD3): reject, and nothing is sent; `approve`, the wire's name for Send, with the text as they
+   * edited it and the files they kept, and the reply is held for its undo, then sent (the answer comes at once, as
+   * sending); `undo`, while it is held, and it waits on the card again with the edits kept (R5).
    */
-  async decide(chat: ChatKey, id: string, action: ReplyAction, by: string, opts: { text?: string | null; replace?: boolean } = {}): Promise<ReplyDecided> {
-    if (action === "reject")
-      return this.settle(chat, id, "rejected", by, (p) => `The person rejected your reply in ${p.account_label}, thread ${p.thread_id}: nothing was written.`);
-    const flight = `${keyOf(chat)}/${id}`;
-    const edited = opts.text?.trim() ? (opts.text ?? "") : null;
-    const claim = await this.change(chat, id, (p) => {
-      if (p.status !== "pending") return { done: false, message: settledWords(p) };
-      const account = this.opts.accounts.get(p.account_id);
-      // A move this process did not hear (it was down, or the move came between): the reply is no longer this agent's.
-      if (account && account.owner_agent_id !== chat.agent_id) {
-        return { done: false, message: MOVED, next: { ...p, status: "withdrawn", reason: null, decided_by: "loki", decided_at: this.now() } };
-      }
-      const refused = !account
-        ? "that account is not connected on this Mac"
-        : account.status !== "connected"
-          ? causeWords(account.status.disconnected, account.provider)
-          : null;
-      if (refused) return { done: false, message: refused, next: { ...p, reason: refused } };
-      this.inFlight.add(flight);
-      return { done: true, message: null, next: { ...p, status: "drafting", reason: null, ...(edited ? { text: edited } : {}) } };
-    });
-    // Only this claim answers MOVED, and only as it withdraws the reply, so the agent is told once.
-    if (claim.message === MOVED) this.notify(chat, movedNotice(claim.proposal));
-    if (!claim.done) return claim;
-    try {
-      const written = await this.write(claim.proposal, opts.replace === true).catch((err: unknown) => ({
-        ok: false as const,
-        message: `${UNFINISHED} (${messageOf(err)})`,
-      }));
-      if (!written.ok) {
-        const ask = written.message === DRAFT_THERE;
-        const out = await this.change(chat, id, (p) => ({ done: false, message: written.message, next: { ...p, status: "pending", reason: written.message } }));
-        return { ...out, replace: ask };
-      }
-      const out = await this.change(chat, id, (p) => ({
-        done: true,
-        message: null,
-        next: { ...p, ...written.drafted, status: "drafted", reason: null, decided_by: by, decided_at: this.now(), draft_url: written.url },
-      }));
-      this.notify(chat, draftedNotice(out.proposal));
-      log("replies:drafted", { provider: out.proposal.provider });
-      return out;
-    } finally {
-      this.inFlight.delete(flight);
+  decide(chat: ChatKey, id: string, action: ReplyAction, by: string, opts: ReplyDecideOptions = {}): Promise<ReplyDecided> {
+    switch (action) {
+      case "reject":
+        return this.settle(chat, id, "rejected", by, (p) => `The person rejected your reply in ${p.account_label}, thread ${p.thread_id}: nothing was sent.`);
+      case "undo":
+        return this.undo(chat, id);
+      case "approve":
+        return this.send(chat, id, by, opts);
     }
   }
 
@@ -416,68 +414,167 @@ export class ReplyProposals {
     return r.notices;
   }
 
-  /**
-   * Write the draft out there, reading the thread again so it answers the newest message (KTD9). Slack's place is
-   * checked for a draft already waiting first, which is replaced only when the person said so.
-   */
-  private async write(
-    p: ReplyProposal,
-    replace: boolean,
-  ): Promise<{ ok: true; drafted: Partial<ReplyProposal>; url: string | null } | { ok: false; message: string }> {
-    const account = this.opts.accounts.get(p.account_id);
-    if (!account) return { ok: false, message: "that account is not connected on this Mac" };
-    const reader = this.opts.clientFor(account);
-    if (reader.provider === "jira") {
-      // Jira has no drafts: the comment waits on the ticket's card, which opens again if it had ended, for the person
-      // to send from its box (KTD18). Nothing reaches Jira.
-      const seeded = this.opts.threads.seed(p.account_id, p.thread_id, { id: p.id, text: p.text, at: this.now() });
-      return seeded ? { ok: true, drafted: {}, url: null } : { ok: false, message: "loki has no card for that ticket now" };
-    }
-    if (reader.provider === "gmail") {
-      // The files as the card named them, or a refusal that says which one is not (R4).
-      const files: Array<{ filename: string; mimeType: string; data: Buffer }> = [];
-      for (const f of p.attachments ?? []) {
-        const data = await readFile(f.path).catch(() => null);
-        if (!data) return { ok: false, message: `${f.name} is no longer in the chat's folder: reject this reply and ask for it again` };
-        if (md5(data) !== f.md5) return { ok: false, message: `${f.name} changed since this reply was proposed: reject it and ask for it again` };
-        files.push({ filename: f.name, mimeType: fileTypeOf(f.name), data });
-      }
-      const thread = await reader.client.getThread(p.thread_id, "metadata");
-      const newest = replyTarget(thread.messages);
-      if (!newest) return { ok: false, message: "that thread is empty in Gmail now" };
-      const own = [account.address, ...(await reader.client.sendAsAddresses())];
-      const { to, cc } = replyAllOf(newest, own);
-      if (to.length === 0 && cc.length === 0) return { ok: false, message: "no one in that thread to reply to" };
-      const subject = replySubject(headerOf(newest, "Subject") || headerOf(thread.messages.at(0), "Subject"));
-      const draft = await reader.client.createDraft({
-        threadId: p.thread_id,
-        inReplyTo: headerOf(newest, "Message-ID"),
-        references: headerOf(newest, "References").split(/\s+/).filter(Boolean),
-        to,
-        cc,
-        subject,
-        body: p.text,
-        ...(files.length ? { attachments: files } : {}),
-      });
-      const url = `https://mail.google.com/mail/u/${encodeURIComponent(account.address)}/#drafts?compose=${encodeURIComponent(draft.messageId)}`;
-      return { ok: true, drafted: { to, cc, subject }, url };
-    }
-    const { channel, ts } = slackPlace(p.thread_id);
-    const there = (await reader.client.draftsList()).filter((d) => d.destinations.some((x) => x.channel_id === channel && (x.thread_ts ?? null) === ts));
-    if (there.length > 0 && !replace) return { ok: false, message: DRAFT_THERE };
-    // Replacing takes the old draft away first, so the place holds one draft, the new one.
-    for (const d of there) await reader.client.draftsDelete(d.id);
-    await reader.client.draftsCreate({ channel, ...(ts ? { thread_ts: ts } : {}), text: p.text });
-    return { ok: true, drafted: {}, url: null };
+  /** The outbox sent a reply (KTD9): the proposal is sent, its agent told once, and only then the outbox lets it go. */
+  sent(held: HeldReply): void {
+    const proposal = held.proposal;
+    if (!proposal) return;
+    void this.report(proposal, held.outbox_id, (p) => {
+      if (p.status !== "sending" || p.outbox_id !== held.outbox_id) return null;
+      const next: ReplyProposal = { ...p, status: "sent", reason: null, decided_at: this.now() };
+      log("replies:sent", { provider: next.provider, files: next.attachments?.length ?? 0 });
+      return { next, notice: sentNotice(next) };
+    });
   }
 
   /**
-   * The files a reply carries, checked now (R1, R2): only a Gmail reply takes any, at most MAX_REPLY_FILES and
-   * MAX_REPLY_BYTES together, each one a file that can be read. Each is kept by its path, size and MD5, never its bytes.
+   * The outbox did not send a reply (KTD9): it waits on the card again with why, keeping the outbox id, which a later
+   * Send of a Gmail reply looks for in the thread first. When the thread's people changed, the card shows the new ones
+   * and who joined or left (R7). The agent hears nothing, since nothing went.
    */
-  private async files(provider: AccountProvider, paths: readonly string[]): Promise<ReplyAttachment[]> {
+  notSent(held: HeldReply, note: { reason: string; at: string }, people: PeopleChanged | null): void {
+    const proposal = held.proposal;
+    if (!proposal) return;
+    void this.report(proposal, held.outbox_id, (p) => {
+      if (p.status !== "sending" || p.outbox_id !== held.outbox_id) return null;
+      // A comment that failed after its files went leaves them on the ticket, and the card says so (KTD8).
+      const onTicket = p.provider === "jira" && p.attached?.length ? `; ${p.attached.join(", ")} already on the ticket` : "";
+      const next: ReplyProposal = { ...p, status: "pending", reason: `${note.reason}${onTicket}`, decided_by: null, decided_at: null };
+      log("replies:not-sent", { provider: p.provider, people: people !== null });
+      return { next: people ? { ...next, to: people.to, cc: people.cc, people_added: people.added, people_removed: people.removed } : next, notice: null };
+    });
+  }
+
+  /** A Jira ticket took a reply's files (KTD8): recorded at once, so a later Send attaches only the rest. */
+  attached(proposal: HeldProposal, names: string[]): void {
+    const chat = { agent_id: proposal.agent_id, conversation_id: proposal.conversation_id };
+    void this.locked(chat, () => {
+      const r = this.record(chat);
+      const p = r.proposals.find((x) => x.id === proposal.proposal_id);
+      if (p) {
+        const next = { ...p, attached: [...new Set([...(p.attached ?? []), ...names])] };
+        this.save(chat, { ...r, proposals: r.proposals.map((x) => (x.id === p.id ? next : x)) });
+      }
+      return Promise.resolve();
+    }).catch((err: unknown) => log("replies:report-failed", messageOf(err)));
+  }
+
+  /**
+   * What the outbox reported, saved under the chat's lock, then acknowledged, so the outbox forgets the entry only once
+   * its outcome is kept (KTD9, step 2). A report for a proposal already past it (one a restart reports again) changes
+   * nothing and is acknowledged all the same.
+   */
+  private async report(
+    proposal: HeldProposal,
+    outboxId: string,
+    fn: (p: ReplyProposal) => { next: ReplyProposal; notice: string | null } | null,
+  ): Promise<void> {
+    const chat = { agent_id: proposal.agent_id, conversation_id: proposal.conversation_id };
+    try {
+      await this.locked(chat, () => {
+        const r = this.record(chat);
+        const p = r.proposals.find((x) => x.id === proposal.proposal_id);
+        const out = p ? fn(p) : null;
+        if (out) {
+          this.save(chat, { ...r, proposals: r.proposals.map((x) => (x.id === out.next.id ? out.next : x)) });
+          // After the save, which writes the record as it was read, so the notice is not written over.
+          if (out.notice) this.notify(chat, out.notice);
+        }
+        return Promise.resolve();
+      });
+      this.opts.outside.acknowledge(outboxId);
+    } catch (err) {
+      log("replies:report-failed", messageOf(err));
+    }
+  }
+
+  /**
+   * The person's Send (KTD3): the kept files are checked now (AE3), a Gmail reply whose last send failed is looked for
+   * in its thread first (KTD9, step 3), and the reply is handed to the outbox to wait out its undo. A Jira comment
+   * attaches only the files no earlier Send attached (KTD8). Refused, nothing is held and the card says why.
+   */
+  private send(chat: ChatKey, id: string, by: string, opts: ReplyDecideOptions): Promise<ReplyDecided> {
+    const edited = opts.text?.trim() ? (opts.text ?? "") : null;
+    return this.locked(chat, async () => {
+      const r = this.record(chat);
+      const p = r.proposals.find((x) => x.id === id);
+      if (!p) throw new Error(`no reply ${id} in this chat`);
+      const put = (next: ReplyProposal, done: boolean, message: string | null): ReplyDecided => {
+        this.save(chat, { ...r, proposals: r.proposals.map((x) => (x.id === id ? next : x)) });
+        return { proposal: next, done, message };
+      };
+      if (p.status !== "pending") return { proposal: p, done: false, message: settledWords(p) };
+      const account = this.opts.accounts.get(p.account_id);
+      // A move this process did not hear (it was down, or the move came between): the reply is no longer this agent's.
+      if (account && account.owner_agent_id !== chat.agent_id) {
+        const out = put({ ...p, status: "withdrawn", reason: null, decided_by: "loki", decided_at: this.now() }, false, MOVED);
+        this.notify(chat, movedNotice(out.proposal));
+        return out;
+      }
+      const refused = !account
+        ? "that account is not connected on this Mac"
+        : account.status !== "connected"
+          ? causeWords(account.status.disconnected, account.provider)
+          : null;
+      if (refused || !account) return put({ ...p, reason: refused }, false, refused);
+      // The person's edits and the files they kept are kept whatever happens next, so Undo or a refusal returns them (R5).
+      const kept = (p.attachments ?? []).filter((f) => !opts.files || opts.files.includes(f.name));
+      const edits = withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept));
+      try {
+        await checkedFiles(kept);
+      } catch (err) {
+        return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
+      }
+      if (p.provider === "gmail" && p.outbox_id) {
+        const went = await this.opts.outside.wentOutIn(p.account_id, p.thread_id, p.outbox_id).catch(() => null);
+        if (went === null) {
+          const why = "the thread could not be read to check the last send did not go: try again";
+          return put({ ...edits, reason: why }, false, why);
+        }
+        if (went) {
+          // The send that seemed to fail went after all: it is sent, and nothing new goes.
+          const out = put({ ...p, status: "sent", reason: null, decided_by: by, decided_at: this.now() }, true, null);
+          this.notify(chat, sentNotice(out.proposal));
+          return out;
+        }
+      }
+      const before = p.provider === "jira" ? new Set(p.attached ?? []) : new Set<string>();
+      const outboxId = `reply-send-${randomUUID()}`;
+      try {
+        this.opts.outside.holdAgentReply({
+          outbox_id: outboxId,
+          account_id: p.account_id,
+          thread_id: p.thread_id,
+          text: edits.text,
+          files: kept.filter((f) => !before.has(f.name)),
+          attached: kept.filter((f) => before.has(f.name)).map((f) => f.name),
+          people: p.provider === "gmail" ? { to: p.to, cc: p.cc } : null,
+          proposal: { agent_id: chat.agent_id, conversation_id: chat.conversation_id, proposal_id: p.id },
+        });
+      } catch (err) {
+        return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
+      }
+      log("replies:sending", { provider: p.provider, files: kept.length });
+      return put({ ...edits, status: "sending", reason: null, outbox_id: outboxId, decided_by: by, decided_at: null }, true, null);
+    });
+  }
+
+  /** The person's Undo while a reply is held (R5): nothing is posted, and it waits again with their edits and files. */
+  private undo(chat: ChatKey, id: string): Promise<ReplyDecided> {
+    return this.change(chat, id, (p) => {
+      if (p.status === "pending") return { done: false, message: "that reply is not being sent" };
+      if (p.status !== "sending") return { done: false, message: settledWords(p) };
+      if (!this.opts.outside.unsend(p.account_id, p.outbox_id ?? "")) return { done: false, message: "it is already going, too late to undo" };
+      log("replies:undone", { provider: p.provider });
+      return { done: true, message: null, next: { ...p, status: "pending", reason: null, outbox_id: null, decided_by: null, decided_at: null } };
+    });
+  }
+
+  /**
+   * The files a reply carries, checked now (R8): at most MAX_REPLY_FILES and MAX_REPLY_BYTES together, each one a file
+   * that can be read. Each is kept by its path, size and MD5, never its bytes.
+   */
+  private async files(paths: readonly string[]): Promise<ReplyAttachment[]> {
     if (paths.length === 0) return [];
-    if (provider !== "gmail") throw new Error(`a ${SERVICE[provider]} reply cannot carry files: only a Gmail reply takes attachments`);
     if (paths.length > MAX_REPLY_FILES) throw new Error(`a reply carries ${String(MAX_REPLY_FILES)} files at most`);
     const files = await Promise.all(
       paths.map(async (path) => {
@@ -488,7 +585,7 @@ export class ReplyProposals {
       }),
     );
     const total = files.reduce((n, f) => n + f.size, 0);
-    if (total > MAX_REPLY_BYTES) throw new Error(`the files come to ${bytesWords(total)}, and a Gmail message holds ${bytesWords(MAX_REPLY_BYTES)} at most`);
+    if (total > MAX_REPLY_BYTES) throw new Error(`the files come to ${bytesWords(total)}, and a reply carries ${bytesWords(MAX_REPLY_BYTES)} at most`);
     return files;
   }
 
@@ -521,21 +618,19 @@ export class ReplyProposals {
 
   /**
    * The card's record of a Jira ticket named by its id or its key, in any case (KTD7); throws why when the ticket never
-   * had a card, since an approved comment waits in the card's box and there would be none (R28).
+   * had a card, since its key is known only from one (R28).
    */
   private ticketRecord(account: AccountRecord, ticket: string): ThreadRecord {
     const wanted = ticket.trim().toLowerCase();
     const found =
       this.opts.threads.get(account.account_id, ticket.trim()) ?? this.opts.threads.list(account.account_id).find((r) => r.place?.toLowerCase() === wanted);
-    if (!found)
-      throw new Error(`${ticket} has never had a card in Flow, so there is no comment box for a comment to wait in: comment on a ticket flow_list lists`);
+    if (!found) throw new Error(`${ticket} has never had a card in Flow, so loki cannot find it: comment on a ticket flow_list lists`);
     return found;
   }
 
   /**
-   * The old owner's waiting replies for a moved account are withdrawn, each with a notice to its chat. Read through
-   * `record`, so one a stopped daemon left drafting counts as waiting and goes too; one being drafted right now is
-   * refused by its own claim's owner check if it comes back to wait.
+   * The old owner's waiting replies for a moved account are withdrawn, each with a notice to its chat. One the person
+   * already pressed Send on stays: their Send was for the account as it was.
    */
   private async withdrawMoved(accountId: string, from: string): Promise<void> {
     for (const chat of [...this.chats.values()].filter((c) => c.agent_id === from)) {
@@ -575,15 +670,19 @@ export class ReplyProposals {
       const out = fn(found);
       const next = out.next;
       if (next) this.save(chat, { ...r, proposals: r.proposals.map((p) => (p.id === id ? next : p)) });
-      return Promise.resolve({ proposal: next ?? found, done: out.done, message: out.message, replace: false });
+      return Promise.resolve({ proposal: next ?? found, done: out.done, message: out.message });
     });
   }
 
-  /** A chat's record, with any proposal a stopped daemon left drafting read as pending again. */
+  /**
+   * A chat's record, with any proposal stored as sending that the outbox no longer has read as pending again (KTD9,
+   * step 4): loki stopped while it was sent, and nothing saved how that went. It keeps its outbox id, so a Gmail reply's
+   * next Send looks for it in the thread first.
+   */
   private record(chat: ChatKey): ChatRecord {
     const r = this.chats.get(keyOf(chat)) ?? { agent_id: chat.agent_id, conversation_id: chat.conversation_id, proposals: [], notices: [] };
-    const left = (p: ReplyProposal) => p.status === "drafting" && !this.inFlight.has(`${keyOf(chat)}/${p.id}`);
-    return { ...r, proposals: r.proposals.map((p) => (left(p) ? { ...p, status: "pending", reason: INTERRUPTED } : p)) };
+    const left = (p: ReplyProposal) => p.status === "sending" && !this.opts.outside.holds(p.outbox_id ?? "");
+    return { ...r, proposals: r.proposals.map((p) => (left(p) ? { ...p, status: "pending", reason: MAY_HAVE_GONE, decided_by: null } : p)) };
   }
 
   /** Keep a chat's record and write the file whole, owner-only since it holds reply text; a change to the proposals is told. */
@@ -619,18 +718,15 @@ function whoWords(p: ReplyProposal): string {
 /** A reply's files as the agent is told them: each name and size. */
 const filesWords = (files: readonly ReplyAttachment[]): string => files.map((f) => `${inert(f.name)} (${bytesWords(f.size)})`).join(", ");
 
-/** What the agent is told once its reply is a draft: where, to whom, and what it says, and that nothing was sent. */
-function draftedNotice(p: ReplyProposal): string {
-  if (p.provider === "jira")
-    return [
-      `The person approved your comment ${whoWords(p)} in ${p.account_label}, and loki put it in the comment box of the ticket's card in Flow, waiting on the card for the person to send.`,
-      "Nothing was posted: only the person posts it, from the card. The comment says:",
-      inert(p.text),
-    ].join("\n");
-  const who = whoWords(p);
+/**
+ * What the agent is told once its reply went (R12): that the person sent it, where, to whom, with which files, and what
+ * it says.
+ */
+function sentNotice(p: ReplyProposal): string {
+  const what = p.provider === "jira" ? "posted your comment" : "sent your reply";
+  const files = p.attachments?.length ? `, with ${filesWords(p.attachments)}` : "";
   return [
-    `The person approved your reply in ${p.account_label}, thread ${p.thread_id}, and loki saved it as a ${SERVICE[p.provider]} draft ${who}${p.draft_url ? ` (${p.draft_url})` : ""}${p.attachments?.length ? `, with ${filesWords(p.attachments)}` : ""}.`,
-    `Nothing was sent: the person sends it from ${SERVICE[p.provider]}. The draft says:`,
+    `The person ${what} in ${p.account_label}, thread ${p.thread_id}, ${whoWords(p)}${files}. It says:`,
     // The notice rides in a system-reminder; text that echoes a stranger's markup must not end it.
     inert(p.text),
   ].join("\n");
@@ -661,11 +757,11 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     forAgent,
     description:
       "Propose a reply in a thread of an account you own: one the person handed to this chat, or one a script found " +
-      "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person sees it as a card, may edit it, and on " +
-      "approve loki saves it as a draft in that same thread, which they send from Gmail or Slack; nothing is ever sent " +
-      "by you or loki. It goes only to the thread's own people (Gmail: reply-all to the newest message; Slack: the same " +
-      "conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a ticket that has " +
-      "had a card in Flow (by key or id): approved, it waits in that card's comment box for the person to post. " +
+      "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person reviews it on a card, may edit " +
+      "it or take its files off, and sends it from there as themselves; you cannot send it, and nothing goes before their " +
+      "Send. It goes only to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
+      "Slack: the same conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a " +
+      "ticket that has had a card in Flow (by key or id), its files attached to the ticket. " +
       "You hear what became of it with the next message.",
     parameters: {
       type: "object",
@@ -679,7 +775,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
         attachments: {
           type: "array",
           items: { type: "string" },
-          description: `Gmail only: files for the draft to carry, as paths in this chat's folder; at most ${String(MAX_REPLY_FILES)}, ${bytesWords(MAX_REPLY_BYTES)} together. A file from another mail gets there with google_gmail_attachment first.`,
+          description: `Files for the reply to carry, as paths in this chat's folder; at most ${String(MAX_REPLY_FILES)}, ${bytesWords(MAX_REPLY_BYTES)} together. A file from another mail gets there with google_gmail_attachment first.`,
         },
       },
       required: ["account", "thread", "text"],
@@ -702,7 +798,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
           ...(attachments.length ? { attachments } : {}),
         });
         log("tool:reply_propose", { agent: ctx.agent.id, provider: p.provider });
-        return `Proposed ${p.id}: it waits for the person's approval.\n${proposalLine(p)}`;
+        return `Proposed ${p.id}: it waits for the person to review and send it.\n${proposalLine(p)}`;
       } catch (err) {
         return failed(messageOf(err));
       }
@@ -720,7 +816,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose, with `attachments` for a Gmail reply's files: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose, with `attachments` for its files: the person reviews the reply on a card and sends it from there; you cannot send it. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

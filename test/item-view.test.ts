@@ -87,7 +87,7 @@ describe("an agent chat", () => {
       ...emptyLive(),
       pending: { requestId: "r1", toolName: "codemode", input: { path: "a" }, at: "2026-11-11T10:00:00Z" },
       pendingAsk: { requestId: "q1", input: {}, questions: [{ question: "Which week?", options: [], multiSelect: false }], at: "2026-11-11T10:01:00Z" },
-      replyProposals: [reply, { ...reply, id: "rp2", status: "drafting" as const }],
+      replyProposals: [reply, { ...reply, id: "rp2", status: "sending" as const }],
       suggestions: [suggestion, { ...suggestion, id: "s2", status: "sent" as const }],
     };
     const view = chatItem({ item: attentionItem("c1"), live, turns: [] });

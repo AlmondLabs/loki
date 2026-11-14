@@ -195,14 +195,14 @@ export function ReplyProposalView({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<{ message: string | null; replace: boolean } | null>(null);
-  const drafting = p.status === "drafting";
+  const drafting = p.status === "sending";
   const off = busy || drafting || !!blocked;
   const words = REPLY_WORDS[p.provider];
   const act = async (action: "approve" | "reject") => {
     setBusy(true);
     try {
       const out = await onDecide(action, action === "approve" ? { text: replyEdit(edited, p.text), replace: refused?.replace === true } : {});
-      setRefused(out.done ? null : { message: out.message, replace: out.replace });
+      setRefused(out.done ? null : { message: out.message, replace: false });
     } catch (err: unknown) {
       setRefused({ message: messageOf(err), replace: false });
     } finally {

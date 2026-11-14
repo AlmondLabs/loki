@@ -78,7 +78,7 @@ describe("a reply proposal", () => {
   });
 
   test("while its draft is written it says so and offers nothing; a refusal says why", () => {
-    const drafting = html(createElement(ReplyProposalView, { proposal: reply({ status: "drafting" }), blocked: null, onDecide: decide }));
+    const drafting = html(createElement(ReplyProposalView, { proposal: reply({ status: "sending" }), blocked: null, onDecide: decide }));
     expect(drafting).toContain("writing the draft in Slack");
     expect(drafting).not.toContain('data-action="approve"');
     const refused = html(createElement(ReplyProposalView, { proposal: reply({ reason: "the thread is gone" }), blocked: null, onDecide: decide }));

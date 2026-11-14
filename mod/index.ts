@@ -447,17 +447,16 @@ export default function activate(api: ModApi, host: Host): () => void {
       }
     },
   });
-  // A mail reply held when the daemon last stopped goes now, or when its time comes.
-  outside.resume();
   // The person's moves on outside cards (plan 069), with what each thread was: the data loki learns their preferences from.
   const ledger = new InboxLedger({ path: join(paths.state, "inbox-ledger.jsonl"), accounts, threads });
-  // Reply proposals (plan 067, U10): an owner's reply waits on the person's approve, then becomes a draft in its thread,
-  // written with the same clients; a move of the account withdraws the old owner's.
+  // Reply proposals (plan 067, U10; plan 2026-11-14-1134): an owner's reply waits on the person's Send, then goes
+  // through the outbox the person's own replies use; a move of the account withdraws the old owner's.
   const replies = new ReplyProposals({
     file: join(paths.state, "reply-proposals.json"),
     accounts,
     threads,
-    // A Jira site has no drafts: an approved comment waits on its card, so its proposals get no client (KTD18).
+    outside,
+    // The clients read where a reply goes for its card; a Jira ticket's place is its card's record.
     clientFor: (account): ReplyClient => {
       switch (account.provider) {
         case "gmail":
@@ -471,6 +470,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
     changed: () => broadcast({ type: "chat_changed" }),
   });
+  // A held reply reports to its proposal, so the proposals are bound before the outbox resumes: one a restart finds
+  // sent or failed then reaches them (KTD9). A reply held when the daemon last stopped goes now, or when its time comes.
+  outside.reportAgentRepliesTo(replies);
+  outside.resume();
   // Chat links (plan 067): kept in this Mac's state folder for its chats, checked here before a message is delivered,
   // and sent to the Mac the other chat lives on (mod/chat-links.ts).
   const askLink = host.askLink;

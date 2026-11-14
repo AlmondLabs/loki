@@ -340,8 +340,8 @@ describe("a chat's reply proposals (plan 067, U10)", () => {
 
   test("a waiting one on the list's row makes the card an approval that ranks above a fresher chat", () => {
     expect(statuses([chat("fresh"), chat("asks", { reply_proposals: [proposal] })])).toEqual(["asks:approval", "fresh:idle"]);
-    // One being drafted is decided already: it blocks no one.
-    expect(statuses([chat("asks", { reply_proposals: [{ ...proposal, status: "drafting" }] })])).toEqual(["asks:idle"]);
+    // One being sent is decided already: it blocks no one.
+    expect(statuses([chat("asks", { reply_proposals: [{ ...proposal, status: "sending" }] })])).toEqual(["asks:idle"]);
   });
 
   test("heard live, they replace what the row said, and move the chat's face", () => {
