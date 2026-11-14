@@ -124,15 +124,8 @@ export function ContentList({
   useEffect(() => () => selectionRef.current?.stop(), []);
 
   const current = highlight !== null && highlight.over === selectedId ? highlight.id : selectedId;
-  // The rows drawn, a departed selected row held in place: kept in state and moved on during render, when the rows,
-  // the selection or the Search change (the React pattern for state derived from props).
   const searching = query.trim() !== "";
-  const [held, setHeld] = useState(() => ({ rows, current, searching, shown: rows }));
-  let shown = held.shown;
-  if (held.rows !== rows || held.current !== current || held.searching !== searching) {
-    shown = heldRows(rows, held.shown, current, searching);
-    setHeld({ rows, current, searching, shown });
-  }
+  const shown = useHeldRows(rows, current, searching);
   const ids = shown.map((r) => r.id);
   const tabStop = current !== null && ids.includes(current) ? current : (ids.at(0) ?? null);
   useImperativeHandle(ref, () => ({ act: (act) => selection().act(act), step: (dir) => selection().step(ids, dir) }));
@@ -141,13 +134,6 @@ export function ContentList({
   const focusRow = (id: string) => {
     for (const el of rowsRef.current?.querySelectorAll<HTMLElement>(".loki-list-row") ?? []) if (el.dataset.row === id) el.focus();
   };
-
-  const searchRef = useRef<HTMLInputElement>(null);
-  const searchable = onQuery !== undefined;
-  useEffect(() => {
-    if (!searchable) return;
-    return registerActions({ "list.search": () => searchRef.current?.focus() });
-  }, [searchable]);
 
   const row = (r: ContentRow) => {
     const { id, section: _section, ...look } = r;
@@ -174,59 +160,20 @@ export function ContentList({
 
   return (
     <section className="loki-content-list" aria-label={label}>
-      <div className="loki-content-list-bar" data-tauri-drag-region="deep">
-        <h2 className="loki-content-list-title">{title}</h2>
-        {count !== null && <span className="loki-content-list-count">{count}</span>}
-        {newAction && (
-          <IconButton
-            size={24}
-            label={newAction.label}
-            title={newAction.keys ? `${newAction.label} (${newAction.keys})` : newAction.label}
-            onClick={newAction.run}
-          >
-            <Icon name="plus" size={16} />
-          </IconButton>
-        )}
-      </div>
-      {searchable && (
-        <div className="loki-content-list-search">
-          <Field
-            ref={searchRef}
-            size="sm"
-            type="search"
-            name="list-search"
-            autoComplete="off"
-            data-1p-ignore
-            data-lpignore="true"
-            data-bwignore
-            data-form-type="other"
-            placeholder="Search"
-            aria-label={`Search ${label}`}
-            value={query}
-            onChange={(e) => onQuery(e.target.value)}
-          />
-        </div>
-      )}
+      <ListBar title={title} count={count} newAction={newAction} />
+      {onQuery && <ListSearch label={label} query={query} onQuery={onQuery} />}
       <div ref={rowsRef} className="loki-content-list-rows">
         {shown.length === 0 ? (
-          <div className="loki-content-list-empty">
-            {searching ? (
-              <p className="loki-content-list-empty-title">No Results</p>
-            ) : (
-              <>
-                <div>{empty}</div>
-                {newAction && <Button onClick={newAction.run}>{newAction.label}</Button>}
-              </>
-            )}
-          </div>
+          <ListEmpty searching={searching} empty={empty} newAction={newAction} />
         ) : (
-          groupsOf(shown).map((g, i) =>
+          // A group is keyed by its first row's id: rows are unique, so the key holds as the list reorders or filters.
+          groupsOf(shown).map((g) =>
             g.section === undefined ? (
-              <ul key={`rows-${i}`} className="loki-list">
+              <ul key={g.rows[0].id} className="loki-list">
                 {g.rows.map(row)}
               </ul>
             ) : (
-              <ListSection key={`${g.section}-${i}`} title={g.section}>
+              <ListSection key={g.rows[0].id} title={g.section}>
                 {g.rows.map(row)}
               </ListSection>
             ),
@@ -234,6 +181,79 @@ export function ContentList({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The rows drawn, a departed selected row held in place (heldRows): kept in state and moved on during render when the
+ * rows, the selection or the Search change, the React pattern for state derived from props.
+ */
+function useHeldRows(rows: readonly ContentRow[], current: string | null, searching: boolean): readonly ContentRow[] {
+  const [held, setHeld] = useState(() => ({ rows, current, searching, shown: rows }));
+  if (held.rows === rows && held.current === current && held.searching === searching) return held.shown;
+  const shown = heldRows(rows, held.shown, current, searching);
+  setHeld({ rows, current, searching, shown });
+  return shown;
+}
+
+/** The list's toolbar: the source's name, its grey count, and the place's New with its key in the tooltip. */
+function ListBar({ title, count, newAction }: Pick<ContentListProps, "title" | "newAction"> & { count: number | null }) {
+  return (
+    <div className="loki-content-list-bar" data-tauri-drag-region="deep">
+      <h2 className="loki-content-list-title">{title}</h2>
+      {count !== null && <span className="loki-content-list-count">{count}</span>}
+      {newAction && (
+        <IconButton
+          size={24}
+          label={newAction.label}
+          title={newAction.keys ? `${newAction.label} (${newAction.keys})` : newAction.label}
+          onClick={newAction.run}
+        >
+          <Icon name="plus" size={16} />
+        </IconButton>
+      )}
+    </div>
+  );
+}
+
+/** The list's Search field; while it shows, ⌥⌘F (`list.search`) focuses it. */
+function ListSearch({ label, query, onQuery }: { label: string; query: string; onQuery: (query: string) => void }) {
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => registerActions({ "list.search": () => searchRef.current?.focus() }), []);
+  return (
+    <div className="loki-content-list-search">
+      <Field
+        ref={searchRef}
+        size="sm"
+        type="search"
+        name="list-search"
+        autoComplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-bwignore
+        data-form-type="other"
+        placeholder="Search"
+        aria-label={`Search ${label}`}
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+      />
+    </div>
+  );
+}
+
+/** An empty list: "No Results" for a Search that matches nothing, else the source's sentence with its New. */
+function ListEmpty({ searching, empty, newAction }: { searching: boolean } & Pick<ContentListProps, "empty" | "newAction">) {
+  return (
+    <div className="loki-content-list-empty">
+      {searching ? (
+        <p className="loki-content-list-empty-title">No Results</p>
+      ) : (
+        <>
+          <div>{empty}</div>
+          {newAction && <Button onClick={newAction.run}>{newAction.label}</Button>}
+        </>
+      )}
+    </div>
   );
 }
 
