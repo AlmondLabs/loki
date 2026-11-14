@@ -48,7 +48,7 @@ export function NewAgent({
   return (
     <div
       className="flex-1"
-      style={{ minHeight: 0, overflowY: "auto", padding: "24px 28px" }}
+      style={{ minHeight: 0, overflowY: "auto", padding: "24px 20px" }}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void submit()}
     >
       <div className="grid gap-4" style={{ maxWidth: 640 }}>

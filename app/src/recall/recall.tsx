@@ -14,6 +14,7 @@ import {
   CardDetail,
   CardEditor,
   DismissedDetail,
+  LearnColumn,
   LeadDetail,
   LessonDetail,
   PreviousText,
@@ -270,19 +271,20 @@ export function Recall({
             minHeight: 0,
             overflowY: "auto",
             scrollbarGutter: "stable",
-            padding: "20px 24px 16px",
+            padding: "20px 20px 16px",
             boxSizing: "border-box",
           }}
         >
           {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the body, the
-            deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top.
-            The gutter is reserved so a long item's scrollbar does not shift the column sideways. */}
-          <div className="flex flex-1 flex-col gap-4" style={{ width: 760, maxWidth: "100%", margin: "0 auto" }}>
+            deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top,
+            at the title's edge (LearnColumn). The gutter is reserved so a long item's scrollbar does not shift the
+            column sideways. */}
+          <LearnColumn view={view}>
             <div key={view} className="flex flex-1 flex-col gap-4" style={{ animation: "loki-view-in 120ms ease-out" }}>
               {view !== "review" && snap && <Notices recall={recall} />}
               {body}
             </div>
-          </div>
+          </LearnColumn>
         </div>
       )}
     </div>

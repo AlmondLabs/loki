@@ -196,7 +196,7 @@ function ThreadBody({
   return (
     <MessageScroller data-new-thread className="flex-1">
       <MessageScrollerViewport preserveScrollOnPrepend onScroll={(ev: UIEvent<HTMLDivElement>) => nearTop(ev.currentTarget)} data-thread-scroll style={style}>
-        <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-5 text-body text-foreground">
+        <MessageScrollerContent className="w-full max-w-3xl gap-4 py-5 text-body text-foreground">
           {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
           {!rows && loadFailed && (
             <div role="alert" className="flex items-center gap-2 text-meta text-destructive">

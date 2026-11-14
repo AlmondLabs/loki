@@ -1808,10 +1808,9 @@ button.loki-list-section-toggle {
     color: var(--loki-negative);
   }
   .loki-new-chat-notice {
-    margin: 0 auto;
     width: 100%;
     max-width: 48rem;
-    padding: 0 24px 6px;
+    padding: 0 20px 6px;
   }
 
   /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as

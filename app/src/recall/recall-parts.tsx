@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { GaugeIcon, MessagesSquareIcon, RepeatIcon, type LucideIcon } from "lucide-react";
 import { isNew } from "../../../core/recall/fsrs.ts";
 import {
@@ -15,6 +15,7 @@ import { ago } from "../desk/catch-up-parts";
 import { Setting } from "../settings/layout";
 import { Glyph } from "../shared/icons";
 import { dueWord, writtenLine } from "./learn-list";
+import type { LearnView } from "./views";
 import { WELCOME_LINE, WELCOME_MORE, WELCOME_TITLE, welcomeRows, type WelcomeRow } from "./welcome";
 
 /** The pieces around the deck: the source line, the card editor, the details of what Learn's lists hold, the key legend. */
@@ -81,6 +82,18 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
       </Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
       <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
+    </div>
+  );
+}
+
+/**
+ * Learn's reading column, 760px wide. The review deck is a focus state, so it sits in the middle of the pane as Apple
+ * centres one; the other views' items and the notices start at the pane title's 20px edge (plan 2026-11-14-2224, KTD3).
+ */
+export function LearnColumn({ view, children }: { view: LearnView; children: ReactNode }) {
+  return (
+    <div className="flex flex-1 flex-col gap-4" style={{ width: 760, maxWidth: "100%", ...(view === "review" ? { margin: "0 auto" } : {}) }}>
+      {children}
     </div>
   );
 }
