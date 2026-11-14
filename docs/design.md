@@ -59,8 +59,8 @@ Type scale, Tailwind's own four sizes as Tailwind ships them, at the browser's d
 meta, tags, labels (`.loki-label`) and fine print · **`text-sm` 14** body and list rows · **`text-base` 16** a window
 or section title · **`text-2xl` 24** a pane's large title. A stylesheet reads the same sizes as `var(--text-xs)` and so
 on. loki defines no sizes of its own, so the views and the agents' widgets share one vocabulary; a class also sets
-Tailwind's paired line height. Phone-only rules keep the phone's scale (`--phone-text-*`). One face: the system sans (`--loki-font`); `--loki-display` and `--loki-label`
-are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
+Tailwind's paired line height. Phone-only rules keep the phone's scale (`--phone-text-*`). One face: the system
+sans (`--loki-font`); `--loki-display` and `--loki-label` are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
 Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
 
 Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48**,

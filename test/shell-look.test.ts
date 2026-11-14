@@ -196,14 +196,11 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
 });
 
 describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
-  const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
-  const phone = readFileSync(join(APP, "phone", "phone.css"), "utf8");
+  // The ban on --loki-text-* and on literal font sizes lives in tokens.test.ts, which reads every file.
   const styles = readFileSync(join(APP, "styles.css"), "utf8");
   const index = readFileSync(join(APP, "..", "index.html"), "utf8");
 
-  test("loki defines no text sizes of its own: no --loki-text-* and no --text-* in its theme", () => {
-    expect(tokens).not.toMatch(/--loki-text-/);
-    expect(phone).not.toMatch(/--loki-text-/);
+  test("loki's theme names no text sizes of its own", () => {
     expect(styles).not.toMatch(/^\s*--text-[\w-]+:/m);
   });
 
@@ -214,20 +211,6 @@ describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
 
   test("the four sizes are always emitted, for the stylesheets that read them outside Tailwind's graph", () => {
     expect(styles).toContain('@source inline("text-xs text-sm text-base text-2xl");');
-  });
-
-  test("no literal font-size or fontSize outside the phone", async () => {
-    const { readdirSync, statSync } = await import("node:fs");
-    const walk = (dir: string): string[] =>
-      readdirSync(dir).flatMap((n) => {
-        const p = join(dir, n);
-        return statSync(p).isDirectory() ? (n === "phone" ? [] : walk(p)) : /\.(tsx|ts|css)$/.test(n) ? [p] : [];
-      });
-    const hits = walk(APP).flatMap((p) => {
-      const text = readFileSync(p, "utf8");
-      return [...text.matchAll(/font-size: [\d.]+px|fontSize: [\d.]+\b/g)].map((m) => `${p.slice(APP.length + 1)}: ${m[0]}`);
-    });
-    expect(hits).toEqual([]);
   });
 });
 
