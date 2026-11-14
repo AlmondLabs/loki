@@ -97,7 +97,7 @@ function QuestionCardFor({
                         style={{
                           width: 8,
                           height: 8,
-                          borderRadius: 1,
+                          borderRadius: 2,
                           border: `1px solid ${on ? "var(--loki-accent)" : "var(--loki-muted)"}`,
                           background: on ? "var(--loki-accent)" : "transparent",
                         }}
