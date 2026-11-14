@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
 import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyPersonChoice, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
-import { liveMentions, mentionSpans, writeMentions } from "../core/mentions.ts";
+import { lastByName, liveMentions, mentionSpans, writeMentions } from "../core/mentions.ts";
 import { replyMentionOf, type ChatState, type ReplyAction, type ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
@@ -31,8 +31,10 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
  * thread as the person. The agent has no way to send (R14). It names the thread, the text and files from its chat's
  * folder, never who it goes to: a Gmail reply goes to all of the newest message's people but the person, exactly as
  * the card showed them (a change stops it, KTD4), a Slack reply into the same conversation and thread, a Jira comment
- * onto the ticket, so a stranger's mail that asks the agent to send something elsewhere can at most yield a reply to
- * the thread's own people.
+ * onto the ticket. Beyond them, only the people it mentions are told, each resolved in the account and named on the
+ * card (plan 2026-11-14-1530): Slack and Jira notify them, and Gmail adds them to cc. So a stranger's mail that asks the
+ * agent to send something elsewhere yields at most a reply in a thread of the account, to its own people and anyone the
+ * card names as mentioned, which the person reads before their Send.
  *
  * Each chat's proposals live in `state/reply-proposals.json`, beside the notices its agent has yet to read. A proposal
  * moves from pending to sending, and from there to sent, or back to pending on Undo or a send that did not go; or from
@@ -354,11 +356,18 @@ export class ReplyProposals implements AgentReplyReports {
     if (wanted.length === 0) return { text, mentions: [] };
     const people = this.opts.people;
     if (!people) throw new Error("mentions cannot be resolved on this Mac: write the reply without them");
+    // Every entry is found in the text and rewritten together, in one longest-first pass, so an entry that begins
+    // another (`sam` and `sam.lee`) never matches inside the longer name or inside a name an earlier rewrite wrote.
+    const standing = new Set(
+      mentionSpans(
+        text,
+        wanted.map((display) => ({ display })),
+      ).map((s) => s.mention.display.toLowerCase()),
+    );
+    const resolved: Array<{ display: string; mention: ReplyMention }> = [];
     const mentions: ReplyMention[] = [];
-    let out = text;
     for (const entry of wanted) {
-      if (mentionSpans(out, [{ display: entry }]).length === 0)
-        throw new Error(`@${entry} is not in the text: write it there as @${entry}, or leave it out of mentions`);
+      if (!standing.has(entry.toLowerCase())) throw new Error(`@${entry} is not in the text: write it there as @${entry}, or leave it out of mentions`);
       const jira = account.provider === "jira" && where.place ? { jira: { kind: "ticket" as const, ticket: where.place } } : {};
       const found = await people.resolve(account.account_id, entry, jira);
       if (!found.ok) throw new Error(found.why);
@@ -367,17 +376,20 @@ export class ReplyProposals implements AgentReplyReports {
         person.provider === "gmail"
           ? { display: person.display, id: null, address: person.address }
           : { display: person.display, id: person.id, address: null };
-      out = writeMentions(
-        out,
-        [{ display: entry }],
-        (t) => t,
-        () => `@${mention.display}`,
-      ).join("");
+      resolved.push({ display: entry, mention });
       if (!mentions.some((m) => m.display === mention.display && m.id === mention.id && m.address === mention.address)) mentions.push(mention);
     }
+    const out = writeMentions(
+      text,
+      resolved,
+      (t) => t,
+      (r) => `@${r.mention.display}`,
+    ).join("");
     if (account.provider === "slack" && this.opts.members) {
-      const members = await this.opts.members(account.account_id, slackPlace(where.thread_id).channel);
-      return { text: out, mentions: mentions.map((m) => (m.id && !members.has(m.id) ? { ...m, not_member: true } : m)) };
+      // Who is in the conversation only adds a note to the card, so a read Slack refuses (rate limited, say) leaves
+      // the mentions unmarked rather than refusing the reply.
+      const members = await this.opts.members(account.account_id, slackPlace(where.thread_id).channel).catch(() => null);
+      if (members) return { text: out, mentions: mentions.map((m) => (m.id && !members.has(m.id) ? { ...m, not_member: true } : m)) };
     }
     return { text: out, mentions };
   }
@@ -402,7 +414,9 @@ export class ReplyProposals implements AgentReplyReports {
           : { display: f.display, id: f.id, address: null, detail: f.detail },
       );
     if (p.provider !== "slack" || !this.opts.members || choices.length === 0) return { people: choices, notice: found.notice };
-    const members = await this.opts.members(p.account_id, slackPlace(p.thread_id).channel);
+    // As for an agent's mentions, a membership read that fails leaves the people found unmarked, not the search failed.
+    const members = await this.opts.members(p.account_id, slackPlace(p.thread_id).channel).catch(() => null);
+    if (!members) return { people: choices, notice: found.notice };
     return { people: choices.map((c) => (c.id && !members.has(c.id) ? { ...c, not_member: true } : c)), notice: found.notice };
   }
 
@@ -548,9 +562,10 @@ export class ReplyProposals implements AgentReplyReports {
       // The person's edits and the files they kept are kept whatever happens next, so Undo or a refusal returns them (R5).
       const kept = (p.attachments ?? []).filter((f) => !opts.files || opts.files.includes(f.name));
       // The mentions the agent stored and those the person picked on the card count only while their `@display` is
-      // still in the text as sent (KTD6); a person picked twice is kept once.
+      // still in the text as sent (KTD6); a person picked twice is kept once, and a pick takes the place of a mention
+      // with the same name, since the text tells them apart by name alone.
       const text = edited ?? p.text;
-      const mentions = liveMentions(text, uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])]));
+      const mentions = liveMentions(text, lastByName(uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])])));
       const edits = withMentionList(withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept)), mentions);
       try {
         await checkedFiles(kept);
@@ -729,14 +744,26 @@ function sentNotice(p: ReplyProposal): string {
   ].join("\n");
 }
 
-/** A proposal as a tool result lists it: one line, with its id, where it goes, its files and how it stands. */
+/**
+ * A proposal as a tool result lists it: one line, with its id, where it goes, its files and how it stands, then who its
+ * mentions resolved to, so the agent sees whom the reply tells before the person sends it (plan 2026-11-14-1530).
+ */
 function proposalLine(p: ReplyProposal): string {
   const who = whoWords(p);
   const files = p.attachments?.length ? `with ${filesWords(p.attachments)}` : "";
-  return [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, files, p.status, p.reason && inert(p.reason)]
+  const line = [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, files, p.status, p.reason && inert(p.reason)]
     .filter(Boolean)
     .join(" · ");
+  return p.mentions?.length ? `${line}\nMentions: ${inert(p.mentions.map(mentionWords).join("; "))}` : line;
 }
+
+/** One mention as the agent is told of it: the name, and what the reply does for them. */
+const mentionWords = (m: ReplyMention): string =>
+  m.address
+    ? `${m.display} <${m.address}> (copied on the mail)`
+    : m.not_member
+      ? `${m.display} (not in this conversation: will not be notified)`
+      : `${m.display} (notified)`;
 
 /**
  * Register reply_propose for the agents that own an account, the notices that tell an agent what became of its replies
@@ -756,9 +783,9 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       "Propose a reply in a thread of an account you own: one the person handed to this chat, or one a script found " +
       "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person reviews it on a card, may edit " +
       "it or take its files off, and sends it from there as themselves; you cannot send it, and nothing goes before their " +
-      "Send. It goes only to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
-      "Slack: the same conversation and thread, or a new message in a conversation you are in), so there is no recipient " +
-      "to choose. On a Jira site it is a comment on any ticket you can see, its files attached to the ticket. The thread " +
+      "Send. It goes to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
+      "Slack: the same conversation and thread, or a new message in a conversation you are in), and to no one else but " +
+      "the people in `mentions`. On a Jira site it is a comment on any ticket you can see, its files attached to the ticket. The thread " +
       "need not be in Flow. " +
       "You hear what became of it with the next message.",
     parameters: {
@@ -775,7 +802,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
           type: "array",
           items: { type: "string" },
           description:
-            "People to mention, each as written after its @ in the text: a full name, an address, a Slack handle, or a token a refusal gave. Slack and Jira notify them; Gmail adds them to cc. A name that matches several people or nobody is refused with who matched: ask the person which one they mean. Any other @ in the text stays plain text.",
+            "People to mention, each as written after its @ in the text: a full name, an address, a Slack handle, or a token a refusal gave; a script's people_find looks them up first. Slack and Jira notify them; Gmail adds them to cc. A name that matches several people or nobody is refused with who matched: ask the person which one they mean. Any other @ in the text stays plain text.",
         },
         attachments: {
           type: "array",

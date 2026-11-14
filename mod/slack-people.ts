@@ -129,3 +129,53 @@ export class SlackPeople {
     return out;
   }
 }
+
+/** How long who is in a conversation is kept: a reply's card notes who will not be notified, and a few minutes late is fine. */
+const MEMBERS_TTL_MS = 5 * 60_000;
+
+/** The client calls reading who is in a conversation. */
+type MembersClient = Pick<SlackClient, "conversationsMembers">;
+
+/**
+ * Who is in each Slack conversation, for the note on a reply's mention of someone who will not be notified
+ * (plan 2026-11-14-1530, R22). The card's `@` picker asks on every search, and a large channel takes many pages, so
+ * each conversation is read once every few minutes at most, by one read that every ask meanwhile shares, and only its
+ * first pages; a read that fails is tried again next time.
+ */
+export class ChannelMembers {
+  private readonly client: (accountId: string) => MembersClient;
+  private readonly now: () => number;
+  private readonly read = new Map<string, { at: number; members: Promise<Set<string>> }>();
+
+  constructor(opts: { client: (accountId: string) => MembersClient; now?: () => number }) {
+    this.client = opts.client;
+    this.now = opts.now ?? Date.now;
+  }
+
+  /** The ids of the people in the account's conversation `channel`, as Slack listed them a few minutes ago at most. */
+  of(accountId: string, channel: string): Promise<Set<string>> {
+    const key = `${accountId}\n${channel}`;
+    const had = this.read.get(key);
+    if (had && this.now() - had.at < MEMBERS_TTL_MS) return had.members;
+    const members = this.readAll(accountId, channel).catch((err: unknown) => {
+      this.read.delete(key);
+      throw err;
+    });
+    this.read.set(key, { at: this.now(), members });
+    return members;
+  }
+
+  private async readAll(accountId: string, channel: string): Promise<Set<string>> {
+    const client = this.client(accountId);
+    const ids = new Set<string>();
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      // Each page names the next, so they are read one after another.
+      const r = await client.conversationsMembers(channel, cursor);
+      for (const id of r.members) ids.add(id);
+      cursor = r.next_cursor;
+      if (!cursor) break;
+    }
+    return ids;
+  }
+}

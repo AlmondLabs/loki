@@ -146,6 +146,8 @@ function resolvePerson(accountId: string, name: string, opts?: PeopleOptions): P
   if (accountId === SLACK) {
     if (n === "grace lee" || n === "grace") return { ok: true, person: { provider: "slack", display: "Grace Lee", id: "U5" } };
     if (n === "ravi") return { ok: true, person: { provider: "slack", display: "Ravi Kumar", id: "U9" } };
+    if (n === "sam") return { ok: true, person: { provider: "slack", display: "Sam Smith", id: "U3" } };
+    if (n === "sam.lee") return { ok: true, person: { provider: "slack", display: "Sam Lee", id: "U4" } };
   }
   if (accountId === SITE) {
     if (n === "vivek") return { ok: false, why: '"Vivek" matches 2 people on acme.atlassian.net: Vivek Rao (acc-vr); Vivek Shah (acc-vs)' };
@@ -227,6 +229,8 @@ async function fixture() {
   dirs.push(dir);
   const now = () => new Date("2026-11-04T12:00:00.000Z");
   const jira = fakeJira({ now });
+  // Who is in the Slack conversation: Grace, until a test has Slack refuse the read.
+  let readMembers = (): Promise<Set<string>> => Promise.resolve(new Set(["U5"]));
   const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), agentExists: () => true, now });
   await accounts.add({ account_id: MAIL, provider: "gmail", address: "ada@acme.com", owner_agent_id: WORK }, SECRET);
   await accounts.add({ account_id: SLACK, provider: "slack", address: "Acme", owner_agent_id: WORK });
@@ -376,7 +380,7 @@ async function fixture() {
         resolve: (accountId: string, name: string, opts?: PeopleOptions) => Promise.resolve(resolvePerson(accountId, name, opts)),
         find: (accountId: string, query: string) => Promise.resolve(findPeople(accountId, query)),
       },
-      members: () => Promise.resolve(new Set(["U5"])),
+      members: () => readMembers(),
       now,
     });
     outside.reportAgentRepliesTo(replies);
@@ -417,6 +421,10 @@ async function fixture() {
   return {
     dir,
     folder,
+    /** Slack refuses every read of who is in a conversation, as when it rate-limits the method. */
+    refuseMembers: () => {
+      readMembers = () => Promise.reject(new Error("ratelimited"));
+    },
     accounts,
     threads,
     box,
@@ -1118,7 +1126,10 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
 
   test("a Slack mention of someone outside the conversation is marked and still sends (R22)", async () => {
     const f = await fixture();
-    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@grace and @ravi, deploying at 9.", mentions: ["grace", "ravi"] });
+    // The agent is told at once whom its mentions reach.
+    expect(
+      await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@grace and @ravi, deploying at 9.", mentions: ["grace", "ravi"] }),
+    ).toContain("Mentions: Grace Lee (notified); Ravi Kumar (not in this conversation: will not be notified)");
     expect(f.only()).toMatchObject({
       text: "@Grace Lee and @Ravi Kumar, deploying at 9.",
       mentions: [
@@ -1146,6 +1157,38 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     expect(f.slack.mentioned.at(-1)).toEqual(["U5"]);
   });
 
+  test("mentions where one name begins the other are each found and written whole", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@sam and @sam.lee, deploying at 9.", mentions: ["sam", "sam.lee"] });
+    expect(f.only()).toMatchObject({
+      text: "@Sam Smith and @Sam Lee, deploying at 9.",
+      mentions: [
+        { display: "Sam Smith", id: "U3", address: null },
+        { display: "Sam Lee", id: "U4", address: null },
+      ],
+    });
+  });
+
+  test("when Slack will not say who is in the conversation, mentions and the picker still work, unmarked", async () => {
+    const f = await fixture();
+    f.refuseMembers();
+    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@ravi deploying at 9.", mentions: ["ravi"] });
+    expect(f.only()).toMatchObject({ text: "@Ravi Kumar deploying at 9.", mentions: [{ display: "Ravi Kumar", id: "U9", address: null }] });
+    expect(f.only().mentions?.[0]).not.toHaveProperty("not_member");
+    expect(await f.replies.findPeople(f.chat, f.only().id, "ravi")).toEqual({
+      people: [{ display: "Ravi Kumar", id: "U9", address: null, detail: null }],
+      notice: null,
+    });
+  });
+
+  test("a person picked on the card with the same name as the agent's mention is the one Send notifies", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@grace deploying at 9.", mentions: ["grace"] });
+    expect(f.only().mentions).toEqual([{ display: "Grace Lee", id: "U5", address: null }]);
+    await f.sendAndWait(f.only().id, { text: "@Grace Lee deploying at 9.", mentions: [{ display: "Grace Lee", id: "U7", address: null }] });
+    expect(f.slack.mentioned.at(-1)).toEqual(["U7"]);
+  });
+
   test("a stored proposal with mentions survives a restart; one from before mentions parses with none", async () => {
     const f = await fixture();
     await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Hi." });
@@ -1153,6 +1196,28 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     await f.replies.decide(f.chat, f.only().id, "undo", "desktop");
     f.restart();
     expect(f.only()).toMatchObject({ status: "pending", text: "Hi @Vivek Rao.", mentions: [vivek], in_flow: true });
+
+    // Written by a loki from before mentions: none of the fields this plan adds.
+    const file = join(f.dir, "reply-proposals.json");
+    const before = (v: unknown): unknown =>
+      Array.isArray(v)
+        ? v.map(before)
+        : typeof v === "object" && v !== null
+          ? Object.fromEntries(
+              Object.entries(v)
+                .filter(([k]) => !["mentions", "in_flow", "heard_by", "shared_outside"].includes(k))
+                .map(([k, x]) => [k, before(x)]),
+            )
+          : v;
+    writeFileSync(file, JSON.stringify(before(JSON.parse(readFileSync(file, "utf8"))), null, 2));
+    f.restart();
+    const old = f.only();
+    expect(old).toMatchObject({ status: "pending", text: "Hi @Vivek Rao." });
+    expect(old).not.toHaveProperty("mentions");
+    expect(old).not.toHaveProperty("in_flow");
+    await f.sendAndWait(old.id);
+    expect(f.only().status).toBe("sent");
+    expect(JSON.stringify(f.jira.posted.at(-1)?.body)).not.toContain('"type":"mention"');
   });
 });
 

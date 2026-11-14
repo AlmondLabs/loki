@@ -163,6 +163,28 @@ describe("the frame table", () => {
     expect(FRAMES.chat_send.parse({ ...base, steer: "yes" })).not.toHaveProperty("steer");
   });
 
+  test("the person's own reply carries the people picked in the box; anything else as mentions is refused (plan 2026-11-14-1530, R23)", () => {
+    const base = { account_id: "slack:T1:U0", thread_id: "C9:1700.1", text: "@Grace Lee look", then: "stay" };
+    expect(FRAMES.account_thread_reply.parse({ ...base, mentions: [{ display: "Grace Lee", id: "U5" }] })).toMatchObject({
+      mentions: [{ display: "Grace Lee", id: "U5", address: null }],
+    });
+    expect(FRAMES.account_thread_reply.parse(base)).toMatchObject({ mentions: [] });
+    expect(FRAMES.account_thread_reply.parse({ ...base, mentions: [{ display: "Grace Lee" }] })).toBe(
+      "mentions must be a list of people, each with a display name and an id or address",
+    );
+    expect(FRAMES.account_thread_reply.parse({ ...base, mentions: "Grace Lee" })).toBe(
+      "mentions must be a list of people, each with a display name and an id or address",
+    );
+  });
+
+  test("the card's @ picker asks with a query of 1 to 100 characters", () => {
+    const base = { agent_id: "agent-ira", conversation_id: "conv-1", proposal_id: "r1" };
+    expect(FRAMES.reply_people_find.parse({ ...base, query: "gr" })).toEqual({ ...base, query: "gr" });
+    expect(FRAMES.reply_people_find.parse(base)).toBe("query required");
+    expect(FRAMES.reply_people_find.parse({ ...base, query: "  " })).toBe("query required");
+    expect(FRAMES.reply_people_find.parse({ ...base, query: "a".repeat(101) })).toBe("query required");
+  });
+
   test("the background passes' settings: each part optional, wrong kinds refused", () => {
     expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: false } })).toEqual({ reflection: { enabled: false } });
     expect(FRAMES.chat_passes_set.parse({ acp: { enabled: false } })).toEqual({ acp: { enabled: false } });

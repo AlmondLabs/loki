@@ -37,7 +37,7 @@ import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer }
 import { Sockets } from "./sockets.ts";
 import { chatImageRoute } from "./chat-images.ts";
 import { OutsidePreviews, slackPreviews } from "./outside-previews.ts";
-import { SlackPeople } from "./slack-people.ts";
+import { ChannelMembers, SlackPeople } from "./slack-people.ts";
 import { createBridge } from "./bridge.ts";
 import { seenChatFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
@@ -418,6 +418,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const previews = new OutsidePreviews({ dir: paths.chatImages });
   // The people in each Slack workspace, read when a reply first asks, for @ suggestions and mentions (plan 082).
   const slackPeople = new SlackPeople({ client: slackClient });
+  const channelMembers = new ChannelMembers({ client: slackClient });
   // The people in each account by name (plan 2026-11-14-1530, KTD4): an agent's mentions, the card's picker and
   // people_find all search through this one, so they never disagree. A Gmail account's People API client is kept, since
   // each warms its searches once.
@@ -478,18 +479,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     threads,
     outside,
     people,
-    // Who is in a Slack conversation, read when a reply mentions someone (R22), every page of it.
-    members: async (accountId, channel) => {
-      const slack = slackClient(accountId);
-      const ids = new Set<string>();
-      let cursor: string | null = null;
-      do {
-        const page = await slack.conversationsMembers(channel, cursor);
-        for (const id of page.members) ids.add(id);
-        cursor = page.next_cursor;
-      } while (cursor);
-      return ids;
-    },
+    // Who is in a Slack conversation, read when a reply mentions someone (R22) and kept a few minutes, since the
+    // card's picker asks on every search.
+    members: (accountId, channel) => channelMembers.of(accountId, channel),
     // The clients read where a reply goes for its card, from the service itself (plan 2026-11-14-1530, KTD2); a Jira
     // link may name the site's own domain, which the keychain entry keeps beside the token.
     clientFor: (account): ReplyReads => {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { SlackPerson } from "../core/frame-types.ts";
 import type { SlackUser } from "../mod/slack.ts";
-import { SlackPeople, searchPeople } from "../mod/slack-people.ts";
+import { ChannelMembers, SlackPeople, searchPeople } from "../mod/slack-people.ts";
 
 const PEOPLE: SlackPerson[] = [
   { id: "U1", handle: "ravi.kumar", name: "Ravi Kumar", avatar: null },
@@ -67,6 +67,47 @@ describe("a workspace's people", () => {
     await expect(people.search("slack:T1:U0", "ana")).rejects.toThrow("ratelimited");
     failNext(false);
     expect(await people.search("slack:T1:U0", "ana")).toHaveLength(1);
+    expect(reads).toEqual([null, null, "next"]);
+  });
+});
+
+describe("who is in a conversation", () => {
+  /** Members over two pages; the clock and each read are the test's. */
+  const fixture = () => {
+    const clock = { t: 0 };
+    const reads: Array<string | null> = [];
+    let fail = false;
+    const members = new ChannelMembers({
+      now: () => clock.t,
+      client: () => ({
+        conversationsMembers: (_channel, cursor) => {
+          reads.push(cursor);
+          if (fail) return Promise.reject(new Error("ratelimited"));
+          return Promise.resolve(cursor ? { members: ["U2"], next_cursor: null } : { members: ["U1"], next_cursor: "next" });
+        },
+      }),
+    });
+    return { members, clock, reads, failNext: (on: boolean) => (fail = on) };
+  };
+
+  test("every page is read once for searches close together, sharing one read, and read again after a few minutes", async () => {
+    const { members, clock, reads } = fixture();
+    const [first, second] = await Promise.all([members.of("slack:T1:U0", "C9"), members.of("slack:T1:U0", "C9")]);
+    expect([...first]).toEqual(["U1", "U2"]);
+    expect(second).toBe(first);
+    await members.of("slack:T1:U0", "C9");
+    expect(reads).toEqual([null, "next"]);
+    clock.t = 6 * 60_000;
+    await members.of("slack:T1:U0", "C9");
+    expect(reads).toEqual([null, "next", null, "next"]);
+  });
+
+  test("a read that fails is tried again on the next ask", async () => {
+    const { members, reads, failNext } = fixture();
+    failNext(true);
+    await expect(members.of("slack:T1:U0", "C9")).rejects.toThrow("ratelimited");
+    failNext(false);
+    expect([...(await members.of("slack:T1:U0", "C9"))]).toEqual(["U1", "U2"]);
     expect(reads).toEqual([null, null, "next"]);
   });
 });

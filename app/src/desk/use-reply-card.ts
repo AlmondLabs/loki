@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReplyOutcome } from "../../../core/attention/chat-store.ts";
 import type { ReplyAttachment, ReplyMention, ReplyProposal } from "../../../core/frame-types.ts";
-import { liveMentions } from "../../../core/mentions.ts";
+import { lastByName, liveMentions } from "../../../core/mentions.ts";
 import type { ReplyAction, ReplyDecideOptions } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
 import { osWords } from "../shell/os-words";
@@ -38,7 +38,7 @@ export function replySend(
   removed: ReadonlySet<string>,
   picked: readonly ReplyMention[] = [],
 ): ReplyDecideOptions {
-  const mentions = liveMentions(edited ?? p.text, picked);
+  const mentions = liveMentions(edited ?? p.text, lastByName(picked));
   return {
     text: replyEdit(edited, p.text),
     files: (p.attachments ?? []).filter((f) => !removed.has(f.name)).map((f) => f.name),
@@ -46,13 +46,16 @@ export function replySend(
   };
 }
 
-/** The people a card's text mentions now: the agent's and those the person picked, each once, while their names are in it. */
+/**
+ * The people a card's text mentions now: the agent's and those the person picked, each once, while their names are in
+ * it. A pick takes the place of an agent's mention or an earlier pick with the same name, as the send does.
+ */
 export function cardMentions(text: string, p: Pick<ReplyProposal, "mentions">, picked: readonly ReplyMention[]): ReplyMention[] {
   const all = [
     ...(p.mentions ?? []),
     ...picked.filter((m) => !(p.mentions ?? []).some((x) => x.display === m.display && x.id === m.id && x.address === m.address)),
   ];
-  return liveMentions(text, all);
+  return liveMentions(text, lastByName(all));
 }
 
 /** The proposal's status and reason in one string, so a last action's message can be tied to the state it answered. */

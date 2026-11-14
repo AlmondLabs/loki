@@ -47,6 +47,15 @@ export function liveMentions<T extends Mentioned>(text: string, mentions: readon
 }
 
 /**
+ * The mentions with only the last of any that share a name, in any case. The text tells mentions apart by `@display`
+ * alone, so when the person picks someone whose name an earlier pick or the agent's mention already has, the later
+ * pick is the one they mean: two colleagues called Sam would otherwise leave every `@Sam` with whoever came first.
+ */
+export function lastByName<T extends Mentioned>(mentions: readonly T[]): T[] {
+  return mentions.filter((m, i) => !mentions.slice(i + 1).some((n) => n.display.toLowerCase() === m.display.toLowerCase()));
+}
+
+/**
  * `text` with each live mention written by `mention` and every other stretch by `plain`: how a service's own markup is
  * made from the stored mentions (Slack's `<@U…>`, a Jira document's mention node) and nothing else.
  */

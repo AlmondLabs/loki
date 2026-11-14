@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { insertMention, mentionAt } from "../app/src/desk/mentions.tsx";
+import { insertMention, isDismissed, mentionAt } from "../app/src/desk/mentions.tsx";
 import { PickedPeople } from "../core/attention/picked-people.ts";
 
 describe("the @ being typed in a reply (plan 082)", () => {
@@ -26,6 +26,22 @@ describe("the @ being typed in a reply (plan 082)", () => {
     expect(insertMention("hi @ra, look", 3, 6, "ravi.kumar")).toEqual({ text: "hi @ravi.kumar , look", caret: 15 });
     expect(insertMention("@an", 0, 3, "Ana Rao")).toEqual({ text: "@Ana Rao ", caret: 9 });
   });
+
+  test("a picked name keeps the list away while it stands; deleted and typed again at the same place, the list opens", () => {
+    const picked = { start: 0, query: "Grace Lee" };
+    expect(isDismissed({ start: 0, query: "Grace Lee " }, picked)).toBe(true);
+    expect(isDismissed({ start: 0, query: "Grace Lee can you look" }, picked)).toBe(true);
+    expect(isDismissed({ start: 0, query: "Ra" }, picked)).toBe(false);
+    expect(isDismissed({ start: 0, query: "Grace Le" }, picked)).toBe(false);
+    expect(isDismissed({ start: 12, query: "Grace Lee" }, picked)).toBe(false);
+    expect(isDismissed({ start: 0, query: "Ra" }, null)).toBe(false);
+  });
+
+  test("Esc keeps the list away while the person types on, and lets an @ typed afresh at the same place open it", () => {
+    const escaped = { start: 3, query: "ra" };
+    expect(isDismissed({ start: 3, query: "rav" }, escaped)).toBe(true);
+    expect(isDismissed({ start: 3, query: "an" }, escaped)).toBe(false);
+  });
 });
 
 describe("the people picked from a reply box (plan 2026-11-14-1530, R23)", () => {
@@ -37,5 +53,12 @@ describe("the people picked from a reply box (plan 2026-11-14-1530, R23)", () =>
     expect(picked.in("slack:T1:U1", "can you look")).toEqual([]);
     expect(picked.in("slack:T1:U1", "@Ravi Kumar can you look")).toEqual([]);
     expect(picked.in("slack:T2:U1", "@Grace Lee can you look")).toEqual([]);
+  });
+
+  test("of two people with one name, the one picked last is the one the name mentions", () => {
+    const picked = new PickedPeople();
+    picked.add("slack:T1:U1", { display: "Sam", id: "U1", address: null });
+    picked.add("slack:T1:U1", { display: "Sam", id: "U2", address: null });
+    expect(picked.in("slack:T1:U1", "@Sam can you look")).toEqual([{ display: "Sam", id: "U2", address: null }]);
   });
 });

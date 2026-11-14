@@ -58,16 +58,28 @@ export function MentionMarks({ text, mentions, field }: { text: string; mentions
     const box = field.current;
     const marks = layer.current;
     if (!box || !marks) return;
-    const style = getComputedStyle(box);
-    for (const k of COPIED) marks.style[k] = style[k];
-    marks.style.width = `${String(box.offsetWidth)}px`;
-    marks.style.height = `${String(box.offsetHeight)}px`;
-    marks.scrollTop = box.scrollTop;
+    // The layer is sized from the box's client width plus its borders, not its offset width, so a scroll bar the box
+    // draws (Windows' classic ones) narrows the layer's words as it narrows the box's. It sizes again whenever the box
+    // does, since a resized window rewraps the box's words without a key being typed.
+    const fit = () => {
+      const style = getComputedStyle(box);
+      for (const k of COPIED) marks.style[k] = style[k];
+      const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+      marks.style.width = `${String(box.clientWidth + borders)}px`;
+      marks.style.height = `${String(box.offsetHeight)}px`;
+      marks.scrollTop = box.scrollTop;
+    };
+    fit();
     const follow = () => {
       marks.scrollTop = box.scrollTop;
     };
     box.addEventListener("scroll", follow);
-    return () => box.removeEventListener("scroll", follow);
+    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    resized?.observe(box);
+    return () => {
+      box.removeEventListener("scroll", follow);
+      resized?.disconnect();
+    };
   }, [field, text, shown]);
   if (!shown) return null;
   const out: ReactNode[] = [];
