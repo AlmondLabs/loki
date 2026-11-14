@@ -460,6 +460,7 @@ describe("frames: suggestions (plan 049)", () => {
       action: "approve",
       text: "edited",
       files: ["a.pdf"],
+      mentions: null,
     });
     // A client from before Send still sends `replace`, which goes nowhere now.
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", replace: true })).toEqual({
@@ -468,6 +469,7 @@ describe("frames: suggestions (plan 049)", () => {
       action: "approve",
       text: null,
       files: null,
+      mentions: null,
     });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "undo" })).toMatchObject({ action: "undo", files: null });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "reject" })).toEqual({
@@ -476,6 +478,7 @@ describe("frames: suggestions (plan 049)", () => {
       action: "reject",
       text: null,
       files: null,
+      mentions: null,
     });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "send" })).toBe("action must be approve, undo or reject");
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", files: [1] })).toBe("files must be a list of file names");

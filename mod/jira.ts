@@ -512,11 +512,12 @@ export class JiraClient {
   }
 
   /**
-   * Post the person's own comment on a ticket, as plain text (R17), and return the new comment's Jira id. Only the
-   * person's own send reaches this; with `attachFiles`, it is one of the two calls here that change anything in Jira.
+   * Post the person's own comment on a ticket, as plain text (R17) with Jira's own mention of each stored mention still
+   * in it (plan 2026-11-14-1530, R11), and return the new comment's Jira id. Only the person's own send reaches this;
+   * with `attachFiles`, it is one of the two calls here that change anything in Jira.
    */
-  async postComment(ticket: string, text: string): Promise<{ id: string }> {
-    const r = await this.call("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, undefined, { body: textToAdf(text) });
+  async postComment(ticket: string, text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> = []): Promise<{ id: string }> {
+    const r = await this.call("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, undefined, { body: textToAdf(text, mentions) });
     return { id: str(r.id) };
   }
 

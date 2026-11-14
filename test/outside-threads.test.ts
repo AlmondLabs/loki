@@ -31,7 +31,7 @@ import { OutsideThreads, type AgentReply, type PeopleChanged } from "../mod/outs
 import { md5 } from "../mod/google-tools/core.ts";
 import type { HeldFile, HeldProposal, HeldReply } from "../mod/mail-outbox.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
-import { SlackError, type SlackPostInput } from "../mod/slack.ts";
+import { SlackError, type SlackPostInput, type SlackStoredMentions } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { JIRA_ADA, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
@@ -103,7 +103,7 @@ function threads(
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
   const frequentReads = { n: 0 };
-  const posted: Array<SlackPostInput & { mentions?: ReadonlyMap<string, string> }> = [];
+  const posted: Array<SlackPostInput & { mentions?: SlackStoredMentions }> = [];
   /** Each Jira comment posted, as `[ticket, text]`. */
   const commented: Array<[string, string]> = [];
   /** Each Slack message posted with files: where, the text, and each file's name and bytes as text. */
@@ -459,8 +459,8 @@ describe("the person's reply", () => {
     await t.reply(SLACK, "C1:1.0", "on it", "archive");
     await t.reply(SLACK, "D1", "thanks", "archive");
     expect(posted).toEqual([
-      { channel: "C1", thread_ts: "1.0", text: "on it", mentions: new Map() },
-      { channel: "D1", text: "thanks", mentions: new Map() },
+      { channel: "C1", thread_ts: "1.0", text: "on it", mentions: [] },
+      { channel: "D1", text: "thanks", mentions: [] },
     ]);
     expect(archived).toEqual([`${SLACK}/C1:1.0`, `${SLACK}/D1`]);
   });
@@ -517,7 +517,7 @@ describe("the person's reply", () => {
   test("a sent reply whose archive fails answers sent with the archive's reason, and nothing is sent twice", async () => {
     const { t, posted } = threads({ thenFails: "Slack is out of reach" });
     expect(await t.reply(SLACK, "D1", "on it", "archive")).toEqual({ sent: true, then_error: "Slack is out of reach", change: null });
-    expect(posted).toEqual([{ channel: "D1", text: "on it", mentions: new Map() }]);
+    expect(posted).toEqual([{ channel: "D1", text: "on it", mentions: [] }]);
   });
   test("a Gmail thread with no one else in it is refused before anything is sent", async () => {
     const { t, sentMail } = threads({ gmail: [message("m1", 1, { From: "ada@acme.com", To: "ada@work.example", Subject: "note" })] });
@@ -730,16 +730,18 @@ describe("mentioning people in a Slack reply (plan 082)", () => {
     mentions: () => (fails ? Promise.reject(new Error("offline")) : Promise.resolve(new Map([["ravi.kumar", "U2"]]))),
   });
 
-  test("a reply carries the workspace's handles, so its @handles go as Slack's mentions", async () => {
+  test("a person picked in the reply box goes as Slack's mention; the same name typed by hand goes as text (plan 2026-11-14-1530, R23)", async () => {
     const { t, posted } = threads({ extra: { slackPeople: people() } });
+    await t.reply(SLACK, "D1", "@Ravi Kumar can you look", "archive", null, null, null, [{ display: "Ravi Kumar", id: "U2", address: null }]);
+    expect(posted[0]?.mentions).toEqual([{ display: "Ravi Kumar", id: "U2", address: null }]);
     await t.reply(SLACK, "D1", "@ravi.kumar can you look", "archive");
-    expect(posted[0]?.mentions).toEqual(new Map([["ravi.kumar", "U2"]]));
+    expect(posted[1]).toMatchObject({ text: "@ravi.kumar can you look", mentions: [] });
   });
 
-  test("people who cannot be read leave the handles as typed, and the reply still goes", async () => {
-    const { t, posted } = threads({ extra: { slackPeople: people(true) } });
-    await t.reply(SLACK, "D1", "@ravi.kumar can you look", "archive");
-    expect(posted[0]).toMatchObject({ text: "@ravi.kumar can you look", mentions: new Map() });
+  test("a picked person whose @name the person then deleted from the text is not mentioned", async () => {
+    const { t, posted } = threads({ extra: { slackPeople: people() } });
+    await t.reply(SLACK, "D1", "can you look", "archive", null, null, null, [{ display: "Ravi Kumar", id: "U2", address: null }]);
+    expect(posted[0]?.mentions).toEqual([]);
   });
 
   test("the search reaches the workspace's people; a mail account has none to mention", async () => {
@@ -973,6 +975,7 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
       text: "Friday works.",
       files: [],
       attached: [],
+      mentions: [],
       people: null,
       proposal: PROPOSAL,
       ...over,
@@ -1018,7 +1021,7 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
     h.tm.fire();
     await until(() => h.sent.length === 2);
     expect(h.postedFiles).toEqual([{ channel: "C9", thread_ts: "1700.1", text: "Deployed, see the graph.", files: [["shot.png", "png bytes"]] }]);
-    expect(h.posted).toEqual([{ channel: "D1", text: "On it.", mentions: new Map() }]);
+    expect(h.posted).toEqual([{ channel: "D1", text: "On it.", mentions: [] }]);
     expect(h.calls.sort()).toEqual(["postReply D1", "postWithFiles C9"]);
     expect(h.moves).toEqual([]);
   });

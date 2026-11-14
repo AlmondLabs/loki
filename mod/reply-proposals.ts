@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { ReplyAttachment, ReplyHeardBy, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
-import type { ChatState, ReplyAction, ReplyDecideOptions } from "../core/frames.ts";
+import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import { liveMentions } from "../core/mentions.ts";
+import { replyMentionOf, type ChatState, type ReplyAction, type ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
 import type { AccountThreads } from "./account-threads.ts";
@@ -163,6 +164,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const removed = strings("people_removed");
   const attached = strings("attached");
   const heardBy = parseHeardBy(r.heard_by);
+  const mentions = Array.isArray(r.mentions) ? r.mentions.flatMap((m) => replyMentionOf(m) ?? []) : [];
   return {
     id,
     account_id: account,
@@ -187,6 +189,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
     ...(typeof r.in_flow === "boolean" ? { in_flow: r.in_flow } : {}),
     ...(r.shared_outside === true ? { shared_outside: true } : {}),
     ...(heardBy ? { heard_by: heardBy } : {}),
+    ...(mentions.length ? { mentions } : {}),
   };
 }
 
@@ -228,6 +231,21 @@ const keyOf = (chat: ChatKey) => `${chat.agent_id}/${chat.conversation_id}`;
 function withFiles(p: ReplyProposal, files: readonly ReplyAttachment[]): ReplyProposal {
   const { attachments: _was, ...rest } = p;
   return files.length ? { ...rest, attachments: [...files] } : rest;
+}
+
+/** A proposal with its mentions as given: the field left out when there are none, as one without is stored. */
+function withMentionList(p: ReplyProposal, mentions: readonly ReplyMention[]): ReplyProposal {
+  const { mentions: _was, ...rest } = p;
+  return mentions.length ? { ...rest, mentions: [...mentions] } : rest;
+}
+
+/** Mentions with each person once, by their service id or address, the first kept. */
+function uniqueMentions(list: readonly ReplyMention[]): ReplyMention[] {
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    const key = `${m.id ?? ""}|${m.address?.toLowerCase() ?? ""}|${m.display}`;
+    return !seen.has(key) && seen.add(key);
+  });
 }
 
 /** A proposal without the marks of who joined or left its thread, which a new Send clears. */
@@ -446,7 +464,11 @@ export class ReplyProposals implements AgentReplyReports {
       if (refused || !account) return put({ ...p, reason: refused }, false, refused);
       // The person's edits and the files they kept are kept whatever happens next, so Undo or a refusal returns them (R5).
       const kept = (p.attachments ?? []).filter((f) => !opts.files || opts.files.includes(f.name));
-      const edits = withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept));
+      // The mentions the agent stored and those the person picked on the card count only while their `@display` is
+      // still in the text as sent (KTD6); a person picked twice is kept once.
+      const text = edited ?? p.text;
+      const mentions = liveMentions(text, uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])]));
+      const edits = withMentionList(withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept)), mentions);
       try {
         await checkedFiles(kept);
       } catch (err) {
@@ -477,6 +499,7 @@ export class ReplyProposals implements AgentReplyReports {
           attached: kept.filter((f) => before.has(f.name)).map((f) => f.name),
           people: p.provider === "gmail" ? { to: p.to, cc: p.cc } : null,
           proposal: { agent_id: chat.agent_id, conversation_id: chat.conversation_id, proposal_id: p.id },
+          mentions,
         });
       } catch (err) {
         return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));

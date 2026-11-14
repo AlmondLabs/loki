@@ -12,7 +12,7 @@ import type { AccountStatus } from "../core/frame-types.ts";
 import { messageOf } from "../core/errors.ts";
 import { log } from "./log.ts";
 import type { SlackSession } from "./slack-session.ts";
-import { withMentions } from "./slack-people.ts";
+import { writeMentions } from "../core/mentions.ts";
 
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
@@ -202,6 +202,12 @@ export interface SlackUser {
   image?: string;
 }
 
+/**
+ * The people a post mentions (plan 2026-11-14-1530, KTD8): each by the name the text shows them by and their Slack id.
+ * Only these become Slack's `<@U…>`; any other `@` in the text is posted as typed.
+ */
+export type SlackStoredMentions = ReadonlyArray<{ display: string; id: string | null }>;
+
 /** A reply to post in one conversation, in a thread when `thread_ts` is given. */
 export interface SlackPostInput {
   channel: string;
@@ -268,8 +274,13 @@ const parsePage = (r: Record<string, unknown>): SlackMessagePage => ({
  * The person's text as Slack should show it: Slack reads <, > and & as its markup, so they are escaped to arrive as
  * typed, and only an @handle loki knows becomes Slack's mention (plan 082).
  */
-const replyText = (text: string, mentions: ReadonlyMap<string, string> | undefined): string =>
-  withMentions(text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), mentions ?? new Map());
+const replyText = (text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> | undefined): string =>
+  writeMentions(
+    text,
+    (mentions ?? []).filter((m) => m.id),
+    (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+    (m) => `<@${m.id ?? ""}>`,
+  ).join("");
 
 /** Whether an address is on files.slack.com over https: the only place outside the API that the session is sent. */
 const isFilesHost = (url: string): boolean => url.startsWith("https://files.slack.com/");
@@ -491,7 +502,7 @@ export class SlackClient {
    * Post the person's own reply (plan 068): in the thread when `thread_ts` names one, else in the conversation. Only the
    * person's reply frame calls this; no agent tool is given it.
    */
-  async postReply(input: SlackPostInput & { mentions?: ReadonlyMap<string, string> }): Promise<{ ts: string }> {
+  async postReply(input: SlackPostInput & { mentions?: SlackStoredMentions }): Promise<{ ts: string }> {
     const text = replyText(input.text, input.mentions);
     const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
     return { ts: typeof r.ts === "string" ? r.ts : "" };
@@ -503,9 +514,7 @@ export class SlackClient {
    * conversation or thread with the text as their comment. An address off files.slack.com is refused before anything
    * is sent there, so the session never leaves Slack. Nothing is retried: Slack takes a completion only once.
    */
-  async postWithFiles(
-    input: SlackPostInput & { mentions?: ReadonlyMap<string, string>; files: ReadonlyArray<{ name: string; data: Uint8Array }> },
-  ): Promise<void> {
+  async postWithFiles(input: SlackPostInput & { mentions?: SlackStoredMentions; files: ReadonlyArray<{ name: string; data: Uint8Array }> }): Promise<void> {
     const uploaded: Array<{ id: string; title: string }> = [];
     for (const file of input.files) {
       const r = await this.call("files.getUploadURLExternal", { filename: file.name, length: file.data.length });

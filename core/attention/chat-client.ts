@@ -12,6 +12,7 @@ import type {
   OutsideRead,
   OutsideReplied,
   OutsideWindowAsk,
+  ReplyMention,
   ReplyThen,
   SuggestionTarget,
 } from "../frame-types.ts";
@@ -337,7 +338,7 @@ export class FrameChatClient {
     text: string,
     then: ReplyThen,
     home: string | null,
-    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null } = {},
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null; mentions?: readonly ReplyMention[] } = {},
   ): Promise<OutsideReplied> {
     const r = await this.call(
       "account_thread_reply",
@@ -350,6 +351,7 @@ export class FrameChatClient {
         ...(extra.mail ? { mail: extra.mail } : {}),
         ...(extra.outbox_id ? { outbox_id: extra.outbox_id } : {}),
         ...(extra.thread_ts ? { thread_ts: extra.thread_ts } : {}),
+        mentions: [...(extra.mentions ?? [])],
       },
       // A held mail reply answers once its undo time is over and it went (plan 076).
       60_000,

@@ -275,10 +275,14 @@ describe("the workspace's people and mentions in a reply (plan 082)", () => {
     expect(sent[1]?.params.cursor).toBe("dXNlcjpVMg==");
   });
 
-  test("a reply's known @handles go as Slack's mentions, the rest of its words escaped as typed", async () => {
+  test("a reply's stored mentions go as Slack's, every other @ and the rest of its words escaped as typed", async () => {
     const { c, sent } = client(() => ({ body: { ok: true, ts: "1.0" } }));
-    await c.postReply({ channel: "D1", text: "@ravi.kumar <b> & @nobody, ask ravi@example.test", mentions: new Map([["ravi.kumar", "U1"]]) });
-    expect(sent[0]?.params.text).toBe("<@U1> &lt;b&gt; &amp; @nobody, ask ravi@example.test");
+    await c.postReply({
+      channel: "D1",
+      text: "@Ravi Kumar <b> & @nobody, ask ravi@example.test or @ravi.kumar",
+      mentions: [{ display: "Ravi Kumar", id: "U1" }],
+    });
+    expect(sent[0]?.params.text).toBe("<@U1> &lt;b&gt; &amp; @nobody, ask ravi@example.test or @ravi.kumar");
   });
 });
 
@@ -397,8 +401,8 @@ describe("a reply with files (plan 2026-11-14-1134, U3)", () => {
     await c.postWithFiles({
       channel: "C0GEN",
       thread_ts: "1.0",
-      text: "@ravi.kumar see <these> & those",
-      mentions: new Map([["ravi.kumar", "U1"]]),
+      text: "@Ravi Kumar see <these> & those",
+      mentions: [{ display: "Ravi Kumar", id: "U1" }],
       files: FILES,
     });
     expect(asked.map((a) => a.url)).toEqual([

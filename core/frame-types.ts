@@ -702,6 +702,23 @@ export interface ReplyProposal {
   shared_outside?: boolean;
   /** Jira: who Jira usually tells of the comment, read from the ticket when proposed (R10). */
   heard_by?: ReplyHeardBy;
+  /**
+   * The people the reply mentions (plan 2026-11-14-1530, KTD3), resolved when proposed or picked on the card, each
+   * shown in the text as `@display`. Only those still in the text when it is sent are written as the service's own.
+   */
+  mentions?: ReplyMention[];
+}
+
+/**
+ * A person a reply mentions (plan 2026-11-14-1530, KTD3): the full name the text shows them by, and who they are in the
+ * service, a Slack user id or a Jira account id, or for Gmail the address a mention adds to cc.
+ */
+export interface ReplyMention {
+  display: string;
+  id: string | null;
+  address: string | null;
+  /** Slack: they are not in the conversation, so the mention will not notify them (R22). */
+  not_member?: boolean;
 }
 
 /**

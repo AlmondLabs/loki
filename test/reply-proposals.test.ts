@@ -10,7 +10,7 @@ import { ReplyProposalView } from "../app/src/item/proposal.tsx";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { buildItems, type ConversationInfo } from "../core/attention/model.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
-import { FRAMES } from "../core/frames.ts";
+import { FRAMES, type ReplyDecideOptions } from "../core/frames.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { asks, type PermissionMode } from "../daemon/approvals.ts";
 import type { ModApi, ModTool, OutgoingMessage, SectionInput } from "../daemon/mods/api.ts";
@@ -364,7 +364,7 @@ async function fixture() {
     ...attached.map((a) => `jira attach ${a.ticket}`),
   ];
   /** The person's Send, then the hold's 10 seconds passing, until the reply has gone or come back. */
-  const sendAndWait = async (id: string, opts: { text?: string; files?: string[] } = {}, by = "desktop") => {
+  const sendAndWait = async (id: string, opts: ReplyDecideOptions = {}, by = "desktop") => {
     const out = await live.replies.decide(chat, id, "approve", by, opts);
     if (!out.done) return out;
     await until(() => live.tm.pending().length > 0);
@@ -998,6 +998,57 @@ describe("a comment on a Jira ticket (plan 2026-11-10-1451, U8; plan 2026-11-14-
   });
 });
 
+describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
+  const vivek = { display: "Vivek Rao", id: "acc-vivek", address: null };
+  const ana = { display: "Ana Ruiz", id: null, address: "ana@example.com" };
+
+  test("a Jira comment writes a person picked on the card as Jira's own mention of their account (AE3)", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." });
+    await f.sendAndWait(f.only().id, { text: "@Vivek Rao rotating tonight, cc @nobody.", mentions: [vivek] });
+    expect(f.only()).toMatchObject({ status: "sent", mentions: [vivek] });
+    const body = JSON.stringify(f.jira.posted[0]?.body);
+    expect(body).toContain('{"type":"mention","attrs":{"id":"acc-vivek","text":"@Vivek Rao"}}');
+    expect(body).toContain('"text":" rotating tonight, cc @nobody."');
+  });
+
+  test("a Gmail mention passes the people check and adds its person to cc; deleted from the text, it adds no one (AE4)", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Friday works." });
+    await f.sendAndWait(f.only().id, { text: "Friday works, looping in @Ana Ruiz.", mentions: [ana] });
+    expect(f.only().status).toBe("sent");
+    const sent = mailOf(must(f.sentMail[0], "the mail").raw);
+    expect(sent.headers.Cc).toContain("ana@example.com");
+    expect(sent.text).toContain("@Ana Ruiz");
+
+    // Another thread, since Ana is on this one now.
+    f.box.deliver({ thread: "t-new", at: new Date("2026-11-04T13:00:00.000Z"), from: "Bo <bo@acme.com>", to: "ada@acme.com", subject: "Lunch" });
+    await f.call("reply_propose", { account: MAIL, thread: "t-new", text: "Again." });
+    const second = must(f.replies.list(f.chat).at(-1), "the second reply");
+    await f.replies.decide(f.chat, second.id, "approve", "desktop", { text: "Friday works.", mentions: [ana] });
+    await until(() => f.tm.pending().length > 0);
+    f.tm.fire();
+    await until(() => f.sentMail.length === 2);
+    expect(mailOf(must(f.sentMail[1], "the second mail").raw).headers.Cc ?? "").not.toContain("ana@example.com");
+  });
+
+  test("a Slack reply quoting a stranger's @handle, with no stored mention, notifies no one", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "As @grace said, deploying at 9." });
+    await f.sendAndWait(f.only().id);
+    expect(f.slack.posted.map((p) => p.text)).toEqual(["As @grace said, deploying at 9."]);
+  });
+
+  test("a stored proposal with mentions survives a restart; one from before mentions parses with none", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Hi." });
+    await f.replies.decide(f.chat, f.only().id, "approve", "desktop", { text: "Hi @Vivek Rao.", mentions: [vivek] });
+    await f.replies.decide(f.chat, f.only().id, "undo", "desktop");
+    f.restart();
+    expect(f.only()).toMatchObject({ status: "pending", text: "Hi @Vivek Rao.", mentions: [vivek], in_flow: true });
+  });
+});
+
 describe("files on a reply (plan 2026-11-14-1134, R8-R11)", () => {
   test("a Gmail reply carries files from the chat's folder, typed by name, kept by path and MD5, and the agent hears them", async () => {
     const f = await fixture();
@@ -1117,8 +1168,16 @@ describe("the reply frame (plan 2026-11-14-1134, KTD3)", () => {
       action: "approve",
       text: "Hello.",
       files: ["a.txt"],
+      mentions: null,
     });
     expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "undo" })).toMatchObject({ action: "undo", files: null });
+    // A person picked on the card comes resolved, with a name and a service id or an address (plan 2026-11-14-1530, KTD6).
+    expect(
+      parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "approve", mentions: [{ display: "Ana Ruiz", address: "ana@example.com" }] }),
+    ).toMatchObject({ mentions: [{ display: "Ana Ruiz", id: null, address: "ana@example.com" }] });
+    expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "approve", mentions: [{ display: "Ana" }] })).toBe(
+      "mentions must be a list of people, each with a display name and an id or address",
+    );
     expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "send" })).toBe("action must be approve, undo or reject");
     expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "approve", files: "a.txt" })).toBe("files must be a list of file names");
     // Through the bridge, as a client's frame arrives: Send, then Undo, each answered at once.

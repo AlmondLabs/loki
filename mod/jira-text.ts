@@ -1,4 +1,5 @@
 import type { SlackBlock, SlackSpan } from "../core/frame-types.ts";
+import { writeMentions } from "../core/mentions.ts";
 
 /**
  * Jira's text, both ways (plan 2026-11-10-1451, KTD15). Jira keeps a comment as a document of nested nodes (the
@@ -15,7 +16,7 @@ export interface JiraHistoryItem {
 }
 
 /** A piece of a paragraph in a document loki writes: text, or a line break. */
-export type JiraDocInline = { type: "text"; text: string } | { type: "hardBreak" };
+export type JiraDocInline = { type: "text"; text: string } | { type: "hardBreak" } | { type: "mention"; attrs: { id: string; text: string } };
 
 /** A document as loki writes one: paragraphs of text and line breaks, the plainest form Jira accepts. */
 export interface JiraDoc {
@@ -317,16 +318,26 @@ export function historyLines(items: readonly JiraHistoryItem[]): string[] {
 
 /**
  * The person's plain text as a Jira document: a paragraph for each run of lines, parted by blank lines, with a line
- * break for each single newline. Jira refuses an empty text node, so empty lines write nothing.
+ * break for each single newline. Jira refuses an empty text node, so empty lines write nothing. Each stored mention
+ * still in the text as `@display` becomes Jira's own mention of that account (plan 2026-11-14-1530, R11), which
+ * notifies them; nothing else does, whatever `@` the text holds.
  */
-export function textToAdf(text: string): JiraDoc {
+export function textToAdf(text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> = []): JiraDoc {
+  const people = mentions.filter((m): m is { display: string; id: string } => m.id !== null);
   const content: JiraDoc["content"] = [];
   for (const part of text.replace(/\r\n?/g, "\n").split(/\n{2,}/)) {
     const inlines: JiraDocInline[] = [];
     for (const line of part.split("\n")) {
       if (!line.trim()) continue;
       if (inlines.length) inlines.push({ type: "hardBreak" });
-      inlines.push({ type: "text", text: line });
+      inlines.push(
+        ...writeMentions<{ display: string; id: string }, JiraDocInline>(
+          line,
+          people,
+          (t) => ({ type: "text", text: t }),
+          (m) => ({ type: "mention", attrs: { id: m.id, text: `@${m.display}` } }),
+        ),
+      );
     }
     if (inlines.length) content.push({ type: "paragraph", content: inlines });
   }

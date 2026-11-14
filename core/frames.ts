@@ -53,6 +53,7 @@ import type {
   RecentFolders,
   ReflectionState,
   RefreshOutcome,
+  ReplyMention,
   ReplyProposal,
   SavedDraft,
   Suggestion,
@@ -196,11 +197,24 @@ const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; sug
  */
 export type ReplyAction = "approve" | "undo" | "reject";
 const REPLY_ACTIONS: readonly string[] = ["approve", "undo", "reject"] satisfies ReplyAction[];
-/** What a Send carries beside its action: the text as the person edited it, and the names of the files they kept (all when left out). */
+/**
+ * What a Send carries beside its action: the text as the person edited it, the names of the files they kept (all when
+ * left out), and the people they mentioned with the card's picker (plan 2026-11-14-1530, KTD6), already resolved.
+ */
 export interface ReplyDecideOptions {
   text?: string | null;
   files?: readonly string[] | null;
+  mentions?: readonly ReplyMention[] | null;
 }
+/** A mention a frame carries, or null when it is not one: a name, and a service id or an address. */
+export const replyMentionOf = (v: unknown): ReplyMention | null => {
+  const m = typeof v === "object" && v !== null ? (v as Raw) : {};
+  if (!str(m.display) || !m.display.trim()) return null;
+  const id = str(m.id) && m.id ? m.id : null;
+  const address = str(m.address) && m.address ? m.address : null;
+  if (!id && !address) return null;
+  return { display: m.display, id, address, ...(m.not_member === true ? { not_member: true } : {}) };
+};
 /** One end of a link as a frame names it: a chat, with its name. */
 const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title: string | null } | null => {
   const e = typeof v === "object" && v !== null ? (v as Raw) : {};
@@ -856,7 +870,10 @@ export const FRAMES = {
       if (!str(m.action) || !REPLY_ACTIONS.includes(m.action)) return "action must be approve, undo or reject";
       if (m.files !== undefined && m.files !== null && !allStrings(m.files)) return "files must be a list of file names";
       const files = allStrings(m.files) ? m.files : null;
-      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, files };
+      if (m.mentions !== undefined && m.mentions !== null && !(Array.isArray(m.mentions) && m.mentions.every((x) => replyMentionOf(x) !== null)))
+        return "mentions must be a list of people, each with a display name and an id or address";
+      const mentions = Array.isArray(m.mentions) ? m.mentions.flatMap((x) => replyMentionOf(x) ?? []) : null;
+      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, files, mentions };
     },
     PHONE,
     BY_CHAT,
@@ -1376,7 +1393,7 @@ export const FRAMES = {
   ),
   account_thread_reply: request(
     "account_thread_replied",
-    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does, or makes none (`stay`, plan 083); a Slack reply with `thread_ts` goes into that thread of the card's conversation, the one the person opened (plan 085); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does, or makes none (`stay`, plan 083); a Slack reply with `thread_ts` goes into that thread of the card's conversation, the one the person opened (plan 085), and its `mentions` are the people picked in the box, whose `@Full Name` still in the text become Slack's mentions (plan 2026-11-14-1530); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
         return "account_id, thread_id and text required";
@@ -1391,6 +1408,9 @@ export const FRAMES = {
       if (m.outbox_id !== undefined && (!str(m.outbox_id) || !/^[\w-]{8,64}$/.test(m.outbox_id))) return "outbox_id must be a short id";
       // Plan 085: the Slack thread the person opened on the card, which the reply goes into; left out, the card's place.
       if (m.thread_ts !== undefined && (!str(m.thread_ts) || !/^\d{1,12}\.\d{1,8}$/.test(m.thread_ts))) return "thread_ts must be a Slack message time";
+      // Plan 2026-11-14-1530 (R23): the people the person picked in the box, the only @names that become mentions.
+      if (m.mentions !== undefined && m.mentions !== null && !(Array.isArray(m.mentions) && m.mentions.every((x) => replyMentionOf(x) !== null)))
+        return "mentions must be a list of people, each with a display name and an id or address";
       return {
         account_id: m.account_id,
         thread_id: m.thread_id,
@@ -1399,6 +1419,7 @@ export const FRAMES = {
         mail,
         outbox_id: str(m.outbox_id) ? m.outbox_id : null,
         thread_ts: str(m.thread_ts) ? m.thread_ts : null,
+        mentions: Array.isArray(m.mentions) ? m.mentions.flatMap((x) => replyMentionOf(x) ?? []) : [],
         home: strOr(m.home, null),
       };
     },
