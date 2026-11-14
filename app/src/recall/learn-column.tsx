@@ -1,36 +1,36 @@
-import { ListIcon, ListRow, ListSection } from "../components";
+import type { RecallSnapshot } from "../../../core/recall/model.ts";
 import type { IconName } from "../shared/icons";
-import type { Recall as RecallModel } from "../shell/use-recall";
-import { useLearnView } from "./use-learn-view";
-import { learnViews, type LearnView } from "./views";
+import type { PlaceSources } from "../shell/sidebar";
+import { LEARN_VIEWS, learnViews, type LearnView } from "./views";
 
 const VIEW_ICON: Record<LearnView, IconName> = { review: "learn", leads: "link", all: "file", deleted: "archive" };
 
+/** Learn's own row in the sidebar: it stands for no one view, so choosing it keeps the view showing. */
+const LEARN_PLACE = "";
+
 /**
- * Learn's list column (plan 013 U11): the four views that were tabs, each with its count. Cards due for
- * review wear the red badge, as on the rail; the rest are quiet counts. Choosing one sets the pane's view.
+ * Learn's views as its sources in the sidebar (plan 2026-11-14-1330, R14), in the order ⌘[ ⌘] step them. Only Review
+ * has a grey count, the cards due, as Mail counts only the unread; the list's toolbar counts the rest. Choosing one
+ * shows that view's items in the list.
  */
-export function LearnColumn({ recall }: { recall: RecallModel }) {
-  const [view, setView] = useLearnView();
-  const loaded = !!recall.snap;
-  return (
-    <>
-      <div className="loki-column-scroll">
-        <ListSection title="Views">
-          {learnViews(recall.snap, recall.due).map((v) => (
-            <ListRow
-              key={v.view}
-              lead={<ListIcon name={VIEW_ICON[v.view]} />}
-              title={v.label}
-              badge={v.view === "review" ? v.count : null}
-              badgeNoun="due"
-              time={loaded && v.view !== "review" ? String(v.count) : null}
-              current={view === v.view}
-              onOpen={() => setView(v.view)}
-            />
-          ))}
-        </ListSection>
-      </div>
-    </>
-  );
+export function learnSources({
+  snap,
+  due,
+  view,
+  onView,
+}: {
+  snap: RecallSnapshot | null;
+  due: number;
+  view: LearnView;
+  onView: (view: LearnView) => void;
+}): PlaceSources {
+  return {
+    items: learnViews(snap, due).map((v) => ({ id: v.view, title: v.label, icon: VIEW_ICON[v.view], count: v.view === "review" ? due : 0 })),
+    selected: view,
+    all: LEARN_PLACE,
+    onSelect: (id) => {
+      const chosen = LEARN_VIEWS.find((v) => v === id);
+      if (chosen) onView(chosen);
+    },
+  };
 }

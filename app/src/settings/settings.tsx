@@ -503,7 +503,14 @@ function RecallPage({ recall }: { recall: RecallModel }) {
   return (
     <Block help="Flashcards written in the background from conversations that have gone quiet, and the leads it proposes. Learn is off until you turn it on.">
       {snap ? (
-        <RecallSettings worker={snap.worker} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} running={recall.running} />
+        <RecallSettings
+          worker={snap.worker}
+          onSettings={(s) => void recall.settings(s)}
+          onRun={() => void recall.run()}
+          running={recall.running}
+          onExport={() => void recall.exportCards()}
+          cardCount={snap.cards.length}
+        />
       ) : (
         <Setting label="Learn" help={recall.error ?? "Loading…"} />
       )}

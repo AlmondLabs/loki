@@ -3,36 +3,43 @@ import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall
 import { learnTitle, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
 import { lessonBrief } from "../../../core/recall/extract.ts";
 import { Button, Empty, Meta, PaneHeader } from "../components";
+import { ContentList, NothingSelected, type ContentListHandle, type ContentRow } from "../shell/content-list";
+import { PlaceColumns } from "../shell/place-columns";
 import { ToolbarTitle } from "../item/toolbar";
 import type { ItemProperty } from "../item/item-view";
 import { useNow } from "../components/use-now";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/use-recall";
 import {
+  CardDetail,
   CardEditor,
-  CardList,
-  DismissedLeadList,
-  LeadList,
+  DismissedDetail,
+  LeadDetail,
+  LessonDetail,
   PreviousText,
   RecallIntro,
   RecallKeys,
-  RejectedList,
+  RejectedDetail,
   SourceLine,
-  WorkerStrip,
 } from "./recall-parts";
+import { cardRows, deletedRows, dismissedRowId, holdDeckKeys, leadRowId, leadRows, lessonRowId, rejectedRowId, reviewRows, workerLine } from "./learn-list";
 import { useDeckPass } from "./use-deck-pass";
 import { useLearnView } from "./use-learn-view";
-import { stepLearnView, type LearnView as View } from "./views";
+import { LEARN_VIEW_LABEL, stepLearnView, type LearnView as View } from "./views";
 
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
 
+/** Each list view's chosen row; Review's is the card under your hands, held by the deck pass. */
+type Picked = Record<Exclude<View, "review">, string | null>;
+
 /**
- * Recall: the cards the worker wrote, one at a time. The front, then the answer on space, then one of two
- * answers — again, or got it — that schedules the next sight of it. No composer, no commands: the only ways
- * to shape what gets written are to delete a card (X — it joins the pile the worker reads as "not this")
- * or to edit it. New cards come first with a mark, so the first look at a card is also the chance to throw
- * it out. Beside the deck: the leads (things worth learning properly, each a lesson away), every card with
- * search, and the deleted pile with restore. The view is chosen in Learn's list column (useLearnView) or by ⌘[ ⌘].
+ * Learn, the place's owner (plan 2026-11-14-1330, KTD1, KTD10): the view, its Search, the row chosen in each view and
+ * the card being edited, drawn as the list column and the detail. The views are the sidebar's sources (learn-column.tsx)
+ * and ⌘[ ⌘] step them. Review is the cards the worker wrote, one at a time: the front, then the answer on space, then
+ * one of two answers — again, or got it — that schedules the next sight of it. Its list mirrors the due queue with the
+ * card under your hands selected, and choosing a row reviews that card next. Deleting a card (X) puts it on the pile
+ * the worker reads as "not this". Leads lists what is worth learning properly, each a lesson away; All Cards edits the
+ * card chosen in the detail; Deleted holds the deleted cards and the dismissed leads, with Restore.
  */
 export function Recall({
   recall,
@@ -46,6 +53,7 @@ export function Recall({
   onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
 }) {
   const { snap } = recall;
+  const now = useNow();
   const [view, setView] = useLearnView();
   const cards = snap?.cards ?? [];
   const pass = useDeckPass(cards);
@@ -54,20 +62,30 @@ export function Recall({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previousId, setPreviousId] = useState<string | null>(null);
   const editing = !!current && editingId === current.card.id;
+  /** All Cards' Search (it was the card list's own field). */
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<Picked>({ leads: null, all: null, deleted: null });
+  const pick = (v: keyof Picked, id: string | null) => setPicked((p) => ({ ...p, [v]: id }));
 
   const grade = (g: Grade) => {
     if (!current || !revealed) return;
     void recall.grade(current.card.id, g);
     pass.advance();
   };
-  const remove = () => {
-    if (!current) return;
-    void recall.remove(current.card.id);
-    pass.advance();
+  const remove = (id = current?.card.id) => {
+    if (!id) return;
+    void recall.remove(id);
+    pass.advance(id);
   };
-  const open = () => {
-    const s = current?.card.source;
+  const open = (id = current?.card.id) => {
+    const s = cards.find((c) => c.card.id === id)?.card.source;
     if (s?.agent_id && s.conversation_id) onOpenDesk(s.agent_id, s.conversation_id);
+  };
+  /** Review's list, so X, E and O act on the row the person sees: it commits a pending highlight first (KTD3). */
+  const listRef = useRef<ContentListHandle>(null);
+  const onSeen = (run: (id: string) => void) => {
+    if (listRef.current) listRef.current.act(run);
+    else if (current) run(current.card.id);
   };
   // Space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a pass
   // through the deck is → → → with ← for the ones that slipped.
@@ -78,9 +96,9 @@ export function Recall({
       reveal: () => answer(3),
       again: () => answer(1),
       good: () => answer(3),
-      remove,
-      edit: () => current && setEditingId(current.card.id),
-      open,
+      remove: () => onSeen(remove),
+      edit: () => onSeen(setEditingId),
+      open: () => onSeen(open),
     };
   });
   // The deck's keys, registered once per showing; the handlers above are read at press time.
@@ -96,7 +114,7 @@ export function Recall({
       "recall.undo": () => void recall.undo(),
     });
   }, [active, view, recall]);
-  // The section's own keys, whichever view shows: ⌘[ and ⌘] step the views, ⌘R refreshes.
+  // The place's own keys, whichever view shows: ⌘[ and ⌘] step the views (R16), ⌘R refreshes.
   useEffect(() => {
     if (!active) return;
     return registerActions({
@@ -105,6 +123,9 @@ export function Recall({
       "recall.refresh": () => void recall.refresh(),
     });
   }, [active, recall, view, setView]);
+
+  /** Return or Tab on a row: focus goes into the detail, where Review's keys answer the card. */
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const deck = current && (
     <Deck
@@ -116,9 +137,9 @@ export function Recall({
       showPrevious={previousId === current.card.id}
       onReveal={pass.reveal}
       onGrade={grade}
-      onDelete={remove}
+      onDelete={() => remove()}
       onEdit={() => setEditingId(current.card.id)}
-      onOpen={open}
+      onOpen={() => open()}
       onTogglePrevious={() => setPreviousId((p) => (p === current.card.id ? null : current.card.id))}
       onSave={(text) => {
         void recall.edit(current.card.id, text);
@@ -128,41 +149,183 @@ export function Recall({
     />
   );
 
-  return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column" }}>
-      <RecallHeader recall={recall} />
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          scrollbarGutter: "stable",
-          padding: "20px 24px 16px",
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the
-          body, the deck sits in the middle of what is left (a little above it, where the eye rests); the lists
-          start at the top. The gutter is reserved so a long list's scrollbar does not shift the column sideways. */}
-        <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
-            {view === "review" ? (
-              <ReviewView recall={recall} pass={pass}>
-                {deck}
-              </ReviewView>
-            ) : (
-              <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />
-            )}
-          </div>
-        </div>
-      </div>
+  const shown = viewList(view, { snap, pass, query, picked, now });
+  const listColumn = (
+    // Review's list keeps the deck's answers to itself while it has focus (holdDeckKeys): → browses, never grades.
+    <div className="loki-learn-list" onKeyDown={view === "review" ? (e) => holdDeckKeys(e.nativeEvent) : undefined}>
+      <ContentList
+        key={view}
+        {...(view === "review" ? { ref: listRef } : {})}
+        label={LEARN_VIEW_LABEL[view]}
+        title={LEARN_VIEW_LABEL[view]}
+        count={shown.rows.length || null}
+        line={view === "all" && snap ? workerLine(snap.worker, now) : undefined}
+        rows={shown.rows}
+        selectedId={shown.selectedId}
+        onSelect={(id) => (view === "review" ? pass.choose(id) : pick(view, id))}
+        onEnter={() => detailRef.current?.focus()}
+        empty={shown.empty}
+        {...(view === "all" ? { query, onQuery: setQuery } : {})}
+      />
     </div>
   );
+
+  const item = (): React.ReactNode => {
+    if (view === "review") {
+      return (
+        <ReviewView recall={recall} pass={pass}>
+          {deck}
+        </ReviewView>
+      );
+    }
+    // With no snapshot the notices are all there is to show (an error, most likely); the wrapper leaves them to this.
+    if (!snap) return <Notices recall={recall} />;
+    const chosen = shown.selectedId;
+    if (view === "leads") {
+      const lead = snap.leads.find((l) => leadRowId(l.id) === chosen);
+      const lesson = snap.lessons.find((s) => lessonRowId(s.conversation_id) === chosen);
+      if (lead) {
+        return (
+          <LeadDetail
+            lead={lead}
+            starting={recall.starting}
+            onStart={() =>
+              void recall.startLead(lead.id).then((started) => {
+                if (started) onBegin(started.agentId, started.conversationId, started.brief, started.title);
+              })
+            }
+            onDismiss={() => {
+              pick("leads", null);
+              void recall.dismissLead(lead.id);
+            }}
+            onOpen={onOpenDesk}
+          />
+        );
+      }
+      if (lesson) {
+        return (
+          <LessonDetail
+            lesson={lesson}
+            onOpen={() => onOpenDesk(lesson.agent_id, lesson.conversation_id)}
+            onResume={() => onBegin(lesson.agent_id, lesson.conversation_id, lessonBrief(lesson.lead), learnTitle(lesson.lead.title))}
+          />
+        );
+      }
+      return null;
+    }
+    if (view === "all") {
+      const c = cards.find((x) => x.card.id === chosen);
+      return c ? (
+        <CardDetail
+          c={c}
+          now={now}
+          onSave={(text) => void recall.edit(c.card.id, text)}
+          onDelete={() => {
+            pick("all", null);
+            void recall.remove(c.card.id);
+          }}
+        />
+      ) : null;
+    }
+    const r = snap.rejected.find((x) => rejectedRowId(x.card.id) === chosen);
+    if (r) {
+      return (
+        <RejectedDetail
+          r={r}
+          onRestore={() => {
+            pick("deleted", null);
+            void recall.restore(r.card.id);
+          }}
+          onForget={() => {
+            pick("deleted", null);
+            void recall.forget(r.card.id);
+          }}
+        />
+      );
+    }
+    const d = snap.dismissed_leads.find((x) => dismissedRowId(x.lead.id) === chosen);
+    return d ? (
+      <DismissedDetail
+        d={d}
+        onRestore={() => {
+          pick("deleted", null);
+          void recall.restoreLead(d.lead.id);
+        }}
+      />
+    ) : null;
+  };
+  const body = item();
+
+  const detail = (
+    <div ref={detailRef} tabIndex={-1} className="loki-learn-detail" onPointerDown={(e) => e.stopPropagation()}>
+      <RecallHeader recall={recall} />
+      {body === null ? (
+        <div style={{ position: "relative", flex: 1 }}>
+          <NothingSelected noun={NOUN[view]} />
+        </div>
+      ) : (
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            scrollbarGutter: "stable",
+            padding: "20px 24px 16px",
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the body, the
+            deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top.
+            The gutter is reserved so a long item's scrollbar does not shift the column sideways. */}
+          <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
+              {view !== "review" && snap && <Notices recall={recall} />}
+              {body}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return <PlaceColumns list={listColumn} detail={detail} />;
 }
 
-/** The title and the counts; the views are rows in the list column. */
+/** The item's name in each view's "No … Selected"; Review always shows the deck or what it says instead. */
+const NOUN: Record<View, string> = { review: "Card", leads: "Lead", all: "Card", deleted: "Item" };
+
+/**
+ * A view's list: its rows, the one selected, and the sentence it says when empty (KTD3). Review's selection is the
+ * card under your hands, falling back to the queue's first (KTD8); the other views select only what was chosen.
+ */
+function viewList(
+  view: View,
+  { snap, pass, query, picked, now }: { snap: RecallSnapshot | null; pass: ReturnType<typeof useDeckPass>; query: string; picked: Picked; now: number },
+): { rows: ContentRow[]; selectedId: string | null; empty: string } {
+  if (!snap) return { rows: [], selectedId: null, empty: "Loading…" };
+  switch (view) {
+    case "review":
+      return {
+        rows: reviewRows(pass.queue, now),
+        selectedId: pass.current?.card.id ?? null,
+        empty: snap.cards.length ? "Nothing is due." : snap.worker.enabled ? "No cards yet." : "Learn is off.",
+      };
+    case "leads":
+      return {
+        rows: leadRows(snap.leads, snap.lessons, now),
+        selectedId: picked.leads,
+        empty: snap.worker.enabled ? "No leads yet." : "Learn is off, so no leads are coming.",
+      };
+    case "all":
+      return { rows: cardRows(snap.cards, query, now), selectedId: picked.all, empty: "No cards yet." };
+    case "deleted":
+      return { rows: deletedRows(snap.rejected, snap.dismissed_leads, now), selectedId: picked.deleted, empty: "Nothing deleted." };
+  }
+}
+
+/** The title and the counts; the views are the sidebar's sources. */
 function RecallHeader({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   const cards = snap?.cards.length ?? 0;
@@ -216,62 +379,6 @@ function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: Ret
           </ReviewBody>
         )}
       </div>
-    </>
-  );
-}
-
-/** The three list views: leads, all cards with the worker strip, deleted (cards and leads). */
-function ListsView({
-  recall,
-  view,
-  onOpenDesk,
-  onBegin,
-}: {
-  recall: RecallModel;
-  view: View;
-  onOpenDesk: (agentId: string, conversationId: string) => void;
-  onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
-}) {
-  const { snap } = recall;
-  if (!snap) return <Notices recall={recall} />;
-  return (
-    <>
-      <Notices recall={recall} />
-      {view === "leads" && (
-        <LeadList
-          leads={snap.leads}
-          lessons={snap.lessons}
-          worker={snap.worker}
-          starting={recall.starting}
-          onStart={(id) =>
-            void recall.startLead(id).then((lesson) => {
-              if (lesson) onBegin(lesson.agentId, lesson.conversationId, lesson.brief, lesson.title);
-            })
-          }
-          onResume={(s) => onBegin(s.agent_id, s.conversation_id, lessonBrief(s.lead), learnTitle(s.lead.title))}
-          onDismiss={(id) => void recall.dismissLead(id)}
-          onOpen={onOpenDesk}
-        />
-      )}
-      {view === "all" && (
-        <>
-          <CardList cards={snap.cards} onEdit={(id, text) => void recall.edit(id, text)} onDelete={(id) => void recall.remove(id)} />
-          <WorkerStrip
-            worker={snap.worker}
-            running={recall.running}
-            onSettings={(s) => void recall.settings(s)}
-            onRun={() => void recall.run()}
-            onExport={() => void recall.exportCards()}
-            cardCount={snap.cards.length}
-          />
-        </>
-      )}
-      {view === "deleted" && (
-        <>
-          <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />
-          <DismissedLeadList dismissed={snap.dismissed_leads} onRestore={(id) => void recall.restoreLead(id)} />
-        </>
-      )}
     </>
   );
 }

@@ -202,23 +202,27 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 - **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the cards that wait on
   you as a list beside the selected card, see below. Its row in the sidebar carries the waiting count, the same number
   the tray title and dock badge show, and its lanes are listed under it.
-- **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
-  one works, the last thing it said, a count of what waits on you — and the chosen agent fills the pane with
-  a tab per page (a first visit lands on Memory); the "+" at the top of the sidebar makes a new agent. **Profile**: face, name, description and model
+- **Agents** (⌘4): your agents are listed under Agents in the sidebar — face, name, a green dot while one works, a
+  count of what waits on you — and choosing one keeps the page that was showing. The pages are tabs in the middle of
+  the detail's toolbar (a first visit lands on Memory); the list beside it holds the page's items, and the detail the
+  one chosen in it. **New Agent** ("+") sits in the list's toolbar. ⌘[ and ⌘] step the list. **Profile** has no
+  items, so its form takes the list's room too: face, name, description and model
   (editable), effort and context, "★ favourite" when it is one, where it is working (its live chats, each a
-  link, then **main chat** and **chats**), and delete at the bottom. **Memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
-  this". **Changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a commit by
-  reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
+  link, then **main chat** and **chats**), and delete at the bottom; deleting the agent shows the first one left.
+  **Memory**: the files in the list, under the folder each sits in, and the one you chose read beside it, with "ask
+  <agent> to update this". **Changes**: what it learned as memory commits in the list, newest first, the diff beside
+  it; a commit by reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
   as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **Reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
   every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
-  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
-  one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
+  compacted); the list holds reflection's runs among the latest changes, and the one you choose is read under the
+  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
+  one row each in the list, in two groups — **self**, the ones the agent (or you) wrote ("write" over the skill adds one, "install" takes a
   source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
-  CLI recorded, a source you typed once). Pick a skill and it opens on the right with its origin, whether the agent has
+  CLI recorded, a source you typed once). Choose a skill and it opens beside the list with its origin, whether the agent has
   edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is replaced
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
@@ -270,7 +274,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         order works", what each card's score is made of (see "The order").
      2. **Learn**: Learn's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
-        something new, at once), and the last run.
+        something new, at once), the last run, and Export for Anki (every card, in Anki's plain-text import format).
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
   6. **loki**
@@ -300,7 +304,7 @@ Backspace in the empty field, or the chip's ×, steps back out.
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
-(where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
+(where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
@@ -851,14 +855,18 @@ a revision, not a second card, for a later correction; a card the person keeps f
 conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space (or ↵ or ↓) for the answer, then one of two answers — ← again or → got it
 (1 and 2 do the same; space then stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
 the scheduler modern Anki uses.
-The sidebar lists four views, each with its count: **Review** (the deck), **Leads**, **All cards** and
-**Deleted**; ⌘[ and ⌘] step through them. New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
+Learn's views are its sources in the sidebar, under Learn: **Review** (the deck, with the count of cards due), **Leads**,
+**All Cards** and **Deleted**; ⌘[ and ⌘] step through them. The list beside the sidebar holds the view's cards or leads,
+and the detail the deck or the one you chose. In Review the list is the due queue with the card in front of you selected:
+the arrows browse it without answering anything, and choosing a row makes that card the next one, the rest keeping
+their order. The deck's keys answer while the detail has focus (Return or Tab from the list goes there). New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
 card (X or ⌫) is the signal.** Deleted cards move to a pile the worker reads before writing, as examples of what
 not to write, so a rejected card never comes back reworded; a card deleted after many failed reviews reads
 as "badly written", one deleted unseen as "not wanted". Cards you keep failing are offered back to the worker
-for a rewrite. E edits in place, O or ⌘O opens the chat it came from, Z undoes a delete, ⌘R refreshes. **All cards** lists every
-card with search and holds the writer's knobs — on/off, cards a day, run now — and an
-export in Anki's plain-text import format. Everything is files: `~/.loki/recall/{cards,schedule,rejected}/<id>.json`,
+for a rewrite. E edits in place, O or ⌘O opens the chat it came from, Z undoes a delete, ⌘R refreshes. **All Cards** lists every
+card, the newest edit first, with Search (⌥⌘F; fronts, backs and tags) and a grey line under its title saying when
+Learn last wrote and how many cards today; choosing one edits it in the detail, with Delete. The writer's knobs — on/off,
+cards a day, run now — and an export in Anki's plain-text import format are in Preferences › Learn. Everything is files: `~/.loki/recall/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the writer's edits never touch your schedule. The writer asks each agent in a
 hidden conversation of the agent's own, cleared before each run and with no tools, and only for concepts,
 principles and knowledge of your field that will still be true in months — never a detail of the task at hand;
@@ -868,13 +876,14 @@ conversations are never turned into the agent's memory.
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a
 lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — listed in the
-**Leads** view, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
+**Leads** view, newest first, at most twelve open. Choosing a lead shows it beside the list; **Start the Lesson** creates a `[Learn] · <title>` conversation
 with the agent that was there, puts an info card with the lead on its canvas, opens the chat on Messages and sends
 the brief as your first message: open with why this matters to you, furnish the canvas with the outline as a list you
 can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
-conversation is still empty) is listed under "lessons under way" with **send the brief**.
-**not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
-**Deleted**, with the deleted cards). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
+conversation is still empty) is listed under **Lessons Under Way** with **Send the Brief**.
+**Not This** moves the lead to a dismissed pile the writer reads before proposing again. **Deleted** lists the deleted
+cards and the dismissed leads in two sections, each with **Restore** (and **Forget** for a card, which drops it from the
+pile the writer reads). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
 Every chat row, chat header, message and card in Flow shows the face of the agent that owns the conversation (its

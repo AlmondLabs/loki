@@ -532,7 +532,7 @@ body {
   background: var(--loki-fg);
 }
 
-/* The Learn demo: the app's Learn column beside its review pane. */
+/* The Learn demo: the app's Learn views as its sidebar lists them, the view's list, and the deck or the item chosen. */
 .site-learn {
   display: flex;
   height: 560px;
@@ -543,8 +543,17 @@ body {
   width: 200px;
   display: flex;
   flex-direction: column;
+  padding: 8px 6px;
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
+}
+.site-learn-list {
+  flex: none;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--loki-border);
 }
 .site-learn-pane {
   position: relative;
@@ -636,7 +645,9 @@ body {
     border-top: 1px solid var(--loki-border);
     min-height: 220px;
   }
-  .site-learn-column {
+  /* A phone's width holds only the deck: the views and their list are the app's. */
+  .site-learn-column,
+  .site-learn-list {
     display: none;
   }
   .site-facts {
