@@ -8,8 +8,16 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 - Read [docs/style.md](docs/style.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
   code lives. Use the words in [glossary.md](glossary.md).
 - Match the code around you: its comment density, naming and idiom. Leave layout to Prettier (`npm run format`).
-- New behaviour gets a short dated plan in `docs/plans/` first; a change to what loki does gets its part in
-  `docs/manual.md` in the same PR.
+- Work in this repository goes through the `ce-*` skills:
+  - `ce-brainstorm` to scope an idea
+  - `ce-plan` for the plan
+  - `ce-doc-review` to review a plan
+  - `ce-work` to build it
+  - `ce-code-review` to review the change
+
+  If your agent can't see them, they live in `~/.agents/skills` (link them into `~/.claude/skills` for Claude Code).
+- New behaviour gets a short dated plan in `docs/plans/` first. The plan ships in the PR that builds it, not in a PR of
+  its own. A change to what loki does gets its part in `docs/manual.md` in the same PR.
 
 ## The rules that trip agents up
 
