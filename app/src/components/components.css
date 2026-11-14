@@ -63,12 +63,12 @@
 }
 .loki-btn--md {
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: var(--loki-text-body);
 }
 .loki-btn--touch {
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: var(--loki-text-body);
 }
 .loki-btn--paper {
@@ -135,7 +135,7 @@
   width: 100%;
   box-sizing: border-box;
   text-align: left;
-  padding: 8px 10px;
+  padding: 8px;
   border: 1px solid transparent;
   border-radius: var(--loki-radius-md);
   background: transparent;
@@ -167,7 +167,7 @@
   gap: 6px;
   box-sizing: border-box;
   min-height: 24px;
-  padding: 2px 10px;
+  padding: 2px 8px;
   border: 1px solid var(--loki-control-border);
   border-radius: var(--loki-radius-pill);
   background: transparent;
@@ -257,7 +257,7 @@
   width: 100%;
   box-sizing: border-box;
   min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
-  padding: 7px 10px;
+  padding: 6px 12px;
   border: 1px solid var(--loki-control-border);
   border-radius: var(--loki-radius-sm);
   background: var(--loki-well);
@@ -284,19 +284,19 @@
 }
 .loki-field--sm {
   min-height: 28px;
-  padding: 5px 10px;
+  padding: 4px 12px;
   font-size: var(--loki-text-meta);
 }
 /* 15px so iOS does not zoom in on focus; 44 tall for a thumb. */
 .loki-field--touch {
   min-height: 44px;
-  padding: 10px 12px;
+  padding: 12px;
   font-size: var(--loki-text-row);
 }
 /* The first line of a sheet (search, a title): no box, a hairline below. */
 .loki-field--bare {
   min-height: 0;
-  padding: 13px 16px;
+  padding: 12px 16px;
   border: none;
   border-bottom: 1px solid var(--loki-border);
   border-radius: 0;
@@ -341,11 +341,11 @@ textarea.loki-field {
 .loki-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
   text-align: left;
-  padding: 7px 10px;
+  padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: var(--loki-radius-md);
   background: transparent;
@@ -368,7 +368,7 @@ textarea.loki-field {
   background: var(--loki-selection);
 }
 .loki-row--dense {
-  padding: 5px 8px;
+  padding: 4px 8px;
   border-radius: var(--loki-radius-sm);
 }
 .loki-row--touch {
@@ -514,7 +514,7 @@ textarea.loki-field {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   background: var(--loki-panel-header);
   border-bottom: 1px solid var(--loki-border);
   color: var(--loki-muted);
@@ -588,7 +588,7 @@ textarea.loki-field {
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
   border-radius: var(--loki-radius-lg);
-  padding: 36px 28px;
+  padding: 32px;
 }
 .loki-empty > .loki-title {
   font-size: var(--loki-text-display);
@@ -596,11 +596,11 @@ textarea.loki-field {
 }
 .loki-empty > p {
   font-size: var(--loki-text-body);
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   line-height: 1.6;
 }
 .loki-empty > .loki-btn {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 /* ---- Dot ----------------------------------------------------------------------------------------- */
@@ -646,7 +646,7 @@ textarea.loki-field {
   width: 100%;
   min-height: 28px;
   box-sizing: border-box;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border: none;
   border-radius: var(--loki-radius-sm);
   background: transparent;
@@ -753,8 +753,12 @@ textarea.loki-field {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* On the name line, at its right edge: the name truncates first, and the time keeps its width and the row's 8px from
+   the words before it (ListRow). */
 .loki-list-row-time {
   flex: none;
+  margin-left: auto;
+  padding-left: 4px;
   font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
@@ -813,7 +817,7 @@ textarea.loki-field {
 
 /* A sidebar section (ListSection): a folding heading with its actions on the right, then the rows. */
 .loki-list-section {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 .loki-list-section-head {
   display: flex;
@@ -834,7 +838,7 @@ textarea.loki-field {
   gap: 6px;
   width: 100%;
   box-sizing: border-box;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border: none;
   border-radius: var(--loki-radius-sm);
   background: transparent;
@@ -1019,12 +1023,15 @@ button.loki-list-section-toggle {
   border-bottom: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
+/* The detail's, the list's and a Flow card's title bars (plan 2026-11-14-2224, KTD4) are 52 high, their buttons centred
+   and their title stacks at the top under 6px (the detail title's 40px stack centred in 52), so a one-line and a
+   two-line title share one top line. */
 .loki-pane-header-line {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 12px 0 20px;
+  min-height: 52px;
+  padding: 6px 12px 6px 20px;
 }
 .loki-pane-header-lead {
   display: inline-flex;
@@ -1193,8 +1200,22 @@ button.loki-list-section-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 8px 0 16px;
+  min-height: 52px;
+  padding: 6px 8px 6px 16px;
+}
+/* The bar's title stack: the source's name and grey count, over its grey line when it has one. */
+.loki-content-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  align-self: flex-start;
+}
+.loki-content-list-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 .loki-content-list-title {
   min-width: 0;
@@ -1219,28 +1240,29 @@ button.loki-list-section-toggle {
 }
 /* The toolbar's grey line under the title (All Cards: when Learn last wrote), as a chat's toolbar has one. */
 .loki-content-list-line {
-  flex: none;
   margin: 0;
-  padding: 0 16px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--loki-text-meta);
   color: var(--loki-muted);
 }
+/* The list column has two edges: the search field's box and the row highlight at 4, and the title, its line, the
+   field's text and the rows' text at 16 (4 + 12; the field's 1px border takes one of its 12). */
 .loki-content-list-search {
   flex: none;
-  padding: 0 10px 8px;
+  padding: 0 4px 8px;
 }
 .loki-content-list-search .loki-field {
   width: 100%;
   box-sizing: border-box;
+  padding-inline: calc(12px - 1px);
 }
 .loki-content-list-rows {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 6px 8px;
+  padding: 4px 4px 8px;
 }
 .loki-content-list-empty {
   display: flex;
@@ -1448,7 +1470,7 @@ button.loki-list-section-toggle {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 0 10px 12px;
+  padding: 0 12px 12px;
 }
 .loki-place {
   display: flex;
@@ -1594,7 +1616,7 @@ button.loki-list-section-toggle {
      is glass (below). */
   .loki-tabs {
     gap: 2px;
-    padding: 3px;
+    padding: 2px;
     border-radius: var(--loki-radius-pill);
     background: var(--loki-hover);
     width: fit-content;
@@ -1637,12 +1659,9 @@ button.loki-list-section-toggle {
 
   /* The chat's toolbar (U13): one row, the title over a grey line of facts, then the Messages / Canvas control and one
      glass group of the chat's moves as symbols, their names and keys in their tooltips, as Mail's toolbar draws them. */
-  .loki-pane-header-line:has(> .loki-toolbar-title) {
-    min-height: 52px;
-  }
   .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
     min-height: 22px;
-    padding: 0 10px;
+    padding: 0 12px;
     font-size: var(--loki-text-meta);
   }
   /* The symbols, and room for the Update button the shell lays over the detail's top right (shell/update-button.tsx). */
@@ -1659,6 +1678,7 @@ button.loki-list-section-toggle {
     flex-direction: column;
     gap: 1px;
     min-width: 0;
+    align-self: flex-start;
   }
   .loki-toolbar-name {
     margin: 0;
@@ -1775,7 +1795,7 @@ button.loki-list-section-toggle {
     align-items: center;
     gap: 6px;
     height: 24px;
-    padding: 0 10px 0 4px;
+    padding: 0 8px 0 4px;
     border: 0;
     border-radius: var(--loki-radius-pill);
     background: var(--loki-accent-soft);
@@ -1805,10 +1825,9 @@ button.loki-list-section-toggle {
     color: var(--loki-negative);
   }
   .loki-new-chat-notice {
-    margin: 0 auto;
     width: 100%;
     max-width: 48rem;
-    padding: 0 24px 6px;
+    padding: 0 20px 6px;
   }
 
   /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as
@@ -1895,7 +1914,7 @@ button.loki-list-section-toggle {
   }
   .loki-toolbar-item--text {
     width: auto;
-    padding: 0 10px;
+    padding: 0 8px;
     font-family: var(--loki-font);
     font-size: var(--loki-text-meta);
     font-weight: 600;
@@ -1997,7 +2016,7 @@ button.loki-list-section-toggle {
   .loki-composer-act {
     display: flex;
     flex: none;
-    padding: 3px;
+    padding: 4px;
   }
   .loki-composer-round {
     display: grid;
@@ -2111,7 +2130,7 @@ button.loki-list-section-toggle {
   /* Preferences (U8): settings grouped in rounded boxes as a Mac's System Settings groups them, and the segmented
      control as a grey track with the chosen value raised. */
   .loki-settings-block {
-    padding: 0 14px;
+    padding: 0 12px;
     border-radius: var(--loki-radius-lg);
     background: var(--loki-bg);
     box-shadow: 0 0 0 0.5px var(--loki-border);

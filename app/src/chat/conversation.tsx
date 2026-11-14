@@ -389,7 +389,7 @@ export function Conversation({
         // (components.css).
         <div ref={dockRef} className="loki-dock">
           {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
-          <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 empty:hidden" : "contents"}>
+          <div className={proposals ? "flex w-full max-w-3xl flex-col gap-2 px-5 empty:hidden" : "contents"}>
             {question &&
               actions.onAnswer &&
               (() => {
@@ -430,7 +430,7 @@ export function Conversation({
                   <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />
                 );
                 // In the new pane the palette rises from the Composer's column, not the pane's edge.
-                return proposals ? <div className="relative mx-auto w-full max-w-3xl px-6">{list}</div> : list;
+                return proposals ? <div className="relative w-full max-w-3xl px-5">{list}</div> : list;
               })()}
             {(() => {
               // The desktop's Composer takes the same props as the phone's box, plus the queue it shows above the field.
@@ -567,7 +567,7 @@ export function ConversationHeader({
     <div
       className="flex flex-none items-center justify-between gap-3"
       style={{
-        padding: "14px 18px",
+        padding: "12px 20px",
         borderBottom: "1px solid var(--loki-border)",
       }}
     >

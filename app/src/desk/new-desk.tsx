@@ -317,14 +317,14 @@ export function ChangeFolder({
       escape={false}
       cardProps={{ onKeyDown: sheetKeys(listOpen, setListOpen, onClose, () => void move()) }}
     >
-      <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">Change folder</div>
         <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
           {title ? `Move ${title}` : "Move this chat"}
           {agentName ? ` · ${agentName}` : ""}
         </div>
       </div>
-      <div className="grid gap-4" style={{ padding: "14px 18px" }}>
+      <div className="grid gap-4" style={{ padding: 16 }}>
         <FolderPicker
           inputRef={field.inputRef}
           folder={folder}
@@ -533,7 +533,7 @@ function FolderList({
         return (
           <div key={o.path}>
             {first && o.group !== "match" && (
-              <div className="loki-label" style={{ padding: "8px 10px 2px" }}>
+              <div className="loki-label" style={{ padding: "8px 8px 2px" }}>
                 {o.group === "mine" ? `${agentName ?? "This agent"}'s recent folders` : "Other agents' folders"}
               </div>
             )}

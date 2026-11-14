@@ -137,7 +137,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
               flush
               onClick={() => d.online && !d.paired && onPick(d.address)}
               style={{
-                padding: "6px 10px",
+                padding: "6px 12px",
                 border: "1px solid var(--loki-border)",
                 borderRadius: "var(--loki-radius-md)",
                 cursor: d.online && !d.paired ? undefined : "default",

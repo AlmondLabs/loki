@@ -14,6 +14,7 @@ import {
   CardDetail,
   CardEditor,
   DismissedDetail,
+  LearnColumn,
   LeadDetail,
   LessonDetail,
   PreviousText,
@@ -270,19 +271,20 @@ export function Recall({
             minHeight: 0,
             overflowY: "auto",
             scrollbarGutter: "stable",
-            padding: "20px 24px 16px",
+            padding: "20px 20px 16px",
             boxSizing: "border-box",
           }}
         >
           {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the body, the
-            deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top.
-            The gutter is reserved so a long item's scrollbar does not shift the column sideways. */}
-          <div className="flex flex-1 flex-col gap-4" style={{ width: 760, maxWidth: "100%", margin: "0 auto" }}>
+            deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top,
+            at the title's edge (LearnColumn). The gutter is reserved so a long item's scrollbar does not shift the
+            column sideways. */}
+          <LearnColumn view={view}>
             <div key={view} className="flex flex-1 flex-col gap-4" style={{ animation: "loki-view-in 120ms ease-out" }}>
               {view !== "review" && snap && <Notices recall={recall} />}
               {body}
             </div>
-          </div>
+          </LearnColumn>
         </div>
       )}
     </div>
@@ -454,7 +456,7 @@ function Deck({
         border: "1px solid var(--loki-border)",
         borderRadius: "var(--loki-radius-lg)",
         boxShadow: "var(--loki-shadow-sheet)",
-        padding: "18px 24px 16px",
+        padding: "16px 24px",
         animation: "loki-card-next 200ms ease-out",
       }}
     >
@@ -477,7 +479,7 @@ function Deck({
               color: "var(--loki-fg)",
               whiteSpace: "pre-wrap",
               textWrap: "balance" as never,
-              padding: "10px 0",
+              padding: "12px 0",
             }}
           >
             {c.card.front}
@@ -486,7 +488,7 @@ function Deck({
             <div
               style={{
                 borderTop: "1px solid var(--loki-border)",
-                paddingTop: 14,
+                paddingTop: 12,
                 fontSize: "var(--loki-text-row)",
                 lineHeight: 1.55,
                 color: "var(--loki-fg)",
@@ -516,7 +518,7 @@ function Deck({
         </>
       )}
       {revealed && !editing && (
-        <div className="grid grid-cols-[repeat(2,1fr)] gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
+        <div className="grid grid-cols-[repeat(2,1fr)] gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
           {ANSWERS.map(({ grade, label, key }) => (
             <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`Next in ${gaps[grade]}`}>
               {label} <span style={{ fontSize: "var(--loki-text-fine)", opacity: 0.75 }}>{gaps[grade]}</span>

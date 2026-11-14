@@ -53,7 +53,7 @@ export function MessageEntry({
   if (m.from === "you" && source !== "slack" && source !== "jira")
     return (
       <Message from="user" data-row="user" className="max-w-full">
-        <MessageContent className="w-full gap-1 bg-accent! px-3.5! py-2.5!">
+        <MessageContent className="w-full gap-1 bg-accent! px-4! py-2!">
           <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
             <span className="font-semibold text-foreground">You</span>
             {time && <time dateTime={m.at}>{time}</time>}
@@ -135,7 +135,7 @@ export const ChatMessage = memo(function ChatMessage({
               <CopyAsMarkdown text={text} />
             </span>
           )}
-          <MessageContent title={time ?? undefined} className={cn("rounded-[24px]! bg-accent! px-4! py-2.5!", m.queued && "border border-dashed border-ring")}>
+          <MessageContent title={time ?? undefined} className={cn("rounded-[24px]! bg-accent! px-4! py-2!", m.queued && "border border-dashed border-ring")}>
             <UserContent row={m} />
           </MessageContent>
         </div>

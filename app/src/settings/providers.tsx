@@ -132,7 +132,7 @@ export function ProviderSettings({
       </Block>
       <Block title="Add a provider">
         {adding ? (
-          <div className="grid gap-1.5" style={{ paddingTop: 10 }}>
+          <div className="grid gap-1.5" style={{ paddingTop: 12 }}>
             <Field
               size="sm"
               type="search"
@@ -270,7 +270,7 @@ function ProviderRow({
         )}
       </Row>
       {open && (
-        <div className="grid gap-2" style={{ padding: "2px 10px 10px 24px" }}>
+        <div className="grid gap-2" style={{ padding: "2px 8px 8px 24px" }}>
           {p.description && <div className="loki-meta loki-meta--wrap">{p.description}</div>}
           <ConnectForm p={p} connected={connected} state={state} />
         </div>

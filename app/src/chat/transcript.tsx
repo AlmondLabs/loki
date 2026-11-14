@@ -541,7 +541,7 @@ function Bubble({
           style={{
             maxWidth: "78%",
             overflowWrap: "anywhere",
-            padding: "9px 13px",
+            padding: "8px 12px",
             borderRadius: "var(--loki-radius-lg)",
             background: m.role === "user" ? "var(--loki-user-bubble)" : "var(--loki-bubble)",
             // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.

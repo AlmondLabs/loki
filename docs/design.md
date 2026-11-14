@@ -62,9 +62,22 @@ phone held closer. One face: the system sans (`--loki-font`); `--loki-display` a
 are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
 Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
 
-Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 6 · 8 · 12 · 16 · 24**, Tailwind's steps `0`, `px`,
-`0.5`, `1`, `1.5`, `2`, `3`, `4` and `6`. `styles.css` sets one step to 4px (`--spacing`); Tailwind's default is a
-quarter rem, and the page's root is 15px, which made a step 3.75px. Fixed layout is written as Tailwind classes on
+Spacing, loki's 4px grid with a hairline under it: **0 · 1 · 2 · 4 · 6 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48**,
+Tailwind's steps `0`, `px`, `0.5`, `1`, `1.5`, `2`, `3`, `4`, `5`, `6`, `8`, `10` and `12`. Every padding, margin and
+gap takes one, in the stylesheets and in the views; a tie goes to the step the same control already uses. `styles.css`
+sets one step to 4px (`--spacing`); Tailwind's default is a quarter rem, and the page's root is 15px, which made a step
+3.75px.
+
+Every pane's content starts 20px from its edge, the same inset as its title, as Mail lines a message up under its
+header: the transcript, the composer, an outside item's thread, the agents' pages, Learn's items and Preferences. A
+reading column keeps its width (`max-w-3xl`) and starts at that edge rather than in the middle. Indentation that shows
+hierarchy, such as a mail body under its sender's face, starts from it. Only focus and empty states are centred:
+Learn's review deck and welcome card, the empty canvas hint and the "No … Selected" panes. The list column's text
+starts 16px in, with its boxes (rows, search) 4px in. The list bar, the pane header and the card toolbar are each
+52px with their title stacks top-aligned 6px down, so the list title and the detail title share one line; a list row's
+time sits on its name line, and every Flow row has three lines.
+
+Fixed layout is written as Tailwind classes on
 this scale (`flex items-center gap-2`), with padding, sizes and colour left in `style`. A value computed from state or
 props stays inline, and so does layout on an element whose own `loki-*` class sets the same property: loki's
 stylesheets sit outside Tailwind's cascade layers, so their rules beat a utility class (a `<Row>` keeps its inline
@@ -143,8 +156,9 @@ row's input and output (`core/attention/transcript.ts`), and the row fetches the
 `test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines). The radius check
 allows the scale and the geometric radii for circles and hairlines it lists (1, 3, 4, 9, 24); the shadow check covers
-inline `boxShadow` only. Gaps stay on the spacing scale, inline and in a gap or space class (shadcn's own files in `ui/` keep
-theirs), and views set mono and an ellipsis with their classes, never inline; the phone has its own scale,
+inline `boxShadow` only. Padding, margins and gaps stay on the spacing scale, in the desktop stylesheets, inline and in a
+padding, margin, gap or space class (shadcn's own files in `ui/` keep theirs; a `calc()` passes when each term is on
+the scale, and a value from `var()` or `env()` is not read), and views set mono and an ellipsis with their classes, never inline; the phone has its own scale,
 `--phone-space-1` to `--phone-space-6`. It fails a Mac key symbol (⌘, ⌥, ⇧ …) in any app string outside `MAC_SYMBOL` in
 `shell/keymap.ts`, so keys are formatted for the viewer's system. It checks that
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
