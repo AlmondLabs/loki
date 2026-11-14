@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { AccountStatus } from "../core/frame-types.ts";
-import { JiraClient, JiraError } from "../mod/jira.ts";
+import { JiraClient, JiraError, jiraUploadTimeoutMs } from "../mod/jira.ts";
 import type { JiraEvent, JiraEventPage, JiraSecret, JiraTicket } from "../mod/jira.ts";
 import { JIRA_ADA, JIRA_BOB, JIRA_MEDIA_HOST, JIRA_ME, JIRA_THUMBNAIL_BYTES, fakeJira } from "./fixtures/jira.ts";
 
@@ -523,21 +523,114 @@ describe("a ticket's files (plan 093)", () => {
   });
 });
 
-/** Names that would change something in Jira: the client may have none but the comment. */
-const WRITES = /post|send|add|create|update|edit|delete|remove|assign|transition|watch(?!ed)|set|put|move|mark/i;
+/** An attach request as the site received it: its headers and the multipart body's entries. */
+interface AttachRequest {
+  url: URL;
+  headers: Headers;
+  form: FormData;
+  signal: AbortSignal | null;
+}
+
+/**
+ * A client over a fake site that also takes attachments: the fake records the request with every other, and this
+ * answers it as Jira does, with the list of files attached, or with `answer` when a test names one.
+ */
+function attachSetup(answer?: (req: AttachRequest) => Promise<Response>) {
+  const base = setup();
+  const attaches: AttachRequest[] = [];
+  const c = new JiraClient({
+    secret: () => Promise.resolve({ site: base.jira.host, email: base.jira.state.email, token: "fixture-jira-token" }),
+    setStatus: (s) => base.statuses.push(s),
+    fetch: async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (!url.pathname.endsWith("/attachments")) return base.jira.fetch(input, init);
+      await base.jira.fetch(input, init);
+      if (!(init?.body instanceof FormData)) throw new Error("the attach request sent no multipart body");
+      const req: AttachRequest = { url, headers: new Headers(init.headers), form: init.body, signal: init.signal ?? null };
+      attaches.push(req);
+      if (answer) return answer(req);
+      const files = req.form
+        .getAll("file")
+        .map((f, i) => ({ id: String(20001 + i), filename: f instanceof File ? f.name : "", size: f instanceof File ? f.size : 0 }));
+      return new Response(JSON.stringify(files), { status: 200, headers: { "content-type": "application/json" } });
+    },
+    now: () => new Date(base.clock.t),
+  });
+  return { ...base, c, attaches };
+}
+
+const bytes = (text: string) => new TextEncoder().encode(text);
+
+describe("files attached to a ticket", () => {
+  test("two files go in one multipart request with the no-check header and the file field, and both names come back", async () => {
+    const { c, jira, attaches } = attachSetup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    const names = await c.attachFiles("OPS-1", [
+      { name: "shot.png", data: bytes("png bytes") },
+      { name: "report.pdf", data: bytes("pdf bytes") },
+    ]);
+    expect(names).toEqual(["shot.png", "report.pdf"]);
+    expect(attaches).toHaveLength(1);
+    const [req] = attaches;
+    expect(req.url.href).toBe("https://acme.atlassian.net/rest/api/3/issue/OPS-1/attachments");
+    expect(req.headers.get("x-atlassian-token")).toBe("no-check");
+    expect(req.headers.get("authorization")).toBe(`Basic ${Buffer.from("mina@example.com:fixture-jira-token").toString("base64")}`);
+    // The multipart body sets its own content type, with the boundary in it.
+    expect(req.headers.get("content-type")).toBeNull();
+    const sent = await Promise.all(req.form.getAll("file").map(async (f) => (f instanceof File ? [f.name, await f.text()] : [])));
+    expect(sent).toEqual([
+      ["shot.png", "png bytes"],
+      ["report.pdf", "pdf bytes"],
+    ]);
+    expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([["POST", "/rest/api/3/issue/OPS-1/attachments"]]);
+  });
+
+  test("an answer without file names gives back the names sent", async () => {
+    const { c, jira } = attachSetup(() => Promise.resolve(new Response("[{}]", { status: 200 })));
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    expect(await c.attachFiles("OPS-1", [{ name: "shot.png", data: bytes("png") }])).toEqual(["shot.png"]);
+  });
+
+  test("a large upload is given longer than other requests: at least 120 s at 17 MB", () => {
+    expect(jiraUploadTimeoutMs(0)).toBe(20_000);
+    expect(jiraUploadTimeoutMs(17 * 1024 * 1024)).toBeGreaterThanOrEqual(120_000);
+  });
+
+  test("a failed attach reports Jira's error, asked once", async () => {
+    const { c, jira, attaches } = attachSetup(() =>
+      Promise.resolve(new Response(JSON.stringify({ errorMessages: ["The file is too large."] }), { status: 413 })),
+    );
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    const err = await refusal(c.attachFiles("OPS-1", [{ name: "big.zip", data: bytes("zip") }]));
+    expect([err.message, err.code, err.status]).toEqual(["The file is too large.", "http_413", 413]);
+    expect(attaches).toHaveLength(1);
+  });
+
+  test("an attach that times out says the files may be on the ticket, asked once", async () => {
+    const { c, jira, attaches } = attachSetup(() => Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError")));
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    const err = await refusal(c.attachFiles("OPS-1", [{ name: "shot.png", data: bytes("png") }]));
+    expect(err.message).toMatch(/the files may be on the ticket: check before sending again/);
+    expect(err.code).toBe("timeout");
+    expect(attaches).toHaveLength(1);
+  });
+});
+
+/** Names that would change something in Jira: the client may have none but the comment and the attach call. */
+const WRITES = /post|send|add|attach(?!ments)|create|update|edit|delete|remove|assign|transition|watch(?!ed)|set|put|move|mark/i;
 
 /** The client's own helpers, which make no request of their own choosing. */
 const PRIVATE = ["now", "sprintField", "call", "request", "page", "rejected", "rateLimited", "hold"];
 
-describe("the only thing the client writes is the person's comment", () => {
-  test("postComment is the only client method whose name suggests writing", () => {
+describe("the only things the client writes are the person's comment and its files", () => {
+  test("postComment and attachFiles are the only client methods whose names suggest writing", () => {
     const names = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => n !== "constructor");
     expect(names).toContain("postComment");
-    expect(names.filter((n) => WRITES.test(n))).toEqual(["postComment"]);
+    expect(names.filter((n) => WRITES.test(n)).sort()).toEqual(["attachFiles", "postComment"]);
   });
 
-  test("every other call is a GET, and the comment is the one request that is not", async () => {
-    const { c, jira } = setup();
+  test("every other call is a GET, and the attach and the comment are the only requests that are not", async () => {
+    const { c, jira } = attachSetup();
     jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [{ id: "10001", filename: "shot.png", mime_type: "image/png", size: 10 }] });
     await c.myself();
     await c.serverInfo();
@@ -549,9 +642,13 @@ describe("the only thing the client writes is the person's comment", () => {
     await c.attachments("OPS-1");
     await c.thumbnail("10001");
     expect(jira.writes()).toEqual([]);
+    await c.attachFiles("OPS-1", [{ name: "notes.txt", data: bytes("notes") }]);
     await c.postComment("OPS-1", "hello");
-    expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([["POST", "/rest/api/3/issue/OPS-1/comment"]]);
-    const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment"].includes(n));
+    expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([
+      ["POST", "/rest/api/3/issue/OPS-1/attachments"],
+      ["POST", "/rest/api/3/issue/OPS-1/comment"],
+    ]);
+    const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment", "attachFiles"].includes(n));
     // Every public method was exercised above; a new one must be added here, where its requests are checked.
     expect(
       called.filter(
