@@ -87,7 +87,7 @@ What each place lists:
 
 | Place | Source | List rows | Detail |
 |---|---|---|---|
-| Chats | Pinned, an agent, Archived, or all | Chats, two lines: name and time, then the last line said (as Messages and Mail). The waiting count, live dot and ring stay at the trailing edge | The thread, with its Messages and Canvas tabs |
+| Chats | Pinned, an agent, Archived, or all | Chats, one line each as today: the name, and at the trailing edge the waiting count, live dot, ring or time | The thread, with its Messages and Canvas tabs |
 | Flow | A lane | The cards in score order, which is the deck's order today: sender or chat, subject, one line of preview, kind icon (chat, mail, Slack, Jira) | The card: its thread and reply box |
 | Agents | none | The agents: face, name, live dot, the last thing said (today's AgentsColumn rows) | The agent, with its pages as a tab view centred in the toolbar |
 | Learn | A view | The cards or leads in the view; Review lists the cards due, in order | The card (Review: the review card and its grade buttons) |
@@ -182,14 +182,17 @@ Four PRs, each leaving the app whole:
 
 Each PR gets screenshots at 1440, 1000 and 760, light and dark, and keyboard runs through Flow before and after.
 
+## Decided
+
+- **Chat rows stay one line**, as today (the person, 2026-11-14). Two lines, as Messages and Mail have, was the
+  alternative.
+
 ## Decisions for review
 
-1. **Chat rows become two lines** (name and time, then the last line said), as Messages and Mail have, since the list
-   has the width. *Alternative: keep one line, as today.*
-2. **Agents have no sources;** the agents are the list. Profile and Reflection are forms in the detail, beside the
+1. **Agents have no sources;** the agents are the list. Profile and Reflection are forms in the detail, beside the
    list, as Contacts shows a card beside its list.
-3. **The phone keeps its deck** and its own navigation. This plan is the Mac's.
-4. **⌘[ ⌘] keep** their meanings in Flow and Learn for now. The Keyboards page lists them as alignment keys, and that
+2. **The phone keeps its deck** and its own navigation. This plan is the Mac's.
+3. **⌘[ ⌘] keep** their meanings in Flow and Learn for now. The Keyboards page lists them as alignment keys, and that
    question stays open on its own.
-5. **Canvas keeps the list,** with View › Hide List to fold it. *Alternative: Canvas folds the list on its own and
+4. **Canvas keeps the list,** with View › Hide List to fold it. *Alternative: Canvas folds the list on its own and
    brings it back on Messages.*
