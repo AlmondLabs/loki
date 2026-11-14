@@ -1,5 +1,5 @@
 import { Thought } from "./thought";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref, type UIEvent } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type Ref, type UIEvent, type WheelEvent } from "react";
 import { flushSync } from "react-dom";
 import { ArrowDownIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
@@ -27,6 +27,9 @@ import { chatEntries, type ItemEntry } from "./item-view";
 import { ChatMessage } from "./message-entry";
 import { Work, samePlan, stretchPlan } from "./work";
 import { AgentTurn } from "./agent-turn";
+import { useKeepPlace } from "./use-keep-place";
+import { drawnRows, keepsFollowing, lastShown, newSince } from "./thread-follow";
+import { isNewSend } from "../chat/use-transcript-scroll";
 
 /** Liquid Glass tells the time before your message when this long has passed since the row before (entries.ts, U14). */
 const TIME_GAP = 15 * 60_000;
@@ -34,11 +37,11 @@ const TIME_GAP = 15 * 60_000;
 const EMPTY: TranscriptRow[] = [];
 
 /**
- * The Timeline (plan 097; plan 096, U5): every entry of the item in order, as Turns for a chat. shadcn's MessageScroller follows the bottom while you are there,
- * holds what you read when something above changes height or older rows arrive, and offers the way back to the latest.
- * Around it, loki's own window: a long thread mounts its newest rows and reveals older ones as you near the top, then
- * asks the Mac for older pages; find mounts what it needs before it searches. The desktop's thread; the phone keeps its
- * own (chat/conversation.tsx PhoneThread).
+ * The Timeline (plan 097; plan 096, U5): every entry of the item in order, as Turns for a chat. shadcn's MessageScroller follows the bottom while you are there
+ * and offers the way back to the latest; scrolled up, loki keeps what you read in place when older rows arrive or
+ * something above changes height (use-keep-place.ts). Around it, loki's own window: a long thread mounts its newest rows
+ * and reveals older ones as you near the top, then asks the Mac for older pages; find mounts what it needs before it
+ * searches. The desktop's thread; the phone keeps its own (chat/conversation.tsx PhoneThread).
  */
 export const Timeline = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(function Timeline(props, ref) {
   return (
@@ -68,12 +71,19 @@ function ThreadBody({
   handle,
 }: Omit<ThreadProps, "phone"> & { handle: Ref<ThreadHandle> }) {
   const list = rows ?? EMPTY;
+  // Messages queued mid-turn wait in the Composer's queue (plan 097, U6), not at the end of the thread.
+  const drawn = drawnRows(list);
   const arrivedFrom = useArrivedFrom(rows);
   const dividerAt = layout?.dividerAt ?? null;
   const widgets = layout?.widgets ?? [];
   const { start, above, nearTop, reveal, fold } = useThreadWindow(list, dividerAt, widgets, older);
-  const fresh = useFresh(list, above);
+  const { viewportRef, contentRef, onScroll: holdOnScroll, beforeReveal } = useKeepPlace(start);
+  const fresh = useFresh(drawn, above);
   useFollowSend(list);
+  const { scrollToEnd } = useMessageScroller();
+  // Latest folds the window back to the newest rows once its scroll has landed at the end: folding while the scroll is
+  // on its way cut the glide short with a jump, and at the end the rows leaving above move nothing on screen.
+  const foldAtEnd = useRef(false);
   useImperativeHandle(
     handle,
     () => ({
@@ -94,9 +104,7 @@ function ThreadBody({
   const stableLoadStep = useCallback((row: number) => stepRef.current?.(row) ?? Promise.resolve(null), []);
 
   const who = layout?.people?.assistant.name ?? agentName ?? "the agent";
-  // Messages queued mid-turn wait in the Composer's queue (plan 097, U6), not at the end of the thread.
-  // The agent's live reply can follow a queued message, so every queued row is left out, not only a trailing run.
-  const shown = rows?.some((r) => r.queued) ? rows.filter((r) => !r.queued) : rows;
+  const shown = rows ? drawn : undefined;
   const entries: ItemEntry[] = shown
     ? chatEntries(
         threadTurns(
@@ -195,8 +203,32 @@ function ThreadBody({
   };
   return (
     <MessageScroller data-new-thread className="flex-1">
-      <MessageScrollerViewport preserveScrollOnPrepend onScroll={(ev: UIEvent<HTMLDivElement>) => nearTop(ev.currentTarget)} data-thread-scroll style={style}>
-        <MessageScrollerContent className="w-full max-w-3xl gap-4 py-5 text-body text-foreground">
+      <MessageScrollerViewport
+        ref={viewportRef}
+        preserveScrollOnPrepend
+        onScroll={(ev: UIEvent<HTMLDivElement>) => {
+          const el = ev.currentTarget;
+          holdOnScroll(el);
+          nearTop(el, beforeReveal);
+          if (foldAtEnd.current && el.scrollHeight - el.scrollTop - el.clientHeight < 1) {
+            foldAtEnd.current = false;
+            fold();
+          }
+        }}
+        // MessageScroller stops following on any wheel or scroll key; at the bottom one that goes nowhere follows again.
+        onWheel={(ev: WheelEvent<HTMLDivElement>) => {
+          if (keepsFollowing(ev.currentTarget, ev)) scrollToEnd();
+        }}
+        onKeyDown={(ev: KeyboardEvent<HTMLDivElement>) => {
+          if (keepsFollowing(ev.currentTarget, ev)) scrollToEnd();
+        }}
+        data-thread-scroll
+        // The thread keeps the row being read in place itself (use-keep-place.ts); the browser's own, in the Windows
+        // app's Chromium, would move it twice.
+        className="[overflow-anchor:none]"
+        style={style}
+      >
+        <MessageScrollerContent ref={contentRef} className="w-full max-w-3xl gap-4 py-5 text-body text-foreground">
           {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
           {!rows && loadFailed && (
             <div role="alert" className="flex items-center gap-2 text-meta text-destructive">
@@ -211,7 +243,9 @@ function ThreadBody({
           )}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
-              <MessageScrollerItem key={e.key} messageId={e.key}>
+              // Each entry drawn at its real height: content-visibility's stand-in height for rows not yet on screen would
+              // change as each one scrolled into view above you, and nothing would put your place back.
+              <MessageScrollerItem key={e.key} messageId={e.key} className="[content-visibility:visible]">
                 {draw(e)}
               </MessageScrollerItem>
             ))}
@@ -228,7 +262,9 @@ function ThreadBody({
         </MessageScrollerContent>
       </MessageScrollerViewport>
       <MessageScrollerButton
-        onClick={fold}
+        onClick={() => {
+          foldAtEnd.current = true;
+        }}
         size="sm"
         className="gap-2 rounded-full px-3 shadow-float"
         aria-label={fresh > 0 ? `Jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "Jump to latest"}
@@ -257,14 +293,16 @@ function useThreadWindow(
   if (win.id !== id || win.start !== start) setWin({ id, start, first: list.length ? list[0] : null, above });
   // One ask for older history per page: the thread's length when asked.
   const asked = useRef<number | null>(null);
-  const nearTop = (el: HTMLElement) => {
+  const nearTop = (el: HTMLElement, beforeReveal: (el: HTMLElement) => void) => {
     if (el.clientHeight === 0 || el.scrollTop >= REVEAL_PX) {
       // Away from the top, the next visit asks again: a page that failed added no rows.
       asked.current = null;
       return;
     }
-    if (start > 0) setWin((w) => ({ ...w, start: revealStart(w.start) }));
-    else if (older && asked.current !== list.length) {
+    if (start > 0) {
+      beforeReveal(el);
+      setWin((w) => ({ ...w, start: revealStart(w.start) }));
+    } else if (older && asked.current !== list.length) {
       asked.current = list.length;
       older();
     }
@@ -277,13 +315,17 @@ function useThreadWindow(
     [list, start, marks],
   );
   // Back at the latest, the window folds to the newest rows again.
-  const fold = () => setWin((w) => ({ ...w, start: openStart(list.length, dividerAt) }));
+  const fold = () => {
+    const at = openStart(list.length, dividerAt);
+    setWin((w) => (w.start === at ? w : { ...w, start: at }));
+  };
   return { start, above, nearTop, reveal, fold };
 }
 
 /**
- * How many messages came in since the reader left the bottom, for the jump button. Counted from the thread's length at
- * the moment the scroller first had more below; rows loaded above move that mark with them.
+ * How many messages came in since the reader left the bottom, for the jump button. Counted over the rows drawn
+ * (`list` is drawnRows), from their number at the moment the scroller first had more below; rows loaded above move
+ * that mark with them.
  */
 function useFresh(list: TranscriptRow[], above: number): number {
   const { end: away } = useMessageScrollerScrollable();
@@ -291,22 +333,21 @@ function useFresh(list: TranscriptRow[], above: number): number {
   if (away && !left) setLeft({ at: list.length, above });
   if (!away && left) setLeft(null);
   if (!left) return 0;
-  const from = left.at + (above - left.above);
-  return list.slice(from).filter((r) => r.role === "user" || r.role === "assistant").length;
+  return newSince(list, left.at + (above - left.above));
 }
 
 /**
  * Sending re-pins the thread to the bottom, as the phone's does, wherever the reader was. MessageScroller's own answer to a
  * send (scrolling your message to the top) counts every message it has not yet seen on screen as new, and a thread opens
- * at the bottom, so it jumped to the oldest one; no row is a scroll anchor, and this follows your message instead.
+ * at the bottom, so it jumped to the oldest one; no row is a scroll anchor, and this follows your message instead. A
+ * queued message is not drawn in the thread, so sending one leaves the reader where they are.
  */
 function useFollowSend(list: TranscriptRow[]) {
   const { scrollToEnd } = useMessageScroller();
-  const tail = list.length ? list[list.length - 1] : null;
+  const tail = lastShown(list);
   const seen = useRef(tail);
   useEffect(() => {
-    if (tail === seen.current) return;
-    const sent = tail?.role === "user" && seen.current !== null;
+    const sent = isNewSend(seen.current, tail);
     seen.current = tail;
     if (sent) scrollToEnd({ behavior: "smooth" });
   }, [tail, scrollToEnd]);
