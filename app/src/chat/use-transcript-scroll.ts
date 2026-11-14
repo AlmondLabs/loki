@@ -105,11 +105,7 @@ export function useTranscriptScroll(
     anchor.current = null;
     if (!el) return;
     if (pinnedRef.current) el.scrollTop = el.scrollHeight;
-    else if (was) {
-      // Chrome's own scroll anchoring may have moved it already; writing the offset again would stop a fling.
-      const top = anchorTop(was.top, was.height, el.scrollHeight);
-      if (Math.abs(el.scrollTop - top) > 1) el.scrollTop = top;
-    }
+    else if (was) reading.current = putBackAfterReveal(el, was);
     if (start > 0 && nearTop(el)) revealAbove(el, anchor, setWin);
   }, [start, scrollRef]);
 
@@ -142,10 +138,14 @@ export function useTranscriptScroll(
     };
   }, [scrollRef]);
   // Follow the bottom: one scroll per frame however many updates landed in it, read and written in the frame
-  // (reading scrollHeight straight after each commit forced a layout per streamed update).
+  // (reading scrollHeight straight after each commit forced a layout per streamed update). A new message of yours
+  // re-pins wherever the reader was; the same last row again (an older page arriving, the status changing) does not.
+  const tail = messages.at(-1) ?? null;
+  const seenTail = useRef(tail);
   useEffect(() => {
-    const last = messages.at(-1);
-    if (!pinnedRef.current && last?.role !== "user") return;
+    const sent = isNewSend(seenTail.current, tail);
+    seenTail.current = tail;
+    if (!pinnedRef.current && !sent) return;
     pinnedRef.current = true;
     setUnpinned(false); // the scroll to the bottom that follows clears the new-message count too (onScroll)
     if (frame.current) return;
@@ -154,7 +154,7 @@ export function useTranscriptScroll(
       const el = scrollRef.current;
       if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
     });
-  }, [messages, status, scrollRef]);
+  }, [messages, tail, status, scrollRef]);
   useEffect(
     () => () => {
       if (frame.current) cancelAnimationFrame(frame.current);
@@ -171,6 +171,25 @@ interface Win {
   start: number;
   first: TranscriptRow | null;
   above: number;
+}
+
+/**
+ * Whether the thread's last row is a new message of yours: another row than the one seen last, and the person's. The
+ * first rows a thread loads are not a send, though the last of them may be yours.
+ */
+export function isNewSend(seen: TranscriptRow | null, tail: TranscriptRow | null): boolean {
+  return tail !== seen && tail?.role === "user" && seen !== null;
+}
+
+/**
+ * Older rows went in above (a reveal): the offset moves by as much as the thread grew, so the row being read stays
+ * put, then a fresh look, so the scroll this makes is not taken for content moving and put back a second time. Chrome's
+ * own scroll anchoring may have moved it already; writing the offset again would stop a fling.
+ */
+export function putBackAfterReveal(el: HTMLElement, was: { top: number; height: number }): Reading | null {
+  const top = anchorTop(was.top, was.height, el.scrollHeight);
+  if (Math.abs(el.scrollTop - top) > 1) el.scrollTop = top;
+  return keepReading(el, null);
 }
 
 /** How many rows now sit above what was the first row (0 when it is not there: another thread, or nothing new above). */
