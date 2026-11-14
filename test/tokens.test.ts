@@ -95,8 +95,8 @@ const FACE_INITIAL = { path: "desk/agent-chip.tsx", value: "Math.max(9, Math.rou
 const SPACE = new Set([0, 1, 2, 4, 8, 12, 16, 20, 24, 32, 48]);
 /** The spacing steps a gap, space, padding or margin class may name; anything else, an arbitrary value included, is off the scale. */
 const SPACE_STEPS = new Set(["0", "px", "0.5", "1", "2", "3", "4", "5", "6", "8", "12"]);
-/** Radii: control, row, card/sheet, pill — plus the geometric ones used for circles and hairlines. */
-const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
+/** Radii: Tailwind's own steps at the 16px root — xs 2, sm 4, md 6, lg 8, xl 12, 2xl 16, 3xl 24 — and full (a circle or pill). */
+const RADII = new Set([2, 4, 6, 8, 12, 16, 24, 999]);
 /**
  * Tracking. The Slack direction (2026-09-23) sets no letter-spacing: labels are sentence-case sans and meta is
  * the reading face. Neither stylesheets nor inline styles allow any (the desktop sweep removed the last of it).
@@ -731,7 +731,7 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
  * shadcn on loki's tokens (plan 096, U2). shadcn's colour names are loki's roles under other names, declared once in
  * tokens.css; the pairs shadcn draws text on meet AA in every family and side; its stacking repeats LAYER. Tailwind's
  * default theme stays for the agents' widgets, so loki's own class strings are fenced here instead: no default palette
- * colour, no text size but xs, sm, base and 2xl, no arbitrary size, radius, layer or tracking, no weight outside 400 · 600 · 700.
+ * colour, no text size but xs, sm, base and 2xl, no arbitrary size, layer or tracking, and no arbitrary pixel, rem or em value, no weight outside 400 · 600 · 700.
  */
 describe("shadcn reads loki's tokens, and loki's class strings stay on its scales", () => {
   const styles = readFileSync(join(APP, "styles.css"), "utf8");
@@ -797,14 +797,17 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     // Tailwind's other sizes, and loki's retired names, which would now size nothing. Nothing word-like or a hyphen
     // comes before the class, so var(--phone-text-body) is not one.
     ["a text size other than xs, sm, base and 2xl", /(?<![\w-])text-(?:lg|xl|[3-9]xl|micro|fine|tag|meta|body|row|title|display|hero)\b/],
-    ["an arbitrary size, radius, layer, weight or line height", /\b(?:text|z|font|leading|shadow)-\[|\brounded(?:-[trblse]{1,2})?-\[(?!(?:1|3|4|9|24)px\])/],
+    ["an arbitrary size, layer, weight or line height", /\b(?:text|z|font|leading|shadow)-\[/],
+    // Tailwind's steps are the only sizes: an arbitrary pixel, rem or em value, on any utility, is off the scale.
+    ["an arbitrary pixel, rem or em value", /(?<!\btext)-\[-?[\d.]+(?:px|rem|em)\]/],
     // small numbers stack inside one component, which the design allows; 50 and up is window-level stacking
     ["a numbered window layer", /\bz-(?:[5-9]\d|\d{3,})\b/],
     ["tracking", /\btracking-[a-z0-9[(]/],
     ["a weight outside 400 · 600 · 700", /\bfont-(?:thin|extralight|light|medium|extrabold|black)\b/],
     ["outline-none, which hides the focus ring tokens.css draws", /(?:^|\s)(?:\S*:)?outline-none(?=\s|$)/],
     ["a default shadow", /\bshadow-(?:2xs|xs|sm|md|lg|xl|2xl)\b/],
-    ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-(?:xs|2xl|3xl|4xl)\b/],
+    // Tailwind's xs and 3xl are allowed (3xl is the 24px bubble and sheet radius); the rest are unused, so a use is a decision.
+    ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-(?:2xl|4xl)\b/],
   ];
   const classStrings = (path: string, text: string): Array<{ at: string; text: string }> => {
     const src = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
@@ -840,7 +843,8 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
 
   test("the fence catches what it should and passes loki's names", () => {
     expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-lg z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
-    expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(2);
+    expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(3);
+    expect(offScale("x.tsx", 'const a = <b className="h-[480px] max-w-[22rem] rounded-[3px] w-75 rounded-3xl" />;')).toHaveLength(1);
     expect(offScale("x.tsx", 'const a = <b className="bg-primary text-sm text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
       [],
     );
@@ -856,7 +860,7 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
   test("the fence holds gap and space classes to the spacing scale, outside shadcn's own files", () => {
     expect(offScale("x.tsx", 'const a = <b className="flex gap-7" />;')).toHaveLength(1);
     expect(offScale("x.tsx", 'const a = <b className="grid gap-x-2.5" />;')).toHaveLength(1);
-    expect(offScale("x.tsx", 'const a = <b className="flex gap-[10px]" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-[10px]" />;')).toHaveLength(2);
     expect(offScale("x.tsx", 'const a = <b className="flex gap-1.5" />;')).toHaveLength(1);
     expect(offScale("x.tsx", 'const a = <b className="flex gap-1 gap-px space-y-2 sm:gap-3 gap-y-0.5" />;')).toEqual([]);
     expect(offScale("ui/x.tsx", 'const a = <b className="flex gap-2.5" />;')).toEqual([]);
@@ -865,7 +869,7 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
   test("the fence holds padding and margin classes to the spacing scale, and reads only what looks like a class", () => {
     expect(offScale("x.tsx", 'const a = <b className="p-2.5" />;')).toHaveLength(1);
     expect(offScale("x.tsx", 'const a = <b className="flex mt-7" />;')).toHaveLength(1);
-    expect(offScale("x.tsx", 'const a = <b className="hover:-ml-[10px]" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="hover:-ml-[10px]" />;')).toHaveLength(2);
     expect(offScale("x.tsx", 'const a = <b className="mx-auto px-5 py-5 px-4! -mt-2 ps-px m-0" />;')).toEqual([]);
     expect(offScale("x.tsx", 'const host = "my-macbook-pro.local";')).toEqual([]);
     expect(offScale("x.tsx", "const id = `m-${n}`;")).toEqual([]);
