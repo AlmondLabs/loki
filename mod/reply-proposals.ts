@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
 import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
-import { liveMentions } from "../core/mentions.ts";
+import { liveMentions, mentionSpans, writeMentions } from "../core/mentions.ts";
 import { replyMentionOf, type ChatState, type ReplyAction, type ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
@@ -17,7 +17,8 @@ import { inChatFolder, md5 } from "./google-tools/core.ts";
 import { causeWords } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
-import { bareAddresses } from "./reply-addressing.ts";
+import { bareAddresses, slackPlace } from "./reply-addressing.ts";
+import type { People } from "./people.ts";
 import type { HeldProposal, HeldReply } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
 import type { ChatKey } from "./suggestions.ts";
@@ -48,6 +49,10 @@ export interface ReplyProposalsOptions {
   threads: Pick<AccountThreads, "get">;
   /** An account's reads of where a reply goes (plan 2026-11-14-1530, U1): the card's facts come from the service. */
   clientFor(account: AccountRecord): ReplyReads;
+  /** The people in each account, by name (mod/people.ts, KTD4); without it, a reply mentions no one. */
+  people?: Pick<People, "resolve">;
+  /** Who is in a Slack conversation, by user id (R22): a mention of anyone else notifies no one. */
+  members?(accountId: string, channel: string): Promise<ReadonlySet<string>>;
   /** The person's send path (KTD1): the hold, its undo, and what the outbox still has and whether a reply went. */
   outside: Pick<OutsideThreads, "holdAgentReply" | "unsend" | "holds" | "wentOutIn" | "acknowledge">;
   /** Tell every client following a chat what its open proposals now are. */
@@ -72,6 +77,11 @@ export interface ReplyInput {
   text: string;
   /** Full paths of files for the reply to carry, already found inside the chat's folder (R8). */
   attachments?: string[];
+  /**
+   * The people the text mentions as `@<entry>` (plan 2026-11-14-1530, KTD3): a full name, an address, a Slack handle or
+   * a token a refusal gave. Each must name exactly one person, or the proposal is refused saying who matched.
+   */
+  mentions?: string[];
 }
 
 /** The most files one reply carries (R8). */
@@ -296,6 +306,7 @@ export class ReplyProposals implements AgentReplyReports {
       input.thread_id,
       (accountId, threadId) => this.opts.threads.get(accountId, threadId) ?? null,
     );
+    const { text, mentions } = await this.mentioned(account, where, input.text, input.mentions ?? []);
     const proposal: ReplyProposal = {
       id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
       account_id: account.account_id,
@@ -306,7 +317,7 @@ export class ReplyProposals implements AgentReplyReports {
       to: where.to,
       cc: where.cc,
       place: where.place,
-      text: input.text,
+      text,
       status: "pending",
       reason: null,
       created_at: this.now(),
@@ -314,6 +325,7 @@ export class ReplyProposals implements AgentReplyReports {
       in_flow: where.in_flow,
       ...(where.shared_outside ? { shared_outside: true } : {}),
       ...(where.heard_by ? { heard_by: where.heard_by } : {}),
+      ...(mentions.length ? { mentions } : {}),
     };
     await this.locked(chat, () => {
       const r = this.record(chat);
@@ -321,6 +333,50 @@ export class ReplyProposals implements AgentReplyReports {
       return Promise.resolve();
     });
     return proposal;
+  }
+
+  /**
+   * The people a reply's text mentions (KTD3, R13): each listed entry found in the text as `@<entry>`, resolved to one
+   * person in the account (on Jira, among those who can see the ticket), and written back as `@Full Name`, so a
+   * mention given as a handle, an address or a token shows and is kept like one given by name. A Slack mention of
+   * someone not in the conversation is marked, since it will not notify them (R22). Throws the first refusal.
+   */
+  private async mentioned(
+    account: AccountRecord,
+    where: { thread_id: string; place: string | null },
+    text: string,
+    entries: readonly string[],
+  ): Promise<{ text: string; mentions: ReplyMention[] }> {
+    const wanted = [...new Set(entries.map((e) => e.trim().replace(/^@/, "")).filter(Boolean))];
+    if (wanted.length === 0) return { text, mentions: [] };
+    const people = this.opts.people;
+    if (!people) throw new Error("mentions cannot be resolved on this Mac: write the reply without them");
+    const mentions: ReplyMention[] = [];
+    let out = text;
+    for (const entry of wanted) {
+      if (mentionSpans(out, [{ display: entry }]).length === 0)
+        throw new Error(`@${entry} is not in the text: write it there as @${entry}, or leave it out of mentions`);
+      const jira = account.provider === "jira" && where.place ? { jira: { kind: "ticket" as const, ticket: where.place } } : {};
+      const found = await people.resolve(account.account_id, entry, jira);
+      if (!found.ok) throw new Error(found.why);
+      const person = found.person;
+      const mention: ReplyMention =
+        person.provider === "gmail"
+          ? { display: person.display, id: null, address: person.address }
+          : { display: person.display, id: person.id, address: null };
+      out = writeMentions(
+        out,
+        [{ display: entry }],
+        (t) => t,
+        () => `@${mention.display}`,
+      ).join("");
+      if (!mentions.some((m) => m.display === mention.display && m.id === mention.id && m.address === mention.address)) mentions.push(mention);
+    }
+    if (account.provider === "slack" && this.opts.members) {
+      const members = await this.opts.members(account.account_id, slackPlace(where.thread_id).channel);
+      return { text: out, mentions: mentions.map((m) => (m.id && !members.has(m.id) ? { ...m, not_member: true } : m)) };
+    }
+    return { text: out, mentions };
   }
 
   /** A chat's proposals, settled ones included, oldest first. */
@@ -637,8 +693,10 @@ const filesWords = (files: readonly ReplyAttachment[]): string => files.map((f) 
 function sentNotice(p: ReplyProposal): string {
   const what = p.provider === "jira" ? "posted your comment" : "sent your reply";
   const files = p.attachments?.length ? `, with ${filesWords(p.attachments)}` : "";
+  const named = (p.mentions ?? []).map((m) => (m.address ? `${m.display} <${m.address}>` : m.display));
+  const mentioned = named.length ? `, ${p.provider === "gmail" ? "copying" : "mentioning"} ${inert(named.join(", "))}` : "";
   return [
-    `The person ${what} in ${p.account_label}, thread ${p.thread_id}, ${whoWords(p)}${files}. It says:`,
+    `The person ${what} in ${p.account_label}, thread ${p.thread_id}, ${whoWords(p)}${files}${mentioned}. It says:`,
     // The notice rides in a system-reminder; text that echoes a stranger's markup must not end it.
     inert(p.text),
   ].join("\n");
@@ -685,7 +743,13 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
           description:
             "The thread: Gmail's thread id (from the hand-off or a script); Slack's `channel:ts`, a channel or DM id, a message link or #channel; Jira's ticket key, id or link.",
         },
-        text: { type: "string", description: "The reply, as plain text." },
+        text: { type: "string", description: "The reply, as plain text. Write each person in `mentions` into it as @<entry>." },
+        mentions: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "People to mention, each as written after its @ in the text: a full name, an address, a Slack handle, or a token a refusal gave. Slack and Jira notify them; Gmail adds them to cc. A name that matches several people or nobody is refused with who matched: ask the person which one they mean. Any other @ in the text stays plain text.",
+        },
         attachments: {
           type: "array",
           items: { type: "string" },
@@ -710,6 +774,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
           thread_id: thread,
           text: argText(ctx.args.text),
           ...(attachments.length ? { attachments } : {}),
+          ...(Array.isArray(ctx.args.mentions) ? { mentions: ctx.args.mentions.map(argText).filter(Boolean) } : {}),
         });
         log("tool:reply_propose", { agent: ctx.agent.id, provider: p.provider });
         return `Proposed ${p.id}: it waits for the person to review and send it.\n${proposalLine(p)}`;

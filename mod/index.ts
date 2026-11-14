@@ -79,6 +79,8 @@ import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
+import { GooglePeople } from "./google-people.ts";
+import { People } from "./people.ts";
 import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
 import type { ReplyReads } from "./account-ops/reply-reader.ts";
 import { initLog, log } from "./log.ts";
@@ -416,6 +418,24 @@ export default function activate(api: ModApi, host: Host): () => void {
   const previews = new OutsidePreviews({ dir: paths.chatImages });
   // The people in each Slack workspace, read when a reply first asks, for @ suggestions and mentions (plan 082).
   const slackPeople = new SlackPeople({ client: slackClient });
+  // The people in each account by name (plan 2026-11-14-1530, KTD4): an agent's mentions, the card's picker and
+  // people_find all search through this one, so they never disagree. A Gmail account's People API client is kept, since
+  // each warms its searches once.
+  const googlePeople = new Map<string, GooglePeople>();
+  accounts.onChange((change) => googlePeople.delete(change.account_id));
+  const people = new People({
+    accounts,
+    slack: slackPeople,
+    jira: (accountId) => jiraClients.of(accountId),
+    google: (accountId) => {
+      let client = googlePeople.get(accountId);
+      if (!client) {
+        client = new GooglePeople({ accounts, account_id: accountId, auth: googleAuth(accountId) });
+        googlePeople.set(accountId, client);
+      }
+      return client;
+    },
+  });
   const outside = new OutsideThreads({
     accounts,
     threads,
@@ -457,6 +477,19 @@ export default function activate(api: ModApi, host: Host): () => void {
     accounts,
     threads,
     outside,
+    people,
+    // Who is in a Slack conversation, read when a reply mentions someone (R22), every page of it.
+    members: async (accountId, channel) => {
+      const slack = slackClient(accountId);
+      const ids = new Set<string>();
+      let cursor: string | null = null;
+      do {
+        const page = await slack.conversationsMembers(channel, cursor);
+        for (const id of page.members) ids.add(id);
+        cursor = page.next_cursor;
+      } while (cursor);
+      return ids;
+    },
     // The clients read where a reply goes for its card, from the service itself (plan 2026-11-14-1530, KTD2); a Jira
     // link may name the site's own domain, which the keychain entry keeps beside the token.
     clientFor: (account): ReplyReads => {
@@ -810,7 +843,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // The owning agent's account reads, for scripts (plan 097): offered only to agents that own an account, re-checked every call.
   toolDisposers.push(
     // The same reads for scripts (plan 097, U2): Slack threads, Jira tickets and Flow's list, script-only.
-    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of }),
+    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of, people }),
     ...registerReplyTools(api, { accounts, replies }),
     // The Google tools scripts call (plan 2026-11-11 scripts): the owner's Google accounts on this Mac, through the
     // account's shared sign-in; full listings go where every chat's too-big results go (daemon/tool-results.ts).

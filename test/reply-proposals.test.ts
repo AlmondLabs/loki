@@ -24,6 +24,7 @@ import { jiraOutsideSource } from "../mod/jira-sync.ts";
 import { OutsideThreads, type SendClient, type SendSlack } from "../mod/outside-threads.ts";
 import { MAX_REPLY_BYTES, MAX_REPLY_FILES, MAY_HAVE_GONE, ReplyProposals, registerReplyTools } from "../mod/reply-proposals.ts";
 import type { ReplySlackReads } from "../mod/account-ops/slack.ts";
+import type { PeopleOptions, PersonResolution } from "../mod/people.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
@@ -94,9 +95,12 @@ function mailOf(raw: string): { headers: Partial<Record<string, string>>; text: 
 function fakeSlack() {
   const posted: Array<{ channel: string; thread_ts?: string; text: string; files: string[] }> = [];
   const answers = { timesOut: false };
+  /** The Slack ids each post mentions, in order. */
+  const mentioned: string[][] = [];
   const client: SendSlack & ReplySlackReads = {
     postReply: (r) => {
       posted.push({ channel: r.channel, ...(r.thread_ts ? { thread_ts: r.thread_ts } : {}), text: r.text, files: [] });
+      mentioned.push((r.mentions ?? []).map((m) => m.id ?? ""));
       if (answers.timesOut) return Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
       return Promise.resolve({ ts: "2.0" });
     },
@@ -129,7 +133,28 @@ function fakeSlack() {
     usersConversations: () => Promise.resolve({ conversations: [], next_cursor: null }),
     usersInfo: () => Promise.reject(new Error("user_not_found")),
   };
-  return { client, posted, answers };
+  return { client, posted, answers, mentioned };
+}
+
+/**
+ * The people in the fixture's accounts, as mod/people.ts resolves names (its own tests check the matching): Grace Lee
+ * in Slack, in the conversation, and Ravi, who is not; two Viveks on the Jira site, one of whom cannot see OPS-7; Ana
+ * Ruiz in the mailbox's contacts.
+ */
+function resolvePerson(accountId: string, name: string, opts?: PeopleOptions): PersonResolution {
+  const n = name.toLowerCase();
+  if (accountId === SLACK) {
+    if (n === "grace lee" || n === "grace") return { ok: true, person: { provider: "slack", display: "Grace Lee", id: "U5" } };
+    if (n === "ravi") return { ok: true, person: { provider: "slack", display: "Ravi Kumar", id: "U9" } };
+  }
+  if (accountId === SITE) {
+    if (n === "vivek") return { ok: false, why: '"Vivek" matches 2 people on acme.atlassian.net: Vivek Rao (acc-vr); Vivek Shah (acc-vs)' };
+    if (n === "vivek rao" || n === "acc-vr") return { ok: true, person: { provider: "jira", display: "Vivek Rao", id: "acc-vr" } };
+    if (n === "vivek shah") return { ok: false, why: `Vivek Shah cannot see ${opts?.jira && "ticket" in opts.jira ? opts.jira.ticket : "it"}` };
+  }
+  if (accountId === MAIL && (n === "ana ruiz" || n === "ana@example.com"))
+    return { ok: true, person: { provider: "gmail", display: "Ana Ruiz", address: "ana@example.com" } };
+  return { ok: false, why: `nobody matched "${name}"` };
 }
 
 /** The reply tools loaded as a mod, so a test calls them as a chat would, with the notices and prompt line they add. */
@@ -337,6 +362,8 @@ async function fixture() {
             ? { provider: "slack", client: slack.client }
             : { provider: "jira", client: { ticketFacts: (idOrKey: string) => jiraClient.ticketFacts(idOrKey), linkHost: () => Promise.resolve(null) } },
       push: (_agent, conversationId, events) => pushed.push({ chat: conversationId, events }),
+      people: { resolve: (accountId: string, name: string, opts?: PeopleOptions) => Promise.resolve(resolvePerson(accountId, name, opts)) },
+      members: () => Promise.resolve(new Set(["U5"])),
       now,
     });
     outside.reportAgentRepliesTo(replies);
@@ -771,9 +798,10 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
 
   test("a handed-off email asking to send invoices to x@y.com yields at most a reply to the thread's own people", async () => {
     const f = await fixture();
-    // The tool has no way to name a recipient at all; its files come only from the chat's own folder.
+    // The tool names no recipient; its files come only from the chat's own folder. A Gmail mention adds cc, which the
+    // card's cc line names address by address before Send (plan 2026-11-14-1530, KTD1).
     const schema = must(f.tools.get("reply_propose"), "reply_propose").parameters as { properties: Record<string, unknown>; additionalProperties: boolean };
-    expect(Object.keys(schema.properties).sort()).toEqual(["account", "attachments", "text", "thread"]);
+    expect(Object.keys(schema.properties).sort()).toEqual(["account", "attachments", "mentions", "text", "thread"]);
     expect(schema.additionalProperties).toBe(false);
     // An agent that took the mail's bait and tried anyway: the extra arguments go nowhere.
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Here are the invoices.", to: "x@y.com", cc: ["x@y.com"], bcc: "x@y.com" });
@@ -1037,6 +1065,57 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "As @grace said, deploying at 9." });
     await f.sendAndWait(f.only().id);
     expect(f.slack.posted.map((p) => p.text)).toEqual(["As @grace said, deploying at 9."]);
+    expect(f.slack.mentioned).toEqual([[]]);
+  });
+
+  test("a name that matches two people is refused naming both; the full name resolves, and Send notifies him in Jira (AE3)", async () => {
+    const f = await fixture();
+    expect(await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "@Vivek can you look?", mentions: ["Vivek"] })).toMatch(
+      /^refused: "Vivek" matches 2 people on acme\.atlassian\.net: Vivek Rao \(acc-vr\); Vivek Shah \(acc-vs\)/,
+    );
+    expect(await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "@Vivek Shah look", mentions: ["Vivek Shah"] })).toMatch(
+      /^refused: Vivek Shah cannot see OPS-7/,
+    );
+    expect(f.replies.list(f.chat)).toEqual([]);
+    await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "@acc-vr can you look?", mentions: ["acc-vr"] });
+    // A mention given as a token is shown and kept as the person's full name.
+    expect(f.only()).toMatchObject({ text: "@Vivek Rao can you look?", mentions: [{ display: "Vivek Rao", id: "acc-vr", address: null }] });
+    await f.sendAndWait(f.only().id);
+    expect(JSON.stringify(f.jira.posted[0]?.body)).toContain('{"type":"mention","attrs":{"id":"acc-vr","text":"@Vivek Rao"}}');
+    expect(f.nextMessage()).toContain("mentioning Vivek Rao");
+  });
+
+  test("a Gmail mention found in contacts is cc'd with @Full Name in the body (AE4)", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Looping in @ana@example.com.", mentions: ["@ana@example.com"] });
+    expect(f.only()).toMatchObject({ text: "Looping in @Ana Ruiz.", mentions: [ana] });
+    await f.sendAndWait(f.only().id);
+    const sent = mailOf(must(f.sentMail[0], "the mail").raw);
+    expect(sent.headers.Cc).toContain("Ana Ruiz <ana@example.com>");
+    expect(f.nextMessage()).toContain("copying Ana Ruiz <ana@example.com>");
+  });
+
+  test("a listed mention not written in the text, or one that names nobody, is refused", async () => {
+    const f = await fixture();
+    expect(await f.call("reply_propose", { account: SLACK, thread: "D1", text: "See you.", mentions: ["Grace Lee"] })).toMatch(
+      /^refused: @Grace Lee is not in the text/,
+    );
+    expect(await f.call("reply_propose", { account: SLACK, thread: "D1", text: "@Zed hi", mentions: ["Zed"] })).toMatch(/^refused: nobody matched "Zed"/);
+  });
+
+  test("a Slack mention of someone outside the conversation is marked and still sends (R22)", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@grace and @ravi, deploying at 9.", mentions: ["grace", "ravi"] });
+    expect(f.only()).toMatchObject({
+      text: "@Grace Lee and @Ravi Kumar, deploying at 9.",
+      mentions: [
+        { display: "Grace Lee", id: "U5", address: null },
+        { display: "Ravi Kumar", id: "U9", address: null, not_member: true },
+      ],
+    });
+    await f.sendAndWait(f.only().id);
+    expect(f.slack.mentioned.at(-1)).toEqual(["U5", "U9"]);
+    expect(f.only().status).toBe("sent");
   });
 
   test("a stored proposal with mentions survives a restart; one from before mentions parses with none", async () => {
