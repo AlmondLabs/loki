@@ -185,8 +185,8 @@ function CopyAsMarkdown({ text }: { text: string }) {
     <Button
       variant="ghost"
       size="icon-xs"
-      aria-label={copied ? "copied" : "copy as markdown"}
-      title={copied ? "copied" : "copy as markdown"}
+      aria-label={copied ? "Copied" : "Copy as Markdown"}
+      title={copied ? "Copied" : "Copy as Markdown"}
       onClick={() => void copy()}
       className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100"
       data-copied={copied ? "true" : undefined}

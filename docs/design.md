@@ -266,18 +266,21 @@ Internals keep the name desk.
 
 - **Places.** The sidebar's first rows (plan 2026-11-12-1505, U12) are Chats, Flow, Agents and Learn, each a symbol
   in the accent, its name and a grey count (what waits in Flow, the cards due in Learn), the one showing filled and
-  never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A quiet
-  "Update Available" row sits at the foot while a newer loki is out. The pane is the window's one `main`; the places
+  never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A newer loki is
+  said once per version as a notice with **Update…** and **Later** (it sat as a row at the sidebar's foot until
+  2026-11-14); Preferences › loki keeps saying it while it is newer. The pane is the window's one `main`; the places
   are its navigation.
 - **Lists.** Under the places, each section's own list (`ListColumn`), 260px by default, dragged or arrowed on its
   edge between 220 and 420, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden.
   A window under 800 wide folds it away until asked for, without touching the saved choice (1100 until 2026-11-14, which folded it in most windows beside another app; plan 2026-11-14-1130). Each section's
   list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. Each list's heading
-  is a source-list heading under the places, small and grey, with its "+".
+  is a source-list heading under the places, small and grey, with its "+", except where it would repeat the place
+  above it (Chats, Agents): there it is said to a screen reader only and its "+" keeps the trailing edge, as Mail
+  never names a mailbox twice; Learn's list starts at its Views.
 - **Chats sidebar.** A filter ("Find a chat…", by chat or agent name; ↓ into the rows, ↑↓ between them, ↵ opens
   the first match), then **Pinned**, then one folding section per agent with its own "+", then a folded
-  **Archived**. A row is the chat's name: a grey count (and bold) when it waits on you, a green dot while
+  **Archived**. A row is the chat's name in full ink, as Mail titles every message (grey until 2026-11-14): a grey count (and bold) when it waits on you, a green dot while
   its agent works, and for a chat whose agent has finished a small ring after the name, bold as well while there
   is news since you last looked. **Viewed is not read, and read is not done**: opening a chat views it
   (un-bolds it), the ring stays until you act or Mark as read, and only archiving takes the chat out of the Inbox;
@@ -296,7 +299,11 @@ Internals keep the name desk.
   thread's scroll keep their state; its panels inherit that hiding and never set themselves visible.
 - **Agents** lists agents as Messages lists people (face, name, live dot, the last thing it said, a count of what
   waits in Flow); the pane shows the chosen agent with a tab row for its pages (Profile, Memory,
-  Changes, Reflection, Skills). **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick.
+  Changes, Reflection, Skills). **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick. A window that opens with no chat remembered
+  lands on Flow when something waits, else the latest chat, else "No Chat Selected" with **New Chat** (plan
+  2026-11-14-1300); the desk's shared scope is never drawn as a chat. Every pane's header is the chat's toolbar: its
+  name over a grey line of facts (Flow's lane and what needs you, an agent's page, Learn's counts), its controls at
+  the trailing edge.
 - **⌘K.** A floating panel of strong glass, nothing dimmed behind it, over chats, agents, labels, waiting Flow
   items and the app's pages, the menu bar's commands for the screen showing, and the open chat's models and modes
   (plan 2026-11-12-1505, U21, U23); it does not search message text, and says so in its foot line. An empty query lists

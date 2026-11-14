@@ -231,7 +231,7 @@ function ThreadBody({
         onClick={fold}
         size="sm"
         className="gap-1.5 rounded-full px-3 shadow-float"
-        aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"}
+        aria-label={fresh > 0 ? `Jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "Jump to latest"}
       >
         <ArrowDownIcon data-icon="inline-start" />
         {/* Title case, as a Mac button says it (U19). */}

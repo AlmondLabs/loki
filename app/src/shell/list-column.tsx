@@ -109,10 +109,11 @@ export function ListColumn({
 }
 
 /** The column's top line, level with the main pane's header: the section's name and its actions. It drags the window like the pane header's name line. */
-export function ColumnHeader({ title, actions }: { title: ReactNode; actions?: ReactNode }) {
+export function ColumnHeader({ title, actions, quiet = false }: { title: ReactNode; actions?: ReactNode; quiet?: boolean }) {
   return (
-    <div className="loki-column-header" data-tauri-drag-region="deep">
-      <h2 className="loki-column-title">{title}</h2>
+    <div className="loki-column-header" data-quiet={quiet || undefined} data-tauri-drag-region="deep">
+      {/* Quiet: the place's own row above already says it, as Mail's sidebar never names a mailbox twice; a screen reader still hears it. */}
+      <h2 className={quiet ? "loki-column-title sr-only" : "loki-column-title"}>{title}</h2>
       {actions && <span className="loki-column-actions">{actions}</span>}
     </div>
   );

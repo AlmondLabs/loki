@@ -11,7 +11,7 @@ import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
 import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 import { MenuItems, menuKey, menuRows } from "../shell/menu-items";
-import { chatItem } from "../item/item-view";
+import { chatItem, type ItemProperty } from "../item/item-view";
 
 /** The pieces of a Flow card around its Conversation, and the title with its lane switcher. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -60,23 +60,24 @@ export interface LaneSwitchProps {
 }
 
 /**
- * The title line: the lane switcher, then what needs you and how many chats are in the lane, and while a lane is on,
- * the quiet count of cards waiting in the others (R14). A chat stays until it is archived, so there is no pass to
- * count down and no progress bar; the counts follow the live list.
+ * Flow's toolbar, the chat's anatomy (plan 2026-11-14-1300, 3): the lane's name over a grey line of what needs you, how
+ * many chats are in the lane and, while a lane is on, the quiet count waiting in the others (R14). The name opens the
+ * lane menu, the same list as the sidebar's, for when the sidebar is folded. A chat stays until it is archived, so
+ * there is no pass to count down and no progress bar; the counts follow the live list.
  */
 export function DeckHeader({ needYou, chats, others, ...lane }: LaneSwitchProps & { needYou: number; chats: number; others: number }) {
   const quiet = othersLine(others);
+  const facts: ItemProperty[] = [
+    { key: "status", label: `${needYou} need you`, editable: false, ...(needYou > 0 ? { tone: "attention" as const } : {}) },
+    { key: "status", label: `${chats} ${chats === 1 ? "chat" : "chats"}`, editable: false },
+    ...(quiet ? [{ key: "status" as const, label: quiet, editable: false }] : []),
+  ];
   return (
-    <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
-      <LaneSwitch {...lane} />
-      <span>
-        {quiet && <span style={{ marginRight: 14 }}>{quiet}</span>}
-        <span style={{ color: needYou > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{needYou} need you</span>
-        <span style={{ marginLeft: 14 }}>
-          {chats} {chats === 1 ? "chat" : "chats"}
-        </span>
-      </span>
-    </div>
+    <header className="loki-pane-header loki-deck-header">
+      <div className="loki-pane-header-line" data-tauri-drag-region="deep">
+        <ToolbarTitle title={laneTitle(lane.lane)} menu={<LaneSwitch {...lane} />} facts={facts} titleAs="h1" />
+      </div>
+    </header>
   );
 }
 
@@ -89,7 +90,7 @@ function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
     <span style={{ position: "relative", display: "inline-flex" }}>
       <button
         type="button"
-        className="loki-label"
+        className="loki-toolbar-open"
         aria-haspopup="menu"
         aria-expanded={open}
         title="Switch lane"
@@ -419,7 +420,7 @@ export function CardActions({
         size="sm"
         onClick={archive}
         disabled={main}
-        title={main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow"}
+        title={main ? "A main chat cannot be archived" : "Done with this chat: it leaves Flow"}
         kbd={deckKey("inbox.archive", typing)}
       >
         Archive

@@ -105,7 +105,7 @@ export function ChatWindow({
               right={
                 <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
                   {onToggleWidth && placement !== "center" && (
-                    <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "narrow chat" : "wide chat"}>
+                    <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "Narrow chat" : "Wide chat"}>
                       <Glyph icon={width === "wide" ? PanelLeftIcon : PanelRightIcon} />
                     </IconButton>
                   )}

@@ -13,6 +13,7 @@ export function ToolbarTitle({
   titleAs: Title = "h2",
   onOpen,
   openTitle,
+  menu,
 }: {
   title: string;
   facts: readonly ItemProperty[];
@@ -21,21 +22,24 @@ export function ToolbarTitle({
   titleAs?: "h1" | "h2";
   onOpen?: () => void;
   openTitle?: string;
+  /** The name as a menu of its own (Flow's lane switcher) in place of the plain name; `title` stays its tooltip. */
+  menu?: ReactNode;
 }) {
   return (
     <div className="loki-toolbar-title">
       <Title className="loki-toolbar-name" title={onOpen ? undefined : title}>
-        {onOpen ? (
-          <button type="button" className="loki-toolbar-open" title={openTitle ?? title} onClick={onOpen}>
-            {title}
-          </button>
-        ) : (
-          title
-        )}
+        {menu ??
+          (onOpen ? (
+            <button type="button" className="loki-toolbar-open" title={openTitle ?? title} onClick={onOpen}>
+              {title}
+            </button>
+          ) : (
+            title
+          ))}
       </Title>
       <p className="loki-toolbar-sub">
         {facts.map((p, i) => (
-          <span key={p.key}>
+          <span key={`${p.key}-${i}`}>
             {i > 0 && " · "}
             {p.tone === "attention" && <span aria-hidden className="loki-toolbar-dot" />}
             {p.label}

@@ -60,7 +60,7 @@ describe("an opened step", () => {
     const out = html(createElement(StepOpened, { row: bash(), running: false }));
     expect(out).toContain("Bash");
     expect(out).toContain(">done<");
-    expect(out).toContain(">command<");
+    expect(out).toContain(">Command<");
     expect(out).toContain("python chart.py");
     expect(out).toContain("saved chart.png");
   });
@@ -88,7 +88,7 @@ describe("an opened step", () => {
     const out = html(createElement(StepOpened, { row, running: false }));
     expect(out).toContain("Asked: reproduce the login loop in Safari");
     expect(out).toContain("Reproduced: SameSite=Strict drops the cookie.");
-    expect(out).not.toContain(">command<");
+    expect(out).not.toContain(">Command<");
   });
 
   test("a background task's notice is a Task with its detail", () => {

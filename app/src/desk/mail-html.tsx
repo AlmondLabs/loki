@@ -187,8 +187,8 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
         type="button"
         className="loki-mail-quote-toggle"
         aria-expanded={quoteOpen}
-        aria-label={quoteOpen ? "hide the earlier mail" : "show the earlier mail"}
-        title={quoteOpen ? "hide the earlier mail quoted under this one" : "show the earlier mail quoted under this one"}
+        aria-label={quoteOpen ? "Hide the earlier mail" : "Show the earlier mail"}
+        title={quoteOpen ? "Hide the earlier mail quoted under this one" : "Show the earlier mail quoted under this one"}
         onClick={() => setQuoteOpen(!quoteOpen)}
       >
         •••

@@ -766,7 +766,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
         <Chip
           float
           onClick={jumpToLatest}
-          aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"}
+          aria-label={fresh > 0 ? `Jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "Jump to latest"}
           className="loki-latest-chip"
           style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}
         >

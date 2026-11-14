@@ -582,7 +582,7 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
     <IconButton
       size={24}
       className={className}
-      label={copied ? "copied" : "copy as markdown"}
+      label={copied ? "Copied" : "Copy as Markdown"}
       data-copied={copied ? "true" : undefined}
       onClick={() => void copy()}
     >

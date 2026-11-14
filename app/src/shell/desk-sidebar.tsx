@@ -356,6 +356,7 @@ export function DeskSidebar({
     <>
       <ColumnHeader
         title="Chats"
+        quiet
         actions={
           onNew && (
             <IconButton label="New chat" title="New chat" onClick={() => onNew(null)}>

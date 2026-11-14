@@ -471,7 +471,7 @@ export function ComposerBar({
             onClick={stop.onStop}
             disabled={stop.stopping}
             label={stop.stopping ? "Stopping" : "Stop"}
-            title={stop.stopping ? "stopping…" : "stop the agent's turn"}
+            title={stop.stopping ? "Stopping…" : "Stop the agent's turn"}
             className="loki-composer-round loki-composer-stop"
           >
             <Icon name="stop" size={glyph} />

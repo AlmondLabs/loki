@@ -157,7 +157,7 @@ export function EmojiPicker({
         className="loki-emoji-search"
         autoFocus
         value={query}
-        placeholder={search ? "search emoji" : "pick one"}
+        placeholder={search ? "Search emoji" : "Pick one"}
         readOnly={!search}
         aria-label="Search emoji"
         onChange={(e) => setQuery(e.target.value)}

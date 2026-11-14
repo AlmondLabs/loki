@@ -18,6 +18,7 @@ import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
 import { capitalChildren, capitalFirst } from "../kit/words";
+import { ariaShortcut } from "../shell/keymap";
 
 /**
  * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
@@ -80,6 +81,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
       title={keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title}
+      aria-keyshortcuts={keyTip ? ariaShortcut(keyTip) : undefined}
       {...rest}
     >
       {capitalChildren(children)}

@@ -115,7 +115,8 @@ loki is drawn to Apple's Human Interface Guidelines with Liquid Glass: what floa
 menus, sheets, decisions and the message box) is glass, and content is solid. Under Reduce Transparency or Increase
 Contrast, and on Linux, the glass is drawn solid with the same shapes. The native title bar is hidden: a thin strip
 along the top drags the window (double-click zooms). The window title still names what shows — the chat's name,
-"Flow · n waiting", "Agents", "Preferences" — for the Window menu and Mission Control. On the left, one **sidebar**
+"Flow · n waiting", "Agents", "Preferences" — for the Window menu and Mission Control. A window with no chat to reopen opens on Flow when something waits on you, else on your latest chat, else on "No
+Chat Selected" with **New Chat**. On the left, one **sidebar**
 on the Mac's own material, the traffic lights in its top row: its first rows are the places, **Chats**, **Flow**,
 **Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
 filled; under them, the place's own list. The chosen item fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
@@ -386,7 +387,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. When a newer loki is out, the sidebar's foot says **Update Available**. If the icon opens on
+locks it out. When a newer loki is out, a notice says so once, with **Update…** (Preferences › loki) and **Later**. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.

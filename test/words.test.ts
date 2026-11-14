@@ -60,6 +60,13 @@ function strings(path: string): Found[] {
     const { line } = src.getLineAndCharacterOfPosition(node.getStart());
     out.push({ where: `${file}:${line + 1}`, text: t, button });
   };
+  // A string the prop shows: a literal, a template's opening words, or either side of a choice, however deep.
+  const shown = (e: ts.Expression): void => {
+    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) add(e, e.text);
+    else if (ts.isTemplateExpression(e) && e.head.text.trim()) add(e, e.head.text);
+    else if (ts.isConditionalExpression(e)) [e.whenTrue, e.whenFalse].forEach(shown);
+    else if (ts.isParenthesizedExpression(e)) shown(e.expression);
+  };
   const visit = (node: ts.Node) => {
     if (ts.isJsxText(node) && node.text.trim() && ts.isJsxElement(node.parent)) {
       const first = node.parent.children.find((k) => !(ts.isJsxText(k) && !k.text.trim()));
@@ -69,8 +76,7 @@ function strings(path: string): Found[] {
     if (ts.isJsxAttribute(node) && PROPS.has(node.name.getText()) && node.initializer) {
       const i = node.initializer;
       const e = ts.isJsxExpression(i) ? i.expression : i;
-      if (e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e))) add(i, e.text);
-      else if (e && ts.isTemplateExpression(e) && e.head.text.trim()) add(i, e.head.text);
+      if (e) shown(e);
     }
     ts.forEachChild(node, visit);
   };

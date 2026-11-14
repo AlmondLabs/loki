@@ -136,7 +136,7 @@ function QuestionCardFor({
                     className="loki-question-answer"
                     onClick={submit}
                     disabled={!complete}
-                    title={complete ? "send these answers" : many ? "answer every question" : "pick one, or type below"}
+                    title={complete ? "Send these answers" : many ? "Answer every question" : "Pick one, or type below"}
                   >
                     Answer
                   </Button>

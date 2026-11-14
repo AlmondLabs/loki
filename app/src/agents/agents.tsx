@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
-import { AgentFace } from "../desk/agent-chip";
 import { registerActions } from "../shell/keymap";
 import { Button, EmptyPane, PaneHeader, type Tab } from "../components";
-import { Icon } from "../shared/icons";
+import { ToolbarTitle } from "../item/toolbar";
+import type { ItemProperty } from "../item/item-view";
+
+/** One line of words as a toolbar's grey line, or none. */
+const said = (line: string | null | undefined): ItemProperty[] => (line ? [{ key: "status", label: line, editable: false }] : []);
 import { COLUMN_DEFAULT } from "../shell/column";
 
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_LABEL, type AgentPage } from "./pages";
@@ -157,7 +160,7 @@ export function Agents({
   if (creating) {
     return frame(
       <>
-        <PaneHeader title="New agent" lead={<Icon name="plus" size={20} />} aside={notice} />
+        <PaneHeader title="New Agent" line={<ToolbarTitle title="New Agent" facts={said(notice)} titleAs="h1" />} />
         <NewAgent models={models} onLoadModels={loadModels} onCreate={created} onCancel={() => setCreating(false)} canCancel={agents.length > 0} />
       </>,
     );
@@ -165,10 +168,11 @@ export function Agents({
   if (!selected) return frame(null);
   const name = d?.agent.name ?? agents.find((a) => a.id === selected)?.name ?? "agent";
   const header = (tabs: boolean) => (
+    // The chat's toolbar anatomy (plan 2026-11-14-1300, 3): the agent's name over a grey line saying what the page
+    // shows, or what just happened, and the pages as the segmented control beside it.
     <PaneHeader
       title={name}
-      lead={<AgentFace name={name} src={avatar(selected)} size={24} />}
-      aside={notice ?? (tabs ? AGENT_PAGE_HINT[page] : undefined)}
+      line={<ToolbarTitle title={name} facts={said(notice ?? (tabs ? AGENT_PAGE_HINT[page] : null))} titleAs="h1" />}
       tabs={tabs ? PAGE_TABS : undefined}
       tab={page}
       onTab={pick}
