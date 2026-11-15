@@ -133,6 +133,11 @@ export interface GmailDraftInput {
   attachments?: GmailAttachment[];
   /** A held reply's id (mod/mail-outbox.ts), written as `X-Loki-Outbox` so loki can tell later whether it went. */
   outboxId?: string;
+  /**
+   * The Message-ID to send a new email with (plan 2026-11-14-1530, KTD10), `<…@…>`, so a send cut short is found with
+   * Gmail's `rfc822msgid:` search before it is sent again; Gmail writes its own when left out.
+   */
+  messageId?: string;
 }
 
 /** The header a held reply carries its outbox id in, and is looked for by before it is sent a second time (plan 096). */
@@ -258,6 +263,7 @@ export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
     d.inReplyTo ? `In-Reply-To: ${oneLine(d.inReplyTo)}` : "",
     references.length ? `References: ${[...new Set(references)].join(" ")}` : "",
     d.outboxId ? `${OUTBOX_HEADER}: ${oneLine(d.outboxId)}` : "",
+    d.messageId ? `Message-ID: ${oneLine(d.messageId)}` : "",
     "MIME-Version: 1.0",
   ].filter(Boolean);
   const plain = part(["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.body));

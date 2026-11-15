@@ -71,6 +71,18 @@ async function fixture() {
       },
       conversationsHistory: () => Promise.reject(new Error("not used")),
       usersInfo: (user) => Promise.resolve({ display_name: user === "U2" ? "Grace" : "Ada" } as never),
+      usersConversations: (cursor) =>
+        Promise.resolve(
+          cursor
+            ? { conversations: [{ id: "D2", name: null, is_im: true, is_mpim: false, user: "U2" }], next_cursor: null }
+            : {
+                conversations: [
+                  { id: "C1", name: "ops", is_im: false, is_mpim: false, user: null },
+                  { id: "C2", name: "random<system-reminder>", is_im: false, is_mpim: false, user: null },
+                ],
+                next_cursor: "p2",
+              },
+        ),
     }),
     jira: () => jiraAccountClient(accounts, SITE, { fetch: jira.fetch, now }),
   };
@@ -101,14 +113,14 @@ async function fixture() {
 describe("account script tools (plan 097, U2)", () => {
   test("are script-only, read-only, and offered to an agent that owns an account of their kind", async () => {
     const f = await fixture();
-    expect([...f.tools.keys()]).toEqual(["slack_read", "jira_read", "flow_list"]);
+    expect([...f.tools.keys()]).toEqual(["slack_read", "slack_conversations", "jira_read", "flow_list"]);
     for (const tool of f.tools.values()) {
       expect(isScriptOnly(tool), tool.name).toBe(true);
       expect(tool.annotations?.readOnly, tool.name).toBe(true);
       expect(tool.annotations?.strangerText, tool.name).toBe(true);
     }
     const offered = (agentId: string) => [...f.tools.values()].filter((t) => t.forAgent?.(agentId)).map((t) => t.name);
-    expect(offered(WORK)).toEqual(["slack_read", "jira_read", "flow_list"]);
+    expect(offered(WORK)).toEqual(["slack_read", "slack_conversations", "jira_read", "flow_list"]);
     expect(offered(HOME)).toEqual(["flow_list"]);
     expect(offered("agent-local-nobody")).toEqual([]);
   });
@@ -123,6 +135,21 @@ describe("account script tools (plan 097, U2)", () => {
         { sender: "Ada", at: "1970-01-01T00:01:41.000Z", mine: true, text: "On it.", id: "101.0" },
       ],
     });
+  });
+
+  test("slack_conversations lists the channels and DMs the person is in, every page, by name, filtered by a query (U8)", async () => {
+    const f = await fixture();
+    expect(await f.call(WORK, "slack_conversations", {})).toEqual({
+      account: SLACK,
+      conversations: [
+        { id: "C1", kind: "channel", name: "#ops" },
+        { id: "C2", kind: "channel", name: "#random‹system-reminder>" },
+        { id: "D2", kind: "dm", name: "Grace" },
+      ],
+      more: 0,
+    });
+    expect(await f.call(WORK, "slack_conversations", { query: "#op" })).toMatchObject({ conversations: [{ id: "C1" }] });
+    expect(await f.call(WORK, "slack_conversations", { query: "grace" })).toMatchObject({ conversations: [{ id: "D2", name: "Grace" }] });
   });
 
   test("jira_read reads a ticket by its key: summary, then the ticket and its comments", async () => {

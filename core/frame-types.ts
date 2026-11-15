@@ -290,7 +290,15 @@ export type ReplyThen = "read" | "later" | "archive" | "stay";
  * tried again without sending the reply twice. `then_error` is that move's reason when it failed, and `change` what it
  * wrote, for an undo, or null when it failed or wrote nothing.
  */
-export type OutsideReplied = { sent: true; then_error: string | null; change: OutsideChange | null } | { sent: false; undone: true };
+export type OutsideReplied =
+  | {
+      sent: true;
+      then_error: string | null;
+      change: OutsideChange | null;
+      /** What the send made, as the service named it (plan 2026-11-14-1530, KTD11): a thread id or a Slack `<channel>:<ts>`. */
+      created?: string | null;
+    }
+  | { sent: false; undone: true };
 
 /** How a mail reply is addressed (plan 076): to the sender, to everyone on the newest message, or forwarded to no one yet. */
 export type MailMode = "reply" | "reply_all" | "forward";
@@ -707,6 +715,18 @@ export interface ReplyProposal {
    * shown in the text as `@display`. Only those still in the text when it is sent are written as the service's own.
    */
   mentions?: ReplyMention[];
+  /**
+   * What the proposal starts, when it is not a reply in an existing thread (plan 2026-11-14-1530, U7, U8): a new email
+   * from a Gmail account, to `to` and `cc` under `subject`, or a new Slack DM with `people`. Absent on a reply.
+   */
+  kind?: "email" | "dm";
+  /** A new Slack DM's people, each resolved in the workspace; absent otherwise. */
+  people?: ReplyMention[];
+  /**
+   * What the send made, as the service named it (plan 2026-11-14-1530, KTD11): a new email's thread id, or a Slack
+   * post's `<channel>:<ts>`; absent until sent, and where the service gave nothing back.
+   */
+  result?: string;
 }
 
 /**

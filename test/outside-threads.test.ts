@@ -184,6 +184,8 @@ function threads(
                     ],
                   ),
                 attachment: (messageId: string, attachmentId: string) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
+                listMessages: (q: string) =>
+                  Promise.resolve({ messages: sentMail.some((m) => q === `rfc822msgid:${m.messageId ?? ""}`) ? [{ id: "s1", threadId: "t-new" }] : [] }),
                 sendReply: (r) => {
                   calls.push(`sendReply ${r.threadId}`);
                   if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
@@ -195,6 +197,10 @@ function threads(
           : {
               provider: "slack",
               client: {
+                openDm: (people: readonly string[]) => {
+                  calls.push(`openDm ${people.join(",")}`);
+                  return Promise.resolve("D9");
+                },
                 postReply: (r) => {
                   calls.push(`postReply ${r.channel}`);
                   if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
@@ -390,6 +396,7 @@ describe("reading a card's whole thread", () => {
         client: {
           postReply: () => Promise.resolve({ ts: "1" }),
           postWithFiles: () => Promise.resolve(),
+          openDm: () => Promise.resolve("D9"),
           react: () => Promise.resolve(),
           emojiList: () => Promise.resolve({}),
           frequentEmoji: () => Promise.resolve([]),

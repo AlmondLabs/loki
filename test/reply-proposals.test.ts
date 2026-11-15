@@ -97,7 +97,13 @@ function fakeSlack() {
   const answers = { timesOut: false };
   /** The Slack ids each post mentions, in order. */
   const mentioned: string[][] = [];
+  /** The people of each DM opened, in order. */
+  const opened: string[][] = [];
   const client: SendSlack & ReplySlackReads = {
+    openDm: (people) => {
+      opened.push([...people]);
+      return Promise.resolve(`D-${people.join("-")}`);
+    },
     postReply: (r) => {
       posted.push({ channel: r.channel, ...(r.thread_ts ? { thread_ts: r.thread_ts } : {}), text: r.text, files: [] });
       mentioned.push((r.mentions ?? []).map((m) => m.id ?? ""));
@@ -133,7 +139,7 @@ function fakeSlack() {
     usersConversations: () => Promise.resolve({ conversations: [], next_cursor: null }),
     usersInfo: () => Promise.reject(new Error("user_not_found")),
   };
-  return { client, posted, answers, mentioned };
+  return { client, posted, answers, mentioned, opened };
 }
 
 /**
@@ -156,6 +162,8 @@ function resolvePerson(accountId: string, name: string, opts?: PeopleOptions): P
   }
   if (accountId === MAIL && (n === "ana ruiz" || n === "ana@example.com"))
     return { ok: true, person: { provider: "gmail", display: "Ana Ruiz", address: "ana@example.com" } };
+  // A full address found nowhere is itself, as mod/people.ts resolves one.
+  if (accountId === MAIL && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n)) return { ok: true, person: { provider: "gmail", display: n, address: n } };
   return { ok: false, why: `nobody matched "${name}"` };
 }
 
@@ -265,8 +273,9 @@ async function fixture() {
       const body = init?.body;
       let sent: { threadId: string; raw: string };
       if (typeof body === "string") {
-        const json = JSON.parse(body) as { raw: string; threadId: string };
-        sent = { threadId: json.threadId, raw: Buffer.from(json.raw, "base64url").toString("utf8") };
+        const json = JSON.parse(body) as { raw: string; threadId?: string };
+        // A new email has no thread yet: Gmail starts one.
+        sent = { threadId: json.threadId ?? `t-new-${String(sentMail.length + 1)}`, raw: Buffer.from(json.raw, "base64url").toString("utf8") };
       } else {
         const text = body instanceof Uint8Array ? Buffer.from(body).toString("utf8") : "";
         const meta = JSON.parse(/application\/json; charset=UTF-8\r\n\r\n(\{.*\})/.exec(text)?.[1] ?? "{}") as { threadId?: string };
@@ -282,13 +291,19 @@ async function fixture() {
         to: headers.To ?? "",
         ...(headers.Cc ? { cc: headers.Cc } : {}),
         subject: headers.Subject ?? "",
-        headers: { "Message-ID": `<sent${String(sentMail.length)}@acme.com>`, "X-Loki-Outbox": headers["X-Loki-Outbox"] ?? "" },
+        headers: { "Message-ID": headers["Message-ID"] ?? `<sent${String(sentMail.length)}@acme.com>`, "X-Loki-Outbox": headers["X-Loki-Outbox"] ?? "" },
         labels: ["SENT"],
       });
       if (gmailAnswers.hangs) return new Promise<Response>(() => {});
       if (gmailAnswers.status !== 200)
         return Promise.resolve(new Response(JSON.stringify({ error: { code: 503, message: "Backend Error" } }), { status: 503 }));
       return Promise.resolve(new Response(JSON.stringify({ id: `s${String(sentMail.length)}`, threadId: sent.threadId }), { status: 200 }));
+    }
+    // Gmail's search by Message-ID, which finds a new email after a send cut short (plan 2026-11-14-1530, KTD10).
+    const byId = method === "GET" && path === "/messages" ? /^rfc822msgid:(.+)$/.exec(url.searchParams.get("q") ?? "") : null;
+    if (byId) {
+      const found = sentMail.filter((m) => mailOf(m.raw).headers["Message-ID"] === byId[1]);
+      return Promise.resolve(new Response(JSON.stringify({ messages: found.map((m, i) => ({ id: `s${String(i)}`, threadId: m.threadId })) }), { status: 200 }));
     }
     if (gmailAnswers.threadReadFails && method === "GET" && path.startsWith("/threads/"))
       return Promise.resolve(new Response(JSON.stringify({ error: { code: 500, message: "Backend Error" } }), { status: 500 }));
@@ -505,7 +520,7 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     expect(description).toContain("sends it from there as themselves; you cannot send it, and nothing goes before their Send");
     expect(description).not.toMatch(/draft/i);
     const line = await must(f.sections.get("replies"), "the prompt line")({ chatId: CHAT, agentId: WORK, agentName: WORK, cwd: undefined });
-    expect(line).toContain("the person reviews the reply on a card and sends it from there; you cannot send it");
+    expect(line).toContain("the person reviews it on a card and sends it from there; you cannot send it");
     expect(line).toContain("Never send mail, Slack messages or Jira comments any other way.");
     expect(await must(f.sections.get("replies"), "the prompt line")({ chatId: CHAT, agentId: HOME, agentName: HOME, cwd: undefined })).toBeUndefined();
   });
@@ -1218,6 +1233,89 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     await f.sendAndWait(old.id);
     expect(f.only().status).toBe("sent");
     expect(JSON.stringify(f.jira.posted.at(-1)?.body)).not.toContain('"type":"mention"');
+  });
+});
+
+describe("new conversations (plan 2026-11-14-1530, U7, U8)", () => {
+  test("a new email to Ana Ruiz and an address goes from the person with its Message-ID, and the agent hears its thread", async () => {
+    const f = await fixture();
+    const out = await f.call("message_propose", { account: MAIL, to: ["Ana Ruiz", "bo@example.com"], subject: "Q3 numbers", text: "Here they are." });
+    expect(out).toMatch(/waits for the person to review and send it/);
+    expect(f.only()).toMatchObject({ kind: "email", thread_id: "", subject: "Q3 numbers", to: ["Ana Ruiz <ana@example.com>", "bo@example.com"], cc: [] });
+    await f.sendAndWait(f.only().id);
+    const sent = mailOf(must(f.sentMail[0], "the mail").raw);
+    expect(sent.headers.To).toBe("Ana Ruiz <ana@example.com>, bo@example.com");
+    expect(sent.headers.Subject).toBe("Q3 numbers");
+    expect(sent.headers["Message-ID"]).toMatch(/^<reply-send-[\w-]+@acme\.com>$/);
+    expect(sent.headers["In-Reply-To"]).toBeUndefined();
+    expect(f.only()).toMatchObject({ status: "sent", result: "t-new-1" });
+    expect(f.nextMessage()).toMatch(/The person sent your new email in ada@acme\.com, thread t-new-1, to ana@example\.com, bo@example\.com/);
+    // The agent can answer the thread it started, with no Flow card for it (R20).
+    expect(f.threads.get(MAIL, "t-new-1")).toBeNull();
+    expect(await f.call("reply_propose", { account: MAIL, thread: "t-new-1", text: "One more thing." })).toMatch(/waits for the person/);
+  });
+
+  test("a new email cut short by loki stopping is found by its Message-ID after the restart, and never sent twice", async () => {
+    const f = await fixture();
+    expect(await f.call("message_propose", { account: MAIL, to: ["Ana Ruiz"], subject: "Hi", text: "Hello." })).toMatch(/waits for the person/);
+    f.gmailAnswers.hangs = true;
+    await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
+    await until(() => f.tm.pending().length === 1);
+    f.tm.fire();
+    await until(() => f.sentMail.length === 1);
+    f.gmailAnswers.hangs = false;
+    f.restart();
+    await until(() => f.only().status === "sent");
+    await settled();
+    expect(f.sentMail).toHaveLength(1);
+  });
+
+  test("a new email needs someone in to and a subject; a name that fits nobody is refused", async () => {
+    const f = await fixture();
+    expect(await f.call("message_propose", { account: MAIL, to: [], subject: "Hi", text: "x" })).toMatch(/^refused: a new email needs someone in `to`/);
+    expect(await f.call("message_propose", { account: MAIL, to: ["Ana Ruiz"], subject: " ", text: "x" })).toMatch(/^refused: a new email needs a subject/);
+    expect(await f.call("message_propose", { account: MAIL, to: ["Zed"], subject: "Hi", text: "x" })).toMatch(/^refused: nobody matched "Zed"/);
+    expect(await f.call("message_propose", { account: SITE, text: "x" })).toMatch(/^refused: a Jira site starts no conversation here/);
+    expect(f.replies.list(f.chat)).toEqual([]);
+  });
+
+  test("a group DM names its people; it is opened only at Send, so a rejected one opens nothing", async () => {
+    const f = await fixture();
+    await f.call("message_propose", { account: SLACK, people: ["Grace Lee", "ravi"], text: "Standup moved to 10." });
+    expect(f.only()).toMatchObject({ kind: "dm", place: "a DM with Grace Lee and Ravi Kumar", people: [{ id: "U5" }, { id: "U9" }] });
+    await f.replies.decide(f.chat, f.only().id, "reject", "desktop");
+    expect(f.slack.opened).toEqual([]);
+    await f.call("message_propose", { account: SLACK, people: ["Grace Lee", "ravi"], text: "Standup moved to 10." });
+    const dm = must(f.replies.list(f.chat).at(-1), "the DM");
+    await f.replies.decide(f.chat, dm.id, "approve", "desktop");
+    await until(() => f.tm.pending().length > 0);
+    f.tm.fire();
+    await until(() => f.replies.list(f.chat).at(-1)?.status === "sent");
+    expect(f.slack.opened).toEqual([["U5", "U9"]]);
+    expect(f.slack.posted.at(-1)).toMatchObject({ channel: "D-U5-U9", text: "Standup moved to 10." });
+    expect(f.replies.list(f.chat).at(-1)?.result).toBe("D-U5-U9");
+  });
+
+  test("a new DM whose post may have gone is never sent again from its card", async () => {
+    const f = await fixture();
+    await f.call("message_propose", { account: SLACK, people: ["Grace Lee"], text: "Hi." });
+    f.slack.answers.timesOut = true;
+    await f.sendAndWait(f.only().id);
+    f.slack.answers.timesOut = false;
+    expect(f.only().status).toBe("pending");
+    const again = await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
+    expect(again).toMatchObject({ done: false, message: "it may have gone: look in Slack, and reject this and ask again if it did not" });
+    expect(f.slack.posted).toHaveLength(1);
+  });
+
+  test("a top-level post in a channel the person is in tells the agent the new thread, and adds no card to Flow (AE8)", async () => {
+    const f = await fixture();
+    await f.call("reply_propose", { account: SLACK, thread: "C9", text: "Deploy at 9." });
+    await f.sendAndWait(f.only().id);
+    expect(f.slack.posted.at(-1)).toEqual({ channel: "C9", text: "Deploy at 9.", files: [] });
+    expect(f.only().result).toBe("C9:2.0");
+    expect(f.nextMessage()).toMatch(/thread C9:2\.0, in #ops/);
+    expect(f.threads.get(SLACK, "C9:2.0")).toBeNull();
   });
 });
 

@@ -57,7 +57,16 @@ export interface HeldReply {
    * service's own mentions, and on Gmail the addresses it adds to cc. Left out of a reply that mentions no one.
    */
   mentions?: ReplyMention[];
+  /**
+   * What the send starts, when it is not a reply in `thread_id` (plan 2026-11-14-1530, KTD10): a new email with its
+   * subject and the Message-ID it is sent with, so a send cut short is found by it; or a new Slack DM with the people
+   * it opens with, opened only at the send (KTD12). `thread_id` is empty for both.
+   */
+  target?: HeldTarget;
 }
+
+/** A held new conversation: a new email, or a new Slack DM. */
+export type HeldTarget = { kind: "email"; subject: string; message_id: string } | { kind: "dm"; people: string[] };
 
 /** What MailOutbox is built from; the clock and the timer are injected so tests own them. */
 export interface MailOutboxOptions {
@@ -83,8 +92,9 @@ export interface MailOutboxOptions {
   /**
    * An agent's reply went (or a restart found it had gone before its proposal heard): told again after each restart
    * until the proposal calls `acknowledge`, so a crash between the send and the proposal's save never loses the news.
+   * `result` is what the send made, as the service named it (KTD11), or null when it gave nothing back.
    */
-  onSent?: (held: HeldReply) => void;
+  onSent?: (held: HeldReply, result: string | null) => void;
 }
 
 /**
@@ -177,7 +187,7 @@ export class MailOutbox {
           continue;
         }
         if (held.state === "sent") {
-          this.opts.onSent?.(held);
+          this.opts.onSent?.(held, held.result ?? null);
           continue;
         }
         if (held.state === "sending") {
@@ -253,8 +263,9 @@ export class MailOutbox {
     if (went === true) {
       log("outside:cut-short-went", {});
       if (held.proposal) {
+        // Found by its Message-ID or header after a cut-short send: what it made is not known here, only that it went.
         this.mark(held.outbox_id, { state: "sent" });
-        this.opts.onSent?.(held);
+        this.opts.onSent?.(held, null);
       } else this.settled(held);
       return;
     }
@@ -293,8 +304,9 @@ export class MailOutbox {
       const r = await this.opts.send(w.held);
       // An agent's reply stays, marked sent, until its proposal has saved that; the person's own leaves at once.
       if (w.held.proposal) {
-        this.mark(outboxId, { state: "sent" });
-        this.opts.onSent?.(w.held);
+        const result = r.sent ? (r.created ?? null) : null;
+        this.mark(outboxId, { state: "sent", ...(result ? { result } : {}) });
+        this.opts.onSent?.(w.held, result);
       } else this.remove(outboxId);
       w.settle(r);
     } catch (err) {
@@ -333,7 +345,7 @@ export class MailOutbox {
     this.opts.onNotSent?.(held, null);
   }
 
-  private mark(outboxId: string, change: Partial<Pick<Stored, "state" | "reason" | "failed_at">>): void {
+  private mark(outboxId: string, change: Partial<Pick<Stored, "state" | "reason" | "failed_at" | "result">>): void {
     this.write(this.read().map((h) => (h.outbox_id === outboxId ? { ...h, ...change } : h)));
   }
 
@@ -364,7 +376,7 @@ export class MailOutbox {
  * A held reply as the file keeps it: with its seal, when there was a key to make one, and how its send stands. No state
  * is a reply still waiting out its hold; `sending` one whose send began; `failed` one that did not go, with why.
  */
-type Stored = HeldReply & { seal?: unknown; state?: "sending" | "sent" | "failed"; reason?: string; failed_at?: string };
+type Stored = HeldReply & { seal?: unknown; state?: "sending" | "sent" | "failed"; reason?: string; failed_at?: string; result?: string };
 
 /**
  * The seal of a held reply: an HMAC over every field its send reads, in one fixed order. The Slack thread, files and
@@ -372,10 +384,13 @@ type Stored = HeldReply & { seal?: unknown; state?: "sending" | "sent" | "failed
  */
 function sealOf(key: string, h: HeldReply): string {
   const base: unknown[] = [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
-  // Mentions came later still (plan 2026-11-14-1530, KTD10's rule): sealed after the rest, only when a reply has them.
+  // Mentions and then new conversations' targets came later still (plan 2026-11-14-1530, KTD10): each is sealed after
+  // the rest, only when a reply has it, so an entry written before either keeps the seal it was written with.
   const mentioned = h.mentions !== undefined;
-  const more = h.thread_ts != null || h.files !== undefined || h.proposal != null || mentioned;
-  const fields = more ? [...base, h.thread_ts ?? null, h.files ?? null, h.proposal ?? null, ...(mentioned ? [h.mentions] : [])] : base;
+  const targeted = h.target !== undefined;
+  const more = h.thread_ts != null || h.files !== undefined || h.proposal != null || mentioned || targeted;
+  const tail = targeted ? [h.mentions ?? null, h.target] : mentioned ? [h.mentions] : [];
+  const fields = more ? [...base, h.thread_ts ?? null, h.files ?? null, h.proposal ?? null, ...tail] : base;
   return createHmac("sha256", key).update(JSON.stringify(fields)).digest("hex");
 }
 
@@ -425,8 +440,17 @@ function isHeld(v: unknown): v is Stored {
     (h.thread_ts === undefined || h.thread_ts === null || typeof h.thread_ts === "string") &&
     (h.files === undefined || (Array.isArray(h.files) && h.files.every(isFile))) &&
     (h.proposal === undefined || h.proposal === null || isProposal(h.proposal)) &&
-    (h.mentions === undefined || (Array.isArray(h.mentions) && h.mentions.every((m) => replyMentionOf(m) !== null)))
+    (h.mentions === undefined || (Array.isArray(h.mentions) && h.mentions.every((m) => replyMentionOf(m) !== null))) &&
+    (h.target === undefined || isTarget(h.target)) &&
+    (h.result === undefined || typeof h.result === "string")
   );
+}
+
+function isTarget(v: unknown): v is HeldTarget {
+  if (typeof v !== "object" || v === null) return false;
+  const t = v as Record<string, unknown>;
+  if (t.kind === "email") return typeof t.subject === "string" && typeof t.message_id === "string" && t.message_id !== "";
+  return t.kind === "dm" && Array.isArray(t.people) && t.people.length > 0 && t.people.every((p) => typeof p === "string" && p !== "");
 }
 
 function isFile(v: unknown): v is HeldFile {

@@ -22,7 +22,7 @@ import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
 import { forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
-import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type MailOutboxOptions } from "./mail-outbox.ts";
+import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type HeldTarget, type MailOutboxOptions } from "./mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
@@ -48,13 +48,13 @@ import type { SlackPeople } from "./slack-people.ts";
  * What sending a reply needs of Gmail: the thread, to answer its newest message, the addresses the person sends from
  * with their signatures, a forwarded mail's files, and the send.
  */
-export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment">;
+export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment" | "listMessages">;
 
 /**
  * What the person's own Slack moves need: the post, with files for an agent's reply (KTD7), a reaction, and the
  * workspace's emoji to pick one from (plan 079).
  */
-export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji">;
+export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji" | "openDm">;
 
 /** What a comment on a Jira ticket needs (plan 2026-11-10-1451, U7): the post, and the attach before it (KTD8). */
 export type SendJira = Pick<JiraClient, "postComment" | "attachFiles">;
@@ -79,6 +79,8 @@ export interface AgentReply {
   proposal: HeldProposal;
   /** The people it mentions that are still in its text (plan 2026-11-14-1530, KTD6); on Gmail, cc'd after the people check. */
   mentions: ReplyMention[];
+  /** What it starts instead of answering `thread_id` (KTD10): a new email, with `people` its To and Cc, or a new Slack DM. */
+  target?: HeldTarget;
 }
 
 /**
@@ -98,7 +100,7 @@ export interface PeopleChanged {
  * ticket took the files, so a comment that fails after still leaves them recorded.
  */
 export interface AgentReplyReports {
-  sent(held: HeldReply): void;
+  sent(held: HeldReply, result: string | null): void;
   notSent(held: HeldReply, note: { reason: string; at: string }, people: PeopleChanged | null): void;
   attached(proposal: HeldProposal, names: string[]): void;
 }
@@ -183,8 +185,8 @@ export class OutsideThreads {
             this.changedPeople.delete(held.outbox_id);
             if (note) this.reports?.notSent(held, note, people);
           },
-          onSent: (held) => {
-            if (held.proposal) this.reports?.sent(held);
+          onSent: (held, result) => {
+            if (held.proposal) this.reports?.sent(held, result);
           },
         })
       : null;
@@ -216,6 +218,8 @@ export class OutsideThreads {
     const account = this.need(reply.account_id);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     if (account.provider === "gmail" && !reply.people) throw new Error("a mail reply needs the people its card showed");
+    if (reply.target?.kind === "email" && account.provider !== "gmail") throw new Error("only a Gmail account sends a new email");
+    if (reply.target?.kind === "dm" && account.provider !== "slack") throw new Error("only a Slack account opens a DM");
     // A Jira comment names every file of the reply, those an earlier Send attached and those attached now (KTD8).
     const named = [...reply.attached, ...reply.files.map((f) => f.name)];
     const text = account.provider === "jira" && named.length ? [body, `Attached: ${named.join(", ")}`].filter(Boolean).join("\n\n") : body;
@@ -234,6 +238,7 @@ export class OutsideThreads {
       files: reply.files,
       proposal: reply.proposal,
       ...(reply.mentions.length ? { mentions: reply.mentions } : {}),
+      ...(reply.target ? { target: reply.target } : {}),
     });
     // Sent, refused or undone, the proposal hears it from the outbox's reports; the answer here is for no one.
     void held.catch(() => undefined);
@@ -253,8 +258,8 @@ export class OutsideThreads {
    * Whether a reply by this outbox id is in its thread already (KTD9, step 3): Gmail by the header it was sent with,
    * null for Slack and Jira, which cannot tell.
    */
-  wentOutIn(accountId: string, threadId: string, outboxId: string): Promise<boolean | null> {
-    return this.wentOut({ outbox_id: outboxId, account_id: accountId, thread_id: threadId });
+  wentOutIn(accountId: string, threadId: string, outboxId: string, target?: HeldTarget): Promise<boolean | null> {
+    return this.wentOut({ outbox_id: outboxId, account_id: accountId, thread_id: threadId, ...(target ? { target } : {}) });
   }
 
   /**
@@ -370,9 +375,11 @@ export class OutsideThreads {
    * Whether a held reply is in its thread already, found by the header it was sent with. Slack and Jira carry no such
    * header, so they cannot tell (KTD9, step 1): a send cut short there is never tried again by itself.
    */
-  private async wentOut(held: Pick<HeldReply, "outbox_id" | "account_id" | "thread_id">): Promise<boolean | null> {
+  private async wentOut(held: Pick<HeldReply, "outbox_id" | "account_id" | "thread_id" | "target">): Promise<boolean | null> {
     const sender = this.opts.clientFor(this.need(held.account_id));
     if (sender.provider !== "gmail") return null;
+    // A new email has no thread to look in until it went: it is found by the Message-ID it was sent with (KTD10).
+    if (held.target?.kind === "email") return (await sender.client.listMessages(`rfc822msgid:${held.target.message_id}`)).messages.length > 0;
     const thread = await sender.client.getThread(held.thread_id, "metadata");
     return thread.messages.some((m) => headerOf(m, OUTBOX_HEADER) === held.outbox_id);
   }
@@ -487,13 +494,21 @@ export class OutsideThreads {
     // ticket's events stay new until the person reads the card (KTD11, AE1). An agent's reply is no move of the
     // person's on the card at all.
     let deals = !agent;
+    // What the send made, as the service names it, for an agent's notice (plan 2026-11-14-1530, KTD11).
+    let created: string | null = null;
+    const target = held.target;
     switch (sender.provider) {
       case "gmail":
-        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files, held.mentions ?? []);
+        if (target?.kind === "email") {
+          created = await this.sendNewMail(account, sender.client, body, mail, target, held.outbox_id, files, held.mentions ?? []);
+          deals = false;
+        } else await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files, held.mentions ?? []);
         break;
       case "slack": {
+        // A new DM is opened only now, at the send (KTD12), so a proposal the person rejects makes nothing in Slack.
         // A thread the person opened on the card (plan 085) is where they are writing, else the card's own place.
-        const place = slackPlace(threadId);
+        const place = target?.kind === "dm" ? { channel: await sender.client.openDm(target.people), ts: null } : slackPlace(threadId);
+        if (target) deals = false;
         const { channel } = place;
         const ts = held.thread_ts ?? place.ts;
         // Only the stored mentions become Slack's (plan 2026-11-14-1530, KTD8): any other @ in the text, a quoted
@@ -501,8 +516,15 @@ export class OutsideThreads {
         const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions: held.mentions ?? [] };
         // With files, the text rides with them as one message (KTD7).
         try {
-          if (files.length) await sender.client.postWithFiles({ ...where, files });
-          else await sender.client.postReply(where);
+          // What an agent's notice names as the thread to answer later, as Flow keys threads: the thread it went in, a
+          // DM by its channel, or the new thread a top-level post in a channel starts.
+          if (files.length) {
+            await sender.client.postWithFiles({ ...where, files });
+            created = ts ? `${channel}:${ts}` : channel;
+          } else {
+            const posted = await sender.client.postReply(where);
+            created = ts ? `${channel}:${ts}` : channel.startsWith("D") || !posted.ts ? channel : `${channel}:${posted.ts}`;
+          }
         } catch (err) {
           if (agent) throw unclearPost(err, "Slack");
           throw err;
@@ -534,13 +556,63 @@ export class OutsideThreads {
         if (!agent) this.opts.threads.clearSeeds(accountId, threadId);
         break;
     }
-    log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null, agent });
+    log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null, agent, target: target?.kind ?? null });
     if (deals) this.opts.threads.markDealt(accountId, threadId);
+    const made = created && agent ? { created } : {};
+    // A new conversation has no card to make a move on.
+    if (target) return { sent: true, then_error: null, change: null, ...made };
     try {
-      return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then) };
+      return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then), ...made };
     } catch (err) {
-      return { sent: true, then_error: messageOf(err), change: null };
+      return { sent: true, then_error: messageOf(err), change: null, ...made };
     }
+  }
+
+  /**
+   * A new email an agent proposed and the person sent (plan 2026-11-14-1530, U7): from the person's default address in
+   * Gmail with its signature, to the To and Cc its card showed and anyone its mentions add to cc, under its subject,
+   * with the Message-ID it was held with, so a send cut short is found by it and never sent twice. Answers with the
+   * thread Gmail started.
+   */
+  private async sendNewMail(
+    account: AccountRecord,
+    client: SendGmail,
+    body: string,
+    mail: MailAddressing | null,
+    target: { subject: string; message_id: string },
+    outboxId: string,
+    files: ReadonlyArray<{ name: string; data: Buffer }>,
+    mentions: readonly ReplyMention[],
+  ): Promise<string | null> {
+    if (!mail) throw new Error("a new email needs the people its card showed");
+    const sendAs = await client.sendAs();
+    const from = sendAs.find((s) => s.isDefault) ?? sendAs.at(0);
+    const on = new Set([...mail.to, ...mail.cc].flatMap((p) => bareAddresses([p])));
+    const added: string[] = [];
+    for (const m of mentions) {
+      const address = m.address?.toLowerCase();
+      if (!address || on.has(address)) continue;
+      on.add(address);
+      added.push(fromHeader(m.address ?? address, m.display));
+    }
+    if (mail.to.length + mail.cc.length + added.length === 0) throw new Error("a new email needs someone to send it to");
+    const out = mailBody({ text: body, signature: from?.signature || null, quoted: null, forward: false, ...(this.opts.zone ? { zone: this.opts.zone } : {}) });
+    const sent = await client.sendReply({
+      threadId: "",
+      inReplyTo: "",
+      references: [],
+      from: from ? fromHeader(from.address, from.name) : account.address,
+      to: mail.to,
+      cc: [...mail.cc, ...added],
+      subject: target.subject,
+      body: out.text,
+      html: out.html,
+      messageId: target.message_id,
+      outboxId,
+      ...(files.length ? { attachments: files.map((f) => ({ filename: f.name, mimeType: fileTypeOf(f.name), data: f.data })) } : {}),
+    });
+    log("outside:new-mail", { files: files.length });
+    return sent.threadId ?? null;
   }
 
   /**

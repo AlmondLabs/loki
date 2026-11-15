@@ -19,7 +19,7 @@ import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 import { bareAddresses, slackPlace } from "./reply-addressing.ts";
 import type { People } from "./people.ts";
-import type { HeldProposal, HeldReply } from "./mail-outbox.ts";
+import type { HeldProposal, HeldReply, HeldTarget } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
 import type { ChatKey } from "./suggestions.ts";
 import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
@@ -88,6 +88,27 @@ export interface ReplyInput {
 
 /** The most people the card's `@` picker lists at once. */
 const PICKER_MAX = 8;
+
+/**
+ * A new conversation as the agent proposes it (plan 2026-11-14-1530, U8): a new email to people named by full name or
+ * address, or a new Slack DM with people of the workspace. Each name resolves to one person, as a mention does.
+ */
+export type NewConversationInput =
+  | { kind: "email"; account_id: string; to: string[]; cc?: string[]; subject: string; text: string; attachments?: string[]; mentions?: string[] }
+  | { kind: "dm"; account_id: string; people: string[]; text: string; attachments?: string[]; mentions?: string[] };
+
+/** A resolved person as a mail header names them: "Full Name <address>". */
+const mailboxOf = (m: ReplyMention): string => {
+  const name = m.display.replace(/[<>"]/g, "").trim();
+  if (!m.address) return name;
+  return name && name.toLowerCase() !== m.address.toLowerCase() ? `${name} <${m.address}>` : m.address;
+};
+
+/** Names as a sentence lists them: "A", "A and B", "A, B and C". */
+function andList(names: readonly string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
+}
 
 /** The most files one reply carries (R8). */
 export const MAX_REPLY_FILES = 10;
@@ -172,7 +193,9 @@ function parseProposal(v: unknown): ReplyProposal | null {
   // One stored while its draft was written, before replies were sent (KTD3), waits on the person again.
   const status = r.status === "drafting" ? "pending" : STATUSES.find((x) => x === r.status);
   const provider = r.provider === "gmail" || r.provider === "slack" || r.provider === "jira" ? r.provider : null;
-  if (!id || !account || !thread || text === null || !status || !provider) return null;
+  // A new conversation (plan 2026-11-14-1530, U8) has no thread until it is sent.
+  const starts = r.kind === "email" || r.kind === "dm";
+  if (!id || !account || thread === null || (!thread && !starts) || text === null || !status || !provider) return null;
   const strings = (k: string) => (Array.isArray(r[k]) ? r[k].filter((x): x is string => typeof x === "string") : []);
   const files = Array.isArray(r.attachments) ? r.attachments.map(parseAttachment).filter((a): a is ReplyAttachment => a !== null) : [];
   const added = strings("people_added");
@@ -180,6 +203,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const attached = strings("attached");
   const heardBy = parseHeardBy(r.heard_by);
   const mentions = Array.isArray(r.mentions) ? r.mentions.flatMap((m) => replyMentionOf(m) ?? []) : [];
+  const dmPeople = Array.isArray(r.people) ? r.people.flatMap((m) => replyMentionOf(m) ?? []) : [];
   return {
     id,
     account_id: account,
@@ -205,6 +229,9 @@ function parseProposal(v: unknown): ReplyProposal | null {
     ...(r.shared_outside === true ? { shared_outside: true } : {}),
     ...(heardBy ? { heard_by: heardBy } : {}),
     ...(mentions.length ? { mentions } : {}),
+    ...(r.kind === "email" || r.kind === "dm" ? { kind: r.kind } : {}),
+    ...(dmPeople.length ? { people: dmPeople } : {}),
+    ...(s("result") ? { result: s("result") ?? "" } : {}),
   };
 }
 
@@ -241,6 +268,20 @@ function parseChat(v: unknown): ChatRecord | null {
 }
 
 const keyOf = (chat: ChatKey) => `${chat.agent_id}/${chat.conversation_id}`;
+
+/**
+ * What a proposal that starts a conversation sends as (KTD10): a new email under its subject with a Message-ID made
+ * from its outbox id on the mailbox's own domain, so the same id finds it again after a send cut short; or a new Slack
+ * DM with its people's ids. Undefined for a reply.
+ */
+function targetOf(p: ReplyProposal, account: AccountRecord, outboxId: string): HeldTarget | undefined {
+  if (p.kind === "email") return { kind: "email", subject: p.subject, message_id: `<${outboxId}@${account.address.split("@").at(1) ?? "loki.local"}>` };
+  if (p.kind === "dm") return { kind: "dm", people: (p.people ?? []).flatMap((m) => (m.id ? [m.id] : [])) };
+  return undefined;
+}
+
+/** The most people one new Slack DM is opened with, as Slack's own limit is. */
+const MAX_DM_PEOPLE = 8;
 
 /** A proposal with its files as given: the field left out when there are none, as a proposal without files is stored. */
 function withFiles(p: ReplyProposal, files: readonly ReplyAttachment[]): ReplyProposal {
@@ -341,6 +382,66 @@ export class ReplyProposals implements AgentReplyReports {
   }
 
   /**
+   * A new conversation, pending (plan 2026-11-14-1530, R2, R3, U8): a new email from a Gmail account to the people in
+   * `to` and `cc`, under `subject`, or a new Slack DM with `people`. Each person is resolved in the account as a mention
+   * is, so a name that fits several people or nobody is refused with who matched, and the card names everyone as the
+   * service does. Nothing is made in the service until the person's Send: a DM is opened only then (KTD12).
+   */
+  async proposeNew(chat: ChatKey, input: NewConversationInput): Promise<ReplyProposal> {
+    if (!input.text.trim()) throw new Error("a message needs text");
+    const account = this.opts.accounts.get(input.account_id);
+    if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
+    const people = this.opts.people;
+    if (!people) throw new Error("people cannot be found on this Mac: name the thread to reply in instead");
+    const resolve = async (entry: string): Promise<ReplyMention> => {
+      const found = await people.resolve(account.account_id, entry.trim().replace(/^@/, ""));
+      if (!found.ok) throw new Error(found.why);
+      const p = found.person;
+      return p.provider === "gmail" ? { display: p.display, id: null, address: p.address } : { display: p.display, id: p.id, address: null };
+    };
+    const files = await this.files(input.attachments ?? []);
+    const where = { thread_id: "", place: null };
+    const { text, mentions } = await this.mentioned(account, where, input.text, input.mentions ?? []);
+    const base = {
+      id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
+      account_id: account.account_id,
+      provider: account.provider,
+      account_label: accountLabel(account),
+      thread_id: "",
+      text,
+      status: "pending" as const,
+      reason: null,
+      created_at: this.now(),
+      ...(files.length ? { attachments: files } : {}),
+      ...(mentions.length ? { mentions } : {}),
+    };
+    let proposal: ReplyProposal;
+    if (input.kind === "email") {
+      if (account.provider !== "gmail") throw new Error("a new email goes from a Gmail account");
+      const subject = input.subject.replace(/\s+/g, " ").trim();
+      if (!subject) throw new Error("a new email needs a subject");
+      const named = (list: readonly string[]) => Promise.all(list.filter((e) => e.trim()).map(async (e) => mailboxOf(await resolve(e))));
+      const [to, cc] = await Promise.all([named(input.to), named(input.cc ?? [])]);
+      if (to.length === 0) throw new Error("a new email needs someone in `to`");
+      proposal = { ...base, kind: "email", subject, to: [...new Set(to)], cc: [...new Set(cc)].filter((c) => !to.includes(c)), place: null };
+    } else {
+      if (account.provider !== "slack") throw new Error("a new DM goes from a Slack account");
+      const wanted = [...new Set(input.people.map((e) => e.trim()).filter(Boolean))];
+      if (wanted.length === 0) throw new Error("a new DM needs someone in `people`");
+      if (wanted.length > MAX_DM_PEOPLE) throw new Error(`a DM is with ${String(MAX_DM_PEOPLE)} people at most`);
+      const resolved = await Promise.all(wanted.map(resolve));
+      const dm = resolved.filter((m, i) => resolved.findIndex((x) => x.id === m.id) === i);
+      proposal = { ...base, kind: "dm", people: dm, subject: "", to: [], cc: [], place: `a DM with ${andList(dm.map((m) => m.display))}` };
+    }
+    await this.locked(chat, () => {
+      const r = this.record(chat);
+      this.save(chat, { ...r, proposals: [...r.proposals, proposal] });
+      return Promise.resolve();
+    });
+    return proposal;
+  }
+
+  /**
    * The people a reply's text mentions (KTD3, R13): each listed entry found in the text as `@<entry>`, resolved to one
    * person in the account (on Jira, among those who can see the ticket), and written back as `@Full Name`, so a
    * mention given as a handle, an address or a token shows and is kept like one given by name. A Slack mention of
@@ -385,7 +486,7 @@ export class ReplyProposals implements AgentReplyReports {
       (t) => t,
       (r) => `@${r.mention.display}`,
     ).join("");
-    if (account.provider === "slack" && this.opts.members) {
+    if (account.provider === "slack" && this.opts.members && where.thread_id) {
       // Who is in the conversation only adds a note to the card, so a read Slack refuses (rate limited, say) leaves
       // the mentions unmarked rather than refusing the reply.
       const members = await this.opts.members(account.account_id, slackPlace(where.thread_id).channel).catch(() => null);
@@ -458,12 +559,13 @@ export class ReplyProposals implements AgentReplyReports {
   }
 
   /** The outbox sent a reply (KTD9): the proposal is sent, its agent told once, and only then the outbox lets it go. */
-  sent(held: HeldReply): void {
+  sent(held: HeldReply, result: string | null = null): void {
     const proposal = held.proposal;
     if (!proposal) return;
     void this.report(proposal, held.outbox_id, (p) => {
       if (p.status !== "sending" || p.outbox_id !== held.outbox_id) return null;
-      const next: ReplyProposal = { ...p, status: "sent", reason: null, decided_at: this.now() };
+      // What the send made (KTD11): kept on the proposal and named in the agent's notice, so it can answer it later.
+      const next: ReplyProposal = { ...p, status: "sent", reason: null, decided_at: this.now(), ...(result ? { result } : {}) };
       log("replies:sent", { provider: next.provider, files: next.attachments?.length ?? 0 });
       return { next, notice: sentNotice(next) };
     });
@@ -572,8 +674,14 @@ export class ReplyProposals implements AgentReplyReports {
       } catch (err) {
         return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
       }
+      // A new DM whose last send was cut short or refused after Slack may have taken it is never sent again from here:
+      // Slack cannot be searched for it, and a second one would start a second conversation (KTD10).
+      if (p.kind === "dm" && p.outbox_id) {
+        const why = "it may have gone: look in Slack, and reject this and ask again if it did not";
+        return put({ ...edits, reason: why }, false, why);
+      }
       if (p.provider === "gmail" && p.outbox_id) {
-        const went = await this.opts.outside.wentOutIn(p.account_id, p.thread_id, p.outbox_id).catch(() => null);
+        const went = await this.opts.outside.wentOutIn(p.account_id, p.thread_id, p.outbox_id, targetOf(p, account, p.outbox_id)).catch(() => null);
         if (went === null) {
           const why = "the thread could not be read to check the last send did not go: try again";
           return put({ ...edits, reason: why }, false, why);
@@ -598,6 +706,7 @@ export class ReplyProposals implements AgentReplyReports {
           people: p.provider === "gmail" ? { to: p.to, cc: p.cc } : null,
           proposal: { agent_id: chat.agent_id, conversation_id: chat.conversation_id, proposal_id: p.id },
           mentions,
+          ...(p.kind ? { target: targetOf(p, account, outboxId) } : {}),
         });
       } catch (err) {
         return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
@@ -733,12 +842,15 @@ const filesWords = (files: readonly ReplyAttachment[]): string => files.map((f) 
  * it says.
  */
 function sentNotice(p: ReplyProposal): string {
-  const what = p.provider === "jira" ? "posted your comment" : "sent your reply";
+  const what =
+    p.kind === "email" ? "sent your new email" : p.kind === "dm" ? "sent your new DM" : p.provider === "jira" ? "posted your comment" : "sent your reply";
   const files = p.attachments?.length ? `, with ${filesWords(p.attachments)}` : "";
   const named = (p.mentions ?? []).map((m) => (m.address ? `${m.display} <${m.address}>` : m.display));
   const mentioned = named.length ? `, ${p.provider === "gmail" ? "copying" : "mentioning"} ${inert(named.join(", "))}` : "";
+  // What the send made, so the agent can answer it with reply_propose (KTD11): a new thread, or a Slack message.
+  const thread = p.result ? `thread ${inert(p.result)}` : p.thread_id ? `thread ${p.thread_id}` : "a new conversation";
   return [
-    `The person ${what} in ${p.account_label}, thread ${p.thread_id}, ${whoWords(p)}${files}${mentioned}. It says:`,
+    `The person ${what} in ${p.account_label}, ${thread}, ${whoWords(p)}${files}${mentioned}. It says:`,
     // The notice rides in a system-reminder; text that echoes a stranger's markup must not end it.
     inert(p.text),
   ].join("\n");
@@ -838,7 +950,68 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     },
   };
 
-  const disposers = [propose].map((tool) => tools.register(tool));
+  const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(argText).filter(Boolean) : []);
+  const startNew: LokiTool = {
+    name: "message_propose",
+    forAgent,
+    description:
+      "Propose a new conversation from an account you own: a new email from a Gmail account (`to`, `cc`, `subject`), or a " +
+      "new Slack DM (`people`, one to eight). Name each person by full name or address, a Slack handle, or a token a " +
+      "refusal or a script's people_find gave; a name that fits several people or nobody is refused with who matched: ask " +
+      "the person which one they mean. The person reviews it on a card, may edit its words or take its files off, and " +
+      "sends it from there as themselves; you cannot send it, and nothing goes, and no DM is opened, before their Send. " +
+      "To answer an existing thread, or post in a channel you are in, use reply_propose. You hear what became of it, and " +
+      "the new thread to answer, with the next message.",
+    parameters: {
+      type: "object",
+      properties: {
+        account: { type: "string", description: "The account's id or name, from the prompt's list of your accounts." },
+        to: { type: "array", items: { type: "string" }, description: "Gmail: whom the email goes to." },
+        cc: { type: "array", items: { type: "string" }, description: "Gmail: whom it copies." },
+        subject: { type: "string", description: "Gmail: the email's subject." },
+        people: { type: "array", items: { type: "string" }, description: "Slack: the people of the new DM, one to eight." },
+        text: { type: "string", description: "The message, as plain text. Write each person in `mentions` into it as @<entry>." },
+        mentions: {
+          type: "array",
+          items: { type: "string" },
+          description: "People to mention in the text, as for reply_propose: Slack notifies them; Gmail adds them to cc.",
+        },
+        attachments: {
+          type: "array",
+          items: { type: "string" },
+          description: `Files to carry, as paths in this chat's folder; at most ${String(MAX_REPLY_FILES)}, ${bytesWords(MAX_REPLY_BYTES)} together.`,
+        },
+      },
+      required: ["account", "text"],
+      additionalProperties: false,
+    },
+    async run(ctx) {
+      const name = argText(ctx.args.account);
+      const account = ownedAccount(deps.accounts, ctx.agent.id, name);
+      if (!account) return failed(`this agent owns no account "${name}"`);
+      try {
+        const attachments = strings(ctx.args.attachments).map((path) => inChatFolder(ctx, path));
+        const common = {
+          account_id: account.account_id,
+          text: argText(ctx.args.text),
+          ...(attachments.length ? { attachments } : {}),
+          mentions: strings(ctx.args.mentions),
+        };
+        if (account.provider === "jira") return failed("a Jira site starts no conversation here: comment on a ticket with reply_propose");
+        const input: NewConversationInput =
+          account.provider === "gmail"
+            ? { ...common, kind: "email", to: strings(ctx.args.to), cc: strings(ctx.args.cc), subject: argText(ctx.args.subject) }
+            : { ...common, kind: "dm", people: strings(ctx.args.people) };
+        const p = await deps.replies.proposeNew(chatOf(ctx), input);
+        log("tool:message_propose", { agent: ctx.agent.id, provider: p.provider, kind: p.kind ?? null });
+        return `Proposed ${p.id}: it waits for the person to review and send it.\n${proposalLine(p)}`;
+      } catch (err) {
+        return failed(messageOf(err));
+      }
+    },
+  };
+
+  const disposers = [propose, startNew].map((tool) => tools.register(tool));
   disposers.push(
     // What became of the agent's replies rides with the next message in its chat, as canvas gestures do.
     api.message.transform((m) => {
@@ -849,7 +1022,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), use reply_propose, with `attachments` for its files and `mentions` for the people it should tell: the person reviews the reply on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), or to post in a channel you are in, use reply_propose; to start a new email or Slack DM, use message_propose. Use `attachments` for files and `mentions` for the people a message should tell: the person reviews it on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

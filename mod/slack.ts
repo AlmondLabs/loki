@@ -37,6 +37,7 @@ export const SLACK_METHODS = [
   "conversations.replies",
   "conversations.info",
   "conversations.members",
+  "conversations.open",
   "users.conversations",
   "users.info",
   "users.list",
@@ -398,6 +399,19 @@ export class SlackClient {
       return { id: str(c.id), name: strOrNull(c.name), is_im: c.is_im === true, is_mpim: c.is_mpim === true, user: strOrNull(c.user) };
     });
     return { conversations: conversations.filter((c) => c.id), next_cursor: strOrNull(rec(r.response_metadata).next_cursor) };
+  }
+
+  /**
+   * The DM, or group DM, with these people (plan 2026-11-14-1530, KTD12), opened if the person has none yet: Slack's
+   * `conversations.open` takes one to eight people besides the person and answers with the same channel each time.
+   * Only the person's Send on an agent's new DM reaches this, so a rejected proposal opens nothing.
+   */
+  async openDm(people: readonly string[]): Promise<string> {
+    if (people.length === 0 || people.length > 8) throw new Error("a DM is with one to eight people");
+    const r = await this.call("conversations.open", { users: people.join(","), return_im: false });
+    const id = str(rec(r.channel).id);
+    if (!id) throw new SlackError("Slack opened no DM", "no_channel");
+    return id;
   }
 
   /** One page of who is in a conversation, by user id (plan 2026-11-14-1530, R22): a mention reaches only them. */
