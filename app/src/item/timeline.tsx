@@ -238,7 +238,7 @@ function ThreadBody({
         className="[overflow-anchor:none]"
         style={style}
       >
-        <MessageScrollerContent ref={contentRef} className="w-full max-w-3xl gap-4 py-5 text-sm text-foreground">
+        <MessageScrollerContent ref={contentRef} className="mx-auto w-full max-w-3xl gap-4 py-5 text-sm text-foreground">
           {!rows && !loadFailed && <p className="m-0 text-xs text-muted-foreground">{home ? `Loading from ${home}…` : "Loading the thread…"}</p>}
           {!rows && loadFailed && (
             <div role="alert" className="flex items-center gap-2 text-xs text-destructive">

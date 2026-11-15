@@ -68,14 +68,16 @@ Tailwind's steps `0`, `px`, `0.5`, `1`, `2`, `3`, `4`, `5`, `6`, `8` and `12`. E
 gap takes one, in the stylesheets and in the views; a tie goes to the step the same control already uses. One step is
 Tailwind's default quarter rem, 4px at the 16px root; loki sets no `--spacing` of its own.
 
-Every pane's content starts 20px from its edge, the same inset as its title, as Mail lines a message up under its
-header: the transcript, the composer, an outside item's thread, the agents' pages, Learn's items and Preferences. A
-reading column keeps its width (`max-w-3xl`) and starts at that edge rather than in the middle. Indentation that shows
-hierarchy, such as a mail body under its sender's face, starts from it. Only focus and empty states are centred:
-Learn's review deck and welcome card, the empty canvas hint and the "No … Selected" panes. The list column's text
-starts 16px in, with its boxes (rows, search) 4px in. The list bar, the pane header and the card toolbar are each
-52px with their title stacks top-aligned 6px down, so the list title and the detail title share one line; a list row's
-time sits on its name line, and every Flow row has three lines.
+Every pane's content starts 20px from its edge, the same inset as its title: the agents' pages, Learn's items and
+Preferences. Indentation that shows hierarchy, such as a mail body under its sender's face, starts from it. A reading
+column is the exception: the transcript, the proposals, the composer, the new-chat notice and an outside item's thread
+and reply box keep their width (`max-w-3xl`) and are centred in the detail, never closer than 20px to its edges. They
+started at the edge from 2026-11-14 until 2026-11-15, when a wide window left most of the pane empty on their right.
+Focus and empty states are centred too: Learn's review deck and welcome card, the empty canvas hint and the
+"No … Selected" panes. The list column's text starts 16px in, with its boxes (rows, search) 4px in. The list bar, the
+pane header and the card toolbar are each 52px with their title stacks top-aligned 6px down, so the list title and the
+detail title share one line; in the Mac app the bars sit on the traffic lights' row and the list's title is centred on
+it instead. A list row's time sits on its name line, and every Flow row has three lines.
 
 Fixed layout is written as Tailwind classes on
 this scale (`flex items-center gap-2`), with padding, sizes and colour left in `style`. A value computed from state or
@@ -255,7 +257,12 @@ measured heights (`shared/use-height-var.ts`) and scrolls on beneath them.
 
 The window has no native title bar (2026-09-23): the title bar is an overlay with its title hidden, the
 traffic lights sit in the sidebar's top row, and loki draws the top edge itself — a 28px **title strip** that drags the
-window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). The
+window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). On the Mac the
+window has an empty unified toolbar, as Mail's has, so AppKit itself lays the lights out low in a 52px title bar
+(`src-tauri/src/native.rs`); moving them after AppKit's layout, as Tauri's `traffic_light_position` does, showed them
+in the corner for a frame on every focus, resize, title or appearance change. The page reads where they are before it
+first draws (`adoptTrafficLights`), and centres the panes' 52px title bars and the sidebar's toggle on their row
+(`paneTop`); the bars drag the window too. The
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
 "· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead: a chat's is a Mac toolbar
@@ -325,10 +332,13 @@ Internals keep the name desk.
   dot while one works, the count of what waits in Flow), and Learn's its views (Review with its grey count of cards due,
   Leads, All Cards, Deleted).
 - **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its
-  edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
-  lights, which stays while the sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list
-  and a detail of 480, and with it folded the list starts at a clearance past the traffic lights and the toggle (128 on
-  the Mac, 52 in a browser). Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
+  edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or its toggle, which on the Mac sits
+  at the sidebar's trailing end on the lights' row, in line with the rows' counts, and beside the lights while the
+  sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list and a detail of 480. With it
+  folded, on the Mac the list starts 4 from the window's edge, so its boxes sit 8 in (the glass sidebar's inset) and
+  its text 20 in; only the leading title bar makes room for the lights and the toggle, with a
+  spacer (`LeadRoom`) whose width the shell computes, so its title starts 128 in. Elsewhere the list starts past the
+  toggle (52, and 84 in a browser). Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
   Learn's views were the last of them, and every place's items are in the list column now.
 - **Hide List.** View › Show / Hide List (⌃⌘L; Ctrl Shift L off the Mac, where Ctrl L is Focus Message Box) hides the
   list column in every place, and the detail takes its room; showing it brings it back at its width. It is a keymap

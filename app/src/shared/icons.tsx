@@ -47,6 +47,7 @@ import {
   SquareTerminalIcon,
   SunIcon,
   TicketIcon,
+  Trash2Icon,
   UnlinkIcon,
   UserIcon,
   UsersIcon,
@@ -112,6 +113,7 @@ const ICONS = {
   phone: SmartphoneIcon,
   tag: TagIcon,
   chart: ChartColumnIcon,
+  trash: Trash2Icon,
 } satisfies Record<string, LucideIcon>;
 
 /** The name of one of loki's icons. */

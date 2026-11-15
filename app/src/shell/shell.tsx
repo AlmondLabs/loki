@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
@@ -19,7 +19,18 @@ import { flowSources } from "../desk/flow-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
-import { ColumnToggle, GLASS_HEAD, GLASS_INSET, Places, sidebarToggleLeft, sidebarToggleTop, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
+import {
+  ColumnToggle,
+  GLASS_HEAD,
+  GLASS_INSET,
+  Places,
+  sidebarToggleLeft,
+  sidebarToggleLeftShown,
+  sidebarToggleTop,
+  TitleStrip,
+  paneTop,
+  sidebarLeadRoom,
+} from "./sidebar";
 import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
@@ -449,6 +460,12 @@ export function Shell() {
   // The sidebar stays on every tab, the Canvas one too, as Finder's does whatever the view (plan 2026-11-14-1130, 2);
   // ⌃⌘S folds it for a wider canvas.
   const sidebarShown = layout.sidebarShown;
+  // With the sidebar folded (or only peeked over the rest), the leading column's title bar makes room for the lights and
+  // the toggle on its row (LeadRoom), and the column itself starts near the window's edge (sidebar.tsx sidebarLeadRoom).
+  const leadRoom = sidebarShown && !layout.sidebarOver ? 0 : sidebarLeadRoom();
+  const lead = (on: boolean) => (on && leadRoom ? { "data-lead": "", style: { "--loki-lead": `${leadRoom}px` } as CSSProperties } : { style: {} });
+  const listLead = lead(layout.listShown);
+  const detailLead = lead(!layout.listShown);
   // A folded sidebar asked for shows over the list and the detail rather than moving them.
   const sidebarLayer = layout.sidebarOver ? 1 : undefined;
   // In the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); elsewhere the sheet.
@@ -582,7 +599,15 @@ export function Shell() {
         />
         <TitleStrip menuLabels={{ "app.update": updateItemLabel(offered) }} />
         {column.has && (
-          <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }} className="flex gap-1">
+          <span
+            style={{
+              position: "absolute",
+              top: sidebarToggleTop(),
+              left: sidebarShown ? sidebarToggleLeftShown(column.sidebar) : sidebarToggleLeft(),
+              zIndex: 2,
+            }}
+            className="flex gap-1"
+          >
             <ColumnToggle open={column.open} onToggle={column.toggle} />
             {/* A browser tab has no menu bar: ☰ beside the toggle opens the same menus, so every command can be tried in a
                 tab (plan 2026-11-15-1035, KTD10). The Mac app has its menu bar, and Windows and Linux their strip's ☰. */}
@@ -635,9 +660,11 @@ export function Shell() {
           ref={listColumn}
           className="loki-list-column"
           aria-hidden={!layout.listShown}
+          data-lead={listLead["data-lead"]}
           style={{
+            ...listLead.style,
             position: "absolute",
-            top: TITLEBAR_HEIGHT,
+            top: paneTop(),
             left: layout.listLeft,
             width: Math.max(layout.list, LIST_MIN),
             bottom: 0,
@@ -674,7 +701,10 @@ export function Shell() {
 
         {/* The detail: the window's one main landmark, after the sidebar's navigation and the list's region (KTD13), so Tab
             runs sidebar, list, then the detail's toolbar and its content. */}
-        <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: layout.detailLeft, right: 0, bottom: 0 }}>
+        <main
+          data-lead={detailLead["data-lead"]}
+          style={{ ...detailLead.style, position: "absolute", top: paneTop(), left: layout.detailLeft, right: 0, bottom: 0 }}
+        >
           {/* A place's owner draws its detail here, with or without its list (Agents' Profile spans both). */}
           {(hasList || placeOwner !== undefined) && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
           <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>{placeOwner}</PlaceSlotsProvider>

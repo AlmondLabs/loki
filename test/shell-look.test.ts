@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { must } from "./fixtures/must.ts";
@@ -166,14 +166,53 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(theme).toContain('if (VIBRANT) root.dataset.vibrant = "on";');
   });
 
-  test("the traffic lights sit inside the inset sidebar, and its toggle is centred on their row", async () => {
+  test("AppKit lays the traffic lights out in an empty unified toolbar, and the page lines its row up on them", async () => {
     const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
-    expect(lib).toContain("traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0))");
-    const { GLASS_LIGHTS, sidebarToggleTop, sidebarToggleLeft } = await import("../app/src/shell/sidebar.tsx");
-    expect(GLASS_LIGHTS).toEqual({ x: 20, y: 22 });
-    // a 28 px toggle centred on 14 pt buttons whose top is at 22
-    expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.y + 7);
-    expect(sidebarToggleLeft(true, "macos")).toBeGreaterThan(GLASS_LIGHTS.x + 3 * 14 + 2 * 6);
+    const native = readFileSync(join(root, "src-tauri", "src", "native.rs"), "utf8");
+    // the toolbar is AppKit's own, so nothing moves the lights after a layout and they never show in the corner
+    expect(lib).toContain("native::add_unified_toolbar(&window);");
+    expect(native).toContain("ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);");
+    expect(lib).not.toContain("traffic_light_position");
+    // the page reads where they are before it first draws
+    expect(lib).toContain("native::traffic_lights,");
+    const boot = readFileSync(join(APP, "boot.tsx"), "utf8");
+    expect(boot.indexOf("adoptTrafficLights()")).toBeGreaterThan(-1);
+    expect(boot.indexOf("adoptTrafficLights()")).toBeLessThan(boot.indexOf("createRoot("));
+    const { GLASS_LIGHTS, adoptTrafficLights, paneTop, sidebarToggleTop, sidebarToggleLeft } = await import("../app/src/shell/sidebar.tsx");
+    // a 28 px toggle and the 52 px title bars centred on the buttons' centre line, the toggle just past the zoom button
+    expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.middle);
+    expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
+    expect(sidebarToggleLeft(true, "macos")).toBe(GLASS_LIGHTS.right + 18);
+    // a shell that cannot say leaves the defaults; what it says is parsed, not trusted
+    const before = { ...GLASS_LIGHTS };
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: "x", right: 70, middle: 26 }) }));
+    await adoptTrafficLights();
+    expect(GLASS_LIGHTS).toEqual(before);
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: 13.4, right: 66.6, middle: 25.5 }) }));
+    vi.resetModules();
+    const fresh = await import("../app/src/shell/sidebar.tsx");
+    await fresh.adoptTrafficLights();
+    expect(fresh.GLASS_LIGHTS).toEqual({ left: 13, right: 67, middle: 26 });
+    expect(fresh.sidebarToggleTop(true, "macos")).toBe(12);
+    vi.doUnmock("@tauri-apps/api/core");
+  });
+
+  test("with the sidebar shown, the Mac's toggle sits at its trailing end, in line with the counts, clear of the lights", async () => {
+    const { GLASS_INSET, GLASS_LIGHTS, LIST_BAR, PLACE_PADDING, PLACES_INSET, sidebarToggleLeft, sidebarToggleLeftShown } =
+      await import("../app/src/shell/sidebar.tsx");
+    const { SIDEBAR_MIN } = await import("../app/src/shell/columns.ts");
+    // its 18 px symbol ends 5 px inside the 28 px box, where a count ends: the places' and the row's padding in
+    expect(sidebarToggleLeftShown(280, true, "macos") + 28 - 5).toBe(GLASS_INSET + 280 - PLACES_INSET - PLACE_PADDING);
+    // those paddings are the stylesheet's, so the toggle moves with them
+    const css = readFileSync(join(APP, "components", "components.css"), "utf8");
+    expect(css).toMatch(new RegExp(`\\.loki-places \\{[^}]*padding: 0 ${PLACES_INSET}px ${PLACES_INSET}px;`));
+    expect(css).toMatch(new RegExp(`\\.loki-place \\{[^}]*padding: 0 ${PLACE_PADDING}px;`));
+    expect(css).toMatch(new RegExp(`\\.loki-content-list-bar \\{[^}]*padding: 4px 8px 4px ${LIST_BAR.padding}px;[^}]*\\}`));
+    expect(css).toMatch(new RegExp(`\\.loki-content-list-bar \\{[^}]*gap: ${LIST_BAR.gap}px;`));
+    expect(sidebarToggleLeftShown(SIDEBAR_MIN, true, "macos")).toBeGreaterThan(GLASS_LIGHTS.right);
+    // Windows, Linux and a browser tab keep it at the leading edge
+    expect(sidebarToggleLeftShown(280, true, "windows")).toBe(sidebarToggleLeft(true, "windows"));
+    expect(sidebarToggleLeftShown(280, false, "macos")).toBe(sidebarToggleLeft(false, "macos"));
   });
 
   test("the glass panel is the window's hole onto the material: its ring paints everything else opaque, hidden or shown", () => {

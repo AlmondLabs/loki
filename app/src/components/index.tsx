@@ -932,6 +932,15 @@ export interface PaneHeaderProps<T extends string = string> {
 }
 
 /**
+ * Room at a title bar's leading edge for the Mac's traffic lights and sidebar toggle, while the bar leads the window
+ * with the sidebar folded. The shell marks that column `data-lead` and gives the room's width as `--loki-lead`
+ * (sidebar.tsx sidebarLeadRoom); anywhere else it is not drawn, so the bar keeps its own padding and gap.
+ */
+export function LeadRoom() {
+  return <span aria-hidden className="loki-lead-room" />;
+}
+
+/**
  * The detail's toolbar, one band as Mail's: the name over its grey line, the tab views centred, the symbols at the
  * trailing edge. The trailing side is always there, even empty, so it can leave room for the Update button the shell
  * lays over the detail's top right (plan 2026-11-14-1330, U4).
@@ -955,6 +964,7 @@ export function PaneHeader<T extends string>({
     <header className="loki-pane-header">
       {/* The name line drags the window in the app (the native title bar is hidden); its buttons still click. */}
       <div className="loki-pane-header-line" data-tauri-drag-region="deep">
+        <LeadRoom />
         {line ?? (
           <>
             {lead && <span className="loki-pane-header-lead">{lead}</span>}

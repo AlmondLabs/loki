@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type MouseEvent, type ReactNode, type Ref } from "react";
-import { Button, EmptyPane, Field, IconButton, ListRow, ListSection, type ListRowProps } from "../components";
+import { Button, EmptyPane, Field, IconButton, LeadRoom, ListRow, ListSection, type ListRowProps } from "../components";
 import { Icon, type IconName } from "../shared/icons";
 import { registerActions } from "./keymap";
 import { createListSelection, heldRows, listKeyOf, type KeyPress, type ListSelection } from "./list-keys";
@@ -279,6 +279,7 @@ function useHeldRows(rows: readonly ContentRow[], current: string | null, search
 function ListBar({ title, count, line, newAction }: Pick<ContentListProps, "title" | "line" | "newAction"> & { count: number | null }) {
   return (
     <div className="loki-content-list-bar" data-tauri-drag-region="deep">
+      <LeadRoom />
       <div className="loki-content-list-head">
         <div className="loki-content-list-name">
           <h2 className="loki-content-list-title">{title}</h2>

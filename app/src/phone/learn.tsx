@@ -94,7 +94,7 @@ function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: Reac
                 launch="learn-lessons"
                 onClick={() => openLearn("lessons")}
               />
-              <MenuRow icon="archive" label="Deleted" aside={deleted || null} page launch="learn-deleted" onClick={() => openLearn("deleted")} />
+              <MenuRow icon="trash" label="Deleted" aside={deleted || null} page launch="learn-deleted" onClick={() => openLearn("deleted")} />
             </RowGroup>
           </>
         )}

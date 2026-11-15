@@ -3,7 +3,7 @@ import type { IconName } from "../shared/icons";
 import type { PlaceSources } from "../shell/sidebar";
 import { LEARN_VIEWS, learnViews, type LearnView } from "./views";
 
-const VIEW_ICON: Record<LearnView, IconName> = { review: "learn", leads: "link", all: "file", deleted: "archive" };
+const VIEW_ICON: Record<LearnView, IconName> = { review: "learn", leads: "link", all: "file", deleted: "trash" };
 
 /**
  * Learn's views as its sources in the sidebar (plan 2026-11-14-1330, R14), in the order ⌘[ ⌘] step them. Only Review

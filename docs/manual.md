@@ -121,12 +121,14 @@ on the Mac's own material, the traffic lights in its top row: its first rows are
 **Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
 filled. Chats lists its sources one level under its row; the other places keep their own list under the places. In
 Chats, the source's chats fill a list beside the sidebar, as Mail's messages do, and the chosen chat fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
-Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
-hides it; drag its edge (or
+Windows and Linux), or the sidebar button, shows or hides it. On the Mac the button sits at the sidebar's right end, on
+the traffic lights' row, and beside the lights while the sidebar is hidden; elsewhere it stays at the left; drag its edge (or
 focus it and use the arrows) for a width between 200 and 300. The sidebar folds on its own when the window cannot keep
 the detail at least 480 wide beside it and the list; ⌃⌘S then shows it over the window until you choose something in
 it, and widening the window brings back what you chose. Below that the list narrows, to 260 at the least, before
-anything else gives way. With the sidebar folded the list starts past the traffic lights and the sidebar button.
+anything else gives way. With the sidebar folded on the Mac the list starts at the window's left edge, and only its title
+moves aside for the traffic lights and the sidebar button; elsewhere the list starts past the button. A chat's messages
+and its message box keep a readable width, centred in the space beside the list, as do an email's or a Slack thread's.
 **View › Show / Hide List** (⌃⌘L; Ctrl Shift L on Windows and Linux, where Ctrl L is Focus Message Box) hides the list
 in every place, so the detail (a chat's Canvas, say) takes its room; showing it again brings it back at the width it
 had. Both folds are kept for the window across restarts. ⌘⇧W hides loki. On Windows and

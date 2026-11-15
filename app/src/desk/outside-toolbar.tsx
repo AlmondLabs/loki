@@ -3,7 +3,7 @@ import { ArchiveIcon, ClockIcon, ExternalLinkIcon, MailOpenIcon, MessageSquareIc
 import type { JiraCardTicket, OutsideFacts } from "../../../core/frame-types.ts";
 import { ToolbarGroup, ToolbarTitle, type ToolbarMove } from "../item/toolbar";
 import { outsideItem, type ItemFlag, type ItemProperty, type ItemVerb } from "../item/item-view";
-import { Meta } from "../components";
+import { LeadRoom, Meta } from "../components";
 import { keyFor } from "../shell/keymap";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace } from "./card-head";
@@ -54,6 +54,7 @@ export function OutsideItemHeader({
   const line = [...flags, ...view.header.properties];
   return (
     <div data-item-header className="loki-card-toolbar">
+      <LeadRoom />
       <CardFace name={who} src={facts.sender_avatar ?? null} mark={MARK[facts.provider]} />
       <ToolbarTitle
         title={view.header.title}

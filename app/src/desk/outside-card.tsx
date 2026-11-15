@@ -1197,9 +1197,9 @@ export function OutsideCard({
   return (
     <div className="flex flex-1 flex-col" style={{ minHeight: 0 }}>
       <OutsideItemHeader facts={facts} unread={current.unread} flash={flash} went={went} cameBack={cameBack} thread={thread} actions={actions} />
-      {/* The thread at the readable width, as a chat's is (max-w-3xl), starting at the toolbar's 20px edge. */}
+      {/* The thread at the readable width, as a chat's is (max-w-3xl), centred in the detail. */}
       <div data-thread-scroll className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
-        <div className="w-full max-w-3xl" style={{ padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 20px" }}>
+        <div className="mx-auto w-full max-w-3xl" style={{ padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 20px" }}>
           {facts.disconnected && <Disconnected facts={facts} cause={facts.disconnected} />}
           <OutsideThread facts={facts} state={thread} own={own} items />
           {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
@@ -1207,7 +1207,7 @@ export function OutsideCard({
       </div>
       {picker && <div className="loki-card-picker">{picker}</div>}
       {reply && !mailBox && (
-        <div className="w-full max-w-3xl" style={{ padding: "12px 20px 16px" }}>
+        <div className="mx-auto w-full max-w-3xl" style={{ padding: "12px 20px 16px" }}>
           {reply}
         </div>
       )}

@@ -227,32 +227,34 @@ describe("a Flow card asks one thing at a time (U16)", () => {
 });
 
 describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
-  // Reading columns keep their width but start at the title's 20px edge (R1, R2); only focus states stay centred (R3).
+  // Pane content starts at the title's 20px edge (R1), except the reading columns, which keep their width centred in the
+  // detail (R2, reversed on 2026-11-15: on a wide window the edge-aligned column left most of the pane empty on its right).
   const classOf = (out: string, marker: string) => {
     const tag = new RegExp(`<[^>]*${marker}[^>]*>`).exec(out)?.[0] ?? "";
     return /class="([^"]*)"/.exec(tag)?.[1].split(" ") ?? [];
   };
 
-  test("the transcript and the composer start at the edge, at the thread's width", async () => {
+  test("the transcript and the composer are centred in the detail, at the thread's width", async () => {
     const { Conversation } = await import("../app/src/chat/conversation.tsx");
     const out = html(
       createElement(Conversation, { view: { rows: [{ role: "assistant", text: "On it." }], status: "idle" }, actions: { onSend: noop }, agentName: "friday" }),
     );
     const thread = classOf(out, 'data-slot="message-scroller-content"');
     expect(thread).toContain("max-w-3xl");
-    expect(thread).not.toContain("mx-auto");
-    // The chat viewport's 20px gutter is the transcript's edge, so the column adds no side padding of its own.
+    expect(thread).toContain("mx-auto");
+    // The chat viewport's 20px gutter is the transcript's narrowest edge, so the column adds no side padding of its own.
     expect(thread.filter((c) => /^(px|pl|pr|ps|pe)-/.test(c))).toEqual([]);
     const composer = classOf(out, 'data-composer="messages"');
     expect(composer).toContain("max-w-3xl");
-    // A margin, not padding, so the composer box is the reading column's width and edge, and its own content keeps 20px.
-    expect(composer).toContain("mx-5");
+    // Centred in the dock's 20px gutter, so the box is the reading column's width and edges on a narrow pane as on a
+    // wide one, and its own content keeps 20px; scale classes only, no arbitrary widths.
+    expect(composer).toEqual(expect.arrayContaining(["mx-auto", "w-full", "max-w-3xl"]));
     expect(composer).not.toContain("px-5");
-    expect(composer).not.toContain("mx-auto");
-    expect(out).not.toContain("mx-auto");
+    expect(classOf(out, 'class="loki-dock')).toContain("px-5");
+    expect(out).not.toMatch(/\[calc\(/);
   });
 
-  test("an outside card's thread and reply box start at the edge, 20px in", async () => {
+  test("an outside card's thread and reply box are centred, 20px in", async () => {
     const { OutsideCard } = await import("../app/src/desk/outside-card.tsx");
     const facts = {
       provider: "slack" as const,
@@ -284,9 +286,8 @@ describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
         box,
       }),
     );
-    expect(out).not.toContain("mx-auto");
-    expect(out).toContain('class="w-full max-w-3xl" style="padding:8px 20px 16px"');
-    expect(out).toContain('class="w-full max-w-3xl" style="padding:12px 20px 16px"');
+    expect(out).toContain('class="mx-auto w-full max-w-3xl" style="padding:8px 20px 16px"');
+    expect(out).toContain('class="mx-auto w-full max-w-3xl" style="padding:12px 20px 16px"');
   });
 
   test("Learn's review deck stays centred, and All Cards starts at the edge", async () => {

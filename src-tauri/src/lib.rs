@@ -427,6 +427,7 @@ pub fn run() {
             open_settings,
             native::set_waiting,
             native::set_global_shortcut,
+            native::traffic_lights,
             menu::set_menu,
             popup::popup_menu
         ])
@@ -496,14 +497,11 @@ pub fn run() {
                         tauri::webview::NewWindowResponse::Deny
                     }
                 });
-            // Slack style: no native title bar. The lights float over loki's own top strip (Sidebar.tsx,
-            // TITLEBAR_HEIGHT, a drag region) at their standard spot; the title stays set for the Window menu,
-            // Mission Control and screen readers, just not drawn.
+            // No native title bar: the lights float over loki's own top edge, on the panes' title bars' row (app
+            // sidebar.tsx paneTop); the title stays set for the Window menu, Mission Control and screen readers, just
+            // not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
-            // The lights sit inside Liquid Glass's inset sidebar, level with its toggle (app sidebar.tsx GLASS_LIGHTS).
-            #[cfg(target_os = "macos")]
-            let window = window.traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0));
             // The Mac's own sidebar material behind a transparent window (plan 2026-11-12-1505, U13): Liquid Glass lets
             // it through the sidebar and paints everything else; today's look paints the whole window, so it never
             // shows there. It dims with the window, as Mail's does, and macOS draws it solid under Reduce Transparency.
@@ -521,7 +519,12 @@ pub fn run() {
             // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
             #[cfg(not(target_os = "macos"))]
             let window = window.decorations(false);
-            window.build()?;
+            let window = window.build()?;
+            // AppKit lays the lights out in the toolbar's taller title bar, beside the sidebar's toggle (native.rs).
+            #[cfg(target_os = "macos")]
+            native::add_unified_toolbar(&window);
+            #[cfg(not(target_os = "macos"))]
+            let _ = window;
             // The menu bar, the tray and ⌥Space are the Mac's (plan 014 KTD3); elsewhere their commands are no-ops.
             #[cfg(target_os = "macos")]
             {
