@@ -372,8 +372,11 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   for trying an update by hand; the signature is still checked against the compiled-in key, so it cannot install
   anything the key did not sign. A development build and a Linux `.deb` never check, and the daemon never updates
   itself apart from the app. The app is still unsigned by Apple and Microsoft: the update key is what ties an update
-  to loki's releases. On the Mac, when the app's folder is not yours to write, macOS asks for an administrator's
-  password before the swap.
+  to loki's releases. The signed version is not yet checked against the one `latest.json` announces (that needs a
+  Tauri CLI that records it in the signature, then the plugin's `requireSignedVersion`), so a tampered `latest.json`
+  could pair a newer version number with an older build loki signed. On the Mac, when the app's folder is not yours to
+  write, loki does not download the update at all and About asks you to move it to a folder you can change, so it never
+  asks for an administrator's password.
 - **Claude Code, when you choose it for a chat.** loki runs the ACP adapter with `npx`, at a version each loki
   release pins (`daemon/acp/agents.ts`), so npm fetches that version from its registry the first time. An ACP agent
   of your own runs the command you wrote for it.

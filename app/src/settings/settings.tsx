@@ -18,7 +18,7 @@ import { Skills, type GlobalSkillsApi } from "./skills";
 import type { DaemonStatus } from "../shell/bootstrap";
 import { useHarnessFacts, type InstallReport } from "../shell/use-harness-facts";
 import type { LokiUpdate, UpdateState } from "../shell/use-loki-update";
-import { restartToUpdate } from "../shell/restart-notice";
+import { restartToUpdate } from "../shell/update-notice";
 import { channelOf, type Channel } from "../../../core/version.ts";
 import type { GlobalShortcut } from "../shell/use-global-shortcut";
 import type { Recall as RecallModel } from "../shell/use-recall";

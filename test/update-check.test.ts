@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { createElement, isValidElement, type MouseEvent, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { Action } from "sonner";
+import { notify } from "../app/src/components/index.tsx";
 import { LokiVersionFact } from "../app/src/settings/settings.tsx";
 import type { LokiUpdate, UpdateState, UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
@@ -71,6 +73,19 @@ describe("About's update state", () => {
     expect(out).toContain("Ready — installs when you quit loki");
     const restart = buttons(LokiVersionFact({ update: fake.update, working: false })).find((b) => b.label === "Restart to Update");
     expect(restart).toBeDefined();
+  });
+
+  test("with a chat working, Restart to Update says its turn will stop and restarts only on Update Anyway (AE3)", () => {
+    const fake = fakeUpdate(status({ kind: "ready", version: "2026.1117.0" }));
+    const restart = buttons(LokiVersionFact({ update: fake.update, working: true })).find((b) => b.label === "Restart to Update");
+    restart?.click();
+    expect(fake.calls.restart).toBe(0);
+    const notice = notify.getToasts().find((t) => t.id === "loki-update-ready");
+    expect(notice && "title" in notice ? notice.title : null).toBe("A chat is working, and restarting now stops its turn");
+    const anyway = notice && "action" in notice ? (notice.action as Action | undefined) : undefined;
+    expect(anyway?.label).toBe("Update Anyway");
+    anyway?.onClick({ preventDefault: () => {} } as MouseEvent<HTMLButtonElement>);
+    expect(fake.calls.restart).toBe(1);
   });
 
   test("a failed download or signature check says this version is still running, with Check Again", () => {

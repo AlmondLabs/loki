@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, EmptyPane, Notices, notify } from "../components";
-import { RestartNotice, UpdateNotice, chatWorking, runUpdateItem } from "./restart-notice";
+import { RestartNotice } from "./restart-notice";
+import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
 import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";

@@ -167,4 +167,24 @@ describe("supply chain", () => {
         TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
       });
   });
+
+  // tauri-cli only warns when the signing key and tauri.conf.json's pubkey are not one pair, and a loki built that way
+  // can never verify an update: each build checks its signatures before anything is published or uploaded.
+  test("each build checks its update signatures against the compiled-in key before it ships them", () => {
+    const release = workflow("release").jobs;
+    for (const [job, isBuild, isShip] of [
+      ["build", (s: Step) => s.uses?.startsWith("tauri-apps/tauri-action@"), (s: Step) => s.id === "publish"],
+      ["windows", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+      ["linux", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+    ] as const) {
+      const steps = must(release[job], job).steps;
+      const built = steps.findIndex(isBuild);
+      const checked = steps.findIndex((s) => s.run?.includes("scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')"));
+      const shipped = steps.findIndex(isShip);
+      expect(built, job).toBeGreaterThan(-1);
+      expect(checked, job).toBeGreaterThan(built);
+      expect(shipped, job).toBeGreaterThan(checked);
+      expect(JSON.stringify(steps[checked]), job).not.toContain("TAURI_SIGNING");
+    }
+  });
 });

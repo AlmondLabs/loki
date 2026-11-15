@@ -3,7 +3,7 @@ import type { MouseEvent } from "react";
 import type { Action, ExternalToast } from "sonner";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { menuSpec } from "../app/src/shell/keymap.ts";
-import { chatWorking, offerUpdate, runUpdateItem, takeOffer } from "../app/src/shell/restart-notice.tsx";
+import { chatWorking, runUpdateItem, showReadyUpdate } from "../app/src/shell/update-notice.tsx";
 import { readyVersion, updateItemLabel, type LokiUpdate, type UpdateState, type UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
 // Plan 2026-11-15-2319, U5 (R10, R11, AE3): the loki menu's update item checks now, or restarts to a ready update; the
@@ -15,6 +15,7 @@ const ready = status({ kind: "ready", version: "2026.1117.0" });
 /** A stand-in for the notices, keeping what each call showed so a test can press its buttons. */
 function fakeNotices() {
   const shown: Array<{ title: string; data?: ExternalToast; loading: boolean }> = [];
+  const dismissed: Array<string | number | undefined> = [];
   const toaster = Object.assign(
     (title: string, data?: ExternalToast) => {
       shown.push({ title, data, loading: false });
@@ -25,7 +26,10 @@ function fakeNotices() {
         shown.push({ title, data, loading: true });
         return 1;
       },
-      dismiss: () => 1,
+      dismiss: (id?: string | number) => {
+        dismissed.push(id);
+        return 1;
+      },
     },
   );
   const last = () => shown.at(-1);
@@ -39,7 +43,7 @@ function fakeNotices() {
     const button = last()?.data?.[which] as Action | undefined;
     return typeof button?.label === "string" ? button.label : null;
   };
-  return { toaster, shown, last, press, label };
+  return { toaster, shown, dismissed, last, press, label };
 }
 
 /** An update model whose commands are counted. */
@@ -104,7 +108,9 @@ describe("the update item", () => {
     const dev = status({ kind: "unsupported", reason: "development" });
     expect(updateItemLabel(dev)).toBe("Check for Updates…");
     expect(readyVersion(dev)).toBeNull();
-    expect(takeOffer(readyVersion(dev), new Set())).toBeNull();
+    const notices = fakeNotices();
+    showReadyUpdate(readyVersion(dev), new Set(), { working: () => false, restart: fakeUpdate(dev).update.restart }, notices.toaster);
+    expect(notices.shown).toEqual([]);
   });
 
   test("the loki menu holds Settings… and the update item, first in the list the Mac and ☰ both build from", () => {
@@ -118,7 +124,7 @@ describe("the Restart to Update notice", () => {
   test("with no chat working, Restart to Update calls the restart command straight away (AE3)", () => {
     const fake = fakeUpdate(ready);
     const notices = fakeNotices();
-    offerUpdate("2026.1117.0", { working: () => false, restart: fake.update.restart }, notices.toaster);
+    showReadyUpdate("2026.1117.0", new Set(), { working: () => false, restart: fake.update.restart }, notices.toaster);
     expect(notices.last()?.title).toContain("2026.1117.0");
     expect(notices.last()?.data?.description).toBe("It installs when you quit loki");
     expect(notices.label("cancel")).toBe("Later");
@@ -130,14 +136,14 @@ describe("the Restart to Update notice", () => {
   test("with a chat working, it offers Update Anyway and restarts only when that is chosen (AE3)", () => {
     const fake = fakeUpdate(ready);
     const notices = fakeNotices();
-    offerUpdate("2026.1117.0", { working: () => true, restart: fake.update.restart }, notices.toaster);
+    showReadyUpdate("2026.1117.0", new Set(), { working: () => true, restart: fake.update.restart }, notices.toaster);
     notices.press("action");
     expect(fake.calls.restart).toBe(0);
     expect(notices.last()?.title).toContain("stops its turn");
     expect(notices.label("action")).toBe("Update Anyway");
     notices.press("cancel");
     expect(fake.calls.restart).toBe(0);
-    offerUpdate("2026.1117.0", { working: () => true, restart: fake.update.restart }, notices.toaster);
+    showReadyUpdate("2026.1117.0", new Set(), { working: () => true, restart: fake.update.restart }, notices.toaster);
     notices.press("action");
     notices.press("action");
     expect(fake.calls.restart).toBe(1);
@@ -145,7 +151,7 @@ describe("the Restart to Update notice", () => {
 
   test("a failed install says so in the notice", async () => {
     const notices = fakeNotices();
-    offerUpdate("2026.1117.0", { working: () => false, restart: () => Promise.resolve("the disk is full") }, notices.toaster);
+    showReadyUpdate("2026.1117.0", new Set(), { working: () => false, restart: () => Promise.resolve("the disk is full") }, notices.toaster);
     notices.press("action");
     await Promise.resolve();
     await Promise.resolve();
@@ -154,26 +160,54 @@ describe("the Restart to Update notice", () => {
   });
 
   test("it shows once per ready update: Later hides it for the launch, and a re-check of the same update brings nothing back", () => {
+    const notices = fakeNotices();
     const offered = new Set<string>();
-    const offer = (s: UpdateStatus) => takeOffer(readyVersion(s), offered);
-    expect(offer(status({ kind: "idle" }))).toBeNull();
-    expect(offer(ready)).toBe("2026.1117.0");
+    const commands = { working: () => false, restart: fakeUpdate(ready).update.restart };
+    const step = (s: UpdateStatus) => showReadyUpdate(readyVersion(s), offered, commands, notices.toaster);
+    step(status({ kind: "downloading", done: 1, total: 10 }));
+    expect(notices.shown).toEqual([]);
+    step(ready);
+    expect(notices.shown.map((n) => n.title)).toEqual(["loki 2026.1117.0 is ready"]);
     // Later, then the same update heard again (a re-check, a channel change).
-    expect(offer(ready)).toBeNull();
-    expect(offer(status({ kind: "ready", version: "2026.1118.0" }))).toBe("2026.1118.0");
+    notices.press("cancel");
+    step(ready);
+    expect(notices.shown).toHaveLength(1);
+    step(status({ kind: "ready", version: "2026.1118.0" }));
+    expect(notices.shown.map((n) => n.title)).toEqual(["loki 2026.1117.0 is ready", "loki 2026.1118.0 is ready"]);
   });
 
-  test("a chat is working while a turn runs or a tool call waits on an approval, not while a proposed reply waits", () => {
-    const item = (s: Partial<Pick<AttentionItem, "status" | "pendingApproval">>): Pick<AttentionItem, "status" | "pendingApproval"> => ({
-      status: "idle",
-      pendingApproval: null,
-      ...s,
-    });
+  test("a chat that starts working after the notice showed still gets Update Anyway: working is asked at the press (AE3)", () => {
+    const fake = fakeUpdate(ready);
+    const notices = fakeNotices();
+    let working = false;
+    showReadyUpdate("2026.1117.0", new Set(), { working: () => working, restart: fake.update.restart }, notices.toaster);
+    working = true;
+    notices.press("action");
+    expect(fake.calls.restart).toBe(0);
+    expect(notices.last()?.title).toBe("A chat is working, and restarting now stops its turn");
+  });
+
+  test("the notice goes once no update is ready any more, leaving a failed install's notice up", () => {
+    const notices = fakeNotices();
+    const offered = new Set<string>();
+    const commands = { working: () => false, restart: fakeUpdate(ready).update.restart };
+    showReadyUpdate("2026.1117.0", offered, commands, notices.toaster);
+    expect(notices.dismissed).toEqual([]);
+    showReadyUpdate(readyVersion(status({ kind: "failed", stage: "install", message: "boom" })), offered, commands, notices.toaster);
+    expect(notices.dismissed).toEqual(["loki-update-ready"]);
+  });
+
+  test("a chat is working while a turn runs or waits on an approval or a question, not while a proposed reply waits", () => {
+    type Item = Pick<AttentionItem, "status" | "pendingApproval" | "pendingQuestion">;
+    const item = (s: Partial<Item>): Item => ({ status: "idle", pendingApproval: null, pendingQuestion: null, ...s });
     const approval = { requestId: "r1", toolName: "bash", input: {}, at: "2026-11-16T10:00:00Z" };
     expect(chatWorking([])).toBe(false);
     expect(chatWorking([item({}), item({ status: "done" })])).toBe(false);
     expect(chatWorking([item({}), item({ status: "running" })])).toBe(true);
     expect(chatWorking([item({ status: "approval", pendingApproval: approval })])).toBe(true);
     expect(chatWorking([item({ status: "approval" })])).toBe(false);
+    // An agent's question holds its turn open as an approval does: restarting would stop it unasked.
+    const question = { requestId: "r2", input: {}, questions: [], at: "2026-11-16T10:00:00Z" };
+    expect(chatWorking([item({ status: "question", pendingQuestion: question })])).toBe(true);
   });
 });

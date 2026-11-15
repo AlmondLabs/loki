@@ -46,7 +46,7 @@ describe("the Settings window", () => {
     expect(read(APP, "shell", "shell.tsx")).toContain("const update = useLokiUpdate();");
     const hook = read(APP, "shell", "use-loki-update.ts");
     expect(hook).toContain('export const UPDATE_EVENT = "loki:update";');
-    expect(hook).toContain('invokeShell<UpdateStatus>("update_status")');
+    expect(hook).toContain("return followStatus("); // test/update-status.test.ts covers the order and the cleanup
     expect(hook).not.toContain("api.github.com");
     expect(read(APP, "shell", "views.tsx")).toContain("working: chatWorking(catchUp.items),");
   });

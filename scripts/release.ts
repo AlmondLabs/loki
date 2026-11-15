@@ -481,8 +481,8 @@ export function publish({
   if (kind === "nightly") {
     if (!isNightlyVersion(version)) throw new Error(`a nightly version looks like 2026.1011.1-nightly.4821, not ${version}`);
     // The version no longer names the commit, so the title does, in the old `<stable>-nightly.<sha>` shape: nightlies
-    // installed before run numbers read only that shape from the title, so they still see this one as newer. The new
-    // reader (core/version.ts) takes the run-numbered version first. Drop the old shape once those nightlies are gone.
+    // installed before run numbers read only that shape from the title, so they still see this one as newer. Drop the
+    // old shape once those nightlies are gone.
     const title = `loki ${version} (${version.replace(/-nightly\..*$/, "")}-nightly.${sha.slice(0, 7)})`;
     const state = releaseState(NIGHTLY_TAG, gh);
     if (!state) {

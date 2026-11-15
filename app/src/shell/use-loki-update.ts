@@ -66,6 +66,43 @@ const restart = (): Promise<string | null> =>
       )
     : Promise.resolve("updates come with the app");
 
+/** The two shell calls that follow the status, as Tauri's `listen` and `invoke` have them; tests pass stand-ins. */
+export interface StatusCalls {
+  listen: (event: string, handler: (e: { payload: UpdateStatus }) => void) => Promise<() => void>;
+  invoke: (command: string) => Promise<UpdateStatus>;
+}
+
+/**
+ * Follow the shell's update status into `apply`: listen for `loki:update` first, then ask once for the status from
+ * before this page loaded, which an event heard meanwhile overrides since it is newer. Returns the cleanup, which stops
+ * listening even when it comes before the listener is in place.
+ */
+export function followStatus({ listen, invoke }: StatusCalls, apply: (status: UpdateStatus) => void): () => void {
+  let live = true;
+  let heard = false;
+  let off: (() => void) | null = null;
+  void listen(UPDATE_EVENT, (e) => {
+    heard = true;
+    if (live) apply(e.payload);
+  })
+    .then((unlisten) => {
+      if (!live) {
+        unlisten();
+        return null;
+      }
+      off = unlisten;
+      return invoke("update_status");
+    })
+    .then((now) => {
+      if (now && live && !heard) apply(now);
+    })
+    .catch((e: unknown) => console.warn("loki: update status", e));
+  return () => {
+    live = false;
+    off?.();
+  };
+}
+
 /** The ready update's version, or null while none is. */
 export function readyVersion(status: UpdateStatus | null): string | null {
   return status?.state.kind === "ready" ? status.state.version : null;
@@ -86,26 +123,13 @@ export function useLokiUpdate(): LokiUpdate {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   useEffect(() => {
     if (!inTauri) return;
-    let live = true;
-    let heard = false;
-    let off: (() => void) | null = null;
-    void import("@tauri-apps/api/event")
-      .then(async ({ listen }) => {
-        const unlisten = await listen<UpdateStatus>(UPDATE_EVENT, (e) => {
-          heard = true;
-          if (live) setStatus(e.payload);
-        });
-        if (live) off = unlisten;
-        else unlisten();
-        // Asked once listening, for the status before this page loaded; an event heard meanwhile is newer.
-        const now = await invokeShell<UpdateStatus>("update_status");
-        if (live && !heard) setStatus(now);
-      })
-      .catch((e: unknown) => console.warn("loki: update status", e));
-    return () => {
-      live = false;
-      off?.();
-    };
+    return followStatus(
+      {
+        listen: async (event, handler) => (await import("@tauri-apps/api/event")).listen<UpdateStatus>(event, handler),
+        invoke: (command) => invokeShell<UpdateStatus>(command),
+      },
+      setStatus,
+    );
   }, []);
   return { status, releases: __LOKI_REPO__ ? `https://github.com/${__LOKI_REPO__}/releases` : null, check, setChannel, restart };
 }

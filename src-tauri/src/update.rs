@@ -3,7 +3,9 @@
 //! is downloaded in the background and checked against the update key compiled into the app; only then is it Ready,
 //! held in memory. Quitting loki installs it, and Restart to Update installs it and opens the new version at once. A
 //! failed check, download or signature is a status the page shows quietly, never a dialog, and leaves the running
-//! version as it was. A crash or a force-quit loses the download; the next launch checks and downloads again.
+//! version as it was. A crash or a force-quit loses the download; the next launch checks and downloads again. An
+//! install that fails as loki quits is kept in `updates.json`, so the next launch's About says so; on the Mac, an update
+//! that could install only with an administrator's password, asked for as loki quits, is never downloaded.
 //!
 //! The channel, Stable or Nightly, is the shell's to keep in `~/.loki/updates.json`. The page sees `UpdateStatus`
 //! through `update_status` and `loki:update` events, and never the plugin itself: no capability grants its commands.
@@ -11,10 +13,10 @@
 //! The updater sits behind `Remote` and `Found`, so the tests drive every state with fakes and no network.
 
 use serde::{Deserialize, Serialize};
-use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
+use tauri::utils::config::BundleType;
 
 /// The event every change of UpdateStatus goes out as, carrying the whole status (as `loki:runtime` does the daemon's).
 pub const UPDATE_EVENT: &str = "loki:update";
@@ -39,6 +41,11 @@ const WAKE_EVERY: Duration = Duration::from_secs(10 * 60);
 
 /// How long a check may take before it counts as failed, so a stalled connection never leaves loki Checking for good.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long a download may take in all before it counts as failed, so a connection that stalls without breaking (a
+/// laptop waking, a captive portal) never leaves loki Downloading for good; the next check starts it again. Generous,
+/// since it bounds the whole file, about 100 MB, on a slow link too.
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Which releases loki updates to: every stable, or every merge to `main` (R15).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,38 +77,54 @@ pub fn endpoint(channel: Channel, override_url: Option<&str>) -> String {
     }
 }
 
-/// `updates.json` as loki writes it.
+/// A Ready update that could not install as loki quit, and why, kept until that version or a newer one runs.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FailedInstall {
+    pub version: String,
+    pub message: String,
+}
+
+/// `updates.json` as loki writes it: the channel, and the last install that failed as loki quit, if any.
 #[derive(Serialize, Deserialize)]
-struct ChannelFile {
+struct UpdatesFile {
     channel: Channel,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    failed_install: Option<FailedInstall>,
 }
 
-/// The saved channel in `dir`. The first run, and a file that cannot be read, take the running version's channel and
-/// write it, so people who came from the nightly cask stay on Nightly (KTD8).
-pub fn load_channel(dir: &Path, current: &str) -> Channel {
-    let saved = std::fs::read_to_string(dir.join(CHANNEL_FILE))
-        .ok()
-        .and_then(|text| serde_json::from_str::<ChannelFile>(&text).ok());
-    if let Some(file) = saved {
-        return file.channel;
-    }
-    let channel = Channel::of(current);
-    if let Err(e) = save_channel(dir, channel) {
-        eprintln!("loki: update: {e}");
-    }
-    channel
+/// `dir`'s `updates.json`, None when it is missing or cannot be read.
+fn read_file(dir: &Path) -> Option<UpdatesFile> {
+    let text = std::fs::read_to_string(dir.join(CHANNEL_FILE)).ok()?;
+    serde_json::from_str(&text).ok()
 }
 
-/// Write the channel to `dir`'s `updates.json`, for the next launch and the next check.
-pub fn save_channel(dir: &Path, channel: Channel) -> Result<(), String> {
+/// Write `dir`'s `updates.json`.
+fn write_file(dir: &Path, file: &UpdatesFile) -> Result<(), String> {
     let path = dir.join(CHANNEL_FILE);
-    let text = serde_json::to_string_pretty(&ChannelFile { channel }).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(file).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(dir)
         .and_then(|()| std::fs::write(&path, text + "\n"))
         .map_err(|e| format!("could not write {}: {e}", path.display()))
 }
 
-/// What failed: the check, the download, the signature check of what was downloaded, or Restart to Update's install.
+/// Write the channel to `dir`'s `updates.json`, for the next launch and the next check, keeping a failed install's
+/// record there.
+pub fn save_channel(dir: &Path, channel: Channel) -> Result<(), String> {
+    let failed_install = read_file(dir).and_then(|f| f.failed_install);
+    write_file(dir, &UpdatesFile { channel, failed_install })
+}
+
+/// Whether `current` is `version` or newer, by semver: a stable outranks its own prereleases (its nightlies), and
+/// numeric parts compare as numbers. A version that does not parse counts as installed, so its record never sticks.
+fn installed(current: &str, version: &str) -> bool {
+    match (semver::Version::parse(current), semver::Version::parse(version)) {
+        (Ok(current), Ok(version)) => current >= version,
+        _ => true,
+    }
+}
+
+/// What failed: the check, the download, the signature check of what was downloaded, or the install: Restart to
+/// Update's, the one as loki last quit, or one the Mac's app folder would allow only an administrator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
@@ -142,11 +165,12 @@ pub struct UpdateStatus {
 }
 
 /// Why a build never checks, if it does not: `release` is false in a development build, `os` is
-/// `std::env::consts::OS`, and `appimage` is the `APPIMAGE` variable an AppImage sets for the program inside it.
-pub fn unsupported(release: bool, os: &str, appimage: Option<&OsStr>) -> Option<Unsupported> {
+/// `std::env::consts::OS`, and `bundle` is what the bundler stamped into this binary
+/// (`tauri::utils::platform::bundle_type`). Not the `APPIMAGE` variable: any program an AppImage starts inherits it.
+pub fn unsupported(release: bool, os: &str, bundle: Option<BundleType>) -> Option<Unsupported> {
     if !release {
         Some(Unsupported::Development)
-    } else if os == "linux" && appimage.is_none_or(OsStr::is_empty) {
+    } else if os == "linux" && bundle != Some(BundleType::AppImage) {
         Some(Unsupported::Package)
     } else {
         None
@@ -164,6 +188,8 @@ pub struct Failure {
 pub trait Found: Send + Sync {
     /// The version it would install.
     fn version(&self) -> &str;
+    /// Asked before the download: why this loki could not install it without an administrator's password, if so.
+    fn installable(&self) -> Result<(), String>;
     /// Download it, telling `on_chunk` each chunk's length and the whole size once known, and check its signature.
     fn download(&self, on_chunk: &mut dyn FnMut(usize, Option<u64>)) -> Result<Vec<u8>, Failure>;
     /// Install the verified bytes. With `relaunch`, Windows' installer opens loki again once it is done; without it,
@@ -193,6 +219,8 @@ struct Inner {
 pub struct Updates {
     current: String,
     override_url: Option<String>,
+    /// Where a failed install is kept for the next launch: `~/.loki`, or None in the tests that do not look.
+    dir: Option<PathBuf>,
     inner: Mutex<Inner>,
 }
 
@@ -211,6 +239,47 @@ pub fn check_due(last: Option<SystemTime>, now: SystemTime) -> bool {
     last.is_none_or(|t| !matches!(now.duration_since(t), Ok(d) if d < CHECK_EVERY))
 }
 
+/// When the check loop counts its last check as run, at a launch in `state`: never, so it checks at once, except after
+/// an install that failed as loki last quit. Then `now`, so About keeps saying so and the same update is not downloaded
+/// again at every launch; the next check runs CHECK_EVERY later, or at Check for Updates.
+pub fn last_check_at_launch(state: &UpdateState, now: SystemTime) -> Option<SystemTime> {
+    matches!(state, UpdateState::Failed { stage: Stage::Install, .. }).then_some(now)
+}
+
+/// Why installing into the app bundle `exe` runs from (`…/loki.app/Contents/MacOS/loki`) would need an administrator,
+/// if it would: the install renames loki.app inside its folder, which `writable` says this user may change or not.
+/// The Mac's updater asks for the password itself when it may not, as loki quits, which would be a surprise. None for
+/// a binary outside a bundle.
+pub fn install_problem(exe: &Path, writable: &dyn Fn(&Path) -> bool) -> Option<String> {
+    let macos = exe.parent()?;
+    let contents = macos.parent()?;
+    if macos.file_name()? != "MacOS" || contents.file_name()? != "Contents" {
+        return None;
+    }
+    let folder = contents.parent()?.parent()?;
+    (!writable(folder)).then(|| {
+        format!(
+            "loki can't update itself in {}. Move it to a folder you can change, such as ~/Applications, to get updates.",
+            folder.display()
+        )
+    })
+}
+
+/// Whether this user may change `folder`, as the system's own access check answers.
+#[cfg(unix)]
+fn writable(folder: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(path) = std::ffi::CString::new(folder.as_os_str().as_bytes()) else { return false };
+    // SAFETY: `path` is a NUL-terminated string that outlives the call; access(2) only reads it.
+    unsafe { libc::access(path.as_ptr(), libc::W_OK) == 0 }
+}
+
+/// Windows' installer asks for what it needs itself; only the Mac's swap is checked.
+#[cfg(not(unix))]
+fn writable(_folder: &Path) -> bool {
+    true
+}
+
 impl Updates {
     /// The state at launch: Idle, or Unsupported for good when this build never checks.
     pub fn new(
@@ -223,7 +292,47 @@ impl Updates {
             Some(reason) => UpdateState::Unsupported { reason },
             None => UpdateState::Idle,
         };
-        Updates { current: current.to_string(), override_url, inner: Mutex::new(Inner { channel, state, held: None }) }
+        Updates {
+            current: current.to_string(),
+            override_url,
+            dir: None,
+            inner: Mutex::new(Inner { channel, state, held: None }),
+        }
+    }
+
+    /// The state at launch, from `dir`'s `updates.json`. A build that never checks reads the channel and writes
+    /// nothing. One that checks starts, on the first run or with a file it cannot read, on the running version's
+    /// channel and writes it, so people who came from the nightly cask stay on Nightly (KTD8). It starts Failed at
+    /// Install when an install failed as loki last quit, and forgets that once this version is that one or newer.
+    pub fn open(dir: &Path, current: &str, override_url: Option<String>, unsupported: Option<Unsupported>) -> Self {
+        let (saved, failed) = match read_file(dir) {
+            Some(file) => (Some(file.channel), file.failed_install),
+            None => (None, None),
+        };
+        let channel = saved.unwrap_or_else(|| Channel::of(current));
+        if unsupported.is_some() {
+            return Updates::new(current, channel, override_url, unsupported);
+        }
+        let mut state = UpdateState::Idle;
+        let forgotten = match failed {
+            Some(failed) if !installed(current, &failed.version) => {
+                state = UpdateState::Failed { stage: Stage::Install, message: failed.message };
+                false
+            }
+            Some(_) => true,
+            None => false,
+        };
+        if saved.is_none() || forgotten {
+            if let Err(e) = write_file(dir, &UpdatesFile { channel, failed_install: None }) {
+                eprintln!("loki: update: {e}");
+            }
+        }
+        Updates {
+            current: current.to_string(),
+            override_url,
+            dir: Some(dir.to_path_buf()),
+            inner: Mutex::new(Inner { channel, state, held: None }),
+        }
     }
 
     /// A poisoned lock still holds a usable state: nothing in it is left half-changed by a panic.
@@ -273,6 +382,10 @@ impl Updates {
                 return self.settle(UpdateState::Failed { stage: Stage::Check, message }, None, publish);
             }
         };
+        if let Err(message) = found.installable() {
+            eprintln!("loki: update: not downloading {}: {message}", found.version());
+            return self.settle(UpdateState::Failed { stage: Stage::Install, message }, None, publish);
+        }
         eprintln!("loki: update: downloading {}", found.version());
         self.settle(UpdateState::Downloading { done: 0, total: None }, None, publish);
         let (mut done, mut shown) = (0u64, progress_step(0, None));
@@ -304,13 +417,24 @@ impl Updates {
 
     /// Quitting (KTD3): the daemon is stopped first, whatever else happens, then a Ready update installs without
     /// relaunching; the next launch is the new version. With nothing Ready, nothing is installed. A failed install
-    /// leaves the version on disk as it was, so the current one opens next time.
+    /// leaves the version on disk as it was, so the current one opens next time, and is kept in `updates.json` for
+    /// that launch's About.
     pub fn quit(&self, stop_daemon: &mut dyn FnMut()) {
         stop_daemon();
         let Some(held) = self.take() else { return };
-        eprintln!("loki: update: installing {} as loki quits", held.found.version());
-        if let Err(e) = held.found.install(&held.bytes, false) {
-            eprintln!("loki: update: could not install {}: {e}", held.found.version());
+        let version = held.found.version().to_string();
+        eprintln!("loki: update: installing {version} as loki quits");
+        if let Err(message) = held.found.install(&held.bytes, false) {
+            eprintln!("loki: update: could not install {version}: {message}");
+            if let Some(dir) = &self.dir {
+                let file = UpdatesFile {
+                    channel: self.lock().channel,
+                    failed_install: Some(FailedInstall { version, message }),
+                };
+                if let Err(e) = write_file(dir, &file) {
+                    eprintln!("loki: update: {e}");
+                }
+            }
         }
     }
 
@@ -392,8 +516,19 @@ impl Found for PluginFound {
         &self.0.version
     }
 
+    fn installable(&self) -> Result<(), String> {
+        if !cfg!(target_os = "macos") {
+            return Ok(());
+        }
+        let exe = std::env::current_exe().map_err(|e| format!("could not find loki's own app: {e}"))?;
+        install_problem(&exe, &writable).map_or(Ok(()), Err)
+    }
+
     fn download(&self, on_chunk: &mut dyn FnMut(usize, Option<u64>)) -> Result<Vec<u8>, Failure> {
-        tauri::async_runtime::block_on(self.0.download(on_chunk, || {}))
+        // The plugin makes each Update with no timeout of its own: the check's covers only the check.
+        let mut update = self.0.clone();
+        update.timeout = Some(DOWNLOAD_TIMEOUT);
+        tauri::async_runtime::block_on(update.download(on_chunk, || {}))
             .map_err(|e| Failure { stage: stage_of(&e), message: e.to_string() })
     }
 
@@ -421,27 +556,26 @@ fn check_now(app: &tauri::AppHandle) {
 pub fn start(app: &tauri::AppHandle, dir: &Path) {
     use tauri::Manager;
     let current = app.package_info().version.to_string();
-    let channel = load_channel(dir, &current);
-    let reason = unsupported(!cfg!(debug_assertions), std::env::consts::OS, std::env::var_os("APPIMAGE").as_deref());
+    let bundle = tauri::utils::platform::bundle_type();
+    let reason = unsupported(!cfg!(debug_assertions), std::env::consts::OS, bundle);
     let override_url = std::env::var(OVERRIDE_VAR).ok().filter(|u| !u.is_empty());
     if let Some(url) = &override_url {
         eprintln!("loki: update: checking {url} ({OVERRIDE_VAR})");
     }
-    app.manage(Updates::new(&current, channel, override_url, reason));
+    let updates = Updates::open(dir, &current, override_url, reason);
+    let mut last = last_check_at_launch(&updates.status().state, SystemTime::now());
+    app.manage(updates);
     if reason.is_some() {
         return;
     }
     let app = app.clone();
-    let spawned = std::thread::Builder::new().name("loki-update-checker".into()).spawn(move || {
-        let mut last: Option<SystemTime> = None;
-        loop {
-            let now = SystemTime::now();
-            if check_due(last, now) {
-                last = Some(now);
-                check_now(&app);
-            }
-            std::thread::sleep(WAKE_EVERY);
+    let spawned = std::thread::Builder::new().name("loki-update-checker".into()).spawn(move || loop {
+        let now = SystemTime::now();
+        if check_due(last, now) {
+            last = Some(now);
+            check_now(&app);
         }
+        std::thread::sleep(WAKE_EVERY);
     });
     if let Err(e) = spawned {
         eprintln!("loki: update: could not start the check loop: {e}");
@@ -518,12 +652,16 @@ mod tests {
         total: Option<u64>,
         end: Result<Vec<u8>, Failure>,
         install: Result<(), String>,
+        installable: Result<(), String>,
         log: Log,
     }
 
     impl Found for FakeFound {
         fn version(&self) -> &str {
             &self.version
+        }
+        fn installable(&self) -> Result<(), String> {
+            self.installable.clone()
         }
         fn download(&self, on_chunk: &mut dyn FnMut(usize, Option<u64>)) -> Result<Vec<u8>, Failure> {
             for c in &self.chunks {
@@ -545,6 +683,7 @@ mod tests {
             total: Some(8),
             end: Ok(b"verified".to_vec()),
             install: Ok(()),
+            installable: Ok(()),
             log: log.clone(),
         }
     }
@@ -586,26 +725,155 @@ mod tests {
         crate::runtime::tests::temp_root()
     }
 
+    /// The channel a launch of `current` starts on, in a build that checks.
+    fn launch_channel(dir: &Path, current: &str) -> Channel {
+        Updates::open(dir, current, None, None).status().channel
+    }
+
+    fn saved(dir: &Path) -> serde_json::Value {
+        serde_json::from_str(&std::fs::read_to_string(dir.join("updates.json")).unwrap()).unwrap()
+    }
+
     #[test]
     fn the_channel_file_starts_on_the_running_versions_channel_and_a_set_channel_survives_a_restart() {
         let dir = temp_dir().join(".loki");
-        assert_eq!(load_channel(&dir, "2026.1116.0-nightly.4821"), Channel::Nightly);
-        let text = std::fs::read_to_string(dir.join("updates.json")).unwrap();
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&text).unwrap(),
-            serde_json::json!({ "channel": "nightly" })
-        );
+        assert_eq!(launch_channel(&dir, "2026.1116.0-nightly.4821"), Channel::Nightly);
+        assert_eq!(saved(&dir), serde_json::json!({ "channel": "nightly" }));
         // About chose Stable; the next launch, still on the nightly, keeps the choice.
         save_channel(&dir, Channel::Stable).unwrap();
-        assert_eq!(load_channel(&dir, "2026.1116.0-nightly.4821"), Channel::Stable);
+        assert_eq!(launch_channel(&dir, "2026.1116.0-nightly.4821"), Channel::Stable);
         // A stable build's first run is on Stable; a file loki cannot read is written again from the version.
         let other = temp_dir();
-        assert_eq!(load_channel(&other, "2026.1116.0"), Channel::Stable);
+        assert_eq!(launch_channel(&other, "2026.1116.0"), Channel::Stable);
         std::fs::write(other.join("updates.json"), "{ \"channel\": \"beta\" }").unwrap();
-        assert_eq!(load_channel(&other, "2026.1116.1-nightly.9"), Channel::Nightly);
-        assert_eq!(load_channel(&other, "2026.1116.0"), Channel::Nightly, "and that is the saved channel now");
+        assert_eq!(launch_channel(&other, "2026.1116.1-nightly.9"), Channel::Nightly);
+        assert_eq!(launch_channel(&other, "2026.1116.0"), Channel::Nightly, "and that is the saved channel now");
         let _ = std::fs::remove_dir_all(dir.parent().unwrap());
         let _ = std::fs::remove_dir_all(&other);
+    }
+
+    #[test]
+    fn a_build_that_never_checks_reads_the_channel_and_writes_nothing() {
+        // A `tauri dev` run on a fresh ~/.loki: its stable-looking version must not seed Stable for the nightly.
+        for reason in [Unsupported::Development, Unsupported::Package] {
+            let dir = temp_dir().join(".loki");
+            let u = Updates::open(&dir, "2026.10.11", None, Some(reason));
+            assert_eq!(u.status().channel, Channel::Stable);
+            assert_eq!(u.status().state, UpdateState::Unsupported { reason });
+            assert!(!dir.join("updates.json").exists(), "{reason:?} wrote updates.json");
+            // A saved channel is read as it is.
+            save_channel(&dir, Channel::Nightly).unwrap();
+            assert_eq!(Updates::open(&dir, "2026.10.11", None, Some(reason)).status().channel, Channel::Nightly);
+            let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        }
+    }
+
+    #[test]
+    fn an_install_that_fails_as_loki_quits_is_what_about_shows_at_the_next_launch() {
+        let dir = temp_dir();
+        let log: Log = Arc::default();
+        let u = Updates::open(&dir, "2026.1116.0", None, None);
+        let denied = FakeFound { install: Err("Permission denied (os error 13)".into()), ..found(&log) };
+        check(&u, &FakeRemote::new(Ok(Some(denied))));
+        u.quit(&mut || {});
+        assert_eq!(
+            saved(&dir),
+            serde_json::json!({
+                "channel": "stable",
+                "failed_install": { "version": "2026.1120.0", "message": "Permission denied (os error 13)" }
+            })
+        );
+        let failed = UpdateState::Failed { stage: Stage::Install, message: "Permission denied (os error 13)".into() };
+        let next = Updates::open(&dir, "2026.1116.0", None, None);
+        assert_eq!(next.status().state, failed);
+        // About keeps saying so: the launch does not download the same update again at once.
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        assert_eq!(last_check_at_launch(&next.status().state, now), Some(now));
+        assert_eq!(last_check_at_launch(&UpdateState::Idle, now), None);
+        let check_failed = UpdateState::Failed { stage: Stage::Check, message: "offline".into() };
+        assert_eq!(last_check_at_launch(&check_failed, now), None);
+        // Choosing a channel keeps the record; the next launch still says it failed.
+        save_channel(&dir, Channel::Nightly).unwrap();
+        assert_eq!(saved(&dir)["failed_install"]["version"], "2026.1120.0");
+        assert_eq!(Updates::open(&dir, "2026.1116.0", None, None).status().state, failed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_install_is_forgotten_once_that_version_or_a_newer_one_runs() {
+        let record = |dir: &Path, version: &str| {
+            let text =
+                serde_json::json!({ "channel": "nightly", "failed_install": { "version": version, "message": "no" } });
+            std::fs::write(dir.join("updates.json"), text.to_string()).unwrap();
+        };
+        let failed = UpdateState::Failed { stage: Stage::Install, message: "no".into() };
+        // By semver: a stable outranks its own nightlies, and the parts are numbers, not text.
+        for (recorded, running, forgotten) in [
+            ("2026.1120.0", "2026.1120.0", true),
+            ("2026.1120.0", "2026.1121.0", true),
+            ("2026.1120.0-nightly.9", "2026.1120.0", true),
+            ("2026.1120.0-nightly.9", "2026.1120.0-nightly.10", true),
+            ("2026.1120.0", "2026.1120.0-nightly.12", false),
+            ("2026.1120.0-nightly.10", "2026.1120.0-nightly.9", false),
+            ("2026.1120.0", "2026.999.0", false),
+        ] {
+            let dir = temp_dir();
+            record(&dir, recorded);
+            let state = Updates::open(&dir, running, None, None).status().state;
+            if forgotten {
+                assert_eq!(state, UpdateState::Idle, "{recorded} on {running}");
+                assert_eq!(saved(&dir), serde_json::json!({ "channel": "nightly" }), "{recorded} on {running}");
+            } else {
+                assert_eq!(state, failed, "{recorded} on {running}");
+                assert_eq!(saved(&dir)["failed_install"]["version"], recorded);
+            }
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
+    fn an_update_the_mac_could_install_only_as_an_administrator_is_never_downloaded() {
+        let log: Log = Arc::default();
+        let u = updates(Channel::Stable);
+        let message = "loki can't update itself in /Applications.".to_string();
+        let stuck = FakeFound { installable: Err(message.clone()), ..found(&log) };
+        let seen = check(&u, &FakeRemote::new(Ok(Some(stuck))));
+        assert_eq!(seen, [UpdateState::Checking, UpdateState::Failed { stage: Stage::Install, message }]);
+        assert!(entries(&log).is_empty(), "no download, and nothing installs at quit");
+        u.quit(&mut || {});
+        assert!(entries(&log).is_empty());
+    }
+
+    #[test]
+    fn the_folder_that_must_be_writable_is_the_one_holding_the_app_bundle() {
+        let exe = Path::new("/Applications/loki.app/Contents/MacOS/loki");
+        let asked = RefCell::new(vec![]);
+        let problem = install_problem(exe, &|p: &Path| {
+            asked.borrow_mut().push(p.to_path_buf());
+            false
+        });
+        assert_eq!(asked.borrow().as_slice(), [Path::new("/Applications")]);
+        let problem = problem.unwrap();
+        assert!(problem.contains("/Applications") && problem.contains("~/Applications"), "{problem}");
+        assert_eq!(install_problem(exe, &|_: &Path| true), None);
+        // Not in an app bundle (a bare binary): nothing to rename, nothing to ask.
+        assert_eq!(install_problem(Path::new("/usr/local/bin/loki"), &|_: &Path| false), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_is_writable_when_this_user_may_change_it() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_dir();
+        assert!(writable(&dir));
+        assert!(!writable(&dir.join("missing")));
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        // root may write anywhere; everyone else is refused a read-only folder.
+        if unsafe { libc::geteuid() } != 0 {
+            assert!(!writable(&dir));
+        }
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -799,12 +1067,16 @@ mod tests {
 
     #[test]
     fn linux_checks_only_as_an_appimage_and_a_development_build_never() {
+        use tauri::utils::config::BundleType;
         assert_eq!(unsupported(true, "linux", None), Some(Unsupported::Package));
-        assert_eq!(unsupported(true, "linux", Some(OsStr::new(""))), Some(Unsupported::Package));
-        assert_eq!(unsupported(true, "linux", Some(OsStr::new("/home/x/loki.AppImage"))), None);
-        assert_eq!(unsupported(true, "macos", None), None);
+        // A .deb started from inside an AppImage inherits APPIMAGE; its bundle type is still the .deb's.
+        assert_eq!(unsupported(true, "linux", Some(BundleType::Deb)), Some(Unsupported::Package));
+        assert_eq!(unsupported(true, "linux", Some(BundleType::Rpm)), Some(Unsupported::Package));
+        assert_eq!(unsupported(true, "linux", Some(BundleType::AppImage)), None);
+        assert_eq!(unsupported(true, "macos", Some(BundleType::App)), None);
+        assert_eq!(unsupported(true, "windows", Some(BundleType::Nsis)), None);
         assert_eq!(unsupported(true, "windows", None), None);
-        assert_eq!(unsupported(false, "macos", None), Some(Unsupported::Development));
+        assert_eq!(unsupported(false, "macos", Some(BundleType::App)), Some(Unsupported::Development));
         // A .deb install: no check runs, and the status says why.
         let u = Updates::new("2026.1116.0", Channel::Stable, None, Some(Unsupported::Package));
         let remote = FakeRemote::new(Ok(None));

@@ -13,13 +13,6 @@ export type Channel = "stable" | "nightly";
 /** The channel a version string is on: nightly when it carries a `-nightly.` part, stable otherwise. */
 export const channelOf = (version: string): Channel => (version.includes("-nightly.") ? "nightly" : "stable");
 
-/**
- * The nightly version inside a release title such as "loki 2026.1011.1-nightly.4821 (a96ee85)", or null. Titles from
- * before nightlies carried a run number ("loki 2026.1011.1-nightly.a96ee85") still read, so a page meeting an older
- * release still finds its version.
- */
-export const nightlyVersionIn = (text: string | null | undefined): string | null => text?.match(/\d+\.\d+\.\d+-nightly\.(?:[0-9a-f]{7,40}|\d+)\b/)?.[0] ?? null;
-
 /** The dot-separated identifiers after the `-` of a version, `[]` for a release; build metadata after `+` is ignored. */
 const prereleaseOf = (v: string): string[] => {
   const tail = /^\d+\.\d+\.\d+-([^+\s]+)/.exec(v.trim().replace(/^v/, ""))?.[1];
@@ -35,7 +28,7 @@ const compareIdentifiers = (a: string, b: string): number => {
 };
 
 /**
- * Semver precedence, the order Tauri's updater applies, so the page, the release script and the updater agree: the
+ * Semver precedence, the order Tauri's updater applies, so the release script and the updater agree: the
  * three numbers first, then a release above its prereleases (a stable above the nightlies that led up to it), then
  * the prerelease identifiers one by one (a nightly's run number as a number). Negative when `a` comes first, positive
  * when `b` does, 0 when they rank alike; null when either is not a version.
@@ -51,9 +44,4 @@ export function compareVersions(a: string, b: string): number | null {
     if (order !== 0) return order;
   }
   return p.length - q.length;
-}
-
-/** True when `candidate` is a release after `current` by semver precedence; false for equal, older, or unparsable input. */
-export function isNewerVersion(current: string, candidate: string): boolean {
-  return (compareVersions(current, candidate) ?? 0) < 0;
 }

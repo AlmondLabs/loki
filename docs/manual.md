@@ -90,7 +90,10 @@ a notice says it is ready, with **Restart to Update** and **Later**, and the lok
 **Restart to Update…**. If a chat is mid-turn, Restart to Update says that turn will stop and restarts only on
 **Update Anyway**. **Later** hides the notice until loki next opens; quitting still installs the update. An update is
 installed only when its signature matches loki's update key; a failed check, download or signature check leaves the
-running version as it was and says so quietly in Preferences › About, with **Check Again**.
+running version as it was and says so quietly in Preferences › About, with **Check Again**. On the Mac, loki updates
+itself only from a folder you can change, such as `/Applications` on an administrator's account or `~/Applications`;
+anywhere else, About says to move it there rather than downloading an update it could not install. If installing at
+quit fails, About says so the next time loki opens.
 
 Preferences › About offers **Stable** (each release) or **Nightly** (every change as it lands); the choice takes effect at
 the next check. Switching from Nightly to Stable never installs an older build: loki stays on its nightly until a stable
