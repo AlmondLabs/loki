@@ -5,7 +5,7 @@ import { labelCommand } from "../chat/labels";
 import { saveLabels } from "../desk/desk-conversation";
 import { runAction } from "./keymap";
 import { SETTINGS_PAGE_KEY, type SettingsPage } from "../settings/pages";
-import { SETTINGS_WINDOW, openSettingsWindow } from "./settings-window";
+import { SETTINGS_WINDOW, openSettingsWindow } from "./open-settings";
 import { lastInput } from "../kit/motion";
 import { FlowPlace } from "../desk/catch-up";
 import type { PassSummaryHandler } from "../desk/use-flow-deck";

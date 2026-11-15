@@ -50,7 +50,7 @@ AA on every working surface. The roles:
 - `--loki-grid` is the canvas's dot grid, `--loki-veil` the dim behind a sheet, and `--loki-focus-flash` the colour
   the focus ring flashes in where a surface sets one (the phone's link colour); unset, it is the accent.
 
-No literal colour appears in a component; the agent chip's hue is the one computed colour. `data-theme`
+No literal colour appears in a component; even the agent chip takes the label colour nearest its name's hue. `data-theme`
 selects dark or light values, and the saved `system` preference follows the operating system; there is one palette.
 An inline initializer applies it before first paint; the grounds are repeated in `index.html`, the web manifest and
 the native window (`src-tauri`).

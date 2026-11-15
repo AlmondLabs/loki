@@ -6,16 +6,16 @@ import { useState } from "react";
  */
 export function AgentFace({ name, src, size = 20 }: { name: string | null | undefined; src: string | null; size?: number }) {
   const [broken, setBroken] = useState(false);
-  // An agent with no picture is Messages' grey monogram, not a coloured tile (plan 2026-11-12-1505, U17).
-  const hue = agentHue(name ?? "agent");
+  // An agent with no picture is Messages' grey monogram, not a coloured tile (plan 2026-11-12-1505, U17). A picture
+  // sits on the input well, so a transparent or still-loading one shows the theme's own ground.
   const style: React.CSSProperties = {
     width: size,
     height: size,
     borderRadius: "50%",
     flex: "0 0 auto",
     objectFit: "cover",
-    background: `hsl(${hue} 45% 22%)`,
-    border: `1px solid hsl(${hue} 50% 40% / 0.6)`,
+    background: "var(--loki-well)",
+    border: "1px solid var(--loki-border)",
     boxSizing: "border-box",
   };
   if (!src || broken) {
@@ -51,10 +51,24 @@ export function agentHue(name: string): number {
   return h % 360;
 }
 
-/** A small pill naming the agent that owns a chat, in a colour that stays the same for the same name; nothing when there is no name. */
+/** The label hues (`--loki-label-0` … `--loki-label-7` in tokens.css), in order; an agent takes the nearest one. */
+const LABEL_HUES = [25, 65, 95, 150, 195, 250, 300, 350];
+
+/** The chat-label colour nearest an agent's hue, as a token, so it holds its contrast in day and night alike. */
+export function agentLabel(name: string): string {
+  const hue = agentHue(name);
+  const gap = (h: number) => Math.min(Math.abs(h - hue), 360 - Math.abs(h - hue));
+  const index = LABEL_HUES.reduce((best, h, i) => (gap(h) < gap(LABEL_HUES[best] ?? 0) ? i : best), 0);
+  return `var(--loki-label-${index})`;
+}
+
+/**
+ * A small pill naming the agent that owns a chat; nothing when there is no name. The agent's colour is the dot and a
+ * faint wash of it; the name is in the reading ink, so it passes AA on either theme whatever the colour.
+ */
 export function AgentChip({ name, size = "var(--text-xs)" }: { name: string | null | undefined; size?: string }) {
   if (!name) return null;
-  const hue = agentHue(name);
+  const label = agentLabel(name);
   return (
     <span
       title={`Agent: ${name}`}
@@ -66,13 +80,13 @@ export function AgentChip({ name, size = "var(--text-xs)" }: { name: string | nu
         fontWeight: 600,
         padding: "1px 8px",
         borderRadius: "var(--loki-radius-pill)",
-        color: `hsl(${hue} 60% 78%)`,
-        background: `hsl(${hue} 45% 22% / 0.55)`,
-        border: `1px solid hsl(${hue} 50% 40% / 0.6)`,
+        color: "var(--loki-fg)",
+        background: `color-mix(in oklab, ${label} 14%, transparent)`,
+        border: `1px solid color-mix(in oklab, ${label} 40%, transparent)`,
         whiteSpace: "nowrap",
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: "var(--loki-radius-pill)", background: `hsl(${hue} 70% 60%)` }} />
+      <span style={{ width: 6, height: 6, borderRadius: "var(--loki-radius-pill)", background: label }} />
       {name}
     </span>
   );
