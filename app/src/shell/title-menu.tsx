@@ -58,6 +58,12 @@ export function runMenuItem(id: string): void {
   if (!runAction(id)) console.warn("loki: menu item without an action", id);
 }
 
+/** The id of the item before a menu's separator, which keys the separator: it never leads and never follows another. */
+const keyBefore = (items: TitleMenuGroup["items"], i: number): string => {
+  const before = i > 0 ? items[i - 1] : undefined;
+  return before && !("separator" in before) ? before.id : "start";
+};
+
 /** An item's look in the ☰ menu and its submenus: the label at the left, the key at the right. */
 const ITEM = "justify-between gap-3";
 
@@ -75,7 +81,8 @@ export function TitleMenuItems({ groups, onPick, os = keyboard }: { groups: Titl
           <DropdownMenuSubContent aria-label={g.title} className="loki-popover" style={{ minWidth: 260 }}>
             {g.items.map((it, i) =>
               "separator" in it ? (
-                <DropdownMenuSeparator key={`sep-${i}`} />
+                // menuSpec puts a separator only between two groups, so the item before it keys it.
+                <DropdownMenuSeparator key={`sep-after-${keyBefore(g.items, i)}`} />
               ) : (
                 <DropdownMenuItem key={it.id} data-menu-id={it.id} className={ITEM} onClick={() => onPick(it.id)}>
                   <span>{it.label}</span>
