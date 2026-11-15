@@ -109,7 +109,11 @@ function Pair({ macs }: { macs: MacsApi }) {
             {busy ? "Pairing…" : "Pair"}
           </Button>
         </form>
-        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
       </div>
     </>
   );

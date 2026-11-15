@@ -74,6 +74,7 @@ export function useReplyMentions(
     marks: <MentionMarks text={card.text} mentions={card.mentions} field={ref} />,
     onKeyDown: picker.onKeyDown,
     onCaret: picker.onCaret,
+    field: picker.field,
   };
 }
 
@@ -380,6 +381,7 @@ function ReplyProposalCard({
               if (!mentions.onKeyDown(e)) keys(e);
             }}
             aria-label="Reply text"
+            {...mentions.field}
           />
           {mentions.marks}
         </div>

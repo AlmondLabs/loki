@@ -55,7 +55,11 @@ export function ChatLinks({ api }: { api: ChatLinksApi }) {
           </Button>
         </Setting>
       ))}
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
     </>
   );
 }

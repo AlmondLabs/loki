@@ -94,7 +94,11 @@ export function Mcp({ api }: { api: McpApi }) {
             {p}
           </div>
         ))}
-        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
         {view.servers.map((s) => (
           <ServerRow
             key={s.name}
@@ -396,7 +400,11 @@ function ServerForm({
           Keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them
         </span>
       </label>
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2">
         <Button size="sm" tone="positive" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save"}
@@ -502,7 +510,11 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
           </Button>
         </Setting>
       ))}
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
     </>
   );
 }

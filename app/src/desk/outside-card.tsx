@@ -829,6 +829,7 @@ export function OutsideReply({
             // The target line already says where it goes; the field says what to do.
             placeholder: isMail ? hint : facts.provider === "jira" ? "write a comment…" : "write a reply…",
             "aria-label": hint,
+            ...mentions.field,
             onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
               setText(e.target.value);
               mentions.onCaret(e.target);
@@ -892,6 +893,7 @@ export function OutsideReply({
           disabled={off}
           placeholder={hint}
           aria-label={hint}
+          {...mentions.field}
           onChange={(e) => {
             setText(e.target.value);
             mentions.onCaret(e.target);

@@ -303,7 +303,11 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
         title="Accounts"
         help="Mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as cards in Flow; each account belongs to one agent, which gets its hand-offs and its tools."
       >
-        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
         {!accounts && !error && <Setting label="Accounts" help="Asking loki…" />}
         {accounts && rows.length === 0 && <Setting label="None yet" help="Connect a Gmail account, a Slack workspace or a Jira site below." />}
         {rows.map((row) => (
@@ -473,7 +477,11 @@ export function OwnedAccounts({
   if (!owned.length && !error) return null;
   return (
     <div role="group" aria-label="Accounts this agent owns" className="grid gap-2">
-      {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+      {error && (
+        <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </span>
+      )}
       {owned.length > 0 && <span>It owns these accounts: move each to another agent or disconnect it first.</span>}
       {accountRows(owned, agents).map((row) => (
         <div key={row.account_id} className="flex flex-wrap items-center gap-2">

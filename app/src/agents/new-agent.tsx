@@ -92,7 +92,11 @@ export function NewAgent({
         </Labelled>
         <Labelled label="">
           <div className="flex items-center gap-2">
-            {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+            {error && (
+              <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+                {error}
+              </span>
+            )}
             <span className="flex-1" />
             {canCancel && <Button onClick={onCancel}>Cancel</Button>}
             <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>

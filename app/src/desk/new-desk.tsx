@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { inTauri, platform, type Platform } from "./env";
 import { Button, Field, Row, Sheet } from "../components";
@@ -345,7 +345,11 @@ export function ChangeFolder({
         <div className="loki-meta loki-meta--wrap">
           {currentFolder ? `Now in ${currentFolder}. ` : ""}The agent is told the folder changed on its next turn.
         </div>
-        {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--text-xs)" }}>{error}</div>}
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2" style={{ padding: 12, borderTop: "1px solid var(--loki-border)" }}>
         <span className="flex-1" />
@@ -438,7 +442,11 @@ export function FolderPicker({
   canBrowse: boolean;
   browser: BrowseWith;
 }) {
-  const [hi, setHi] = useState(0);
+  // Nothing is highlighted until you type or use the arrows (plan 2026-11-15-2355, KTD3): opened by focus alone, the
+  // list must not change the folder when Tab goes on or Return is pressed.
+  const [hi, setHi] = useState(-1);
+  const listId = useId();
+  const shown = listOpen && options.length > 0;
   return (
     <div style={{ position: "relative" }}>
       <div className="loki-label flex justify-between" style={{ marginBottom: 8 }}>
@@ -460,23 +468,34 @@ export function FolderPicker({
             onType(e.target.value);
             setHi(0);
           }}
-          onFocus={() => setListOpen(true)}
+          onFocus={() => {
+            setListOpen(true);
+            setHi(-1);
+          }}
           onBlur={() => setTimeout(() => setListOpen(false), 120)}
           onKeyDown={(e) => {
-            if (!listOpen || !options.length) return;
+            if (!shown) return;
             if (e.key === "ArrowDown") {
               e.preventDefault();
               setHi((i) => Math.min(options.length - 1, i + 1));
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
               setHi((i) => Math.max(0, i - 1));
-            } else if (e.key === "Enter" || e.key === "Tab") {
+            } else if (hi >= 0 && hi < options.length && e.key === "Enter") {
               e.preventDefault();
+              onChoose(options[hi].path);
+            } else if (hi >= 0 && hi < options.length && e.key === "Tab") {
+              // Takes the highlighted folder, and Tab still moves on.
               onChoose(options[hi].path);
             }
           }}
           placeholder={osWords().folderExample}
           aria-label="Folder"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={shown}
+          aria-controls={shown ? listId : undefined}
+          aria-activedescendant={shown && hi >= 0 ? `${listId}-${hi}` : undefined}
           autoComplete="off"
           spellCheck={false}
           aria-invalid={status ? !status.ok : undefined}
@@ -487,13 +506,14 @@ export function FolderPicker({
           </Button>
         )}
       </div>
-      {listOpen && options.length > 0 && <FolderList options={options} hi={hi} onHover={setHi} onChoose={onChoose} agentName={agentName} beside={!!browser} />}
+      {shown && <FolderList id={listId} options={options} hi={hi} onHover={setHi} onChoose={onChoose} agentName={agentName} beside={!!browser} />}
     </div>
   );
 }
 
 /** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
 function FolderList({
+  id,
   options,
   hi,
   onHover,
@@ -501,6 +521,8 @@ function FolderList({
   agentName,
   beside,
 }: {
+  /** The list's id; option i is `${id}-${i}`, which the field names as its active descendant. */
+  id: string;
   options: FolderOption[];
   hi: number;
   onHover: (i: number) => void;
@@ -510,6 +532,7 @@ function FolderList({
 }) {
   return (
     <div
+      id={id}
       role="listbox"
       aria-label="Folders"
       style={{
@@ -538,6 +561,7 @@ function FolderList({
               </div>
             )}
             <Row
+              id={`${id}-${i}`}
               dense
               role="option"
               tabIndex={-1}

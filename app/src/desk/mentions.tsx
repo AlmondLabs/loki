@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Meta, sentence } from "../components";
 import { caretOffset, fitLeft } from "../shared/caret-offset";
 
@@ -57,6 +57,13 @@ export function isDismissed(token: { start: number; query: string }, dismissed: 
   return dismissed !== null && token.start === dismissed.start && token.query.startsWith(dismissed.query);
 }
 
+/** What a reply box carries for its mention list, so a screen reader hears the person ↑↓ are on. */
+export interface MentionFieldProps {
+  "aria-autocomplete": "list";
+  "aria-controls": string | undefined;
+  "aria-activedescendant": string | undefined;
+}
+
 /** How long a search waits after a key before asking, so a name typed fast asks once. */
 const SEARCH_WAIT_MS = 150;
 
@@ -74,7 +81,13 @@ export function useMentions({
   setText: (text: string) => void;
   source: MentionSource | null;
   ref: RefObject<HTMLTextAreaElement | null>;
-}): { list: ReactNode; onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => boolean; onCaret: (el: HTMLTextAreaElement | null) => void } {
+}): {
+  list: ReactNode;
+  onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => boolean;
+  onCaret: (el: HTMLTextAreaElement | null) => void;
+  /** For the box: the list it controls and the person highlighted in it. */
+  field: MentionFieldProps;
+} {
   const [caret, setCaret] = useState<number | null>(null);
   // The `@` the person put away with Esc or just picked a name for, so the list stays away while they go on typing.
   const [dismissed, setDismissed] = useState<MentionDismissal | null>(null);
@@ -164,6 +177,7 @@ export function useMentions({
     c.onPick?.();
   };
 
+  const listId = useId();
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (list.length === 0 || e.metaKey || e.ctrlKey || e.altKey || e.nativeEvent.isComposing) return false;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -187,11 +201,13 @@ export function useMentions({
         </div>
       )
     ) : (
-      <div ref={listRef} className="loki-mail-suggest loki-mention-list" role="listbox" aria-label="People to Mention">
+      <div ref={listRef} id={listId} className="loki-mail-suggest loki-mention-list" role="listbox" aria-label="People to Mention">
         {list.map((c, i) => (
           <button
             key={c.key}
+            id={`${listId}-${i}`}
             type="button"
+            tabIndex={-1}
             role="option"
             aria-selected={i === at}
             className="loki-mail-suggest-row"
@@ -207,5 +223,12 @@ export function useMentions({
         ))}
       </div>
     );
-  return { list: drawn, onKeyDown, onCaret };
+  // The text box names the list and the person ↑↓ are on, so a screen reader hears who Return will insert (plan
+  // 2026-11-15-2355, KTD2). A textarea keeps its textbox role, which takes these but not a combobox's.
+  const field: MentionFieldProps = {
+    "aria-autocomplete": "list",
+    "aria-controls": list.length > 0 ? listId : undefined,
+    "aria-activedescendant": list.length > 0 ? `${listId}-${at}` : undefined,
+  };
+  return { list: drawn, onKeyDown, onCaret, field };
 }
