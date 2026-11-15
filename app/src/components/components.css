@@ -1278,6 +1278,31 @@ button.loki-list-section-toggle {
   overflow-y: auto;
   padding: 4px 4px 8px;
 }
+/* A divided list (ContentList `divided`, Flow's): more room in each row and a hairline between rows, from where the
+   text starts (the row's 12px padding, its 20px icon and 8px gap) to the row's trailing padding, as Mail divides
+   its messages. The lines next to a hovered or selected row go, so its fill is not cut. */
+.loki-content-list-rows[data-divided] .loki-list-row {
+  padding-block: 8px;
+}
+.loki-content-list-rows[data-divided] .loki-list-item + .loki-list-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 40px;
+  right: 12px;
+  border-top: 1px solid var(--loki-border);
+  pointer-events: none;
+}
+.loki-content-list-rows[data-divided] .loki-list-item[data-current]::before,
+.loki-content-list-rows[data-divided] .loki-list-item[data-current] + .loki-list-item::before {
+  border-top-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-content-list-rows[data-divided] .loki-list-item:hover::before,
+  .loki-content-list-rows[data-divided] .loki-list-item:hover + .loki-list-item::before {
+    border-top-color: transparent;
+  }
+}
 .loki-content-list-empty {
   display: flex;
   flex-direction: column;

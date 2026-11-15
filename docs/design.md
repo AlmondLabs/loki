@@ -77,7 +77,10 @@ Focus and empty states are centred too: Learn's review deck and welcome card, th
 "No … Selected" panes. The list column's text starts 16px in, with its boxes (rows, search) 4px in. The list bar, the
 pane header and the card toolbar are each 52px with their title stacks top-aligned 6px down, so the list title and the
 detail title share one line; in the Mac app the bars sit on the traffic lights' row and the list's title is centred on
-it instead. A list row's time sits on its name line, and every Flow row has three lines.
+it instead. A list row's time sits on its name line, and every Flow row has three lines. Because its three lines would
+otherwise run into the next row's, Flow's list is divided (`ContentList`'s `divided`): 8px above and below each row and
+a `--loki-border` hairline between rows, from where the text starts to the row's trailing padding, gone beside the
+hovered or selected row. A list of one-line rows stays undivided.
 
 Fixed layout is written as Tailwind classes on
 this scale (`flex items-center gap-2`), with padding, sizes and colour left in `style`. A value computed from state or
@@ -486,7 +489,8 @@ box is one for both, its sizes set by `touch`.
   and the Dock's badges, as Apple's are). No colour is decoration.
 - Glass only on what floats and steers (the sidebar, toolbar groups, menus, popovers, sheets, decisions, the box);
   content is solid. Glass turns solid under Reduce Transparency, Increase Contrast and `data-glass="solid"`.
-- Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
+- Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information (Flow's hairlines mark
+  where one item of several lines ends).
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Apple's title case on controls, sentences everywhere else (docs/style.md); keys in the menu bar and tooltips, not on
   buttons; sans for every label, mono only for code, data and keys.

@@ -102,3 +102,42 @@ describe("the list column's edges (KTD5)", () => {
     expect(decls(".loki-content-list-bar").get("padding")?.split(/\s+/)[3]).toBe("16px");
   });
 });
+
+describe("Flow's rows are divided", () => {
+  const list = (divided: boolean) =>
+    renderToStaticMarkup(
+      createElement(ContentList, {
+        label: "Flow",
+        title: "Flow",
+        rows: [
+          { id: "a", title: "Priya", preview: "Launch review" },
+          { id: "b", title: "Sam", preview: "Budget" },
+        ],
+        selectedId: null,
+        onSelect: () => {},
+        onEnter: () => {},
+        empty: "Caught up.",
+        divided,
+      }),
+    );
+  const divided = ".loki-content-list-rows[data-divided]";
+
+  test("only a divided list is marked, and Flow is one", () => {
+    expect(list(true)).toContain('class="loki-content-list-rows" data-divided="true"');
+    expect(list(false)).not.toContain("data-divided");
+    const flow = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up.tsx"), "utf8");
+    expect(flow).toMatch(/rows=\{flowRows\(flow\.rows\)\}\s*divided\s/);
+  });
+  test("its rows get 8px above and below, and a hairline from the text's edge between them", () => {
+    expect(decls(`${divided} .loki-list-row`).get("padding-block")).toBe("8px");
+    const line = decls(`${divided} .loki-list-item + .loki-list-item::before`);
+    // the row's 12px padding, its 20px icon and 8px gap: where the text starts
+    expect(line.get("left")).toBe(`${12 + 20 + 8}px`);
+    expect(line.get("right")).toBe(paddingSide(decls(".loki-list-row")));
+    expect(line.get("border-top")).toBe("1px solid var(--loki-border)");
+  });
+  test("the lines beside the selected row go, so its fill is not cut", () => {
+    expect(decls(`${divided} .loki-list-item[data-current]::before`).get("border-top-color")).toBe("transparent");
+    expect(decls(`${divided} .loki-list-item[data-current] + .loki-list-item::before`).get("border-top-color")).toBe("transparent");
+  });
+});

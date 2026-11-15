@@ -262,6 +262,7 @@ export function FlowPlace(props: FlowPlaceProps) {
         count={liveWaitingCount(shown) || null}
         scope={pills.length > 0 && onKind && <FilterPills pills={pills} value={kind} onValue={onKind} />}
         rows={flowRows(flow.rows)}
+        divided
         selectedId={selectedId}
         onSelect={flow.select}
         onEnter={() => replyRef.current?.focus()}
