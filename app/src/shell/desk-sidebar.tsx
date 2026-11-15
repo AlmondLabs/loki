@@ -22,6 +22,7 @@ import { keyFor } from "./keymap";
 import {
   ALL_CHATS,
   ARCHIVED_CHATS,
+  CHAT_STATES,
   PINNED_CHATS,
   canArchive,
   canMove,
@@ -32,6 +33,7 @@ import {
   moveTargets,
   offscreenWaits,
   type ChatSource,
+  type ChatState,
   type MoveTarget,
   type SourceRow,
 } from "./sidebar-model";
@@ -43,7 +45,9 @@ import { HomeMark } from "./home-mark";
 import { prefersReducedMotion } from "../kit/motion";
 import "./desk-sidebar.css";
 import { popUpMenu, NATIVE_MENUS, type MenuEntry } from "./native-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
+import { cn } from "@/lib/utils";
+import { ActivityIcon, BellIcon, CircleDotIcon, MessagesSquareIcon, type LucideIcon } from "lucide-react";
 import { MenuItems, menuKey } from "./menu-items";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
@@ -71,11 +75,8 @@ function emptyFor(source: Pick<ChatSource, "id" | "title">): string {
 export interface ChatListProps {
   /** The source's rows, Search applied (sidebar-model.ts sourceRows). */
   rows: SourceRow[];
-  /**
-   * All Chats' agent pop-up (plan 2026-11-15-1035, R8): every agent, those with no chats too, and the one shown, or null
-   * for all of them. Left out, the toolbar has no pop-up.
-   */
-  agentFilter?: { agents: ReadonlyArray<{ id: string; name: string }>; agentId: string | null; onAgent: (agentId: string | null) => void };
+  /** The state pills over the list (plan 2026-11-15-1523): the one chosen and the choice. Left out, the list has none. */
+  stateFilter?: { state: ChatState; onState: (state: ChatState) => void };
   /** The source chosen in the sidebar. */
   source: Pick<ChatSource, "id" | "title" | "agentId">;
   /** The chat committed in this list, or null when the source does not hold the one open (KTD8). */
@@ -138,7 +139,7 @@ export interface ChatListProps {
  */
 export function ChatList({
   rows,
-  agentFilter,
+  stateFilter,
   source,
   selected,
   shown,
@@ -283,8 +284,8 @@ export function ChatList({
       <div ref={wrapRef} className="loki-sidebar-body" onScrollCapture={measure}>
         <ContentList
           ref={ref}
-          // A new source or agent is a new list: a departed row held from the last one does not carry over.
-          key={`${source.id}:${source.agentId ?? ""}`}
+          // A new source or pill is a new list: a departed row held from the last one does not carry over.
+          key={`${source.id}:${stateFilter?.state ?? "all"}`}
           label={source.title}
           title={source.title}
           rows={contentRows}
@@ -298,7 +299,7 @@ export function ChatList({
           }}
           empty={emptyFor(source)}
           newAction={onNew && { label: "New Chat", run: () => onNew(source.agentId), keys: keyFor("desk.new") }}
-          tool={agentFilter && <AgentPopUp {...agentFilter} />}
+          scope={stateFilter && <ChatFilters {...stateFilter} />}
           query={query}
           // Hidden behind another place, the list keeps its Search but gives up ⌥⌘F.
           onQuery={shown ? onQuery : undefined}
@@ -520,7 +521,7 @@ export function ChatListView({
   notice,
   onNew,
   ...list
-}: Pick<ChatListProps, "rows" | "agentFilter" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"> & {
+}: Pick<ChatListProps, "rows" | "stateFilter" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"> & {
   desk: Desk;
   catchUp: CatchUp;
   notice: (m: string) => void;
@@ -580,28 +581,52 @@ export function ChatListView({
   );
 }
 
-/** The pop-up's value for every agent: Base UI's Select needs a string, and no agent id is empty. */
-const ALL_AGENTS = "";
+/** Each state pill's name and symbol. */
+const STATE_PILL: Record<ChatState, { label: string; icon: LucideIcon }> = {
+  all: { label: "All", icon: MessagesSquareIcon },
+  waiting: { label: "Waiting", icon: BellIcon },
+  unread: { label: "Unread", icon: CircleDotIcon },
+  working: { label: "Working", icon: ActivityIcon },
+};
 
 /**
- * All Chats' agent pop-up (plan 2026-11-15-1035, U5): All Agents, then every agent by name, as a Mac pop-up button in
- * the list's toolbar. Choosing one shows that agent's chats; New Chat then starts one with it.
+ * Chats' state pills (plan 2026-11-15-1523), in Mail's shape: the chosen one a filled capsule with its symbol and name,
+ * the others grey circles with their symbol alone, each named for a screen reader and in its tooltip. shadcn's
+ * ToggleGroup on Base UI, one pressed at a time.
  */
-function AgentPopUp({ agents, agentId, onAgent }: NonNullable<ChatListProps["agentFilter"]>) {
-  const items = [{ value: ALL_AGENTS, label: "All Agents" }, ...agents.map((a) => ({ value: a.id, label: a.name }))];
+function ChatFilters({ state, onState }: NonNullable<ChatListProps["stateFilter"]>) {
   return (
-    <Select items={items} value={agentId ?? ALL_AGENTS} onValueChange={(v) => onAgent(v ? v : null)}>
-      <SelectTrigger size="sm" aria-label="Show chats of" className="border-transparent bg-transparent text-xs font-semibold text-muted-foreground">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {items.map((it) => (
-          <SelectItem key={it.value} value={it.value}>
-            {it.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <ToggleGroup
+      aria-label="Show"
+      spacing={2}
+      value={[state]}
+      onValueChange={(v: unknown[]) => {
+        const next = CHAT_STATES.find((s) => s === v[0]);
+        if (next) onState(next);
+      }}
+    >
+      {CHAT_STATES.map((s) => {
+        const { label, icon: Mark } = STATE_PILL[s];
+        const on = s === state;
+        return (
+          <ToggleGroupItem
+            key={s}
+            value={s}
+            aria-label={label}
+            title={label}
+            className={cn(
+              "h-7 rounded-full",
+              on
+                ? "bg-primary px-3 text-primary-foreground data-pressed:bg-primary data-pressed:text-primary-foreground"
+                : "w-9 bg-loki-hover px-0 text-muted-foreground",
+            )}
+          >
+            <Mark aria-hidden className="size-3.5" />
+            {on && <span>{label}</span>}
+          </ToggleGroupItem>
+        );
+      })}
+    </ToggleGroup>
   );
 }
 

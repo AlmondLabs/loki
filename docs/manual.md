@@ -141,11 +141,12 @@ focus back to the list, in every place; Esc in the list does nothing, and never 
 - **Chats** (⌘1): under the grey **Chats** heading the sidebar lists **All Chats**, **Pinned** and **Archived**, each
   with a grey count of the chats that wait on you. The chevron at the end of the heading folds them, and the fold is
   kept across restarts. **All Chats** shows every chat under a heading per agent (Pinned first), so each agent's main
-  chat stays apart; the agent pop-up in its toolbar shows one agent's chats, every agent listed, those with no chats
-  too. Your agents are listed once, under **Agents**. Choosing a source keeps the chat open when the source holds it;
+  chat stays apart. The pills under the list's title narrow All Chats or Pinned to **All**, **Waiting** (what waits
+  on you), **Unread** (news since you looked) or **Working** (the agent is running); the choice holds until you
+  close the window. Your agents are listed once, under **Agents**. Choosing a source keeps the chat open when the source holds it;
   otherwise the chat pane says "No Chat Selected" until you pick one. A chat opened from ⌘K, a notification or Open
-  the Chat goes to All Chats when the source showing lacks it, clearing an agent pop-up that would hide it. The list's
-  toolbar names the source (or the agent the pop-up shows), with **New Chat** (with the pop-up's agent, if one) and
+  the Chat goes to All Chats when the source showing lacks it, setting the pills back to All when they would hide it. The
+  list's toolbar names the source, with **New Chat** and
   **Search** (⌥⌘F), which filters the source's chats by chat or agent name. Each chat is one line, its name alone,
   the main chat included; the phone's Home draws it the same. A chat's name goes bold when its agent wrote since you
   looked. On the right of each row, one thing: a blue count when it waits on you, else a green dot that breathes

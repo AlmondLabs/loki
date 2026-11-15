@@ -36,7 +36,7 @@ import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
 import { ChatListView } from "./desk-sidebar";
 import { leaveList, listStop, type ContentListHandle } from "./content-list";
-import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows } from "./sidebar-model";
+import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows, stateRows, type ChatState } from "./sidebar-model";
 import { AgentFace } from "../desk/agent-chip";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
@@ -114,8 +114,8 @@ export function Shell() {
   const [sidebarQuery, setSidebarQuery] = useState("");
   /** The Chats source the sidebar has chosen and the list shows (plan 2026-11-14-1330, R4): every chat to begin with. */
   const [chatSource, setChatSource] = useState(ALL_CHATS);
-  /** All Chats' agent pop-up (plan 2026-11-15-1035, R8): the agent whose chats show, or null for every agent. */
-  const [chatAgent, setChatAgent] = useState<string | null>(null);
+  /** Chats' state pill (plan 2026-11-15-1523): every chat to begin with, held for the session. */
+  const [chatState, setChatState] = useState<ChatState>("all");
   /**
    * The source chosen does not hold the chat open (KTD8): the detail says "No Chat Selected", and the chat's link stays
    * as it is until a row is picked.
@@ -222,8 +222,9 @@ export function Shell() {
       const to = openIn({ scope, agent_id: agentId }, { source: chatSource, query: sidebarQuery }, deskList, agentList);
       setChatSource(to.source);
       setSidebarQuery(to.query);
-      // A chat of another agent than the pop-up shows clears it, so the chat is in the list (R9).
-      if (chatAgent !== null && chatAgent !== agentId) setChatAgent(null);
+      // A chat the state pill would hide clears it to All, so the chat is in the list (plan 2026-11-15-1523, R3).
+      const rows = sourceRows(deskList, catchUp.items, { source: to.source, query: to.query, agents: agentList });
+      if (!stateRows(rows, chatState).some((r) => r.desk.scope === scope)) setChatState("all");
       setUnselected(false);
       switchTo(scope);
       paneOpen(scope);
@@ -231,7 +232,7 @@ export function Shell() {
       setNewChat(null);
       setFocusChat((n) => n + 1);
     },
-    [setSegment, paneOpen, switchTo, chatSource, chatAgent, sidebarQuery, deskList, agentList],
+    [setSegment, paneOpen, switchTo, chatSource, chatState, sidebarQuery, deskList, agentList, catchUp.items],
   );
   /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message. */
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
@@ -366,16 +367,17 @@ export function Shell() {
   const sources = useMemo(() => chatSources(deskList, catchUp.items, agentList), [deskList, catchUp.items, agentList]);
   /** The waiting chats in every agent's source, All Chats' grey count. */
   const allWaiting = sources.reduce((n, x) => (x.agentId ? n + x.waiting : n), 0);
-  /** The agent All Chats' pop-up shows, while it is one the window knows. */
-  const shownAgent = chatSource === ALL_CHATS && chatAgent !== null ? (agentList.find((a) => a.id === chatAgent) ?? null) : null;
   const source =
     chatSource === ALL_CHATS
-      ? { id: ALL_CHATS, title: shownAgent?.name ?? "All Chats", agentId: shownAgent?.id ?? null, waiting: allWaiting }
+      ? { id: ALL_CHATS, title: "All Chats", agentId: null, waiting: allWaiting }
       : (sources.find((x) => x.id === chatSource) ?? { id: ALL_CHATS, title: "All Chats", agentId: null, waiting: allWaiting });
-  const chatRows = useMemo(() => {
-    const rows = sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList });
-    return shownAgent ? rows.filter((r) => r.desk.agent_id === shownAgent.id) : rows;
-  }, [deskList, catchUp.items, source.id, sidebarQuery, agentList, shownAgent]);
+  /** Archived has no state pills: what it holds is done. */
+  const filtering = chatSource !== ARCHIVED_CHATS;
+  const shownState: ChatState = filtering ? chatState : "all";
+  const chatRows = useMemo(
+    () => stateRows(sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList }), shownState),
+    [deskList, catchUp.items, source.id, sidebarQuery, agentList, shownState],
+  );
   /**
    * A source chosen in the sidebar (KTD8): Chats shows it, and the chat open stays selected when the source holds it;
    * else the detail says "No Chat Selected", and nothing switches until a row is picked.
@@ -421,11 +423,11 @@ export function Shell() {
     setSegment("learn");
     learnPlaces.onSelect(id);
   };
-  /** All Chats' pop-up chose an agent, or every agent: as choosing a source does, the open chat stays selected only if shown. */
-  const chooseChatAgent = (agentId: string | null) => {
-    setChatAgent(agentId);
-    const open = deskList.find((d) => d.scope === desk.scope);
-    setUnselected(!open || !sourceHolds(ALL_CHATS, open) || (agentId !== null && open.agent_id !== agentId));
+  /** A state pill chosen: as choosing a source does, the open chat stays selected only while the list shows it. */
+  const chooseChatState = (state: ChatState) => {
+    setChatState(state);
+    const rows = stateRows(sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList }), state);
+    setUnselected(!rows.some((r) => r.desk.scope === desk.scope));
   };
   /** A label's chats: every chat's list, searched for the label. */
   const showLabel = (name: string) => {
@@ -648,7 +650,7 @@ export function Shell() {
               catchUp={catchUp}
               notice={notice}
               rows={chatRows}
-              agentFilter={chatSource === ALL_CHATS ? { agents: agentList, agentId: shownAgent?.id ?? null, onAgent: chooseChatAgent } : undefined}
+              stateFilter={filtering ? { state: chatState, onState: chooseChatState } : undefined}
               source={source}
               selected={listSelected}
               shown={segment === "desk"}

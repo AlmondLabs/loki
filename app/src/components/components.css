@@ -1280,6 +1280,11 @@ button.loki-list-section-toggle {
 }
 /* The list column has two edges: the search field's box and the row highlight at 4, and the title, its line, the
    field's text and the rows' text at 16 (4 + 12; the field's 1px border takes one of its 12). */
+/* A row of pills under the toolbar (Chats' state pills, plan 2026-11-15-1523): its boxes on the search field's 4px edge. */
+.loki-content-list-scope {
+  flex: none;
+  padding: 0 4px 8px;
+}
 .loki-content-list-search {
   flex: none;
   padding: 0 4px 8px;
