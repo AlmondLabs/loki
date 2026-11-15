@@ -1562,9 +1562,11 @@ button.loki-list-section-toggle {
   padding: 0;
   list-style: none;
 }
+/* A source sits under its place's label: the place's padding, icon and gap (8 + 20 + 8), so its icon lines up with the
+   place's label and not with its icon. */
 .loki-place--source {
   width: 100%;
-  padding-left: 20px;
+  padding-left: calc(8px + 20px + 8px);
 }
 /* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
 .loki-sidebar-toggle[aria-pressed] {
