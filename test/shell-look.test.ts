@@ -200,17 +200,15 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
     expect(centred).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr)");
   });
 
-  test("every toolbar keeps a trailing side, which leaves room for the Update button over the detail's top right", async () => {
+  test("every toolbar keeps a trailing side, and none keeps room for an Update button any more (plan 2026-11-15-1035, U7)", async () => {
     const trailing = must(/\.loki-pane-header-trailing \{([^}]*)\}/.exec(glass), "the trailing rule")[1];
-    expect(trailing).toContain("padding-right: var(--loki-toolbar-room)");
+    expect(trailing).not.toContain("--loki-toolbar-room");
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { PaneHeader } = await import("../app/src/components/index.tsx");
     const out = renderToStaticMarkup(createElement(PaneHeader, { title: "t" }));
     expect(out).toContain('<div class="loki-pane-header-trailing"></div>');
-    // Flow's detail toolbar, a card's, leaves the same room (plan 2026-11-14-1330, U6).
-    const card = must(/\.loki-card-toolbar \{([^}]*)\}/.exec(glass), "the card toolbar's rule")[1];
-    expect(card).toContain("var(--loki-toolbar-room)");
+    expect(css).not.toContain("--loki-toolbar-room");
   });
 
   test("Messages and Canvas sit in the chat toolbar's centred slot", () => {

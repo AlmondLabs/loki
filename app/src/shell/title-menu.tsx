@@ -29,8 +29,8 @@ const HIDE_BINDING: Binding = (() => {
  * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
  * in Ctrl words. An item without an accelerator on the Mac shows none here either.
  */
-export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP): TitleMenuGroup[] {
-  return menuSpec(map, os).map((m) => ({
+export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP, labels: Record<string, string> = {}): TitleMenuGroup[] {
+  return menuSpec(map, os, labels).map((m) => ({
     title: m.title,
     items: m.items.map((it) => {
       if ("separator" in it) return it;
@@ -111,14 +111,15 @@ export function TitleMenuPanel({
 const items = (panel: Element | null | undefined) => [...(panel?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
 
 /**
- * ☰ and its menu, at the strip's left end on Windows and Linux. The header menus' manners (DeskPane): focus goes in,
+ * ☰ and its menu, at the strip's left end on Windows and Linux and beside the sidebar toggle in a browser tab, its
+ * items named by `labels` where their words change (the update item). The header menus' manners (DeskPane): focus goes in,
  * ↑↓ move, → or Enter opens a title's menu and ← or Esc goes back to it, Esc on the titles closes, a press outside
  * closes, and focus returns to ☰.
  */
-export function TitleMenu({ os = keyboard }: { os?: Platform }) {
+export function TitleMenu({ os = keyboard, labels = {}, className }: { os?: Platform; labels?: Record<string, string>; className?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <span className="loki-title-menu-anchor">
+    <span className={className ? `loki-title-menu-anchor ${className}` : "loki-title-menu-anchor"}>
       <button
         type="button"
         className="loki-title-btn loki-title-btn--menu"
@@ -133,6 +134,7 @@ export function TitleMenu({ os = keyboard }: { os?: Platform }) {
       {menuOpen && (
         <TitleMenuPopover
           os={os}
+          labels={labels}
           onPick={(id) => {
             setMenuOpen(false);
             runMenuItem(id);
@@ -144,7 +146,18 @@ export function TitleMenu({ os = keyboard }: { os?: Platform }) {
   );
 }
 
-function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: string) => void; onClose: () => void }) {
+function TitleMenuPopover({
+  os,
+  labels,
+  onPick,
+  onClose,
+}: {
+  os: Platform;
+  /** Items whose words change (the update item), as the Mac's menu bar shows them. */
+  labels: Record<string, string>;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState<string | null>(null);
   /** Bumped when the keyboard opens a title: its menu's first item takes the focus once it shows. */
@@ -204,7 +217,7 @@ function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: 
         e.stopPropagation();
       }}
     >
-      <TitleMenuPanel groups={titleMenus(os, KEYMAP)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
+      <TitleMenuPanel groups={titleMenus(os, KEYMAP, labels)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
     </div>
   );
 }

@@ -25,8 +25,8 @@ import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
-import { useLokiUpdate } from "./use-loki-update";
-import { UpdateButton, offeredVersion, readLater, saveLater } from "./update-button";
+import { TitleMenu } from "./title-menu";
+import { SKIPPED_KEY, offeredNow, readSkipped, updateItemLabel, useLokiUpdate } from "./use-loki-update";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useShellKeys } from "./use-shell-keys";
 import { KeysSheet } from "./keys-sheet";
@@ -451,14 +451,11 @@ export function Shell() {
     if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
     setPrefsOpen(true);
   };
-  // A newer loki is an Update button at the detail toolbar's trailing edge until Later puts that version off (plan
-  // 2026-11-14-1330, R18), not a notice over the content; Preferences › loki has it for as long as it is newer.
-  const [laterVersion, setLaterVersion] = useState(readLater);
-  const offered = offeredVersion(update, laterVersion);
-  const putOffUpdate = (version: string) => {
-    saveLater(version);
-    setLaterVersion(version);
-  };
+  // A newer loki is offered from the loki menu and ☰, retitled while one waits (plan 2026-11-15-1035, R15), until
+  // Settings › loki skips that version; the Settings window may be the one that skips it, so its storage is followed.
+  const [skippedVersion, setSkippedVersion] = useState(readSkipped);
+  useStorageKey(SKIPPED_KEY, setSkippedVersion);
+  const offered = offeredNow(update, skippedVersion);
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -533,8 +530,10 @@ export function Shell() {
       "chat.suggestions": () => chatKey("chat.suggestions", (inset) => (inset && setChatOpen(true), setSuggestionsTick((n) => n + 1))),
       "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
       "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
+      "app.update": () => showPreferences("loki"),
     },
     { toList, toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
+    { "app.update": updateItemLabel(offered) },
   );
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (search-model.ts SearchTarget). */
@@ -574,10 +573,13 @@ export function Shell() {
             borderRadius: "var(--radius-xl)",
           }}
         />
-        <TitleStrip />
+        <TitleStrip menuLabels={{ "app.update": updateItemLabel(offered) }} />
         {column.has && (
-          <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }}>
+          <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }} className="flex gap-1">
             <ColumnToggle open={column.open} onToggle={column.toggle} />
+            {/* A browser tab has no menu bar: ☰ beside the toggle opens the same menus, so every command can be tried in a
+                tab (plan 2026-11-15-1035, KTD10). The Mac app has its menu bar, and Windows and Linux their strip's ☰. */}
+            {!inTauri && <TitleMenu className="loki-browser-menu" labels={{ "app.update": updateItemLabel(offered) }} />}
           </span>
         )}
 
@@ -744,8 +746,6 @@ export function Shell() {
               onDone={(agentId) => openDesk(agentId, "default", { chat: true })}
             />
           )}
-          {/* Over the detail's top right, the same spot in every place; each toolbar's trailing side leaves it room. */}
-          {offered && <UpdateButton version={offered} onUpdate={() => showPreferences("loki")} onLater={() => putOffUpdate(offered)} />}
         </main>
       </div>
 

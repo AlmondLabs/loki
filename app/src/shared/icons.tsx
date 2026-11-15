@@ -1,6 +1,13 @@
 import type { SVGProps } from "react";
 import {
   ArchiveIcon,
+  ChartColumnIcon,
+  CpuIcon,
+  KeyboardIcon,
+  PaletteIcon,
+  PlugIcon,
+  SmartphoneIcon,
+  TagIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -97,6 +104,14 @@ const ICONS = {
   mail: MailIcon,
   hash: HashIcon,
   ticket: TicketIcon,
+  // Preferences' pages (plan 2026-11-15-1035, U6).
+  palette: PaletteIcon,
+  keyboard: KeyboardIcon,
+  cpu: CpuIcon,
+  plug: PlugIcon,
+  phone: SmartphoneIcon,
+  tag: TagIcon,
+  chart: ChartColumnIcon,
 } satisfies Record<string, LucideIcon>;
 
 /** The name of one of loki's icons. */

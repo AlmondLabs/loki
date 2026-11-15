@@ -35,9 +35,12 @@ export const GLASS_LIGHTS = { x: 20, y: 22 };
 export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
   return shell && os === "macos" ? 92 : 16;
 }
-/** Where the list starts while the sidebar is folded, in px: past the toggle (28 px and a gap), so 128 on the Mac and 52 elsewhere (columns.ts). */
+/**
+ * Where the list starts while the sidebar is folded, in px: past the toggle (28 px and a gap), so 128 on the Mac and 52
+ * on Windows and Linux (columns.ts); in a browser tab past ☰ beside it too (32 more), so 84.
+ */
 export function sidebarClearance(shell: boolean = inTauri, os: Platform = platform): number {
-  return sidebarToggleLeft(shell, os) + 36;
+  return sidebarToggleLeft(shell, os) + 36 + (shell ? 0 : 32);
 }
 /** The toggle's top, in px: its 28 px box centred on the lights' row (14 pt buttons), or near the panel's top elsewhere. */
 export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
@@ -50,18 +53,18 @@ export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platfo
  * there: ☰ at the left with the menus the Mac's menu bar shows, minimise, maximise and close at the right. The
  * attribute is bare so only the strip itself drags, never its buttons.
  */
-export function TitleStrip({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
+export function TitleStrip({ os = platform, shell = inTauri, menuLabels = {} }: { os?: Platform; shell?: boolean; menuLabels?: Record<string, string> }) {
   const height = titlebarHeight(shell, os);
   if (!height) return null;
   if (os === "macos") return <div data-tauri-drag-region aria-hidden className="loki-title-strip" style={{ height, zIndex: LAYER.rail }} />;
-  return <OwnTitleStrip os={os} height={height} />;
+  return <OwnTitleStrip os={os} height={height} menuLabels={menuLabels} />;
 }
 
-function OwnTitleStrip({ os, height }: { os: Platform; height: number }) {
+function OwnTitleStrip({ os, height, menuLabels }: { os: Platform; height: number; menuLabels: Record<string, string> }) {
   const maximized = useMaximized();
   return (
     <div data-tauri-drag-region className="loki-title-strip loki-title-strip--own" style={{ height, zIndex: LAYER.strip }}>
-      <TitleMenu os={os} />
+      <TitleMenu os={os} labels={menuLabels} />
       <WindowControls maximized={maximized} onAction={windowAction} />
     </div>
   );
