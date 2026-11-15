@@ -136,7 +136,7 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
     const marked = [...f.tools.values()].filter((t) => t.annotations?.strangerText === true).map((t) => t.name);
     for (const t of f.tools.values()) if (t.annotations?.readOnly === true && t.name !== "google_accounts") expect(marked, t.name).toContain(t.name);
     expect(marked).toContain("google_api");
-    expect(marked).not.toContain("google_gmail_send");
+    expect(marked).not.toContain("google_gmail_draft");
     expect(marked).not.toContain("google_gmail_modify");
   });
 
@@ -226,20 +226,22 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
       expect(readFileSync(join(dir, file), "utf8"), file).not.toMatch(/from "\.\.\/(account-threads|inbox-ledger|seen|outside-threads|frames\/)/);
   });
 
-  test("R15: a script sends new mail, and a reply in its thread, with a file from the chat's folder", async () => {
+  test("a script drafts new mail, and a reply in its thread, with a file from the chat's folder, and sends nothing (plan 2026-11-14-1530, R21)", async () => {
     const f = await fixture();
     writeFileSync(join(f.cwd, "notes.txt"), "the numbers");
     expect(
-      await f.call(WORK, "google_gmail_send", { to: ["bob@example.com"], subject: "Numbers", body: "attached", attachments: ["notes.txt"] }),
+      await f.call(WORK, "google_gmail_draft", { to: ["bob@example.com"], subject: "Numbers", body: "attached", attachments: ["notes.txt"] }),
     ).toMatchObject({
-      id: "s1",
+      id: "d1",
       thread_id: "new1",
     });
-    expect(await f.call(WORK, "google_gmail_send", { to: ["billing@example.com"], body: "thanks", reply_to: "t1" })).toMatchObject({
+    expect(await f.call(WORK, "google_gmail_draft", { to: ["billing@example.com"], body: "thanks", reply_to: "t1" })).toMatchObject({
       thread_id: "t1",
       subject: "Re: Your invoice",
     });
-    const [first, reply] = f.ws.state.sent.map((m) => ({ ...m, text: Buffer.from(m.raw, "base64url").toString("utf8") }));
+    expect(f.ws.state.sent).toEqual([]);
+    expect([...f.tools.keys()]).not.toContain("google_gmail_send");
+    const [first, reply] = f.ws.state.drafts.map((m) => ({ ...m, text: Buffer.from(m.raw, "base64url").toString("utf8") }));
     expect(must(first, "the new mail").threadId).toBeUndefined();
     expect(must(first, "the new mail").text).toContain("filename*=UTF-8''notes.txt");
     expect(must(reply, "the reply").threadId).toBe("t1");
@@ -366,6 +368,23 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
     expect((await f.call(OLD, "google_api", { service: "calendar", method: "GET", path: "/calendar/v3/users/me/calendarList" })).refused).toBe(
       "this Google account has not let loki use Calendar: sign in again for it in Preferences › Accounts",
     );
+  });
+
+  test("the request tool refuses Gmail's send and draft-send methods and makes no request (plan 2026-11-14-1530, R21)", async () => {
+    const f = await fixture();
+    const before = f.ws.requests.length;
+    for (const path of [
+      "/gmail/v1/users/me/messages/send",
+      "/gmail/v1/users/me/drafts/send",
+      "/gmail/v1/users/me/drafts/r123/send",
+      "/gmail/v1/users/me/messages/SEND?alt=json",
+      "/gmail/v1/users/me/messages%2Fsend",
+    ])
+      expect((await f.call(WORK, "google_api", { service: "gmail", method: "POST", path, body: { raw: "x" } })).refused, path).toMatch(
+        /^scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose/,
+      );
+    expect(f.ws.requests.length).toBe(before);
+    expect(f.ws.state.sent).toEqual([]);
   });
 
   test("a Google error rejects with Google's own words", async () => {

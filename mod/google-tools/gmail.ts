@@ -21,11 +21,11 @@ import {
 } from "./core.ts";
 
 /**
- * Gmail for scripts (plan 2026-11-11 scripts, U7): search, read, change labels, send, and save attachments, to the
+ * Gmail for scripts (plan 2026-11-11 scripts, U7): search, read, change labels, save drafts, and save attachments, to the
  * chat's folder or straight to Drive (R20), whose bytes never pass through the script. These go to Gmail directly,
  * never through Flow's own moves (mod/account-threads.ts): Flow sees what they change as it sees a change made in
- * Gmail, and nothing a script does is taken for the person's own pick (R22). A script may send (R15); an agent's reply
- * card in Flow sends only on the person's Send.
+ * Gmail, and nothing a script does is taken for the person's own pick (R22). A script no longer sends (plan
+ * 2026-11-14-1530, R21): it saves drafts, and an agent's mail goes only through a card the person sends from.
  */
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -144,10 +144,14 @@ const modify: GoogleToolDef = {
   },
 };
 
-const send: GoogleToolDef = {
-  name: "google_gmail_send",
+/**
+ * A draft in the person's Gmail (plan 2026-11-14-1530, U9, KTD15): scripts write mail but never send it. An agent's
+ * mail goes only through a card the person sends from (message_propose, reply_propose), so no script path sends.
+ */
+const draft: GoogleToolDef = {
+  name: "google_gmail_draft",
   description:
-    "Send mail now: `to` (and `cc`, `bcc`), `subject`, `body` (plain text) or `html`, `attachments` (paths in this chat's folder). With `reply_to` (a thread id) it answers that thread's last message, in the thread. Answers with the sent message's id and thread.",
+    "Save a draft in Gmail, sending nothing: `to` (and `cc`, `bcc`), `subject`, `body` (plain text) or `html`, `attachments` (paths in this chat's folder). With `reply_to` (a thread id) it answers that thread's last message, in the thread. The person sends it from Gmail; to have them send it from a card instead, use message_propose or reply_propose. Answers with the draft's id and thread.",
   properties: {
     to: { type: "array", items: { type: "string" } },
     cc: { type: "array", items: { type: "string" } },
@@ -178,7 +182,7 @@ const send: GoogleToolDef = {
       }),
     );
     const html = optText(call.args, "html");
-    const sent = await client.sendReply({
+    const saved = await client.createDraft({
       threadId: last?.threadId ?? "",
       inReplyTo: last ? mailHeader(last, "Message-ID") : "",
       references: last ? mailHeader(last, "References").split(/\s+/).filter(Boolean) : [],
@@ -190,7 +194,7 @@ const send: GoogleToolDef = {
       ...(html ? { html } : {}),
       ...(files.length ? { attachments: files } : {}),
     });
-    return { id: sent.id, thread_id: sent.threadId || last?.threadId || null, to, subject };
+    return { id: saved.id, message_id: saved.message_id, thread_id: saved.threadId || last?.threadId || null, to, subject };
   },
 };
 
@@ -245,4 +249,4 @@ const attachment: GoogleToolDef = {
 };
 
 /** The Gmail tools. */
-export const gmailTools: GoogleToolDef[] = [search, read, modify, send, attachment];
+export const gmailTools: GoogleToolDef[] = [search, read, modify, draft, attachment];

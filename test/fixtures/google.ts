@@ -36,6 +36,8 @@ export function fakeWorkspace() {
     ]),
     events: [] as Array<Record<string, unknown>>,
     sent: [] as Array<{ raw: string; threadId?: string }>,
+    /** Drafts saved (plan 2026-11-14-1530, U9), kept as sent mail is. */
+    drafts: [] as Array<{ raw: string; threadId?: string }>,
     modified: [] as Array<Record<string, unknown>>,
     nextId: 1,
     /** Answer each read of message m1 with a new attachment id, as Gmail does. */
@@ -126,6 +128,11 @@ export function fakeWorkspace() {
         return new Response(null, { status: 204 });
       }
       if (gmail === "/labels") return json(200, { labels: [{ id: "Label_7", name: "Receipts", type: "user" }] });
+      if (gmail === "/drafts" && req.method === "POST") {
+        const d = (JSON.parse(req.body) as { message: { raw: string; threadId?: string } }).message;
+        state.drafts.push(d);
+        return json(200, { id: `d${state.drafts.length}`, message: { id: `dm${state.drafts.length}`, threadId: d.threadId ?? `new${state.drafts.length}` } });
+      }
       if (gmail === "/messages/send") {
         const m = JSON.parse(req.body) as { raw: string; threadId?: string };
         state.sent.push(m);
@@ -134,6 +141,14 @@ export function fakeWorkspace() {
     }
     // A message with files comes through Gmail's upload route (plan 2026-11-14-1134, KTD6): a JSON part with its
     // thread, then the message itself. It is kept as the JSON route keeps one, so a test reads both alike.
+    if (url.host === "gmail.googleapis.com" && p === "/upload/gmail/v1/users/me/drafts") {
+      const text = req.bytes ? Buffer.from(req.bytes).toString("utf8") : req.body;
+      const meta = JSON.parse(/\{.*\}/.exec(text)?.[0] ?? "{}") as { message?: { threadId?: string } };
+      const message = /message\/rfc822\r\n\r\n([\s\S]*)\r\n--[^\r\n]+--/.exec(text)?.[1] ?? "";
+      const d = { raw: Buffer.from(message, "utf8").toString("base64url"), ...(meta.message?.threadId ? { threadId: meta.message.threadId } : {}) };
+      state.drafts.push(d);
+      return json(200, { id: `d${state.drafts.length}`, message: { id: `dm${state.drafts.length}`, threadId: d.threadId ?? `new${state.drafts.length}` } });
+    }
     if (url.host === "gmail.googleapis.com" && p === "/upload/gmail/v1/users/me/messages/send") {
       const text = req.bytes ? Buffer.from(req.bytes).toString("utf8") : req.body;
       const meta = JSON.parse(/\{.*\}/.exec(text)?.[0] ?? "{}") as { threadId?: string };
