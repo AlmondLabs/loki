@@ -742,10 +742,13 @@ pub(crate) mod tests {
         std::fs::write(bin.join("git"), b"").unwrap();
         assert!(tools_missing(&on(node::Os::Macos), &developer_dir(None)));
         assert_eq!(asked.get(), 4, "the Mac asks xcode-select every time: nothing is cached");
-        // Linux: git on PATH, whatever xcode-select would say (it is never asked).
-        assert!(!tools_missing(&on(node::Os::Linux), &developer_dir(None)));
-        std::fs::remove_file(bin.join("git")).unwrap();
-        assert!(tools_missing(&on(node::Os::Linux), &developer_dir(None)));
+        // Linux: git on PATH, whatever xcode-select would say (it is never asked). Not on a Windows test machine: a
+        // Linux PATH splits on `:`, which cuts a Windows folder at its drive letter, so it cannot name this one.
+        if !cfg!(windows) {
+            assert!(!tools_missing(&on(node::Os::Linux), &developer_dir(None)));
+            std::fs::remove_file(bin.join("git")).unwrap();
+            assert!(tools_missing(&on(node::Os::Linux), &developer_dir(None)));
+        }
         // Windows: never a tools step; PortableGit is fetched instead (`git_missing`).
         assert!(!tools_missing(&on(node::Os::Windows), &developer_dir(None)));
         assert_eq!(asked.get(), 4, "only the Mac asks xcode-select");
