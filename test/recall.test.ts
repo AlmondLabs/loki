@@ -243,7 +243,6 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
     ]);
     expect(sources.selected).toBe("all");
     sources.onSelect("deleted");
-    sources.onSelect(sources.all); // Learn's own row keeps the view showing
     expect(chosen).toEqual(["deleted"]);
   });
 

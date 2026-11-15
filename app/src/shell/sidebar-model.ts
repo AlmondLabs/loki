@@ -264,10 +264,13 @@ export function sourceHolds(source: string, d: Placed): boolean {
   return !d.pinned && source === agentSource(d.agent_id);
 }
 
-/** The one source that is the chat's own: Archived for an archived chat, Pinned for a pinned one, else its agent's. */
+/**
+ * The source a chat opened from outside the list goes to when the one showing does not hold it: Archived for an archived
+ * chat, else All Chats, since the desktop lists each agent under Agents rather than as a Chats source (plan
+ * 2026-11-15-1035, R9).
+ */
 export function sourceFor(d: Placed): string {
-  if (isArchived(d.status)) return ARCHIVED_CHATS;
-  return d.pinned ? PINNED_CHATS : agentSource(d.agent_id);
+  return isArchived(d.status) ? ARCHIVED_CHATS : ALL_CHATS;
 }
 
 /**

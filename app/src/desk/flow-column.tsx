@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AccountProvider } from "../../../core/frame-types.ts";
 import { agentLanes, laneItems, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
@@ -39,30 +38,20 @@ export function flowLanes(items: AttentionItem[], lane: ResolvedLane | null, lan
 }
 
 /**
- * Flow's lanes as its sources under its row in the sidebar (plan 2026-11-14-1330, U6): Flow's own row stands for
- * Everything, and the person's lanes and the agents' are listed under it, the active one chosen. Choosing one switches
- * the lane; `face` draws an agent lane's face in place of its symbol.
+ * Flow's lanes as its sources in the sidebar (plan 2026-11-15-1035, R6): Everything first, then the person's own lanes,
+ * the active one chosen. An agent's lane is the phone's; on the desktop each agent is listed once, under Agents, so an
+ * agent lane is not offered here and reads as Everything (`resolveDesktopLane`). Choosing a source switches the lane.
  */
 export function flowSources(
   items: AttentionItem[],
   lane: ResolvedLane | null,
   lanes: readonly Lane[] | null,
   onLane: (lane: ResolvedLane | null) => void,
-  face?: (agentId: string, name: string) => ReactNode,
 ): PlaceSources {
-  const rows = flowLanes(items, lane, lanes);
+  const rows = flowLanes(items, lane, lanes).filter((r) => !(r.lane && "agent_id" in r.lane));
   return {
-    items: rows
-      .filter((r) => r.id !== "")
-      .map((r) => ({
-        id: r.id,
-        title: r.name,
-        icon: r.icon,
-        face: r.lane && "agent_id" in r.lane ? face?.(r.lane.agent_id, r.name) : undefined,
-        count: r.count,
-      })),
+    items: rows.map((r) => ({ id: r.id, title: r.name, icon: r.icon, count: r.count })),
     selected: lane?.id ?? "",
-    all: "",
     onSelect: (id) => onLane(rows.find((r) => r.id === id)?.lane ?? null),
   };
 }

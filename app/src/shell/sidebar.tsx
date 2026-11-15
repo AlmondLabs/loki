@@ -143,13 +143,11 @@ export interface PlaceSource {
   live?: boolean;
 }
 
-/** A place's sources under its row (plan 2026-11-14-1330, R1): Chats' Pinned, one per agent, and Archived; Flow's lanes; the agents. */
+/** A place's sources under its heading (plan 2026-11-15-1035, R6): Chats' All Chats, Pinned and Archived; Flow's Everything and lanes; the agents; Learn's views. */
 export interface PlaceSources {
   items: readonly PlaceSource[];
   /** The source showing in the list. */
   selected: string;
-  /** The source the place's own row stands for: every chat, for Chats (R4). */
-  all: string;
   onSelect: (id: string) => void;
 }
 
@@ -160,12 +158,13 @@ function savedFolds(): SidebarPref {
 }
 
 /**
- * The sidebar's head (plan 2026-11-12-1505, U12): the window's places as the source list's first rows, as Mail lists
- * its mailboxes. Each row is a symbol in the accent, the place's name and a grey count
- * (what waits in Flow, the cards due in Learn); the place showing is filled, never bold. Preferences is not a row: it is
- * ⌘, and the menu bar's, as on every Mac app. A place with sources lists them under its row, one level down, with a
- * disclosure chevron at the row's trailing edge that folds them; the rows are the same in every place, and choosing a
- * source moves only the selection (plan 2026-11-14-1330, R1). The folds outlive restarts.
+ * The sidebar's head (plan 2026-11-12-1505, U12; plan 2026-11-15-1035, U4): the window's places as Mail lists its
+ * mailboxes. A place with sources is a small grey heading that is not a row, as Mail's Favourites is, with its sources
+ * under it as the rows you choose: Chats' All Chats, Pinned and Archived; Flow's Everything and the person's lanes; the
+ * agents; Learn's views. A row is the name in the label colour with a symbol or face before it and a grey count after;
+ * the row showing is filled and takes the accent. A disclosure chevron on the heading's hover folds its sources, and
+ * the folds outlive restarts. A place without sources is a row of its own. Preferences is not a row: it is ⌘, and the
+ * menu bar's, as on every Mac app.
  */
 export function Places({
   segment,
@@ -195,35 +194,37 @@ export function Places({
         const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
         const own = sources[s.id];
         const here = segment === s.id;
-        const row = (
-          <button
-            key={s.id}
-            type="button"
-            className="loki-place"
-            // With sources, the place's row is current only while it stands for the source showing (every chat).
-            aria-current={here && (!own || own.selected === own.all) ? "page" : undefined}
-            aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
-            title={`${s.label} (${s.key})`}
-            aria-keyshortcuts={ariaShortcut(s.key)}
-            onClick={() => (own ? own.onSelect(own.all) : onSelect(s.id))}
-          >
-            <span className="loki-place-icon">
-              <Icon name={PLACE_ICON[s.id]} size={18} />
-            </span>
-            <span className="loki-place-label">{s.label}</span>
-            {count > 0 && (
-              <span aria-hidden className="loki-place-count">
-                {countText(count)}
+        if (!own)
+          return (
+            <button
+              key={s.id}
+              type="button"
+              className="loki-place"
+              aria-current={here ? "page" : undefined}
+              aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
+              title={`${s.label} (${s.key})`}
+              aria-keyshortcuts={ariaShortcut(s.key)}
+              onClick={() => onSelect(s.id)}
+            >
+              <span className="loki-place-icon">
+                <Icon name={PLACE_ICON[s.id]} size={18} />
               </span>
-            )}
-          </button>
-        );
-        if (!own) return row;
+              <span className="loki-place-label">{s.label}</span>
+              {count > 0 && (
+                <span aria-hidden className="loki-place-count">
+                  {countText(count)}
+                </span>
+              )}
+            </button>
+          );
         const folded = folds.collapsed.includes(s.id);
+        const headingId = `loki-place-heading-${s.id}`;
         return (
           <div key={s.id} className="loki-place-group">
             <div className="loki-place-head">
-              {row}
+              <span id={headingId} className="loki-place-heading">
+                {s.label}
+              </span>
               <button
                 type="button"
                 className="loki-place-fold"
@@ -236,14 +237,16 @@ export function Places({
               </button>
             </div>
             {!folded && (
-              <ul className="loki-place-sources" aria-label={`${s.label} sources`}>
-                {own.items.map((it) => (
+              <ul className="loki-place-sources" aria-labelledby={headingId}>
+                {own.items.map((it, i) => (
                   <li key={it.id}>
                     <button
                       type="button"
-                      className="loki-place loki-place--source"
+                      className="loki-place"
                       aria-current={here && own.selected === it.id ? "page" : undefined}
                       aria-label={[it.title, it.live && "working", it.count > 0 && `${it.count} waiting`].filter(Boolean).join(", ")}
+                      // The place's key (⌘1 to ⌘4) shows the place; its first source names it in the tooltip.
+                      title={i === 0 ? `${s.label} (${s.key})` : undefined}
                       onClick={() => own.onSelect(it.id)}
                     >
                       <span className="loki-place-icon">

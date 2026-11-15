@@ -168,9 +168,6 @@ describe("agents as sources", () => {
     expect(selection.get()).toMatchObject({ agent: "a2", page: "skills" });
     const after = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null });
     expect(after.selected).toBe("a2");
-    // The place's own row stands for no one agent: choosing it keeps the agent shown.
-    after.onSelect(after.all);
-    expect(selection.get().agent).toBe("a2");
   });
 
   test("deleting the selected agent selects the first remaining one", async () => {
@@ -190,7 +187,7 @@ describe("agents as sources", () => {
     const selection = createAgentsSelection(null);
     selection.setCreating(true);
     const sources = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null });
-    expect(sources.selected).toBe(sources.all);
+    expect(sources.items.some((it) => it.id === sources.selected)).toBe(false);
   });
 
   test("a source's working dot and count in the sidebar", async () => {
@@ -202,7 +199,7 @@ describe("agents as sources", () => {
         segment: "agents",
         onSelect: () => {},
         waiting: 0,
-        sources: { agents: { items: [{ id: "a2", title: "friday", count: 2, live: true }], selected: "a2", all: "", onSelect: () => {} } },
+        sources: { agents: { items: [{ id: "a2", title: "friday", count: 2, live: true }], selected: "a2", onSelect: () => {} } },
       }),
     );
     expect(html).toContain('aria-label="friday, working, 2 waiting"');

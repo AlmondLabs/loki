@@ -181,14 +181,14 @@ describe("Chats' sources in the sidebar (plan 2026-11-14-1330, R4)", () => {
   });
 });
 
-describe("opening a chat from outside the list chooses its source (KTD8, R7)", () => {
+describe("opening a chat from outside the list chooses its source (KTD8; plan 2026-11-15-1035, R9)", () => {
   const at = (source: string, query = "") => ({ source, query });
-  test("an unpinned chat of ira's opened while Pinned shows: the source becomes ira (AE3)", () => {
-    expect(openIn({ scope: "notes", agent_id: "a2" }, at("pinned"), desks)).toEqual({ source: "agent:a2", query: "" });
+  test("an unpinned chat of ira's opened while Pinned shows: the source becomes All Chats", () => {
+    expect(openIn({ scope: "notes", agent_id: "a2" }, at("pinned"), desks)).toEqual({ source: "all", query: "" });
   });
-  test("an archived chat selects Archived; a pinned one while an agent shows selects Pinned", () => {
-    expect(openIn({ scope: "gone", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("archived");
-    expect(openIn({ scope: "email", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("pinned");
+  test("an archived chat selects Archived; a live one the source showing lacks goes to All Chats", () => {
+    expect(openIn({ scope: "gone", agent_id: "a1" }, at("all"), desks).source).toBe("archived");
+    expect(openIn({ scope: "jira", agent_id: "a1" }, at("archived"), desks).source).toBe("all");
   });
   test("a source that holds the chat stays, every chat's included", () => {
     expect(openIn({ scope: "jira", agent_id: "a1" }, at("all"), desks).source).toBe("all");
@@ -198,8 +198,8 @@ describe("opening a chat from outside the list chooses its source (KTD8, R7)", (
     expect(openIn({ scope: "jira", agent_id: "a1" }, at("all", "aws"), desks)).toEqual({ source: "all", query: "" });
     expect(openIn({ scope: "aws", agent_id: "a1" }, at("all", "aws"), desks)).toEqual({ source: "all", query: "aws" });
   });
-  test("a chat not listed yet, just made, goes under its agent", () => {
-    expect(openIn({ scope: "fresh", agent_id: "a2" }, at("pinned"), desks).source).toBe("agent:a2");
+  test("a chat not listed yet, just made, goes to All Chats", () => {
+    expect(openIn({ scope: "fresh", agent_id: "a2" }, at("pinned"), desks).source).toBe("all");
   });
 });
 

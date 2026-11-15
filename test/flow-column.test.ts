@@ -41,15 +41,14 @@ describe("Flow's lanes", () => {
 });
 
 describe("the lanes as Flow's sources in the sidebar", () => {
-  test("Flow's own row is Everything; the person's lanes and the agents' follow under it, the active one chosen", () => {
+  test("Flow's sources are Everything and the person's lanes, the active one chosen; agents are listed under Agents only (plan 2026-11-15-1035, R6)", () => {
     const sources = flowSources([ira("a"), ira("b"), friday("d")], studio, [studio], noop);
-    expect(sources.all).toBe("");
     expect(sources.selected).toBe("studio");
     expect(sources.items.map((s) => [s.id, s.title, s.count])).toEqual([
+      ["", "Everything", 3],
       ["studio", "Studio", 1],
-      [agentLaneId("ira"), "ira", 2],
-      [agentLaneId("friday"), "friday", 1],
     ]);
+    expect(sources.items.some((s) => s.id === agentLaneId("ira"))).toBe(false);
     const html = renderToStaticMarkup(createElement(Places, { segment: "inbox", onSelect: noop, waiting: 3, sources: { inbox: sources } }));
     expect(html).toMatch(/aria-current="page"[^>]*aria-label="Studio, 1 waiting"/);
   });

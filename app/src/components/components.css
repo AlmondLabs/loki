@@ -1235,8 +1235,11 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
-/* New keeps the toolbar's trailing edge, with or without a count. */
-.loki-content-list-bar > button {
+/* The toolbar's trailing controls (a pop-up, then New) keep its trailing edge, with or without a count. */
+.loki-content-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
 }
 /* The toolbar's grey line under the title (All Cards: when Learn last wrote), as a chat's toolbar has one. */
@@ -1467,8 +1470,9 @@ button.loki-list-section-toggle {
 .loki-shell {
   background: var(--loki-bg);
 }
-/* Liquid Glass's places (shell/sidebar.tsx Places, U12): the source list's first rows, as Mail lists its mailboxes. A
-   symbol in the accent, the name, a grey count; the place showing is filled, never bold. */
+/* The sidebar's places (shell/sidebar.tsx Places; plan 2026-11-15-1035, U4), as Mail lists its mailboxes: a grey heading
+   per place and its sources under it. A row is a symbol and its name in the label colour and a grey count; the row
+   showing is filled and takes the accent, never bold. */
 .loki-places {
   flex: 0 1 auto;
   min-height: 0;
@@ -1496,13 +1500,14 @@ button.loki-list-section-toggle {
 }
 .loki-place[aria-current] {
   background: var(--loki-selection);
+  color: var(--loki-accent);
 }
 .loki-place-icon {
   position: relative;
   display: grid;
   place-items: center;
   width: 20px;
-  color: var(--loki-accent);
+  color: inherit;
 }
 .loki-place-icon svg {
   width: 16px;
@@ -1526,8 +1531,8 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
-/* A place's sources (plan 2026-11-14-1330, R1): one level under its row, and a chevron at the row's trailing edge that
-   folds them, shown on hover as Mail's is. */
+/* A place's heading and its sources (plan 2026-11-15-1035, R5): the heading is small grey text, not a row, with a
+   chevron at its trailing edge that folds the sources, shown on hover as Mail's is. */
 .loki-place-group,
 .loki-place-sources {
   display: flex;
@@ -1537,10 +1542,20 @@ button.loki-list-section-toggle {
 .loki-place-head {
   position: relative;
   display: flex;
+  align-items: center;
+  height: 28px;
+  margin-top: 8px;
+  padding: 0 8px;
 }
-.loki-place-head > .loki-place {
+.loki-place-group:first-child > .loki-place-head {
+  margin-top: 0;
+}
+.loki-place-heading {
   flex: 1;
   min-width: 0;
+  color: var(--loki-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
 }
 .loki-place-fold {
   position: absolute;
@@ -1567,11 +1582,8 @@ button.loki-list-section-toggle {
   padding: 0;
   list-style: none;
 }
-/* A source sits under its place's label: the place's padding, icon and gap (8 + 20 + 8), so its icon lines up with the
-   place's label and not with its icon. */
-.loki-place--source {
+.loki-place-sources .loki-place {
   width: 100%;
-  padding-left: calc(8px + 20px + 8px);
 }
 /* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
 .loki-sidebar-toggle[aria-pressed] {

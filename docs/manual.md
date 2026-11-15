@@ -138,12 +138,14 @@ landmark). Tab and ⇧Tab move through a region's controls and on to the next re
 detail's toolbar symbols, then its content. Esc in the detail (outside a text box, or from Flow's reply box) moves
 focus back to the list, in every place; Esc in the list does nothing, and never leaves the place.
 
-- **Chats** (⌘1): under **Chats** the sidebar lists its sources: **Pinned**, one per agent with its face (an agent
-  with no chats yet too), and **Archived**, each with a grey count of the chats that wait on you. The chevron at the
-  end of the Chats row folds them, and the fold is kept across restarts. Click **Chats** itself for every chat, under a
-  heading per agent (Pinned first), so each agent's main chat stays apart; click a source for its chats alone. Choosing a
-  source keeps the chat open when the source holds it; otherwise the chat pane says "No Chat Selected" until you pick
-  one. The list's toolbar names the source, with **New Chat** (an agent's starts a chat with that agent) and
+- **Chats** (⌘1): under the grey **Chats** heading the sidebar lists **All Chats**, **Pinned** and **Archived**, each
+  with a grey count of the chats that wait on you. The chevron at the end of the heading folds them, and the fold is
+  kept across restarts. **All Chats** shows every chat under a heading per agent (Pinned first), so each agent's main
+  chat stays apart; the agent pop-up in its toolbar shows one agent's chats, every agent listed, those with no chats
+  too. Your agents are listed once, under **Agents**. Choosing a source keeps the chat open when the source holds it;
+  otherwise the chat pane says "No Chat Selected" until you pick one. A chat opened from ⌘K, a notification or Open
+  the Chat goes to All Chats when the source showing lacks it, clearing an agent pop-up that would hide it. The list's
+  toolbar names the source (or the agent the pop-up shows), with **New Chat** (with the pop-up's agent, if one) and
   **Search** (⌥⌘F), which filters the source's chats by chat or agent name. Each chat is one line, its name alone,
   the main chat included; the phone's Home draws it the same. A chat's name goes bold when its agent wrote since you
   looked. On the right of each row, one thing: a blue count when it waits on you, else a green dot that breathes
@@ -915,10 +917,11 @@ chats from all agents, picked agents or none, then mail and Slack from all accou
 account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
 Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
 
-**Switching.** On the Mac the lanes are listed under Flow's row in the sidebar, as Mail lists its mailboxes: Flow's
-own row is Everything, then your lanes, then a lane for each agent with cards waiting (its chats and the accounts it
-owns), busiest first, each with how many of its cards need you. Click one to switch; the list's title names the lane.
-On the phone Flow's title names the lane ("Work"); tap it for the same switcher. Each device keeps its own lane until
+**Switching.** On the Mac the lanes are listed under Flow's heading in the sidebar, as Mail lists its mailboxes:
+Everything, then your lanes, each with how many of its cards need you. Click one to switch; the list's title names the
+lane. On the phone Flow's title names the lane ("Work"); tap it for the switcher, which also has a lane for each agent
+with cards waiting (its chats and the accounts it owns), busiest first. A Mac left in an agent's lane opens on
+Everything, since the Mac lists each agent once, under Agents. Each device keeps its own lane until
 you switch, so the Mac can sit in Work while the phone stays in Everything; a new device starts in Everything.
 
 **What a lane changes.** The deck holds only the lane's cards, in the usual order. Nothing from another lane breaks

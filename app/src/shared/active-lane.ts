@@ -52,3 +52,12 @@ export function resolveLane(lanes: Lane[] | null, items: AttentionItem[], agents
   }
   return lanes?.find((l) => l.id === id) ?? null;
 }
+
+/**
+ * The desktop's reading of a stored lane (plan 2026-11-15-1035, KTD9): an agent's lane is the phone's, since the desktop
+ * lists each agent once, under Agents, so on the desktop it reads as Everything; any other id reads as `resolveLane`
+ * reads it. The stored id is left as it is.
+ */
+export function resolveDesktopLane(lanes: Lane[] | null, items: AttentionItem[], agents: Array<{ id: string; name: string }>, id: string): ResolvedLane | null {
+  return agentOfLaneId(id) === null ? resolveLane(lanes, items, agents, id) : null;
+}

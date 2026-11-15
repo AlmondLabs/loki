@@ -300,14 +300,16 @@ Internals keep the name desk.
   an **Update…** button at the detail toolbar's trailing edge (plan 2026-11-14-1330, R18), laid over the detail's top
   right by the shell so it sits in the same spot in every place, with each toolbar's trailing side leaving it room; its
   menu holds **Later**, which hides it until the next version. It sat as a row at the sidebar's foot until 2026-11-14,
-  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
-  (plan 2026-11-14-1330, R1): the same rows in every place, so changing place moves only the selection. Each source is
-  a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
-  for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
-  hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
-  (Pinned, each agent, Archived), Flow its lanes, and Agents its agents (face, name, a green dot while one works, the
-  count of what waits in Flow; the Agents row stands for no one agent, so choosing it keeps the agent shown), and Learn
-  its views (Review with its grey count of cards due, Leads, All Cards, Deleted; the Learn row keeps the view shown).
+  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place is a small grey **heading** that is not a row, as Mail's Favourites is, and its
+  **sources** are the rows under it (plan 2026-11-15-1035, R5): the same rows in every place, so changing place moves
+  only the selection, and each agent is listed once, under Agents. A source is a symbol or an agent's face and its name
+  in the label colour and a grey count of what waits in it; the source showing is filled and takes the accent. A chevron
+  at the heading's trailing edge, shown on hover and always while folded, folds the sources; the folds are kept in
+  `loki.desktop.sidebar`. Chats' sources are All Chats, Pinned and Archived; All Chats keeps a heading per agent and an
+  agent pop-up in the list's toolbar shows one agent's chats. Flow's are Everything and the person's lanes; an agent's
+  lane is the phone's, and on the desktop a saved one reads as Everything. Agents' are its agents (face, name, a green
+  dot while one works, the count of what waits in Flow), and Learn's its views (Review with its grey count of cards due,
+  Leads, All Cards, Deleted).
 - **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its
   edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list
@@ -382,8 +384,8 @@ Internals keep the name desk.
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the
-  sidebar, as Mail lists its mailboxes (Flow's own row is Everything, then the person's lanes, then each agent with
-  cards, each with the count of what needs the person); the list column holds the lane's cards in the deck's order on
+  sidebar, as Mail lists its mailboxes (Everything, then the person's lanes, each with the count of what needs the
+  person); the list column holds the lane's cards in the deck's order on
   `ContentList`, titled with the lane and its count; the detail is the selected card. A row says who it is from (the
   sender, or the chat's agent), what it is about and one line of the newest words, the kind's symbol (a chat's bubble,
   a mail, Slack's #, a ticket) at its start and a muted "Sign In" mark where the account needs mending. The card has no
@@ -464,6 +466,10 @@ box is one for both, its sizes set by `touch`.
 
 ## Tried and dropped
 
+- **Places as rows with every agent under each (2026-11-14 to 2026-11-15).** Each place was a row that stood for its
+  "all" view, and each agent appeared three times, as a Chats source, a Flow lane and an Agents page. Retired for
+  Mail's grey headings and one row per agent, under Agents (plan 2026-11-15-1035, U4); Chats shows one agent's chats
+  through the pop-up in its list's toolbar.
 - **Slack's look (2026-09-23 to 2026-11-14).** The desktop and the phone wore Slack's look and layout: a neutral grey
   ground, a labelled rail of five sections down the left (Preferences among them), a `#` before each chat, a 48px
   name line over a tab row, the red badge for what waits on you and green for the affirmative button, a pill and a
