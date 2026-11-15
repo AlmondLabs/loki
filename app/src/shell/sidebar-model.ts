@@ -252,6 +252,24 @@ export function sourceRows(
   return m.sections.find((s) => s.id === opts.source)?.rows ?? [];
 }
 
+/** Chats' state pills (plan 2026-11-15-1523): every chat, those waiting on you, those with news, those running. */
+export const CHAT_STATES = ["all", "waiting", "unread", "working"] as const;
+/** One of Chats' state pills. */
+export type ChatState = (typeof CHAT_STATES)[number];
+
+/** Whether a row shows under a state pill, read from what the row already shows: the badge, the bold title, the live dot. */
+export function rowInState(row: Pick<SidebarRow, "kind" | "unread" | "live">, state: ChatState): boolean {
+  if (state === "waiting") return row.kind === "waits";
+  if (state === "unread") return row.unread;
+  if (state === "working") return row.live;
+  return true;
+}
+
+/** The rows a state pill keeps, in order, each with its agent heading (KTD1). */
+export function stateRows<R extends Pick<SidebarRow, "kind" | "unread" | "live">>(rows: readonly R[], state: ChatState): R[] {
+  return rows.filter((r) => rowInState(r, state));
+}
+
 /** The part of a chat that says which sources hold it. */
 type Placed = Pick<DeskSummary, "status" | "pinned" | "agent_id">;
 

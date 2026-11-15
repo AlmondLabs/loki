@@ -22,6 +22,10 @@ import {
   sourceRows,
   openIn,
   sourceHolds,
+  CHAT_STATES,
+  stateRows,
+  type ChatState,
+  type SidebarRow,
 } from "../app/src/shell/sidebar-model.ts";
 
 import { stepRow } from "../app/src/shell/list-keys.ts";
@@ -574,5 +578,38 @@ describe("where a chat lives, in its row (plan 023)", () => {
   test("with no Mac paired nothing is marked; in a flat list every chat on another Mac is", () => {
     expect(homeMark(on(), undefined, undefined, "this Mac")).toBeNull();
     expect(homeMark(on(MINI), undefined, undefined, "this Mac")).toEqual({ kind: "away", note: "lives on Mac mini" });
+  });
+});
+
+describe("Chats' state pills (plan 2026-11-15-1523)", () => {
+  const row = (scope: string, over: Partial<Pick<SidebarRow, "kind" | "unread" | "live">>) => ({
+    scope,
+    kind: "none" as SidebarRow["kind"],
+    unread: false,
+    live: false,
+    section: scope.startsWith("a") ? "ada" : "bo",
+    ...over,
+  });
+  const rows = [
+    row("a-wait", { kind: "waits", unread: true }),
+    row("a-new", { kind: "finished", unread: true }),
+    row("b-run", { kind: "running", live: true }),
+    row("b-quiet", {}),
+  ];
+  const kept = (state: ChatState) => stateRows(rows, state).map((r) => r.scope);
+
+  test("All keeps every chat; Waiting, Unread and Working keep what the badge, the bold title and the live dot say", () => {
+    expect(kept("all")).toEqual(["a-wait", "a-new", "b-run", "b-quiet"]);
+    expect(kept("waiting")).toEqual(["a-wait"]);
+    expect(kept("unread")).toEqual(["a-wait", "a-new"]);
+    expect(kept("working")).toEqual(["b-run"]);
+  });
+
+  test("a kept row keeps its agent heading", () => {
+    expect(stateRows(rows, "working")[0].section).toBe("bo");
+  });
+
+  test("the four pills, in order", () => {
+    expect([...CHAT_STATES]).toEqual(["all", "waiting", "unread", "working"]);
   });
 });

@@ -308,8 +308,9 @@ Internals keep the name desk.
   only the selection, and each agent is listed once, under Agents. A source is a symbol or an agent's face and its name
   in the label colour and a grey count of what waits in it; the source showing is filled and takes the accent. A chevron
   at the heading's trailing edge, shown on hover and always while folded, folds the sources; the folds are kept in
-  `loki.desktop.sidebar`. Chats' sources are All Chats, Pinned and Archived; All Chats keeps a heading per agent and an
-  agent pop-up in the list's toolbar shows one agent's chats. Flow's are Everything and the person's lanes; an agent's
+  `loki.desktop.sidebar`. Chats' sources are All Chats, Pinned and Archived; the list keeps a heading per agent, and Mail's
+  category pills under its title (plan 2026-11-15-1523) narrow it to **All**, **Waiting**, **Unread** or **Working**:
+  the chosen one a filled capsule with its symbol and name, the rest grey circles with their symbol; Archived has none. Flow's are Everything and the person's lanes; an agent's
   lane is the phone's, and on the desktop a saved one reads as Everything. Agents' are its agents (face, name, a green
   dot while one works, the count of what waits in Flow), and Learn's its views (Review with its grey count of cards due,
   Leads, All Cards, Deleted).
@@ -479,8 +480,10 @@ box is one for both, its sizes set by `touch`.
   menu's update item (plan 2026-11-15-1035, U6 and U7).
 - **Places as rows with every agent under each (2026-11-14 to 2026-11-15).** Each place was a row that stood for its
   "all" view, and each agent appeared three times, as a Chats source, a Flow lane and an Agents page. Retired for
-  Mail's grey headings and one row per agent, under Agents (plan 2026-11-15-1035, U4); Chats shows one agent's chats
-  through the pop-up in its list's toolbar.
+  Mail's grey headings and one row per agent, under Agents (plan 2026-11-15-1035, U4).
+- **All Chats' agent pop-up (2026-11-15).** A pop-up in the Chats list's toolbar showed one agent's chats and set New
+  Chat's agent. Retired the same day for state pills over the list (plan 2026-11-15-1523): the list's agent headings
+  already group the chats.
 - **Slack's look (2026-09-23 to 2026-11-14).** The desktop and the phone wore Slack's look and layout: a neutral grey
   ground, a labelled rail of five sections down the left (Preferences among them), a `#` before each chat, a 48px
   name line over a tab row, the red badge for what waits on you and green for the affirmative button, a pill and a
