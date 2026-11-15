@@ -245,7 +245,9 @@ describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
     expect(thread.filter((c) => /^(px|pl|pr|ps|pe)-/.test(c))).toEqual([]);
     const composer = classOf(out, 'data-composer="messages"');
     expect(composer).toContain("max-w-3xl");
-    expect(composer).toContain("px-5");
+    // A margin, not padding, so the composer box is the reading column's width and edge, and its own content keeps 20px.
+    expect(composer).toContain("mx-5");
+    expect(composer).not.toContain("px-5");
     expect(composer).not.toContain("mx-auto");
     expect(out).not.toContain("mx-auto");
   });
