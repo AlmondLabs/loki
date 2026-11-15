@@ -196,10 +196,13 @@ export function ChatBubble({
 }) {
   return (
     <button
+      type="button"
       data-alert={alert || undefined}
       onClick={onToggle}
       onPointerDown={(e) => e.stopPropagation()}
-      aria-label="Toggle chat"
+      // Its state is said, and so is the dot, which is only colour on screen.
+      aria-label={alert && !open ? "Chat, waiting on you" : "Chat"}
+      aria-expanded={open}
       style={{
         position: "absolute",
         ...(side === "right" ? { right: 20 } : { left: 20 }),
@@ -219,7 +222,7 @@ export function ChatBubble({
       {open ? <Glyph icon={XIcon} size={18} /> : <Glyph icon={MessageSquareIcon} size={18} />}
       {alert && !open && (
         <span
-          aria-label="Permission waiting"
+          aria-hidden
           style={{
             position: "absolute",
             top: -2,

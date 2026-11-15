@@ -45,6 +45,7 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
+import { ThreadAnnouncer } from "./thread-announcer";
 import { Composer } from "../item/composer";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposals } from "../item/proposal";
 import { Timeline } from "../item/timeline";
@@ -744,7 +745,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
         )}
         {tail}
         {status === "thinking" && !waiting && (
-          <div className="loki-thinking" role="status">
+          <div className="loki-thinking">
             Thinking
             {/* Three dots that rise in turn, as a typing bubble does (chat.css); read as "thinking". */}
             <span className="loki-thinking-dots" aria-hidden>
@@ -755,6 +756,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
           </div>
         )}
         {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} onKeepHere={onKeepHere} />}
+        <ThreadAnnouncer status={status} waiting={waiting} rows={list} who={layout?.people?.assistant.name ?? agentName ?? "the agent"} />
       </div>
       {unpinned && (
         <Chip

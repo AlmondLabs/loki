@@ -136,7 +136,10 @@ For the keyboard and VoiceOver the window is three regions, in this order: the s
 "Sidebar"), the list (named for the source showing, "Pinned", "Everything", "Due"), and the detail (the main
 landmark). Tab and ⇧Tab move through a region's controls and on to the next region: from the list, Tab goes to the
 detail's toolbar symbols, then its content. Esc in the detail (outside a text box, or from Flow's reply box) moves
-focus back to the list, in every place; Esc in the list does nothing, and never leaves the place.
+focus back to the list, in every place; Esc in the list does nothing, and never leaves the place. VoiceOver also hears
+a chat as it goes: when the agent starts thinking, when it waits on you, and the opening of its reply when the turn
+ends. A form's error is read as it appears, and in a list under a field (a mention, To and Cc, a folder) the one ↑↓
+are on is read.
 
 - **Chats** (⌘1): under the grey **Chats** heading the sidebar lists **All Chats**, **Pinned** and **Archived**, each
   with a grey count of the chats that wait on you. The chevron at the end of the heading folds them, and the fold is
@@ -643,7 +646,8 @@ in place of the open one, as Messages opens a new message, and the list leads wi
 agents, or with the caret on it type the start of a name. The folder the chat will work in is at the end of that line
 (the open chat's folder for its own agent, else the agent's most recent); click it for the folder field (recents, typed
 paths with completion, or **Browse…** for the system's folder dialog; the git branch shows when the folder is a
-checkout). The chat runs on the agent's usual model. Nothing is created until you send the first message: Esc in the
+checkout). The list opens with nothing chosen: Tab goes on and leaves the folder as it was, unless you typed or chose
+one with ↑↓. The chat runs on the agent's usual model. Nothing is created until you send the first message: Esc in the
 empty box, or opening another chat, leaves nothing behind.
 
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens

@@ -354,6 +354,7 @@ export function ReplyProposalView({
                 if (!mentions.onKeyDown(e)) keys(e);
               }}
               aria-label="Reply text"
+              {...mentions.field}
             />
             {mentions.marks}
           </div>

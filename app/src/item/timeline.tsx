@@ -18,6 +18,7 @@ import {
 import { Trace, TraceLine, TraceTitle } from "@/ui/trace";
 import type { ThreadHandle, ThreadProps } from "../chat/conversation";
 import { ThreadError } from "../chat/thread-error";
+import { ThreadAnnouncer } from "../chat/thread-announcer";
 import { StepsLoad } from "../chat/tool-steps";
 import { useArrivedFrom } from "../chat/transcript";
 import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../chat/transcript-window";
@@ -261,13 +262,14 @@ function ThreadBody({
           </StepsLoad.Provider>
           {tail}
           {status === "thinking" && !waiting && !turnWorking && (
-            <Trace role="status">
+            <Trace>
               <TraceLine status="running">
                 <TraceTitle>Thinking</TraceTitle>
               </TraceLine>
             </Trace>
           )}
           {error && <ThreadError error={error} rows={list} onRetry={status === "idle" ? onRetry : undefined} onKeepHere={onKeepHere} />}
+          <ThreadAnnouncer status={status} waiting={waiting} rows={list} who={who} />
         </MessageScrollerContent>
       </MessageScrollerViewport>
       <MessageScrollerButton

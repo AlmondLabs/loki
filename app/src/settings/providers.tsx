@@ -340,7 +340,11 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             Disconnect
           </Button>
         )}
-        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+        {error && (
+          <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </span>
+        )}
       </div>
       {signIn && busy && (
         <label htmlFor={`${fieldId}-address`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3" style={{ fontSize: "var(--text-xs)" }}>

@@ -1,5 +1,5 @@
 import type { MailAddressing, MailCompose, MailMode, MailPerson } from "../../../core/frame-types.ts";
-import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useId, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Chip, Field, Meta, sentence } from "../components";
 import { XIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
@@ -148,6 +148,7 @@ function RecipientRow({
     }
   };
   const size = touch ? "var(--phone-text-body)" : "var(--text-sm)";
+  const listId = useId();
   // The words are capitalised, as iOS and macOS write them.
   const label = { to: "To", cc: "Cc", bcc: "Bcc" }[row];
   return (
@@ -177,6 +178,12 @@ function RecipientRow({
             value={query}
             autoFocus={autoFocus}
             aria-label={`Add someone to ${label}`}
+            // A combobox over its suggestions: a screen reader hears the person ↑↓ are on (plan 2026-11-15-2355, KTD2).
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={found.length > 0}
+            aria-controls={found.length > 0 ? listId : undefined}
+            aria-activedescendant={found.length > 0 ? `${listId}-${at}` : undefined}
             placeholder={list.length ? "" : "Name or address"}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -193,11 +200,13 @@ function RecipientRow({
             style={{ fontSize: size, width: "100%" }}
           />
           {found.length > 0 && (
-            <div className="loki-mail-suggest" role="listbox" aria-label="Suggestions">
+            <div id={listId} className="loki-mail-suggest" role="listbox" aria-label="Suggestions">
               {found.map((p, i) => (
                 <button
                   key={p.address}
+                  id={`${listId}-${i}`}
                   type="button"
+                  tabIndex={-1}
                   role="option"
                   aria-selected={i === at}
                   className="loki-mail-suggest-row"

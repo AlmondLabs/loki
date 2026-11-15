@@ -75,6 +75,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
           onChange={(e) => setPath(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void go()}
           placeholder="/path/to/skill"
+          aria-label="Skill folder"
           autoComplete="off"
           data-form-type="other"
           className="flex-1"
@@ -83,7 +84,11 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
           {busy ? "Enabling…" : "Enable"}
         </Button>
       </div>
-      {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+      {error && (
+        <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </span>
+      )}
     </div>
   );
 }

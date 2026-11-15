@@ -77,7 +77,8 @@ export function ModeChip({
       {...rest}
       style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined}
       title={`Permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
-      aria-label="Permission mode"
+      // The words on the chip come first, so the name holds what is seen (WCAG 2.5.3) and says the mode.
+      aria-label={`${busy ? "changing…" : info.short}, permission mode${loud ? ", nothing asks" : ""}`}
       aria-busy={busy || undefined}
     >
       <Shield fill={info.fill} />

@@ -198,6 +198,7 @@ function SkillAdd({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Skill name (becomes skills/<name>/SKILL.md)"
+            aria-label="Skill name"
             autoComplete="off"
             data-form-type="other"
           />
@@ -206,6 +207,7 @@ function SkillAdd({
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
+            aria-label="What the skill says"
             placeholder={`# When to use\n\nWhat ${agentName} should do, step by step. The first line becomes the description.`}
             style={{ lineHeight: 1.5 }}
           />
@@ -220,6 +222,7 @@ function SkillAdd({
             onChange={(e) => setSource(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void go()}
             placeholder="owner/repo/path · a GitHub or git URL · a folder"
+            aria-label="Where the skill comes from"
             autoComplete="off"
             data-form-type="other"
           />
@@ -227,7 +230,11 @@ function SkillAdd({
         </>
       )}
       <div className="flex items-center gap-2">
-        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+        {error && (
+          <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </span>
+        )}
         <span className="flex-1" />
         <Button onClick={onClose}>Cancel</Button>
         <Button tone="positive" onClick={() => void go()} disabled={busy}>
@@ -267,11 +274,16 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
         onChange={(e) => setSource(e.target.value)}
         onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)}
         placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder"
+        aria-label={`Where ${name} came from`}
         autoComplete="off"
         data-form-type="other"
       />
       <div className="flex items-center gap-2">
-        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+        {error && (
+          <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </span>
+        )}
         <span className="flex-1" />
         <Button onClick={onCancel}>Cancel</Button>
         <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>

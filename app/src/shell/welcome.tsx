@@ -195,7 +195,11 @@ function AgentForm({
         </datalist>
       </Labelled>
       <div className="flex items-center gap-2" style={{ marginTop: 4 }}>
-        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+        {error && (
+          <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </span>
+        )}
         <span className="flex-1" />
         {canGoBack && (
           <Button size="sm" onClick={onBack}>
