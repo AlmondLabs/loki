@@ -409,22 +409,33 @@ function DeskActions() {
     { type: "separator" },
     action("chat.toggle", "Show / Hide Chat", PanelRightIcon),
   ];
+  // In the Mac app the system's menu hangs from the button (U19); elsewhere loki draws it.
+  if (native)
+    return (
+      <span className="loki-desk-pane-menu-anchor">
+        <IconButton
+          size={28}
+          label="More Chat Actions"
+          aria-haspopup="menu"
+          onClick={(e) => void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: pane menu", err))}
+        >
+          <Icon name="more" size={16} />
+        </IconButton>
+      </span>
+    );
   return (
     <span className="loki-desk-pane-menu-anchor">
-      <IconButton
-        size={28}
-        label="More Chat Actions"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={(e) => {
-          // In the Mac app the system's menu hangs from the button (U19).
-          if (native) void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: pane menu", err));
-          else setMenuOpen((v) => !v);
-        }}
-      >
-        <Icon name="more" size={16} />
-      </IconButton>
-      {menuOpen && <PopoverMenu label="Chat actions" entries={entries} onClose={() => setMenuOpen(false)} />}
+      <PopoverMenu
+        label="Chat actions"
+        entries={entries}
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        trigger={
+          <IconButton size={28} label="More Chat Actions">
+            <Icon name="more" size={16} />
+          </IconButton>
+        }
+      />
     </span>
   );
 }

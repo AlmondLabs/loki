@@ -176,7 +176,7 @@ The chrome is built from one vocabulary, with every state in `components/compone
 kbd), **IconButton** (24 · 28 · 36 · 40; danger goes red on hover), **NavButton**, **Chip** (active is
 neutral, brass the blue pick, attention the badge for what waits on you, tone for a status badge, static, tag, touch, label,
 float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row** (selected, dense, touch,
-flush), **Sheet** (veil, aria-modal, Escape, click-out, focus held inside and returned; top or bottom; on the desktop shadcn's Dialog on Base UI since plan 2026-11-15-1900, with loki's veil and card, while the phone's bottom sheet keeps its own markup for its drag), **Popover**, **Kbd**,
+flush), **Sheet** (veil, aria-modal, Escape, click-out, focus held inside and returned; top or bottom; on the desktop shadcn's Dialog on Base UI since plan 2026-11-15-1900, with loki's veil and card, while the phone's bottom sheet keeps its own markup for its drag), **Popover** (owns the button it hangs from; on the desktop shadcn's Popover on Base UI since plan 2026-11-15-2130, placed beside the button on the side with room, closed by Esc, a press outside or the button, focus returned to it; the phone draws its own panel beside the button), **Kbd**,
 **Meta** (sans 12 muted; brass, negative for a small error, wrap; a div that is a meta line takes the
 `loki-meta` class instead of a hand-set fontSize and colour), **Title**, **Dot**, **Empty**, **Banner**, and
 **Switch** (an on/off switch with its label), **ListIcon** (an icon in a list row's avatar place), and
@@ -202,7 +202,8 @@ share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into
 hand-built: the sidebar toggle (`.loki-rail`), the chat bubble, the phone's tab bar.
 The list-and-detail layout has its own blocks (2026-09-23): **ListRow** (a lead, the title bold when unread, a preview,
 the time or the count, hover actions; `aria-current` on the chosen one), **ListSection** (a folding
-heading with a count and actions), **TabRow** (an ARIA tablist with roving focus, the underline tabs),
+heading with a count and actions), **TabRow** (shadcn's Tabs on Base UI since plan 2026-11-15-2130: an ARIA tablist with
+roving focus, ←→ choosing, in the toolbar's glass capsule; each tab names the panel the host draws outside it),
 **PaneHeader** (the pane's name line and tab row) and **EmptyPane**.
 
 ## The chat pane and Flow's cards (shadcn and AI Elements, plans 096 and 097)

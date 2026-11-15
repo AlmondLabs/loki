@@ -1,5 +1,5 @@
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import { Popover, Row, sentence } from "../components";
+import { Row, sentence } from "../components";
 import { keyboard, type Platform } from "../desk/env";
 import { formatKeys, keyFor } from "../shell/keymap";
 
@@ -13,7 +13,8 @@ export function commandText(c: SlashCommand, os: Platform = keyboard): string {
  * hint, what it does, and where it runs. The box keeps focus and the keys; ↑↓ move the highlight
  * here, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
  * It reads as a Mac's completion list (plan 2026-11-12-1505, U20): the system font at menu sizes, and no line of key
- * hints under it, since the keys are the ones every such list has.
+ * hints under it, since the keys are the ones every such list has. It is not a Popover: it follows the box, never takes
+ * the focus and has no control of its own, so it draws a panel with a popover's look (plan 2026-11-15-2130, KTD4).
  */
 export function SlashPalette({
   matches,
@@ -29,7 +30,12 @@ export function SlashPalette({
   onPick: (c: SlashCommand) => void;
 }) {
   return (
-    <Popover role="presentation" instant width={420} style={{ top: "auto", bottom: "calc(100% + 6px)", left: 12, maxWidth: "calc(100% - 24px)" }}>
+    <div
+      role="presentation"
+      className="loki-popover loki-popover--above"
+      style={{ left: 12, width: 420, maxWidth: "calc(100% - 24px)" }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       <div id={listId} role="listbox" aria-label="Commands" style={{ maxHeight: 260, overflowY: "auto", padding: 4 }}>
         {matches.map((c, i) => (
           <Row
@@ -66,6 +72,6 @@ export function SlashPalette({
           </div>
         )}
       </div>
-    </Popover>
+    </div>
   );
 }

@@ -321,8 +321,10 @@ Backspace in the empty field, or the chip's ×, steps back out.
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
-same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to
-Messages, then focus from the detail back to the list; it never changes the place. Every shortcut lives in one table
+same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Canvas tab
+back to Messages, then focus from the detail back to the list; it never changes the place. A popover (a chat's folded
+links, New Chat's folder) opens beside the button that shows it, on whichever side has room, and closes on Esc, a click
+outside or the button again, leaving the focus on the button. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the

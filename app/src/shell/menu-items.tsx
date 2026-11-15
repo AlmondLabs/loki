@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useRef, type ButtonHTMLAttributes, type KeyboardEvent, type ReactElement } from "react";
 import { Kbd, Meta, Popover, Row } from "../components";
 import { formatKeys } from "./keymap";
 import { tidyEntries, type MenuEntry } from "./native-menu";
@@ -80,61 +80,50 @@ export function MenuItems({ entries, onPicked }: { entries: MenuEntry[]; onPicke
 }
 
 /**
- * A menu drawn by loki, hung from the button beside it (both inside one positioned wrapper): ↑↓ / Enter / Esc, or
- * click; a press outside the wrapper closes it, and focus goes back to the button unless the pick took it elsewhere.
+ * A menu drawn by loki, hung from its button on a Popover: ↑↓ / Enter / Esc, or click. A press outside closes it, and
+ * focus goes back to the button unless the pick took it elsewhere. It opens on the checked row, else the first.
  */
 export function PopoverMenu({
   label,
   entries,
-  onClose,
+  trigger,
+  open,
+  onOpenChange,
   anchor = "right",
   side = "below",
   width = 260,
 }: {
   label: string;
   entries: MenuEntry[];
-  onClose: () => void;
-  /** The wrapper's edge the menu lines up with. */
+  /** The button it hangs from. */
+  trigger: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The button's edge the menu lines up with. */
   anchor?: "left" | "right";
   /** Under the button (the default), or above it for a button along the window's foot. */
   side?: "below" | "above";
   width?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const wrapper = node?.parentElement ?? null;
-    (node?.querySelector<HTMLElement>('[role^="menuitem"][aria-checked="true"]') ?? menuRows(node).at(0))?.focus();
-    // a press outside the menu and its button closes it (the button toggles it itself)
-    const away = (e: PointerEvent) => {
-      if (!wrapper?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      // Esc, or a pick whose action takes no focus of its own: back to the button the menu hangs from.
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) wrapper?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    };
-  }, []);
+  const close = () => onOpenChange(false);
   return (
     <Popover
       ref={ref}
+      trigger={trigger}
+      open={open}
+      onOpenChange={onOpenChange}
       role="menu"
       aria-label={label}
       anchor={anchor}
       side={side}
       width={width}
+      initialFocus={() => ref.current?.querySelector<HTMLElement>('[role^="menuitem"][aria-checked="true"]') ?? menuRows(ref.current).at(0)}
       // hung from a small button: the popover's own cap (its parent's width) would crush it
-      style={{ padding: 4, [anchor]: 0, maxWidth: "none" }}
-      onKeyDown={(e) => menuKey(e, ref.current, onClose)}
+      style={{ padding: 4, maxWidth: "none" }}
+      onKeyDown={(e) => menuKey(e, ref.current, close)}
     >
-      <MenuItems entries={entries} onPicked={onClose} />
+      <MenuItems entries={entries} onPicked={close} />
     </Popover>
   );
 }

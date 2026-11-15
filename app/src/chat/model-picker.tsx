@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
-import { Chip, Field, IconButton, Meta, Popover, Row, Sheet, sentence } from "../components";
+import { Chip, Field, IconButton, Meta, Row, Sheet, sentence } from "../components";
 import { Icon } from "../shared/icons";
 import { formatKeys } from "../shell/keymap";
 import {
@@ -476,10 +476,6 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
   const [harness, setHarness] = useState<string | null>(() => harnessOf(current));
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
   const loaded = entries !== null;
   // Each view starts on its natural place: the filter in More models, else the checked row, else the first.
   useEffect(() => {
@@ -496,21 +492,14 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
     node?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
   }, [harness]);
   // Closing hands focus back to the pill (a tap on a phone never focused it, so the sheet's own return may have
-  // nothing to go to). The popover also closes on a press outside it and the pill.
+  // nothing to go to).
   useEffect(() => {
     const node = ref.current;
     const pill = pillRef.current; // the pill stays in the box while the picker opens and closes
-    const away = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (!node?.contains(target) && !pill?.contains(target)) closeRef.current();
-    };
-    // capture: the rail, the list column and other popovers stop pointerdown from bubbling
-    if (!touch) window.addEventListener("pointerdown", away, true);
     return () => {
-      window.removeEventListener("pointerdown", away, true);
       if (returnsFocus(document.activeElement, node, document.body)) pill?.focus({ preventScroll: true });
     };
-  }, [touch, pillRef]);
+  }, [pillRef]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const items = [...(ref.current?.querySelectorAll<HTMLElement>("input, [data-model-item]") ?? [])];
@@ -559,25 +548,19 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
       onClose={onClose}
     />
   );
-  if (touch) {
-    const sheet = (
-      <Sheet label="Select model" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-model-sheet">
-        <div ref={ref} onKeyDown={onKeyDown}>
-          {body}
-        </div>
-      </Sheet>
-    );
-    // The Sheet draws itself at the phone shell's root, out of the Inbox card's transform. React still bubbles a
-    // portal's events through the tree it came from: without this a drag in the sheet would swipe the card underneath.
-    return (
-      <div className="contents" onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
-        {sheet}
+  // The picker is the phone's sheet: the desktop picks its model in ⌘K (conversation.tsx, inCommand).
+  const sheet = (
+    <Sheet label="Select model" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-model-sheet">
+      <div ref={ref} onKeyDown={onKeyDown}>
+        {body}
       </div>
-    );
-  }
+    </Sheet>
+  );
+  // The Sheet draws itself at the phone shell's root, out of the Inbox card's transform. React still bubbles a
+  // portal's events through the tree it came from: without this a drag in the sheet would swipe the card underneath.
   return (
-    <Popover ref={ref} role="dialog" aria-label="Select model" side="above" width={340} className="loki-model-popover" onKeyDown={onKeyDown}>
-      {body}
-    </Popover>
+    <div className="contents" onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
+      {sheet}
+    </div>
   );
 }

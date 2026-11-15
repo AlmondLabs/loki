@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { cloneElement, useCallback, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type MouseEvent, type ReactElement } from "react";
 import { PaneHeader, Popover } from "../components";
 import { Conversation, type ConversationView } from "../chat/conversation";
 import type { Draft } from "../shared/drafts";
@@ -185,6 +185,20 @@ function ToLine({
     e.preventDefault();
   };
 
+  const token = (
+    <button
+      type="button"
+      className="loki-new-chat-token"
+      aria-haspopup="menu"
+      aria-describedby="loki-new-chat-to"
+      title="Choose Agent"
+      disabled={agents.length === 0}
+      onKeyDown={typeAhead}
+    >
+      {agent && <AgentFace name={agent.name} src={avatar(agent.id)} size={16} />}
+      <span>{agent?.name ?? "No Agents"}</span>
+    </button>
+  );
   const folder = field.folder.trim();
   const folderFailed = !!folder && field.status?.ok === false;
   return (
@@ -193,49 +207,35 @@ function ToLine({
         To:
       </span>
       <span className="loki-new-chat-anchor">
-        <button
-          type="button"
-          className="loki-new-chat-token"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-describedby="loki-new-chat-to"
-          title="Choose Agent"
-          disabled={agents.length === 0}
-          onKeyDown={typeAhead}
-          onClick={(e) => {
-            if (native) void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: agent menu", err));
-            else setMenuOpen((v) => !v);
-          }}
-        >
-          {agent && <AgentFace name={agent.name} src={avatar(agent.id)} size={16} />}
-          <span>{agent?.name ?? "No Agents"}</span>
-        </button>
-        {menuOpen && <PopoverMenu label="Agents" entries={entries} onClose={() => setMenuOpen(false)} anchor="left" width={220} />}
+        {native ? (
+          cloneElement(token, {
+            onClick: (e: MouseEvent<HTMLButtonElement>) =>
+              void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: agent menu", err)),
+          })
+        ) : (
+          <PopoverMenu label="Agents" entries={entries} open={menuOpen} onOpenChange={setMenuOpen} trigger={token} anchor="left" width={220} />
+        )}
       </span>
       <span className="loki-new-chat-spacer" />
       <span className="loki-new-chat-anchor">
-        <button
-          type="button"
-          className="loki-new-chat-folder"
-          data-failed={folderFailed || undefined}
-          aria-haspopup="dialog"
-          aria-expanded={folderOpen}
-          title={folder ? `Folder: ${folder}${lives ? `, on ${lives}` : ""}` : "Choose Folder"}
-          onClick={() => setFolderOpen((v) => !v)}
-        >
-          {folder ? folderLabel(folder) : "Choose Folder…"}
-          {lives ? ` · ${lives}` : ""}
-        </button>
-        {folderOpen && (
-          <FolderPopover
-            field={field}
-            agentName={agent?.name ?? null}
-            onClose={(chosen) => {
-              setFolderOpen(false);
-              if (chosen) onDone();
-            }}
-          />
-        )}
+        <FolderPopover
+          field={field}
+          agentName={agent?.name ?? null}
+          open={folderOpen}
+          onOpenChange={setFolderOpen}
+          onChosen={onDone}
+          trigger={
+            <button
+              type="button"
+              className="loki-new-chat-folder"
+              data-failed={folderFailed || undefined}
+              title={folder ? `Folder: ${folder}${lives ? `, on ${lives}` : ""}` : "Choose Folder"}
+            >
+              {folder ? folderLabel(folder) : "Choose Folder…"}
+              {lives ? ` · ${lives}` : ""}
+            </button>
+          }
+        />
       </span>
     </div>
   );
@@ -243,51 +243,49 @@ function ToLine({
 
 /**
  * The folder field hung from the To: line's folder: the same field, list, check and Browse as the New chat dialog,
- * dimming nothing. Return (with its list closed) keeps the folder and goes back to the message; Esc or a press outside
- * closes it.
+ * dimming nothing. Return (with its list closed) keeps the folder and goes back to the message; Esc closes the list
+ * first, then the popover, as does a press outside.
  */
 function FolderPopover({
   field,
   agentName,
-  onClose,
+  trigger,
+  open,
+  onOpenChange,
+  onChosen,
 }: {
   field: ReturnType<typeof useFolderField>;
   agentName: string | null;
-  onClose: (chosen: boolean) => void;
+  trigger: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Return kept the folder. */
+  onChosen: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
   const input = field.inputRef;
-  useEffect(() => {
-    const wrapper = ref.current?.parentElement ?? null;
-    input.current?.select();
-    const away = (e: PointerEvent) => {
-      if (!wrapper?.contains(e.target as Node)) closeRef.current(false);
-    };
-    // capture phase: the sidebar and other popovers stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => window.removeEventListener("pointerdown", away, true);
-  }, [input]);
   return (
     <Popover
-      ref={ref}
+      trigger={trigger}
+      open={open}
+      onOpenChange={onOpenChange}
       role="dialog"
       aria-label="Folder for the new chat"
       anchor="right"
       width={440}
-      style={{ padding: 12, right: 0, maxWidth: "none", overflow: "visible" }}
+      initialFocus={() => {
+        input.current?.select();
+        return input.current;
+      }}
+      style={{ padding: 12, maxWidth: "none", overflow: "visible" }}
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" && field.listOpen) {
           e.preventDefault();
           e.stopPropagation();
-          if (field.listOpen) field.setListOpen(false);
-          else onClose(false);
+          field.setListOpen(false);
         } else if (e.key === "Enter" && !field.listOpen) {
           e.preventDefault();
-          onClose(true);
+          onOpenChange(false);
+          onChosen();
         }
       }}
     >

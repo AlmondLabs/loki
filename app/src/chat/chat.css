@@ -797,14 +797,9 @@ button.loki-file-chip {
   max-width: min(300px, calc(100vw - 32px));
 }
 
-/* Select model (model-picker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
+/* Select model (model-picker.tsx): the phone's bottom sheet, opened from the model pill. A title line (a back
    chevron in More models), the harnesses as a segmented row, a card of choices split by hairlines with a check in
    the accent on the current one, More models › as a rounded row of its own, then the effort levels. */
-.loki-model-popover {
-  max-height: min(460px, 70vh);
-  display: flex;
-  flex-direction: column;
-}
 .loki-model {
   display: flex;
   flex-direction: column;
