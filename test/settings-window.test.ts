@@ -39,6 +39,18 @@ describe("the Settings window", () => {
     expect(views).toContain("<Preferences onClose={onClose} {...preferencesProps(sources)} />");
   });
 
+  test("About in either window hears the shell's update status, and knows from its own chats whether one is working", () => {
+    // Plan 2026-11-15-2319, U5 (R11): each window asks the shell and listens for loki:update itself, and Restart to
+    // Update in About asks before stopping a chat's turn, from the same attention model the window already reads.
+    expect(read(APP, "shell", "settings-window.tsx")).toContain("const update = useLokiUpdate();");
+    expect(read(APP, "shell", "shell.tsx")).toContain("const update = useLokiUpdate();");
+    const hook = read(APP, "shell", "use-loki-update.ts");
+    expect(hook).toContain('export const UPDATE_EVENT = "loki:update";');
+    expect(hook).toContain('invokeShell<UpdateStatus>("update_status")');
+    expect(hook).not.toContain("api.github.com");
+    expect(read(APP, "shell", "views.tsx")).toContain("working: chatWorking(catchUp.items),");
+  });
+
   test("the chat layout, the system-wide key and the models follow the other window's storage", () => {
     const layout = read(APP, "shell", "use-chat-layout.ts");
     expect(layout).toContain("useStorageKey(CHAT_WIDTH_KEY,");

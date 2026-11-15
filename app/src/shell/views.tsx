@@ -20,6 +20,7 @@ import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import { Welcome } from "./welcome";
 import type { DaemonStatus, WelcomeStep } from "./bootstrap";
 import type { LokiUpdate } from "./use-loki-update";
+import { chatWorking } from "./restart-notice";
 import type { GlobalShortcut } from "./use-global-shortcut";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
@@ -266,6 +267,7 @@ export function preferencesProps({
       },
     },
     update,
+    working: chatWorking(catchUp.items),
     shortcut,
     recall,
     usage: { ...desk.usage, agents: catchUp.agents },

@@ -1,139 +1,128 @@
 import { describe, expect, test } from "vitest";
-import { createElement } from "react";
+import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Platform } from "../app/src/desk/env.ts";
 import { LokiVersionFact } from "../app/src/settings/settings.tsx";
-import { downloadFor, newestWith, type LokiUpdate, type Release } from "../app/src/shell/use-loki-update.ts";
-import { must } from "./fixtures/must.ts";
+import type { LokiUpdate, UpdateState, UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
 /**
- * The update check links this system's file from the release (plan 014 U10, KTD13, R11), else the release page.
- * Windows and Linux files only ever come on a stable, from their own PR, before or after the Mac's; a nightly is
- * Mac-only. So Windows and Linux look for the newest release that has their file, not the one marked latest.
+ * Preferences › About's update part (plan 2026-11-15-2319, U5; R10, R12, R15): the version, Stable or Nightly, and where
+ * the shell's update stands, each from a status as the shell sends it.
  */
 
-const page = "https://github.com/owner/loki/releases/tag/v2026.9.28";
-const asset = (name: string) => ({ name, browser_download_url: `https://github.com/owner/loki/releases/download/v2026.9.28/${name}` });
-const v = "2026.9.28";
-const release: Release = {
-  tag_name: `v${v}`,
-  name: `loki ${v}`,
-  html_url: page,
-  assets: [
-    asset(`loki_${v}_universal.dmg`),
-    asset("cask.rb"),
-    asset(`loki_${v}_x64-setup.exe`),
-    asset(`loki_${v}_amd64.AppImage`),
-    asset(`loki_${v}_amd64.deb`),
-  ],
-};
-// a stable before its Windows and Linux PR is merged, and every nightly: the Mac's files alone
-const macOnly: Release = { ...release, assets: [asset(`loki_${v}_universal.dmg`), asset("cask.rb")] };
+const RELEASES = "https://github.com/owner/loki/releases";
+const status = (state: UpdateState, s: Partial<UpdateStatus> = {}): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state, ...s });
 
-describe("the download for this system", () => {
-  test("the .dmg on the Mac, the -setup.exe on Windows, the AppImage on Linux", () => {
-    expect(downloadFor(release, "macos")).toBe(asset(`loki_${v}_universal.dmg`).browser_download_url);
-    expect(downloadFor(release, "windows")).toBe(asset(`loki_${v}_x64-setup.exe`).browser_download_url);
-    expect(downloadFor(release, "linux")).toBe(asset(`loki_${v}_amd64.AppImage`).browser_download_url);
-  });
-
-  test("Linux takes the .deb when the release has no AppImage", () => {
-    const noAppImage = { ...release, assets: must(release.assets, "the release's assets").filter((a) => !a.name.endsWith(".AppImage")) };
-    expect(downloadFor(noAppImage, "linux")).toBe(asset(`loki_${v}_amd64.deb`).browser_download_url);
-  });
-
-  test("a release without this system's file falls back to the release page", () => {
-    expect(downloadFor(macOnly, "windows")).toBe(page);
-    expect(downloadFor(macOnly, "linux")).toBe(page);
-    expect(downloadFor({ html_url: page }, "macos")).toBe(page);
-    expect(downloadFor({}, "windows")).toBeNull();
-  });
-});
-
-describe("the release Windows and Linux follow: the newest with their file", () => {
-  const rel = (tag: string, names: string[], extra: Partial<Release> & { prerelease?: boolean; draft?: boolean } = {}): Release => ({
-    tag_name: tag,
-    name: `loki ${tag.slice(1)}`,
-    html_url: `https://github.com/owner/loki/releases/tag/${tag}`,
-    assets: names.map(asset),
-    ...extra,
-  });
-  const winLinux = (d: string) => [`loki_${d}_x64-setup.exe`, `loki_${d}_amd64.AppImage`, `loki_${d}_amd64.deb`];
-  // newest first, as GitHub lists them: the Mac shipped 9.30 alone, 9.29 is Windows and Linux alone (not latest), 9.28 has both
-  const list: Release[] = [
-    rel("nightly", ["loki_2026.9.30-nightly.abcdef0_universal.dmg"], { prerelease: true }),
-    rel("v2026.9.30", ["loki_2026.9.30_universal.dmg", "cask.rb"]),
-    rel("v2026.9.29", winLinux("2026.9.29")),
-    rel("v2026.9.28", ["loki_2026.9.28_universal.dmg", "cask.rb", ...winLinux("2026.9.28")]),
-  ];
-
-  test("Windows and Linux take the newest stable carrying their file, skipping a Mac-only one and the nightly", () => {
-    expect(newestWith(list, "windows")?.tag_name).toBe("v2026.9.29");
-    expect(newestWith(list, "linux")?.tag_name).toBe("v2026.9.29");
-    expect(downloadFor(must(newestWith(list, "windows"), "a release with a Windows file"), "windows")).toContain("loki_2026.9.29_x64-setup.exe");
-  });
-
-  test("the order is by version, not by the list's; drafts and prereleases never count; a file on one system only counts there", () => {
-    expect(newestWith([...list].reverse(), "windows")?.tag_name).toBe("v2026.9.29");
-    const exeOnly = rel("v2026.10.1", ["loki_2026.10.1_x64-setup.exe"]);
-    expect(newestWith([exeOnly, ...list], "windows")?.tag_name).toBe("v2026.10.1");
-    expect(newestWith([exeOnly, ...list], "linux")?.tag_name).toBe("v2026.9.29");
-    expect(
-      newestWith([rel("v2026.10.2", winLinux("2026.10.2"), { draft: true }), rel("v2026.10.3", winLinux("2026.10.3"), { prerelease: true }), ...list], "linux")
-        ?.tag_name,
-    ).toBe("v2026.9.29");
-  });
-
-  test("no release with this system's file is none", () => {
-    expect(newestWith([list[0], list[1]], "windows")).toBeNull();
-    expect(newestWith([], "linux")).toBeNull();
-  });
-});
-
-describe("Settings' version fact", () => {
+/** An update model with the calls counted, so a test can see which command a control asked for. */
+function fakeUpdate(s: UpdateStatus | null) {
+  const calls = { check: 0, channels: [] as string[], restart: 0 };
   const update: LokiUpdate = {
-    current: "2026.9.27",
-    channel: "stable",
-    latest: v,
-    url: page,
-    download: null,
-    issues: "https://github.com/owner/loki/issues",
-    newer: true,
-    error: null,
+    status: s,
+    releases: RELEASES,
+    check: () => {
+      calls.check++;
+    },
+    setChannel: (c) => {
+      calls.channels.push(c);
+    },
+    restart: () => {
+      calls.restart++;
+      return Promise.resolve(null);
+    },
   };
-  const html = (os: Platform, u: LokiUpdate = update, r: Release = release) =>
-    renderToStaticMarkup(createElement(LokiVersionFact, { update: { ...u, download: downloadFor(r, os) }, os }));
+  return { update, calls };
+}
 
-  test("Windows and Linux say preview, link the issues, and link this system's file", () => {
-    for (const os of ["windows", "linux"] as const) {
-      const out = html(os);
-      expect(out).toContain("preview");
-      expect(out).toContain("built and tested in CI, not yet tried on real machines");
-      expect(out).toContain('href="https://github.com/owner/loki/issues"');
-      expect(out).toContain(`href="${downloadFor(release, os)}"`);
+const html = (s: UpdateStatus | null) => renderToStaticMarkup(createElement(LokiVersionFact, { update: fakeUpdate(s).update, working: false }));
+
+/** Every element in a rendered-to-elements tree, following children and any prop holding elements (a Fact's value). */
+function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
+  if (Array.isArray(node)) return node.flatMap(elements);
+  if (!isValidElement(node)) return [];
+  const el = node as ReactElement<Record<string, unknown>>;
+  const inner = Object.values(el.props).flatMap((v) => (isValidElement(v) || Array.isArray(v) ? elements(v as ReactNode) : []));
+  return [el, ...inner];
+}
+
+/** The buttons in a tree, by label. */
+const buttons = (node: ReactNode) =>
+  elements(node)
+    .filter((e) => typeof e.props.onClick === "function" && typeof e.props.children === "string")
+    .map((e) => ({ label: String(e.props.children), click: e.props.onClick as () => void }));
+
+describe("About's update state", () => {
+  test("idle is up to date, beside the version", () => {
+    const out = html(status({ kind: "idle" }));
+    expect(out).toContain("2026.1116.0");
+    expect(out).toContain("Up to date");
+    expect(out).not.toContain("brew");
+  });
+
+  test("checking, then downloading, with how far along once the size is known", () => {
+    expect(html(status({ kind: "checking" }))).toContain("Checking…");
+    const unknown = html(status({ kind: "downloading", done: 1_000_000, total: null }));
+    expect(unknown).toContain("Downloading…");
+    expect(unknown).not.toContain(" of ");
+    expect(html(status({ kind: "downloading", done: 12_000_000, total: 31_000_000 }))).toContain("Downloading… 12 of 31 MB");
+  });
+
+  test("ready says it installs when you quit, with Restart to Update", () => {
+    const fake = fakeUpdate(status({ kind: "ready", version: "2026.1117.0" }));
+    const out = renderToStaticMarkup(createElement(LokiVersionFact, { update: fake.update, working: false }));
+    expect(out).toContain("Ready — installs when you quit loki");
+    const restart = buttons(LokiVersionFact({ update: fake.update, working: false })).find((b) => b.label === "Restart to Update");
+    expect(restart).toBeDefined();
+  });
+
+  test("a failed download or signature check says this version is still running, with Check Again", () => {
+    for (const [stage, words] of [
+      ["download", "The update did not download"],
+      ["signature", "The update failed its signature check"],
+      ["check", "Could not check for updates"],
+      ["install", "The update did not install"],
+    ] as const) {
+      const fake = fakeUpdate(status({ kind: "failed", stage, message: "boom" }));
+      const out = renderToStaticMarkup(createElement(LokiVersionFact, { update: fake.update, working: false }));
+      expect(out).toContain(words);
+      expect(out).toContain("this version is still running");
+      const again = buttons(LokiVersionFact({ update: fake.update, working: false })).find((b) => b.label === "Check Again");
+      again?.click();
+      expect(fake.calls.check).toBe(1);
     }
-    expect(html("windows")).toContain("-setup.exe");
-    expect(html("linux")).toContain("AppImage");
   });
 
-  test("with no file for this system on the release, the upgrade line links the release page", () => {
-    for (const os of ["windows", "linux"] as const) {
-      const out = html(os, update, macOnly);
-      expect(out).toContain(`href="${page}"`);
-      expect(out).not.toContain("follow the Mac");
-    }
+  test("a development build says updates are off, and a .deb links the releases page; neither offers a channel", () => {
+    const dev = html(status({ kind: "unsupported", reason: "development" }));
+    expect(dev).toContain("Updates are off in development builds");
+    expect(dev).not.toContain("Nightly");
+    const deb = html(status({ kind: "unsupported", reason: "package" }));
+    expect(deb).toContain("This install updates from the");
+    expect(deb).toContain(`href="${RELEASES}"`);
+    expect(deb).not.toContain("Nightly");
+  });
+});
+
+describe("About's channel", () => {
+  test("the picker shows the saved channel, and choosing Nightly asks the shell to switch", () => {
+    expect(html(status({ kind: "idle" }, { channel: "nightly" }))).toMatch(/aria-pressed="true"[^>]*>Nightly</);
+    expect(html(status({ kind: "idle" }))).toMatch(/aria-pressed="true"[^>]*>Stable</);
+    const fake = fakeUpdate(status({ kind: "idle" }));
+    const picker = elements(LokiVersionFact({ update: fake.update, working: false })).find((e) => typeof e.props.onPick === "function");
+    (picker?.props.onPick as (c: string) => void)("nightly");
+    expect(fake.calls.channels).toEqual(["nightly"]);
   });
 
-  test("the preview line shows with no newer release too", () => {
-    expect(html("linux", { ...update, newer: false, latest: null })).toContain("preview");
+  test("on a nightly, the words say Stable waits for the next stable release", () => {
+    const nightly = html(status({ kind: "idle" }, { current: "2026.1120.0-nightly.4821", channel: "stable" }));
+    expect(nightly).toContain("Stable stays on it until the next stable release");
+    expect(html(status({ kind: "idle" }))).not.toContain("until the next stable release");
   });
 
-  test("the Mac's fact says no preview and keeps the brew line, on either channel", () => {
-    const out = html("macos", update, macOnly);
-    expect(out).not.toContain("preview");
-    expect(out).not.toContain("/issues");
-    expect(out).toContain("brew upgrade --cask loki,");
-    const nightly = html("macos", { ...update, current: "2026.9.27-nightly.1111111", channel: "nightly", latest: "2026.9.28-nightly.a96ee85" }, macOnly);
-    expect(nightly).toContain("brew upgrade --cask loki-nightly");
+  test("outside the shell there is no status: the version alone, no channel and no state", () => {
+    const g = globalThis as { __LOKI_VERSION__?: string };
+    g.__LOKI_VERSION__ = "2026.1116.0";
+    const out = html(null);
+    expect(out).toContain("2026.1116.0");
+    expect(out).not.toContain("Nightly");
+    expect(out).not.toContain("Up to date");
   });
 });

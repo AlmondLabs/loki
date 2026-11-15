@@ -98,7 +98,9 @@ plan 2026-11-15-2319). Nothing updates the daemon apart from the app, so the two
 5. **The page sees one status.** `update_status` and `loki:update` events carry `{ channel, current, state }`, where
    `state.kind` is `idle`, `checking`, `downloading` (`done`, and `total` once known), `ready` (`version`), `failed`
    (`stage`: `check`, `download`, `signature` or `install`, and `message`) or `unsupported` (`reason`: `development`
-   or `package`). The page never calls the plugin: no capability grants its commands.
+   or `package`). The page never calls the plugin: no capability grants its commands. In the page,
+   `shell/use-loki-update.ts` mirrors the status, and `shell/restart-notice.tsx` holds the Restart to Update notice and
+   the menu item's action, judging from the window's attention items whether a chat is mid-turn.
 
 ## Inside the daemon
 

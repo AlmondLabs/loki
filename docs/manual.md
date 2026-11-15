@@ -33,13 +33,12 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 The second line matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned
 download as "damaged"; Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no longer has
 a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand once per install. The cask's
-own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xattr` line again; the cask
-follows each release. Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
+own caveat says the same. After that loki updates itself (see "Updates" below). Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
 
 **Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main` that changes more than the docs, built about twenty
 minutes after it lands, versioned `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). The two casks
 conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
-and an install. Preferences › About shows which channel a build is on and names the right cask in its upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
+and an install. Once installed, either build can move to the other channel in Preferences › About (see "Updates"). How releases are cut: [docs/releasing.md](releasing.md).
 
 **The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
 Open is not enough for an unsigned app on macOS 14 and later):
@@ -61,8 +60,9 @@ stops it as an unknown publisher; **More info**, then **Run anyway**, once.
 Both are built on Ubuntu 22.04.
 
 Windows and Linux files come on stable releases only, published on their own before or after the `.dmg` of the
-same version, so take them from the newest release that has them; nightlies are Mac-only. An upgrade is the next
-such release's file; Preferences › About links it when one is out. No package manager carries them yet.
+same version, so take them from the newest release that has them; nightlies are Mac-only. The `-setup.exe` and the
+AppImage update themselves after that, as the Mac's app does; the `.deb` updates from the releases page. No package
+manager carries them yet.
 
 Whichever way, loki brings its own Node (Requirements). Then:
 
@@ -82,9 +82,23 @@ Whichever way, loki brings its own Node (Requirements). Then:
    focused.
 4. Ask your agent to put something on the canvas.
 
-Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app
-re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill folder it did not
-write, so a checkout wired up for development (below) keeps working.
+### Updates
+
+loki checks for a newer version on launch and every six hours, downloads it in the background, and installs it when
+you quit loki; the next launch is the new version. Nothing restarts by surprise: once an update has downloaded,
+a notice says it is ready, with **Restart to Update** and **Later**, and the loki menu's **Check for Updates…** reads
+**Restart to Update…**. If a chat is mid-turn, Restart to Update says that turn will stop and restarts only on
+**Update Anyway**. **Later** hides the notice until loki next opens; quitting still installs the update. An update is
+installed only when its signature matches loki's update key; a failed check, download or signature check leaves the
+running version as it was and says so quietly in Preferences › About, with **Check Again**.
+
+Preferences › About offers **Stable** (each release) or **Nightly** (every change as it lands); the choice takes effect at
+the next check. Switching from Nightly to Stable never installs an older build: loki stays on its nightly until a stable
+newer than it ships. The Windows installer and the Linux AppImage update the same way; the Linux `.deb` does not, and
+About links the releases page for the next one. A development build never checks.
+
+After an update the app re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill
+folder it did not write, so a checkout wired up for development (below) keeps working.
 
 An update can change how a chat store (`~/.loki/stores/<agent>.sqlite`) is laid out, for good: the update to pi 1.4
 in October 2026 did. Before the first start rewrites a store, loki copies it whole to
@@ -306,9 +320,9 @@ are on is read.
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
   6. **loki**
-     1. **About**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
-        hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
-        the preview note), the system it runs on, how the app reaches the mod, requirements
+     1. **About**: loki's own version and where its update stands (up to date, checking, downloading, ready to install
+        when you quit with **Restart to Update**, or what failed with **Check Again**), **Stable** or **Nightly** (see
+        "Updates"), the system it runs on, how the app reaches the mod, requirements
         (the daemon's Node), and, folded, "What launch installed" and "Where loki keeps things".
      2. **Usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
         estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the
@@ -347,8 +361,7 @@ itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Windows and Linux
 
-A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues, which
-Preferences › About links. Chats, Flow, Agents, Learn, Preferences, search and the mod are the Mac's. What
+A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues. Chats, Flow, Agents, Learn, Preferences, search and the mod are the Mac's. What
 differs:
 
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
@@ -435,8 +448,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. When a newer loki is out, the loki menu's **Check for Updates…** reads **Update to <version>…** (the ☰ menu's too on
-Windows and Linux); it opens Preferences › loki, whose **Skip This Version** stops the offer until a newer one. If the icon opens on
+locks it out. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.

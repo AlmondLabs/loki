@@ -4,14 +4,14 @@ import { join } from "node:path";
 import ts from "typescript";
 import { KEYMAP, keyRows, labelOf } from "../app/src/shell/keymap.ts";
 import { keysFor } from "../app/src/shell/keys-sheet.tsx";
-import { lokiUpgrade, osWords, toolsWords } from "../app/src/shell/os-words.ts";
+import { osWords, toolsWords } from "../app/src/shell/os-words.ts";
 import type { Platform } from "../app/src/desk/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
 import { must } from "./fixtures/must.ts";
 
 /**
- * Words for each system (plan 014 U8): copy that names the machine, its file manager or the way to upgrade reads
- * right on Windows and Linux, and the Mac's reads as it did.
+ * Words for each system (plan 014 U8): copy that names the machine or its file manager reads right on Windows and
+ * Linux, and the Mac's reads as it did.
  */
 describe("the words table", () => {
   test("machine and file manager per system", () => {
@@ -21,17 +21,6 @@ describe("the words table", () => {
       "File Explorer",
       "the file manager",
     ]);
-  });
-
-  test("the upgrade line: the cask on the Mac, the release download elsewhere", () => {
-    expect(lokiUpgrade("loki", "macos")).toBe("brew upgrade --cask loki, or the .dmg on the release page");
-    expect(lokiUpgrade("loki-nightly", "macos")).toBe("brew upgrade --cask loki-nightly, or the .dmg on the release page");
-    for (const os of ["windows", "linux"] as const) {
-      expect(lokiUpgrade("loki", os)).not.toMatch(/brew|cask|\.dmg/);
-      expect(lokiUpgrade("loki", os)).toContain("release page");
-    }
-    expect(lokiUpgrade("loki", "linux")).toContain("download");
-    expect(lokiUpgrade("loki", "windows")).toContain("-setup.exe");
   });
 
   test("the Mac keeps its old words for the folder example and the system line", () => {
