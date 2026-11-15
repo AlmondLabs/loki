@@ -2,14 +2,17 @@
 // merges.
 //
 // A stable is `YYYY.MMDD.N`: the UTC year, then month and day (October 11 is 1011, January 1 is 101), then that day's
-// release count from 0 — 2026.1011.0, 2026.1011.1, 2026.1012.0. A nightly is the next stable's number and the merge
-// that built it: `2026.1011.1-nightly.a96ee85`. The number is decided when the release is built, from the date and the
-// stable tags, never written into a PR beforehand, so nothing goes stale and nothing runs on a schedule. The tags are
-// the truth; the version files on main are stamped only on the runner (main takes changes through PRs alone).
+// release count from 0 — 2026.1011.0, 2026.1011.1, 2026.1012.0. A nightly is the next stable's number and the release
+// workflow's run number: `2026.1011.1-nightly.4821`, so nightlies rise run by run and each sorts below the stable it
+// leads up to (semver precedence); the commit it was built from goes in its title and notes. The number is decided when
+// the release is built, from the date and the stable tags, never written into a PR beforehand, so nothing goes stale
+// and nothing runs on a schedule. The tags are the truth; the version files on main are stamped only on the runner
+// (main takes changes through PRs alone).
 // `.github/workflows/release.yml` runs this on every push to main, and by hand:
 //
 //   npm run release -- plan                    what this run does: stable | nightly | preview | none
-//   npm run release -- version <stable|nightly> [sha]   the number this build gets, from the tags as they are now
+//   npm run release -- version stable [sha]    the number this build gets, from the tags as they are now
+//   npm run release -- version nightly <run>   the same for a nightly, from the workflow's run number
 //   npm run release -- set <version>           stamp the three version files (+ Cargo.lock), uncommitted
 //   npm run release -- notes [version]         release notes from the commits since the last stable
 //   npm run release -- release-pr              create, refresh or close the one release PR (branch release/next)
@@ -24,7 +27,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseVersion } from "../core/version.ts";
+import { compareVersions } from "../core/version.ts";
 
 /** What a release run does: ship a stable, the rolling nightly, the Windows and Linux files onto a stable, or nothing. */
 export type Kind = "stable" | "nightly" | "preview" | "none";
@@ -76,14 +79,17 @@ export const dayNumber = (d: Date): string => `${d.getUTCMonth() + 1}${String(d.
 export const stableVersion = (d: Date, n: number): string => `${d.getUTCFullYear()}.${dayNumber(d)}.${n}`;
 /** Whether `v` is a stable's number, `YYYY.MMDD.N` with a real month and day (not the older `YYYY.M.D`). */
 export const isStableVersion = (v: string): boolean => /^\d{4}\.(?:[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\.\d+$/.test(v);
-/** Whether `v` is a nightly's number: the next stable's, then `-nightly.` and the short sha of the merge that built it. */
-export const isNightlyVersion = (v: string): boolean => /^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(v);
+/**
+ * Whether `v` is a nightly's number: the next stable's, then `-nightly.` and the workflow's run number (no leading
+ * zero, which semver forbids). The older `-nightly.<sha>` shape is not one: no new nightly is numbered so.
+ */
+export const isNightlyVersion = (v: string): boolean => /^\d+\.\d+\.\d+-nightly\.[1-9]\d*$/.test(v);
 
-const byVersion = (a: string, b: string) => {
-  const [x, y] = [parseVersion(a), parseVersion(b)];
-  if (!x || !y) throw new Error(`cannot compare ${a} with ${b}: not both versions`);
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
-  return 0;
+/** A sort comparator by semver precedence, oldest first; throws on anything that is not a version. */
+export const byVersion = (a: string, b: string): number => {
+  const order = compareVersions(a, b);
+  if (order === null) throw new Error(`cannot compare ${a} with ${b}: not both versions`);
+  return order;
 };
 
 /** The newest stable among the tags (or the Mac's releases, as `v…`), as a version without the `v`; null when nothing has shipped. */
@@ -99,8 +105,11 @@ export function nextStable(today: Date, tags: string[]): string {
   return stableVersion(today, taken.length ? Math.max(...taken) + 1 : 0);
 }
 
-/** A nightly: the stable it leads up to, and the merge that built it, so it sorts after the last stable and before the next. */
-export const nightlyVersion = (today: Date, tags: string[], sha: string): string => `${nextStable(today, tags)}-nightly.${sha.slice(0, 7)}`;
+/**
+ * A nightly: the stable it leads up to, and the release workflow's run number. It sorts after the last stable and
+ * before the next, and after every earlier nightly, since run numbers only rise.
+ */
+export const nightlyVersion = (stable: string, run: number): string => `${stable}-nightly.${run}`;
 
 const STABLE_TAG = /^v\d+\.\d+\.\d+$/;
 
@@ -130,7 +139,7 @@ const stablesIn = (tags: string[]): string[] => tags.filter((t) => STABLE_TAG.te
  */
 export function plan({
   today,
-  sha,
+  run,
   tags,
   shipped = stablesIn(tags),
   commitsSinceStable,
@@ -138,7 +147,8 @@ export function plan({
   previewMerged = null,
 }: {
   today: Date;
-  sha: string;
+  /** The release workflow's run number, which numbers a nightly. */
+  run: number;
   tags: string[];
   shipped?: string[];
   commitsSinceStable: number;
@@ -158,7 +168,7 @@ export function plan({
   if (commitsSinceStable === 0) return { kind: "none", version: latest ?? "", nextPreview, reason: "nothing since the last stable" };
   return {
     kind: "nightly",
-    version: nightlyVersion(today, tags, sha),
+    version: nightlyVersion(nextStable(today, tags), run),
     nextPreview,
     reason: `${commitsSinceStable} commit${commitsSinceStable === 1 ? "" : "s"} since ${latest === null ? "the beginning" : `v${latest}`}`,
   };
@@ -302,7 +312,8 @@ function cmdPlan(): void {
   const pushed = (process.env.GITHUB_EVENT_NAME ?? "push") === "push";
   const p = plan({
     today: new Date(),
-    sha: git("rev-parse", "HEAD"),
+    // The plan job's run number is the build's: one workflow run. Outside Actions the nightly it names is only a guess.
+    run: Number(process.env.GITHUB_RUN_NUMBER ?? 0),
     tags: tags(),
     shipped: shipped(),
     commitsSinceStable: shipping(commitsSince(lastStable())).length,
@@ -315,17 +326,21 @@ function cmdPlan(): void {
 
 /**
  * The number this build gets, from the tags as they are when it starts. Stable builds run one at a time, so a stable
- * queued behind another sees its tag and takes the next number: two release merges in a day make .0 and .1.
+ * queued behind another sees its tag and takes the next number: two release merges in a day make .0 and .1. A stable
+ * takes its commit (`ref`, HEAD when left out), a nightly the workflow's run number.
  */
-function cmdVersion(kind: string, sha: string): string {
+function cmdVersion(kind: string, ref: string | undefined): string {
   git("fetch", "--tags", "--force", "--quiet", "origin");
   if (kind === "stable") {
     // Drafts count as taken too: a stable whose run failed before it went public holds its number, and its merge run
     // again takes that number back.
     const releases = releaseRefs();
-    return stableFor(sha, releases) ?? nextStable(new Date(), [...tags(), ...releases.map((r) => r.tag)]);
+    return stableFor(ref ?? git("rev-parse", "HEAD"), releases) ?? nextStable(new Date(), [...tags(), ...releases.map((r) => r.tag)]);
   }
-  if (kind === "nightly") return nightlyVersion(new Date(), tags(), sha);
+  if (kind === "nightly") {
+    if (ref === undefined) throw new Error("version nightly: give the release workflow's run number");
+    return nightlyVersion(nextStable(new Date(), tags()), Number(ref));
+  }
   throw new Error(`version: kind is stable or nightly, not ${kind}`);
 }
 
@@ -464,7 +479,11 @@ export function publish({
     return { dmg };
   }
   if (kind === "nightly") {
-    if (!isNightlyVersion(version)) throw new Error(`a nightly version looks like 2026.1011.1-nightly.a96ee85, not ${version}`);
+    if (!isNightlyVersion(version)) throw new Error(`a nightly version looks like 2026.1011.1-nightly.4821, not ${version}`);
+    // The version no longer names the commit, so the title does, in the old `<stable>-nightly.<sha>` shape: nightlies
+    // installed before run numbers read only that shape from the title, so they still see this one as newer. The new
+    // reader (core/version.ts) takes the run-numbered version first. Drop the old shape once those nightlies are gone.
+    const title = `loki ${version} (${version.replace(/-nightly\..*$/, "")}-nightly.${sha.slice(0, 7)})`;
     const state = releaseState(NIGHTLY_TAG, gh);
     if (!state) {
       // A tag left without its release (the old delete-then-create, cancelled between the two) would pin the new
@@ -474,12 +493,12 @@ export function publish({
       } catch {
         // no such tag
       }
-      gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", `loki ${version}`, "--notes-file", notesFile, ...files);
+      gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", title, "--notes-file", notesFile, ...files);
       return { dmg };
     }
     gh("release", "upload", NIGHTLY_TAG, ...files, "--clobber");
     gh("api", "-X", "PATCH", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`, "-f", `sha=${sha}`, "-F", "force=true");
-    gh("release", "edit", NIGHTLY_TAG, "--title", `loki ${version}`, "--notes-file", notesFile, "--prerelease");
+    gh("release", "edit", NIGHTLY_TAG, "--title", title, "--notes-file", notesFile, "--prerelease");
     return { dmg };
   }
   throw new Error(`publish: kind is stable or nightly, not ${kind}`);
@@ -497,12 +516,15 @@ export function pruneNightly(keep: string, gh: (...args: string[]) => string): s
 function cmdPublish(kind: string, version: string, files: string[]): void {
   if (!files.length) throw new Error("publish: no files");
   const notesFile = join(root, ".release-notes.md");
-  writeFileSync(notesFile, cmdNotes(version).replace(/^## .*\n\n/, ""));
+  const sha = git("rev-parse", "HEAD");
+  const notes = cmdNotes(version).replace(/^## .*\n\n/, "");
+  // A nightly's version carries its run, not its commit: the notes say which merge it is.
+  writeFileSync(notesFile, kind === "nightly" ? `Built from ${sha}.\n\n${notes}` : notes);
   const { dmg } = publish({
     kind,
     version,
     files,
-    sha: git("rev-parse", "HEAD"),
+    sha,
     notesFile,
     repo: repoName(),
     downloadDir: join(root, ".release-shipped"),
@@ -625,7 +647,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         cmdPlan();
         break;
       case "version":
-        console.log(cmdVersion(args[0] ?? "", args[1] ?? git("rev-parse", "HEAD")));
+        console.log(cmdVersion(args[0] ?? "", args[1]));
         break;
       case "set":
         console.log(setVersion(args[0] ?? "").join("\n"));
@@ -652,7 +674,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         break;
       default:
         console.error(
-          "usage: npm run release -- plan | version <stable|nightly> [sha] | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | prune-nightly <kept .dmg name> | preview-pr [version] | attach <tag> <files…>",
+          "usage: npm run release -- plan | version stable [sha] | version nightly <run> | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | prune-nightly <kept .dmg name> | preview-pr [version] | attach <tag> <files…>",
         );
         process.exit(2);
     }

@@ -351,10 +351,16 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 
 ## What loki downloads
 
-- **Nothing to run itself.** loki never downloads Node, never runs `sudo`, and never asks Windows for administrator
-  rights. Without a Node 22.19 or newer, Welcome names the command to run yourself (`brew install node`,
-  `winget install OpenJS.NodeJS.LTS`, the distribution's package). The daemon, the mod and the phone's canvas come
-  inside the app and are copied to `~/.loki` on launch.
+- **The runtime its daemon runs on, checked before it runs.** A release downloads the Node it names from nodejs.org
+  and, on Windows when git or Git Bash is missing, PortableGit from Git for Windows' releases on github.com, into
+  `~/.loki/runtime`. Each archive is hashed as it arrives and used only when its SHA-256 matches the one pinned in
+  `src-tauri/runtime.json`, which is compiled into the app; one that does not match is deleted, and nothing of it is
+  unpacked or run. This happens on first launch and when a release names another version; nothing else is fetched
+  this way, and a development build fetches nothing (it runs your Node).
+- **Nothing installed for you.** loki never runs `sudo` and never asks Windows for administrator rights. On a Mac
+  without Apple's command line tools, Welcome's Install Command Line Tools runs `xcode-select --install`, which only
+  shows macOS's own installer for you to accept; on Linux without git, Welcome names the package command for you to
+  run. The daemon, the mod and the phone's canvas come inside the app and are copied to `~/.loki` on launch.
 - **Updates are yours to take.** The app asks GitHub's releases API for a newer loki (on launch and every six hours,
   on the stable or nightly channel it came from) and only links to it: the release page on the Mac, that system's
   `-setup.exe`, AppImage or `.deb` on Windows and Linux. It never downloads or installs a loki itself, and the

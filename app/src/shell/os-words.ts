@@ -49,6 +49,46 @@ const WORDS: Record<Platform, OsWords> = {
   },
 };
 
+/** What Welcome's tools step says on a system whose git is missing (plan 2026-11-15-2319, KTD6). */
+export interface ToolsWords {
+  /** The step's heading. */
+  title: string;
+  /** What is needed and why. */
+  needed: string;
+  /** The button that has the system install it, where there is one (the Mac's). */
+  install: string | null;
+  /** Said once the system was asked to install it. */
+  asked: string | null;
+  /** The commands that install it, for the person to run. */
+  commands: string[];
+  /** Where to run them, after the commands. */
+  where: string | null;
+}
+
+const TOOLS: Record<"macos" | "linux", ToolsWords> = {
+  macos: {
+    title: "Command line tools",
+    needed: "Apple's command line tools are needed. Agents keep their memory and skills with git, which comes with them.",
+    install: "Install Command Line Tools",
+    asked: "macOS is showing its installer. When it has finished, check again.",
+    commands: [],
+    where: null,
+  },
+  linux: {
+    title: "Git",
+    needed: "Git is needed. Agents keep their memory and skills with it.",
+    install: null,
+    asked: null,
+    commands: ["sudo apt install git", "sudo dnf install git"],
+    where: "in a terminal, on Debian or Ubuntu or on Fedora. Then check again.",
+  },
+};
+
+/** The tools step's words on a system whose git is missing. Windows has none: loki fetches PortableGit there itself. */
+export function toolsWords(os: "macos" | "linux"): ToolsWords {
+  return TOOLS[os];
+}
+
 /** The machine's words on a system, the one loki runs on unless told. */
 export function osWords(os: Platform = platform): OsWords {
   return WORDS[os];

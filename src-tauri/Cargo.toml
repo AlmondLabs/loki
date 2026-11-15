@@ -34,6 +34,16 @@ tauri-plugin-dialog = "2"
 # The process list (procs.rs): a daemon left from an earlier run, found by its command line and stopped by pid and
 # start time.
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+# The runtime the app fetches for its daemon (runtime.rs, plan 2026-11-15-2319 KTD4): Node, and PortableGit on Windows,
+# downloaded over rustls with the system's trust store, checked against runtime.json's SHA-256, and unpacked from
+# Node's .tar.gz (Mac, Linux) or .zip (Windows). Blocking: the runtime is fetched off the async runtime's threads.
+# rustls on ring rather than reqwest's default aws-lc-rs, which needs a C toolchain (CMake, NASM) to build on Windows.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+sha2 = "0.10"
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 
 # macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
 # tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).

@@ -4,8 +4,10 @@ import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { PERSONA_HINT } from "../agents/new-agent";
 import { Providers } from "../settings/providers";
 import { isConnected } from "../settings/provider-model";
-import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
+import { Progress } from "@/ui/progress";
+import type { DaemonStatus, Preparing, WelcomeStep } from "./bootstrap";
 import { formatKeys } from "./keymap";
+import { toolsWords } from "./os-words";
 import { useAgentDraft, type CreateAgent } from "./use-agent-draft";
 import { CheckIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
@@ -19,9 +21,10 @@ interface ProviderProps {
 }
 
 /**
- * First launch, as a sheet over the empty desk: a provider (skipped when one is connected), then
- * the first agent, then its desk. Shown only while the daemon lists no agents at all, or could not start
- * (then Node, or the reason, comes first).
+ * First launch, as a sheet over the empty desk: a provider (skipped when one is connected), then the first agent, then
+ * its desk. Shown only while the daemon lists no agents at all. Before the daemon runs it shows only the machine being
+ * readied (`prepare`): the runtime downloading, the tools step, or why the daemon could not start. That is all someone
+ * who finished Welcome before sees after an update that names a new Node.
  */
 export function Welcome({
   step,
@@ -36,12 +39,15 @@ export function Welcome({
   onDone,
   daemon,
   onRetryDaemon,
+  onInstallTools,
 }: ProviderProps & {
-  step: "node" | "provider" | "agent";
+  step: WelcomeStep;
   /** The shell's view of loki's daemon (null in a browser tab). */
   daemon: DaemonStatus | null;
-  /** Look for Node again and start the daemon (the shell's retry_daemon). */
+  /** Run the shell's start sequence again (retry_daemon): the runtime, git, the daemon. */
   onRetryDaemon: () => Promise<void>;
+  /** Have macOS install its command line tools (install_tools); what went wrong, if it could not. */
+  onInstallTools: () => Promise<string | null>;
   models: string[] | null;
   /** Fetch the model list; the Skip for Now / Next button calls it, the shell does when it opens on the agent step. */
   onLoadModels: () => void;
@@ -51,8 +57,7 @@ export function Welcome({
   const [skipProvider, setSkipProvider] = useState(false);
   const draft = useAgentDraft(onCreate, onDone);
   const nameRef = useRef<HTMLInputElement>(null);
-  const nodeStep = step === "node";
-  const showAgent = !nodeStep && (step === "agent" || skipProvider);
+  const showAgent = step === "agent" || (step === "provider" && skipProvider);
   useEffect(() => {
     if (!showAgent) return;
     const t = setTimeout(() => nameRef.current?.focus(), 0);
@@ -60,27 +65,28 @@ export function Welcome({
   }, [showAgent]);
   const connected = providers?.some(isConnected) ?? false;
 
+  if (step === "prepare")
+    return (
+      // Nothing closes this sheet either: it goes once the daemon answers.
+      <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
+        <Intro
+          title="Getting loki ready"
+          line="loki downloads what it runs your agents on. This happens on first launch, and after an update that needs a newer version."
+        />
+        <PrepareStep status={daemon} onRetry={onRetryDaemon} onInstallTools={onInstallTools} />
+      </Sheet>
+    );
+
   return (
     // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
     <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
-      <div>
-        {/* loki's mark, the L (app/public/mark.png). */}
-        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--radius-lg)", marginBottom: 16 }} />
-        <Title page>Welcome to loki</Title>
-        <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>
-          A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
-        </div>
-      </div>
+      <Intro
+        title="Welcome to loki"
+        line="A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think."
+      />
 
-      {nodeStep && (
-        <Step n={0} title={daemon?.nodeMissing ? "Node" : "Starting loki"} active>
-          <DaemonProblem status={daemon} onRetry={onRetryDaemon} />
-        </Step>
-      )}
-
-      <Step n={1} title="A model provider" done={connected} active={!showAgent && !nodeStep}>
+      <Step n={1} title="A model provider" done={connected} active={!showAgent}>
         <ProviderStep
-          nodeStep={nodeStep}
           showAgent={showAgent}
           connected={connected}
           providers={providers}
@@ -99,9 +105,20 @@ export function Welcome({
   );
 }
 
-/** Step 1: waits for the daemon, then the provider shortlist with Next / Skip for Now, then a line naming what connected. */
+/** The sheet's head: loki's mark, a title and a line under it. */
+function Intro({ title, line }: { title: string; line: string }) {
+  return (
+    <div>
+      {/* loki's mark, the L (app/public/mark.png). */}
+      <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--radius-lg)", marginBottom: 16 }} />
+      <Title page>{title}</Title>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>{line}</div>
+    </div>
+  );
+}
+
+/** Step 1: the provider shortlist with Next / Skip for Now, then a line naming what connected. */
 function ProviderStep({
-  nodeStep,
   showAgent,
   connected,
   providers,
@@ -110,8 +127,7 @@ function ProviderStep({
   onDisconnect,
   onModelsChanged,
   onNext,
-}: ProviderProps & { nodeStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
-  if (nodeStep) return <span className="loki-meta loki-meta--wrap">Once loki is running</span>;
+}: ProviderProps & { showAgent: boolean; connected: boolean; onNext: () => void }) {
   if (!showAgent)
     return (
       <div className="grid gap-3">
@@ -214,61 +230,136 @@ function AgentForm({
   );
 }
 
-/** The daemon could not start: for want of a new-enough Node, the Node step; for anything else, the reason and Check Again. */
-export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null; onRetry: () => Promise<void> }) {
+/**
+ * The machine being readied, as the shell reports it: git missing (the tools step), the runtime downloading or failed
+ * to (Preparation), or any other reason the daemon could not start. Try Again and Check Again run the shell's start
+ * sequence again.
+ */
+export function PrepareStep({
+  status,
+  onRetry,
+  onInstallTools,
+}: {
+  status: DaemonStatus | null;
+  onRetry: () => Promise<void>;
+  onInstallTools: () => Promise<string | null>;
+}) {
   const [busy, setBusy] = useState(false);
+  const [asked, setAsked] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const retry = () => {
     setBusy(true);
     void onRetry().finally(() => setBusy(false));
   };
-  if (status?.nodeMissing) return <NodeNeeded missing={status.nodeMissing} busy={busy} onRecheck={retry} />;
+  const install = () => {
+    setProblem(null);
+    void onInstallTools().then((err) => {
+      setAsked(!err);
+      setProblem(err);
+    });
+  };
+  if (status?.toolsMissing) return <Tools os={status.toolsMissing} busy={busy} asked={asked} problem={problem} onInstall={install} onCheck={retry} />;
+  if (status?.preparing) return <Preparation preparing={status.preparing} error={status.error} busy={busy} onRetry={retry} />;
+  return <DaemonProblem error={status?.error ?? null} busy={busy} onRetry={retry} />;
+}
+
+/** Megabytes as the download line says them: whole, as the system's own download windows do. */
+const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
+
+/**
+ * The runtime downloading (Node, or PortableGit on Windows): what, a bar, and how far along. A download that failed
+ * says what failed, the error and Try Again.
+ */
+export function Preparation({ preparing, error, busy, onRetry }: { preparing: Preparing; error: string | null; busy: boolean; onRetry: () => void }) {
+  const what = `${preparing.name === "git" ? "PortableGit" : "Node"} ${preparing.version}`;
+  if (error)
+    return (
+      <div className="grid gap-2">
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{`loki could not download ${what}.`}</div>
+        <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>
+        <Button size="sm" tone="positive" disabled={busy} onClick={onRetry} className="justify-self-start">
+          {busy ? "Trying…" : "Try Again"}
+        </Button>
+      </div>
+    );
+  const { done, total } = preparing;
+  const percent = total ? Math.min(100, Math.round((done / total) * 100)) : null;
+  const far = total ? `${megabytes(done)} of ${megabytes(total)} MB` : done > 0 ? `${megabytes(done)} MB` : "Connecting…";
   return (
     <div className="grid gap-2">
-      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
-      {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{`Downloading ${what}`}</div>
+      <Progress value={percent} aria-label={`Downloading ${what}`} />
+      <div className="loki-meta loki-meta--wrap">{far}</div>
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-        Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
+        loki checks it against the checksum it was built with before it runs anything.
       </div>
-      <Button size="sm" tone="positive" disabled={busy} onClick={retry} className="justify-self-start">
-        {busy ? "Checking…" : "Check Again"}
-      </Button>
     </div>
   );
 }
 
 /**
- * No Node 22 or newer anywhere loki looks: what to install, this system's usual command, the nodejs.org link, and
- * one button — the daemon's retry, which looks for Node afresh and starts the daemon once one is there. loki
- * never downloads Node itself.
+ * git is missing: on the Mac, Apple's command line tools, with a button that has macOS install them; on Linux, the
+ * package commands to run. Check Again looks once more and starts the daemon when git is there.
  */
-export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing; busy: boolean; onRecheck: () => void }) {
-  const help = nodeHelp(missing.os);
+export function Tools({
+  os,
+  busy,
+  asked,
+  problem,
+  onInstall,
+  onCheck,
+}: {
+  os: "macos" | "linux";
+  busy: boolean;
+  /** macOS was asked to install the tools. */
+  asked: boolean;
+  /** Why asking failed, if it did. */
+  problem: string | null;
+  onInstall: () => void;
+  onCheck: () => void;
+}) {
+  const words = toolsWords(os);
   return (
     <div className="grid gap-2">
-      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. loki runs your agents on it.</div>
-      {missing.found && (
-        <div className="loki-meta loki-meta--wrap">
-          The Node found is {missing.found}
-          {missing.at ? (
-            <>
-              {" "}
-              at <code className="loki-mono">{missing.at}</code>
-            </>
-          ) : null}
-          , older than {missing.needed}.
+      <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--loki-fg)" }}>{words.title}</div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{words.needed}</div>
+      {words.commands.length > 0 && (
+        <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+          {words.commands.map((c, i) => (
+            <span key={c}>
+              {i > 0 && " or "}
+              <code className="loki-mono">{c}</code>
+            </span>
+          ))}{" "}
+          {words.where}
         </div>
       )}
-      <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-        <code className="loki-mono">{help.command}</code>
-        {help.also ? (
-          <>
-            {" "}
-            or <code className="loki-mono">{help.also}</code>
-          </>
-        ) : null}{" "}
-        {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
+      {asked && words.asked && <div className="loki-meta loki-meta--wrap">{words.asked}</div>}
+      {problem && <div className="loki-meta loki-meta--negative loki-meta--wrap">{problem}</div>}
+      <div className="flex items-center gap-2">
+        {words.install && (
+          <Button size="sm" tone="positive" disabled={busy} onClick={onInstall}>
+            {words.install}
+          </Button>
+        )}
+        <Button size="sm" tone={words.install ? undefined : "positive"} disabled={busy} onClick={onCheck}>
+          {busy ? "Checking…" : "Check Again"}
+        </Button>
       </div>
-      <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} className="justify-self-start">
+    </div>
+  );
+}
+
+/** Any other reason the daemon could not start: the reason, where its log is, and Check Again. */
+function DaemonProblem({ error, busy, onRetry }: { error: string | null; busy: boolean; onRetry: () => void }) {
+  return (
+    <div className="grid gap-2">
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
+      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+        Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
+      </div>
+      <Button size="sm" tone="positive" disabled={busy} onClick={onRetry} className="justify-self-start">
         {busy ? "Checking…" : "Check Again"}
       </Button>
     </div>

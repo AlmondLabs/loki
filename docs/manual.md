@@ -10,14 +10,16 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under
   [Windows and Linux](#windows-and-linux).
-- **Node 22.19 or newer.** loki runs your agents in its own daemon, a Node process the window starts and keeps
-  running (see [docs/architecture.md](architecture.md)). The Homebrew cask brings Node with it. The shell looks
-  where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
-  global bin, `~/.local/bin`, nvm and fnm. On Linux the list swaps Homebrew for `/usr/local/bin`, `/usr/bin` and
-  Linuxbrew; on Windows it is npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta,
-  nvm-windows, fnm, scoop and bun. loki never downloads Node: with none new enough, Welcome says so, names the
-  usual command (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or `sudo apt install nodejs npm` /
-  `sudo dnf install nodejs`), links nodejs.org, and has **Check Again**, which looks afresh.
+- **Nothing else to install by hand.** loki runs your agents in its own daemon, a Node process the window starts and
+  keeps running (see [docs/architecture.md](architecture.md)), and it brings that Node itself: on first launch it
+  downloads the Node its release names from nodejs.org into `~/.loki/runtime`, checks it against the SHA-256 the
+  release carries, and starts the daemon on it. A later release that names another Node downloads that one on its
+  first launch, and removes the old one once the daemon runs on the new. A Node you installed yourself is left alone
+  and not used; `LOKI_NODE_BIN` names one to run instead.
+- **git**, which agents keep their memory and skills with. On the Mac it comes with Apple's command line tools; when
+  they are missing, Welcome asks for them (below). On Windows, when git or Git Bash is missing, loki downloads
+  PortableGit from Git for Windows' releases into `~/.loki/runtime` beside Node, checked the same way. On Linux it is
+  the distribution's package (`sudo apt install git`, `sudo dnf install git`); Welcome names it when git is missing.
 
 ## Install
 
@@ -35,7 +37,7 @@ own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xat
 follows each release. Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
 
 **Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main` that changes more than the docs, built about twenty
-minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
+minutes after it lands, versioned `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). The two casks
 conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
 and an install. Preferences › About shows which channel a build is on and names the right cask in its upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
 
@@ -62,18 +64,23 @@ Windows and Linux files come on stable releases only, published on their own bef
 same version, so take them from the newest release that has them; nightlies are Mac-only. An upgrade is the next
 such release's file; Preferences › About links it when one is out. No package manager carries them yet.
 
-Whichever way, the cask brings Node; the `.dmg`, source, Windows and Linux routes need a Node 22.19 or newer
-(Requirements). Then:
+Whichever way, loki brings its own Node (Requirements). Then:
 
 1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
    skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "What launch installed".
-   Then it finds Node and starts the daemon, which hosts the mod.
-2. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key, or sign in in
+   Then it makes sure its Node is in place and git is there, and starts the daemon, which hosts the mod.
+2. The first launch opens on **Getting loki ready** while it downloads Node (and PortableGit on Windows, when it is
+   needed): what it is fetching, a bar and how far along it is. A download that fails says what failed, with **Try
+   Again**. On a Mac without Apple's command line tools, it then asks for them: **Install Command Line Tools** shows
+   macOS's own installer, and **Check Again**, once that has finished, goes on. On Linux without git it names the
+   package command, with **Check Again**. After an update that names a new Node you see only the download, then
+   your chats.
+3. Then **Welcome** shows over the empty window: connect a model provider (paste a key, or sign in in
    the browser, for Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and more; a key is checked with
    the provider, then kept in your system's keychain; every turn is billed by that provider), then name your first
    agent, with a description, a persona and a model. You land on its main chat, on Messages, with the message box
    focused.
-3. Ask your agent to put something on the canvas.
+4. Ask your agent to put something on the canvas.
 
 Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app
 re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill folder it did not
@@ -546,7 +553,11 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 ## Install (development)
 
 You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs npm, Vite, the
-Tauri CLI, the tests and loki's daemon. Then:
+Tauri CLI, the tests and loki's daemon: a development build runs the daemon on your Node, never downloading one. It
+looks where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
+global bin, `~/.local/bin`, nvm and fnm (on Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place; on
+Windows npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta, nvm-windows, fnm, scoop and bun).
+Then:
 
 ```bash
 npm install
@@ -591,9 +602,8 @@ When something does not come up:
 1. **The window opens but the app never links** (Vite prints `ws proxy error … 41414`): the daemon is not
    running, or its mod failed. `~/.loki/logs/daemon.log` has the daemon's output, its error at start included,
    and `~/.loki/mod.log` the mod's.
-2. **Welcome shows the Node step**: no Node 22.19 or newer anywhere loki looks. It names the command for your
-   system (`brew install node`, `winget install OpenJS.NodeJS.LTS`, the distribution's package); install it,
-   then **Check Again**. `LOKI_NODE_BIN` points loki at one it does not find.
+2. **Welcome says there is no Node 22.19 or newer for this development build**: none anywhere loki looks. Put one on
+   PATH, or point `LOKI_NODE_BIN` at one it does not find, then **Check Again**.
 3. **The installed app is running**: its daemon holds `~/.loki`, so yours waits (`daemon.log` says it exited with
    code 3). Quit the app.
 
@@ -672,8 +682,8 @@ the wrong way.
 in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
 and one of its models (the others show once it has run once). From the first message the chat stays on Claude
 Code: the other tabs are greyed out, and a new chat is how you go back to loki's. loki starts Claude
-Code itself, always through `npx` at the adapter version this loki pins (npx fetches it the first time), so it needs
-Node and a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
+Code itself, always through `npx` at the adapter version this loki pins (npx, which comes with loki's Node, fetches
+it the first time), so it needs a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
 
 - the replies, tool calls and their diffs show as in any chat, and stay in loki's history and Flow;
 - when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude

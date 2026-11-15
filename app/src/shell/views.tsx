@@ -18,7 +18,7 @@ import type { ModelEntry } from "../chat/model-picker";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 
 import { Welcome } from "./welcome";
-import type { DaemonStatus } from "./bootstrap";
+import type { DaemonStatus, WelcomeStep } from "./bootstrap";
 import type { LokiUpdate } from "./use-loki-update";
 import type { GlobalShortcut } from "./use-global-shortcut";
 import type { CatchUp, Desk, Runtime } from "./types";
@@ -284,21 +284,23 @@ export function SettingsView({ onClose, ...sources }: PreferencesSources & { onC
   );
 }
 
-/** First launch, over the empty desk: Node when the daemon could not start, the provider, the first agent, its desk. */
+/** First launch, over the empty desk: the machine readied while the daemon cannot start yet, the provider, the first agent, its desk. */
 export function WelcomeView({
   step,
   catchUp,
   daemon,
   onRetryDaemon,
+  onInstallTools,
   models,
   onLoadModels,
   onModelsChanged,
   onDone,
 }: {
-  step: "node" | "provider" | "agent";
+  step: WelcomeStep;
   catchUp: CatchUp;
   daemon: DaemonStatus | null;
   onRetryDaemon: () => Promise<void>;
+  onInstallTools: () => Promise<string | null>;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
   onModelsChanged: () => void;
@@ -317,6 +319,7 @@ export function WelcomeView({
       onCreate={catchUp.createAgent}
       daemon={daemon}
       onRetryDaemon={onRetryDaemon}
+      onInstallTools={onInstallTools}
       onDone={onDone}
     />
   );

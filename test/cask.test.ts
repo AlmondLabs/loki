@@ -18,9 +18,9 @@ describe("homebrew cask", () => {
   });
 
   test("the nightly cask follows the rolling prerelease and conflicts with the stable one", () => {
-    const rb = renderCask({ owner: "example", version: "2026.9.28-nightly.a96ee85", sha256: sha, channel: "nightly" });
+    const rb = renderCask({ owner: "example", version: "2026.1011.1-nightly.4821", sha256: sha, channel: "nightly" });
     expect(rb).toContain('cask "loki-nightly" do');
-    expect(rb).toContain('version "2026.9.28-nightly.a96ee85"');
+    expect(rb).toContain('version "2026.1011.1-nightly.4821"');
     expect(rb).toContain('url "https://github.com/example/loki/releases/download/nightly/loki_#{version}_universal.dmg"');
     expect(rb).toContain('name "loki nightly"');
     expect(rb).toContain('conflicts_with cask: "example/loki/loki"');
@@ -28,7 +28,7 @@ describe("homebrew cask", () => {
     expect(rb).not.toContain("github_latest");
     expect(rb).toContain('app "loki.app"'); // the same app, so the same zap list and caveat
     expect(() => renderCask({ owner: "example", version: "2026.9.28", sha256: sha, channel: "nightly" })).toThrow(/nightly version/);
-    expect(() => renderCask({ owner: "example", version: "2026.9.28-nightly.a96ee85", sha256: sha })).toThrow(/version/);
+    expect(() => renderCask({ owner: "example", version: "2026.1011.1-nightly.4821", sha256: sha })).toThrow(/version/);
   });
 
   test("matches the app's floor and knows what loki leaves behind", () => {

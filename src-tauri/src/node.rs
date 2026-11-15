@@ -1,9 +1,10 @@
-//! Node.js on this machine, for loki's daemon (plan 017): the `node` a terminal would run, found where installers
-//! put it. Discovery looks at `LOKI_NODE_BIN` first, then PATH, then the folders GUI apps do not see on their short
-//! PATH (Homebrew's prefixes, volta, bun, nvm, fnm, npm's own global bin; on Windows the nodejs.org installer's,
-//! nvm-windows', fnm's, scoop's). Nothing new enough: `NodeMissing`, which Welcome shows as its Node step, with this
-//! system's usual way to install one. Nothing is cached, so a Node installed while Welcome waits is found by the
-//! next look (`retry_daemon`).
+//! Node.js for loki's daemon. A release build runs the Node it fetched itself (runtime.rs, plan 2026-11-15-2319 KTD4);
+//! a development build, as since plan 017, the `node` a terminal would run, found where installers put it. Discovery
+//! looks at `LOKI_NODE_BIN` first, then PATH, then the folders GUI apps do not see on their short PATH (Homebrew's
+//! prefixes, volta, bun, nvm, fnm, npm's own global bin; on Windows the nodejs.org installer's,
+//! nvm-windows', fnm's, scoop's). Nothing new enough in a development build: `NodeMissing`, whose line Welcome shows as
+//! the reason the daemon could not start. Nothing is cached, so a Node installed meanwhile is found by the next look
+//! (`retry_daemon`).
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -48,7 +49,8 @@ impl Os {
         }
     }
 
-    fn path_separator(self) -> char {
+    /// What PATH's folders are joined with on this system.
+    pub(crate) fn path_separator(self) -> char {
         if self == Os::Windows {
             ';'
         } else {
@@ -92,12 +94,12 @@ impl Host {
     }
 
     /// An environment folder, when set and not empty.
-    fn dir(&self, key: &str) -> Option<PathBuf> {
+    pub(crate) fn dir(&self, key: &str) -> Option<PathBuf> {
         (self.var)(key).filter(|v| !v.is_empty()).map(PathBuf::from)
     }
 
     /// The first of `program`'s names that is a file in `dir`.
-    fn program_in(&self, dir: &Path, program: &str) -> Option<PathBuf> {
+    pub(crate) fn program_in(&self, dir: &Path, program: &str) -> Option<PathBuf> {
         self.os.names(program).into_iter().map(|n| dir.join(n)).find(|p| p.is_file())
     }
 }
@@ -202,13 +204,22 @@ pub fn bin_dirs_for(h: &Host) -> Vec<PathBuf> {
     dirs
 }
 
-/// The `node` program of the first Node 22.19+ (loki's daemon runs on it); else what Welcome says about the Node there is.
-pub fn find_node_program(home: &Path) -> Result<PathBuf, NodeMissing> {
-    let host = Host::this(home);
-    match find_node_for(&host) {
-        Ok(dir) => host.program_in(&dir, "node").ok_or_else(|| node_missing(host.os, None)),
-        Err(old) => Err(node_missing(host.os, old)),
+/// The `node` program loki's daemon runs on (`node_program_for`); else what is missing (only ever in a development
+/// build: a release always has its runtime's).
+pub fn find_node_program(home: &Path, runtime: Option<&Path>) -> Result<PathBuf, NodeMissing> {
+    node_program_for(&Host::this(home), runtime).map_err(node_missing)
+}
+
+/// The `node` the daemon runs on. A release build passes the runtime it fetched (runtime.rs) and runs only that; a
+/// development build passes none and takes the first Node 22.19+ (`find_node_for`). `LOKI_NODE_BIN` wins in either,
+/// when it names a Node new enough. Else the newest older Node seen, if any.
+pub fn node_program_for(h: &Host, runtime: Option<&Path>) -> Result<PathBuf, Option<(Version, PathBuf)>> {
+    if let Some(runtime) = runtime {
+        let chosen = h.dir("LOKI_NODE_BIN").filter(|p| p.is_file() && (h.version)(p).is_some_and(|v| v >= NODE_MIN));
+        return Ok(chosen.unwrap_or_else(|| runtime.to_path_buf()));
     }
+    let dir = find_node_for(h)?;
+    h.program_in(&dir, "node").ok_or(None)
 }
 
 /// The folder of the first Node 22.19+ (LOKI_NODE_BIN, then `bin_dirs_for`); else the newest older one seen, if any.
@@ -231,10 +242,9 @@ pub fn find_node_for(h: &Host) -> Result<PathBuf, Option<(Version, PathBuf)>> {
     Err(old)
 }
 
-/// No Node 22.19+ anywhere loki looks: what daemon_status carries so Welcome can say so, for this system.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+/// No Node 22.19+ anywhere a development build looks: the newest older one, if any, for the line Welcome shows.
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeMissing {
-    pub os: Os,
     /// The newest older Node found ("20.11.1"), if any, and where.
     pub found: Option<String>,
     pub at: Option<String>,
@@ -242,27 +252,23 @@ pub struct NodeMissing {
     pub needed: String,
 }
 
-pub fn node_missing(os: Os, old: Option<(Version, PathBuf)>) -> NodeMissing {
+pub fn node_missing(old: Option<(Version, PathBuf)>) -> NodeMissing {
     let (found, at) = match old {
         Some(((a, b, c), p)) => (Some(format!("{a}.{b}.{c}")), Some(p.display().to_string())),
         None => (None, None),
     };
-    NodeMissing { os, found, at, needed: format!("{}.{}", NODE_MIN.0, NODE_MIN.1) }
+    NodeMissing { found, at, needed: format!("{}.{}", NODE_MIN.0, NODE_MIN.1) }
 }
 
 impl NodeMissing {
-    /// The error line: what is missing, and this system's usual way to install it.
+    /// The error line, for whoever runs a development build: what is missing and how to point loki at a Node. A
+    /// release never says it; it fetches its own (runtime.rs).
     pub fn message(&self) -> String {
         let what = match (&self.found, &self.at) {
             (Some(v), Some(at)) => format!("Node {v} at {at} is older than {}", self.needed),
             _ => format!("no Node {} or newer", self.needed),
         };
-        match self.os {
-            Os::Macos if self.found.is_none() => format!("{what} on this Mac — `brew install node` (the Homebrew cask brings it), then retry"),
-            Os::Macos => format!("{what} — `brew install node` (the Homebrew cask brings it), then retry"),
-            Os::Windows => format!("{what} — `winget install OpenJS.NodeJS.LTS` in a terminal, or the installer from nodejs.org, then check again"),
-            Os::Linux => format!("{what} — the distribution's package (`sudo apt install nodejs npm`, `sudo dnf install nodejs`) when it is 22 or newer, else nodejs.org's instructions, then check again"),
-        }
+        format!("{what} for this development build: put one on PATH or set LOKI_NODE_BIN, then check again")
     }
 }
 
@@ -471,7 +477,7 @@ mod tests {
             Err(Some(((22, 18, 0), home.join(".volta/bin/node")))),
             "the newest of the old ones is named"
         );
-        let missing = node_missing(Os::Linux, find_node_for(&h).unwrap_err());
+        let missing = node_missing(find_node_for(&h).unwrap_err());
         assert_eq!(missing.found.as_deref(), Some("22.18.0"));
         assert_eq!(
             missing.at.as_deref().map(PathBuf::from),
@@ -479,24 +485,44 @@ mod tests {
             "compared as paths: on Windows the folder list mixes / and \\"
         );
         assert_eq!(missing.needed, "22.19");
-        assert_eq!(missing.os, Os::Linux);
         let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]
-    fn the_node_missing_line_names_each_systems_install() {
-        let none = node_missing(Os::Windows, None);
-        assert_eq!(none.found, None);
-        assert!(none.message().contains("winget install OpenJS.NodeJS.LTS"), "{}", none.message());
-        assert!(none.message().contains("nodejs.org"));
-        let linux = node_missing(Os::Linux, None).message();
-        assert!(linux.contains("apt") && linux.contains("dnf"), "{linux}");
-        let old = node_missing(Os::Linux, Some(((20, 11, 1), PathBuf::from("/usr/bin/node")))).message();
-        assert!(old.contains("20.11.1") && old.contains("/usr/bin/node"), "{old}");
+    fn a_release_build_runs_the_runtime_node_a_dev_build_looks_and_loki_node_bin_wins_in_any_build() {
+        let home = fake_home();
+        let runtime = home.join(".loki/runtime/node-22.23.5-linux-x64/bin/node");
+        node_file(&runtime, "v22.23.5");
+        node_file(&home.join(".volta/bin/node"), "v24.1.0");
+        let h = host(Os::Linux, &home, "", vec![]);
         assert_eq!(
-            node_missing(Os::Macos, None).message(),
-            "no Node 22.19 or newer on this Mac — `brew install node` (the Homebrew cask brings it), then retry",
-            "the Mac's line as it was"
+            node_program_for(&h, Some(&runtime)),
+            Ok(runtime.clone()),
+            "a release build: the runtime's, not volta's"
         );
+        assert_eq!(node_program_for(&h, None), Ok(home.join(".volta/bin/node")), "a dev build: today's lookup");
+        let mine = home.join("mine/node");
+        node_file(&mine, "v25.0.0");
+        let h = host(Os::Linux, &home, "", vec![("LOKI_NODE_BIN", mine.clone())]);
+        assert_eq!(node_program_for(&h, Some(&runtime)), Ok(mine.clone()), "LOKI_NODE_BIN over the runtime");
+        assert_eq!(node_program_for(&h, None), Ok(mine.clone()), "LOKI_NODE_BIN over the lookup");
+        // One too old to run the daemon is passed over, as it always was.
+        node_file(&mine, "v20.11.1");
+        assert_eq!(node_program_for(&h, Some(&runtime)), Ok(runtime));
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn the_node_missing_line_is_for_a_development_build_and_never_tells_anyone_to_install_node() {
+        let none = node_missing(None).message();
+        assert_eq!(
+            none,
+            "no Node 22.19 or newer for this development build: put one on PATH or set LOKI_NODE_BIN, then check again"
+        );
+        let old = node_missing(Some(((20, 11, 1), PathBuf::from("/usr/bin/node")))).message();
+        assert!(old.contains("20.11.1") && old.contains("/usr/bin/node") && old.contains("22.19"), "{old}");
+        for line in [none, old] {
+            assert!(!line.contains("brew") && !line.contains("winget") && !line.contains("apt"), "{line}");
+        }
     }
 }

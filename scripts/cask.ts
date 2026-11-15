@@ -4,8 +4,8 @@
 // (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
 // The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
 // xattr line that lets macOS open it; System Settings › Privacy & Security › Open Anyway is the other way.
-// The cask depends on the `node` formula: loki's daemon runs on Node 22.19 or newer, so a Mac with nothing on it
-// gets Node from Homebrew.
+// The cask still depends on the `node` formula, which builds from before loki fetched its own Node need; the
+// self-updating cask drops it (plan 2026-11-15-2319, U6).
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -28,8 +28,8 @@ export function dmgName(version: string): string {
 export function renderCask({ owner, version, sha256, channel = "stable" }: CaskInput): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)) throw new Error(`not a GitHub owner: ${owner}`);
   if (channel === "stable" && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version} (expected 2026.1011.0, no v)`);
-  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(version))
-    throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.a96ee85)`);
+  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[1-9]\d*$/.test(version))
+    throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.4821)`);
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error(`not a sha256: ${sha256}`);
   const nightly = channel === "nightly";
   const tag = nightly ? "nightly" : "v#{version}";
@@ -57,7 +57,7 @@ ${
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
   depends_on macos: :ventura
-  # loki's daemon runs on Node 22.19 or newer (docs/manual.md › Requirements).
+  # Builds from before loki fetched its own Node run their daemon on Homebrew's.
   depends_on formula: "node"
 
   app "loki.app"
