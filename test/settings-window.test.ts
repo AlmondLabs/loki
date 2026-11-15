@@ -23,8 +23,8 @@ describe("the Settings window", () => {
 
   test("the page boots the settings-only root in that window, and the shell sends Preferences there on the Mac", () => {
     expect(read(APP, "boot.tsx")).toMatch(/window\.__LOKI__\?\.window === "settings"\s*\? \(await import\("\.\/shell\/settings-window"\)\)\.SettingsWindow/);
+    expect(read(APP, "shell", "open-settings.ts")).toContain('export const SETTINGS_WINDOW = inTauri && platform === "macos";');
     const win = read(APP, "shell", "settings-window.tsx");
-    expect(win).toContain('export const SETTINGS_WINDOW = inTauri && platform === "macos";');
     expect(win).toContain("<Settings key={opening.n} {...preferencesProps(sources)} windowed initialPage={opening.page} />");
     const shell = read(APP, "shell", "shell.tsx");
     expect(shell).toContain("const settingsWindow = SETTINGS_WINDOW;");

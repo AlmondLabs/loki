@@ -104,8 +104,6 @@ const RADII = new Set([2, 4, 6, 8, 12, 16, 24, 999]);
 const TRACKING = new Set<string>([]);
 /** Serif, condensed and narrow faces have no place in either presentation. */
 const RETIRED_FACE = /(?<!sans-)serif|New York|Iowan|Georgia|Avenir|Condensed|Narrow/i;
-/** The agent's hue is computed, not a token. */
-const COMPUTED = (hit: string) => hit.startsWith("desk/agent-chip.tsx:");
 
 const findAll = (list: typeof files, re: RegExp, pick: (m: RegExpMatchArray) => string) =>
   list.flatMap((f) => [...f.text.matchAll(re)].map((m) => `${f.path}: ${pick(m)}`));
@@ -199,7 +197,7 @@ describe("design tokens: every style stays on the scales", () => {
   test("no literal colours — every colour is a --loki token", () => {
     const re = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b(?![0-9a-fA-F])|rgba?\([^)]*\)|hsla?\([^)]*\)/g;
     // the phone's token file holds its own literals, only in custom property declarations (fenced below)
-    const hits = findAll(files, re, (m) => m[0]).filter((h) => !COMPUTED(h) && !h.startsWith("kit/tokens.css") && !h.startsWith("phone/phone.css"));
+    const hits = findAll(files, re, (m) => m[0]).filter((h) => !h.startsWith("kit/tokens.css") && !h.startsWith("phone/phone.css"));
     expect(hits).toEqual([]);
   });
   test("the font size fence fails loki's old tokens, px and numbers, and passes the four sizes and the phone's", () => {

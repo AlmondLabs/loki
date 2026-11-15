@@ -48,7 +48,7 @@ import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
 import { useShellAttention } from "./use-shell-attention";
-import { MODELS_CHANGED_KEY, openSettingsWindow, SETTINGS_WINDOW } from "./settings-window";
+import { MODELS_CHANGED_KEY, openSettingsWindow, SETTINGS_WINDOW } from "./open-settings";
 import { useStorageKey } from "../shared/use-storage-key";
 
 const SEGMENT_KEY = "loki.segment";

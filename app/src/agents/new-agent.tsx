@@ -108,14 +108,17 @@ export function NewAgent({
 /**
  * A labelled line in the new-agent form: one label column wide enough for the longest label, so every control starts
  * at the same edge; the label sits level with the control's first line (a list's label at its top, not its middle).
+ * A named line is a `<label>`, so its words name the field to a screen reader and a click on them focuses it; the
+ * unnamed line holding the buttons stays a plain box, where a label would turn a stray click into a press of Cancel.
  */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
+  const Line = label ? "label" : "div";
   return (
-    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4" style={{ padding: "0 8px" }}>
+    <Line className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4" style={{ padding: "0 8px" }}>
       <span className="loki-label" style={{ paddingTop: 8, lineHeight: "18px" }}>
         {label}
       </span>
-      <div className="min-w-0">{children}</div>
-    </div>
+      <span className="block min-w-0">{children}</span>
+    </Line>
   );
 }

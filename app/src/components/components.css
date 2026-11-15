@@ -1940,6 +1940,13 @@ button.loki-list-section-toggle {
     z-index: 2;
     background: linear-gradient(var(--loki-bg) 75%, transparent);
   }
+  /* The header's controls sit on that solid ground (the tabs measured 10–42px of a 52px header, solid to 39), so a blur
+     there has nothing to blur, yet it re-runs every frame the thread scrolls or streams beneath. They keep the glass
+     fill and edge, which is all that shows; the composer, over the dock's clear top, keeps its blur. */
+  .loki-desk-pane > .loki-pane-header :is(.loki-tabs, .loki-toolbar-group) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
   .loki-desk-pane-messages {
     top: calc(-1 * var(--loki-header-height));
   }
@@ -2150,14 +2157,15 @@ button.loki-list-section-toggle {
   }
 
   /* Keyboard (U5): Apple's focus ring in place of loki's flash, a steady accent halo around the control that has
-     focus. Text fields keep the caret as their mark, as in every family. */
+     focus. Text fields keep the caret as their mark, as in every family. The ring is the accent at full strength: at
+     the half-strength tint Apple draws it measured 2.4:1 on the light panel, under the 3:1 a focus mark needs. */
   button:focus-visible,
   select:focus-visible,
   summary:focus-visible,
   [role="button"]:focus-visible,
   [tabindex]:focus-visible,
   a:focus-visible {
-    outline: 3px solid color-mix(in oklab, var(--loki-accent) 55%, transparent);
+    outline: 3px solid var(--loki-accent);
     outline-offset: 1px;
     animation: none;
   }

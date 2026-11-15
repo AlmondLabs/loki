@@ -1,34 +1,16 @@
 import { useEffect, useState } from "react";
 import { Notices, notify } from "../components";
-import { inTauri, platform } from "../desk/env";
+import { inTauri } from "../desk/env";
 import { useDesk } from "../desk/use-desk";
 import { Settings } from "../settings/settings";
 import { useDaemonStatus } from "./bootstrap";
+import { MODELS_CHANGED_KEY } from "./open-settings";
 import { useChatLayout } from "./use-chat-layout";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useLokiUpdate } from "./use-loki-update";
 import { useRecall } from "./use-recall";
 import { useShellAttention } from "./use-shell-attention";
 import { preferencesProps } from "./views";
-
-/**
- * Whether Preferences opens as a window of its own (plan 2026-11-12-1505, U18): the Mac app only. Windows, Linux and a
- * browser tab keep the sheet.
- */
-export const SETTINGS_WINDOW = inTauri && platform === "macos";
-
-/** Whether this page is the Settings window, as the shell's start-up script says (src-tauri lib.rs settings_script). */
-export const isSettingsWindow = typeof window !== "undefined" && window.__LOKI__?.window === "settings";
-
-/** The localStorage key the Settings window marks when the models changed, so the main window asks for them again. */
-export const MODELS_CHANGED_KEY = "loki.models-changed";
-
-/** Open the Settings window on `page`, or bring it forward on it when it is open. */
-export function openSettingsWindow(page?: string | null): void {
-  void import("@tauri-apps/api/core")
-    .then(({ invoke }) => invoke("open_settings", { page: page ?? null }))
-    .catch((e: unknown) => console.warn("loki: settings window", e));
-}
 
 /** Mark the models changed in shared storage; the main window's storage event asks for its list again. */
 function markModelsChanged(): void {
