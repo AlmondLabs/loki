@@ -4,8 +4,8 @@
 // (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
 // The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
 // xattr line that lets macOS open it; System Settings › Privacy & Security › Open Anyway is the other way.
-// The cask depends on the `node` formula: loki's daemon runs on Node 22.19 or newer, so a Mac with nothing on it
-// gets Node from Homebrew.
+// The cask still depends on the `node` formula, which builds from before loki fetched its own Node need; the
+// self-updating cask drops it (plan 2026-11-15-2319, U6).
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -57,7 +57,7 @@ ${
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
   depends_on macos: :ventura
-  # loki's daemon runs on Node 22.19 or newer (docs/manual.md › Requirements).
+  # Builds from before loki fetched its own Node run their daemon on Homebrew's.
   depends_on formula: "node"
 
   app "loki.app"

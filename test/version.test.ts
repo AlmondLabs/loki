@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { isNewerVersion, nightlyVersionIn, parseVersion } from "../core/version.ts";
+import { compareVersions, isNewerVersion, nightlyVersionIn, parseVersion } from "../core/version.ts";
 import { byVersion, nightlyVersion, stableVersion } from "../scripts/release.ts";
 
 test("release tags and plain versions parse alike", () => {
@@ -55,6 +55,15 @@ test("nightlies of one stable order by run number, as numbers", () => {
   expect(isNewerVersion("2026.1120.0-nightly.9999", "2026.1120.0-nightly.10000")).toBe(true);
   expect(isNewerVersion("2026.1120.0-nightly.10000", "2026.1120.0-nightly.9999")).toBe(false);
   expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4821")).toBe(false);
+});
+
+test("prerelease ties break by semver: words above numbers, longer above shorter, build metadata ignored", () => {
+  // A nightly installed before run numbers sorts above a run-numbered one of the same stable: semver ranks words above
+  // numbers. Those nightlies are replaced by the cask's one last upgrade, not by this comparison.
+  expect(compareVersions("2026.1011.1-nightly.a96ee85", "2026.1011.1-nightly.4821")).toBeGreaterThan(0);
+  expect(compareVersions("1.0.0-nightly", "1.0.0-nightly.1")).toBeLessThan(0);
+  expect(compareVersions("1.0.0+a", "1.0.0+b")).toBe(0);
+  expect(compareVersions("1.0.0", "not a version")).toBeNull();
 });
 
 test("a nightly of the next stable is newer than the current stable", () => {

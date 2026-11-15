@@ -198,11 +198,27 @@ const RUNTIME_EVENT: &str = "loki:runtime";
 const PROGRESS_EVERY: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// DaemonStatus, kept current by start_daemon and the supervisor; `supervising` while a supervisor thread watches
-/// the daemon, so a retry never starts a second one beside it.
+/// the daemon, so a retry never starts a second one beside it; `starting` while start_daemon runs, so a retry during
+/// the first download never runs a second start whose download would delete the first one's files.
 #[derive(Default)]
 struct DaemonState {
     status: std::sync::Mutex<DaemonStatus>,
     supervising: std::sync::atomic::AtomicBool,
+    starting: std::sync::atomic::AtomicBool,
+}
+
+/// Clears DaemonState::starting when a start ends, however it ends.
+struct Starting<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl Drop for Starting<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Claim the one start; None while another start holds it.
+fn begin_start(flag: &std::sync::atomic::AtomicBool) -> Option<Starting<'_>> {
+    (!flag.swap(true, std::sync::atomic::Ordering::SeqCst)).then_some(Starting(flag))
 }
 
 impl DaemonState {
@@ -278,6 +294,8 @@ async fn install_tools() -> Result<(), String> {
 fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     let (home, data) = (home_dir(), loki_dir());
     let state = app.state::<DaemonState>();
+    // One start at a time: a second one waits for nothing and changes nothing; the running one publishes what happens.
+    let Some(_starting) = begin_start(&state.starting) else { return Ok(()) };
     let failed = |node: Option<String>, e: &str| {
         publish(app, |s| *s = DaemonStatus { node, error: Some(e.to_string()), ..DaemonStatus::default() })
     };
@@ -721,6 +739,16 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn one_start_at_a_time_and_the_next_may_start_once_it_ends() {
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let first = begin_start(&flag);
+        assert!(first.is_some());
+        assert!(begin_start(&flag).is_none(), "a second start while the first runs");
+        drop(first);
+        assert!(begin_start(&flag).is_some(), "a start after the first ended");
+    }
     use std::ffi::OsString;
 
     #[test]

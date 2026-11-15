@@ -23,13 +23,14 @@ the steps.
 
 ## First run
 
-1. **With Node 22.19 or newer.** loki puts its daemon, its mod and the phone's canvas under `~/.loki` and starts
-   the daemon on that Node; Welcome asks for a model provider (a key, or a sign-in in the browser), then for a
-   first agent, and you land on its main chat. Preferences › About shows what launch installed and the Node it
-   found.
-2. **With no Node, or an older one.** Welcome says Node is needed, shows `winget install OpenJS.NodeJS.LTS` on
-   Windows or the apt and dnf lines on Linux, and links nodejs.org. Install Node and press **check again**: the
-   daemon starts without restarting loki. `LOKI_NODE_BIN` points loki at a Node it does not find.
+1. **A first launch.** loki puts its daemon, its mod and the phone's canvas under `~/.loki`, and Welcome shows
+   "Getting loki ready" while it downloads the Node its release names into `~/.loki/runtime` (and PortableGit on
+   Windows when git or Git Bash is missing), with a progress bar. Then it asks for a model provider (a key, or a
+   sign-in in the browser), then for a first agent, and you land on its main chat. Preferences › About shows what
+   launch installed and the Node it runs on.
+2. **With no network, or no git.** A download that fails shows what failed and **Try Again**, which works once the
+   network is back. On Linux with no git, Welcome shows the apt and dnf lines and **Check Again**: the daemon starts
+   without restarting loki.
 3. **A key is kept in the system's keychain** (Windows Credential Manager, or the Secret Service on Linux): after a
    restart the provider is still connected.
 

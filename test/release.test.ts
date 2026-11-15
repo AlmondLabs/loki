@@ -71,7 +71,7 @@ describe("versions: the UTC day, then that day's count", () => {
     expect(isNewerVersion(n, "2026.1011.1")).toBe(true); // the stable it led up to is newer: switching to Stable waits for it
     expect(isNewerVersion(n, nightlyVersion(nextStable(OCT11, tags), 4822))).toBe(true); // a later run of the same day
     expect(channelOf(n)).toBe("nightly");
-    expect(nightlyVersionIn(`loki ${n} (a96ee85)`)).toBe(n);
+    expect(nightlyVersionIn(`loki ${n} (2026.1011.1-nightly.a96ee85)`)).toBe(n);
     expect(nightlyVersionIn("loki 2026.1011.0")).toBeNull();
   });
 
@@ -270,7 +270,13 @@ describe("publish: the Mac's files, each step safe to run again (plan 096)", () 
       "the create call",
     );
     expect(create).toContain("--prerelease");
-    expect(create[create.indexOf("--title") + 1]).toBe("loki 2026.1011.1-nightly.4821 (a96ee85)"); // the commit, now the version has none
+    const title = create[create.indexOf("--title") + 1];
+    expect(title).toBe("loki 2026.1011.1-nightly.4821 (2026.1011.1-nightly.a96ee85)"); // the commit, now the version has none
+    // A nightly installed before run numbers reads the title with the old reader (kept here as it shipped) and finds a
+    // version other than its own, so it still offers the update; the new reader takes the run-numbered one.
+    const shippedReader = (t: string) => /\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}/.exec(t)?.[0] ?? null;
+    expect(shippedReader(title)).toBe("2026.1011.1-nightly.a96ee85");
+    expect(nightlyVersionIn(title)).toBe("2026.1011.1-nightly.4821");
     expect(create).toContain(nightly);
   });
 
@@ -293,7 +299,7 @@ describe("publish: the Mac's files, each step safe to run again (plan 096)", () 
       calls.find((c) => c[1] === "edit"),
       "the edit call",
     );
-    expect(edit[edit.indexOf("--title") + 1]).toBe("loki 2026.1011.1-nightly.4821 (a96ee85)");
+    expect(edit[edit.indexOf("--title") + 1]).toBe("loki 2026.1011.1-nightly.4821 (2026.1011.1-nightly.a96ee85)");
     expect(calls.some((c) => c[1] === "delete")).toBe(false);
   });
 
