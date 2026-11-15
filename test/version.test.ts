@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { isNewerVersion, parseVersion } from "../core/version.ts";
-import { nightlyVersion, stableVersion } from "../scripts/release.ts";
+import { isNewerVersion, nightlyVersionIn, parseVersion } from "../core/version.ts";
+import { byVersion, nightlyVersion, stableVersion } from "../scripts/release.ts";
 
 test("release tags and plain versions parse alike", () => {
   expect(parseVersion("v0.3.0")).toEqual([0, 3, 0]);
@@ -41,6 +41,46 @@ test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through mo
 });
 
 /**
+ * Semver precedence (plan 2026-11-15-2319 KTD2), the order the updater uses: a release ranks above its prereleases,
+ * and a nightly's run number compares as a number. So switching from Nightly to Stable never installs an older build.
+ */
+test("a stable is newer than the nightlies that led up to it, and no older stable is (AE4)", () => {
+  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0")).toBe(true);
+  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1119.2")).toBe(false);
+  expect(isNewerVersion("2026.1120.0", "2026.1120.0-nightly.4821")).toBe(false);
+});
+
+test("nightlies of one stable order by run number, as numbers", () => {
+  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4822")).toBe(true);
+  expect(isNewerVersion("2026.1120.0-nightly.9999", "2026.1120.0-nightly.10000")).toBe(true);
+  expect(isNewerVersion("2026.1120.0-nightly.10000", "2026.1120.0-nightly.9999")).toBe(false);
+  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4821")).toBe(false);
+});
+
+test("a nightly of the next stable is newer than the current stable", () => {
+  expect(isNewerVersion("2026.1120.0", "2026.1121.0-nightly.4900")).toBe(true);
+  expect(isNewerVersion("2026.1121.0-nightly.4900", "2026.1120.0")).toBe(false);
+});
+
+test("a release title's nightly version is found in the new shape and the old", () => {
+  expect(nightlyVersionIn("loki 2026.1120.0-nightly.4821")).toBe("2026.1120.0-nightly.4821");
+  expect(nightlyVersionIn("loki 2026.1120.0-nightly.4821 (a96ee85)")).toBe("2026.1120.0-nightly.4821");
+  expect(nightlyVersionIn("loki 2026.1011.1-nightly.a96ee85")).toBe("2026.1011.1-nightly.a96ee85");
+});
+
+test("stables and nightlies sort together by precedence", () => {
+  const shuffled = ["2026.1121.0-nightly.4900", "2026.1120.0", "2026.1120.0-nightly.10000", "2026.1119.2", "2026.1120.0-nightly.4821", "2026.1121.0"];
+  expect([...shuffled].sort(byVersion)).toEqual([
+    "2026.1119.2",
+    "2026.1120.0-nightly.4821",
+    "2026.1120.0-nightly.10000",
+    "2026.1120.0",
+    "2026.1121.0-nightly.4900",
+    "2026.1121.0",
+  ]);
+});
+
+/**
  * Windows (plan 014 U10): only stables are built for Windows (the Windows and Linux PR), but a nightly's number would do too.
  * Tauri's NSIS bundler takes the app version as is. It parses it as semver, drops the
  * pre-release, and writes `VIProductVersion "M.m.p.B"` with B the build metadata when numeric, else 0; each part
@@ -60,8 +100,11 @@ test("stable and nightly versions build an NSIS installer as is: semver, no buil
   const days = [new Date("2026-09-24T12:00:00Z"), new Date("2026-12-31T23:59:00Z"), new Date("2099-01-01T00:00:00Z")];
   for (const d of days) {
     for (const n of [0, 1, 99]) expect(productVersion(stableVersion(d, n))).toBe(`${stableVersion(d, n)}.0`);
-    expect(productVersion(nightlyVersion(d, [], "abc1234def"))).toBe(`${stableVersion(d, 0)}.0`);
-    expect(nightlyVersion(d, [], "abc1234def")).not.toContain("+");
+    for (const run of [1, 4821, 65536, 999999]) {
+      // the run number is in the prerelease, which NSIS drops, so it never meets the 16-bit cap
+      expect(productVersion(nightlyVersion(stableVersion(d, 0), run))).toBe(`${stableVersion(d, 0)}.0`);
+      expect(nightlyVersion(stableVersion(d, 0), run)).not.toContain("+");
+    }
   }
   expect(productVersion("2026.1231.65535")).toBe("2026.1231.65535.0"); // the widest the scheme gets, inside 16 bits
   expect(productVersion("2026.9.24-nightly.abc1234")).toBe("2026.9.24.0"); // old-scheme nightlies still parse

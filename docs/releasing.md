@@ -73,7 +73,9 @@ people have confirmed the builds, and the README's and Settings' preview notes w
 
 A stable is `YYYY.MMDD.N`: the UTC year, then the month and the two-digit day (October 11 is `1011`, January 1 is
 `101`), then that day's release count from 0. `2026.1011.0`, then `2026.1011.1` the same day, then `2026.1012.0`.
-A nightly is the number of the stable it leads up to plus the merge it was built from: `2026.1011.1-nightly.a96ee85`.
+A nightly is the number of the stable it leads up to plus the release workflow's run number: `2026.1011.1-nightly.4821`.
+Run numbers only rise, so nightlies sort in order and each sorts below the stable it leads up to; the commit goes in its
+title and notes.
 
 - **The number is decided when the stable is built**, from the date and the stable tags, not written into the PR:
   the build job counts today's `vYYYY.MMDD.*` tags and takes the next. Stable builds run one at a time in their own

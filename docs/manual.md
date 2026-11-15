@@ -35,7 +35,7 @@ own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xat
 follows each release. Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
 
 **Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main` that changes more than the docs, built about twenty
-minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
+minutes after it lands, versioned `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). The two casks
 conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
 and an install. Preferences › About shows which channel a build is on and names the right cask in its upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
 

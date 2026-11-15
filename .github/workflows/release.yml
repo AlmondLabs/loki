@@ -122,12 +122,17 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       # The number, decided now from the date and the tags (a stable queued behind another sees its tag), stamped on
-      # the runner only: main takes changes through PRs alone.
+      # the runner only: main takes changes through PRs alone. A nightly is numbered by this run, so nightlies rise run
+      # by run; its commit goes in the release's title instead.
       - name: decide and stamp the version
         id: version
         run: |
           set -euo pipefail
-          VERSION="$(npm run --silent release -- version "$KIND" "$GITHUB_SHA")"
+          if [ "$KIND" = nightly ]; then
+            VERSION="$(npm run --silent release -- version nightly "$GITHUB_RUN_NUMBER")"
+          else
+            VERSION="$(npm run --silent release -- version stable "$GITHUB_SHA")"
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "this build is $KIND $VERSION"
