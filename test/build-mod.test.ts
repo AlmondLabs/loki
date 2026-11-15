@@ -25,10 +25,19 @@ describe("the release bundle's build", () => {
 
   test("the script sandbox's worker and QuickJS wasm ship beside the daemon, where daemon/scripts.ts and the package look", () => {
     expect(src).toContain("outfile: `${out}/daemon/codemode-worker.mjs`");
-    expect(src).toContain("pi-codemode/dist/runtime/worker.js");
+    expect(src).toContain('packageDir("@earendil-works/pi-codemode", root)');
+    expect(src).toContain('join(codemode, "dist/runtime/worker.js")');
     expect(src).toMatch(/\["package\.json", "quickjs\.wasm"\]/);
     expect(src).toContain("`${out}/daemon/node_modules/quickjs-wasi/${file}`");
     expect(readFileSync(new URL("../daemon/scripts.ts", import.meta.url), "utf8")).toContain('new URL("./codemode-worker.mjs", import.meta.url)');
+  });
+
+  // quickjs-wasi and the keyring's prebuilt binary are dependencies of dependencies: npm puts them at the top of
+  // node_modules, pnpm beside the package that wants them, so a fixed path built under npm and failed under pnpm.
+  test("finds a dependency's own dependencies from that dependency, so a pnpm install builds too", () => {
+    expect(src).toContain('packageDir("quickjs-wasi", codemode)');
+    expect(src).toContain("findPackageDir(name, keyring)");
+    expect(src).not.toMatch(/here\(`?["']?\.\.\/node_modules\//);
   });
 
   test("the mod takes ws from one module, the package esbuild inlines", () => {
