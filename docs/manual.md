@@ -871,7 +871,9 @@ across the stretches. Reading them side by side, the model writes one card for a
 a revision, not a second card, for a later correction; a card the person keeps failing brings the tail of the
 conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space (or ↵ or ↓) for the answer, then one of two answers — ← again or → got it
 (1 and 2 do the same; space then stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
-the scheduler modern Anki uses.
+the scheduler modern Anki uses. The card shows no list of keys: each is in its button's tooltip (hold the pointer over
+**Show Answer**, **Delete** and the rest), in the Learn menu and in Preferences › Keyboard shortcuts. **Delete** sits apart
+at the card's trailing edge, in red.
 Learn's views are its sources in the sidebar, under Learn: **Review** (the deck, with the count of cards due), **Leads**,
 **All Cards** and **Deleted**; ⌘[ and ⌘] step through them. The list beside the sidebar holds the view's cards or leads,
 and the detail the deck or the one you chose. In Review the list is the due queue with the card in front of you selected:

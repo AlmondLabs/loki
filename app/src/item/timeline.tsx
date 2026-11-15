@@ -134,6 +134,13 @@ function ThreadBody({
         if (samePlan(plan, lastPlan)) repeated.add(p.key);
         lastPlan = plan;
       }
+  // The stretch a failed turn ended on (plan 2026-11-15-1035, R16): its failure stays red, since the work stopped there;
+  // a failure the agent went on past is drawn grey.
+  const stopped = new Set<string>();
+  for (const e of entries) {
+    const last = e.kind === "turn" && e.failed ? e.parts.at(-1) : undefined;
+    if (last?.kind === "steps") stopped.add(last.key);
+  }
   // A thought before a reply that follows work joins that work's line (plan 2026-11-14-0852, 4).
   const thoughts = thoughtsIntoWork(entries.flatMap((e) => (e.kind === "turn" ? [e.parts] : [])));
   // The live turn's badge already says it is working; the thinking line is for the wait before its first part.
@@ -171,6 +178,7 @@ function ThreadBody({
             arrived={p.arrived}
             waiting={paused(p.rows)}
             planAsBefore={repeated.has(p.key)}
+            stopped={stopped.has(p.key)}
           />
         );
       case "event":

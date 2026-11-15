@@ -53,6 +53,23 @@ describe("Work", () => {
     expect(out).not.toContain("shimmer");
     expect(out).toContain("failed");
   });
+
+  test("a failure the agent went on past is grey; one the turn stopped on is red (plan 2026-11-15-1035, R16)", () => {
+    const rows = [bash(), bash({ failed: true, output: "boom" })];
+    const failureLine = (out: string) => /<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*failed<\/button>/.exec(out)?.[1] ?? "";
+    const went = html(createElement(Work, { rows, running: false, arrived: false }));
+    expect(failureLine(went)).toContain("text-muted-foreground");
+    expect(failureLine(went)).not.toContain("text-loki-negative");
+    const stopped = html(createElement(Work, { rows, running: false, arrived: false, stopped: true }));
+    expect(failureLine(stopped)).toContain("text-loki-negative");
+  });
+
+  test("a finished stretch is marked with a checklist, not a terminal's prompt (R16)", () => {
+    const out = html(createElement(Work, { rows: [bash()], running: false, arrived: false }));
+    expect(out).toContain("lucide-list-checks");
+    expect(out).not.toContain("lucide-square-terminal");
+    expect(out).not.toContain("lucide-terminal");
+  });
 });
 
 describe("an opened step", () => {

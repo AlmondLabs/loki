@@ -54,7 +54,7 @@ export function MemoryPage({
         <span className="flex-1" />
         <Button
           size="sm"
-          tone="brass"
+          tone="paper"
           onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)}
           title="Opens the agent's main chat with the request started"
         >
