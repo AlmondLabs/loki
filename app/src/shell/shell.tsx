@@ -16,8 +16,7 @@ import { agentSources } from "../agents/agents-column";
 import { learnSources } from "../recall/learn-column";
 import { useLearnView } from "../recall/use-learn-view";
 import { flowSources } from "../desk/flow-column";
-import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
-import { welcomeStep } from "../settings/provider-model";
+import { useDaemonStatus, welcomeFor } from "./bootstrap";
 import { afterSegmentKey } from "../settings/preferences";
 import {
   ColumnToggle,
@@ -56,7 +55,7 @@ import { takeCommandCenter, useSharedModels, type CommandScope } from "./command
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
 import { agentsHasList, agentsSelection, useAgentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
-import type { CatchUp, Runtime } from "./types";
+import type { Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
 import { useShellAttention } from "./use-shell-attention";
@@ -69,18 +68,6 @@ const SEGMENT_KEY = "loki.segment";
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
   return s === "inbox" || s === "agents" || s === "learn" ? s : "desk";
-}
-
-/** First launch: nothing to talk to yet. Only while the daemon could not start, or has answered and lists no agents. */
-function welcomeFor(
-  daemon: DaemonStatus | null,
-  catchUp: Pick<CatchUp, "status" | "agentsLoaded" | "agents" | "providers">,
-): "node" | "provider" | "agent" | null {
-  return daemon?.error && catchUp.status !== "open"
-    ? "node" // the daemon could not start (no new-enough Node, or another reason) and nothing answers
-    : catchUp.status === "open" && catchUp.agentsLoaded
-      ? welcomeStep({ agents: catchUp.agents.length, providers: catchUp.providers })
-      : null;
 }
 
 /**
@@ -777,6 +764,7 @@ export function Shell() {
               catchUp={catchUp}
               daemon={daemon.status}
               onRetryDaemon={daemon.retry}
+              onInstallTools={daemon.installTools}
               models={modelList}
               onLoadModels={loadModels}
               onModelsChanged={forgetModels}

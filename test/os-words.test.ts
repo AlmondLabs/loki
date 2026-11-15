@@ -4,7 +4,7 @@ import { join } from "node:path";
 import ts from "typescript";
 import { KEYMAP, keyRows, labelOf } from "../app/src/shell/keymap.ts";
 import { keysFor } from "../app/src/shell/keys-sheet.tsx";
-import { lokiUpgrade, osWords } from "../app/src/shell/os-words.ts";
+import { lokiUpgrade, osWords, toolsWords } from "../app/src/shell/os-words.ts";
 import type { Platform } from "../app/src/desk/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
 import { must } from "./fixtures/must.ts";
@@ -44,6 +44,17 @@ describe("the words table", () => {
     }
   });
 
+  test("the tools step: the Mac's command line tools with their install button, Linux's package commands", () => {
+    const mac = toolsWords("macos");
+    expect(mac.needed).toContain("Apple's command line tools");
+    expect(mac.install).toBe("Install Command Line Tools");
+    expect(mac.commands).toEqual([]);
+    const linux = toolsWords("linux");
+    expect(linux.install).toBeNull();
+    expect(linux.commands).toEqual(["sudo apt install git", "sudo dnf install git"]);
+    expect(`${linux.needed} ${linux.where ?? ""}`).not.toMatch(/macOS|Apple|xcode/i);
+  });
+
   test("the mod's own machine word", () => {
     expect([machineWord("darwin"), machineWord("win32"), machineWord("linux")]).toEqual(["this Mac", "this PC", "this computer"]);
   });
@@ -70,16 +81,16 @@ describe("Hide loki off the Mac is Minimise loki", () => {
 });
 
 /**
- * No string the app shows names this Mac or Finder outside the words table and the views of Mac-only features
- * (the phone, which pairs with a Mac; Preferences › Phone), plus the Mac-only lines inside shared views, listed
- * one by one. Comments are not strings.
+ * No string the app shows names this Mac or Finder, the Mac's command line tools or a Linux package command outside the
+ * words table and the views of Mac-only features (the phone, which pairs with a Mac; Preferences › Phone), plus the
+ * Mac-only lines inside shared views, listed one by one. Comments are not strings.
  */
 describe("the machine comes from the words table", () => {
   const APP = join(import.meta.dirname, "..", "app", "src");
   const ALLOW = ["shell/os-words.ts", "phone/", "settings/phone.tsx"];
   /** Phone pairing is on the Mac only (U3): the rail's Settings label says so only while it is on. */
   const MAC_ONLY_LINES = ["shell/sidebar.tsx: , phones can reach this Mac"];
-  const MAC_WORDS = /\b[Tt]his Mac\b|\bFinder\b/;
+  const MAC_WORDS = /\b[Tt]his Mac\b|\bFinder\b|\b[Cc]ommand [Ll]ine [Tt]ools\b|\bsudo (?:apt|dnf)\b/;
   const walk = (dir: string): string[] =>
     readdirSync(dir).flatMap((n) =>
       statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : /\.tsx?$/.test(n) && !n.endsWith(".d.ts") ? [join(dir, n)] : [],
@@ -109,6 +120,10 @@ describe("the machine comes from the words table", () => {
       "on this Mac",
       "in Finder",
       "This Mac",
+    ]);
+    expect(strings("y.ts", 'const c = "Install Command Line Tools";\nconst d = `sudo apt install git`;').map((s) => s.split(": ")[1])).toEqual([
+      "Install Command Line Tools",
+      "sudo apt install git",
     ]);
   });
   test("no string outside the table and the Mac-only views", () => {

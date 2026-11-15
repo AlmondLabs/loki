@@ -129,10 +129,11 @@ newer release carries it. There is no Homebrew, winget or Flatpak package yet.
 
 You need macOS 13.3 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
 
-1. **Node 22.19 or newer**, which runs loki's daemon. The cask brings it; for the `.dmg`, Windows and Linux,
-   install one yourself (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or your distribution's
-   package). loki never downloads Node; if it finds none new enough, Welcome says what to run and checks again.
-2. **git**, which keeps each agent's memory as a repo with history (Xcode's command line tools bring it on a Mac).
+1. **Nothing for Node.** loki downloads the Node its daemon runs on into `~/.loki/runtime` on first launch, and checks
+   it before it runs it; Welcome shows the download.
+2. **git**, which keeps each agent's memory as a repo with history. On a Mac it comes with Apple's command line
+   tools, which Welcome offers to install; on Windows loki fetches PortableGit when git is missing; on Linux, your
+   distribution's package.
 
 On first launch loki asks for a model provider: an API key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
 others) or signing in through the browser (ChatGPT, GitHub Copilot, OpenRouter and others). Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
@@ -191,8 +192,8 @@ core/           desk-core (types + the pure gesture reducer both halves use), th
                 portable, no browser globals
 app/            Vite + React: the desktop views, the canvas and the phone
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
-src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): finds Node, starts and supervises the daemon, hosts the
-                canvas
+src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): fetches Node, starts and supervises the daemon, hosts
+                the canvas
 scripts/        dev (`npm start`), build-mod (the daemon and mod bundles the app ships), trial (the timing trial), cask
                 (Homebrew), release (date versions, notes), analytics (the local usage report)
 test/           vitest tests, on Node; test-node/ the tests that need Node's own runner (SQLite stores, resuming after a crash)

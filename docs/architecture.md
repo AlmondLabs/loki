@@ -45,7 +45,8 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
     └── children: bash commands, background tasks, git, ripgrep
 ```
 
-1. **The shell starts the daemon and keeps it alive.** At launch it finds Node 22.19 or newer (`node.rs`), stops a
+1. **The shell starts the daemon and keeps it alive.** At launch, beside the window rather than before it, it makes sure
+   of the daemon's Node and of git (`runtime.rs`; see "Finding Node and other programs" below), stops a
    daemon an earlier loki left behind (`procs.rs`, matched by its command line and start time), and starts a new one
    (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build runs the
    checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to `~/.loki/logs/daemon.log`. A
@@ -540,7 +541,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `desk/outside-card.tsx`
    draws an outside thread with the item components only when asked (`items`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
-   `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
+   `runtime.rs` fetches a release's Node (and PortableGit on Windows) and checks for git; `node.rs` finds a development
+   build's Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus, built in AppKit so an
    action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight
@@ -574,10 +576,17 @@ place, and the Mac's side of it is what shipped first.
    set).
 5. **Finding a leftover daemon.** `procs.rs` reads the process list through `sysinfo` on every system and matches
    the daemon's command line (`--loki-daemon` and loki's token file).
-6. **Finding Node and other programs.** `node.rs` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
+6. **Finding Node and other programs.** A release build fetches its own Node (`runtime.rs`, plan 2026-11-15-2319): the
+   version `src-tauri/runtime.json` names, downloaded from nodejs.org into `~/.loki/runtime/<name>-<version>-<target>/`,
+   checked against the SHA-256 pinned there and renamed into place whole; on Windows PortableGit too, when git or Git
+   Bash is missing. Then git: on the Mac `xcode-select -p` and that its folder holds `usr/bin/git` (never running
+   `/usr/bin/git`, which raises the system's install dialog), on Linux `git` on PATH. The sequence runs off the main
+   thread, so the window opens at once; `DaemonStatus` carries the download's progress (`preparing`) or the missing
+   tools (`tools_missing`), sent to the page as `loki:runtime` events, and Welcome shows them; `retry_daemon` runs the
+   sequence again and `install_tools` runs `xcode-select --install`. A development build runs the machine's Node:
+   `node.rs` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
    does not see on its short PATH: Homebrew's prefixes, volta, nvm, fnm and npm's global bin, and on Windows the
-   nodejs.org installer's folder, nvm-windows, fnm and scoop. Nothing new enough becomes Welcome's Node step, with
-   this system's usual install line. The mod finds `tailscale` (and `bd`, for the one-time move of open tasks)
+   nodejs.org installer's folder, nvm-windows, fnm and scoop; nothing new enough is the reason Welcome shows. The mod finds `tailscale` (and `bd`, for the one-time move of open tasks)
    through `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.

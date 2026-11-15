@@ -112,7 +112,7 @@ pub struct Runtime {
 }
 
 /// Make sure the manifest's Node (and PortableGit, when `h.git`) is unpacked under `h.root`, fetching what is
-/// missing, and say where it is. `progress` hears every download from its first byte to its last.
+/// missing, and say where it is. `progress` hears every download from before its server answers to its last byte.
 pub fn ensure(h: &Host, progress: &mut dyn FnMut(&Progress)) -> Result<Runtime, String> {
     let node_dir = present_or_fetch(h, "node", &h.manifest.node, progress)?;
     let bin = if windows(&h.target) { node_dir } else { node_dir.join("bin") };
@@ -159,6 +159,37 @@ pub fn git_missing(h: &node::Host) -> bool {
         .filter_map(|k| h.dir(k))
         .any(|root| root.join("Git").join("bin").join("bash.exe").is_file());
     !(on_path("git") && (git_bash || on_path("bash")))
+}
+
+/// Whether git, which agents keep their memory and skills with, is missing where Welcome must ask for it (KTD6). On the
+/// Mac: Apple's command line tools, found when `developer_dir` (what `xcode-select -p` prints, if it succeeds) holds
+/// `usr/bin/git`. `/usr/bin/git` itself is never run or checked: without the tools it is a stub that raises the
+/// system's install dialog uninvited. On Linux: `git` on PATH. On Windows: never; PortableGit is fetched instead
+/// (`git_missing`). Nothing is cached, so the next look (Check Again) finds what was installed meanwhile.
+pub fn tools_missing(h: &node::Host, developer_dir: &dyn Fn() -> Option<PathBuf>) -> bool {
+    match h.os {
+        node::Os::Macos => !developer_dir().is_some_and(|d| d.join("usr").join("bin").join("git").is_file()),
+        node::Os::Linux => !h
+            .path
+            .as_deref()
+            .unwrap_or_default()
+            .split(h.os.path_separator())
+            .filter(|d| !d.is_empty())
+            .any(|d| h.program_in(Path::new(d), "git").is_some()),
+        node::Os::Windows => false,
+    }
+}
+
+/// The Mac's active developer folder, as `xcode-select -p` prints it (the command line tools' or Xcode's); None when
+/// there is none, and on other systems.
+pub fn developer_dir() -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let out =
+        Command::new("/usr/bin/xcode-select").arg("-p").stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+    let dir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (out.status.success() && !dir.is_empty()).then(|| PathBuf::from(dir))
 }
 
 fn windows(target: &str) -> bool {
@@ -251,6 +282,8 @@ fn fetch_checked(
     progress: &mut dyn FnMut(&Progress),
 ) -> Result<(), String> {
     let failed = |e: &dyn std::fmt::Display| format!("could not download {file_name}: {e}");
+    // Said before the server answers, so whoever shows progress names the download while it connects (or stalls).
+    progress(&Progress { name, version, done: 0, total: None });
     let (mut body, total) = (h.fetch)(&archive.url).map_err(|e| failed(&e))?;
     let mut out = std::fs::File::create(to).map_err(|e| failed(&e))?;
     let mut hash = Sha256::new();
@@ -333,15 +366,17 @@ fn run_self_extracting(archive: &Path, into: &Path) -> Result<(), String> {
     }
 }
 
+/// The runtime's test doubles (a served manifest, a fetcher, PortableGit's extractor) are the crate's, so lib.rs's
+/// tests of the start sequence fetch through them too.
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::cell::Cell;
     use std::collections::HashMap;
     use std::rc::Rc;
 
     /// A fresh folder per call; the counter keeps parallel tests apart (as node.rs's `fake_home`).
-    fn temp_root() -> PathBuf {
+    pub(crate) fn temp_root() -> PathBuf {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
@@ -384,13 +419,13 @@ mod tests {
     const GIT_URL: &str = "https://example.test/PortableGit-2.56.1-64-bit.7z.exe";
 
     /// The published files a test serves, by URL, and how many downloads it was asked for.
-    struct Server {
-        files: HashMap<String, Vec<u8>>,
-        fetches: Rc<Cell<u32>>,
+    pub(crate) struct Server {
+        pub(crate) files: HashMap<String, Vec<u8>>,
+        pub(crate) fetches: Rc<Cell<u32>>,
     }
 
     impl Server {
-        fn new() -> Server {
+        pub(crate) fn new() -> Server {
             let mut files = HashMap::new();
             for t in ["darwin-arm64", "darwin-x64", "linux-x64"] {
                 files.insert(node_url(t), node_tar_gz(&format!("node-v{NODE}-{t}"), &format!("v{NODE}")));
@@ -416,7 +451,7 @@ mod tests {
         }
 
         /// A fetcher serving these files whole.
-        fn fetch(&self) -> FetchFn {
+        pub(crate) fn fetch(&self) -> FetchFn {
             let (files, fetches) = (self.files.clone(), self.fetches.clone());
             Box::new(move |url| {
                 fetches.set(fetches.get() + 1);
@@ -439,7 +474,7 @@ mod tests {
         })
     }
 
-    fn host(root: &Path, target: &str, server: &Server) -> Host {
+    pub(crate) fn host(root: &Path, target: &str, server: &Server) -> Host {
         Host {
             root: root.to_path_buf(),
             target: target.into(),
@@ -450,7 +485,7 @@ mod tests {
         }
     }
 
-    fn names(root: &Path) -> Vec<String> {
+    pub(crate) fn names(root: &Path) -> Vec<String> {
         let mut v: Vec<String> = std::fs::read_dir(root)
             .map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
             .unwrap_or_default();
@@ -471,7 +506,8 @@ mod tests {
         assert_eq!(rt.path, vec![dir.join("bin")]);
         assert_eq!(names(&root), ["node-22.23.5-darwin-arm64"], "no download or temporary folder left beside it");
         let total = server.files[&node_url("darwin-arm64")].len() as u64;
-        assert_eq!(seen.first(), Some(&("node".to_string(), 0, Some(total))));
+        assert_eq!(seen[0], ("node".to_string(), 0, None), "said before the server answers, so Welcome names it");
+        assert_eq!(seen[1], ("node".to_string(), 0, Some(total)), "then again with the size the server gave");
         assert_eq!(seen.last(), Some(&("node".to_string(), total, Some(total))));
         #[cfg(unix)]
         {
@@ -550,6 +586,12 @@ mod tests {
         let err = ensure(&h, &mut |_| {}).unwrap_err();
         assert!(err.contains("could not download node-v22.23.5-darwin-arm64.tar.gz"), "{err}");
         assert!(names(&root).is_empty(), "nothing kept: {:?}", names(&root));
+        // A server that never answers: what was being fetched was still said, before the error.
+        h.fetch = Box::new(|_| Err("connection refused".into()));
+        let mut seen = vec![];
+        let err = ensure(&h, &mut |p| seen.push((p.name.to_string(), p.done, p.total))).unwrap_err();
+        assert!(err.contains("connection refused"), "{err}");
+        assert_eq!(seen, [("node".to_string(), 0, None)]);
         // A launch that died mid-unpack left a temporary folder with junk in it: the next attempt clears it.
         let stale = root.join(".node-22.23.5-darwin-arm64.unpack");
         std::fs::create_dir_all(stale.join("junk")).unwrap();
@@ -663,6 +705,50 @@ mod tests {
         assert!(git.join("cmd").join("git.exe").is_file());
         assert!(fetched.iter().all(|n| n == "git"), "Node was already there: {fetched:?}");
         assert_eq!(names(&root), ["git-2.56.1-win-x64", "node-22.23.5-win-x64"]);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn git_for_agents_is_missing_on_the_mac_without_the_command_line_tools_and_on_linux_without_git_on_path() {
+        let home = temp_root();
+        let bin = home.join("bin");
+        let on = |os: node::Os| node::Host {
+            os,
+            home: home.clone(),
+            root: home.clone(),
+            path: Some(format!("{}{}", bin.display(), os.path_separator())),
+            var: Box::new(|_| None),
+            version: Box::new(|_| None),
+        };
+        let clt = home.join("CommandLineTools");
+        let asked = Cell::new(0);
+        let developer_dir = |dir: Option<PathBuf>| {
+            let asked = &asked;
+            move || {
+                asked.set(asked.get() + 1);
+                dir.clone()
+            }
+        };
+        // The Mac: `xcode-select -p` failing means no tools at all.
+        assert!(tools_missing(&on(node::Os::Macos), &developer_dir(None)));
+        // A developer folder chosen but without its git (tools removed by hand) is still missing.
+        std::fs::create_dir_all(&clt).unwrap();
+        assert!(tools_missing(&on(node::Os::Macos), &developer_dir(Some(clt.clone()))));
+        std::fs::create_dir_all(clt.join("usr").join("bin")).unwrap();
+        std::fs::write(clt.join("usr").join("bin").join("git"), b"").unwrap();
+        assert!(!tools_missing(&on(node::Os::Macos), &developer_dir(Some(clt.clone()))));
+        // A git on PATH does not stand in for the tools: /usr/bin/git, the one agents run, needs them.
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("git"), b"").unwrap();
+        assert!(tools_missing(&on(node::Os::Macos), &developer_dir(None)));
+        assert_eq!(asked.get(), 4, "the Mac asks xcode-select every time: nothing is cached");
+        // Linux: git on PATH, whatever xcode-select would say (it is never asked).
+        assert!(!tools_missing(&on(node::Os::Linux), &developer_dir(None)));
+        std::fs::remove_file(bin.join("git")).unwrap();
+        assert!(tools_missing(&on(node::Os::Linux), &developer_dir(None)));
+        // Windows: never a tools step; PortableGit is fetched instead (`git_missing`).
+        assert!(!tools_missing(&on(node::Os::Windows), &developer_dir(None)));
+        assert_eq!(asked.get(), 4, "only the Mac asks xcode-select");
         let _ = std::fs::remove_dir_all(&home);
     }
 }
