@@ -23,7 +23,7 @@ import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
 import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
-import { PopoverMenu } from "../shell/menu-items";
+import { DrawnMenu } from "../shell/menu-items";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl } from "./env";
@@ -425,7 +425,7 @@ function DeskActions() {
     );
   return (
     <span className="loki-desk-pane-menu-anchor">
-      <PopoverMenu
+      <DrawnMenu
         label="Chat actions"
         entries={entries}
         open={menuOpen}

@@ -47,7 +47,7 @@ import "./desk-sidebar.css";
 import { popUpMenu, NATIVE_MENUS, type MenuEntry } from "./native-menu";
 import { FilterPills, type FilterPill } from "./filter-pills";
 import { ActivityIcon, BellIcon, CircleDotIcon, MessagesSquareIcon, type LucideIcon } from "lucide-react";
-import { MenuItems, menuKey } from "./menu-items";
+import { DrawnMenu } from "./menu-items";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
@@ -469,44 +469,24 @@ export function rowMenuEntries({
   ];
 }
 
-/** A row's context menu drawn at the pointer, where no native menu pops up: rowMenuEntries. ↑↓ Enter Esc, or click; a press outside closes it. */
+/**
+ * A row's context menu drawn at the pointer, where no native menu pops up: rowMenuEntries on a DrawnMenu hung from that
+ * point (plan 2026-11-15-2330, KTD3). Closed, focus goes back to the desk's row.
+ */
 function RowMenu({ x, y, onClose, ...props }: RowMenuProps & { x: number; y: number; onClose: () => void }) {
   const d = props.desk;
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    node?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
-    const away = (e: PointerEvent) => {
-      if (!node?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      // Closed with Esc or a pick that moves focus nowhere: focus goes back to the desk's row, not the page.
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a))
-        document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
-    };
-  }, [d.scope]);
-  // Kept inside the window: a menu opened near the right or bottom edge moves in.
-  const left = Math.min(x, (typeof window === "undefined" ? x : window.innerWidth) - 228);
-  const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 236);
   return (
-    <div
-      ref={ref}
-      role="menu"
-      aria-label={`${d.title ?? "Chat"} actions`}
-      className="loki-sidebar-menu"
-      style={{ left: Math.max(8, left), top: Math.max(8, top) }}
-      onKeyDown={(e) => menuKey(e, ref.current, onClose)}
-    >
-      <MenuItems entries={rowMenuEntries(props)} onPicked={onClose} />
-    </div>
+    <DrawnMenu
+      label={`${d.title ?? "Chat"} actions`}
+      entries={rowMenuEntries(props)}
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      at={{ x, y }}
+      opener={() => document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)}
+      width={220}
+    />
   );
 }
 

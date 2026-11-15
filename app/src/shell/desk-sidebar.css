@@ -40,15 +40,3 @@
   outline-offset: 2px;
   animation: loki-focus-flash 1s ease-out;
 }
-/* The row's context menu, at the pointer. */
-.loki-sidebar-menu {
-  position: fixed;
-  z-index: 200;
-  width: 220px;
-  box-sizing: border-box;
-  padding: 4px;
-  background: var(--loki-panel);
-  border: 1px solid var(--loki-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--loki-shadow-float);
-}

@@ -187,7 +187,12 @@ hand-built toast).
 
 On the desktop the primitives are thin wrappers over shadcn's components in `app/src/ui` (plan 2026-11-15-1035, U2): Button
 and IconButton draw `ui/button`, Chip draws `ui/badge`, Switch draws `ui/switch`, and a `type="search"` Field draws an
-`ui/input-group` capsule. The phone, and any `touch`-sized control, keeps loki's own markup and `phone.css`'s restyle of it.
+`ui/input-group` capsule. The phone, and any `touch`-sized control, keeps loki's own markup and `phone.css`'s restyle of it,
+in `components/phone.tsx` (plan 2026-11-15-2330): the choice is made at run time, since one screen serves both, so screens
+import the wrappers rather than `app/src/ui`. A menu loki draws itself, where the Mac app's native one is not there (a
+button's menu, a sidebar row's menu), is shadcn's DropdownMenu on Base UI (`DrawnMenu` in `shell/menu-items.tsx`): hung
+from its button or the pointer, on the side with room, moved with ↑↓ Home End and type-ahead, closed by Esc, Tab, a press
+outside or a pick, focus returned to what opened it.
 The tone names predate this look and are kept for compatibility. What they render on the desktop, as the Mac's buttons:
 `quiet` and `paper` the push button (raised grey in the dark, white with a hairline edge in the day) · `brass` the plain
 button, accent text with no bezel · `positive` the default button, the accent filled with white ink · `negative` the

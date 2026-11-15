@@ -324,7 +324,9 @@ Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made o
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Canvas tab
 back to Messages, then focus from the detail back to the list; it never changes the place. A popover (a chat's folded
 links, New Chat's folder) opens beside the button that shows it, on whichever side has room, and closes on Esc, a click
-outside or the button again, leaving the focus on the button. Every shortcut lives in one table
+outside or the button again, leaving the focus on the button. Outside the Mac app, where loki draws a menu itself (More
+Chat Actions, New Chat's agent, a chat's right click in the list), it does the same: ↑↓ Home End and the first letters
+move through it, Return picks, and Esc or Tab closes it. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the

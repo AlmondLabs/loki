@@ -4,7 +4,7 @@ import { Conversation, type ConversationView } from "../chat/conversation";
 import type { Draft } from "../shared/drafts";
 import { useHeightVar } from "../shared/use-height-var";
 import { ToolbarTitle } from "../item/toolbar";
-import { PopoverMenu } from "../shell/menu-items";
+import { DrawnMenu } from "../shell/menu-items";
 import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 import { osWords } from "../shell/os-words";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -213,7 +213,7 @@ function ToLine({
               void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: agent menu", err)),
           })
         ) : (
-          <PopoverMenu label="Agents" entries={entries} open={menuOpen} onOpenChange={setMenuOpen} trigger={token} anchor="left" width={220} />
+          <DrawnMenu label="Agents" entries={entries} open={menuOpen} onOpenChange={setMenuOpen} trigger={token} anchor="left" width={220} />
         )}
       </span>
       <span className="loki-new-chat-spacer" />

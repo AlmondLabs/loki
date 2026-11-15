@@ -10,10 +10,10 @@ import type {
   Ref,
   TextareaHTMLAttributes,
 } from "react";
-import { cloneElement, forwardRef, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { forwardRef, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
-import { useSheetMotion } from "./sheet-motion";
+import { cx, firstControl } from "./parts";
+import { BottomSheet, PhoneButton, PhoneChip, PhoneIconButton, PhonePopover, PhoneSwitch } from "./phone";
 import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
@@ -36,6 +36,7 @@ import { SearchIcon } from "lucide-react";
  * States (hover, focus, active, disabled, pressed, current) live in components/components.css; a call site chooses a size
  * and a tone and never restyles a state. `className` and `style` are the escape hatch for a one-off, and
  * a one-off that repeats becomes a modifier here. Widgets on the sheet keep their own kit (kit/index.tsx).
+ * The desktop draws shadcn's controls here; the phone's own markup for them lives in phone.tsx (plan 2026-11-15-2330).
  */
 
 /**
@@ -47,21 +48,8 @@ export type Tone = "quiet" | "paper" | "brass" | "positive" | "negative";
 /** Control heights: sm 28px (the desktop's default), md 36px, touch 44px (the phone). */
 export type Size = "sm" | "md" | "touch";
 
-const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
-
 /** Sentence case for a label built from an id ("inbox" → "Inbox"); labels are shown as written, never transformed. */
 export const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-/** What Tab can land on inside a sheet. */
-const FOCUSABLE = 'a[href], button, input, textarea, select, summary, [tabindex]:not([tabindex="-1"])';
-
-const BTN_SIZE: Record<Size, string> = { sm: "loki-btn--sm", md: "loki-btn--md", touch: "loki-btn--touch" };
-const BTN_TONE: Record<Tone, string | null> = {
-  quiet: null,
-  paper: "loki-btn--paper",
-  brass: "loki-btn--brass",
-  positive: "loki-btn--positive",
-  negative: "loki-btn--negative",
-};
 
 /** The props of `Button`: the native button's, with a tone, a size, and the hairline, width and shortcut hint options. */
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -114,16 +102,20 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const shortcut = keyTip ? ariaShortcut(keyTip) : undefined;
   if (phoneMarkup(size))
     return (
-      <button
+      <PhoneButton
         ref={ref}
         type={type}
-        className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
+        tone={tone}
+        size={size}
+        bare={bare}
+        block={block}
+        className={className}
         title={tip}
         aria-keyshortcuts={shortcut}
         {...rest}
       >
-        {capitalChildren(children)}
-      </button>
+        {children}
+      </PhoneButton>
     );
   const variant = bare && tone !== "positive" ? "ghost" : KIND[tone];
   return (
@@ -165,13 +157,17 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 ) {
   if (inLan)
     return (
-      <button
+      <PhoneIconButton
         ref={ref}
         type={type}
-        aria-label={label}
-        title={title ?? label}
-        className={cx("loki-btn", !hairline && "loki-btn--bare", "loki-btn--icon", BTN_TONE[tone], danger && "loki-btn--danger", className)}
-        style={{ width: size, height: size, ...style }}
+        label={label}
+        size={size}
+        tone={tone}
+        hairline={hairline}
+        danger={danger}
+        className={className}
+        style={style}
+        title={title}
         {...rest}
       />
     );
@@ -218,77 +214,37 @@ export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tag?: boolean;
 }
 
-/** A pill: a filter, a choice, a badge. Sans 12. */
-export function Chip({
-  active,
-  brass,
-  attention,
-  tone,
-  static: isStatic,
-  touch,
-  label,
-  float,
-  tag,
-  className,
-  style,
-  children,
-  type = "button",
-  ...rest
-}: ChipProps) {
-  const cls = cx(
-    "loki-chip",
-    active && "loki-chip--active",
-    brass && "loki-chip--brass",
-    attention && "loki-chip--attention",
-    tone && "loki-chip--tone",
-    (isStatic || tone) && "loki-chip--static",
-    touch && "loki-chip--touch",
-    label && "loki-chip--label",
-    float && "loki-chip--float",
-    tag && "loki-chip--tag",
+/**
+ * A pill: a filter, a choice, a badge. Sans 12. On the desktop it is shadcn's badge in the Mac's capsule (plan
+ * 2026-11-15-1035, U2): filled grey with no hairline, the accent fill when chosen, waiting or picked, and a status tone
+ * as its ink. The phone, and a touch-sized chip anywhere, draw their own.
+ */
+export function Chip(props: ChipProps) {
+  if (inLan || props.touch) return <PhoneChip {...props} />;
+  const { active, brass, attention, tone, static: isStatic, touch: _touch, label, float, tag, className, style, children, type = "button", ...rest } = props;
+  const look = cx(
+    "h-6 px-2 font-normal",
+    (active || brass || attention) && "font-semibold",
+    label && "font-semibold",
+    tag && "h-auto py-px",
+    float && "bg-loki-panel shadow-low",
+    !isStatic && !tone && "cursor-pointer hover:brightness-110 disabled:cursor-default disabled:opacity-50",
     className,
   );
-  if (!inLan && !touch) {
-    // The desktop's chip is shadcn's badge in the Mac's capsule (plan 2026-11-15-1035, U2): filled grey with no hairline,
-    // the accent fill when chosen, waiting or picked, and a status tone as its ink.
-    const look = cx(
-      "h-6 px-2 font-normal",
-      (active || brass || attention) && "font-semibold",
-      label && "font-semibold",
-      tag && "h-auto py-px",
-      float && "bg-loki-panel shadow-low",
-      !isStatic && !tone && "cursor-pointer hover:brightness-110 disabled:cursor-default disabled:opacity-50",
-      className,
-    );
-    const variant = active || brass || attention ? "default" : "secondary";
-    const toned = tone ? { color: tone, ...style } : style;
-    if (isStatic || tone) {
-      const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
-      return (
-        <Badge variant={variant} className={look} style={toned} {...span}>
-          {children}
-        </Badge>
-      );
-    }
+  const variant = active || brass || attention ? "default" : "secondary";
+  const toned = tone ? { color: tone, ...style } : style;
+  if (isStatic || tone) {
+    const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
     return (
-      <Badge variant={variant} className={look} style={toned} render={<button type={type} />} {...rest}>
+      <Badge variant={variant} className={look} style={toned} {...span}>
         {children}
       </Badge>
     );
   }
-  const st = tone ? ({ "--chip-tone": tone, ...style } as CSSProperties) : style;
-  if (isStatic || tone) {
-    const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
-    return (
-      <span className={cls} style={st} {...span}>
-        {children}
-      </span>
-    );
-  }
   return (
-    <button type={type} className={cls} style={st} {...rest}>
+    <Badge variant={variant} className={look} style={toned} render={<button type={type} />} {...rest}>
       {children}
-    </button>
+    </Badge>
   );
 }
 
@@ -392,12 +348,6 @@ export function Sheet(props: SheetProps) {
   return props.placement === "bottom" ? <BottomSheet {...props} /> : <DialogSheet {...props} />;
 }
 
-/** The first control in a sheet's tab order: one taken out of it (⌘K's scope chip ×) is for the pointer, not for focus. */
-const firstControl = (card: HTMLElement): HTMLElement | null =>
-  card.querySelector<HTMLElement>("[autofocus]") ??
-  [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => el.tabIndex >= 0 && !el.hasAttribute("disabled")) ??
-  null;
-
 /**
  * Whether a dismissal Base UI reports closes a desktop sheet (plan 2026-11-15-1900, KTD2): Esc only when the sheet lets
  * it (a sheet that reads its own keys, Change Folder, says not), a click outside or anything else whenever it can close.
@@ -460,84 +410,6 @@ function DialogSheet({
   );
 }
 
-/**
- * The phone's bottom sheet over a veil: aria-modal, Escape and a click on the veil close it, focus stays inside and
- * returns to where it was when the sheet closes, and it moves as an iOS sheet does (sheet-motion.ts).
- */
-function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
-  const opener = useRef<Element | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const veilRef = useRef<HTMLDivElement>(null);
-  const shell = typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
-  useSheetMotion(veilRef, cardRef, onClose, !!shell);
-  useEffect(() => {
-    opener.current = document.activeElement;
-    // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
-    const card = cardRef.current;
-    // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
-    // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
-    if (card && !card.contains(document.activeElement)) (firstControl(card) ?? card).focus({ preventScroll: true });
-    return () => {
-      const el = opener.current;
-      if (el instanceof HTMLElement && document.contains(el)) el.focus({ preventScroll: true });
-    };
-  }, []);
-  const sheet = (
-    <div
-      ref={veilRef}
-      className="loki-veil loki-veil--bottom"
-      data-sheet
-      // On the phone the finger is what opened it: a bottom sheet always rises.
-      data-grow
-      style={{ zIndex }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-      onKeyDown={(e) => {
-        if (escape && onClose && e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        } else if (e.key === "Tab" && !e.defaultPrevented) {
-          // Focus stays inside the sheet: from the last control Tab wraps to the first, and back.
-          const card = cardRef.current;
-          if (!card) return;
-          const stops = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-            (el) => !el.hasAttribute("disabled") && el.tabIndex >= 0 && el.getClientRects().length > 0,
-          );
-          if (stops.length === 0) return;
-          const first = stops[0];
-          const last = stops[stops.length - 1];
-          const active = document.activeElement;
-          if (e.shiftKey && (active === first || active === card)) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && active === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }}
-    >
-      <div
-        ref={cardRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        data-grow
-        className={cx("loki-sheet", "loki-sheet-card", "loki-sheet-card--bottom", className)}
-        style={style}
-        {...cardProps}
-      >
-        {children}
-      </div>
-    </div>
-  );
-  return shell ? createPortal(sheet, shell) : sheet;
-}
-
 /** The props of `Popover`: a div's, with its control, whether it is open, the edge and side it hangs from and its width. */
 export interface PopoverProps extends Omit<HTMLAttributes<HTMLDivElement>, "role"> {
   /** The control it hangs from, a button that passes on the props and ref it is given; it opens and closes the popover. */
@@ -584,27 +456,20 @@ export function Popover({
   const grows = open && lastInput() === "pointer";
   if (inLan || touch)
     return (
-      <>
-        {cloneElement(trigger, {
-          "aria-haspopup": rest.role,
-          "aria-expanded": open,
-          onClick: (e: MouseEvent<HTMLButtonElement>) => {
-            trigger.props.onClick?.(e);
-            onOpenChange(!open);
-          },
-        })}
-        {open && (
-          <PhonePopover
-            panelRef={ref}
-            onClose={() => onOpenChange(false)}
-            initialFocus={initialFocus}
-            className={cx("loki-popover", side === "above" && "loki-popover--above", className)}
-            data-grow={grows || undefined}
-            style={{ [anchor]: 8, width, transformOrigin: `${side === "above" ? "bottom" : "top"} ${anchor}`, ...style }}
-            {...rest}
-          />
-        )}
-      </>
+      <PhonePopover
+        trigger={trigger}
+        open={open}
+        onOpenChange={onOpenChange}
+        anchor={anchor}
+        side={side}
+        width={width}
+        initialFocus={initialFocus}
+        ref={ref}
+        className={className}
+        style={style}
+        grows={grows}
+        {...rest}
+      />
     );
   return (
     <UiPopover open={open} onOpenChange={(next) => onOpenChange(next)}>
@@ -620,62 +485,6 @@ export function Popover({
         {...rest}
       />
     </UiPopover>
-  );
-}
-
-/** Hands a node to a ref the caller gave, whichever kind it is. */
-function assignRef<T>(target: Ref<T> | undefined, node: T | null) {
-  if (typeof target === "function") target(node);
-  else if (target) target.current = node;
-}
-
-/**
- * The phone's popover: an absolutely placed panel beside its control in the control's wrapper. A press outside the
- * wrapper or Esc closes it, and focus goes back to the control unless what was picked took it elsewhere.
- */
-function PhonePopover({
-  panelRef,
-  onClose,
-  initialFocus,
-  onKeyDown,
-  ...rest
-}: HTMLAttributes<HTMLDivElement> & { panelRef?: Ref<HTMLDivElement>; onClose: () => void; initialFocus?: () => HTMLElement | null | undefined }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const latest = useRef({ onClose, initialFocus });
-  useEffect(() => {
-    latest.current = { onClose, initialFocus };
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const wrapper = node?.parentElement ?? null;
-    latest.current.initialFocus?.()?.focus({ preventScroll: true });
-    // Capture phase: panes and other popovers stop pointerdown from bubbling, and a press there must still close it.
-    const away = (e: PointerEvent) => {
-      if (e.target instanceof Node && !wrapper?.contains(e.target)) latest.current.onClose();
-    };
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) wrapper?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    };
-  }, []);
-  return (
-    <div
-      ref={(el) => {
-        ref.current = el;
-        assignRef(panelRef, el);
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        onKeyDown?.(e);
-        if (e.defaultPrevented || e.key !== "Escape") return;
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }}
-      {...rest}
-    />
   );
 }
 
@@ -802,54 +611,7 @@ export function Switch({
         {!hideLabel && label}
       </label>
     );
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={hideLabel ? label : undefined}
-      onClick={onToggle}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        background: "transparent",
-        border: "none",
-        padding: 0,
-        cursor: "pointer",
-        color: on ? "var(--loki-fg)" : "var(--loki-muted)",
-        fontSize: small ? "var(--text-xs)" : "var(--text-sm)",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 28,
-          height: 16,
-          borderRadius: "var(--loki-radius-pill)",
-          background: on ? "var(--loki-accent)" : "var(--loki-control-border)",
-          position: "relative",
-          transition: "background 160ms ease-out",
-          flex: "0 0 auto",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 2,
-            left: 2,
-            width: 12,
-            height: 12,
-            borderRadius: "var(--radius-md)",
-            background: on ? "var(--loki-bg)" : "var(--loki-muted)",
-            transform: on ? "translateX(12px)" : "none",
-            transition: "transform 160ms ease-out, background-color 160ms ease-out",
-          }}
-        />
-      </span>
-      {!hideLabel && label}
-    </button>
-  );
+  return <PhoneSwitch on={on} onToggle={onToggle} label={label} small={small} hideLabel={hideLabel} />;
 }
 
 // ---- Slack building blocks (plan 013) ---------------------------------------------------------------
