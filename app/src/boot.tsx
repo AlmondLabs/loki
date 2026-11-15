@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { inLan, installShellLogging, openExternal, settingsWindow } from "./desk/env";
+import { inLan, inTauri, installShellLogging, openExternal, platform, settingsWindow } from "./desk/env";
 
 installShellLogging();
 import { ThemeProvider } from "./theme";
@@ -32,6 +32,8 @@ const root = document.getElementById("root");
 if (!root) throw new Error("loki: index.html has no #root element");
 // The Mac app's Settings window (plan 2026-11-12-1505, U18) is the same page told by its start-up script which it is; a
 // browser tab opens it with ?window=settings (desk/env.ts settingsWindow).
+// The Mac app's main window: where AppKit put the traffic lights, before the first layout lines the toolbar row up.
+if (!inLan && !settingsWindow && inTauri && platform === "macos") await (await import("./shell/sidebar")).adoptTrafficLights();
 const Surface = inLan
   ? (await import("./phone/phone")).Phone
   : settingsWindow

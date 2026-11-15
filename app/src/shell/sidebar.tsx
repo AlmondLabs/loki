@@ -27,24 +27,81 @@ export const GLASS_INSET = 8;
 /** Liquid Glass's sidebar: the height of its top row, where the traffic lights and the sidebar toggle sit, in px. */
 export const GLASS_HEAD = 44;
 /**
- * The Mac window's traffic lights (src-tauri lib.rs traffic_light_position): the close button's top-left, in points.
- * They sit inside Liquid Glass's inset sidebar, and its toggle is centred on them.
+ * The Mac window's traffic lights, in px from its top-left corner: the close button's left edge, the zoom button's
+ * right edge and the buttons' centre line. AppKit lays them out itself in the window's toolbar (src-tauri native.rs
+ * add_unified_toolbar), and the page puts its toolbar row on them, read at boot (`adoptTrafficLights`); until then
+ * these are where a 52 pt unified title bar has them.
  */
-export const GLASS_LIGHTS = { x: 20, y: 22 };
+export const GLASS_LIGHTS = { left: 20, right: 74, middle: 26 };
+/**
+ * Read where AppKit put the Mac window's lights into `GLASS_LIGHTS`, before the page first draws (boot.tsx), so the
+ * toggle and the title bars line up with them on any macOS. A shell that cannot say keeps the defaults.
+ */
+export async function adoptTrafficLights(): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  const said: unknown = await invoke("traffic_lights").catch(() => null);
+  if (typeof said !== "object" || said === null) return;
+  const { left, right, middle } = said as Record<string, unknown>;
+  if (typeof left === "number" && typeof right === "number" && typeof middle === "number" && right > left && middle > 0) {
+    Object.assign(GLASS_LIGHTS, { left: Math.round(left), right: Math.round(right), middle: Math.round(middle) });
+  }
+}
+/** The gap between the zoom button and the sidebar toggle's box on the Mac, in px. */
+const LIGHTS_GAP = 18;
 /** Where Liquid Glass's sidebar toggle sits from the window's left edge: past the traffic lights on the Mac's window, else near the edge. */
 export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
-  return shell && os === "macos" ? 92 : 16;
+  return shell && os === "macos" ? GLASS_LIGHTS.right + LIGHTS_GAP : 16;
+}
+/** The sidebar's places list's side padding (`.loki-places`, components.css), in px. */
+export const PLACES_INSET = 12;
+/** A place row's side padding (`.loki-place`, components.css), in px: where its count ends. */
+export const PLACE_PADDING = 8;
+/** The sidebar toggle's box, in px, and the gap between its edge and its 18 px symbol's. */
+const TOGGLE = { box: 28, symbolInset: 5 };
+/**
+ * Where the toggle sits while the sidebar shows, from the window's left edge, in px. On the Mac's window it goes to the
+ * sidebar's trailing end, its symbol's edge in line with the rows' counts (`PLACES_INSET` and `PLACE_PADDING` in from
+ * the panel's edge), as Mail's and Finder's do; folded, it returns beside the lights (`sidebarToggleLeft`). Elsewhere
+ * it stays at the leading edge, where ☰ sits beside it in a browser tab.
+ */
+export function sidebarToggleLeftShown(sidebarWidth: number, shell: boolean = inTauri, os: Platform = platform): number {
+  if (!(shell && os === "macos")) return sidebarToggleLeft(shell, os);
+  return GLASS_INSET + sidebarWidth - (PLACES_INSET + PLACE_PADDING - TOGGLE.symbolInset) - TOGGLE.box;
 }
 /**
- * Where the list starts while the sidebar is folded, in px: past the toggle (28 px and a gap), so 128 on the Mac and 52
- * on Windows and Linux (columns.ts); in a browser tab past ☰ beside it too (32 more), so 84.
+ * Where the list starts while the sidebar is folded, in px (columns.ts). On the Mac it is 4 from the window's edge, as
+ * Mail's is near it: the list's boxes then sit 8 in, the glass sidebar's own inset, and its text 20 in. The lights and the toggle share the title bars' row, so only the leading title bar makes room for them
+ * (`sidebarLeadRoom`). Elsewhere the column starts past the toggle (28 px and a gap), 52 on Windows and Linux, and in a
+ * browser tab past ☰ beside it too (32 more), so 84.
  */
 export function sidebarClearance(shell: boolean = inTauri, os: Platform = platform): number {
+  if (shell && os === "macos") return GLASS_INSET - LIST_BOX_INSET;
   return sidebarToggleLeft(shell, os) + 36 + (shell ? 0 : 32);
 }
-/** The toggle's top, in px: its 28 px box centred on the lights' row (14 pt buttons), or near the panel's top elsewhere. */
+/** The list column's boxes' inset from its edge (rows and search, docs/design.md), in px. */
+const LIST_BOX_INSET = 4;
+/** The list bar's start padding and its gap (`.loki-content-list-bar`, components.css), in px. */
+export const LIST_BAR = { padding: 16, gap: 8 };
+/**
+ * The width of a leading title bar's room for the lights and the toggle while the sidebar is folded (`LeadRoom`), in
+ * px: enough that the list bar's title, after its padding and gap, starts past the toggle and a gap of 8; the detail's
+ * bars pad 4 more, so theirs starts a little further. Elsewhere the column
+ * itself clears the toggle, so 0.
+ */
+export function sidebarLeadRoom(shell: boolean = inTauri, os: Platform = platform): number {
+  if (!(shell && os === "macos")) return 0;
+  return sidebarToggleLeft(shell, os) + TOGGLE.box + 8 - sidebarClearance(shell, os) - LIST_BAR.padding - LIST_BAR.gap;
+}
+/**
+ * Where the list and the detail start from the window's top, in px. On the Mac their 52 px title bars sit on the
+ * lights' row, centred on it as Mail's toolbar is; elsewhere they start under the top strip (`titlebarHeight`).
+ */
+export function paneTop(shell: boolean = inTauri, os: Platform = platform): number {
+  return shell && os === "macos" ? Math.max(0, GLASS_LIGHTS.middle - 26) : titlebarHeight(shell, os);
+}
+/** The toggle's top, in px: its 28 px box centred on the lights' row, or near the panel's top elsewhere. */
 export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
-  return shell && os === "macos" ? GLASS_LIGHTS.y + 7 - 14 : GLASS_INSET + 8;
+  return shell && os === "macos" ? GLASS_LIGHTS.middle - 14 : GLASS_INSET + 8;
 }
 
 /**
@@ -274,7 +331,10 @@ export function Places({
   );
 }
 
-/** Show / hide the sidebar (⌃⌘S), floating beside the traffic lights, where it stays while the sidebar is hidden, as Mail's does. */
+/**
+ * Show / hide the sidebar (⌃⌘S). On the Mac it floats at the sidebar's trailing end, level with the traffic lights,
+ * and beside them while the sidebar is hidden, as Mail's does (`sidebarToggleLeftShown`).
+ */
 export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button

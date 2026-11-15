@@ -1191,6 +1191,17 @@ button.loki-list-section-toggle {
   min-height: 52px;
   padding: 4px 8px 4px 16px;
 }
+/* A title bar's room for the Mac's lights and sidebar toggle (LeadRoom): drawn only in the column that leads the window
+   with the sidebar folded, its width computed by the shell (sidebar.tsx sidebarLeadRoom). */
+.loki-lead-room {
+  display: none;
+}
+[data-lead] .loki-lead-room {
+  display: block;
+  flex: none;
+  width: var(--loki-lead);
+  align-self: stretch;
+}
 /* The bar's title stack: the source's name and grey count, over its grey line when it has one. */
 .loki-content-list-head {
   display: flex;
@@ -1199,6 +1210,12 @@ button.loki-list-section-toggle {
   min-width: 0;
   align-self: flex-start;
   margin-top: 2px;
+}
+/* In the Mac app the title bars sit on the traffic lights' row (sidebar.tsx paneTop), so the list's title is centred on
+   it, as Mail's toolbar title is, rather than sharing the detail's top line. */
+:root[data-vibrant] .loki-content-list-head {
+  align-self: center;
+  margin-top: 0;
 }
 .loki-content-list-name {
   display: flex;
@@ -1818,10 +1835,12 @@ button.loki-list-section-toggle {
   .loki-new-chat-folder[data-failed] {
     color: var(--loki-negative);
   }
+  /* In the dock's 20px gutter (conversation.tsx), centred at the thread's width, its text on the composer's edge. */
   .loki-new-chat-notice {
     width: 100%;
     max-width: 48rem;
-    padding: 0 20px 8px;
+    margin: 0 auto;
+    padding: 0 0 8px;
   }
 
   /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as

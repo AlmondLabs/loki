@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
-import { Button, Chip, EmptyPane, Meta } from "../components";
+import { Button, Chip, EmptyPane, LeadRoom, Meta } from "../components";
 import { chipText } from "../chat/suggestion-card";
 import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
@@ -207,6 +207,7 @@ export function ChatItemHeader({
       : [];
   return (
     <div data-item-header className="loki-card-toolbar">
+      <LeadRoom />
       <ToolbarTitle
         title={view.title}
         facts={view.properties}

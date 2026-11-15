@@ -19,7 +19,7 @@ import {
   toggleSidebar,
   type ColumnsFrame,
 } from "../app/src/shell/columns.ts";
-import { GLASS_LIGHTS, sidebarClearance, sidebarToggleLeft } from "../app/src/shell/sidebar.tsx";
+import { GLASS_LIGHTS, LIST_BAR, paneTop, sidebarClearance, sidebarLeadRoom, sidebarToggleLeft } from "../app/src/shell/sidebar.tsx";
 
 /**
  * The window's columns (plan 2026-11-14-1330, KTD1): the sidebar and the list keep their widths across reloads, the
@@ -85,14 +85,22 @@ describe("columns: where they go", () => {
     });
     expect(sidebarFits(DEFAULTS, mac(715, { hasList: false }))).toBe(false);
   });
-  test("with the sidebar folded on the Mac, the list's toolbar starts past the traffic lights and the sidebar toggle", () => {
+  test("with the sidebar folded on the Mac, the list starts near the window's edge and only its title clears the lights and toggle", () => {
     const clearance = sidebarClearance(true, "macos");
-    const at = columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440, { clearance }));
-    expect(at.listLeft).toBe(clearance);
-    // the toggle is 28 wide and sits after the lights; the list starts clear of both
-    expect(at.listLeft).toBeGreaterThan(sidebarToggleLeft(true, "macos") + 28);
-    expect(at.listLeft).toBeGreaterThan(GLASS_LIGHTS.x);
+    // the list's boxes 8 in, the glass sidebar's inset; its text 20 in
+    expect(clearance + 4).toBe(8);
+    expect(clearance + LIST_BAR.padding).toBe(20);
+    expect(columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440, { clearance })).listLeft).toBe(clearance);
     expect(columnsLayout(DEFAULTS, mac(900, { clearance })).listLeft).toBe(clearance);
+    // the list bar's title, after its room, padding and gap, starts past the 28 px toggle and a gap of 8
+    const title = clearance + LIST_BAR.padding + sidebarLeadRoom(true, "macos") + LIST_BAR.gap;
+    expect(title).toBe(sidebarToggleLeft(true, "macos") + 28 + 8);
+    // the title bars are 52 high, centred on the lights' row
+    expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
+    // elsewhere the column itself clears the toggle, under the strip
+    expect(sidebarLeadRoom(true, "windows")).toBe(0);
+    expect(paneTop(true, "windows")).toBe(32);
+    expect(paneTop(false, "macos")).toBe(0);
   });
   test("a sidebar folded by choice leaves the list at the clearance", () => {
     expect(columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440))).toEqual({

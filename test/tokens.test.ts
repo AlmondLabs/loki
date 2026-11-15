@@ -834,16 +834,27 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     const boxes = steps(/(?:^|[\s:])!?-?(?:p|m)[xytrblse]?-(\d+(?:\.\d+)?!?|px!?|auto!?|\[[^\]\s]*\]!?)(?=\s|$)/g);
     return gaps.some((s) => !SPACE_STEPS.has(s)) || boxes.some((s) => s !== "auto" && !SPACE_STEPS.has(s));
   };
+  /**
+   * A length worked out in an arbitrary calc() hides its terms from the scale (w-[calc(100%-2.5rem)] was two gutters by
+   * hand): pad the parent on the scale and let the child fill it, or compute the value in code, where inline is allowed.
+   * shadcn's own files in ui/ and the dev workbench keep theirs, as with spacing.
+   */
+  const offCalc = (path: string, text: string): boolean => !path.startsWith("ui/") && !path.startsWith("dev/") && /-\[[^\]\s]*calc\(/.test(text);
   const offScale = (path: string, text: string) =>
     classStrings(path, text).flatMap((s) => [
       ...OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`),
       ...(offSpacing(path, s.text) ? [`${s.at}: spacing off the scale in "${s.text}"`] : []),
+      ...(offCalc(path, s.text) ? [`${s.at}: an arbitrary calc() length in "${s.text}"`] : []),
     ]);
 
   test("the fence catches what it should and passes loki's names", () => {
     expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-lg z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
     expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(3);
     expect(offScale("x.tsx", 'const a = <b className="h-[480px] max-w-[22rem] rounded-[3px] w-75 rounded-3xl" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="mx-auto w-[calc(100%-2.5rem)] max-w-3xl" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="h-[calc(100vh-(--spacing(10)))]" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="mx-auto w-full max-w-3xl px-5" />;')).toEqual([]);
+    expect(offScale("ui/x.tsx", 'const a = <b className="max-w-[calc(100%-2rem)]" />;')).toEqual([]);
     expect(offScale("x.tsx", 'const a = <b className="bg-primary text-sm text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
       [],
     );

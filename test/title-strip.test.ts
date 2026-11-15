@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
-import { Places, TitleStrip, WindowControls, sidebarClearance, titlebarHeight } from "../app/src/shell/sidebar.tsx";
+import { Places, TitleStrip, WindowControls, paneTop, sidebarClearance, titlebarHeight } from "../app/src/shell/sidebar.tsx";
 import { ListColumn } from "../app/src/shell/list-column.tsx";
 import { columnsLayout, LIST_DEFAULT, SIDEBAR_DEFAULT } from "../app/src/shell/columns.ts";
 import { TitleMenu, TitleMenuItems, titleMenus, runMenuItem } from "../app/src/shell/title-menu.tsx";
@@ -68,8 +68,9 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
   test("Windows and Linux: the strip keeps its ☰ and window buttons over the sidebar and the list beside it", () => {
     const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
     // the list column and the detail start under the strip, never over its buttons
-    expect(shell).toMatch(/className="loki-list-column"[\s\S]*?top: TITLEBAR_HEIGHT,/);
-    expect(shell).toMatch(/<main style=\{\{ position: "absolute", top: TITLEBAR_HEIGHT,/);
+    expect(shell).toMatch(/className="loki-list-column"[\s\S]*?top: paneTop\(\),/);
+    expect(shell).toMatch(/<main[^>]*style=\{\{[^}]*top: paneTop\(\),/);
+    for (const os of ["windows", "linux"] as const) expect(paneTop(true, os)).toBe(titlebarHeight(true, os));
     for (const os of ["windows", "linux"] as const) {
       const labels = [...strip(os).matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
       expect(labels).toEqual(["Menu", "Minimise", "Maximise", "Close"]);
