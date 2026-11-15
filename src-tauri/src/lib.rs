@@ -3,7 +3,8 @@
 //! A native window around the React canvas. The Rust side:
 //!  - moves loki's root to ~/.loki once (root.rs) and hands the page the token and the mod's port before any script runs
 //!  - installs what a release build ships (install.rs): the mod and daemon bundles, the phone canvas, the agent's skill
-//!  - runs loki's daemon on the machine's Node (node.rs, harness.rs), restarts it when it dies, and stops it on quit;
+//!  - runs loki's daemon on the Node a release fetches for itself (runtime.rs; a development build, the machine's:
+//!    node.rs), restarts it when it dies (harness.rs), and stops it on quit;
 //!    the page talks to the daemon itself, over the mod's port
 
 mod harness;
@@ -13,6 +14,7 @@ mod native;
 mod node;
 mod popup;
 mod procs;
+mod runtime;
 mod widgets;
 
 use std::path::{Path, PathBuf};
@@ -220,7 +222,20 @@ async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
 fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     let (home, data) = (home_dir(), loki_dir());
     let state = app.state::<DaemonState>();
-    let node = match node::find_node_program(&home) {
+    // A release build runs only the Node its runtime.json names, fetched into ~/.loki/runtime when it is not there yet.
+    let prepared = if runtime_wanted() {
+        match prepare_runtime(&data, &home) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                state.set(|s| *s = DaemonStatus { node: None, error: Some(e.clone()), node_missing: None });
+                return Err(e);
+            }
+        }
+    } else {
+        None
+    };
+    let runtime_path = prepared.as_ref().map(|(_, r)| r.path.clone()).unwrap_or_default();
+    let node = match node::find_node_program(&home, prepared.as_ref().map(|(_, r)| r.node.as_path())) {
         Ok(n) => n,
         Err(missing) => {
             let message = missing.message();
@@ -240,7 +255,8 @@ fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     let node_shown = node.display().to_string();
     let launch = move |app: &tauri::AppHandle| -> Result<(), String> {
         let Some(h) = app.try_state::<harness::Harness>() else { return Err("no harness slot".into()) };
-        let daemon = harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &data };
+        let daemon =
+            harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &data, path: &runtime_path };
         h.start_daemon(&daemon, &harness::Launch { token_file: &token_file, log_dir: &data.join("logs") })
     };
     if let Err(e) = launch(app) {
@@ -248,11 +264,33 @@ fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
         return Err(e);
     }
     eprintln!("loki: daemon on {node_shown}");
+    // The daemon runs on this runtime now, so the versions before it can go.
+    if let Some((host, _)) = &prepared {
+        runtime::prune(host);
+    }
     state.set(|s| *s = DaemonStatus { node: Some(node_shown), error: None, node_missing: None });
     if !state.supervising.swap(true, std::sync::atomic::Ordering::SeqCst) {
         supervise_daemon(app.clone(), launch);
     }
     Ok(())
+}
+
+/// Release builds run the daemon on the runtime they fetch (runtime.rs); `tauri dev` keeps finding the machine's Node.
+fn runtime_wanted() -> bool {
+    !cfg!(debug_assertions)
+}
+
+/// The runtime this machine's daemon runs on, fetched first where it is missing, with the host that fetched it (to
+/// prune with once the daemon has started). Blocks while it downloads.
+fn prepare_runtime(data: &Path, home: &Path) -> Result<(runtime::Host, runtime::Runtime), String> {
+    let host = runtime::Host::this(data, home)?;
+    let runtime = runtime::ensure(&host, &mut |p| {
+        if p.done == 0 {
+            let size = p.total.map(|t| format!(", {} MB", t / 1_000_000)).unwrap_or_default();
+            eprintln!("loki: runtime: fetching {} {}{size}", p.name, p.version);
+        }
+    })?;
+    Ok((host, runtime))
 }
 
 /// Watch the daemon once a second. One that exits on its own is started again after harness::restart_delay; one loki

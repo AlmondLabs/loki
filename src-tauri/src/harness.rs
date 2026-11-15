@@ -1,4 +1,4 @@
-//! loki's daemon (plan 017): `node <daemon> --loki-daemon …` on the machine's Node (node.rs), hosting the mod and
+//! loki's daemon (plan 017): `node <daemon> --loki-daemon …` on the Node node.rs picks, hosting the mod and
 //! serving the app, with loki's token file as its capability token. Started at launch, restarted when it dies
 //! (supervise_daemon in lib.rs), stopped when the app quits: SIGTERM first, so the daemon closes its stores and ends
 //! the agents' background tasks (daemon/main.ts `stop`), then SIGKILL if it has not gone within STOP_GRACE.
@@ -9,7 +9,8 @@
 //! anyway (the Mac, or a Linux crash before that took hold) is stopped at the next launch (procs::daemon_leftover).
 
 use crate::node;
-use std::path::Path;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
@@ -50,6 +51,20 @@ pub struct Daemon<'a> {
     pub mod_entry: &'a Path,
     /// The folder the daemon locks and keeps its state in.
     pub dir: &'a Path,
+    /// The runtime's folders (runtime.rs `Runtime::path`), put first on the daemon's PATH so it and everything it
+    /// starts find the runtime's node, npm, npx and PortableGit's git and bash. Empty in a development build, whose
+    /// daemon keeps loki's own PATH.
+    pub path: &'a [PathBuf],
+}
+
+/// The daemon's PATH: the runtime's folders, then the PATH loki was given. Joined the system's way (`;` on Windows).
+pub fn daemon_path(front: &[PathBuf], inherited: Option<&OsStr>) -> OsString {
+    let rest: Vec<PathBuf> = inherited.map(|p| std::env::split_paths(p).collect()).unwrap_or_default();
+    std::env::join_paths(front.iter().chain(&rest)).unwrap_or_else(|e| {
+        // A folder whose name holds the separator cannot go on PATH; the daemon still runs node by its full path.
+        eprintln!("loki: the daemon's PATH: {e}");
+        inherited.map(OsStr::to_os_string).unwrap_or_default()
+    })
 }
 
 /// The daemon's exit code when another daemon already holds its folder (daemon/main.ts EXIT_HELD): that one keeps
@@ -73,6 +88,9 @@ pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
         .arg(d.mod_entry)
         .arg("--token-file")
         .arg(launch.token_file);
+    if !d.path.is_empty() {
+        cmd.env("PATH", daemon_path(d.path, std::env::var_os("PATH").as_deref()));
+    }
     node::quiet(&mut cmd);
     cmd
 }
@@ -413,7 +431,7 @@ mod tests {
         let args = |entry: &str, mod_entry: &str| {
             let (entry, mod_entry) = (PathBuf::from(entry), PathBuf::from(mod_entry));
             let cmd = daemon_command(
-                &Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &dir },
+                &Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &dir, path: &[] },
                 &launch(&token),
             );
             assert_eq!(cmd.get_program(), node.as_os_str());
@@ -439,6 +457,37 @@ mod tests {
             ["--disable-warning=ExperimentalWarning", "/data/daemon/daemon.mjs"],
             "a bundle needs no type stripping"
         );
+    }
+
+    #[test]
+    fn the_daemons_path_begins_with_the_runtime_folders_then_the_inherited_path() {
+        let runtime = [
+            PathBuf::from("/home/x/.loki/runtime/node-22.23.5-linux-x64/bin"),
+            PathBuf::from("/home/x/.loki/runtime/git-2.56.1-win-x64/cmd"),
+            PathBuf::from("/home/x/.loki/runtime/git-2.56.1-win-x64/bin"),
+        ];
+        let inherited = std::env::join_paths([PathBuf::from("/usr/bin"), PathBuf::from("/bin")]).unwrap();
+        let path = daemon_path(&runtime, Some(&inherited));
+        let dirs: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        assert_eq!(dirs, [&runtime[..], &[PathBuf::from("/usr/bin"), PathBuf::from("/bin")]].concat());
+        assert_eq!(
+            std::env::split_paths(&daemon_path(&runtime, None)).collect::<Vec<_>>(),
+            runtime,
+            "no PATH to inherit"
+        );
+        // The command carries it; a development build, with no runtime, leaves the daemon the PATH loki has.
+        let (node, entry, dir, token) =
+            (PathBuf::from("node"), PathBuf::from("daemon.mjs"), PathBuf::from("/home/x/.loki"), PathBuf::from("t"));
+        let env = |path: &[PathBuf]| {
+            let cmd = daemon_command(
+                &Daemon { node: &node, entry: &entry, mod_entry: &entry, dir: &dir, path },
+                &launch(&token),
+            );
+            cmd.get_envs().find(|(k, _)| *k == "PATH").and_then(|(_, v)| v.map(|v| v.to_os_string()))
+        };
+        let set = env(&runtime).expect("PATH set for the runtime");
+        assert_eq!(std::env::split_paths(&set).take(3).collect::<Vec<_>>(), runtime);
+        assert_eq!(env(&[]), None);
     }
 
     #[test]

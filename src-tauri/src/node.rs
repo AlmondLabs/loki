@@ -1,6 +1,7 @@
-//! Node.js on this machine, for loki's daemon (plan 017): the `node` a terminal would run, found where installers
-//! put it. Discovery looks at `LOKI_NODE_BIN` first, then PATH, then the folders GUI apps do not see on their short
-//! PATH (Homebrew's prefixes, volta, bun, nvm, fnm, npm's own global bin; on Windows the nodejs.org installer's,
+//! Node.js for loki's daemon. A release build runs the Node it fetched itself (runtime.rs, plan 2026-11-15-2319 KTD4);
+//! a development build, as since plan 017, the `node` a terminal would run, found where installers put it. Discovery
+//! looks at `LOKI_NODE_BIN` first, then PATH, then the folders GUI apps do not see on their short PATH (Homebrew's
+//! prefixes, volta, bun, nvm, fnm, npm's own global bin; on Windows the nodejs.org installer's,
 //! nvm-windows', fnm's, scoop's). Nothing new enough: `NodeMissing`, which Welcome shows as its Node step, with this
 //! system's usual way to install one. Nothing is cached, so a Node installed while Welcome waits is found by the
 //! next look (`retry_daemon`).
@@ -48,7 +49,8 @@ impl Os {
         }
     }
 
-    fn path_separator(self) -> char {
+    /// What PATH's folders are joined with on this system.
+    pub(crate) fn path_separator(self) -> char {
         if self == Os::Windows {
             ';'
         } else {
@@ -92,12 +94,12 @@ impl Host {
     }
 
     /// An environment folder, when set and not empty.
-    fn dir(&self, key: &str) -> Option<PathBuf> {
+    pub(crate) fn dir(&self, key: &str) -> Option<PathBuf> {
         (self.var)(key).filter(|v| !v.is_empty()).map(PathBuf::from)
     }
 
     /// The first of `program`'s names that is a file in `dir`.
-    fn program_in(&self, dir: &Path, program: &str) -> Option<PathBuf> {
+    pub(crate) fn program_in(&self, dir: &Path, program: &str) -> Option<PathBuf> {
         self.os.names(program).into_iter().map(|n| dir.join(n)).find(|p| p.is_file())
     }
 }
@@ -202,13 +204,22 @@ pub fn bin_dirs_for(h: &Host) -> Vec<PathBuf> {
     dirs
 }
 
-/// The `node` program of the first Node 22.19+ (loki's daemon runs on it); else what Welcome says about the Node there is.
-pub fn find_node_program(home: &Path) -> Result<PathBuf, NodeMissing> {
+/// The `node` program loki's daemon runs on (`node_program_for`); else what Welcome says about the Node there is.
+pub fn find_node_program(home: &Path, runtime: Option<&Path>) -> Result<PathBuf, NodeMissing> {
     let host = Host::this(home);
-    match find_node_for(&host) {
-        Ok(dir) => host.program_in(&dir, "node").ok_or_else(|| node_missing(host.os, None)),
-        Err(old) => Err(node_missing(host.os, old)),
+    node_program_for(&host, runtime).map_err(|old| node_missing(host.os, old))
+}
+
+/// The `node` the daemon runs on. A release build passes the runtime it fetched (runtime.rs) and runs only that; a
+/// development build passes none and takes the first Node 22.19+ (`find_node_for`). `LOKI_NODE_BIN` wins in either,
+/// when it names a Node new enough. Else the newest older Node seen, if any.
+pub fn node_program_for(h: &Host, runtime: Option<&Path>) -> Result<PathBuf, Option<(Version, PathBuf)>> {
+    if let Some(runtime) = runtime {
+        let chosen = h.dir("LOKI_NODE_BIN").filter(|p| p.is_file() && (h.version)(p).is_some_and(|v| v >= NODE_MIN));
+        return Ok(chosen.unwrap_or_else(|| runtime.to_path_buf()));
     }
+    let dir = find_node_for(h)?;
+    h.program_in(&dir, "node").ok_or(None)
 }
 
 /// The folder of the first Node 22.19+ (LOKI_NODE_BIN, then `bin_dirs_for`); else the newest older one seen, if any.
@@ -480,6 +491,30 @@ mod tests {
         );
         assert_eq!(missing.needed, "22.19");
         assert_eq!(missing.os, Os::Linux);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_release_build_runs_the_runtime_node_a_dev_build_looks_and_loki_node_bin_wins_in_any_build() {
+        let home = fake_home();
+        let runtime = home.join(".loki/runtime/node-22.23.5-linux-x64/bin/node");
+        node_file(&runtime, "v22.23.5");
+        node_file(&home.join(".volta/bin/node"), "v24.1.0");
+        let h = host(Os::Linux, &home, "", vec![]);
+        assert_eq!(
+            node_program_for(&h, Some(&runtime)),
+            Ok(runtime.clone()),
+            "a release build: the runtime's, not volta's"
+        );
+        assert_eq!(node_program_for(&h, None), Ok(home.join(".volta/bin/node")), "a dev build: today's lookup");
+        let mine = home.join("mine/node");
+        node_file(&mine, "v25.0.0");
+        let h = host(Os::Linux, &home, "", vec![("LOKI_NODE_BIN", mine.clone())]);
+        assert_eq!(node_program_for(&h, Some(&runtime)), Ok(mine.clone()), "LOKI_NODE_BIN over the runtime");
+        assert_eq!(node_program_for(&h, None), Ok(mine.clone()), "LOKI_NODE_BIN over the lookup");
+        // One too old to run the daemon is passed over, as it always was.
+        node_file(&mine, "v20.11.1");
+        assert_eq!(node_program_for(&h, Some(&runtime)), Ok(runtime));
         let _ = std::fs::remove_dir_all(&home);
     }
 
