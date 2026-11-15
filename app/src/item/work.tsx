@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { memo, useState } from "react";
 import {
   BotIcon,
@@ -66,8 +67,9 @@ const ICON: Record<StepKind, LucideIcon> = {
 /**
  * A stretch of the agent's work on AI Elements' ChainOfThought (plan 096): its header is the one line in the wording of
  * shared/tool-steps.ts ("Worked 14 min · 3 commands, 11 tools · 1 failed"), with the failed step named under it while
- * closed; opened, a step per tool call with its mark, what it was done to and what it did, the running one active, a
- * failed one in the negative colour. A step opens its description, input and output under it. Past 8 steps the filters
+ * closed, in the negative colour only when the turn stopped on it and grey when the agent went on past it (plan
+ * 2026-11-15-1035, R16); opened, a step per tool call with its mark, what it was done to and what it did, the running
+ * one active, a failed one in the negative colour. A finished stretch is marked with a checklist, not a terminal's prompt. A step opens its description, input and output under it. Past 8 steps the filters
  * appear; opened at a failure, they start on "failed".
  */
 export const Work = memo(
@@ -78,6 +80,7 @@ export const Work = memo(
     arrived,
     waiting = false,
     planAsBefore = false,
+    stopped = false,
   }: {
     rows: TranscriptRow[];
     /** Rows after the stretch whose thoughts it shows last: the thought before the reply that follows it. */
@@ -87,6 +90,8 @@ export const Work = memo(
     waiting?: boolean;
     /** The plan is the one an earlier stretch already drew, unchanged: it folds to one quiet line. */
     planAsBefore?: boolean;
+    /** The turn failed and ended on this stretch, so its failure is where the work stopped. */
+    stopped?: boolean;
   }) {
     // The agent's plan is drawn as its Plan, from the newest one in the stretch, not as a step (plan 097, U9).
     const plan = stretchPlan(all);
@@ -114,7 +119,7 @@ export const Work = memo(
         {plan && (planAsBefore ? <PlanAsBefore items={plan} /> : <AgentPlan items={plan} />)}
         {rows.length > 0 && (
           <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
-            <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running && !waiting ? "shimmer" : undefined}>
+            <ChainOfThoughtHeader icon={running ? WrenchIcon : ListChecksIcon} className={running && !waiting ? "shimmer" : undefined}>
               {waiting ? "Waiting on you" : workSummary(rows, running)}
             </ChainOfThoughtHeader>
             <ChainOfThoughtContent>
@@ -157,7 +162,11 @@ export const Work = memo(
           </ChainOfThought>
         )}
         {failure !== null && !open && (
-          <button type="button" className="flex w-fit cursor-pointer items-center gap-2 text-xs text-loki-negative" onClick={() => show(failure)}>
+          <button
+            type="button"
+            className={cn("flex w-fit cursor-pointer items-center gap-2 text-xs", stopped ? "text-loki-negative" : "text-muted-foreground")}
+            onClick={() => show(failure)}
+          >
             <XIcon className="size-3" aria-hidden />
             {stepTarget(rows[failure]) ?? stepName(rows[failure])} failed
           </button>

@@ -19,7 +19,6 @@ import {
   LessonDetail,
   PreviousText,
   RecallIntro,
-  RecallKeys,
   RejectedDetail,
   SourceLine,
 } from "./recall-parts";
@@ -405,12 +404,9 @@ function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pas
       </Empty>
     );
   }
-  return (
-    <>
-      {children}
-      <RecallKeys revealed={pass.revealed} />
-    </>
-  );
+  // No key legend under the deck (plan 2026-11-15-1035, R14): each key is in its button's tooltip, the Learn menu and
+  // Preferences › Keyboard shortcuts.
+  return children;
 }
 
 /** One card: its source, the front, the answer once shown, and the two answers. */
@@ -500,7 +496,7 @@ function Deck({
             </div>
           ) : (
             <div className="flex justify-center" style={{ padding: "8px 0 2px" }}>
-              <Button size="md" tone="paper" onClick={onReveal} kbd="space">
+              <Button size="md" tone="positive" onClick={onReveal} kbd="space">
                 Show Answer
               </Button>
             </div>
@@ -526,10 +522,8 @@ function Deck({
           ))}
         </div>
       )}
+      {/* Delete is the destructive one, red and apart at the trailing edge, as a Mac sheet keeps it from the rest. */}
       <div className="flex flex-wrap items-center gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
-        <Button size="sm" onClick={onDelete} kbd="X" title="Delete — it joins the pile the worker reads as 'not this'">
-          Delete
-        </Button>
         <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>
           Edit
         </Button>
@@ -538,6 +532,9 @@ function Deck({
             Open the Chat
           </Button>
         )}
+        <Button size="sm" tone="negative" className="ml-auto" onClick={onDelete} kbd="X" title="Delete — it joins the pile the worker reads as 'not this'">
+          Delete
+        </Button>
       </div>
     </section>
   );

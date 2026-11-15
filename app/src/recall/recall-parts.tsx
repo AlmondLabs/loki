@@ -185,17 +185,6 @@ export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRest
   );
 }
 
-/** The key legend under the deck. */
-export function RecallKeys({ revealed }: { revealed: boolean }) {
-  return (
-    <div className="loki-meta loki-meta--wrap loki-mono" style={{ textAlign: "center", marginTop: 12 }}>
-      {revealed
-        ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back"
-        : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
-    </div>
-  );
-}
-
 /**
  * Learn's welcome before it has ever been on (plan 2026-11-14-0852, 2), as Apple's welcome sheets are: a title, three
  * rows of a symbol, a bold line and a sentence, one filled button, and the rest behind Learn More…. Off by default

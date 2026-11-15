@@ -229,7 +229,9 @@ the grey line only while they hold; a card whose account needs mending has **Sig
 **Timeline** (time told at gaps of a quarter of an hour), **MessageEntry** (yours a bubble at the trailing edge with no
 label, its time in its tooltip; the agent's prose, copy beside it on hover), **AgentTurn** (no name on screen: the
 header says only how long it worked and, while it is not simply done, where it stands, with the Loader while working;
-a New line or a day that falls inside a turn is drawn inside it), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps,
+a New line or a day that falls inside a turn is drawn inside it), **Work** (AI Elements' ChainOfThought: one summary line, marked with a checklist once done (a wrench while it works),
+opened to steps; a failure named under the closed line is red only when the turn stopped on it and grey when the agent
+went on past it (plan 2026-11-15-1035, U9);
 a step to its Tool or Task; finished steps at full strength, never AI Elements' half-faded "pending"), the agent's
 **Plan** (folded to "plan as before" when it repeats unchanged) and **Thought** (Reasoning, folded; inside a Work line a thought is one of its steps, "Thought for 12 seconds", in the place it came, and the thought before a reply that follows work joins that line, so a turn that thinks, reads, thinks and answers is one line before the answer), **EventEntry** (one quiet line; a compaction
 a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column; an
