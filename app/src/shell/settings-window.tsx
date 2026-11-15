@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Notices, notify } from "../components";
-import { inTauri } from "../desk/env";
+import { inTauri, settingsWindow } from "../desk/env";
 import { useDesk } from "../desk/use-desk";
 import { Settings } from "../settings/settings";
 import { useDaemonStatus } from "./bootstrap";
@@ -37,7 +37,7 @@ export function SettingsWindow() {
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
   const chat = useChatLayout(desk);
-  const [opening, setOpening] = useState<{ page: string | null; n: number }>(() => ({ page: window.__LOKI__?.page ?? null, n: 0 }));
+  const [opening, setOpening] = useState<{ page: string | null; n: number }>(() => ({ page: settingsWindow?.page ?? null, n: 0 }));
 
   useEffect(() => {
     if (!inTauri) return;

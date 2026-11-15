@@ -379,7 +379,8 @@ Internals keep the name desk.
   items and the app's pages, the menu bar's commands for the screen showing, and the open chat's models and modes
   (plan 2026-11-12-1505, U21, U23); it does not search message text, and says so in its foot line. An empty query lists
   recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
-- **Preferences.** In the Mac app Preferences is a window of its own (U18); elsewhere a large sheet over the whole
+- **Preferences.** In the Mac app Preferences is a window of its own (U18), which a browser tab opens with
+  `?window=settings` (and `&page=<id>`) so it can be checked as the Mac draws it; elsewhere a large sheet over the whole
   window: a named page list on
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.

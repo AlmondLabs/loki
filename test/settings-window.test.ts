@@ -22,7 +22,7 @@ describe("the Settings window", () => {
   });
 
   test("the page boots the settings-only root in that window, and the shell sends Preferences there on the Mac", () => {
-    expect(read(APP, "boot.tsx")).toMatch(/window\.__LOKI__\?\.window === "settings"\s*\? \(await import\("\.\/shell\/settings-window"\)\)\.SettingsWindow/);
+    expect(read(APP, "boot.tsx")).toMatch(/settingsWindow\s*\? \(await import\("\.\/shell\/settings-window"\)\)\.SettingsWindow/);
     expect(read(APP, "shell", "open-settings.ts")).toContain('export const SETTINGS_WINDOW = inTauri && platform === "macos";');
     const win = read(APP, "shell", "settings-window.tsx");
     expect(win).toContain("<Settings key={opening.n} {...preferencesProps(sources)} windowed initialPage={opening.page} />");
@@ -75,5 +75,25 @@ describe("a session value kept in localStorage follows another window", () => {
     expect([value.get(), told]).toEqual(["off", 0]);
     for (const fn of heard) fn({ key: "loki.thread-preview", storageArea: area, newValue: "on" });
     expect([value.get(), told]).toEqual(["on", 1]);
+  });
+});
+
+describe("which page is the Settings window", () => {
+  test("the Mac app's start-up script says so, with the page it opens on", async () => {
+    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    expect(settingsWindowFrom({ window: "settings", page: "providers" }, "", true, false)).toEqual({ page: "providers" });
+    expect(settingsWindowFrom({}, "?window=settings", true, false)).toBeNull();
+  });
+
+  test("a browser tab asks with ?window=settings and &page=, so it draws the window as the Mac does", async () => {
+    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    expect(settingsWindowFrom(undefined, "?t=abc&window=settings&page=inbox", false, false)).toEqual({ page: "inbox" });
+    expect(settingsWindowFrom(undefined, "?window=settings", false, false)).toEqual({ page: null });
+    expect(settingsWindowFrom(undefined, "?t=abc", false, false)).toBeNull();
+  });
+
+  test("the phone has no Settings window, whatever the address says", async () => {
+    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    expect(settingsWindowFrom({ lan: true }, "?window=settings", false, true)).toBeNull();
   });
 });
