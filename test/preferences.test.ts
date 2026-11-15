@@ -2,11 +2,11 @@ import { describe, expect, test } from "vitest";
 import { afterSegmentKey } from "../app/src/settings/preferences.ts";
 import { createElement, isValidElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { GROUPS, PAGES, groupOf, pageAfterKey, pageTitle, pagesMatching, savedPage } from "../app/src/settings/pages.ts";
+import { GROUPS, PAGES, PAGE_ICON, pageAfterKey, pageTitle, pagesMatching, savedPage } from "../app/src/settings/pages.ts";
 import { PageList } from "../app/src/settings/page-list.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
 import { GlobalKeyRow, InboxPage, type ReturnTimesApi } from "../app/src/settings/settings.tsx";
-import { Segmented } from "../app/src/settings/layout.tsx";
+import { PopUp } from "../app/src/settings/layout.tsx";
 import { RETURN_TIMES_DEFAULT, type ReturnTimes } from "../core/attention/rest.ts";
 import { must } from "./fixtures/must.ts";
 import { lanStatusFromFrame } from "../app/src/phone/model.ts";
@@ -76,42 +76,41 @@ describe("Preferences: the section list", () => {
   });
 });
 
-describe("Preferences: the section list is a vertical tablist (focus follows the chosen page)", () => {
-  test("↑↓ step the groups and wrap, landing on a group's first page; Home and End jump; other keys are not the list's", () => {
-    expect(pageAfterKey("appearance", "ArrowDown")).toBe("providers");
+describe("Preferences: the section list is a vertical tablist of pages (plan 2026-11-15-1035, U6)", () => {
+  test("↓ from a group's last page goes to the next group's first, ↑↓ stop at the ends, Home and End jump; other keys are not the list's", () => {
+    expect(pageAfterKey("appearance", "ArrowDown")).toBe("chat");
     expect(pageAfterKey("keys", "ArrowDown")).toBe("providers");
-    expect(pageAfterKey("mcp", "ArrowUp")).toBe("appearance");
-    expect(pageAfterKey("appearance", "ArrowUp")).toBe("loki");
-    expect(pageAfterKey("usage", "ArrowDown")).toBe("appearance");
+    expect(pageAfterKey("providers", "ArrowUp")).toBe("keys");
+    expect(pageAfterKey("appearance", "ArrowUp")).toBeNull();
+    expect(pageAfterKey("usage", "ArrowDown")).toBeNull();
     expect(pageAfterKey("chat", "Home")).toBe("appearance");
-    expect(pageAfterKey("chat", "End")).toBe("loki");
+    expect(pageAfterKey("chat", "End")).toBe("usage");
     expect(pageAfterKey("chat", "ArrowRight")).toBeNull();
     expect(pageAfterKey("chat", "Enter")).toBeNull();
   });
-  test("with a filter the keys walk the groups it left, from a page it hid too, landing on the pages it kept", () => {
+  test("with a filter the keys walk the pages it left, from a page it hid too", () => {
     const left = pagesMatching("pair");
-    expect(pageAfterKey("macs", "ArrowDown", left)).toBe("macs");
+    expect(pageAfterKey("macs", "ArrowDown", left)).toBe("phone");
     expect(pageAfterKey("skills", "ArrowDown", left)).toBe("macs");
-    const tools = pagesMatching("tools");
-    expect(tools).toEqual(["providers", "engines", "mcp", "skills"]);
-    expect(pageAfterKey("appearance", "ArrowDown", pagesMatching("dark"))).toBe("appearance");
+    expect(pageAfterKey("appearance", "ArrowDown", pagesMatching("dark"))).toBeNull();
     expect(pageAfterKey("skills", "ArrowDown", [])).toBeNull();
   });
-  test("each page is a tab of one group", () => {
-    for (const p of PAGES) expect(groupOf(p.id).pages).toContain(p.id);
-    expect(groupOf("usage").title).toBe("loki");
+  test("each page is in one group and has its symbol", () => {
+    for (const p of PAGES) expect(GROUPS.filter((g) => g.pages.includes(p.id))).toHaveLength(1);
+    for (const p of PAGES) expect(PAGE_ICON[p.id].tint).toMatch(/^var\(--loki-label-[0-7]\)$/);
   });
-  test("the chosen group is the one Tab stop and says it is selected; the rest are reached by arrows", () => {
+  test("each page is a tab; the chosen one is the one Tab stop and says it is selected; the groups are headings, not tabs", () => {
     const out = renderToStaticMarkup(createElement(PageList, { page: "skills", onPick: () => {} }));
     expect(out).toContain('role="tablist"');
     expect(out).toContain('aria-orientation="vertical"');
     const tabs = [...out.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
-    expect(tabs).toHaveLength(GROUPS.length);
+    expect(tabs).toHaveLength(PAGES.length);
     const chosen = tabs.filter((t) => t.includes('aria-selected="true"'));
     expect(chosen).toHaveLength(1);
-    expect(chosen[0]).toContain('data-group="Models and tools"');
+    expect(chosen[0]).toContain('data-page="skills"');
     expect(chosen[0]).toContain('tabindex="0"');
-    expect(tabs.filter((t) => t.includes('tabindex="-1"'))).toHaveLength(GROUPS.length - 1);
+    expect(tabs.filter((t) => t.includes('tabindex="-1"'))).toHaveLength(PAGES.length - 1);
+    expect([...out.matchAll(/class="loki-settings-heading">([^<]+)</g)].map((m) => m[1])).toEqual(GROUPS.map((g) => g.title));
   });
 });
 
@@ -204,20 +203,37 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     const api: ReturnTimesApi = { times: RETURN_TIMES_DEFAULT, set: (t) => sent.push(t) };
     return { api, sent };
   }
-  /** Every segmented control on the page, by its screen-reader name, read from the element tree (no DOM in these tests). */
-  function controls(node: unknown, out = new Map<string, (v: string) => void>()) {
+  interface Control {
+    onPick: (v: string) => void;
+    all: string[];
+    chosen: string;
+  }
+  /** Every pop-up on the page (plan 2026-11-15-1035, R12), by its screen-reader name, read from the element tree (no DOM in these tests). */
+  function controls(node: unknown, out = new Map<string, Control>()) {
     if (Array.isArray(node)) for (const n of node) controls(n, out);
-    else if (isValidElement<{ children?: unknown; label?: string; onPick?: (v: string) => void }>(node)) {
-      const { label, onPick, children } = node.props;
-      if (node.type === Segmented && label !== undefined && onPick) out.set(label, onPick);
+    else if (
+      isValidElement<{
+        children?: unknown;
+        label?: string;
+        onPick?: (v: string) => void;
+        options?: readonly string[];
+        value?: string;
+        labels?: Record<string, string>;
+      }>(node)
+    ) {
+      const { label, onPick, options, value, labels = {}, children } = node.props;
+      if (node.type === PopUp && label !== undefined && onPick && options && value !== undefined)
+        out.set(label, { onPick, all: options.map((o) => labels[o] ?? o), chosen: labels[value] ?? value });
       controls(children, out);
     }
     return out;
   }
-  /** The choices of one control in the rendered page, in order, and the one chosen. */
-  function choices(out: string, label: string) {
-    const group = must(new RegExp(`aria-label="${label}"[^>]*>(.*?)</span>`).exec(out), label)[1];
-    return { all: [...group.matchAll(/>([^<]+)</g)].map((m) => m[1]), chosen: /aria-pressed="true">([^<]+)</.exec(group)?.[1] };
+  /** The choices of one pop-up, in order, and the one chosen, which the closed pop-up shows on its face. */
+  function choices(api: ReturnTimesApi, label: string) {
+    const c = must(controls(InboxPage({ returnTimes: api })).get(label), label);
+    const face = text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: api })));
+    expect(face).toMatch(new RegExp(`aria-label="${label}"[^>]*>(?:(?!</button>).)*${c.chosen}`));
+    return { all: c.all, chosen: c.chosen };
   }
 
   test("the page lists both rows with their choices, 1 hour and 1 day chosen for every kind", () => {
@@ -225,10 +241,10 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     expect(out).toContain("Read rests a card for");
     expect(out).toContain("Later brings a card back after");
     for (const label of ["Read rests chats for", "Read rests email for"]) {
-      expect(choices(out, label)).toEqual({ all: ["10 Min", "30 Min", "1 Hour", "3 Hours"], chosen: "1 Hour" });
+      expect(choices(page().api, label)).toEqual({ all: ["10 Min", "30 Min", "1 Hour", "3 Hours"], chosen: "1 Hour" });
     }
     for (const label of ["Later brings chats back after", "Later brings email back after", "Later brings Slack back after", "Later brings Jira back after"]) {
-      expect(choices(out, label)).toEqual({ all: ["3 Hours", "1 Day", "2 Days", "1 Week"], chosen: "1 Day" });
+      expect(choices(page().api, label)).toEqual({ all: ["3 Hours", "1 Day", "2 Days", "1 Week"], chosen: "1 Day" });
     }
     expect(out).not.toContain("Read rests Slack for");
     expect(out).not.toContain("Read rests Jira for");
@@ -240,16 +256,16 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     const sent: ReturnTimes[] = [];
     const older: ReturnTimes = { read_first: RETURN_TIMES_DEFAULT.read_first, later: { chat: "1d", email: "1d", slack: "1w" } };
     const api: ReturnTimesApi = { times: older, set: (t) => sent.push(t) };
-    expect(choices(text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: api }))), "Later brings Jira back after").chosen).toBe("1 Day");
-    must(controls(InboxPage({ returnTimes: api })).get("Later brings Jira back after"), "Jira's later control")("3h");
+    expect(choices(api, "Later brings Jira back after").chosen).toBe("1 Day");
+    must(controls(InboxPage({ returnTimes: api })).get("Later brings Jira back after"), "Jira's later control").onPick("3h");
     expect(sent).toEqual([{ ...older, later: { ...older.later, jira: "3h" } }]);
   });
 
   test("picking 2 days for email's later return sends that one change to the daemon, the rest as they were", () => {
     const { api, sent } = page();
-    must(controls(InboxPage({ returnTimes: api })).get("Later brings email back after"), "email's later control")("2d");
+    must(controls(InboxPage({ returnTimes: api })).get("Later brings email back after"), "email's later control").onPick("2d");
     expect(sent).toEqual([{ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "2d", slack: "1d", jira: "1d" } }]);
-    must(controls(InboxPage({ returnTimes: api })).get("Read rests chats for"), "chats' read control")("10m");
+    must(controls(InboxPage({ returnTimes: api })).get("Read rests chats for"), "chats' read control").onPick("10m");
     expect(sent[1]).toEqual({ ...RETURN_TIMES_DEFAULT, read_first: { chat: "10m", email: "1h" } });
   });
 });

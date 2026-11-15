@@ -244,12 +244,12 @@ focus back to the list, in every place; Esc in the list does nothing, and never 
   current. A skill nobody recorded a source for asks for one the first time. **remove** takes a skill out of the
   agent's memory. The page is remembered for the window.
 - **Preferences** (⌘, or ⌘6, or the menu bar): in the Mac app a window of its own, elsewhere a sheet over the whole window: six groups down the
-  left, and the chosen group's pages as tabs across its top, the last page remembered for the window. A filter over
-  the groups finds a page by its name or what it holds ("pair" finds Your devices; Enter opens the first page that
-  matched, Esc clears it). ⌘, closes Preferences again, Esc closes it, ⌘1, ⌘2, ⌘4 and ⌘5 close it and go to that section. ↑↓, Home
-  and End in the list move between groups, ←→ in the tabs between a group's pages, and ⌘[ and ⌘] step every page in
-  order. Each page is the same: settings in rows, the name and a line of help on the left, the control on the right; a
-  switch for on and off, a segmented control for a few choices, one blue button for the page's main action, red only
+  left as System Settings lists them, each a grey heading over its pages, one row per page with its coloured symbol;
+  the last page is remembered for the window. A filter over the list finds a page by its name, its group or what it
+  holds ("pair" finds Macs and Phone; Enter opens the first page that matched, Esc clears it). ⌘, closes Preferences
+  again, Esc closes it, ⌘1, ⌘2, ⌘4 and ⌘5 close it and go to that section. ↑↓ in the list move between pages and stop
+  at the ends, Home and End go to the first and last, and ⌘[ and ⌘] step every page in order. Each page is the same: settings in rows, the name and a line of help on the left, the control on the right; a
+  switch for on and off, a segmented control for a few choices, a pop-up menu for a duration, one blue button for the page's main action, red only
   for what removes something. The groups and their pages:
   1. **General**
      1. **Appearance**: System, Light or Dark (System follows macOS as it changes); kept per device.
@@ -417,7 +417,8 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. When a newer loki is out, the Mac's window shows an **Update…** button at the top right of its main pane; it opens Preferences › loki, and its menu's **Later** hides it until the next version. If the icon opens on
+locks it out. When a newer loki is out, the loki menu's **Check for Updates…** reads **Update to <version>…** (the ☰ menu's too on
+Windows and Linux); it opens Preferences › loki, whose **Skip This Version** stops the offer until a newer one. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.

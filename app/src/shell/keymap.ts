@@ -42,8 +42,11 @@ export interface Binding {
   was?: string;
 }
 
-/** The menus of the menu bar that the keymap fills, in order. */
-export const MENUS = ["Go", "Chat", "Flow", "Learn", "View"] as const;
+/**
+ * The menus of the menu bar that the keymap fills, in order. "loki" is the app menu: the Mac's shell puts its items
+ * between About and Hide (src-tauri menu.rs), and the ☰ menu lists it first (plan 2026-11-15-1035, KTD10).
+ */
+export const MENUS = ["loki", "Go", "Chat", "Flow", "Learn", "View"] as const;
 
 /** Every shortcut in loki, grouped by where it fires. */
 export const KEYMAP: Binding[] = [
@@ -52,7 +55,9 @@ export const KEYMAP: Binding[] = [
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
-  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
+  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "loki/settings" },
+  // A newer loki is offered here, retitled "Update to <version>…" while one waits (plan 2026-11-15-1035, R15).
+  { id: "app.update", keys: [], where: "anywhere", label: "Check for Updates…", typing: true, menu: "loki/update" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat", typing: true, menu: "Go" },
@@ -494,9 +499,9 @@ export function tauriAccelerator(spec: string): string {
 
 /**
  * The menu bar as the Rust side builds it from the keymap: MENUS in order, each binding's group a separated block, empty
- * menus left out.
+ * menus left out. `labels` names an item for now where its words change (the update item's version).
  */
-export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): MenuSpec[] {
+export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard, labels: Record<string, string> = {}): MenuSpec[] {
   return MENUS.map((title) => {
     const mine = map.filter((b): b is Binding & { menu: string } => b.menu?.split("/")[0] === title);
     const items: MenuSpec["items"] = [];
@@ -506,7 +511,7 @@ export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): Menu
       if (items.length && group !== lastGroup) items.push({ separator: true });
       lastGroup = group;
       const key = keysOf(b, os)[0];
-      items.push({ id: b.id, label: labelOf(b, os), accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
+      items.push({ id: b.id, label: labels[b.id] ?? labelOf(b, os), accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);

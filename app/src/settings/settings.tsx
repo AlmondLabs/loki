@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/os-words";
-import { Dot, Field, IconButton, Kbd, Sheet, Switch, TabRow, sentence } from "../components";
+import { Button, Dot, Field, IconButton, Sheet, Switch, sentence } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { ProviderSettings } from "./providers";
@@ -17,7 +17,7 @@ import { Macs, type MacsApi } from "./macs";
 import { Skills, type GlobalSkillsApi } from "./skills";
 import type { DaemonStatus } from "../shell/bootstrap";
 import { useHarnessFacts, type InstallReport } from "../shell/use-harness-facts";
-import type { LokiUpdate } from "../shell/use-loki-update";
+import { offeredNow, readSkipped, saveSkipped, type LokiUpdate } from "../shell/use-loki-update";
 import type { GlobalShortcut } from "../shell/use-global-shortcut";
 import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
@@ -30,9 +30,9 @@ export interface ReturnTimesApi {
   times: ReturnTimes;
   set: (times: ReturnTimes) => void;
 }
-import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
+import { PAGES, SETTINGS_PAGE_KEY, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { NAV_TEXT_INSET, PageList } from "./page-list";
-import { Block, Fact, Fold, Segmented, Setting } from "./layout";
+import { Block, Fact, Fold, PopUp, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
 import { THEME_PREFERENCES, useTheme } from "../theme";
@@ -174,7 +174,6 @@ export function Settings({
 }) {
   const harness = useHarnessFacts();
   const [page, setPage] = useState<SettingsPage>(() => savedPage(initialPage ?? sessionStorage.getItem(PAGE_KEY)));
-  const group = groupOf(page);
   const pick = (p: SettingsPage) => {
     setPage(p);
     sessionStorage.setItem(PAGE_KEY, p);
@@ -245,8 +244,8 @@ export function Settings({
         <PageList
           page={page}
           onPick={pick}
-          extra={(g) =>
-            g.pages.includes("phone") && phone.status?.enabled ? (
+          extra={(p) =>
+            p === "phone" && phone.status?.enabled ? (
               <Dot aria-label="On" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} />
             ) : null
           }
@@ -258,13 +257,10 @@ export function Settings({
         <div
           data-tauri-drag-region={windowed ? "deep" : undefined}
           className="loki-pane-header-line flex-none"
-          style={{
-            // A group with tabs draws its rule under them instead.
-            borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",
-          }}
+          style={{ borderBottom: "1px solid var(--loki-border)" }}
         >
           <h3 className="loki-title flex-1 min-w-0" style={{ margin: 0 }}>
-            {group.title}
+            {pageTitle(page)}
           </h3>
           {onClose && (
             <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: "var(--text-base)" }}>
@@ -272,11 +268,6 @@ export function Settings({
             </IconButton>
           )}
         </div>
-        {group.pages.length > 1 && (
-          <div className="flex-none" style={{ padding: `0 ${PANE_INSET}px`, borderBottom: "1px solid var(--loki-border)" }}>
-            <TabRow label={group.title} tabs={group.pages.map((p) => ({ id: p, label: pageTitle(p) }))} current={page} onChange={pick} />
-          </div>
-        )}
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: `24px ${PANE_INSET}px 48px` }}>
           {pageBody[page]()}
@@ -387,6 +378,7 @@ export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate;
     <span>
       {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
       <Note>{os === "macos" ? upgrade : <a href={update.download ?? update.url ?? "#"}>{upgrade}</a>}</Note>
+      <SkipVersion update={update} />
       {preview}
     </span>
   ) : update.latest ? (
@@ -403,6 +395,28 @@ export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate;
     </span>
   );
   return <Fact label="Version" value={value} />;
+}
+
+/**
+ * Skip This Version (plan 2026-11-15-1035, U7): the loki menu stops offering this stable version until a newer one, in
+ * every window, since the skip is kept in shared storage. Nothing while there is none to skip, or once it is skipped.
+ */
+function SkipVersion({ update }: { update: LokiUpdate }) {
+  const [skipped, setSkipped] = useState(readSkipped);
+  const offered = offeredNow(update, skipped);
+  if (!offered) return null;
+  return (
+    <span className="block" style={{ marginTop: 8 }}>
+      <Button
+        onClick={() => {
+          saveSkipped(offered);
+          setSkipped(offered);
+        }}
+      >
+        Skip This Version
+      </Button>
+    </span>
+  );
 }
 
 /** In the shell only: what launch did about the mod and the skill, folded shut. */
@@ -589,16 +603,14 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
         <Setting
           label="Read"
           help={`Marks the card read, in Gmail or Slack too. A chat or an email is set aside for a while, then ${REST_GROWTH} times longer each read in a row while nothing new comes, up to a week; anything new brings it back at once. A Slack message or a Jira card is done once read.`}
-        >
-          <Kbd>{keyFor("inbox.next")}</Kbd>
-        </Setting>
+        />
         <Setting label="Read rests a card for" help="The first rest after read, on every device.">
           <div className={KIND_GRID}>
             {READ_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
                 {sentence(KIND_NAME[kind])}
               </span>,
-              <Segmented
+              <PopUp
                 key={kind}
                 label={`Read rests ${KIND_NAME[kind]} for`}
                 options={REST_FIRST_KEYS}
@@ -612,16 +624,14 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
         <Setting
           label="Later"
           help="Keeps the card unread, here and in Gmail or Slack (a Jira card here only, as Jira keeps no unread), and brings it back after the time below, or sooner if something new comes. The second later in a row asks when."
-        >
-          <Kbd>{keyFor("inbox.later")}</Kbd>
-        </Setting>
+        />
         <Setting label="Later brings a card back after" help="On every device. A new time counts from the next later; a card already set aside keeps its own.">
           <div className={KIND_GRID}>
             {LATER_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
                 {sentence(KIND_NAME[kind])}
               </span>,
-              <Segmented
+              <PopUp
                 key={kind}
                 label={`Later brings ${KIND_NAME[kind]} back after`}
                 options={REST_LATER_KEYS}
@@ -635,12 +645,8 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
         <Setting
           label="Archive"
           help="Done: a chat is archived, an email thread is archived in Gmail, a Slack message is marked read. Undo brings it back. A Jira card has no archive: read ends it."
-        >
-          <Kbd>{keyFor("inbox.archive")}</Kbd>
-        </Setting>
-        <Setting label="Label" help="On an email card: adds Gmail labels, and the card stays for your next key.">
-          <Kbd>{keyFor("inbox.label")}</Kbd>
-        </Setting>
+        />
+        <Setting label="Label" help="On an email card: adds Gmail labels, and the card stays for your next key." />
         <Setting
           label="A reply"
           help="On a chat card, the message goes to the agent and the card stays, so the answer streams in where you are. On an email or Slack card, the key you press sends what you typed, then does its own move."

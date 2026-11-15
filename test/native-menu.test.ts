@@ -76,7 +76,10 @@ describe("a menu as data", () => {
   test("the menu bar's handler takes every click it hears: pop-up menus answer the page directly", () => {
     const keys = readFileSync(join(ROOT, "app", "src", "shell", "use-shell-keys.ts"), "utf8");
     expect(keys).not.toContain("POPUP");
-    expect(readFileSync(join(ROOT, "src-tauri", "src", "menu.rs"), "utf8")).toContain('"Settings…"');
+    // The app menu's own items (Settings…, the update item) come from the page's "loki" menu (plan 2026-11-15-1035, KTD10).
+    const menu = readFileSync(join(ROOT, "src-tauri", "src", "menu.rs"), "utf8");
+    expect(menu).not.toContain('"Settings…"');
+    expect(menu).toContain('const APP_MENU: &str = "loki";');
     expect(readFileSync(join(ROOT, "src-tauri", "src", "lib.rs"), "utf8")).toContain("popup::popup_menu");
   });
 });

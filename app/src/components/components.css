@@ -129,35 +129,56 @@
   text-align: left;
   white-space: normal;
 }
-/* Pages down the left of Settings and Agents: the reading face, the row radius, the panel when current. */
+/* Preferences' pages down its left side, as System Settings lists them (plan 2026-11-15-1035, U6): the page's symbol in a
+   coloured square and its name in the label colour; the page showing is filled with the accent and takes white ink. */
 .loki-nav {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
   text-align: left;
-  padding: 8px;
+  padding: 4px 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: transparent;
-  color: var(--loki-muted);
+  color: var(--loki-fg);
   font-family: var(--loki-font);
   font-size: var(--text-sm);
-  cursor: pointer;
+  cursor: default;
   transition:
     background-color 120ms ease-out,
     color 120ms ease-out;
 }
 @media (hover: hover) and (pointer: fine) {
-  .loki-nav:hover {
+  .loki-nav:hover:not([aria-selected="true"]) {
     background: var(--loki-hover);
-    color: var(--loki-fg);
   }
 }
 .loki-nav[aria-current],
 .loki-nav[aria-selected="true"] {
-  background: var(--loki-selection);
-  border-color: var(--loki-control-border);
-  color: var(--loki-fg);
+  background: var(--loki-affirm);
+  color: var(--loki-on-affirm);
+}
+/* The page's symbol: drawn in the ground's colour on the page's tint, so it reads in day and night. */
+.loki-settings-row-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--loki-bg);
+}
+/* A group's name over its pages: small grey text, not a row. */
+.loki-settings-heading {
+  padding: 12px calc(8px + 1px) 4px;
+  color: var(--loki-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.loki-settings-heading:first-child {
+  padding-top: 0;
 }
 
 /* ---- Chip ---------------------------------------------------------------------------------------- */
@@ -951,6 +972,12 @@ button.loki-list-section-toggle {
   position: relative;
   display: flex;
 }
+/* ☰ in a browser tab, beside the sidebar toggle (plan 2026-11-15-1035, KTD10): the toggle's 28 px square, not the strip's. */
+.loki-browser-menu .loki-title-btn--menu {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-lg);
+}
 .loki-title-menu {
   position: absolute;
   top: 100%;
@@ -1684,14 +1711,13 @@ button.loki-list-section-toggle {
     padding: 0 12px;
     font-size: var(--text-xs);
   }
-  /* The symbols, and room for the Update button the shell lays over the detail's top right (shell/update-button.tsx). */
+  /* The symbols at the toolbar's trailing edge. */
   .loki-pane-header-trailing {
     grid-area: tools;
     justify-self: end;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-right: var(--loki-toolbar-room);
   }
   .loki-toolbar-title {
     display: flex;
@@ -1718,7 +1744,7 @@ button.loki-list-section-toggle {
     align-items: center;
     gap: 12px;
     min-height: 52px;
-    padding: 4px calc(12px + var(--loki-toolbar-room)) 4px 20px;
+    padding: 4px 12px 4px 20px;
   }
   .loki-card-toolbar > .loki-toolbar-title {
     flex: 1;
@@ -1917,21 +1943,6 @@ button.loki-list-section-toggle {
     width: 16px;
     height: 16px;
     stroke-width: 1.75;
-  }
-  /* A newer loki (shell/update-button.tsx, plan 2026-11-14-1330 R18): a glass group over the detail's top right, the
-     same spot in every place, centred on the toolbar's 52px line; Update… in words, then the menu that holds Later. */
-  .loki-update-slot {
-    position: absolute;
-    top: 0;
-    right: 12px;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    height: 52px;
-  }
-  /* The menu that holds Later hangs from the group, not from the taller slot. */
-  .loki-update-slot > .loki-toolbar-group {
-    position: relative;
   }
   .loki-toolbar-item--text {
     width: auto;

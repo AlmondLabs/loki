@@ -120,3 +120,58 @@ export function useLokiUpdate(): LokiUpdate {
   }, [channel]);
   return state;
 }
+
+/** The version the person skipped (Settings › loki, Skip This Version), so the menu stops offering it until a newer one. */
+export const SKIPPED_KEY = "loki.update.later";
+
+/** The storage the skip is kept in: localStorage, which a locked-down webview can refuse. */
+type SkipStorage = Pick<Storage, "getItem" | "setItem">;
+
+/** The window's localStorage, or null where reading it throws. */
+function local(): SkipStorage | null {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** The version last skipped; null when none was, or storage is blocked. */
+export function readSkipped(storage: SkipStorage | null = local()): string | null {
+  try {
+    return storage?.getItem(SKIPPED_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps `version` as skipped. Blocked storage only costs offering it again at the next launch. */
+export function saveSkipped(version: string, storage: SkipStorage | null = local()): void {
+  try {
+    storage?.setItem(SKIPPED_KEY, version);
+  } catch {
+    // Nothing to keep it in; the menu offers it again next launch.
+  }
+}
+
+/**
+ * The version the menus offer (plan 2026-11-15-1035, R15): the newest stable loki while it is newer than this one and
+ * not the one skipped; otherwise null. A nightly or development build never reads as having one waiting, since any
+ * other build counts as newer there.
+ */
+export function offeredVersion(update: Pick<LokiUpdate, "newer" | "latest" | "channel">, skipped: string | null): string | null {
+  return update.channel === "stable" && update.newer && update.latest && update.latest !== skipped ? update.latest : null;
+}
+
+/**
+ * The version on offer in this window: none in a development build (Vite's dev server), whose version is the checkout's
+ * and never a release's, else `offeredVersion`'s.
+ */
+export function offeredNow(update: Pick<LokiUpdate, "newer" | "latest" | "channel">, skipped: string | null): string | null {
+  return import.meta.env.DEV ? null : offeredVersion(update, skipped);
+}
+
+/** The update item's words in the loki menu and the ☰ menu: the version waiting, or the plain check. */
+export function updateItemLabel(offered: string | null): string {
+  return offered ? `Update to ${offered}…` : "Check for Updates…";
+}

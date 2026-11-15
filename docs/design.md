@@ -297,10 +297,11 @@ Internals keep the name desk.
 - **Places.** The sidebar's first rows (plan 2026-11-12-1505, U12) are Chats, Flow, Agents and Learn, each a symbol
   in the accent, its name and a grey count (what waits in Flow, the cards due in Learn), the one showing filled and
   never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A newer loki is
-  an **Update…** button at the detail toolbar's trailing edge (plan 2026-11-14-1330, R18), laid over the detail's top
-  right by the shell so it sits in the same spot in every place, with each toolbar's trailing side leaving it room; its
-  menu holds **Later**, which hides it until the next version. It sat as a row at the sidebar's foot until 2026-11-14,
-  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place is a small grey **heading** that is not a row, as Mail's Favourites is, and its
+  offered from the loki menu, as a Mac app offers one (plan 2026-11-15-1035, U7): **Check for Updates…**, retitled
+  **Update to <version>…** while a stable release waits, opens Preferences › loki, where **Skip This Version** stops the
+  offer until a newer one; a nightly or development build never reads as having one waiting. The page lists the loki
+  menu's items in `menuSpec` like every other menu, so the Mac's menu bar, the ☰ menu on Windows and Linux, and the ☰
+  beside the sidebar toggle in a browser tab show the same items. A place is a small grey **heading** that is not a row, as Mail's Favourites is, and its
   **sources** are the rows under it (plan 2026-11-15-1035, R5): the same rows in every place, so changing place moves
   only the selection, and each agent is listed once, under Agents. A source is a symbol or an agent's face and its name
   in the label colour and a grey count of what waits in it; the source showing is filled and takes the accent. A chevron
@@ -381,8 +382,11 @@ Internals keep the name desk.
   recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
 - **Preferences.** In the Mac app Preferences is a window of its own (U18), which a browser tab opens with
   `?window=settings` (and `&page=<id>`) so it can be checked as the Mac draws it; elsewhere a large sheet over the whole
-  window: a named page list on
-  the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
+  window, in System Settings' form (plan 2026-11-15-1035, U6): down the left, each group a small grey heading over one
+  row per page, the page's symbol white-on-colour in a rounded square (`PAGE_ICON`), the page showing filled with the
+  accent (an ARIA tab list; focus follows the page, ↑↓ stop at the ends); on the right the page, with no tabs, its
+  settings in rounded groups divided by hairlines and a grey note under each group, a duration as a pop-up menu,
+  sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the
   sidebar, as Mail lists its mailboxes (Everything, then the person's lanes, each with the count of what needs the
@@ -467,6 +471,10 @@ box is one for both, its sizes set by `touch`.
 
 ## Tried and dropped
 
+- **Preferences as groups with tabs, and the Update button (2026-11-12 to 2026-11-15).** Preferences listed six groups,
+  each page a tab across its group, a paragraph of help above each block and durations as rows of segments; a newer
+  loki was an Update… button over the detail's top right. Retired for System Settings' one row per page and the loki
+  menu's update item (plan 2026-11-15-1035, U6 and U7).
 - **Places as rows with every agent under each (2026-11-14 to 2026-11-15).** Each place was a row that stood for its
   "all" view, and each agent appeared three times, as a Chats source, a Flow lane and an Agents page. Retired for
   Mail's grey headings and one row per agent, under Agents (plan 2026-11-15-1035, U4); Chats shows one agent's chats

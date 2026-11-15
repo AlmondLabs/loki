@@ -93,12 +93,14 @@ function inDetail(target: EventTarget | null): boolean {
  * registered once. Dialogs own their keys; Preferences, the one dialog that is part of the shell, lets ⌘,
  * ⌘1-6 and its ⌘[ ⌘] through, and search lets ⌘K through to close it (shellKeyAllowed). Esc is
  * `escapeSteps`': Chats' Desk tab back to Messages (`toMessages` says whether it took it), then focus from the detail
- * to the list (`toList`).
+ * to the list (`toList`). `menuLabels` names menu items whose words change (the update item); the Mac's menu bar is
+ * built again when they do.
  */
 export function useShellKeys(
   view: { segment: Segment },
   actions: Record<string, () => void>,
   escape: { toList: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void },
+  menuLabels: Record<string, string> = {},
 ): void {
   const ref = useRef({ view, actions, escape });
   useEffect(() => {
@@ -149,16 +151,19 @@ export function useShellKeys(
   // when macOS also fires an accelerator for a chord we already handled, the echo arrives within a beat — drop
   // it, even when the menu's item for that chord is a different binding (⌘] is "next desk" in the Desk menu
   // and "read the card" in the inbox; the key handler already ran the right one).
+  // As one string, so the menu is built again only when an item's words change, not on every render's new object.
+  const labels = JSON.stringify(menuLabels);
   useEffect(() => {
     if (!inTauri) return;
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e: unknown) => console.warn("loki: menu", e));
-  }, []);
+    const menus = menuSpec(undefined, undefined, JSON.parse(labels) as Record<string, string>);
+    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus })).catch((e: unknown) => console.warn("loki: menu", e));
+  }, [labels]);
   useEffect(() => {
     if (!inTauri) return;
     let off: (() => void) | null = null;
     void import("@tauri-apps/api/event").then(async ({ listen }) => {
       off = await listen<string>("loki:menu", (ev) => {
-        const id = ev.payload === "app.settings" ? "segment.settings" : ev.payload;
+        const id = ev.payload;
         const last = lastKeyFired.current;
         if (last && last.ids.has(id) && Date.now() - last.at < 250) return;
         if (!runAction(id)) console.warn("loki: menu item without an action", id);
