@@ -518,7 +518,7 @@ function RecallPage({ recall }: { recall: RecallModel }) {
     if (!snap) void recall.refresh();
   }, [snap, recall]);
   return (
-    <Block help="Flashcards written in the background from conversations that have gone quiet, and the leads it proposes. Learn is off until you turn it on.">
+    <Block help="Flashcards and leads written in the background from chats that have gone quiet, off until you turn it on.">
       {snap ? (
         <RecallSettings
           worker={snap.worker}
@@ -553,7 +553,7 @@ function ChatPage({
   return (
     <>
       <Block title="Chat panel">
-        <Setting label="Position" help="Where the chat sits on the canvas. An empty canvas opens it centred until the first widget lands.">
+        <Setting label="Position" help="Where the chat sits on the canvas, centred until the first widget lands.">
           <Segmented
             label="Position"
             options={CHAT_PLACEMENTS}
@@ -599,10 +599,10 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
   return (
     <>
       {lanes && <Lanes {...lanes} />}
-      <Block help="Every chat you have not archived, every thread in your Gmail inbox, every unread Slack message and every Jira ticket you watch that someone else changed. A card stays until it is done: a chat or an email when you archive it, a Slack message or a Jira ticket when you read it. The card in front of you never moves until you act on it.">
+      <Block help="Your chats, your Gmail inbox, unread Slack messages and the Jira tickets you watch that someone else changed, each card staying until it is done.">
         <Setting
           label="Read"
-          help={`Marks the card read, in Gmail or Slack too. A chat or an email is set aside for a while, then ${REST_GROWTH} times longer each read in a row while nothing new comes, up to a week; anything new brings it back at once. A Slack message or a Jira card is done once read.`}
+          help={`Marks the card read, in Gmail or Slack too: a chat or an email rests, ${REST_GROWTH} times longer each read in a row, and a Slack message or a Jira card is done once read.`}
         />
         <Setting label="Read rests a card for" help="The first rest after read, on every device.">
           <div className={KIND_GRID}>
@@ -621,11 +621,8 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
             ])}
           </div>
         </Setting>
-        <Setting
-          label="Later"
-          help="Keeps the card unread, here and in Gmail or Slack (a Jira card here only, as Jira keeps no unread), and brings it back after the time below, or sooner if something new comes. The second later in a row asks when."
-        />
-        <Setting label="Later brings a card back after" help="On every device. A new time counts from the next later; a card already set aside keeps its own.">
+        <Setting label="Later" help="Keeps the card unread, in Gmail or Slack too, and brings it back after the time below or when something new comes." />
+        <Setting label="Later brings a card back after" help="On every device, for cards you put off from now on.">
           <div className={KIND_GRID}>
             {LATER_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
@@ -644,12 +641,12 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
         </Setting>
         <Setting
           label="Archive"
-          help="Done: a chat is archived, an email thread is archived in Gmail, a Slack message is marked read. Undo brings it back. A Jira card has no archive: read ends it."
+          help="Archives a chat or an email thread, in Gmail too, and marks a Slack message read, where a Jira card has no archive and read ends it."
         />
         <Setting label="Label" help="On an email card: adds Gmail labels, and the card stays for your next key." />
         <Setting
           label="A reply"
-          help="On a chat card, the message goes to the agent and the card stays, so the answer streams in where you are. On an email or Slack card, the key you press sends what you typed, then does its own move."
+          help="On a chat card the answer streams in where you are, and on an email or Slack card the key you press sends what you typed."
         />
       </Block>
       <Fold title="How the order works">
@@ -661,7 +658,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
         </Setting>
         <Setting
           label="Focus"
-          help={`The chat's share of what you have been doing lately: your messages, answers, decisions and reads, each fading by half every ${FOCUS_HALF_LIFE_H} hours. The task you are on rises; one you have moved on from fades.`}
+          help={`The chat's share of what you have done lately, each message, answer and read fading by half every ${FOCUS_HALF_LIFE_H} hours.`}
         >
           <Score>{`Up to +${FOCUS_POINTS}`}</Score>
         </Setting>

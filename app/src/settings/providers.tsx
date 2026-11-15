@@ -126,7 +126,7 @@ export function ProviderSettings({
   );
   return (
     <>
-      <Block title="Connected" help="Who answers your agents' models. A key is checked with the provider, then kept in this computer's keychain.">
+      <Block title="Connected" help="Who answers your agents' models, each key kept in this computer's keychain.">
         {connected.length === 0 && <Setting label="None yet" help="Add a provider below to give your agents a model." />}
         {connected.map(row)}
       </Block>

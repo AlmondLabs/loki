@@ -84,11 +84,7 @@ export function Mcp({ api }: { api: McpApi }) {
   if (!view) return <Setting label="Servers" help={error ?? "Asking loki…"} />;
   return (
     <>
-      <Block
-        help={
-          'Servers your agents can use. An agent sees each server and its tools\' names; a tool loads only when the agent searches for it, unless it is "always loaded".'
-        }
-      >
+      <Block help={'Servers your agents can use, each tool loading only when an agent searches for it unless it is "always loaded".'}>
         {view.problems.map((p) => (
           <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">
             {p}

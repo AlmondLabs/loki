@@ -29,7 +29,7 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
   };
   return (
     <>
-      <Block help="The folder every agent reads, ~/.agents/skills. An agent's own skills are on its page in Agents.">
+      <Block help="The folder every agent reads, ~/.agents/skills, while an agent's own skills are on its page in Agents.">
         {skills === null && <Setting label="Skills" help="Reading…" />}
         {skills?.length === 0 && <Setting label="None yet" help="Enable a folder below." />}
         {(skills ?? []).map((g) => (

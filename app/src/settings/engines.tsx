@@ -68,7 +68,7 @@ export function Engines({ api }: { api: EnginesApi }) {
   if (!view) return <Setting label="Engines" help={error ?? "Asking loki…"} />;
   return (
     <>
-      <Block help="What a chat can run on besides loki's own models. A chat picks its engine in the model picker, before its first message.">
+      <Block help="What a chat can run on besides loki's own models, chosen in the model picker before its first message.">
         {error && (
           <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
             {error}

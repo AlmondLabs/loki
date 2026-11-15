@@ -33,7 +33,7 @@ export function Macs({ macs, connected }: { macs: MacsApi; connected: boolean })
   if (!connected || !view) return <Setting label="Macs" help="Asking the mod…" />;
   return (
     <>
-      <Block help="Your other Macs running loki, over your tailnet only, never the Wi‑Fi or the internet. Each chat runs on one Mac; the others reach it through that Mac.">
+      <Block help="Your other Macs running loki, reached over your tailnet only, never the Wi‑Fi or the internet.">
         <Setting
           label={osWords().Machine}
           help={

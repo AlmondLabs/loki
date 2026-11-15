@@ -249,7 +249,7 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     expect(out).not.toContain("Read rests Slack for");
     expect(out).not.toContain("Read rests Jira for");
     expect(out).toContain("a Jira card is done once read");
-    expect(out).toContain("A Jira card has no archive: read ends it.");
+    expect(out).toContain("a Jira card has no archive and read ends it");
   });
 
   test("a set from before Jira shows Jira's later as the default, and a pick sends Jira's time with the rest", () => {
