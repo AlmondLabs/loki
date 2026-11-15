@@ -51,6 +51,23 @@ export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNA
 /** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
 export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
 
+/**
+ * Whether this page is the Settings window, and the page it opens on (plan 2026-11-12-1505, U18). The Mac app says so in
+ * the window's start-up script; a browser tab asks with `?window=settings` (and `&page=<id>`), so the window can be
+ * worked on and tested in a browser as the Mac draws it, not as the sheet a browser tab otherwise shows. The phone has no
+ * Settings window. Null for the main window.
+ */
+export function settingsWindowFrom(loki: Window["__LOKI__"], search: string, tauri: boolean, lan: boolean): { page: string | null } | null {
+  if (loki?.window === "settings") return { page: loki.page ?? null };
+  if (tauri || lan) return null;
+  const query = new URLSearchParams(search);
+  return query.get("window") === "settings" ? { page: query.get("page") } : null;
+}
+/** This page's Settings window, as `settingsWindowFrom` reads it; null in the main window and on the phone. */
+// A test can stand up a window with no location, so each is checked on its own.
+export const settingsWindow =
+  typeof window !== "undefined" ? settingsWindowFrom(window.__LOKI__, typeof location !== "undefined" ? location.search : "", inTauri, inLan) : null;
+
 const injectedOs = typeof window !== "undefined" ? window.__LOKI__?.os : undefined;
 const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
 /** The host: machine words, the extras it has (phone pairing, the system-wide key, Browse), its download. */

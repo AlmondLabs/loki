@@ -15,6 +15,9 @@ npm run dev:vite       # Vite alone, for a browser tab
 npm run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
 
+A browser tab shows Preferences as a sheet. To check the Mac app's Settings window instead, open the Vite tab with
+`&window=settings` after its `?t=` token, and `&page=<id>` (an id from `app/src/settings/pages.ts`) to open on a page.
+
 **Windows and Linux** (the preview builds): Node and Rust as above; in place of Xcode's tools, Windows needs the
 Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
 Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in

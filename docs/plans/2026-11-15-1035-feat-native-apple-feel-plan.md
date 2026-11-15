@@ -144,7 +144,7 @@ Two vocabularies cause most of it. The chat pane and Flow's cards are shadcn (pl
 - KTD7. **No switch back to the old look.** Each phase replaces the old one in its PR; review happens on the running branch. (session-settled: user-approved — chosen over a Preferences switch like the 2026-11-12 redesign: the old look is not kept)
 - KTD8. **Settings keeps its 15 page ids.** `loki.settingsPage` already stores page ids, so deep links, ⌘K page words and `pageAfterKey` keep working; the groups become sidebar headings. ↑↓ step pages and stop at the ends, and a pick shows at once. ⌘[ ⌘] keep stepping pages.
 - KTD9. **An agent lane reads as Everything on the desktop.** `resolveLane` on the desktop maps `agent:<id>` to Everything; the phone keeps its agent lanes. Governs R6.
-- KTD10. **The update item lives in the Rust menu.** `src-tauri/src/menu.rs` gains "Check for Updates…", retitled "Update to <version>…" when one waits, wired by an id like `app.settings` (`app/src/shell/use-shell-keys.ts`). Skip This Version moves to Settings › loki. Nightly and dev builds never show it as waiting. Governs R15.
+- KTD10. **The loki menu's own items come from the page's `menuSpec`, like every other menu.** Today `src-tauri/src/menu.rs` writes the loki menu in Rust while Go to View come from `menuSpec`; the page now lists the loki menu's items too (Settings…, "Check for Updates…", retitled "Update to <version>…" when one waits), and Rust keeps only the system's own items (About, Services, Hide, Quit). One list then feeds the Mac's menu bar, the ☰ menu on Windows and Linux, and a browser tab, which shows the ☰ menu so every menu command can be tested there. Skip This Version moves to Settings › loki. Nightly and dev builds never show an update as waiting. Governs R15.
 
 ### High-Level Technical Design
 
@@ -328,20 +328,23 @@ flowchart TB
 - **Dependencies:** U6.
 - **Files:**
   - `src-tauri/src/menu.rs`
+  - `app/src/shell/keymap.ts` (`menuSpec`) and the title strip that hosts the ☰ menu (`TitleStrip`)
   - `app/src/shell/use-shell-keys.ts`, `app/src/shell/use-loki-update.ts`, `app/src/shell/title-menu.tsx`
   - `app/src/shell/update-button.tsx` (removed) and `app/src/shell/shell.tsx`
   - `app/src/settings/settings.tsx` (`LokiVersionFact`, Skip This Version)
   - `test/shell-look.test.ts`, `test/update-check.test.ts`, `test/native-menu.test.ts`, `test/title-strip.test.ts`
 - **Approach:**
-  1. The Rust menu carries "Check for Updates…" after About, retitled while a stable update waits (KTD10).
-  2. The ☰ menu on Windows and Linux shows the same item.
+  1. `menuSpec` gains the loki menu's own items, "Check for Updates…" among them, retitled while a stable update waits; `menu.rs` builds them from the spec and adds only the system's items (KTD10).
+  2. The ☰ menu draws the same list on Windows and Linux, and in a browser tab, where it is hidden today.
   3. Settings › loki keeps the version and gains Skip This Version.
   4. The toolbar drops the button and the room kept for it.
 - **Test scenarios:**
   - Covers AE5. With a newer stable version the item reads "Update to <version>…"; with none, "Check for Updates…".
   - On the nightly channel the item never reads as waiting.
   - Skip This Version hides the waiting title until a later version appears.
-- **Verification:** the cargo checks pass, and the item works in the Mac app and the ☰ menu.
+  - The loki menu's items in the spec match what `menu.rs` builds, so the Mac and the ☰ menu list the same items.
+  - A browser tab shows the ☰ menu, and choosing Settings… there opens Preferences.
+- **Verification:** the cargo checks pass, and the item works in the Mac app, the ☰ menu and a browser tab.
 
 ### U8. Learn and Agents
 
