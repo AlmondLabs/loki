@@ -28,8 +28,11 @@ export function MenuItems({ entries }: { entries: MenuEntry[] }) {
   const tidy = tidyEntries(entries);
   // As AppKit does: once one item has an icon, every item's label starts after the icon's column.
   const icons = tidy.some((e) => e.type === "item" && e.icon);
-  return tidy.map((e, i) => {
-    if (e.type === "separator") return <DropdownMenuSeparator key={`sep-${i}`} />;
+  // tidyEntries never leads with a separator, so each one is keyed by the entry it follows.
+  let previous = "start";
+  return tidy.map((e) => {
+    if (e.type === "separator") return <DropdownMenuSeparator key={`sep-after-${previous}`} />;
+    previous = e.id;
     if (e.type === "submenu")
       return (
         <DropdownMenuGroup key={e.id} aria-label={e.label}>
