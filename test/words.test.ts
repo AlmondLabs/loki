@@ -103,4 +103,8 @@ describe("words on screen (docs/style.md §6)", () => {
     );
     expect(wrong.map(({ where, text }) => `${where} ${text}`)).toEqual([]);
   });
+
+  test("a label that leads on ends in the ellipsis character, never three periods (plan 2026-11-15-1035, R4)", () => {
+    expect(found.filter(({ text }) => text.includes("...")).map(({ where, text }) => `${where} ${text}`)).toEqual([]);
+  });
 });

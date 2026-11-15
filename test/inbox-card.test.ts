@@ -124,7 +124,7 @@ describe("the Inbox card's suggestions (plan 049)", () => {
     const noop = () => {};
     const moves = { current: item(), typing: false, read: noop, later: noop, archive: noop, onOpenDesk: noop, onClose: noop };
     const html = inPage(createElement(ChatItemHeader, { current: item(), cameBack: false, flash: null, suggestions: 2, onSuggestions: noop, moves }));
-    expect(html).toMatch(/<button[^>]*loki-chip--tag[^>]*>2 suggestions<\/button>/);
+    expect(html).toMatch(/<button[^>]*>2 suggestions<\/button>/);
     expect(inPage(createElement(ChatItemHeader, { current: item(), cameBack: false, flash: null, moves }))).not.toContain("suggestion");
   });
   test("/suggestions opens them, as ⌘⇧S does", () => {

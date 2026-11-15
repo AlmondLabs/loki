@@ -530,7 +530,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
    phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
-   primitives; `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night) and the widget kit
+   primitives (on the desktop, wrappers over `ui/`'s shadcn components, plan 2026-11-15-1035; the phone keeps their own
+   markup); `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night) and the widget kit
    (`@loki/kit`). The desktop's chat pane and Flow's cards (plans 096 and 097) add three: `ui/` holds shadcn's components on Base UI and, in
    `ui/ai-elements/`, Vercel's AI Elements, both copied in and bent to loki's rules, imported as `@/ui/…`; `lib/utils.ts`
    is the one `cn`, which knows loki's type sizes and shadows; `item/` draws one item (a chat, a Slack thread, an email,

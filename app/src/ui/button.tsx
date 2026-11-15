@@ -15,6 +15,11 @@ const buttonVariants = cva(
         ghost: "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive: "bg-destructive/10 text-destructive hover:bg-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30",
         link: "text-primary underline-offset-4 hover:underline",
+        // loki (plan 2026-11-15-1035, U1): the Mac's push button, raised grey in the dark and white in the day with a
+        // hairline edge, and its plain button, accent text with no bezel. Push takes the label colour; a pressed or
+        // open push button keeps its fill and darkens a step, as AppKit's does.
+        push: "bg-loki-segment text-foreground shadow-low ring-1 ring-loki-glass-edge hover:brightness-110 active:brightness-95 aria-expanded:brightness-95 aria-pressed:brightness-95",
+        plain: "text-loki-accent hover:bg-muted aria-expanded:bg-muted",
       },
       size: {
         default: "h-9 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",

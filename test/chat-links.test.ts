@@ -414,7 +414,8 @@ describe("the link card and the header", () => {
     expect(html).toContain("infra");
     expect(html).toContain("min left");
     expect(html).toContain("Close link to infra");
-    expect(html).not.toContain("old");
+    expect(html).not.toContain(">old<");
+    expect(html).not.toContain("link to old");
   });
 
   test("several live links fold into one chip that says how many, so the header stays one line", () => {

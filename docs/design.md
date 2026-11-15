@@ -185,9 +185,15 @@ or one that stays with an action and a cancel button; one stack, top right under
 colours; never a
 hand-built toast).
 
-The tone names predate this look and are kept for compatibility. What they render now: `quiet` muted ink
-on a hairline · `paper` fg ink · `brass` the accent blue ink (an interactive action) · `positive` the default
-button, the accent filled with white ink · `negative` red ink. Buttons are semibold; a label takes a capital
+On the desktop the primitives are thin wrappers over shadcn's components in `app/src/ui` (plan 2026-11-15-1035, U2): Button
+and IconButton draw `ui/button`, Chip draws `ui/badge`, Switch draws `ui/switch`, and a `type="search"` Field draws an
+`ui/input-group` capsule. The phone, and any `touch`-sized control, keeps loki's own markup and `phone.css`'s restyle of it.
+The tone names predate this look and are kept for compatibility. What they render on the desktop, as the Mac's buttons:
+`quiet` and `paper` the push button (raised grey in the dark, white with a hairline edge in the day) · `brass` the plain
+button, accent text with no bezel · `positive` the default button, the accent filled with white ink · `negative` the
+destructive button, red. A `bare` button has no bezel and keeps its tone's ink. A chip is a filled capsule with no
+hairline, the accent fill when active, picked or waiting. A search field is a filled capsule with the magnifier leading.
+In a list with focus, the chosen row's fill is the focus mark; its ring goes transparent. Buttons are semibold; a label takes a capital
 (`capitalChildren`) and a `kbd` goes into the tooltip ("Archive (⌘E)"), not onto the face. Chips, meta, banners and labels are the sans at 12, no caps, no tracking; titles are sans bold. Kbd
 stays mono. Selection and hover use distinct neutral steps; neither the accent nor the badge is spent on a
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
@@ -201,8 +207,8 @@ heading with a count and actions), **TabRow** (an ARIA tablist with roving focus
 
 ## The chat pane and Flow's cards (shadcn and AI Elements, plans 096 and 097)
 
-The desktop chat pane and Flow's cards are built on a second vocabulary; the rest of the app keeps the primitives
-above. The phone keeps its own thread and cards.
+The desktop chat pane and Flow's cards are built on shadcn directly; the rest of the desktop reaches the same
+components through the primitives above, which wrap them (plan 2026-11-15-1035). The phone keeps its own thread and cards.
 
 **Foundation.** [shadcn](https://ui.shadcn.com) components on Base UI (a custom trigger is `render=`, not `asChild`)
 and Vercel's [AI Elements](https://ai-sdk.dev/elements) live in `app/src/ui/` and `app/src/ui/ai-elements/`, copied

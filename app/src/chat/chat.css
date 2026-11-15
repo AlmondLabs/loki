@@ -719,7 +719,7 @@ button.loki-file-chip {
   margin-left: auto;
   flex: none;
 }
-.loki-btn.loki-composer-round {
+.loki-composer-round {
   position: relative;
   flex: none;
   border-radius: var(--loki-radius-pill);
@@ -728,26 +728,26 @@ button.loki-file-chip {
   color: var(--loki-fg);
 }
 /* Send: Slack's green once there is something to send; a muted circle while the box is empty. */
-.loki-btn.loki-composer-send:disabled {
+.loki-composer-send:disabled {
   background: var(--loki-hover);
   color: var(--loki-muted);
   opacity: 1;
 }
 /* Stop, in send's place while the agent works (Claude's): a filled round in the ink colour with a square in it. */
-.loki-btn.loki-composer-stop {
+.loki-composer-stop {
   border-color: var(--loki-fg);
   background: var(--loki-fg);
   color: var(--loki-bg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .loki-btn.loki-composer-stop:hover:not(:disabled) {
+  .loki-composer-stop:hover:not(:disabled) {
     border-color: var(--loki-fg);
     background: var(--loki-fg);
     color: var(--loki-bg);
     opacity: 0.85;
   }
 }
-.loki-btn.loki-composer-stop:disabled {
+.loki-composer-stop:disabled {
   opacity: 0.5;
 }
 /* The suggestions chip (plan 052): after the chat's own pills, brass as anything waiting on you is, one height with the row. */

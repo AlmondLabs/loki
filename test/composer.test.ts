@@ -101,7 +101,7 @@ describe("the phone's message box's bottom row", () => {
   test("send is disabled while the box is empty and live once there is text", () => {
     const send = (html: string) => must(/<button[^>]*aria-label="Send"[^>]*>/.exec(html), "the Send button")[0];
     expect(send(conversation(true))).toContain('disabled=""');
-    expect(send(conversation(true, "ship it"))).not.toContain("disabled");
+    expect(send(conversation(true, "ship it"))).not.toContain('disabled=""');
   });
 
   test("while the agent works, an empty box's send is Stop; typing brings send back (it queues); no handler, no Stop", () => {
@@ -131,7 +131,7 @@ describe("the desktop's message box", () => {
     expect(html).not.toContain("loki-composer-bar");
     const typed = conversation(false, "ship it");
     expect(boxLabels(typed)).toEqual(["Attach Files", "Send"]);
-    expect(must(/<button[^>]*aria-label="Send"[^>]*>/.exec(typed), "the Send button")[0]).not.toContain("disabled");
+    expect(must(/<button[^>]*aria-label="Send"[^>]*>/.exec(typed), "the Send button")[0]).not.toContain('disabled=""');
   });
 
   test("the permission mode is not in the box, nor in a row under it", () => {

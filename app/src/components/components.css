@@ -599,7 +599,7 @@ textarea.loki-field {
   margin: 8px 0 0;
   line-height: 1.6;
 }
-.loki-empty > .loki-btn {
+.loki-empty > button {
   margin-top: 12px;
 }
 
@@ -1236,7 +1236,7 @@ button.loki-list-section-toggle {
   font-variant-numeric: tabular-nums;
 }
 /* New keeps the toolbar's trailing edge, with or without a count. */
-.loki-content-list-bar > .loki-btn {
+.loki-content-list-bar > button {
   margin-left: auto;
 }
 /* The toolbar's grey line under the title (All Cards: when Learn last wrote), as a chat's toolbar has one. */
@@ -1294,6 +1294,11 @@ button.loki-list-section-toggle {
 .loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-badge {
   background: transparent;
   color: var(--loki-on-affirm);
+}
+/* The filled row is the focus mark, as a Mac list's (plan 2026-11-15-1035, R3): the ring goes transparent on it, so it
+   still draws where forced colours repaint outlines. Any other focused row (none chosen yet, a held row) keeps the ring. */
+.loki-content-list-rows .loki-list-item[data-current] > .loki-list-row:focus-visible {
+  outline: 2px solid transparent;
 }
 /* Agents (plan 2026-11-14-1330, KTD9): the chosen agent's page as the detail, its item under the toolbar; on Profile,
    which has no list, the detail spans the list's column too. */
