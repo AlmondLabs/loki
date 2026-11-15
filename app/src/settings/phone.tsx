@@ -77,9 +77,11 @@ function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
 /** The way phones come in, and what anyone on it can do. */
 function RouteBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus }) {
   const safety =
-    status.via === "lan" ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale." : "The tailnet is yours alone; Funnel is never used.";
+    status.via === "lan"
+      ? "Only a paired phone can act, but this Wi‑Fi sees plain http, so use Tailscale on a network you do not trust."
+      : "Only a paired phone can act, and the tailnet is yours alone.";
   return (
-    <Block title="Route" help={`Anyone on the lit route can open the page; only a paired phone can act. ${safety}`}>
+    <Block title="Route" help={safety}>
       <div style={{ padding: "12px 0" }}>
         <Route status={status} onVia={phone.setVia} onServe={phone.setServe} />
       </div>
@@ -92,7 +94,7 @@ function PairBlock({ phone, status, lastCode }: { phone: PhoneApi; status: Phone
   return (
     <Block title="Pair a phone">
       <div>
-        <Setting label="A new phone" help="A code that lives ten minutes. Scan it with the phone's camera, then Add to Home Screen.">
+        <Setting label="A new phone" help="Scan the code with the phone's camera within ten minutes, then Add to Home Screen.">
           <Button tone="positive" onClick={phone.beginPair}>
             {lastCode ? "New Code" : "Pair Phone"}
           </Button>

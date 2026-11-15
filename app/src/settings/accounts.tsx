@@ -299,10 +299,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   const slackState = connectState("slack", owner, os);
   return (
     <>
-      <Block
-        title="Accounts"
-        help="Mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as cards in Flow; each account belongs to one agent, which gets its hand-offs and its tools."
-      >
+      <Block title="Accounts" help="Mail, Slack and Jira that need you arrive as cards in Flow, and each account belongs to one agent.">
         {error && (
           <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
             {error}
@@ -314,7 +311,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
           <AccountLine key={row.account_id} row={row} agents={agents} api={api} apply={apply} onReconnect={reconnect} />
         ))}
       </Block>
-      <Block title="Connect an account" help="A mailbox, a workspace or a Jira site; it goes to the agent below, which you can change on its row later.">
+      <Block title="Connect an account" help="A mailbox, a workspace or a Jira site, given to the agent below.">
         <Setting label="Gmail" help={gmailState.reason ?? "Opens Google's sign-in in your browser."}>
           <Button tone="positive" disabled={!gmailState.ready} onClick={() => owner && void gmail(owner)}>
             Connect Gmail
@@ -356,7 +353,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
       <Fold title="Use your own Google app">
         <Setting
           label="Client id and secret"
-          help="From an OAuth client of your own in Google Cloud, for a desktop app. Filled in, Connect Gmail signs in with it instead of loki's shared app."
+          help="An OAuth client of your own for a desktop app, which Connect Gmail then signs in with instead of loki's shared app."
         />
         <Field value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client ID" placeholder="Client ID" mono />
         <Field

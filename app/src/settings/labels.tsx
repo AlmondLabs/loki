@@ -22,9 +22,7 @@ export function Labels({ api }: { api: LabelsApi }) {
   const [error, setError] = useState<string | null>(null);
   if (!api.list) return <Setting label="Labels" help="Asking loki…" />;
   return (
-    <Block
-      help={`Labels gather related chats across agents. Add them from a chat's row, its header, or /label in the message box; find a label's chats with label:name in the sidebar's filter or ${keyFor("search.open")}.`}
-    >
+    <Block help={`Labels gather related chats across agents, and label:name in the list's Search or ${keyFor("search.open")} finds them.`}>
       {error && (
         <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
           {error}

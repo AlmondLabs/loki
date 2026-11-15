@@ -166,10 +166,7 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
   };
   const saved = draft !== null && lanes.some((l) => l.id === draft.id);
   return (
-    <Block
-      title="Lanes"
-      help="A lane is the part of your work Flow shows while you are in it: chats from some agents, mail and Slack from some accounts. Switch lanes from Flow's title, on each device on its own."
-    >
+    <Block title="Lanes" help="A lane shows Flow only some agents' chats and some accounts' mail and Slack, and you switch lanes from Flow's title.">
       <div className="grid grid-cols-[minmax(120px,180px)_1fr] items-start gap-6" style={{ padding: "12px 0" }}>
         <div role="group" aria-label="Lanes" className="grid justify-items-start gap-1">
           {lanes.length === 0 && <span className="loki-meta loki-meta--wrap">No lanes yet</span>}

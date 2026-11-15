@@ -397,7 +397,8 @@ Internals keep the name desk.
   window, in System Settings' form (plan 2026-11-15-1035, U6): down the left, each group a small grey heading over one
   row per page, the page's symbol white-on-colour in a rounded square (`PAGE_ICON`), the page showing filled with the
   accent (an ARIA tab list; focus follows the page, ↑↓ stop at the ends); on the right the page, with no tabs, its
-  settings in rounded groups divided by hairlines and a grey note under each group, a duration as a pop-up menu,
+  settings in rounded groups divided by hairlines and a grey note of one sentence under each group (a setting's own
+  help is one sentence too; the manual holds the rest, plan 2026-11-15-2358), a duration as a pop-up menu,
   sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the

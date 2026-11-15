@@ -99,7 +99,7 @@ export function JiraConnectForm({
     <>
       <Setting
         label={form.reconnecting ? `A new API token for ${form.site}` : "Jira site, email and API token"}
-        help="The site's address as in acme.atlassian.net, the email of your Atlassian account, and an API token made in that account's security settings. loki keeps the token in the keychain."
+        help="The site's address as in acme.atlassian.net, your Atlassian email, and an API token from that account's security settings, kept in the keychain."
       />
       <Field value={form.site} onChange={(e) => onForm({ ...form, site: e.target.value })} aria-label="Jira site address" placeholder="Site address" mono />
       <Field
