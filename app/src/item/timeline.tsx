@@ -1,6 +1,7 @@
 import { Thought } from "./thought";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type Ref, type UIEvent, type WheelEvent } from "react";
 import { flushSync } from "react-dom";
+import { prefersReducedMotion } from "../kit/motion";
 import { ArrowDownIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button } from "@/ui/button";
@@ -357,6 +358,6 @@ function useFollowSend(list: TranscriptRow[]) {
   useEffect(() => {
     const sent = isNewSend(seen.current, tail);
     seen.current = tail;
-    if (sent) scrollToEnd({ behavior: "smooth" });
+    if (sent) scrollToEnd({ behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, [tail, scrollToEnd]);
 }

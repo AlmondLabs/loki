@@ -17,7 +17,7 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
   Linuxbrew; on Windows it is npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta,
   nvm-windows, fnm, scoop and bun. loki never downloads Node: with none new enough, Welcome says so, names the
   usual command (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or `sudo apt install nodejs npm` /
-  `sudo dnf install nodejs`), links nodejs.org, and has **check again**, which looks afresh.
+  `sudo dnf install nodejs`), links nodejs.org, and has **Check Again**, which looks afresh.
 
 ## Install
 
@@ -585,7 +585,7 @@ When something does not come up:
    and `~/.loki/mod.log` the mod's.
 2. **Welcome shows the Node step**: no Node 22.19 or newer anywhere loki looks. It names the command for your
    system (`brew install node`, `winget install OpenJS.NodeJS.LTS`, the distribution's package); install it,
-   then **check again**. `LOKI_NODE_BIN` points loki at one it does not find.
+   then **Check Again**. `LOKI_NODE_BIN` points loki at one it does not find.
 3. **The installed app is running**: its daemon holds `~/.loki`, so yours waits (`daemon.log` says it exited with
    code 3). Quit the app.
 

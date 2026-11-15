@@ -36,7 +36,7 @@ const RECHECK_MS = 4000;
 /**
  * loki's daemon as the shell sees it: the Node it runs on, or why it could not start. Outside the shell (a
  * browser tab) there is nothing to report and `status` stays null. While `error` is set the status is asked
- * again every few seconds; `retry` (Welcome's "check again") has the shell look for Node afresh and start the
+ * again every few seconds; `retry` (Welcome's Check Again) has the shell look for Node afresh and start the
  * daemon when nothing runs it yet.
  */
 export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => Promise<void> } {

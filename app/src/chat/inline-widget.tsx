@@ -47,7 +47,7 @@ export function InlineWidget({
         <span className="loki-inline-widget-title">{entry.title}</span>
         {onOpen && (
           <button type="button" className="loki-inline-widget-open" onClick={onOpen}>
-            Show on canvas
+            Show on Canvas
           </button>
         )}
       </div>

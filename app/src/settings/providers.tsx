@@ -303,7 +303,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         <label key={f.key} htmlFor={`${fieldId}-${f.key}`} className="grid grid-cols-[140px_1fr] items-center gap-3" style={{ fontSize: "var(--text-xs)" }}>
           <span style={{ color: "var(--loki-muted)" }}>
             {f.label}
-            {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
+            {f.required === false ? <span> · optional</span> : null}
           </span>
           <Field
             id={`${fieldId}-${f.key}`}

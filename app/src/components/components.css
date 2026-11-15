@@ -303,6 +303,12 @@
 .loki-field[aria-invalid="true"] {
   border-color: var(--loki-negative);
 }
+/* Focused, a field wears the accent edge, as a Mac text field wears its focus ring: the caret alone is easy to lose.
+   The first line of a sheet (bare) is focused whenever the sheet is open, so it keeps its hairline; the phone's fields
+   keep iOS's caret alone (phone.css). */
+.loki-field:focus:not(.loki-field--bare, [aria-invalid="true"], .loki-phone *) {
+  border-color: var(--loki-accent);
+}
 .loki-field--sm {
   min-height: 28px;
   padding: 4px 12px;
@@ -985,9 +991,10 @@ button.loki-list-section-toggle {
   width: 48px;
 } /* the rail's width (SIDEBAR_WIDTH): ☰ sits over the rail */
 @media (hover: hover) and (pointer: fine) {
+  /* Red, as Windows and Linux draw a window's close button under the pointer: the window goes. */
   .loki-title-btn--close:hover {
-    background: var(--loki-attention);
-    color: var(--loki-on-attention);
+    background: var(--loki-negative);
+    color: var(--loki-bg);
   }
 }
 .loki-window-controls {

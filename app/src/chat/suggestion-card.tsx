@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Markdown from "react-markdown";
+import { formatKeys } from "../shell/keymap";
 import remarkGfm from "remark-gfm";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ConversationInfo } from "../../../core/attention/model.ts";
@@ -317,8 +318,7 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
       <span className="loki-suggestion-modal-title">Suggestions</span>
       {count > 0 && <Meta>{`${count} waiting`}</Meta>}
       <span className="flex-1" />
-      {!touch && <Meta>Esc closes</Meta>}
-      <IconButton size={touch ? 36 : 28} label="Close" onClick={onClose}>
+      <IconButton size={touch ? 36 : 28} label="Close" title={touch ? undefined : `Close (${formatKeys("escape")})`} onClick={onClose}>
         <Icon name="close" size={touch ? 20 : 16} />
       </IconButton>
     </div>

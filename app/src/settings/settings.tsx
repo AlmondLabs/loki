@@ -246,7 +246,7 @@ export function Settings({
           onPick={pick}
           extra={(p) =>
             p === "phone" && phone.status?.enabled ? (
-              <Dot aria-label="On" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} />
+              <Dot role="img" aria-label="On" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} />
             ) : null
           }
         />
@@ -796,7 +796,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     {b.typing ? (
                       ""
                     ) : b.where === "inbox" || b.where === "desk" ? (
-                      <span style={{ marginLeft: 8, fontSize: "var(--text-xs)", opacity: 0.7 }}>Not while typing</span>
+                      <span style={{ marginLeft: 8, fontSize: "var(--text-xs)" }}>Not while typing</span>
                     ) : null}
                     {b.was && <span className="loki-meta loki-meta--wrap block">{sentence(wasFor(b) ?? "")}</span>}
                     {takenBy(b).map((t) => (

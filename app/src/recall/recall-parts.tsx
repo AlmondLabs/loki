@@ -81,7 +81,7 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
         Before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
       </Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
-      <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
+      <div style={{ marginTop: 2, whiteSpace: "pre-wrap" }}>{prev.back}</div>
     </div>
   );
 }

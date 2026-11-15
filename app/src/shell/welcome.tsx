@@ -43,7 +43,7 @@ export function Welcome({
   /** Look for Node again and start the daemon (the shell's retry_daemon). */
   onRetryDaemon: () => Promise<void>;
   models: string[] | null;
-  /** Fetch the model list; the "skip for now" / "next" button calls it, the shell does when it opens on the agent step. */
+  /** Fetch the model list; the Skip for Now / Next button calls it, the shell does when it opens on the agent step. */
   onLoadModels: () => void;
   onCreate: CreateAgent;
   onDone: (agentId: string) => void;
@@ -99,7 +99,7 @@ export function Welcome({
   );
 }
 
-/** Step 1: waits for the daemon, then the provider shortlist with "next" / "skip for now", then a line naming what connected. */
+/** Step 1: waits for the daemon, then the provider shortlist with Next / Skip for Now, then a line naming what connected. */
 function ProviderStep({
   nodeStep,
   showAgent,
@@ -121,7 +121,7 @@ function ProviderStep({
           <span className="flex-1" />
           {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
           <Button size="sm" onClick={onNext}>
-            {connected ? "next" : "skip for now"}
+            {connected ? "Next" : "Skip for Now"}
           </Button>
         </div>
       </div>
@@ -203,14 +203,14 @@ function AgentForm({
           </Button>
         )}
         <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void create()} disabled={busy || !name.trim()}>
-          {busy ? "creating…" : "create and open the chat"}
+          {busy ? "Creating…" : "Create and Open the Chat"}
         </Button>
       </div>
     </div>
   );
 }
 
-/** The daemon could not start: for want of a new-enough Node, the Node step; for anything else, the reason and "check again". */
+/** The daemon could not start: for want of a new-enough Node, the Node step; for anything else, the reason and Check Again. */
 export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null; onRetry: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const retry = () => {
@@ -226,7 +226,7 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
         Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
       </div>
       <Button size="sm" tone="positive" disabled={busy} onClick={retry} className="justify-self-start">
-        {busy ? "checking…" : "check again"}
+        {busy ? "Checking…" : "Check Again"}
       </Button>
     </div>
   );
@@ -265,7 +265,7 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
         {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
       </div>
       <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} className="justify-self-start">
-        {busy ? "checking…" : "check again"}
+        {busy ? "Checking…" : "Check Again"}
       </Button>
     </div>
   );
