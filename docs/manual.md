@@ -470,7 +470,9 @@ pair it with any Mac of yours, and it joins the others by itself, introduced by 
 paired with every other, since a chat is reached on the Mac it lives on). A Mac you **forget** stays forgotten: it is
 not joined again until you pair it by code. While any Mac is paired,
 loki keeps the Mac from sleeping when it is idle on power, so a MacBook on its charger with the lid open stays
-reachable; a closed lid still sleeps.
+reachable; a closed lid still sleeps. When a paired Mac stays out of reach, `~/.loki/mod.log` says why in a
+`peers:link_failed` line, once each time the reason changes: no answer, no token in the keychain, or the other Mac
+turning this one away.
 
 **Where things live.**
 

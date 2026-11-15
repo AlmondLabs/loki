@@ -32,7 +32,14 @@ export interface LokiServer {
  * looks a device cookie or bearer up and names the device, so its sockets can be
  * closed when the device is forgotten, or a paired Mac's bearer token and names the Mac (mod/peers.ts).
  */
-export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string; peerId?: string };
+export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string; peerId?: string; refusal?: Refusal };
+
+/**
+ * How a refused socket is answered: 401 when no one here knows its token, 403 when it came the wrong way (the Wi‑Fi
+ * for a Mac, a page on another site). Another Mac's link reads only 401 as "this Mac forgot me", so a path problem
+ * never unpairs the two. Browsers never see an upgrade's status, so phones and tabs are told nothing new.
+ */
+export type Refusal = 401 | 403;
 
 /**
  * The loopback server's Authorize: the desktop token, from the WebSocket subprotocol header or else `?t=`, compared in
@@ -262,8 +269,10 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     }
     const who = authorize(req, url);
     if (!who.ok) {
-      // Said, not just dropped: another Mac's link tells a refused token (it may have been forgotten) from a network fault.
-      socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      // Said, not just dropped: another Mac's link tells a refused token (it may have been forgotten) from a wrong path
+      // or a network fault.
+      const status = who.refusal === 403 ? "403 Forbidden" : "401 Unauthorized";
+      socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
       return;
     }
     if (url.pathname !== "/ws") {

@@ -48,6 +48,8 @@ export class PeerLink {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private nextId = 0;
   private readonly waiting = new Map<string, Waiting>();
+  /** Why the link last failed, as logged: the same reason on every retry is logged once (plan 2026-11-15-2110, R4). */
+  private lastFailure: string | null = null;
 
   constructor(opts: PeerLinkOptions) {
     this.opts = opts;
@@ -115,7 +117,7 @@ export class PeerLink {
     try {
       await this.connect();
     } catch (err) {
-      log("peers:link_failed", { mac: this.opts.macId, error: messageOf(err) });
+      this.failed(messageOf(err));
       if (!this.stopped) this.closed();
     }
   }
@@ -124,17 +126,30 @@ export class PeerLink {
     const url = this.opts.url();
     const token = await this.opts.token();
     if (this.stopped) return;
-    if (!url || !token) return this.closed();
+    if (!url || !token) {
+      this.failed(!url ? "no address for that Mac" : "no token for that Mac in the keychain: pair the two Macs again");
+      return this.closed();
+    }
     // A retry of a Mac out of reach stays "unreachable" until it answers (plan 048): flipping to "connecting" and back
     // every backoff step broadcast the paired Macs to every client and logged two lines, forever, for a Mac turned off.
     if (this.current !== "unreachable") this.setStatus("connecting");
     const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` }, handshakeTimeout: 8000 });
     this.ws = ws;
+    // The first reason this attempt fails is its reason: the socket's own "closed before it opened" follows a refusal.
+    let said = false;
+    const fail = (reason: string) => {
+      if (said) return;
+      said = true;
+      this.failed(reason);
+    };
     ws.on("unexpected-response", (_req, res) => {
-      if (res.statusCode === 401) this.opts.onRefused?.();
+      const status = res.statusCode ?? 0;
+      fail(`that Mac answered ${status}${REFUSALS.get(status) ?? ""}`);
+      if (status === 401) this.opts.onRefused?.();
       ws.terminate();
     });
-    ws.on("error", () => {}); // a close follows; the error itself says nothing the status does not
+    // A close follows, which retries; the error is only the reason (a timeout, a refused or unreachable address).
+    ws.on("error", (err) => fail(messageOf(err)));
     ws.on("open", () => {
       void this.ask({ type: "peer_ping" }, 8000, true).then(
         (pong) => {
@@ -142,7 +157,10 @@ export class PeerLink {
           this.backoff = this.opts.minBackoffMs ?? 1000;
           this.setStatus(pong.protocol === this.opts.protocol ? "reachable" : "outdated");
         },
-        () => ws.terminate(),
+        (err: unknown) => {
+          fail(`that Mac did not answer its first ping: ${messageOf(err)}`);
+          ws.terminate();
+        },
       );
     });
     ws.on("message", (raw) => this.message(raw));
@@ -193,13 +211,31 @@ export class PeerLink {
     }
   }
 
+  /**
+   * Log why the link failed, unless that is the reason last logged. A link stopped on purpose (its Mac forgotten, the
+   * mod reloading) did not fail: closing its socket mid-handshake says so as an error, which is not logged.
+   */
+  private failed(reason: string): void {
+    if (this.stopped || reason === this.lastFailure) return;
+    this.lastFailure = reason;
+    log("peers:link_failed", { mac: this.opts.macId, reason });
+  }
+
   private setStatus(status: LinkStatus): void {
+    // Once it worked, the next failure is news again, whatever it is.
+    if (status === "reachable") this.lastFailure = null;
     if (status === this.current) return;
     this.current = status;
     log("peers:link", { mac: this.opts.macId, status });
     this.opts.onStatus?.(status);
   }
 }
+
+/** What a refused link's status means, for its log line. */
+const REFUSALS = new Map<number, string>([
+  [401, ": it does not know this Mac's token"],
+  [403, ": it took this Mac for a caller off the tailnet"],
+]);
 
 /** What PeerLinks needs to know about each paired Mac. */
 export interface LinkTarget {
