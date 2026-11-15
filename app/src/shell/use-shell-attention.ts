@@ -1,5 +1,5 @@
 import { useAttention } from "../../../core/attention/use-attention.ts";
-import { resolveLane, useActiveLaneId } from "../shared/active-lane";
+import { resolveDesktopLane, useActiveLaneId } from "../shared/active-lane";
 import { pageActivity, pageVisibility } from "../shared/page-activity";
 import type { Desk } from "./types";
 
@@ -13,7 +13,7 @@ export function useShellAttention(desk: Desk, capture: (event: string, propertie
   const { attention } = desk;
   const [laneId, setLaneId] = useActiveLaneId("desktop");
   const catchUp = useAttention({
-    lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: attention.setLanes, resolve: resolveLane },
+    lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: attention.setLanes, resolve: resolveDesktopLane },
     enabled: attention.available,
     makeClient: attention.makeClient,
     seen: attention.seen,

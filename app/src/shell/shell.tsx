@@ -114,6 +114,8 @@ export function Shell() {
   const [sidebarQuery, setSidebarQuery] = useState("");
   /** The Chats source the sidebar has chosen and the list shows (plan 2026-11-14-1330, R4): every chat to begin with. */
   const [chatSource, setChatSource] = useState(ALL_CHATS);
+  /** All Chats' agent pop-up (plan 2026-11-15-1035, R8): the agent whose chats show, or null for every agent. */
+  const [chatAgent, setChatAgent] = useState<string | null>(null);
   /**
    * The source chosen does not hold the chat open (KTD8): the detail says "No Chat Selected", and the chat's link stays
    * as it is until a row is picked.
@@ -220,6 +222,8 @@ export function Shell() {
       const to = openIn({ scope, agent_id: agentId }, { source: chatSource, query: sidebarQuery }, deskList, agentList);
       setChatSource(to.source);
       setSidebarQuery(to.query);
+      // A chat of another agent than the pop-up shows clears it, so the chat is in the list (R9).
+      if (chatAgent !== null && chatAgent !== agentId) setChatAgent(null);
       setUnselected(false);
       switchTo(scope);
       paneOpen(scope);
@@ -227,7 +231,7 @@ export function Shell() {
       setNewChat(null);
       setFocusChat((n) => n + 1);
     },
-    [setSegment, paneOpen, switchTo, chatSource, sidebarQuery, deskList, agentList],
+    [setSegment, paneOpen, switchTo, chatSource, chatAgent, sidebarQuery, deskList, agentList],
   );
   /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message. */
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
@@ -360,11 +364,18 @@ export function Shell() {
   const { layout } = column;
   /** Chats' sources in the sidebar and the chosen one's rows in the list, Search applied (sidebar-model.ts, KTD2). */
   const sources = useMemo(() => chatSources(deskList, catchUp.items, agentList), [deskList, catchUp.items, agentList]);
-  const source = sources.find((x) => x.id === chatSource) ?? { id: ALL_CHATS, title: "Chats", agentId: null, waiting: 0 };
-  const chatRows = useMemo(
-    () => sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList }),
-    [deskList, catchUp.items, source.id, sidebarQuery, agentList],
-  );
+  /** The waiting chats in every agent's source, All Chats' grey count. */
+  const allWaiting = sources.reduce((n, x) => (x.agentId ? n + x.waiting : n), 0);
+  /** The agent All Chats' pop-up shows, while it is one the window knows. */
+  const shownAgent = chatSource === ALL_CHATS && chatAgent !== null ? (agentList.find((a) => a.id === chatAgent) ?? null) : null;
+  const source =
+    chatSource === ALL_CHATS
+      ? { id: ALL_CHATS, title: shownAgent?.name ?? "All Chats", agentId: shownAgent?.id ?? null, waiting: allWaiting }
+      : (sources.find((x) => x.id === chatSource) ?? { id: ALL_CHATS, title: "All Chats", agentId: null, waiting: allWaiting });
+  const chatRows = useMemo(() => {
+    const rows = sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList });
+    return shownAgent ? rows.filter((r) => r.desk.agent_id === shownAgent.id) : rows;
+  }, [deskList, catchUp.items, source.id, sidebarQuery, agentList, shownAgent]);
   /**
    * A source chosen in the sidebar (KTD8): Chats shows it, and the chat open stays selected when the source holds it;
    * else the detail says "No Chat Selected", and nothing switches until a row is picked.
@@ -377,14 +388,8 @@ export function Shell() {
     const open = deskList.find((d) => d.scope === desk.scope);
     setUnselected(!open || !sourceHolds(id, open));
   };
-  /** Flow's lanes as its sources in the sidebar (plan 2026-11-14-1330, U6): its own row is Everything. */
-  const lanes = flowSources(
-    catchUp.items,
-    catchUp.flow.lane,
-    catchUp.flow.lanes,
-    (lane) => catchUp.flow.setLaneId(lane?.id ?? ""),
-    (agentId, name) => <AgentFace name={name} src={avatarUrl(agentId)} size={16} />,
-  );
+  /** Flow's sources in the sidebar: Everything and the person's lanes (plan 2026-11-15-1035, R6). */
+  const lanes = flowSources(catchUp.items, catchUp.flow.lane, catchUp.flow.lanes, (lane) => catchUp.flow.setLaneId(lane?.id ?? ""));
   /** A lane chosen in the sidebar: Flow shows it, within the same visit (R12). */
   const chooseLane = (id: string) => {
     column.dismiss();
@@ -415,6 +420,12 @@ export function Shell() {
     setPrefsOpen(false);
     setSegment("learn");
     learnPlaces.onSelect(id);
+  };
+  /** All Chats' pop-up chose an agent, or every agent: as choosing a source does, the open chat stays selected only if shown. */
+  const chooseChatAgent = (agentId: string | null) => {
+    setChatAgent(agentId);
+    const open = deskList.find((d) => d.scope === desk.scope);
+    setUnselected(!open || !sourceHolds(ALL_CHATS, open) || (agentId !== null && open.agent_id !== agentId));
   };
   /** A label's chats: every chat's list, searched for the label. */
   const showLabel = (name: string) => {
@@ -496,7 +507,7 @@ export function Shell() {
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
       "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
-      "desk.new": () => startNewChat(null),
+      "desk.new": () => startNewChat(source.agentId),
       "keys.sheet": () => setKeysOpen((v) => !v),
       "desk.prev": () => chatList.current?.step(-1),
       "desk.next": () => chatList.current?.step(1),
@@ -587,16 +598,16 @@ export function Shell() {
               waiting={waiting}
               dueCards={recall.due}
               sources={{
+                // Chats' own sources (plan 2026-11-15-1035, R6): each agent is listed once, under Agents, and All Chats'
+                // pop-up shows one agent's chats.
                 desk: {
-                  items: sources.map((x) => ({
-                    id: x.id,
-                    title: x.title,
-                    icon: x.id === PINNED_CHATS ? "pin" : x.id === ARCHIVED_CHATS ? "archive" : undefined,
-                    face: x.agentId ? <AgentFace name={x.title} src={avatarUrl(x.agentId)} size={16} /> : undefined,
-                    count: x.waiting,
-                  })),
+                  items: [
+                    { id: ALL_CHATS, title: "All Chats", icon: "desk", count: allWaiting },
+                    ...sources
+                      .filter((x) => x.id === PINNED_CHATS || x.id === ARCHIVED_CHATS)
+                      .map((x) => ({ id: x.id, title: x.title, icon: x.id === PINNED_CHATS ? ("pin" as const) : ("archive" as const), count: x.waiting })),
+                  ],
                   selected: source.id,
-                  all: ALL_CHATS,
                   onSelect: chooseSource,
                 },
                 inbox: { ...lanes, onSelect: chooseLane },
@@ -635,6 +646,7 @@ export function Shell() {
               catchUp={catchUp}
               notice={notice}
               rows={chatRows}
+              agentFilter={chatSource === ALL_CHATS ? { agents: agentList, agentId: shownAgent?.id ?? null, onAgent: chooseChatAgent } : undefined}
               source={source}
               selected={listSelected}
               shown={segment === "desk"}

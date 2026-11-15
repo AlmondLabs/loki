@@ -47,6 +47,8 @@ export interface ContentListProps {
   empty: ReactNode;
   /** The place's New, in the toolbar and under the empty sentence; `keys` goes in its tooltip. */
   newAction?: { label: string; run: () => void; keys?: string };
+  /** A control in the toolbar before New: Chats' agent pop-up (plan 2026-11-15-1035, R8). */
+  tool?: ReactNode;
   /**
    * False keeps New to the toolbar, off the empty sentence: where the empty source is not what New makes (an agent's
    * page with no files, while New makes an agent). Under the sentence by default.
@@ -111,6 +113,7 @@ export function ContentList({
   onMenu,
   empty,
   newAction,
+  tool,
   emptyAction = true,
   query = "",
   onQuery,
@@ -172,7 +175,7 @@ export function ContentList({
 
   return (
     <section className="loki-content-list" aria-label={label}>
-      <ListBar title={title} count={count} line={line} newAction={newAction} />
+      <ListBar title={title} count={count} line={line} newAction={newAction} tool={tool} />
       {onQuery && <ListSearch label={label} query={query} onQuery={onQuery} />}
       <div ref={rowsRef} className="loki-content-list-rows">
         {shown.length === 0 ? (
@@ -272,7 +275,7 @@ function useHeldRows(rows: readonly ContentRow[], current: string | null, search
  * The list's toolbar: the source's name and grey count over its grey line, one stack as the detail's title is so the
  * two share a top line (plan 2026-11-14-2224, KTD4), and the place's New with its key in the tooltip.
  */
-function ListBar({ title, count, line, newAction }: Pick<ContentListProps, "title" | "line" | "newAction"> & { count: number | null }) {
+function ListBar({ title, count, line, newAction, tool }: Pick<ContentListProps, "title" | "line" | "newAction" | "tool"> & { count: number | null }) {
   return (
     <div className="loki-content-list-bar" data-tauri-drag-region="deep">
       <div className="loki-content-list-head">
@@ -282,16 +285,19 @@ function ListBar({ title, count, line, newAction }: Pick<ContentListProps, "titl
         </div>
         {line && <p className="loki-content-list-line">{line}</p>}
       </div>
-      {newAction && (
-        <IconButton
-          size={24}
-          label={newAction.label}
-          title={newAction.keys ? `${newAction.label} (${newAction.keys})` : newAction.label}
-          onClick={newAction.run}
-        >
-          <Icon name="plus" size={16} />
-        </IconButton>
-      )}
+      <div className="loki-content-list-tools">
+        {tool}
+        {newAction && (
+          <IconButton
+            size={24}
+            label={newAction.label}
+            title={newAction.keys ? `${newAction.label} (${newAction.keys})` : newAction.label}
+            onClick={newAction.run}
+          >
+            <Icon name="plus" size={16} />
+          </IconButton>
+        )}
+      </div>
     </div>
   );
 }

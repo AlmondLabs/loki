@@ -185,9 +185,15 @@ or one that stays with an action and a cancel button; one stack, top right under
 colours; never a
 hand-built toast).
 
-The tone names predate this look and are kept for compatibility. What they render now: `quiet` muted ink
-on a hairline · `paper` fg ink · `brass` the accent blue ink (an interactive action) · `positive` the default
-button, the accent filled with white ink · `negative` red ink. Buttons are semibold; a label takes a capital
+On the desktop the primitives are thin wrappers over shadcn's components in `app/src/ui` (plan 2026-11-15-1035, U2): Button
+and IconButton draw `ui/button`, Chip draws `ui/badge`, Switch draws `ui/switch`, and a `type="search"` Field draws an
+`ui/input-group` capsule. The phone, and any `touch`-sized control, keeps loki's own markup and `phone.css`'s restyle of it.
+The tone names predate this look and are kept for compatibility. What they render on the desktop, as the Mac's buttons:
+`quiet` and `paper` the push button (raised grey in the dark, white with a hairline edge in the day) · `brass` the plain
+button, accent text with no bezel · `positive` the default button, the accent filled with white ink · `negative` the
+destructive button, red. A `bare` button has no bezel and keeps its tone's ink. A chip is a filled capsule with no
+hairline, the accent fill when active, picked or waiting. A search field is a filled capsule with the magnifier leading.
+In a list with focus, the chosen row's fill is the focus mark; its ring goes transparent. Buttons are semibold; a label takes a capital
 (`capitalChildren`) and a `kbd` goes into the tooltip ("Archive (⌘E)"), not onto the face. Chips, meta, banners and labels are the sans at 12, no caps, no tracking; titles are sans bold. Kbd
 stays mono. Selection and hover use distinct neutral steps; neither the accent nor the badge is spent on a
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
@@ -201,8 +207,8 @@ heading with a count and actions), **TabRow** (an ARIA tablist with roving focus
 
 ## The chat pane and Flow's cards (shadcn and AI Elements, plans 096 and 097)
 
-The desktop chat pane and Flow's cards are built on a second vocabulary; the rest of the app keeps the primitives
-above. The phone keeps its own thread and cards.
+The desktop chat pane and Flow's cards are built on shadcn directly; the rest of the desktop reaches the same
+components through the primitives above, which wrap them (plan 2026-11-15-1035). The phone keeps its own thread and cards.
 
 **Foundation.** [shadcn](https://ui.shadcn.com) components on Base UI (a custom trigger is `render=`, not `asChild`)
 and Vercel's [AI Elements](https://ai-sdk.dev/elements) live in `app/src/ui/` and `app/src/ui/ai-elements/`, copied
@@ -294,14 +300,16 @@ Internals keep the name desk.
   an **Update…** button at the detail toolbar's trailing edge (plan 2026-11-14-1330, R18), laid over the detail's top
   right by the shell so it sits in the same spot in every place, with each toolbar's trailing side leaving it room; its
   menu holds **Later**, which hides it until the next version. It sat as a row at the sidebar's foot until 2026-11-14,
-  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
-  (plan 2026-11-14-1330, R1): the same rows in every place, so changing place moves only the selection. Each source is
-  a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
-  for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
-  hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
-  (Pinned, each agent, Archived), Flow its lanes, and Agents its agents (face, name, a green dot while one works, the
-  count of what waits in Flow; the Agents row stands for no one agent, so choosing it keeps the agent shown), and Learn
-  its views (Review with its grey count of cards due, Leads, All Cards, Deleted; the Learn row keeps the view shown).
+  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place is a small grey **heading** that is not a row, as Mail's Favourites is, and its
+  **sources** are the rows under it (plan 2026-11-15-1035, R5): the same rows in every place, so changing place moves
+  only the selection, and each agent is listed once, under Agents. A source is a symbol or an agent's face and its name
+  in the label colour and a grey count of what waits in it; the source showing is filled and takes the accent. A chevron
+  at the heading's trailing edge, shown on hover and always while folded, folds the sources; the folds are kept in
+  `loki.desktop.sidebar`. Chats' sources are All Chats, Pinned and Archived; All Chats keeps a heading per agent and an
+  agent pop-up in the list's toolbar shows one agent's chats. Flow's are Everything and the person's lanes; an agent's
+  lane is the phone's, and on the desktop a saved one reads as Everything. Agents' are its agents (face, name, a green
+  dot while one works, the count of what waits in Flow), and Learn's its views (Review with its grey count of cards due,
+  Leads, All Cards, Deleted).
 - **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its
   edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
   lights, which stays while the sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list
@@ -376,8 +384,8 @@ Internals keep the name desk.
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the
-  sidebar, as Mail lists its mailboxes (Flow's own row is Everything, then the person's lanes, then each agent with
-  cards, each with the count of what needs the person); the list column holds the lane's cards in the deck's order on
+  sidebar, as Mail lists its mailboxes (Everything, then the person's lanes, each with the count of what needs the
+  person); the list column holds the lane's cards in the deck's order on
   `ContentList`, titled with the lane and its count; the detail is the selected card. A row says who it is from (the
   sender, or the chat's agent), what it is about and one line of the newest words, the kind's symbol (a chat's bubble,
   a mail, Slack's #, a ticket) at its start and a muted "Sign In" mark where the account needs mending. The card has no
@@ -458,6 +466,10 @@ box is one for both, its sizes set by `touch`.
 
 ## Tried and dropped
 
+- **Places as rows with every agent under each (2026-11-14 to 2026-11-15).** Each place was a row that stood for its
+  "all" view, and each agent appeared three times, as a Chats source, a Flow lane and an Agents page. Retired for
+  Mail's grey headings and one row per agent, under Agents (plan 2026-11-15-1035, U4); Chats shows one agent's chats
+  through the pop-up in its list's toolbar.
 - **Slack's look (2026-09-23 to 2026-11-14).** The desktop and the phone wore Slack's look and layout: a neutral grey
   ground, a labelled rail of five sections down the left (Preferences among them), a `#` before each chat, a 48px
   name line over a tab row, the red badge for what waits on you and green for the affirmative button, a pill and a

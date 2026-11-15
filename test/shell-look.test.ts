@@ -99,6 +99,31 @@ describe("one sidebar in place of the rail (U12)", () => {
     expect(must(/\.loki-place-count \{([^}]*)\}/.exec(css), "the count rule")[1]).toContain("var(--loki-muted)");
   });
 
+  test("a place with sources is a grey heading that is not a row, its sources the rows (plan 2026-11-15-1035, R5)", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { Places } = await import("../app/src/shell/sidebar.tsx");
+    const chats = {
+      items: [
+        { id: "all", title: "All Chats", icon: "desk" as const, count: 0 },
+        { id: "pinned", title: "Pinned", icon: "pin" as const, count: 0 },
+        { id: "archived", title: "Archived", icon: "archive" as const, count: 0 },
+      ],
+      selected: "all",
+      onSelect: () => {},
+    };
+    const out = renderToStaticMarkup(createElement(Places, { segment: "desk", onSelect: () => {}, waiting: 0, sources: { desk: chats } }));
+    expect(out).toContain('<span id="loki-place-heading-desk" class="loki-place-heading">Chats</span>');
+    expect(out).not.toMatch(/<button[^>]*>[^]*?>Chats</);
+    expect([...out.matchAll(/class="loki-place-label">([^<]+)</g)].map((m) => m[1]).slice(0, 3)).toEqual(["All Chats", "Pinned", "Archived"]);
+    expect(out).toMatch(/aria-current="page"[^>]*aria-label="All Chats"/);
+  });
+
+  test("only the row showing takes the accent; the others' symbols are in the label colour", () => {
+    expect(must(/\.loki-place\[aria-current\] \{([^}]*)\}/.exec(css), "the current place")[1]).toContain("var(--loki-accent)");
+    expect(must(/\.loki-place-icon \{([^}]*)\}/.exec(css), "the place icon")[1]).not.toContain("var(--loki-accent)");
+  });
+
   test("the place showing is filled, never bold", () => {
     expect(must(/\.loki-place\[aria-current\] \{([^}]*)\}/.exec(css), "the current place")[1]).toContain("var(--loki-selection)");
     expect(must(/\n\.loki-place \{([^}]*)\}/.exec(css), "the place rule")[1]).toContain("font-weight: 400");

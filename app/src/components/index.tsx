@@ -19,6 +19,12 @@ import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
 import { capitalChildren, capitalFirst } from "../kit/words";
 import { ariaShortcut } from "../shell/keymap";
+import { inLan } from "../desk/env";
+import { Button as UiButton } from "@/ui/button";
+import { Switch as UiSwitch } from "@/ui/switch";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
+import { Badge } from "@/ui/badge";
+import { SearchIcon } from "lucide-react";
 
 /**
  * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
@@ -67,25 +73,68 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * The button. Coloured text on a hairline, or filled for the affirmative (`positive`). Its label takes a capital and its
- * key is in the tooltip, not on the face (plan 2026-11-12-1505, R7 and R10).
+ * The phone keeps loki's own markup and phone.css's restyle of it; the desktop draws shadcn's button in the Mac's kinds
+ * (plan 2026-11-15-1035, KTD5). `touch` is the phone's size, so a touch-sized control takes the phone's markup wherever
+ * it is drawn.
+ */
+const phoneMarkup = (size?: Size) => inLan || size === "touch";
+
+/** The Mac's button kind for a tone (plan 2026-11-15-1035, KTD2): push for neutral ink, plain for the blue, the
+ * default fill for the affirmative, destructive for red. A bare button has no bezel and keeps its tone's ink. */
+const KIND: Record<Tone, "push" | "plain" | "default" | "destructive"> = {
+  quiet: "push",
+  paper: "push",
+  brass: "plain",
+  positive: "default",
+  negative: "destructive",
+};
+const BARE_INK: Record<Tone, string> = {
+  quiet: "text-muted-foreground",
+  paper: "text-foreground",
+  brass: "text-loki-accent",
+  positive: "text-loki-accent",
+  negative: "text-destructive",
+};
+
+/**
+ * The button. On the desktop, the Mac's push, plain, default and destructive buttons (plan 2026-11-15-1035, U2); on the
+ * phone, coloured text on a hairline. Its label takes a capital and its key is in the tooltip, not on the face (plan
+ * 2026-11-12-1505, R7 and R10).
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", title, ...rest },
   ref,
 ) {
   const keyTip = kbd != null && typeof kbd === "string" ? kbd : null;
+  const tip = keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title;
+  const shortcut = keyTip ? ariaShortcut(keyTip) : undefined;
+  if (phoneMarkup(size))
+    return (
+      <button
+        ref={ref}
+        type={type}
+        className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
+        title={tip}
+        aria-keyshortcuts={shortcut}
+        {...rest}
+      >
+        {capitalChildren(children)}
+      </button>
+    );
+  const variant = bare && tone !== "positive" ? "ghost" : KIND[tone];
   return (
-    <button
+    <UiButton
       ref={ref}
       type={type}
-      className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
-      title={keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title}
-      aria-keyshortcuts={keyTip ? ariaShortcut(keyTip) : undefined}
+      variant={variant}
+      size={size === "md" ? "default" : "sm"}
+      className={cx(bare && tone !== "positive" && BARE_INK[tone], block && "w-full justify-start text-left whitespace-normal", className)}
+      title={tip}
+      aria-keyshortcuts={shortcut}
       {...rest}
     >
       {capitalChildren(children)}
-    </button>
+    </UiButton>
   );
 });
 
@@ -103,19 +152,35 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   children: ReactNode;
 }
 
-/** A glyph in a square, no hairline until hovered. */
+const ICON_SIZE = { 24: "icon-xs", 28: "icon-sm", 36: "icon", 40: "icon-lg" } as const;
+
+/** A glyph in a square: no bezel until hovered on the desktop, or a push button with `hairline`. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
   { label, size = 28, tone = "quiet", hairline, danger, className, style, type = "button", title, ...rest },
   ref,
 ) {
+  if (inLan)
+    return (
+      <button
+        ref={ref}
+        type={type}
+        aria-label={label}
+        title={title ?? label}
+        className={cx("loki-btn", !hairline && "loki-btn--bare", "loki-btn--icon", BTN_TONE[tone], danger && "loki-btn--danger", className)}
+        style={{ width: size, height: size, ...style }}
+        {...rest}
+      />
+    );
   return (
-    <button
+    <UiButton
       ref={ref}
       type={type}
       aria-label={label}
       title={title ?? label}
-      className={cx("loki-btn", !hairline && "loki-btn--bare", "loki-btn--icon", BTN_TONE[tone], danger && "loki-btn--danger", className)}
-      style={{ width: size, height: size, ...style }}
+      variant={hairline ? "push" : "ghost"}
+      size={ICON_SIZE[size]}
+      className={cx(!hairline && BARE_INK[tone], danger && "hover:text-destructive", className)}
+      style={style}
       {...rest}
     />
   );
@@ -179,6 +244,34 @@ export function Chip({
     tag && "loki-chip--tag",
     className,
   );
+  if (!inLan && !touch) {
+    // The desktop's chip is shadcn's badge in the Mac's capsule (plan 2026-11-15-1035, U2): filled grey with no hairline,
+    // the accent fill when chosen, waiting or picked, and a status tone as its ink.
+    const look = cx(
+      "h-6 px-2 font-normal",
+      (active || brass || attention) && "font-semibold",
+      label && "font-semibold",
+      tag && "h-auto py-px",
+      float && "bg-loki-panel shadow-low",
+      !isStatic && !tone && "cursor-pointer hover:brightness-110 disabled:cursor-default disabled:opacity-50",
+      className,
+    );
+    const variant = active || brass || attention ? "default" : "secondary";
+    const toned = tone ? { color: tone, ...style } : style;
+    if (isStatic || tone) {
+      const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
+      return (
+        <Badge variant={variant} className={look} style={toned} {...span}>
+          {children}
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant={variant} className={look} style={toned} render={<button type={type} />} {...rest}>
+        {children}
+      </Badge>
+    );
+  }
   const st = tone ? ({ "--chip-tone": tone, ...style } as CSSProperties) : style;
   if (isStatic || tone) {
     const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
@@ -210,9 +303,21 @@ const fieldClass = ({ size = "md", mono, bare, inline }: FieldMods, className?: 
 
 /** `size` is ours (the native character-count attribute is never used here). */
 export type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & FieldMods;
-/** A text input on the well. */
-export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ size, mono, bare, inline, className, ...rest }, ref) {
-  return <input ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} {...rest} />;
+/**
+ * A text input on the well. On the desktop a search field is the Mac's: a filled capsule with the magnifier leading and
+ * no border (plan 2026-11-15-1035, R2); `className` and `style` then dress the capsule, and the ref is still the input.
+ */
+export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ size, mono, bare, inline, className, style, ...rest }, ref) {
+  if (rest.type === "search" && !inLan && !bare && !inline && size !== "touch")
+    return (
+      <InputGroup className={cx("h-7 rounded-full border-transparent bg-loki-hover dark:bg-loki-hover", className)} style={style}>
+        <InputGroupAddon className="pl-3 text-muted-foreground">
+          <SearchIcon aria-hidden className="size-3.5" />
+        </InputGroupAddon>
+        <InputGroupInput ref={ref} className={cx("text-sm", mono && "font-mono")} {...rest} />
+      </InputGroup>
+    );
+  return <input ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} style={style} {...rest} />;
 });
 
 /** The props of `TextArea`: the native textarea's with the field's size and look options. */
@@ -529,6 +634,13 @@ export function Switch({
   small?: boolean;
   hideLabel?: boolean;
 }) {
+  if (!inLan)
+    return (
+      <label className={cx("inline-flex cursor-pointer items-center gap-2", small ? "text-xs" : "text-sm", on ? "text-foreground" : "text-muted-foreground")}>
+        <UiSwitch checked={on} onCheckedChange={() => onToggle()} aria-label={hideLabel ? label : undefined} size={small ? "sm" : "default"} />
+        {!hideLabel && label}
+      </label>
+    );
   return (
     <button
       type="button"

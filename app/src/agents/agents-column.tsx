@@ -4,8 +4,8 @@ import { agentRows } from "../phone/model";
 import type { PlaceSources } from "../shell/sidebar";
 import { agentsSelection, shownAgent, type AgentsSelection, type AgentsSelectionState } from "./selection";
 
-/** The Agents place's own row in the sidebar: it stands for no one agent, so choosing it keeps the agent shown. */
-const AGENTS_PLACE = "";
+/** No agent chosen: the new-agent form is open, so no source in the sidebar is filled. */
+const NO_AGENT = "";
 
 /**
  * The agents as the Agents place's sources in the sidebar (plan 2026-11-14-1330, KTD9), in the daemon's order: each
@@ -34,10 +34,9 @@ export function agentSources({
   const shown = state.creating ? null : shownAgent(state.agent, initialAgentId, agents);
   return {
     items: agentRows(agents, desks, items).map((r) => ({ id: r.id, title: r.name, face: face(r.id, r.name), count: r.waiting, live: r.running })),
-    selected: shown ?? AGENTS_PLACE,
-    all: AGENTS_PLACE,
+    selected: shown ?? NO_AGENT,
     onSelect: (id) => {
-      if (id !== AGENTS_PLACE) selection.pickAgent(id);
+      if (id !== NO_AGENT) selection.pickAgent(id);
     },
   };
 }
