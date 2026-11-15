@@ -272,8 +272,9 @@ keys stay; ⌘⇧↵ still marks the open chat read). Two earlier forms were dro
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
 **Windows and Linux (preview, plan 014).** There the window is undecorated and the strip is loki's for those
-systems: 32px, the height Windows gives its caption buttons, on `--loki-panel`. At its left a ☰ button opens the Mac's menu bar as a strong-glass popover: the menu titles (the `menuSpec()` groups), each opening its items
-beside it, keys written Ctrl, Alt, Shift, with the header menus' keyboard manners; at its right minimise, maximise (Restore, with the two-square glyph, while maximised) and close,
+systems: 32px, the height Windows gives its caption buttons, on `--loki-panel`. At its left a ☰ button opens the Mac's menu bar as a strong-glass popover: the menu titles (the `menuSpec()` groups), each a submenu opening its items
+beside it, keys written Ctrl, Alt, Shift; it is shadcn's DropdownMenu on Base UI with its submenus, as every drawn menu is,
+so it moves and closes as they do (plan 2026-11-15-1930); at its right minimise, maximise (Restore, with the two-square glyph, while maximised) and close,
 46px wide, flat and full height, square because they run to the window's edge. Hover is `--loki-hover`; close
 alone hovers red, because that is what close does on both systems. The strip sits on `LAYER.strip`, above sheets, so the window buttons stay usable while a dialog is
 up, as a system title bar would. The strip drags; double click maximises. The rest of the window is the Mac's.

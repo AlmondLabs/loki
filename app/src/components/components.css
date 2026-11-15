@@ -1011,36 +1011,6 @@ button.loki-list-section-toggle {
   height: 28px;
   border-radius: var(--radius-lg);
 }
-.loki-title-menu {
-  position: absolute;
-  top: 100%;
-  left: 4px;
-  display: flex;
-  align-items: flex-start;
-  gap: 2px;
-}
-.loki-title-menu-panel {
-  box-sizing: border-box;
-  min-width: 180px;
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  padding: 4px;
-  background: var(--loki-panel);
-  border: 1px solid var(--loki-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--loki-shadow-float);
-}
-.loki-title-submenu {
-  min-width: 260px;
-}
-.loki-title-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  font-size: var(--text-sm);
-}
 /* A drawn menu's icon column (U22): the action's Lucide icon, at the toolbar's size and stroke, in the label's colour. */
 .loki-menu-label {
   display: inline-flex;
@@ -1063,12 +1033,6 @@ button.loki-list-section-toggle {
 /* A drawn menu's checkmark on its chosen item (shell/menu-items.tsx, U19). */
 .loki-menu-check {
   color: var(--loki-accent);
-}
-.loki-title-menu-sep {
-  height: 1px;
-  margin: 4px 0;
-  border: none;
-  background: var(--loki-border);
 }
 
 /* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
@@ -2096,8 +2060,7 @@ button.loki-list-section-toggle {
      glass, as a Mac's sheets, popovers and menus are; what they hold stays as it is. */
   .loki-sheet-card,
   .loki-popover,
-  .loki-mail-suggest,
-  .loki-title-menu-panel {
+  .loki-mail-suggest {
     border-color: transparent;
     background: var(--loki-glass-strong);
     -webkit-backdrop-filter: var(--loki-glass-blur);
