@@ -23,7 +23,7 @@ export interface ModeChoice {
 export const MODES: Array<ModeChoice & { id: PermissionMode }> = [
   { id: "strict", label: "Strict", short: "strict", description: "asks before every tool, reads included", fill: 1 },
   { id: "standard", label: "Standard", short: "standard", description: "asks before edits and commands; reads run freely", fill: 0.6 },
-  { id: "acceptEdits", label: "Accept edits", short: "edits ok", description: "file edits run without asking; commands still ask", fill: 0.3 },
+  { id: "acceptEdits", label: "Accept Edits", short: "edits ok", description: "file edits run without asking; commands still ask", fill: 0.3 },
   { id: "unrestricted", label: "Unrestricted", short: "no asking", description: "nothing asks — every tool runs", fill: 0 },
 ];
 

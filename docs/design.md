@@ -89,12 +89,12 @@ Radii are Tailwind's own, at the 16px root: `rounded-sm` **4** and `rounded-md` 
 `app/src/kit/layers.ts` (panel 100, bubble 101, rail 110 (the sidebar toggle), modal 200, strip 250, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
 
-Focus flashes, one rule in `tokens.css`: when focus moves by keyboard, a 2px accent-blue ring appears and
-fades over a second, so you see where focus went without a box sitting there. Controls (buttons, rows, tabs,
-links, selects, checkboxes) settle on a 2px muted ring, since nothing else shows which one Tab or Enter acts
-on; text fields settle on nothing, the caret shows them. The ring is inset (so a clipped list never cuts it
-off) and offset on links. Only the colour animates, so under reduced motion the settled ring shows at once.
-Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion means less
+Focus on the desktop is Apple's (plan 2026-11-15-1035, U5, in `components.css`): a control that has keyboard focus
+(buttons, rows, tabs, links, selects) wears a steady 3px accent ring just outside it, the accent at full strength
+because Apple's half-strength tint measured under the 3:1 a focus mark needs. A text field wears the accent as its
+edge instead of a ring (plan 2026-11-15-2345), except the bare first line of a sheet, which is focused whenever the
+sheet is open. The phone keeps its own in `phone.css`: a 2px ring that flashes and settles on the muted colour, and
+the caret alone for a field, as iOS does. Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion means less
 movement, not none: it zeroes every CSS duration *and delay*, then lets what appears (sheets, popovers, a chat's
 arriving rows and words, widgets, the phone's banner) fade in over 150 ms with no move or scale, so nothing cuts in
 hard. JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/motion.ts`.

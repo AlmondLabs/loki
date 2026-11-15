@@ -71,8 +71,8 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
       >
         {groups.map(({ g, pages }) => (
           <Fragment key={g.title}>
-            {/* A group's name: a heading for the eye, not a tab, so it is out of the tablist's roles. */}
-            <div role="presentation" className="loki-settings-heading">
+            {/* A group's name: a heading for the eye only, since a tablist may hold nothing but its tabs. */}
+            <div aria-hidden className="loki-settings-heading">
               {g.title}
             </div>
             {pages.map((p) => {

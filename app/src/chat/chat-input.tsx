@@ -288,7 +288,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
     <div className="loki-composer-box" data-listening={listening || undefined}>
       {(images.length > 0 || uploads.length > 0) && (
         <div data-attachments className="loki-composer-images">
-          {images.map((a) =>
+          {images.map((a, i) =>
             isFileAttachment(a) ? (
               <span key={a.id} className="loki-file-chip" title={a.path}>
                 <Icon name="file" size={16} />
@@ -312,28 +312,17 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
                     border: "1px solid var(--loki-border)",
                   }}
                 />
-                <button
-                  type="button"
+                {/* 24px, the smallest target a pointer is given (WCAG 2.5.8), on the thumbnail's corner. */}
+                <IconButton
+                  size={24}
+                  hairline
+                  label={`Remove Image ${i + 1}`}
                   onClick={() => remove(a)}
-                  aria-label="Remove image"
-                  style={{
-                    position: "absolute",
-                    top: -6,
-                    right: -6,
-                    width: 18,
-                    height: 18,
-                    borderRadius: "var(--radius-lg)",
-                    border: "1px solid var(--loki-border)",
-                    background: "var(--loki-panel)",
-                    color: "var(--loki-fg)",
-                    fontSize: "var(--text-xs)",
-                    lineHeight: "16px",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
+                  className="rounded-full bg-loki-panel"
+                  style={{ position: "absolute", top: -8, right: -8 }}
                 >
-                  ×
-                </button>
+                  <Icon name="close" size={12} />
+                </IconButton>
               </span>
             ),
           )}

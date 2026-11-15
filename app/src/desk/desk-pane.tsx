@@ -339,7 +339,7 @@ function DeskMessages({
   const rows = useThreadRows(catchUp, agentId, conversationId);
   const list = rows ?? NO_ROWS;
   const dividerAt = unreadBoundary(list, item?.unread ?? false, item?.seenAt, heldLook);
-  // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
+  // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on Canvas" frames them there.
   const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowDesk };
   return (

@@ -61,7 +61,7 @@ export function SlashPalette({
               {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 4 }}>{c.args}</span>}
             </span>
             <span className="loki-meta loki-truncate">{sentence(commandText(c))}</span>
-            <span className="loki-meta shrink-0" style={{ marginLeft: "auto", opacity: 0.8 }}>
+            <span className="loki-meta shrink-0" style={{ marginLeft: "auto" }}>
               {c.where === "loki" ? "loki" : "agent"}
             </span>
           </Row>

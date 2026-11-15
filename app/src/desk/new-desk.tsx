@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { inTauri, platform, type Platform } from "./env";
 import { Button, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
+import { formatKeys } from "../shell/keymap";
 import type { Pushes } from "../../../core/frames.ts";
 import { GitBranchIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
@@ -347,12 +348,11 @@ export function ChangeFolder({
         {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--text-xs)" }}>{error}</div>}
       </div>
       <div className="flex items-center gap-2" style={{ padding: 12, borderTop: "1px solid var(--loki-border)" }}>
-        <span className="loki-label">Enter move · esc close</span>
         <span className="flex-1" />
-        <Button size="sm" onClick={onClose}>
+        <Button size="sm" kbd={formatKeys("escape")} onClick={onClose}>
           Cancel
         </Button>
-        <Button size="sm" tone="positive" onClick={() => void move()} disabled={!canMove}>
+        <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void move()} disabled={!canMove}>
           {moving ? "moving…" : "move"}
         </Button>
       </div>

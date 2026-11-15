@@ -222,14 +222,25 @@ export interface Reading {
   scrollTop: number;
 }
 
-/** The first row still on screen at the thread's top; null with no rows. */
+/**
+ * The first row still on screen at the thread's top; null with no rows. It runs on every scroll, and a long thread
+ * scrolled far up has thousands of rows mounted above, so it halves its way there: the outermost rows stack top to
+ * bottom, so their bottoms rise in order (a row inside another, an inline widget, would break that and is skipped;
+ * its own row comes first anyway).
+ */
 function readingAt(el: HTMLElement): Reading | null {
   const top = el.getBoundingClientRect().top;
-  for (const row of el.querySelectorAll("[data-row]")) {
-    const box = row.getBoundingClientRect();
-    if (box.bottom > top + 1) return { row, offset: box.top - top, scrollTop: el.scrollTop };
+  const rows = el.querySelectorAll("[data-row]:not([data-row] [data-row])");
+  let lo = 0;
+  let hi = rows.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (rows[mid].getBoundingClientRect().bottom > top + 1) hi = mid;
+    else lo = mid + 1;
   }
-  return null;
+  if (lo >= rows.length) return null;
+  const row = rows[lo];
+  return { row, offset: row.getBoundingClientRect().top - top, scrollTop: el.scrollTop };
 }
 
 /**

@@ -98,12 +98,12 @@ function QuestionCardFor({
                           width: 8,
                           height: 8,
                           borderRadius: 2,
-                          border: `1px solid ${on ? "var(--loki-accent)" : "var(--loki-muted)"}`,
-                          background: on ? "var(--loki-accent)" : "transparent",
+                          border: `1px solid ${on ? "var(--loki-on-affirm)" : "var(--loki-muted)"}`,
+                          background: on ? "var(--loki-on-affirm)" : "transparent",
                         }}
                       />
                     ) : (
-                      <Dot size={8} color={on ? "var(--loki-accent)" : "var(--loki-muted)"} ring={!on} aria-hidden />
+                      <Dot size={8} color={on ? "var(--loki-on-affirm)" : "var(--loki-muted)"} ring={!on} aria-hidden />
                     )}
                     {o.label}
                   </Chip>

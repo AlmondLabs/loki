@@ -35,7 +35,7 @@ export function retryMessage(rows: TranscriptRow[]): { label: string; text: stri
   for (let i = rows.length - 1; i >= 0; i--) {
     const r = rows[i];
     if (r.role === "event") continue;
-    if (r.role === "user") return r.text.trim() ? { label: "Send again", text: r.text } : null;
+    if (r.role === "user") return r.text.trim() ? { label: "Send Again", text: r.text } : null;
     return { label: "Continue", text: "Continue where you stopped: the connection to the model dropped." };
   }
   return null;

@@ -142,7 +142,7 @@ describe("where suggestions show", () => {
       expect(cards(html)).toEqual(["newer", "older"]);
       expect(html).toContain(touch ? "loki-suggestion-sheet" : "loki-suggestion-modal");
       expect(html).toContain('aria-modal="true"');
-      expect(html).toContain(touch ? "2 waiting" : "Esc closes");
+      expect(html).toContain("2 waiting");
     });
   }
   test("a hidden view (composer false) draws no chip: the view on screen draws it once", () => {

@@ -26,7 +26,7 @@ describe("Welcome: no Node 22 on the machine", () => {
     expect(out).toContain("Node 22 or newer is needed");
     expect(out).toContain('href="https://nodejs.org/"');
     expect(out).toContain("winget install OpenJS.NodeJS.LTS");
-    expect(out).toContain("check again");
+    expect(out).toContain("Check Again");
     expect(out.match(/<button/g)?.length).toBe(1);
     expect(out).not.toContain("Letta");
     expect(out).not.toContain("brew");
@@ -76,7 +76,7 @@ describe("Welcome: no Node 22 on the machine", () => {
     const out = html({ node: "/opt/homebrew/bin/node", error: "daemon exited: EADDRINUSE", nodeMissing: null });
     expect(out).toContain("EADDRINUSE");
     expect(out).toContain("~/.loki/logs/daemon.log");
-    expect(out).toContain(">Check again</button>");
+    expect(out).toContain(">Check Again</button>");
     expect(out.match(/<button/g)?.length).toBe(1);
     expect(out).not.toContain("Node 22 or newer is needed");
     expect(out).not.toContain("Letta");
