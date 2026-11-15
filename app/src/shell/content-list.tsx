@@ -57,6 +57,11 @@ export interface ContentListProps {
   /** The Search text; with `onQuery`, the toolbar has a Search field and ⌥⌘F focuses it. */
   query?: string;
   onQuery?: (query: string) => void;
+  /**
+   * Hairlines between the rows and more room in each, for rows of several lines whose ends would otherwise run
+   * together (Flow's three); a one-line list leaves it out.
+   */
+  divided?: boolean;
   ref?: Ref<ContentListHandle>;
 }
 
@@ -117,6 +122,7 @@ export function ContentList({
   emptyAction = true,
   query = "",
   onQuery,
+  divided = false,
   ref,
 }: ContentListProps) {
   // The pending highlight, with the row committed when it was made: once the place selects another row from outside
@@ -178,7 +184,7 @@ export function ContentList({
       <ListBar title={title} count={count} line={line} newAction={newAction} />
       {scope && <div className="loki-content-list-scope">{scope}</div>}
       {onQuery && <ListSearch label={label} query={query} onQuery={onQuery} />}
-      <div ref={rowsRef} className="loki-content-list-rows">
+      <div ref={rowsRef} className="loki-content-list-rows" data-divided={divided || undefined}>
         {shown.length === 0 ? (
           <ListEmpty searching={searching} empty={empty} newAction={emptyAction ? newAction : undefined} />
         ) : (
