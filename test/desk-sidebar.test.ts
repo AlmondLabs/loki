@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   DESK_NAME_MAX,
@@ -33,6 +33,9 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
+
+// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
+vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 /**
  * The desk sidebar's model (app/src/shell/sidebar-model.ts, plan 013 U4): Pinned, then one section per agent

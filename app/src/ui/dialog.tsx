@@ -67,6 +67,14 @@ function DialogContent({
   );
 }
 
+function DialogViewport({ className, ...props }: DialogPrimitive.Viewport.Props) {
+  return <DialogPrimitive.Viewport data-slot="dialog-viewport" className={cn("fixed inset-0 z-modal", className)} {...props} />;
+}
+
+function DialogPopup({ className, ...props }: DialogPrimitive.Popup.Props) {
+  return <DialogPrimitive.Popup data-slot="dialog-content" className={className} {...props} />;
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />;
 }
@@ -105,4 +113,17 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
   );
 }
 
-export { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger };
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPopup,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+  DialogViewport,
+};

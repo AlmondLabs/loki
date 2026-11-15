@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Conversation } from "../app/src/chat/conversation.tsx";
@@ -21,6 +21,9 @@ import { FrameChatClient } from "../core/attention/chat-client.ts";
 import type { ConversationInfo } from "../core/attention/model.ts";
 import type { Suggestion } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
+
+// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
+vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 /**
  * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were

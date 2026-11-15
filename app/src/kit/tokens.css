@@ -434,6 +434,7 @@ a:focus-visible {
   }
   :is(
     .loki-veil[data-grow],
+    .loki-sheet-veil[data-grow],
     .loki-sheet[data-grow],
     .loki-popover[data-grow],
     .loki-frame,

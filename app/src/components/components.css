@@ -414,20 +414,40 @@ textarea.loki-field {
   place-items: start center;
   padding-top: var(--sheet-top, 6vh);
 }
-/* Only a sheet opened by a click fades in (Sheet sets data-grow); one a key opens is just there. */
+/* The phone's bottom sheet always rises with its veil (Sheet sets data-grow). */
 .loki-veil[data-grow] {
   animation: loki-veil 160ms ease-out both;
 }
-.loki-veil--scroll {
-  overflow-y: auto;
+/* A desktop sheet (plan 2026-11-15-1900): shadcn's Dialog, its overlay the veil and its viewport what places the card.
+   These rules are outside Tailwind's layers, so they win over the overlay's own utilities. */
+.loki-sheet-veil {
+  position: fixed;
+  inset: 0;
+  background: var(--loki-veil);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
+}
+/* Only a sheet opened by a click fades in (Sheet sets data-grow); one a key opens is just there. */
+.loki-sheet-veil[data-grow] {
+  animation: loki-veil 160ms ease-out both;
 }
 /* A floating panel (Sheet clear): the window stays as it is behind it, as behind Spotlight. */
-.loki-veil--clear,
-.loki-veil--clear[data-grow] {
+.loki-sheet-veil--clear,
+.loki-sheet-veil--clear[data-grow] {
   background: transparent;
   animation: none;
 }
-.loki-veil--scroll > .loki-sheet-card {
+.loki-sheet-viewport {
+  box-sizing: border-box;
+  display: grid;
+  place-items: start center;
+  padding-top: var(--sheet-top, 6vh);
+}
+.loki-sheet-viewport--scroll {
+  overflow-y: auto;
+}
+.loki-sheet-viewport--scroll > .loki-sheet-card {
   max-height: none;
   overflow: visible;
   margin-bottom: 48px;

@@ -24,6 +24,7 @@ import { Button as UiButton } from "@/ui/button";
 import { Switch as UiSwitch } from "@/ui/switch";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
 import { Badge } from "@/ui/badge";
+import { Dialog, DialogOverlay, DialogPopup, DialogPortal, DialogViewport } from "@/ui/dialog";
 import { SearchIcon } from "lucide-react";
 
 /**
@@ -378,18 +379,41 @@ export interface SheetProps {
 }
 
 /**
- * A modal sheet over a veil: aria-modal, Escape and a click on the veil close it, and focus returns to
- * where it was when the sheet closes. (A Tab loop inside the sheet is the next step; see docs/design.md.)
- * A bottom sheet (the phone's) is drawn at the phone shell's root, above the screen it covers so that
- * screen can recede under it, and moves as an iOS sheet does (sheet-motion.ts).
+ * loki's one dialog. On the desktop it is shadcn's Dialog on Base UI (plan 2026-11-15-1900, KTD1): modal, focus held
+ * inside and put on the first control (or the one marked `autofocus`), returned to the opener on close, Esc and a
+ * click outside closing it as `onClose` and `escape` allow, the rest of the window hidden from a screen reader. A bottom
+ * sheet (the phone's) keeps its own markup (KTD3): it is drawn at the phone shell's root, above the screen it covers so
+ * that screen can recede under it, and moves as an iOS sheet does (sheet-motion.ts).
  */
-export function Sheet({
+export function Sheet(props: SheetProps) {
+  return props.placement === "bottom" ? <BottomSheet {...props} /> : <DialogSheet {...props} />;
+}
+
+/** The first control in a sheet's tab order: one taken out of it (⌘K's scope chip ×) is for the pointer, not for focus. */
+const firstControl = (card: HTMLElement): HTMLElement | null =>
+  card.querySelector<HTMLElement>("[autofocus]") ??
+  [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => el.tabIndex >= 0 && !el.hasAttribute("disabled")) ??
+  null;
+
+/**
+ * Whether a dismissal Base UI reports closes a desktop sheet (plan 2026-11-15-1900, KTD2): Esc only when the sheet lets
+ * it (a sheet that reads its own keys, Change Folder, says not), a click outside or anything else whenever it can close.
+ */
+export function sheetCloses(reason: string, { canClose, escape }: { canClose: boolean; escape: boolean }): boolean {
+  if (!canClose) return false;
+  return reason !== "escape-key" || escape;
+}
+
+/**
+ * A desktop sheet: shadcn's Dialog parts with loki's veil and card (KTD1). The caller mounts it to open it and unmounts
+ * it to close it, so the Dialog is always open; a dismissal Base UI reports goes to `onClose` by its reason (KTD2).
+ */
+function DialogSheet({
   label,
   onClose,
   width = 560,
   height,
   top,
-  placement = "top",
   scroll,
   zIndex = LAYER.modal,
   escape = !!onClose,
@@ -399,29 +423,57 @@ export function Sheet({
   cardProps,
   children,
 }: SheetProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  // Opened by a click it fades and rises; opened by a key (search, the keys sheet) it is simply there.
+  const [grows] = useState(() => lastInput() === "pointer");
+  const viewportStyle = { zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) };
+  return (
+    <Dialog
+      open
+      disablePointerDismissal={!onClose}
+      onOpenChange={(open, details) => {
+        if (!open && onClose && sheetCloses(details.reason, { canClose: true, escape })) onClose();
+      }}
+    >
+      <DialogPortal>
+        <DialogOverlay className={cx("loki-sheet-veil", clear && "loki-sheet-veil--clear")} data-grow={grows || undefined} style={{ zIndex }} />
+        <DialogViewport className={cx("loki-sheet-viewport", scroll && "loki-sheet-viewport--scroll")} style={viewportStyle}>
+          <DialogPopup
+            ref={cardRef}
+            // Base UI makes the rest of the window inert; aria-modal says so to a screen reader that reads it.
+            aria-modal="true"
+            aria-label={label}
+            initialFocus={() => (cardRef.current && firstControl(cardRef.current)) ?? true}
+            data-grow={grows || undefined}
+            className={cx("loki-sheet", "loki-sheet-card", className)}
+            style={{ width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }}
+            {...cardProps}
+          >
+            {children}
+          </DialogPopup>
+        </DialogViewport>
+      </DialogPortal>
+    </Dialog>
+  );
+}
+
+/**
+ * The phone's bottom sheet over a veil: aria-modal, Escape and a click on the veil close it, focus stays inside and
+ * returns to where it was when the sheet closes, and it moves as an iOS sheet does (sheet-motion.ts).
+ */
+function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
   const opener = useRef<Element | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const veilRef = useRef<HTMLDivElement>(null);
-  const bottom = placement === "bottom";
-  const shell = bottom && typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
+  const shell = typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
   useSheetMotion(veilRef, cardRef, onClose, !!shell);
-  // Opened by a click it fades and rises; opened by a key (search, the keys sheet) it is simply there.
-  // A bottom sheet always rises: on the phone the finger is what opened it.
-  const [grows] = useState(() => bottom || lastInput() === "pointer");
   useEffect(() => {
     opener.current = document.activeElement;
     // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
     const card = cardRef.current;
-    if (card && !card.contains(document.activeElement)) {
-      // The first control in the tab order: one taken out of it (⌘K's scope chip ×) is for the pointer, not for focus.
-      const first =
-        card.querySelector<HTMLElement>("[autofocus]") ??
-        [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => el.tabIndex >= 0 && !el.hasAttribute("disabled")) ??
-        null;
-      // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
-      // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
-      (first ?? card).focus({ preventScroll: true });
-    }
+    // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
+    // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
+    if (card && !card.contains(document.activeElement)) (firstControl(card) ?? card).focus({ preventScroll: true });
     return () => {
       const el = opener.current;
       if (el instanceof HTMLElement && document.contains(el)) el.focus({ preventScroll: true });
@@ -430,10 +482,11 @@ export function Sheet({
   const sheet = (
     <div
       ref={veilRef}
-      className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom", clear && "loki-veil--clear")}
+      className="loki-veil loki-veil--bottom"
       data-sheet
-      data-grow={grows || undefined}
-      style={{ zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) }}
+      // On the phone the finger is what opened it: a bottom sheet always rises.
+      data-grow
+      style={{ zIndex }}
       onPointerDown={(e) => {
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose?.();
@@ -470,9 +523,9 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        data-grow={grows || undefined}
-        className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)}
-        style={{ width: placement === "bottom" ? undefined : width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }}
+        data-grow
+        className={cx("loki-sheet", "loki-sheet-card", "loki-sheet-card--bottom", className)}
+        style={style}
         {...cardProps}
       >
         {children}

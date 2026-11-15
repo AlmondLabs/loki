@@ -1,8 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { KeysSheet } from "../app/src/shell/keys-sheet.tsx";
+
+// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
+vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 // Plan 2026-11-12-1505, U20: the keys sheet is a plain panel that dims nothing; U11 made it the only one.
 
@@ -13,7 +16,7 @@ const sheet = () => createElement(KeysSheet, { segment: "desk", onClose: noop, o
 describe("the keys sheet", () => {
   test("dims nothing behind it, and names the view as the sidebar does", () => {
     const out = html(sheet());
-    expect(out).toContain("loki-veil--clear");
+    expect(out).toContain("loki-sheet-veil--clear");
     expect(out).toContain('aria-label="Keys for Chats"');
     expect(out).toContain(">Chats</span>");
   });
