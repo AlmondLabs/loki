@@ -927,9 +927,12 @@ none), and the mail and Slack of all your accounts or of the ones you pick (or n
 "everything Ada owns but her chats" are each a lane. A lane set to all agents or all accounts takes in the ones you add
 later; a picked one does not. Deleting an agent or an account takes it out of every lane.
 
-**Making one.** Preferences › Flow lists your lanes above the return times; **new lane** opens the editor: a name, then
-chats from all agents, picked agents or none, then mail and Slack from all accounts, picked accounts or none. Each
-account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
+**Making one.** Preferences › Flow lists your lanes above the return times, one row each with what it shows ("Chats
+from Work and Ops, mail and Slack from one account") and **Edit…**; **Add Lane…** under them opens the same editor for a
+new one, in a sheet: a name, then chats from all agents, picked agents or none, then mail and Slack from all accounts,
+picked accounts or none. Each account shows the agent that owns it, and the Mac it lives on when that is a paired Mac.
+Names must be there and differ. Return or **Save** saves and closes the sheet, Esc or **Cancel** leaves the lane as it
+was, and **Delete Lane…** asks once more before it deletes.
 Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
 
 **Switching.** On the Mac the lanes are listed under Flow's heading in the sidebar, as Mail lists its mailboxes:

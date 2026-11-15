@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Lane } from "../core/attention/lanes.ts";
 import type { AccountView } from "../core/frame-types.ts";
 import type { MacAccountView } from "../core/frames.ts";
-import { LaneEditor, Lanes, draftOf, laneAccounts, newDraft, saveLane, ticked, withoutLane, type LaneDraft } from "../app/src/settings/lanes.tsx";
+import { LaneEditor, Lanes, draftOf, laneAccounts, laneSummary, newDraft, saveLane, ticked, withoutLane, type LaneDraft } from "../app/src/settings/lanes.tsx";
 import { InboxPage } from "../app/src/settings/settings.tsx";
 import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 
@@ -73,6 +73,7 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
           error: "Another lane is called Home",
           onDraft: () => {},
           onSave: () => {},
+          onCancel: () => {},
           onDelete: null,
         }),
       ),
@@ -95,7 +96,17 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
     const draft: LaneDraft = { ...newDraft("lane-new"), accounts: "pick" };
     const out = text(
       renderToStaticMarkup(
-        createElement(LaneEditor, { draft, lanes: [], agents: AGENTS, accounts: rows, error: null, onDraft: () => {}, onSave: () => {}, onDelete: null }),
+        createElement(LaneEditor, {
+          draft,
+          lanes: [],
+          agents: AGENTS,
+          accounts: rows,
+          error: null,
+          onDraft: () => {},
+          onSave: () => {},
+          onCancel: () => {},
+          onDelete: null,
+        }),
       ),
     );
     expect(out).toContain("Studio");
@@ -113,9 +124,9 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
   test("while the lanes are not in yet the editor says it is loading, not that there are none", () => {
     const loading = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: null, set: () => {} }, accounts: noAccounts, agents: AGENTS })));
     expect(loading).toContain("Asking loki…");
-    expect(loading).not.toContain("New Lane");
+    expect(loading).not.toContain("Add Lane…");
     const none = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: [], set: () => {} }, accounts: noAccounts, agents: AGENTS })));
-    expect(none).toContain("New Lane");
+    expect(none).toContain("Add Lane…");
     expect(none).toContain("No lanes yet");
   });
 
@@ -129,6 +140,38 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
       ),
     );
     expect(out.indexOf("Home")).toBeGreaterThan(-1);
-    expect(out.indexOf("New Lane")).toBeLessThan(out.indexOf("Read rests a card for"));
+    expect(out.indexOf("Add Lane…")).toBeLessThan(out.indexOf("Read rests a card for"));
+  });
+  test("each lane is a row of the table: its name, what it shows and Edit…, then Add Lane… (plan 2026-11-15-2359, KTD1)", () => {
+    const work: Lane = { id: "lane-work", name: "Work", chats: ["agent-work", "agent-ops"], accounts: [MAIL.account_id] };
+    const out = text(renderToStaticMarkup(createElement(Lanes, { lanes: { lanes: [HOME, work], set: () => {} }, accounts: noAccounts, agents: AGENTS })));
+    expect(out).toContain("Chats from Home, all mail and Slack");
+    expect(out).toContain("Chats from Work and Ops, mail and Slack from one account");
+    expect(out).toContain('aria-label="Edit Work"');
+    expect(out.indexOf("Work")).toBeLessThan(out.indexOf("Add Lane…"));
+    // The editor is a sheet, opened from a row; none shows until then.
+    expect(out).not.toContain("Lane name");
+  });
+
+  test("a row's line names agents this Mac knows and counts the rest, then the accounts (KTD2)", () => {
+    expect(laneSummary({ id: "a", name: "A", chats: "all", accounts: [] }, AGENTS)).toBe("All chats, no mail or Slack");
+    expect(laneSummary({ id: "a", name: "A", chats: [], accounts: ["x", "y"] }, AGENTS)).toBe("No chats, mail and Slack from 2 accounts");
+    expect(laneSummary({ id: "a", name: "A", chats: ["agent-work", "agent-elsewhere"], accounts: "all" }, AGENTS)).toBe(
+      "Chats from Work and an agent on another Mac, all mail and Slack",
+    );
+    expect(laneSummary({ id: "a", name: "A", chats: ["agent-work", "agent-ops", "agent-home", "x", "y"], accounts: "all" }, AGENTS)).toBe(
+      "Chats from Work, Ops, Home and 2 agents on other Macs, all mail and Slack",
+    );
+  });
+
+  test("the sheet's editor has Cancel and Save, and Delete Lane… only for a saved lane", () => {
+    const base = { lanes: [HOME], agents: AGENTS, accounts: [], error: null, onDraft: () => {}, onSave: () => {}, onCancel: () => {} };
+    const saved = text(renderToStaticMarkup(createElement(LaneEditor, { ...base, draft: draftOf(HOME), onDelete: () => {} })));
+    expect(saved).toContain("Edit Home");
+    expect(saved).toContain("Delete Lane…");
+    expect(saved.indexOf("Cancel")).toBeLessThan(saved.indexOf("Save"));
+    const fresh = text(renderToStaticMarkup(createElement(LaneEditor, { ...base, draft: newDraft("x"), onDelete: null })));
+    expect(fresh).toContain("New lane");
+    expect(fresh).not.toContain("Delete Lane…");
   });
 });

@@ -399,7 +399,8 @@ Internals keep the name desk.
   accent (an ARIA tab list; focus follows the page, ↑↓ stop at the ends); on the right the page, with no tabs, its
   settings in rounded groups divided by hairlines and a grey note of one sentence under each group (a setting's own
   help is one sentence too; the manual holds the rest, plan 2026-11-15-2358), a duration as a pop-up menu,
-  sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
+  sentence case, confirmations as sheets, a list of things you make (Flow's lanes) as a row each with what it holds
+  and Edit…, Add… under the rows and the editor in a sheet (plan 2026-11-15-2359). ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the
   sidebar, as Mail lists its mailboxes (Everything, then the person's lanes, each with the count of what needs the
