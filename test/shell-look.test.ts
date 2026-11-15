@@ -57,9 +57,11 @@ describe("Preferences and every tab row on Liquid Glass (U8)", () => {
     expect(must(/\.loki-segmented > button\[aria-pressed="true"\] \{([^}]*)\}/.exec(glass), "the chosen segment")[1]).toContain("var(--loki-segment)");
   });
 
-  test("a tab row is a track that hugs its tabs, the chosen tab raised; the pane header's track is glass", () => {
-    expect(must(/\n\s*\.loki-tabs \{([^}]*)\}/.exec(glass), "the tab row")[1]).toContain("width: fit-content");
-    expect(must(/\.loki-tab\[aria-selected="true"\] \{([^}]*)\}/.exec(glass), "the chosen tab")[1]).toContain("var(--loki-segment)");
+  test("a tab row is shadcn's Tabs in a capsule that hugs its tabs; the pane header's track is glass, the chosen tab lit", () => {
+    const components = readFileSync(join(APP, "components", "index.tsx"), "utf8");
+    expect(components).toMatch(/<TabsList aria-label=\{label\} activateOnFocus className="loki-tabs [^"]*rounded-full/);
+    expect(readFileSync(join(APP, "ui", "tabs.tsx"), "utf8")).toContain("w-fit");
+    expect(must(/\.loki-pane-header \.loki-tab\[aria-selected="true"\] \{([^}]*)\}/.exec(glass), "the chosen tab")[1]).toContain("var(--loki-selection)");
   });
 
   test("Appearance's values are in Apple's words, and there is no palette to pick", () => {
@@ -195,7 +197,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
 
 describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
   test("a header with tab views centres them between two equal sides, the trailing one never narrower than its symbols", () => {
-    const centred = must(/\.loki-pane-header:has\(> \.loki-tabs\) \{([^}]*)\}/.exec(glass), "the centred rule")[1];
+    const centred = must(/\.loki-pane-header:has\(> \[data-slot="tabs"\] > \.loki-tabs\) \{([^}]*)\}/.exec(glass), "the centred rule")[1];
     // equal sides centre the tabs; when the symbols need more than half, the tabs fall in line before them
     expect(centred).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr)");
   });

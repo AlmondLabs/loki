@@ -509,6 +509,12 @@ textarea.loki-field {
   top: auto;
   bottom: calc(100% + 6px);
 }
+/* On the desktop Base UI's positioner places the popover beside its control (plan 2026-11-15-2130), so the panel keeps
+   only the look: glass, the edge and the radius. */
+.loki-popover--anchored {
+  position: static;
+  max-width: none;
+}
 /* Opened by a click, it grows out of the corner it hangs from: light and quick, as a popover should be. */
 @keyframes loki-popover-grow {
   from {
@@ -1115,39 +1121,7 @@ button.loki-list-section-toggle {
   flex: none;
 }
 
-/* A tab row (TabRow): Slack's Messages | Canvas | Files. The chosen tab is full ink over a 2px rule. */
-.loki-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 0 12px;
-}
-.loki-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 8px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--loki-muted);
-  font-family: var(--loki-font);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    color 120ms ease-out,
-    border-color 120ms ease-out;
-}
-@media (hover: hover) and (pointer: fine) {
-  .loki-tab:hover {
-    color: var(--loki-fg);
-  }
-}
-.loki-tab[aria-selected="true"] {
-  color: var(--loki-fg);
-  border-bottom-color: var(--loki-fg);
-}
+/* A tab row (TabRow): shadcn's Tabs, in the pane header's glass capsule below. */
 .loki-tab-count {
   font-size: var(--text-xs);
   font-weight: 400;
@@ -1684,25 +1658,6 @@ button.loki-list-section-toggle {
   .loki-pane-header-subtitle {
     grid-area: sub;
   }
-  /* Every tab row is a segmented control (U8): a grey track with the chosen tab raised; in the pane header the track
-     is glass (below). */
-  .loki-tabs {
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--loki-radius-pill);
-    background: var(--loki-hover);
-    width: fit-content;
-  }
-  .loki-tab {
-    min-height: 26px;
-    padding: 0 12px;
-    border-bottom: 0;
-    border-radius: var(--loki-radius-pill);
-  }
-  .loki-tab[aria-selected="true"] {
-    background: var(--loki-segment);
-    box-shadow: var(--loki-shadow-low);
-  }
   .loki-pane-header .loki-tabs {
     grid-area: tabs;
     background: var(--loki-glass);
@@ -1716,7 +1671,7 @@ button.loki-list-section-toggle {
   /* Tab views are centred in the toolbar (plan 2026-11-14-1330, KTD11): two equal sides hold them in the middle, and
      the trailing side never shrinks below its symbols, so on a narrow detail the tabs fall in line just before them and
      the title gives way. */
-  .loki-pane-header:has(> .loki-tabs) {
+  .loki-pane-header:has(> [data-slot="tabs"] > .loki-tabs) {
     grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   }
   .loki-pane-header .loki-tab {

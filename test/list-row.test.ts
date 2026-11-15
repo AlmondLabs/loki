@@ -72,7 +72,7 @@ describe("list row markup", () => {
     expect(out).toContain('aria-expanded="false"');
     expect(out).not.toContain("loki-list-row");
   });
-  test("the pane header's tab row is a tablist with one selected tab, reachable by Tab", () => {
+  test("the pane header's tab row is shadcn's tablist with one selected tab, each naming its panel", () => {
     const out = html(
       createElement(PaneHeader, {
         title: "Loki mobile",
@@ -83,12 +83,15 @@ describe("list row markup", () => {
         tab: "desk",
         onTab: () => {},
         tabsLabel: "Desk views",
+        panelId: (id: string) => `panel-${id}`,
       }),
     );
-    expect(out).toContain('role="tablist"');
-    expect(out).toContain('aria-label="Desk views"');
+    expect(out).toContain('data-slot="tabs-list"');
+    expect(out).toMatch(/role="tablist"[^>]*aria-label="Desk views"/);
     expect(out.match(/aria-selected="true"/g)?.length).toBe(1);
-    expect(out).toMatch(/aria-selected="true" tabindex="0"[^>]*>(<[^>]+>)*Desk/);
-    expect(out).toMatch(/aria-selected="false" tabindex="-1"/);
+    // Base UI gives the chosen tab the one tab stop once mounted; a static render shows which tab is chosen.
+    expect(out).toMatch(/aria-selected="true"[^>]*>(<[^>]+>)*Desk/);
+    expect(out).toContain('aria-controls="panel-desk"');
+    expect(out).toContain('aria-controls="panel-messages"');
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactElement } from "react";
 import { Chip, Meta, Popover, Row } from "../components";
 import type { ChatEngineView } from "../../../core/models.ts";
 import type { ModelAndMode } from "./use-model-and-mode";
@@ -62,24 +62,20 @@ function choiceOf(mode: string | null, modes: ModeChoice[] | undefined): ModeCho
 export function ModeChip({
   mode,
   modes,
-  onClick,
   busy,
-  className,
-}: {
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
   mode: string | null;
   /** An ACP agent's modes (agentModes); absent, loki's own four. */
   modes?: ModeChoice[];
-  onClick: () => void;
   busy?: boolean;
-  className?: string;
 }) {
   const info = choiceOf(mode, modes);
   const loud = isOpenDoor(info.id);
   return (
     <Chip
-      className={className}
+      {...rest}
       style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined}
-      onClick={onClick}
       title={`Permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
       aria-label="Permission mode"
       aria-busy={busy || undefined}
@@ -102,52 +98,55 @@ function Shield({ fill }: { fill: number }) {
   );
 }
 
-/** The menu: a row with a line for each mode (loki's four, or the agent's own); ↑↓ / Enter / Esc, or click. */
+/**
+ * The menu hung from the mode chip: a row with a line for each mode (loki's four, or the agent's own); ↑↓ / Enter / Esc,
+ * or click. Only the phone draws the chip (the desktop picks the mode in ⌘K), so it is the phone's popover.
+ */
 export function ModeMenu({
+  trigger,
   open,
+  onOpenChange,
   current,
   modes = MODES,
   onPick,
-  onClose,
   anchor = "left",
   side,
 }: {
+  trigger: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>;
   open: boolean;
+  onOpenChange: (open: boolean) => void;
   current: string | null;
   modes?: ModeChoice[];
   onPick: (m: string) => void;
-  onClose: () => void;
   anchor?: "left" | "right";
   side?: "below" | "above";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // loki's chats default to unrestricted (daemon/approvals.ts); an agent's to its first mode.
   const selected = current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
-  useEffect(() => {
-    if (!open) return;
-    const el = ref.current;
-    const idx = Math.max(
-      0,
-      modes.findIndex((m) => m.id === selected),
-    );
-    el?.querySelectorAll<HTMLElement>('[role="menuitemradio"]')[idx]?.focus();
-  }, [open, selected, modes]);
-  if (!open) return null;
+  const at = Math.max(
+    0,
+    modes.findIndex((m) => m.id === selected),
+  );
   return (
     <Popover
       ref={ref}
+      trigger={trigger}
+      open={open}
+      onOpenChange={onOpenChange}
+      touch
       role="menu"
       aria-label="Permission mode"
       anchor={anchor}
       side={side}
       width={300}
+      initialFocus={() => ref.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]')[at]}
       style={{ padding: 4 }}
       onKeyDown={(e) => {
         const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? [])];
         const i = items.indexOf(document.activeElement as HTMLElement);
         if (e.key === "ArrowDown") items[Math.min(items.length - 1, i + 1)]?.focus();
         else if (e.key === "ArrowUp") items[Math.max(0, i - 1)]?.focus();
-        else if (e.key === "Escape") onClose();
         else return;
         e.preventDefault();
         e.stopPropagation();
@@ -221,9 +220,18 @@ export function ModeSwitch({ mode, modes, controls }: { mode: string | null; mod
   }, [open]);
   return (
     <span ref={chip} className="loki-mode-anchor">
-      <ModeChip className="loki-model-pill loki-mode-pill" mode={mode} modes={modes} busy={controls.changingMode} onClick={controls.toggleMode} />
-      {!native && (
-        <ModeMenu open={controls.modeOpen} side="above" current={mode} modes={modes} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />
+      {native ? (
+        <ModeChip className="loki-model-pill loki-mode-pill" mode={mode} modes={modes} busy={controls.changingMode} onClick={controls.toggleMode} />
+      ) : (
+        <ModeMenu
+          trigger={<ModeChip className="loki-model-pill loki-mode-pill" mode={mode} modes={modes} busy={controls.changingMode} />}
+          open={controls.modeOpen}
+          onOpenChange={(next) => (next ? !controls.modeOpen && controls.toggleMode() : controls.closeMode())}
+          side="above"
+          current={mode}
+          modes={modes}
+          onPick={(m) => void controls.pickMode(m)}
+        />
       )}
     </span>
   );

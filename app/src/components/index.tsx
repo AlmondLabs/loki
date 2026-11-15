@@ -5,11 +5,12 @@ import type {
   InputHTMLAttributes,
   KeyboardEvent,
   MouseEvent,
+  ReactElement,
   ReactNode,
   Ref,
   TextareaHTMLAttributes,
 } from "react";
-import { forwardRef, useEffect, useRef, useState } from "react";
+import { cloneElement, forwardRef, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Toaster, toast } from "sonner";
 import { useSheetMotion } from "./sheet-motion";
@@ -24,6 +25,8 @@ import { Button as UiButton } from "@/ui/button";
 import { Switch as UiSwitch } from "@/ui/switch";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
 import { Badge } from "@/ui/badge";
+import { Popover as UiPopover, PopoverContent, PopoverTrigger } from "@/ui/popover";
+import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { Dialog, DialogOverlay, DialogPopup, DialogPortal, DialogViewport } from "@/ui/dialog";
 import { SearchIcon } from "lucide-react";
 
@@ -535,41 +538,146 @@ function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!onClose,
   return shell ? createPortal(sheet, shell) : sheet;
 }
 
-/** The props of `Popover`: a div's, with the edge and side it hangs from, its width, and whether it opens without growing. */
-export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
-  /** Which edge of the anchor it hangs from. */
+/** The props of `Popover`: a div's, with its control, whether it is open, the edge and side it hangs from and its width. */
+export interface PopoverProps extends Omit<HTMLAttributes<HTMLDivElement>, "role"> {
+  /** The control it hangs from, a button that passes on the props and ref it is given; it opens and closes the popover. */
+  trigger: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>;
+  open: boolean;
+  /** Asked to open or close: a press on the control, Esc, or a press outside. */
+  onOpenChange: (open: boolean) => void;
+  /** A dialog that holds fields, or a menu of rows. */
+  role: "dialog" | "menu";
+  "aria-label": string;
+  /** Which edge of the control it lines up with. */
   anchor?: "left" | "right";
-  /** Below the anchor line (the default) or above it, for chips along a panel's bottom. */
+  /** Below the control (the default) or above it, for a control along a panel's foot. */
   side?: "below" | "above";
   width?: number;
-  /** Appears at once, never grows: a palette that opens as you type. */
-  instant?: boolean;
+  /** What takes the focus when it opens; omitted, the panel itself. */
+  initialFocus?: () => HTMLElement | null | undefined;
+  /** The phone's markup, wherever it is drawn. */
+  touch?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
 /**
- * A small panel hung from a line of chips: the model picker, the mode menu. Stacks inside its component.
- * Opened by a click it grows out of the corner it hangs from, quickly (components.css); opened by a key it
- * is simply there, as anything a key starts is.
+ * A small panel hung from the control that opens it: a list of links, a folder field, a menu. On the desktop it is
+ * shadcn's Popover on Base UI (plan 2026-11-15-2130): drawn over the window beside its control, on the side with room,
+ * and closed by Esc, a press outside or the control again, with focus going back to the control. Opened by a click it
+ * grows out of the corner it hangs from; opened by a key it is simply there. The phone draws its own panel beside the
+ * control (KTD2).
  */
-export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover(
-  { anchor = "left", side = "below", width = 320, instant = false, className, style, onPointerDown, ...rest },
+export function Popover({
+  trigger,
+  open,
+  onOpenChange,
+  anchor = "left",
+  side = "below",
+  width = 320,
+  initialFocus,
+  touch,
   ref,
-) {
-  const [grows] = useState(() => !instant && lastInput() === "pointer");
+  className,
+  style,
+  ...rest
+}: PopoverProps) {
+  const grows = open && lastInput() === "pointer";
+  if (inLan || touch)
+    return (
+      <>
+        {cloneElement(trigger, {
+          "aria-haspopup": rest.role,
+          "aria-expanded": open,
+          onClick: (e: MouseEvent<HTMLButtonElement>) => {
+            trigger.props.onClick?.(e);
+            onOpenChange(!open);
+          },
+        })}
+        {open && (
+          <PhonePopover
+            panelRef={ref}
+            onClose={() => onOpenChange(false)}
+            initialFocus={initialFocus}
+            className={cx("loki-popover", side === "above" && "loki-popover--above", className)}
+            data-grow={grows || undefined}
+            style={{ [anchor]: 8, width, transformOrigin: `${side === "above" ? "bottom" : "top"} ${anchor}`, ...style }}
+            {...rest}
+          />
+        )}
+      </>
+    );
+  return (
+    <UiPopover open={open} onOpenChange={(next) => onOpenChange(next)}>
+      <PopoverTrigger render={trigger} aria-haspopup={rest.role} />
+      <PopoverContent
+        ref={ref}
+        side={side === "above" ? "top" : "bottom"}
+        align={anchor === "right" ? "end" : "start"}
+        sideOffset={6}
+        initialFocus={initialFocus ? () => initialFocus() ?? true : true}
+        className={cx("loki-popover loki-popover--anchored gap-0 p-0", !grows && "data-open:animate-none", className)}
+        style={{ width, ...style }}
+        {...rest}
+      />
+    </UiPopover>
+  );
+}
+
+/** Hands a node to a ref the caller gave, whichever kind it is. */
+function assignRef<T>(target: Ref<T> | undefined, node: T | null) {
+  if (typeof target === "function") target(node);
+  else if (target) target.current = node;
+}
+
+/**
+ * The phone's popover: an absolutely placed panel beside its control in the control's wrapper. A press outside the
+ * wrapper or Esc closes it, and focus goes back to the control unless what was picked took it elsewhere.
+ */
+function PhonePopover({
+  panelRef,
+  onClose,
+  initialFocus,
+  onKeyDown,
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & { panelRef?: Ref<HTMLDivElement>; onClose: () => void; initialFocus?: () => HTMLElement | null | undefined }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const latest = useRef({ onClose, initialFocus });
+  useEffect(() => {
+    latest.current = { onClose, initialFocus };
+  });
+  useEffect(() => {
+    const node = ref.current;
+    const wrapper = node?.parentElement ?? null;
+    latest.current.initialFocus?.()?.focus({ preventScroll: true });
+    // Capture phase: panes and other popovers stop pointerdown from bubbling, and a press there must still close it.
+    const away = (e: PointerEvent) => {
+      if (e.target instanceof Node && !wrapper?.contains(e.target)) latest.current.onClose();
+    };
+    window.addEventListener("pointerdown", away, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      const a = document.activeElement;
+      if (!a || a === document.body || node?.contains(a)) wrapper?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    };
+  }, []);
   return (
     <div
-      ref={ref}
-      className={cx("loki-popover", side === "above" && "loki-popover--above", className)}
-      data-grow={grows || undefined}
-      style={{ [anchor]: 8, width, transformOrigin: `${side === "above" ? "bottom" : "top"} ${anchor}`, ...style }}
-      onPointerDown={(e) => {
+      ref={(el) => {
+        ref.current = el;
+        assignRef(panelRef, el);
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        onKeyDown?.(e);
+        if (e.defaultPrevented || e.key !== "Escape") return;
+        e.preventDefault();
         e.stopPropagation();
-        onPointerDown?.(e);
+        onClose();
       }}
       {...rest}
     />
   );
-});
+}
 
 /** A shortcut hint: mono (keys are data), muted, hairlined. */
 export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLSpanElement>) {
@@ -988,9 +1096,9 @@ export interface Tab<T extends string = string> {
 }
 
 /**
- * A row of tabs under a pane header, Slack's Messages | Canvas | Files: the chosen one in full ink over a
- * 2px rule. An ARIA tablist with a roving tab stop: Tab lands on the chosen tab, the arrow keys, Home and
- * End move and choose. `panelId` names the panel each tab controls, when the host gives it an id.
+ * The tab views under a pane's title, a segmented capsule as a Mac toolbar's: shadcn's Tabs on Base UI (plan
+ * 2026-11-15-2130, KTD3). A tablist with a roving tab stop: Tab lands on the chosen tab, and the arrow keys, Home and End
+ * move and choose. `panelId` names the panel each tab controls, which the host draws outside the row.
  */
 export function TabRow<T extends string>({
   label,
@@ -1005,38 +1113,30 @@ export function TabRow<T extends string>({
   onChange: (id: T) => void;
   panelId?: (id: T) => string;
 }) {
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const at = tabs.findIndex((t) => t.id === current);
-    const to = e.key === "ArrowRight" ? at + 1 : e.key === "ArrowLeft" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
-    if (to === null || tabs.length === 0) return;
-    e.preventDefault();
-    const next = tabs[(to + tabs.length) % tabs.length];
-    onChange(next.id);
-    e.currentTarget.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus();
-  };
   return (
-    <div role="tablist" aria-label={label} className="loki-tabs" onKeyDown={onKeyDown}>
-      {tabs.map((t) => {
-        const on = t.id === current;
-        return (
-          <button
+    <Tabs
+      value={current}
+      onValueChange={(value: unknown) => {
+        const next = tabs.find((t) => t.id === value);
+        if (next) onChange(next.id);
+      }}
+      className="contents"
+    >
+      <TabsList aria-label={label} activateOnFocus className="loki-tabs h-auto gap-0.5 rounded-full p-0.5">
+        {tabs.map((t) => (
+          <TabsTrigger
             key={t.id}
-            type="button"
-            role="tab"
-            data-tab={t.id}
-            aria-selected={on}
-            tabIndex={on ? 0 : -1}
+            value={t.id}
             aria-controls={panelId?.(t.id)}
-            className="loki-tab"
-            onClick={() => onChange(t.id)}
+            className="loki-tab flex-none gap-2 rounded-full px-3 dark:data-active:border-transparent"
           >
             {t.icon && <Icon name={t.icon} size={14} />}
             {t.label}
             {t.count != null && t.count > 0 && <span className="loki-tab-count">{countText(t.count)}</span>}
-          </button>
-        );
-      })}
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
 
