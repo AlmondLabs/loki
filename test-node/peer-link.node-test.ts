@@ -3,8 +3,8 @@
  * listener serving the real frame router; the near Mac is only its link, holding the token the far Mac minted for it.
  */
 import { strict as assert } from "node:assert";
-import { mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,9 +13,11 @@ import { createBridge } from "../mod/bridge.ts";
 import { DeviceStore } from "../mod/devices.ts";
 import { peersFrames } from "../mod/frames/peers.ts";
 import { LanListener } from "../mod/lan.ts";
+import { initLog } from "../mod/log.ts";
 import { PairingCodes } from "../mod/pairing.ts";
 import { PeerLink, PeerLinks, type LinkStatus } from "../mod/peer-link.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, mintPeerToken } from "../mod/peers.ts";
+import type { DeviceVia } from "../core/frame-types.ts";
 
 const FAR = "cccccccc-3333-4333-8333-333333333333";
 const NEAR = "dddddddd-4444-4444-8444-444444444444";
@@ -39,8 +41,11 @@ async function until(check: () => boolean, ms = 4000): Promise<void> {
   }
 }
 
-/** The far Mac: a listener on `port` with the real router, answering `peer_ping` with `protocol`, that knows the near Mac by `token`. */
-async function farMac(port: number, token: string, protocol = PEER_PROTOCOL) {
+/**
+ * The far Mac: a listener on `port` with the real router, answering `peer_ping` with `protocol`, that knows the near
+ * Mac by `token` and sees every request arrive by `via`.
+ */
+async function farMac(port: number, token: string, protocol = PEER_PROTOCOL, via: DeviceVia = "tailscale") {
   const dir = mkdtempSync(join(tmpdir(), "loki-link-"));
   const store = new PeerStore(join(dir, "peers.json"));
   store.add({ mac_id: NEAR, name: "near", host: "near:41415", build: null, protocol: PEER_PROTOCOL }, token);
@@ -77,7 +82,7 @@ async function farMac(port: number, token: string, protocol = PEER_PROTOCOL) {
     handlers: bridge,
     appDist: null,
     peers,
-    via: () => "tailscale",
+    via: () => via,
   });
   await lan.setPeersNeeded(true);
   return {
@@ -206,6 +211,136 @@ void test("a token the far Mac does not know is refused, and the near Mac is tol
   } finally {
     link.stop();
     await far.done();
+  }
+});
+
+void test("a known token that came the wrong way is turned away without telling the near Mac it was forgotten", async () => {
+  const port = await freePort();
+  const token = mintPeerToken();
+  // The far Mac takes this caller for the Wi‑Fi: a path problem, which must never unpair the two.
+  const far = await farMac(port, token, PEER_PROTOCOL, "lan");
+  let refused = 0;
+  let tries = 0;
+  const link = new PeerLink({
+    macId: FAR,
+    url: () => `ws://127.0.0.1:${port}/ws`,
+    token: () => {
+      tries++;
+      return Promise.resolve(token);
+    },
+    protocol: PEER_PROTOCOL,
+    onRefused: () => refused++,
+    minBackoffMs: 20,
+    maxBackoffMs: 100,
+  });
+  try {
+    link.start();
+    await until(() => tries >= 3);
+    assert.equal(link.status, "unreachable");
+    assert.equal(refused, 0);
+  } finally {
+    link.stop();
+    await far.done();
+  }
+});
+
+void test("each reason a link fails is logged once when it starts, not once per retry", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "loki-link-log-"));
+  const logFile = join(dir, "mod.log");
+  initLog(logFile);
+  const port = await freePort();
+  const token = mintPeerToken();
+  const far = await farMac(port, token, PEER_PROTOCOL, "lan");
+  let tries = 0;
+  let keychain: string | null = null;
+  const link = new PeerLink({
+    macId: FAR,
+    url: () => `ws://127.0.0.1:${port}/ws`,
+    token: () => {
+      tries++;
+      return Promise.resolve(keychain);
+    },
+    protocol: PEER_PROTOCOL,
+    minBackoffMs: 10,
+    maxBackoffMs: 20,
+  });
+  const failures = () =>
+    readFileSync(logFile, "utf8")
+      .split("\n")
+      .filter((l) => l.includes("peers:link_failed"));
+  try {
+    link.start();
+    await until(() => tries >= 3);
+    assert.equal(failures().length, 1);
+    assert.match(failures()[0], /no token/);
+    // A token turns up, and the far Mac turns it away for the path it came by: one new line, saying so.
+    keychain = token;
+    const before = tries;
+    await until(() => tries >= before + 3);
+    assert.equal(failures().length, 2);
+    assert.match(failures()[1], /403/);
+  } finally {
+    link.stop();
+    await far.done();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("the same failure is logged again once the link has worked in between, and a stop on purpose logs nothing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "loki-link-log-"));
+  const logFile = join(dir, "mod.log");
+  initLog(logFile);
+  const failures = () =>
+    readFileSync(logFile, "utf8")
+      .split("\n")
+      .filter((l) => l.includes("peers:link_failed"));
+  const port = await freePort();
+  const token = mintPeerToken();
+  let far = await farMac(port, token);
+  const { link, tries } = nearLink(port, token);
+  try {
+    link.start();
+    await until(() => link.status === "reachable");
+    // The far Mac goes away: retries fail the same way, logged once.
+    await far.done();
+    await until(() => link.status === "unreachable");
+    const down = tries.count;
+    await until(() => tries.count >= down + 3);
+    assert.equal(failures().length, 1);
+    // It comes back, then goes away again: the same reason is news again.
+    far = await farMac(port, token);
+    await until(() => link.status === "reachable");
+    await far.done();
+    await until(() => failures().length === 2);
+    assert.equal(failures()[0].replace(/^\S+ /, ""), failures()[1].replace(/^\S+ /, ""));
+  } finally {
+    link.stop();
+    await far.done();
+  }
+  // A link stopped mid-handshake (a Mac forgotten, or the mod reloading) did not fail: nothing is logged.
+  const held: Socket[] = [];
+  const silent = createServer((socket) => held.push(socket));
+  await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+  const quiet = new PeerLink({
+    macId: FAR,
+    url: () => `ws://127.0.0.1:${(silent.address() as { port: number }).port}/ws`,
+    token: () => Promise.resolve(token),
+    protocol: PEER_PROTOCOL,
+    minBackoffMs: 10,
+    maxBackoffMs: 20,
+  });
+  try {
+    const before = failures().length;
+    quiet.start();
+    await until(() => held.length > 0);
+    quiet.stop();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(failures().length, before);
+  } finally {
+    quiet.stop();
+    for (const socket of held) socket.destroy();
+    await new Promise<void>((resolve) => silent.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

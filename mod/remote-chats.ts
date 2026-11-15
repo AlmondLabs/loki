@@ -42,13 +42,20 @@ export interface RemoteChatsOptions {
   /** A Mac's chats were fetched: the scopes it holds, its word for the chat directory (addendum B5). */
   onListed?: (macId: string, scopes: Scope[]) => void;
   debounceMs?: number;
+  /** The first wait before a failed fetch over a link still up is tried again, doubling to thirty seconds. */
+  retryMs?: number;
 }
+
+/** The longest wait between fetches of a Mac's chats that keep failing while its link is up: the link's own backoff. */
+const MAX_RETRY_MS = 30_000;
 
 /** The paired Macs' chats as this Mac last heard them. */
 export class RemoteChats {
   private readonly opts: RemoteChatsOptions;
   private readonly macs = new Map<string, MacChats>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** A failed fetch waiting to be tried again, per Mac, and how long the next wait is. */
+  private readonly retries = new Map<string, { timer: ReturnType<typeof setTimeout> | null; waitMs: number }>();
 
   constructor(opts: RemoteChatsOptions) {
     this.opts = opts;
@@ -58,6 +65,7 @@ export class RemoteChats {
   sync(macIds: string[]): void {
     const keep = new Set(macIds);
     let dropped = false;
+    for (const id of [...this.retries.keys()]) if (!keep.has(id)) this.stopRetry(id);
     for (const id of [...this.macs.keys()])
       if (!keep.has(id)) {
         this.macs.delete(id);
@@ -72,6 +80,7 @@ export class RemoteChats {
       void this.refresh(macId);
       return;
     }
+    this.stopRetry(macId);
     const kept = this.macs.get(macId);
     if (kept?.reachable) {
       kept.reachable = false;
@@ -91,7 +100,11 @@ export class RemoteChats {
     this.timers.set(macId, t);
   }
 
-  /** Fetch a Mac's chats now; out of reach, nothing changes. */
+  /**
+   * Fetch a Mac's chats now. When the fetch fails but the link is still up (the other Mac was slow, busy with the
+   * syncs that start with every connection), what was listed stays in reach and the fetch is tried again; only a link
+   * that went down marks the Mac's chats out of reach.
+   */
   async refresh(macId: string): Promise<void> {
     const link = this.opts.link(macId);
     if (!link) return;
@@ -99,9 +112,11 @@ export class RemoteChats {
     try {
       reply = await link.request({ type: "peer_chats_get" });
     } catch {
-      this.setReachable(macId, false);
+      if (link.status === "reachable") this.retryLater(macId);
+      else this.setReachable(macId, false);
       return;
     }
+    this.stopRetry(macId);
     // A desk whose chat is gone there (a layout or canvas left behind) is no chat of that Mac's: listing it would also
     // send that chat's frames there, away from the Mac that holds it.
     // Rows that are not objects (a Mac on another loki version) are dropped: one would throw here, in a refresh nobody
@@ -141,5 +156,26 @@ export class RemoteChats {
   stop(): void {
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
+    for (const id of [...this.retries.keys()]) this.stopRetry(id);
+  }
+
+  /** Fetch a Mac's chats again after a wait that doubles with each failure; one wait at a time per Mac. */
+  private retryLater(macId: string): void {
+    const retry = this.retries.get(macId) ?? { timer: null, waitMs: this.opts.retryMs ?? 1000 };
+    if (retry.timer) return;
+    const wait = retry.waitMs;
+    retry.waitMs = Math.min(wait * 2, MAX_RETRY_MS);
+    retry.timer = setTimeout(() => {
+      retry.timer = null;
+      void this.refresh(macId);
+    }, wait);
+    retry.timer.unref();
+    this.retries.set(macId, retry);
+  }
+
+  private stopRetry(macId: string): void {
+    const retry = this.retries.get(macId);
+    if (retry?.timer) clearTimeout(retry.timer);
+    this.retries.delete(macId);
   }
 }

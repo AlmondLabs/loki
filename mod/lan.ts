@@ -269,7 +269,11 @@ export class LanListener {
       this.boundPort = (server.address() as { port: number }).port;
       // A page on another site can open a WebSocket to this address, and the phone's cookie rides along:
       // an upgrade naming a foreign Origin is refused, as /uploads is.
-      this.ws = attachWs(server, (req, url) => (crossOrigin(req, this.allowedHosts()) ? { ok: false } : this.authorize(req, url)), this.opts.handlers);
+      this.ws = attachWs(
+        server,
+        (req, url) => (crossOrigin(req, this.allowedHosts()) ? { ok: false, refusal: 403 } : this.authorize(req, url)),
+        this.opts.handlers,
+      );
       log("lan:listening", { port: this.boundPort, addresses: lanAddresses(this.opts.interfaces), appDist: this.dist });
       // Phones cannot reload themselves from a menu: watch the build and tell them when it changes.
       this.announcedBuild = buildIdOf(this.dist);
@@ -351,14 +355,19 @@ export class LanListener {
       const device = this.opts.devices.verify(token, via);
       if (device) return { ok: true, deviceId: device.id };
     }
-    const mac = via === "tailscale" ? this.opts.peers?.verify(token) : null;
+    // Macs come in over the tailnet only. One that came another way is told so (403), not that its token is unknown
+    // (401), which would make it check whether it was forgotten.
+    if (via !== "tailscale") return { ok: false, refusal: this.opts.peers ? 403 : 401 };
+    const mac = this.opts.peers?.verify(token);
     return mac ? { ok: true, peerId: mac } : { ok: false };
   };
 
   private via(req: IncomingMessage): DeviceVia {
     if (this.opts.via) return this.opts.via(req);
-    // With a tailnet reader, a 100.x caller counts only when it reached this Mac's own tailnet address.
-    return requestVia(req, this.tailscale ? this.tailscale.cached().ip : undefined);
+    // With a tailnet reader, a 100.x caller counts only when it reached one of this Mac's own tailnet addresses. They
+    // come from Tailscale's interface as well as the CLI, which has not answered when the listener first comes up
+    // and can be slow or fail later: going by the CLI alone turned paired Macs away as Wi‑Fi callers.
+    return requestVia(req, this.tailscale ? tailnetAddresses(this.opts.interfaces, this.tailscale.cached().ip) : undefined);
   }
 
   // --- http -----------------------------------------------------------------------------------
@@ -583,17 +592,18 @@ export class Attempts {
  * loopback and names the peer in X-Forwarded-For (and the tailnet in Host). Everything else is the Wi‑Fi.
  *
  * The 100.x range is not Tailscale's alone: a carrier or a Wi‑Fi may hand out the same addresses. So when the caller
- * knows this Mac's tailnet address (`tailnetIp`; null for "not on a tailnet"), a 100.x peer counts only if it reached
- * that address, which only the tailnet's interface has. Left out, the peer's address alone decides.
+ * knows this Mac's tailnet addresses (`tailnetIps`, from tailnetAddresses; empty for "not on a tailnet"), a 100.x
+ * peer counts only if it reached one of them, which only the tailnet's interface has. Left out, the peer's address
+ * alone decides.
  */
 export function requestVia(
   req: Pick<IncomingMessage, "headers"> & { socket?: { remoteAddress?: string | null; localAddress?: string | null } },
-  tailnetIp?: string | null,
+  tailnetIps?: readonly string[],
 ): DeviceVia {
   const remote = (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
   if (isTailnetAddress(remote)) {
-    if (tailnetIp === undefined) return "tailscale";
-    return tailnetIp !== null && (req.socket?.localAddress ?? "").replace(/^::ffff:/i, "") === tailnetIp ? "tailscale" : "lan";
+    if (tailnetIps === undefined) return "tailscale";
+    return tailnetIps.includes((req.socket?.localAddress ?? "").replace(/^::ffff:/i, "")) ? "tailscale" : "lan";
   }
   const forwarded = req.headers["x-forwarded-for"];
   const peer = (Array.isArray(forwarded) ? forwarded[0] : (forwarded ?? "")).split(",")[0]?.trim() ?? "";
@@ -607,6 +617,34 @@ export function requestVia(
 export function isTailnetAddress(ip: string): boolean {
   const m = /^100\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(ip);
   return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127;
+}
+
+/** An interface Tailscale names after itself: `tailscale0` on Linux, `Tailscale` on Windows. */
+const TAILSCALE_NAMED = /^tailscale\d*$/i;
+/** A tunnel on the Mac. Every VPN's is a `utun`, so a name alone does not say whose it is. */
+const MAC_TUNNEL = /^utun\d+$/i;
+/** Tailscale's own IPv6 prefix, fd7a:115c:a1e0::/48, which its tunnel always holds beside its 100.x address. */
+const TAILSCALE_ULA = /^fd7a:115c:a1e0:/i;
+
+/**
+ * This machine's tailnet addresses: the 100.64/10 addresses Tailscale's interface holds, and the address the CLI last
+ * reported (`cliIp`, null when it has not answered). On the Mac, Tailscale's `utun` is the one that also holds an
+ * address in Tailscale's IPv6 prefix; another VPN's tunnel (WARP, NetBird) and a Wi‑Fi's 100.x address from a
+ * carrier's NAT are not.
+ */
+export function tailnetAddresses(interfaces: () => ReturnType<typeof networkInterfaces> = networkInterfaces, cliIp: string | null = null): string[] {
+  const out = new Set<string>(cliIp ? [cliIp] : []);
+  let table: ReturnType<typeof networkInterfaces>;
+  try {
+    table = interfaces();
+  } catch {
+    return [...out];
+  }
+  for (const [name, infos = []] of Object.entries(table)) {
+    const tailscales = TAILSCALE_NAMED.test(name) || (MAC_TUNNEL.test(name) && infos.some((info) => TAILSCALE_ULA.test(info.address)));
+    if (tailscales) for (const info of infos) if (!info.internal && isTailnetAddress(info.address)) out.add(info.address);
+  }
+  return [...out];
 }
 
 const isLoopback = (ip: string) => ip === "127.0.0.1" || ip === "::1";

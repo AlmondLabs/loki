@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { WebSocket as WsClient, type RawData } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
+import { HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress, tailnetAddresses } from "../mod/lan.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 import { request as httpRequest, type IncomingMessage } from "node:http";
@@ -559,6 +559,32 @@ describe("LAN listener", () => {
     }
   });
 
+  test("this Mac's tailnet addresses: Tailscale's tunnel before the CLI has answered, never a Wi‑Fi's 100.x address", () => {
+    const v4 = (address: string) => ({ address, family: "IPv4", internal: false }) as never;
+    const mac = () => ({
+      en0: [v4("100.80.0.5")],
+      utun4: [v4("100.90.1.2"), { address: "fd7a:115c:a1e0::1", family: "IPv6", internal: false } as never],
+      lo0: [v4("127.0.0.1")],
+    });
+    // The listener is up and the CLI has not answered yet (or failed): the tunnel's address is enough.
+    expect(tailnetAddresses(mac, null)).toEqual(["100.90.1.2"]);
+    expect(tailnetAddresses(mac, "100.90.1.2")).toEqual(["100.90.1.2"]);
+    // Every VPN on the Mac is a utun: another one handing out 100.x addresses (WARP, NetBird) is not Tailscale's, which
+    // always holds an address in Tailscale's own IPv6 prefix too.
+    const otherVpn = () => ({ ...mac(), utun9: [v4("100.96.0.2"), { address: "fe80::1", family: "IPv6", internal: false } as never] });
+    expect(tailnetAddresses(otherVpn, null)).toEqual(["100.90.1.2"]);
+    expect(tailnetAddresses(() => ({ utun9: [v4("100.96.0.2")] }), null)).toEqual([]);
+    // Linux and Windows name the tunnel after Tailscale; the CLI's address counts whatever its interface is called.
+    expect(tailnetAddresses(() => ({ tailscale0: [v4("100.90.1.3")] }), null)).toEqual(["100.90.1.3"]);
+    expect(tailnetAddresses(() => ({ Tailscale: [v4("100.90.1.4")] }), null)).toEqual(["100.90.1.4"]);
+    expect(tailnetAddresses(() => ({ en0: [v4("100.80.0.5")] }), "100.90.1.2")).toEqual(["100.90.1.2"]);
+    expect(
+      tailnetAddresses(() => {
+        throw new Error("no interfaces");
+      }, null),
+    ).toEqual([]);
+  });
+
   test("the route of a request: a 100.x peer or tailscale serve on loopback is the tailnet; anything else is the Wi‑Fi", () => {
     const req = (remoteAddress: string, headers: Record<string, string> = {}) => ({ headers, socket: { remoteAddress } });
     expect(requestVia(req("100.74.177.93"))).toBe("tailscale");
@@ -570,13 +596,13 @@ describe("LAN listener", () => {
     expect(requestVia(req("127.0.0.1"))).toBe("lan");
     // A 100.x address is only the tailnet inside CGNAT space (100.64–100.127); 100.1.x is somebody's real network.
     expect(requestVia(req("100.1.2.3"))).toBe("lan");
-    // A Wi‑Fi may hand out 100.x addresses too: with this Mac's tailnet address known, only a caller that reached it counts.
+    // A Wi‑Fi may hand out 100.x addresses too: with this Mac's tailnet addresses known, only a caller that reached one counts.
     const at = (remoteAddress: string, localAddress: string) => ({ headers: {}, socket: { remoteAddress, localAddress } });
-    expect(requestVia(at("100.74.177.93", "100.90.1.2"), "100.90.1.2")).toBe("tailscale");
-    expect(requestVia(at("::ffff:100.74.177.93", "::ffff:100.90.1.2"), "100.90.1.2")).toBe("tailscale");
-    expect(requestVia(at("100.74.177.93", "100.80.0.5"), "100.90.1.2")).toBe("lan");
-    expect(requestVia(at("100.74.177.93", "100.80.0.5"), null)).toBe("lan");
-    expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }), null)).toBe("tailscale");
+    expect(requestVia(at("100.74.177.93", "100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
+    expect(requestVia(at("::ffff:100.74.177.93", "::ffff:100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
+    expect(requestVia(at("100.74.177.93", "100.80.0.5"), ["100.90.1.2"])).toBe("lan");
+    expect(requestVia(at("100.74.177.93", "100.80.0.5"), [])).toBe("lan");
+    expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }), [])).toBe("tailscale");
     expect(requestVia(req("192.168.1.20", { "x-forwarded-for": "100.74.177.93" }))).toBe("lan"); // a header alone proves nothing
     expect(isTailnetAddress("100.64.0.1")).toBe(true);
     expect(isTailnetAddress("100.127.255.254")).toBe(true);
