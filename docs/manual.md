@@ -345,7 +345,8 @@ differs:
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
    while maximised) and close at the right, as Slack does there. The strip drags the window and a double click
    maximises; the edges resize. ☰ opens the menus the Mac's menu bar has, with the same items and keys, by mouse or
-   by keyboard. The strip stays usable over a dialog. A second launch brings the running window forward instead
+   by keyboard: pointing at a menu, → or ↵ opens it, ← or Esc goes back, ↑↓ and the first letters move, and Esc, Tab or
+   a click outside closes it. The strip stays usable over a dialog. A second launch brings the running window forward instead
    of starting another loki.
 2. **Keys.** ⌘ is Ctrl, ⌥ Alt, ⇧ Shift, ↵ Enter, ⌫ Backspace, and every menu, tooltip, the keys sheet and
    Preferences › Keyboard shortcuts write them so. Move Chat Left and Right are Ctrl ← and Ctrl → or Ctrl Shift [ and Ctrl Shift ],

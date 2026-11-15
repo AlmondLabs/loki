@@ -35,7 +35,7 @@ describe("the window shell on Liquid Glass", () => {
 
 describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", () => {
   test("every sheet, popover and type-ahead list is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
-    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-mail-suggest,\s*\.loki-title-menu-panel \{([^}]*)\}/.exec(glass), "the sheet rule")[1];
+    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-mail-suggest \{([^}]*)\}/.exec(glass), "the sheet rule")[1];
     expect(sheets).toContain("var(--loki-glass-strong)");
     expect(sheets).toContain("var(--loki-glass-blur)");
     const chips = must(/\.loki-chip--float \{([^}]*)\}/.exec(glass), "the chip rule")[1];
@@ -83,7 +83,9 @@ describe("Windows and Linux on Liquid Glass (U10)", () => {
   });
 
   test("the ☰ menu on Windows and Linux is the same strong glass as a Mac's menus, solid where glass is off", () => {
-    expect(glass).toMatch(/\.loki-title-menu-panel \{[^}]*var\(--loki-glass-strong\)/);
+    // It is a drawn menu (plan 2026-11-15-1930), its titles' submenus too, so it takes the popovers' strong glass.
+    const menu = readFileSync(join(APP, "shell", "title-menu.tsx"), "utf8");
+    expect(menu.match(/className=\{?[^>]*loki-popover/g)?.length).toBe(2);
   });
 });
 

@@ -17,6 +17,7 @@ import { Thought } from "../item/thought";
 import { Work } from "../item/work";
 import type { TurnPart } from "../item/entries";
 import { Lanes } from "../settings/lanes";
+import { TitleMenu } from "../shell/title-menu";
 import type { Lane } from "../../../core/attention/lanes.ts";
 
 /*
@@ -316,6 +317,15 @@ export function Workbench() {
                 />
               </div>
             ))}
+          </div>
+        </Section>
+
+        <Section
+          title="☰ menu"
+          note="The Mac's menu bar on Windows, Linux and in a browser tab: each menu a submenu, keys in Ctrl words (plan 2026-11-15-1930)."
+        >
+          <div className="flex">
+            <TitleMenu os="windows" className="loki-browser-menu" />
           </div>
         </Section>
 

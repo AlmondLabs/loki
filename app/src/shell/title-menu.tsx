@@ -1,8 +1,20 @@
-import { useEffect, useRef, useState } from "react";
-import { Kbd, Row } from "../components";
+import { useRef, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
+import { cx } from "../components/parts";
 import { keyboard, type Platform } from "../desk/env";
+import { lastInput } from "../kit/motion";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
-import { ChevronRightIcon, MenuIcon } from "lucide-react";
+import { MenuIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
 /** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
@@ -46,178 +58,88 @@ export function runMenuItem(id: string): void {
   if (!runAction(id)) console.warn("loki: menu item without an action", id);
 }
 
+/** The id of the item before a menu's separator, which keys the separator: it never leads and never follows another. */
+const keyBefore = (items: TitleMenuGroup["items"], i: number): string => {
+  const before = i > 0 ? items[i - 1] : undefined;
+  return before && !("separator" in before) ? before.id : "start";
+};
+
+/** An item's look in the ☰ menu and its submenus: the label at the left, the key at the right. */
+const ITEM = "justify-between gap-3";
+
 /**
- * The menu itself, without state: the titles, then Hide loki (Minimise loki there, labelOf); beside them the open title's items. Pointing at a
- * title opens it, as a menu bar's does.
+ * The menu's items, without its root (plan 2026-11-15-1930, KTD1): each title a submenu of Base UI's, holding that
+ * menu's items and separators with their keys, then Hide loki (Minimise loki there, labelOf). Base UI opens a title on
+ * hover, →, Return or Space, closes it on ← or Esc, and moves with ↑↓ Home End and type-ahead.
  */
-export function TitleMenuPanel({
-  groups,
-  open,
-  onOpen,
-  onPick,
-  os = keyboard,
-}: {
-  groups: TitleMenuGroup[];
-  open: string | null;
-  onOpen: (title: string | null) => void;
-  onPick: (id: string) => void;
-  os?: Platform;
-}) {
-  const current = groups.find((g) => g.title === open) ?? null;
+export function TitleMenuItems({ groups, onPick, os = keyboard }: { groups: TitleMenuGroup[]; onPick: (id: string) => void; os?: Platform }) {
   return (
     <>
-      <div role="menu" aria-label="loki" className="loki-title-menu-panel">
-        {groups.map((g) => (
-          <Row
-            key={g.title}
-            dense
-            role="menuitem"
-            aria-haspopup="menu"
-            aria-expanded={open === g.title}
-            data-menu={g.title}
-            selected={open === g.title}
-            className="loki-title-menu-item"
-            onClick={() => onOpen(g.title)}
-            onPointerEnter={() => onOpen(g.title)}
-          >
-            <span>{g.title}</span>
-            <Glyph icon={ChevronRightIcon} size={12} />
-          </Row>
-        ))}
-        <hr className="loki-title-menu-sep" />
-        <Row dense role="menuitem" data-menu-id={HIDE} className="loki-title-menu-item" onClick={() => onPick(HIDE)} onPointerEnter={() => onOpen(null)}>
-          <span>{labelOf(HIDE_BINDING, os)}</span>
-          <Kbd>{keyFor(HIDE, os)}</Kbd>
-        </Row>
-      </div>
-      {current && (
-        <div role="menu" aria-label={current.title} className="loki-title-menu-panel loki-title-submenu">
-          {current.items.map((it, i) =>
-            "separator" in it ? (
-              <hr key={`sep-${i}`} className="loki-title-menu-sep" />
-            ) : (
-              <Row key={it.id} dense role="menuitem" data-menu-id={it.id} className="loki-title-menu-item" onClick={() => onPick(it.id)}>
-                <span>{it.label}</span>
-                {it.keys && <Kbd>{it.keys}</Kbd>}
-              </Row>
-            ),
-          )}
-        </div>
-      )}
+      {groups.map((g) => (
+        <DropdownMenuSub key={g.title}>
+          <DropdownMenuSubTrigger data-menu={g.title}>{g.title}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent aria-label={g.title} className="loki-popover" style={{ minWidth: 260 }}>
+            {g.items.map((it, i) =>
+              "separator" in it ? (
+                // menuSpec puts a separator only between two groups, so the item before it keys it.
+                <DropdownMenuSeparator key={`sep-after-${keyBefore(g.items, i)}`} />
+              ) : (
+                <DropdownMenuItem key={it.id} data-menu-id={it.id} className={ITEM} onClick={() => onPick(it.id)}>
+                  <span>{it.label}</span>
+                  {it.keys && <DropdownMenuShortcut>{it.keys}</DropdownMenuShortcut>}
+                </DropdownMenuItem>
+              ),
+            )}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem data-menu-id={HIDE} className={ITEM} onClick={() => onPick(HIDE)}>
+        <span>{labelOf(HIDE_BINDING, os)}</span>
+        <DropdownMenuShortcut>{keyFor(HIDE, os)}</DropdownMenuShortcut>
+      </DropdownMenuItem>
     </>
   );
 }
 
-const items = (panel: Element | null | undefined) => [...(panel?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-
 /**
  * ☰ and its menu, at the strip's left end on Windows and Linux and beside the sidebar toggle in a browser tab, its
- * items named by `labels` where their words change (the update item). The header menus' manners (DeskPane): focus goes in,
- * ↑↓ move, → or Enter opens a title's menu and ← or Esc goes back to it, Esc on the titles closes, a press outside
- * closes, and focus returns to ☰.
+ * items named by `labels` where their words change (the update item). It is shadcn's DropdownMenu on Base UI, as every
+ * other menu loki draws (plan 2026-11-15-1930, KTD1): Esc, Tab, a press outside or a pick close it, and focus goes back
+ * to ☰ unless the pick took it elsewhere. Opened by a click it grows from ☰; opened by a key it is simply there.
  */
 export function TitleMenu({ os = keyboard, labels = {}, className }: { os?: Platform; labels?: Record<string, string>; className?: string }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  const popup = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const grows = open && lastInput() === "pointer";
   return (
     <span className={className ? `loki-title-menu-anchor ${className}` : "loki-title-menu-anchor"}>
-      <button
-        type="button"
-        className="loki-title-btn loki-title-btn--menu"
-        aria-label="Menu"
-        title="Menu"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((v) => !v)}
-      >
-        <Glyph icon={MenuIcon} size={16} />
-      </button>
-      {menuOpen && (
-        <TitleMenuPopover
-          os={os}
-          labels={labels}
-          onPick={(id) => {
-            setMenuOpen(false);
-            runMenuItem(id);
-          }}
-          onClose={() => setMenuOpen(false)}
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger
+          ref={trigger}
+          render={
+            <button type="button" className="loki-title-btn loki-title-btn--menu" aria-label="Menu" title="Menu">
+              <Glyph icon={MenuIcon} size={16} />
+            </button>
+          }
         />
-      )}
+        <DropdownMenuContent
+          ref={popup}
+          aria-label="loki"
+          align="start"
+          sideOffset={4}
+          finalFocus={() => {
+            const a = document.activeElement;
+            if (a && a !== document.body && !popup.current?.contains(a)) return false;
+            return trigger.current ?? true;
+          }}
+          className={cx("loki-popover loki-popover--anchored", !grows && "data-open:animate-none")}
+          style={{ minWidth: 180 }}
+        >
+          <TitleMenuItems groups={titleMenus(os, KEYMAP, labels)} os={os} onPick={runMenuItem} />
+        </DropdownMenuContent>
+      </DropdownMenu>
     </span>
-  );
-}
-
-function TitleMenuPopover({
-  os,
-  labels,
-  onPick,
-  onClose,
-}: {
-  os: Platform;
-  /** Items whose words change (the update item), as the Mac's menu bar shows them. */
-  labels: Record<string, string>;
-  onPick: (id: string) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState<string | null>(null);
-  /** Bumped when the keyboard opens a title: its menu's first item takes the focus once it shows. */
-  const [enter, setEnter] = useState(0);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const anchor = node?.parentElement ?? null;
-    items(node?.firstElementChild)[0]?.focus();
-    const away = (e: PointerEvent) => {
-      if (!anchor?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail and the list column stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    };
-  }, []);
-  useEffect(() => {
-    if (enter) items(ref.current?.querySelector(".loki-title-submenu"))[0]?.focus();
-  }, [enter]);
-  const titles = () => ref.current?.firstElementChild;
-  const focusTitle = (t: string | null) =>
-    t
-      ? items(titles())
-          .find((el) => el.dataset.menu === t)
-          ?.focus()
-      : undefined;
-  return (
-    <div
-      ref={ref}
-      className="loki-title-menu"
-      onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        const here = (document.activeElement as HTMLElement | null)?.closest('[role="menu"]') ?? null;
-        const inSub = !!here?.classList.contains("loki-title-submenu");
-        const all = items(here);
-        const i = all.indexOf(document.activeElement as HTMLElement);
-        const title = (document.activeElement as HTMLElement | null)?.dataset.menu;
-        if (e.key === "ArrowDown") all[(i + 1) % all.length]?.focus();
-        else if (e.key === "ArrowUp") all[(i - 1 + all.length) % all.length]?.focus();
-        else if ((e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") && title) {
-          setOpen(title);
-          setEnter((n) => n + 1);
-        } else if ((e.key === "ArrowLeft" || e.key === "Escape") && inSub) {
-          focusTitle(open);
-          setOpen(null);
-        } else if (e.key === "Escape") onClose();
-        else if (e.key === "Tab") return onClose();
-        else return;
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-    >
-      <TitleMenuPanel groups={titleMenus(os, KEYMAP, labels)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
-    </div>
   );
 }
