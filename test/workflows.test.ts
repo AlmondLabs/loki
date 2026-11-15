@@ -11,9 +11,11 @@ interface Step {
   uses?: string;
   run?: string;
   with?: Record<string, unknown>;
+  env?: Record<string, string>;
 }
 interface Job {
   "runs-on": string;
+  env?: Record<string, string>;
   strategy?: { matrix?: { os?: string[] } };
   steps: Step[];
 }
@@ -135,5 +137,34 @@ describe("supply chain", () => {
     const dropped = steps.findIndex((s) => /APPLE_CERTIFICATE[^\n]*\n\s*echo "\$v=" >> "\$GITHUB_ENV"/.test(s.run ?? ""));
     expect(built).toBeGreaterThan(-1);
     expect(dropped).toBe(built + 1);
+  });
+
+  // The update key signs what every loki installs (plan 2026-11-15-2319, U4): the bundler needs it to build the update
+  // files, and nothing else in any workflow sees it.
+  test("the update key reaches only the steps that build the app, as each step's own env", () => {
+    const holders: string[] = [];
+    for (const { name, wf } of all)
+      for (const [job, j] of Object.entries(wf.jobs)) {
+        expect(JSON.stringify(j.env ?? {}), `${name}/${job}`).not.toContain("TAURI_SIGNING");
+        j.steps.forEach((s, i) => {
+          if (JSON.stringify(s).includes("TAURI_SIGNING")) holders.push(`${name}/${job}/${s.uses?.split("@")[0] ?? String(i)}`);
+        });
+      }
+    const release = workflow("release").jobs;
+    const builds = [
+      must(release.build, "the build job").steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@")),
+      must(release.windows, "the windows job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
+      must(release.linux, "the linux job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
+    ];
+    expect(holders).toEqual([`release/build/tauri-apps/tauri-action`, `release/windows/${builds[1]}`, `release/linux/${builds[2]}`]);
+    for (const [job, i] of [
+      ["build", builds[0]],
+      ["windows", builds[1]],
+      ["linux", builds[2]],
+    ] as const)
+      expect(must(release[job], job).steps[i]?.env, job).toEqual({
+        TAURI_SIGNING_PRIVATE_KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
+      });
   });
 });

@@ -159,8 +159,13 @@ jobs:
             [ -n "${!v}" ] && echo "$v=${!v}" >> "$GITHUB_ENV"
           done
           echo "signing with $APPLE_SIGNING_IDENTITY"
+      # The update key signs the updater archive every loki installs from (plan 2026-11-15-2319, U4); the bundler
+      # refuses to build it without the key. This step's env alone, so no later step sees it.
       - name: build the universal dmg
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: --target universal-apple-darwin
       # The build was the last step that signs: the steps after it publish, and get no Apple secret.
@@ -280,6 +285,10 @@ jobs:
         run: npm run build:mod && npm run smoke
       - name: build the installer
         run: npm run tauri -- build --bundles nsis
+        # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: windows
@@ -322,6 +331,10 @@ jobs:
         run: npm run build:mod && npm run smoke
       - name: build the AppImage and .deb
         run: npm run tauri -- build --bundles appimage,deb
+        # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: linux

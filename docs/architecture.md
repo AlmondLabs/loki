@@ -73,6 +73,33 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
 
 The model is a remote service, not a process on your machine.
 
+## How loki updates itself
+
+The shell replaces the whole app, with the daemon and mod bundles inside it, through Tauri's updater (`update.rs`,
+plan 2026-11-15-2319). Nothing updates the daemon apart from the app, so the two are never out of step.
+
+1. **The channel is the shell's.** `~/.loki/updates.json` holds `stable` or `nightly`. The first run takes the running
+   version's channel (a nightly's version carries `-nightly.`, as `core/version.ts` reads it), and
+   `set_update_channel` writes it for the next check. Stable reads `releases/latest/download/latest.json`, Nightly
+   `releases/download/nightly/latest.json`, and `LOKI_UPDATE_URL` overrides both. The plugin's own comparison stands:
+   only a version newer by semver, which the nightly numbering makes right for both channels.
+2. **Checks run in the background, in a release build.** At launch and every six hours, on a thread of their own, by
+   the wall clock so a sleeping laptop's hours count; never while a check or a download is under way or an update is
+   ready. `check_for_updates` runs one now. A development build never checks, and neither does a Linux install from
+   the `.deb`: only the AppImage, which sets `APPIMAGE`, replaces itself.
+3. **Only a verified download is ready.** The plugin downloads the system's update file and checks its signature
+   against the public key in `tauri.conf.json`; the bytes then wait in memory. A failed check, download or signature
+   is a state the page shows, never a dialog, and the running version stays.
+4. **It installs on quit, or on Restart to Update.** The `RunEvent` handler in `lib.rs` stops the daemon, then installs
+   a ready update without relaunching (`Updates::quit`): on Windows the NSIS installer gets `/P /UPDATE` and no `/R`,
+   and it ends loki. `restart_to_update` installs and relaunches; on the Mac and Linux the swap comes before the daemon
+   stops, so a failed swap leaves it running. The page decides whether a chat is working before it calls it, since the
+   shell has no daemon client. A crash or force-quit loses the download, and the next launch fetches it again.
+5. **The page sees one status.** `update_status` and `loki:update` events carry `{ channel, current, state }`, where
+   `state.kind` is `idle`, `checking`, `downloading` (`done`, and `total` once known), `ready` (`version`), `failed`
+   (`stage`: `check`, `download`, `signature` or `install`, and `message`) or `unsupported` (`reason`: `development`
+   or `package`). The page never calls the plugin: no capability grants its commands.
+
 ## Inside the daemon
 
 `daemon/main.ts` wires these pieces together, in this order: the lock, the keychain, the stores, MCP, the extensions
@@ -431,6 +458,7 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
    to notice changes), and in each agent's memory `conflicts/sync.md` while a clash waits for reflection.
 13. `logs/`: `daemon.log` (the daemon's output, appended across restarts, and set aside as `daemon.log.1` once past
     10 MB) and `events.jsonl` (the local usage events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
+14. `updates.json`: the update channel, Stable or Nightly, which the shell keeps (`update.rs`).
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the
@@ -541,8 +569,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `desk/outside-card.tsx`
    draws an outside thread with the item components only when asked (`items`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
-   `runtime.rs` fetches a release's Node (and PortableGit on Windows) and checks for git; `node.rs` finds a development
-   build's Node; `procs.rs` finds a leftover daemon; `install.rs`
+   `runtime.rs` fetches a release's Node (and PortableGit on Windows) and checks for git; `update.rs` checks for a newer
+   release, downloads it and installs it on quit; `node.rs` finds a development build's Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus, built in AppKit so an
    action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight

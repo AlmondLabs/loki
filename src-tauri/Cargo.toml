@@ -44,6 +44,10 @@ sha2 = "0.10"
 flate2 = "1"
 tar = { version = "0.4", default-features = false }
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+# loki replaces itself (update.rs, plan 2026-11-15-2319 KTD1): checked, downloaded and verified against the key in
+# tauri.conf.json through the plugin's Rust API; the page never calls the plugin. rustls on ring, as reqwest above; no
+# `zip`, which only reads Tauri 1's zipped update files. 2.12 for `restart_after_install`, which the quit path turns off.
+tauri-plugin-updater = { version = "2.12", default-features = false, features = ["rustls-tls", "system-proxy"] }
 
 # macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
 # tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).

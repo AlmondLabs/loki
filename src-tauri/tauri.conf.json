@@ -23,6 +23,12 @@
     "macOS": {
       "minimumSystemVersion": "13.3"
     },
-    "resources": ["resources/**/*"]
+    "resources": ["resources/**/*"],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_THE_UPDATE_PUBLIC_KEY"
+    }
   }
 }

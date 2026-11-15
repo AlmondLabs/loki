@@ -7,6 +7,8 @@
 //!    node.rs) once git is in place, off the main thread so the window shows the download; restarts it when it dies
 //!    (harness.rs), and stops it on quit;
 //!    the page talks to the daemon itself, over the mod's port
+//!  - replaces itself with a newer signed release (update.rs): checked and downloaded in the background, installed when
+//!    loki quits or on Restart to Update
 
 mod harness;
 mod install;
@@ -16,6 +18,7 @@ mod node;
 mod popup;
 mod procs;
 mod runtime;
+mod update;
 mod widgets;
 
 use std::path::{Path, PathBuf};
@@ -577,6 +580,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
         .plugin(tauri_plugin_dialog::init())
+        // Updates (update.rs): the shell drives the plugin's Rust API; no capability grants the page its commands.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             client_log,
             install_status,
@@ -588,7 +593,11 @@ pub fn run() {
             native::set_global_shortcut,
             native::traffic_lights,
             menu::set_menu,
-            popup::popup_menu
+            popup::popup_menu,
+            update::update_status,
+            update::check_for_updates,
+            update::set_update_channel,
+            update::restart_to_update
         ])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
@@ -638,6 +647,8 @@ pub fn run() {
                 }
             }));
             stop_on_signals(app.handle().clone());
+            // Checks for a newer loki at launch and every six hours, in a release build (update.rs).
+            update::start(app.handle(), &data);
 
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("loki")
@@ -708,10 +719,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building loki")
         .run(|app, event| {
-            // Quit from the menu, the dock, or the last window closing: take the daemon down first.
+            // Quit from the menu, the dock, or the last window closing: take the daemon down first, then install an
+            // update that is ready (update.rs; on Windows the installer then ends loki).
             if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
-                if let Some(h) = app.try_state::<harness::Harness>() {
-                    h.stop();
+                let stop = &mut || {
+                    if let Some(h) = app.try_state::<harness::Harness>() {
+                        h.stop();
+                    }
+                };
+                match app.try_state::<update::Updates>() {
+                    Some(updates) => updates.quit(stop),
+                    None => stop(),
                 }
             }
         });
