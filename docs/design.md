@@ -311,7 +311,10 @@ Internals keep the name desk.
   `loki.desktop.sidebar`. Chats' sources are All Chats, Pinned and Archived; the list keeps a heading per agent, and Mail's
   category pills under its title (plan 2026-11-15-1523) narrow it to **All**, **Waiting**, **Unread** or **Working**:
   the chosen one a filled capsule with its symbol and name, the rest grey circles with their symbol; Archived has none. Flow's are Everything and the person's lanes; an agent's
-  lane is the phone's, and on the desktop a saved one reads as Everything. Agents' are its agents (face, name, a green
+  lane is the phone's, and on the desktop a saved one reads as Everything. Flow's list carries the same pills
+  (`FilterPills`, plan 2026-11-15-1740) by kind: **All**, then **Chats**, **Mail**, **Slack** and **Jira**, each only
+  while Flow holds a card of it (the chosen one kept), none with fewer than two; a kind narrows the deck as a lane does,
+  and the two combine. Agents' are its agents (face, name, a green
   dot while one works, the count of what waits in Flow), and Learn's its views (Review with its grey count of cards due,
   Leads, All Cards, Deleted).
 - **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its

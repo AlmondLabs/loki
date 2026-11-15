@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { inLane, laneItems, type ResolvedLane } from "../../../core/attention/lanes.ts";
+import { kindItems, type FlowKind } from "./flow-kinds";
 import { idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import { rowAfter, type DeckMoveApi } from "./deck-moves";
 import { useDeckActions } from "./use-deck-actions";
@@ -97,6 +98,8 @@ export interface FlowDeckOptions {
   items: AttentionItem[];
   /** This device's active lane, null for Everything (plan 087). */
   lane: ResolvedLane | null;
+  /** The kind of card Flow shows (plan 2026-11-15-1740), "all" for every kind. */
+  kind?: FlowKind;
   moves: DeckMoveApi;
   /** Sign In… on a refusal's notice: open where the card's account is mended. */
   onSignIn?: () => void;
@@ -114,12 +117,12 @@ export interface FlowDeckOptions {
  * first row, as Learn's deck does (recall/use-deck-pass.ts). Mounted from entering the Flow place until leaving it,
  * which is the visit: leaving, or the page unloading, ends it and reports it (KTD6).
  */
-export function useFlowDeck({ items, lane, moves, onSignIn, onPass, onShown, loadHistory }: FlowDeckOptions) {
-  /** The cards the active lane holds: only they come up (R13). */
-  const shown = useMemo(() => laneItems(items, lane), [items, lane]);
+export function useFlowDeck({ items, lane, kind = "all", moves, onSignIn, onPass, onShown, loadHistory }: FlowDeckOptions) {
+  /** The cards the active lane and kind hold: only they come up (R13; plan 2026-11-15-1740, R2). */
+  const shown = useMemo(() => kindItems(laneItems(items, lane), kind), [items, lane, kind]);
   /** Going through the cards Next rested, asked for at the end of the pass. */
   const [resting, setResting] = useState(false);
-  const { queue, setQueue, decided: allDecided, setDecided, selected: row, select, selectedNow } = useDeckQueue(shown, lane, resting);
+  const { queue, setQueue, decided: allDecided, setDecided, selected: row, select, selectedNow } = useDeckQueue(shown, lane, resting, kind);
   // What undo takes back and the summary shows: the visit's moves on cards this lane holds (KTD6).
   const decided = lane ? allDecided.filter((d) => inLane(d.item, lane)) : allDecided;
   const live = useMemo(() => new Map(items.map((i) => [idOf(i), i])), [items]);

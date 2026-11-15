@@ -9,6 +9,7 @@ import { SETTINGS_WINDOW, openSettingsWindow } from "./open-settings";
 import { lastInput } from "../kit/motion";
 import { FlowPlace } from "../desk/catch-up";
 import type { PassSummaryHandler } from "../desk/use-flow-deck";
+import type { FlowKind } from "../desk/flow-kinds";
 import { Agents } from "../agents/agents";
 import { Recall } from "../recall/recall";
 import type { Recall as RecallModel } from "./use-recall";
@@ -78,9 +79,14 @@ export function InboxView({
   onClose,
   onPass,
   notice,
+  kind,
+  onKind,
 }: {
   desk: Desk;
   catchUp: CatchUp;
+  /** The kind of card Flow shows (plan 2026-11-15-1740), held by the shell so it outlasts the visit, and its switch. */
+  kind: FlowKind;
+  onKind: (kind: FlowKind) => void;
   /** A one-line message at the bottom of the window (a refused `/label`). */
   notice: (message: string) => void;
   models: ModelEntry[] | null;
@@ -97,6 +103,8 @@ export function InboxView({
       onPass={onPass}
       items={catchUp.items}
       lane={catchUp.flow.lane}
+      kind={kind}
+      onKind={onKind}
       onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
       onSignIn={() => openPreferencesOn("accounts")}
       labelList={catchUp.labels.list}
