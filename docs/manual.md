@@ -785,7 +785,10 @@ under its row in the sidebar (see "Lanes" below), the lane's cards in the list b
 order" below), and the selected card beside the list with its whole thread (newest at the bottom, tool calls as muted
 markers) and its moves in its toolbar. Each row says who it is from (the sender, or the chat's agent), what it is about
 (the subject, the channel, the ticket or the chat's name) and a line of the newest words, with the kind's symbol at its
-start and a muted "Sign In" when the card's account needs mending. ↑↓ move through the list and show each card without
+start and a muted "Sign In" when the card's account needs mending. The pills under the list's title show one kind
+of card at a time: **All**, **Chats**, **Mail**, **Slack** or **Jira**, each there only while Flow holds a card of
+that kind. A kind narrows the list, the arrows, the moves and the count as a lane does, within the lane showing, and
+holds until you choose another or quit. ↑↓ move through the list and show each card without
 leaving the list; Return goes into the card's reply box, Tab to the card's moves in its toolbar; a click selects. The rows never reorder while you are in
 Flow: a card you move on from leaves its gap closed, and a card that arrives takes its place by score, never above the
 one you are on.

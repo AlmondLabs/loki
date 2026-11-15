@@ -38,6 +38,7 @@ import { ChatListView } from "./desk-sidebar";
 import { leaveList, listStop, type ContentListHandle } from "./content-list";
 import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows, stateRows, type ChatState } from "./sidebar-model";
 import { AgentFace } from "../desk/agent-chip";
+import type { FlowKind } from "../desk/flow-kinds";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
@@ -116,6 +117,8 @@ export function Shell() {
   const [chatSource, setChatSource] = useState(ALL_CHATS);
   /** Chats' state pill (plan 2026-11-15-1523): every chat to begin with, held for the session. */
   const [chatState, setChatState] = useState<ChatState>("all");
+  // Flow's kind pill (plan 2026-11-15-1740, R3): held here, as Chats' state is, so it outlasts leaving Flow.
+  const [flowKind, setFlowKind] = useState<FlowKind>("all");
   /**
    * The source chosen does not hold the chat open (KTD8): the detail says "No Chat Selected", and the chat's link stays
    * as it is until a row is picked.
@@ -335,6 +338,8 @@ export function Shell() {
         onOpenDesk={openDesk}
         onClose={() => setSegment("desk")}
         onPass={(pass) => capture("inbox_pass_completed", pass)}
+        kind={flowKind}
+        onKind={setFlowKind}
       />
     ),
     // Drawn only while Agents shows; the chosen agent and page live in the selection store, so they outlast it.

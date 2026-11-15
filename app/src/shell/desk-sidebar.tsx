@@ -45,8 +45,7 @@ import { HomeMark } from "./home-mark";
 import { prefersReducedMotion } from "../kit/motion";
 import "./desk-sidebar.css";
 import { popUpMenu, NATIVE_MENUS, type MenuEntry } from "./native-menu";
-import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
-import { cn } from "@/lib/utils";
+import { FilterPills, type FilterPill } from "./filter-pills";
 import { ActivityIcon, BellIcon, CircleDotIcon, MessagesSquareIcon, type LucideIcon } from "lucide-react";
 import { MenuItems, menuKey } from "./menu-items";
 import type { DeskSummary } from "../../../core/frame-types.ts";
@@ -299,7 +298,7 @@ export function ChatList({
           }}
           empty={emptyFor(source)}
           newAction={onNew && { label: "New Chat", run: () => onNew(source.agentId), keys: keyFor("desk.new") }}
-          scope={stateFilter && <ChatFilters {...stateFilter} />}
+          scope={stateFilter && <FilterPills pills={STATE_PILLS} value={stateFilter.state} onValue={stateFilter.onState} />}
           query={query}
           // Hidden behind another place, the list keeps its Search but gives up ⌥⌘F.
           onQuery={shown ? onQuery : undefined}
@@ -589,46 +588,8 @@ const STATE_PILL: Record<ChatState, { label: string; icon: LucideIcon }> = {
   working: { label: "Working", icon: ActivityIcon },
 };
 
-/**
- * Chats' state pills (plan 2026-11-15-1523), in Mail's shape: the chosen one a filled capsule with its symbol and name,
- * the others grey circles with their symbol alone, each named for a screen reader and in its tooltip. shadcn's
- * ToggleGroup on Base UI, one pressed at a time.
- */
-function ChatFilters({ state, onState }: NonNullable<ChatListProps["stateFilter"]>) {
-  return (
-    <ToggleGroup
-      aria-label="Show"
-      spacing={2}
-      value={[state]}
-      onValueChange={(v: unknown[]) => {
-        const next = CHAT_STATES.find((s) => s === v[0]);
-        if (next) onState(next);
-      }}
-    >
-      {CHAT_STATES.map((s) => {
-        const { label, icon: Mark } = STATE_PILL[s];
-        const on = s === state;
-        return (
-          <ToggleGroupItem
-            key={s}
-            value={s}
-            aria-label={label}
-            title={label}
-            className={cn(
-              "h-7 rounded-full",
-              on
-                ? "bg-primary px-3 text-primary-foreground data-pressed:bg-primary data-pressed:text-primary-foreground"
-                : "w-9 bg-loki-hover px-0 text-muted-foreground",
-            )}
-          >
-            <Mark aria-hidden className="size-3.5" />
-            {on && <span>{label}</span>}
-          </ToggleGroupItem>
-        );
-      })}
-    </ToggleGroup>
-  );
-}
+/** Chats' state pills (plan 2026-11-15-1523), in order: each state's name and symbol. */
+const STATE_PILLS: ReadonlyArray<FilterPill<ChatState>> = CHAT_STATES.map((value) => ({ value, ...STATE_PILL[value] }));
 
 /** Where each agent lives and this Mac's id, as `homesOf` builds it. */
 export type Homes = NonNullable<ChatListProps["homes"]>;

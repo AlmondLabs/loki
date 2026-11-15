@@ -2,7 +2,10 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AccountProvider } from "../../../core/frame-types.ts";
 import { agentLanes, laneItems, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import { catchUpQueue, idOf } from "../../../core/attention/queue.ts";
+import { HashIcon, InboxIcon, MailIcon, MessagesSquareIcon, TicketIcon } from "lucide-react";
 import { ListIcon } from "../components";
+import type { FilterPill } from "../shell/filter-pills";
+import { offeredKinds, type FlowKind } from "./flow-kinds";
 import type { IconName } from "../shared/icons";
 import type { ContentRow } from "../shell/content-list";
 import type { PlaceSources } from "../shell/sidebar";
@@ -58,6 +61,20 @@ export function flowSources(
 
 /** Each kind of outside card's symbol in the list: a mail, a Slack channel's sign, a ticket. */
 const KIND_ICON: Record<AccountProvider, IconName> = { gmail: "mail", slack: "hash", jira: "ticket" };
+
+/** Each kind pill's name and symbol, the symbols the list's rows lead with. */
+const KIND_PILL: Record<FlowKind, Omit<FilterPill<FlowKind>, "value">> = {
+  all: { label: "All", icon: InboxIcon },
+  chat: { label: "Chats", icon: MessagesSquareIcon },
+  gmail: { label: "Mail", icon: MailIcon },
+  slack: { label: "Slack", icon: HashIcon },
+  jira: { label: "Jira", icon: TicketIcon },
+};
+
+/** Flow's kind pills (plan 2026-11-15-1740, R1): All and the kinds Flow holds, the chosen one kept; none for one kind. */
+export function kindPills(items: readonly AttentionItem[], chosen: FlowKind): Array<FilterPill<FlowKind>> {
+  return offeredKinds(items, chosen).map((value) => ({ value, ...KIND_PILL[value] }));
+}
 
 /** A line of text's first line with words in it. */
 const firstLine = (text: string | null | undefined) =>

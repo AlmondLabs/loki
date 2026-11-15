@@ -3,10 +3,11 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { inLane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import { byScore } from "../../../core/attention/priority.ts";
 import { idOf, inboxQueue, leaveRow, mergeQueue, type Decision } from "../../../core/attention/queue.ts";
+import { inKind, type FlowKind } from "./flow-kinds";
 
 /**
- * The rows after a lane switch (plan 087, KTD6; plan 2026-11-14-1330, KTD5): the new lane's cards sorted afresh by
- * score, the selected card among them when the new lane holds it; otherwise it is left as it was, with nothing recorded
+ * The rows after a lane switch (plan 087, KTD6; plan 2026-11-14-1330, KTD5), or a kind switch (plan 2026-11-15-1740,
+ * KTD1): the new lane's cards sorted afresh by score, the selected card among them when the new lane and kind hold it; otherwise it is left as it was, with nothing recorded
  * on it. Cards moved past this visit stay out, in any lane, until something new comes, since the visit carries across.
  */
 export function switchLane(
@@ -16,9 +17,10 @@ export function switchLane(
   decided: Decision[],
   resting: boolean,
   selectedId: string | null,
+  kind: FlowKind = "all",
 ): AttentionItem[] {
   const selected = queue.find((i) => idOf(i) === selectedId);
-  const kept = selected && (!lane || inLane(selected, lane)) ? [selected] : [];
+  const kept = selected && (!lane || inLane(selected, lane)) && inKind(selected, kind) ? [selected] : [];
   return byScore(mergeQueue(kept, items, decided, { resting, selectedId: kept.length ? selectedId : null }));
 }
 
@@ -28,11 +30,12 @@ const selectedOf = (queue: AttentionItem[], id: string | null) => queue.find((i)
 /**
  * The visit's rows, the selected card and what the visit has decided so far. The rows stay live without reordering:
  * new items join under the selection by score, chats that leave Flow drop out, decided ones fall out (mergeQueue).
- * `items` are the cards the active `lane` holds; a switch to another lane sorts the rows afresh from them (switchLane).
+ * `items` are the cards the active `lane` and `kind` hold; a switch to another lane or kind sorts the rows afresh from
+ * them (switchLane).
  * `resting` lets the cards Next has rested in too (core/attention/rest.ts), those moved past in this visit included,
  * once you ask to go through them, sorted afresh as well.
  */
-export function useDeckQueue(items: AttentionItem[], lane: ResolvedLane | null = null, resting = false) {
+export function useDeckQueue(items: AttentionItem[], lane: ResolvedLane | null = null, resting = false, kind: FlowKind = "all") {
   const [queue, setQueue] = useState<AttentionItem[]>(() => inboxQueue(items, resting));
   const [decided, setDecided] = useState<Decision[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -40,8 +43,8 @@ export function useDeckQueue(items: AttentionItem[], lane: ResolvedLane | null =
   const picked = useRef<string | null>(null);
   const selected = selectedOf(queue, selectedId);
   const pinned = selected ? idOf(selected) : null;
-  // A lane is known by its id: an agent lane is a new object whenever its count changes.
-  const laneId = lane?.id ?? "";
+  // A lane is known by its id (an agent lane is a new object whenever its count changes), and the kind beside it.
+  const laneId = `${lane?.id ?? ""}\u0000${kind}`;
   const laneRef = useRef(laneId);
   const restingRef = useRef(resting);
 
@@ -51,7 +54,7 @@ export function useDeckQueue(items: AttentionItem[], lane: ResolvedLane | null =
       again
         ? mergeQueue([], items, [], { resting })
         : switched
-          ? switchLane(q, items, lane, decided, resting, pinned)
+          ? switchLane(q, items, lane, decided, resting, pinned, kind)
           : mergeQueue(q, items, decided, { resting, selectedId: pinned }),
     ),
   );

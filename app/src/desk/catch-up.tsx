@@ -15,7 +15,9 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { BADGE, ChatItemHeader, FlowCaughtUp, VisitSummary, cameBackIn, deckKey, liveWaitingCount, type ChatMoves } from "./catch-up-parts";
-import { flowRows } from "./flow-column";
+import { flowRows, kindPills } from "./flow-column";
+import type { FlowKind } from "./flow-kinds";
+import { FilterPills } from "../shell/filter-pills";
 import { ContentList, type ContentListHandle } from "../shell/content-list";
 import { PlaceColumns } from "../shell/place-columns";
 import type { useDeckActions } from "./use-deck-actions";
@@ -55,6 +57,9 @@ interface FlowPlaceProps {
   items: AttentionItem[];
   /** This device's active lane, null for Everything (plan 087). */
   lane: ResolvedLane | null;
+  /** The kind of card shown (plan 2026-11-15-1740), "all" for every kind, and its switch: the list's pills. */
+  kind?: FlowKind;
+  onKind?: (kind: FlowKind) => void;
   /** Switch lanes, null for Everything: the summary's Back to Everything. The sidebar's sources switch them too. */
   onLane: (lane: ResolvedLane | null) => void;
   /** Sign In… on a card whose account lost its sign-in: open Preferences › Accounts (plan 2026-11-14-0852, 1). */
@@ -116,11 +121,12 @@ type DeckProps = FlowPlaceProps;
  * move goes through the list, so a row the arrows have only highlighted commits before the move acts on it (AE4).
  */
 export function FlowPlace(props: FlowPlaceProps) {
-  const { onClose, items, lane, onOpenDesk } = props;
+  const { onClose, items, lane, kind = "all", onKind, onOpenDesk } = props;
   const { replyOutside, composeOutside, unsendOutside } = props.chats;
   const flow = useFlowDeck({
     items,
     lane,
+    kind,
     moves: deckMoveApi(props, replyOutside, unsendOutside),
     onSignIn: props.onSignIn,
     onPass: props.onPass,
@@ -246,6 +252,7 @@ export function FlowPlace(props: FlowPlaceProps) {
   ) : null;
 
   const title = lane ? lane.name : "Flow";
+  const pills = onKind ? kindPills(items, kind) : [];
   const listColumn = (
     <div ref={listHost} className="loki-flow-list">
       <ContentList
@@ -253,6 +260,7 @@ export function FlowPlace(props: FlowPlaceProps) {
         label={title}
         title={title}
         count={liveWaitingCount(shown) || null}
+        scope={pills.length > 0 && onKind && <FilterPills pills={pills} value={kind} onValue={onKind} />}
         rows={flowRows(flow.rows)}
         selectedId={selectedId}
         onSelect={flow.select}
