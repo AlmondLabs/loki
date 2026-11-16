@@ -272,6 +272,10 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
       // Said, not just dropped: another Mac's link tells a refused token (it may have been forgotten) from a wrong path
       // or a network fault.
       const status = who.refusal === 403 ? "403 Forbidden" : "401 Unauthorized";
+      // Node takes its own error listener off a socket it hands to "upgrade", and ws only adds one for an upgrade it
+      // takes. A caller that hangs up on the refusal with a reset (another Mac's link drops it at once) is an error on
+      // this socket, and an error nobody listens for ends the daemon. The answer is already given, so the socket goes.
+      socket.on("error", () => socket.destroy());
       socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
       return;
     }
