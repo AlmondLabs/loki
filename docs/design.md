@@ -446,10 +446,15 @@ box is one for both, its sizes set by `touch`.
   the tab bar's labels and badge (`--phone-text-tab`) stay fixed, as iOS keeps its tab bar. The shared parts the phone
   draws (chat items, rows, shadcn's controls) use Tailwind's sizes and spacing in rem, so they follow Text Size
   without a cap.
-- **The dock is a material.** The floating navigation, search and compose buttons are iOS's bar material with
-  `blur(20px) saturate(180%)` behind, so the list shows through as it scrolls under; the badge's ring is solid panel,
-  so it never shows the list. The accent is the system blue, the unread badge is red as iOS's are, affirmative is the
-  accent; the faces are the system sans, mono only for code. System, Light and Dark are the phone's only choices.
+- **What floats is glass; content is solid.** The desktop's glass tokens (`--loki-glass*`) are restated on the phone
+  root with iOS's thinner bar material (plan 2026-11-16-0959, KTD1), so the solid fallback is the phone's own panel.
+  Glass: the tab bar, Search and compose buttons; every top bar's back and action capsules, Home's menu pill and the
+  search field (`--loki-glass`); bottom sheets, the links popover and the message box (`--loki-glass-strong`). The
+  sheets that fill the screen (Select Model, the steps, a suggestion) stay solid, as iOS's large sheets are. Rows,
+  cards and messages are solid. The badge's ring is solid panel, so it never shows the list. A paired phone never
+  takes `data-glass` from the computer's OS: its only solid state is Increase Contrast, because Safari does not
+  report Reduce Transparency. The accent is the system blue, the unread badge is red as iOS's are, affirmative is
+  the accent; the faces are the system sans, mono only for code. System, Light and Dark are the phone's only choices.
   `test/tokens.test.ts` fences the file (literal colours only in custom properties, sizes and radii on the
   scales, every selector under `.loki-phone`, no serif or mono presentation).
 - **Safe areas.** Each bottom inset has one owner. On a tab the floating dock (tab-bar.tsx) sits on the home
@@ -459,8 +464,15 @@ box is one for both, its sizes set by `touch`.
   `--phone-safe-bottom`. Nothing else adds bottom space, so there is never a band under the capsule.
 - **One scroll owner.** The document never scrolls (`html:has(.loki-phone-shell)` pins it); the shell is
   `100dvh` over `100svh` over fixed inset. Each screen has exactly one vertical scroller: the page's
-  `Scroll`, or the thread inside a conversation or card. Headers, notices, composers and decide buttons are
-  intrinsic flex rows outside it, with `min-height: 0` on the column so the scroller is the part that gives.
+  `Scroll`, or the thread inside a conversation or card, with `min-height: 0` on the column so the scroller is the
+  part that gives. Decide buttons and the notices inside a card stay intrinsic flex rows outside it.
+- **Bars float over the scroller.** Every top bar (`TopBar`, Home's header, Search's bar, a conversation's header) is
+  an absolute layer over its screen (`.loki-phone-topbar`), on a fade of the ground that is solid where its title and
+  capsules sit, so rows pass under it softened and nothing there needs a blur. The screen's notice, a pass's progress
+  and a chat's links row ride in that layer. It keeps its height in `--phone-top-clearance` on its own screen
+  (`useTopClearance` in `ui.tsx`), never on the shell, since Home and Flow stay mounted while hidden; each page resets
+  it to 0, and the scroller (or Flow's deck) starts below it once. A conversation's thread also ends above the
+  floating dock of decisions and the box, by `--loki-dock-height`. Titles are bare text between the capsules.
 - **Keyboard.** Where the on-screen keyboard only shrinks the visual viewport (iOS), `viewport.ts` sets
   `data-keyboard` with `--phone-viewport-top` and `--phone-viewport-height` from `visualViewport`, and the shell
   fits the visible part with no bottom inset; the notice steps aside and a question or approval scrolls inside

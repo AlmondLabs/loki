@@ -666,3 +666,29 @@ describe("a Jira card shaped like the ticket, on the phone (plan 089)", () => {
     expect(html.indexOf("New since you last read")).toBeLessThan(html.indexOf("Can you look at the rotation?"));
   });
 });
+
+describe("the phone's top bar floats over its screen (plan 2026-11-16-0959, U3)", () => {
+  const bar = async (props: Record<string, unknown>) => {
+    const { TopBar } = await import("../app/src/phone/ui.tsx");
+    return renderToStaticMarkup(createElement(TopBar, { title: "Agents", ...props }));
+  };
+
+  test("back and actions sit in glass groups; the title is bare text between them", async () => {
+    const html = await bar({ left: createElement("button", { id: "back" }), right: createElement("button", { id: "act" }) });
+    expect(html).toMatch(/<div class="loki-phone-topbar-group">\s*<button id="back">/);
+    expect(html).toMatch(/<div class="loki-phone-topbar-group loki-phone-topbar-actions">\s*<button id="act">/);
+    expect(must(/<h1[^>]*>Agents<\/h1>/.exec(html), "the title")[0]).not.toContain("topbar-group");
+  });
+
+  test("a screen's banner and a pass's progress ride in the floating layer, so the clearance counts them", async () => {
+    const html = await bar({ banner: createElement("p", { id: "banner" }, "Mac unreachable"), progress: 0.5 });
+    const header = must(/<header[\s\S]*<\/header>/.exec(html), "the header")[0];
+    expect(header).toContain('id="banner"');
+    expect(header).toContain("loki-phone-progress-fill");
+    expect(header.indexOf('id="banner"')).toBeLessThan(header.indexOf("loki-phone-progress"));
+  });
+
+  test("a bar with nothing beside the title draws no empty groups", async () => {
+    expect(await bar({})).not.toContain("loki-phone-topbar-group");
+  });
+});

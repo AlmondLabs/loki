@@ -73,9 +73,23 @@ describe("Windows and Linux on Liquid Glass (U10)", () => {
     const { GLASS_ON } = await import("../app/src/theme.tsx");
     expect(GLASS_ON).toEqual({ macos: "glass", windows: "glass", linux: "solid" });
     const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
-    expect(theme).toMatch(/if \(GLASS_ON\[platform\] === "solid"\) root\.dataset\.glass = "solid";/);
+    expect(theme).toMatch(/if \(GLASS_ON\[platform\] === "solid" && !inLan\) root\.dataset\.glass = "solid";/);
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     expect(html).toMatch(/Linux\|X11\|CrOS[^\n]*dataset\.glass = "solid"/);
+  });
+
+  test("the prepaint starts desktop Linux solid, and never a phone", () => {
+    const html = readFileSync(join(APP, "..", "index.html"), "utf8");
+    const line = must(/if \(([^\n]*Linux\|X11\|CrOS[^\n]*)\) document\.documentElement\.dataset\.glass = "solid";/.exec(html), "the prepaint's glass line")[1];
+    const [, match, except] = must(
+      /^\/([^/]+)\/\.test\(navigator\.userAgent\) && !\/([^/]+)\/\.test\(navigator\.userAgent\)$/.exec(line),
+      "the prepaint's test",
+    );
+    const solid = (userAgent: string) => new RegExp(match).test(userAgent) && !new RegExp(except).test(userAgent);
+    expect(solid("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)")).toBe(true);
+    expect(solid("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)")).toBe(false);
+    expect(solid("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148")).toBe(false);
+    expect(solid("Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36")).toBe(false);
   });
 
   test("the ☰ menu on Windows and Linux is the same strong glass as a Mac's menus, solid where glass is off", () => {

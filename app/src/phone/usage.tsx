@@ -11,8 +11,7 @@ export function UsageScreen({ usage, banner, backLabel = "more", onBack }: { usa
   const { period, pick, setFilter, failed, summary, priced, agentName, narrowed } = useUsage(usage);
   return (
     <div className="loki-phone-page">
-      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Usage" />
-      {banner}
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Usage" banner={banner} />
       <Scroll memory="usage" flush>
         <div className="loki-phone-groups">
           <RowGroup title="Period" radio>
