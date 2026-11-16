@@ -2,6 +2,7 @@
 // Casks/loki.rb, or Casks/loki-nightly.rb for the rolling nightly. .github/workflows/release.yml runs it after
 // each build and pushes the result to <owner>/homebrew-loki. The two casks conflict: loki shares its state
 // (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
+// The dmg is built for Apple silicon only, so both casks declare `depends_on arch: :arm64`.
 // The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
 // xattr line that lets macOS open it; System Settings › Privacy & Security › Open Anyway is the other way.
 // Both casks declare `auto_updates`: loki replaces itself through its signed updater, so `brew upgrade` leaves a
@@ -25,9 +26,9 @@ export interface CaskInput {
 /** The day the nightly cask was deprecated, fixed so every nightly renders the same stanza. */
 export const NIGHTLY_DEPRECATED = "2026-11-16";
 
-/** The dmg the release workflow attaches (tauri's `--target universal-apple-darwin`). */
+/** The dmg the release workflow attaches (tauri's `--target aarch64-apple-darwin`: loki ships for Apple silicon only). */
 export function dmgName(version: string): string {
-  return `loki_${version}_universal.dmg`;
+  return `loki_${version}_aarch64.dmg`;
 }
 
 /** The cask's Ruby, as Casks/loki.rb or Casks/loki-nightly.rb. Throws on an owner, version or sha256 that does not look right for the channel. */
@@ -72,6 +73,8 @@ ${
   # One loki at a time: both builds share ~/.loki and the mod's port.
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
+  # Apple silicon only: Homebrew refuses an Intel Mac with its own message.
+  depends_on arch: :arm64
   depends_on macos: :ventura
 
   app "loki.app"

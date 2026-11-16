@@ -371,7 +371,7 @@ export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; main
     title: "chore(release): the next stable",
     marker: `${mainSha}\n`,
     body: [
-      `Merging this ships **the next stable of loki**: the tag, the published release with the universal \`.dmg\`, the Windows installer, the Linux AppImage and \`.deb\` and the update files every loki installs from, and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**.`,
+      `Merging this ships **the next stable of loki**: the tag, the published release with the Apple silicon \`.dmg\`, the Windows installer, the Linux AppImage and \`.deb\` and the update files every loki installs from, and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**.`,
       "",
       `This PR is rebuilt from \`main\` on every merge; its one commit writes the main it was built from to \`${RELEASE_FILE}\`. Do not push to it; anything that should ship goes through an ordinary PR.`,
       "",
@@ -453,17 +453,17 @@ export function draftStable({ version, sha, notesFile, gh }: { version: string; 
 
 /**
  * The platform keys latest.json lists, as tauri-plugin-updater looks them up (`<os>-<arch>`, after
- * `<os>-<arch>-<installer>`). The universal Mac build answers both Mac architectures; `darwin-universal` is
- * tauri-action's own name for it, kept for anyone reading the file.
+ * `<os>-<arch>-<installer>`). loki ships for Apple silicon Macs only, so there is no `darwin-x86_64`: a loki already
+ * on an Intel Mac finds no update for itself and keeps the version it has.
  */
-export const UPDATE_PLATFORMS = ["darwin-universal", "darwin-aarch64", "darwin-x86_64", "windows-x86_64", "linux-x86_64"] as const;
+export const UPDATE_PLATFORMS = ["darwin-aarch64", "windows-x86_64", "linux-x86_64"] as const;
 
 /**
  * The unversioned copies every release carries for the install scripts (KTD9): the Mac's update archive, the Windows
  * installer and the AppImage. The scripts fetch them from `releases/latest/download/` or `releases/download/nightly/`
  * without asking GitHub's API which file is newest. Replaced on every release, never pruned.
  */
-export const INSTALL_FILES = ["loki-macos-universal.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"] as const;
+export const INSTALL_FILES = ["loki-macos-arm64.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"] as const;
 
 /** A system's update file: the name its build gives it, the versioned name it ships as, the install scripts' copy, and its platform keys. */
 interface UpdateFile {
@@ -476,7 +476,7 @@ interface UpdateFile {
 /** The three update files a release's builds make (createUpdaterArtifacts): the Mac's archive, and the Windows and Linux installers themselves. */
 const updateFiles = (version: string): UpdateFile[] => [
   // The bundler names the Mac's archive after the app alone, so it ships under a versioned name like the other two.
-  { built: "loki.app.tar.gz", shipped: `loki_${version}_universal.app.tar.gz`, install: INSTALL_FILES[0], platforms: UPDATE_PLATFORMS.slice(0, 3) },
+  { built: "loki.app.tar.gz", shipped: `loki_${version}_aarch64.app.tar.gz`, install: INSTALL_FILES[0], platforms: ["darwin-aarch64"] },
   { built: `loki_${version}_x64-setup.exe`, shipped: `loki_${version}_x64-setup.exe`, install: INSTALL_FILES[1], platforms: ["windows-x86_64"] },
   { built: `loki_${version}_amd64.AppImage`, shipped: `loki_${version}_amd64.AppImage`, install: INSTALL_FILES[2], platforms: ["linux-x86_64"] },
 ];

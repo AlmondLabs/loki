@@ -210,7 +210,7 @@ describe("the update files: what the three builds made, staged for the release (
   const builds = (version: string, leave: string[] = []) => {
     const dir = mkdtempSync(join(tmpdir(), "loki-builds-"));
     const files: Record<string, string> = {
-      [join("dmg", `loki_${version}_universal.dmg`)]: "dmg",
+      [join("dmg", `loki_${version}_aarch64.dmg`)]: "dmg",
       [join("macos", "loki.app.tar.gz")]: "mac archive",
       [join("macos", "loki.app.tar.gz.sig")]: "SIGMAC",
       [`loki_${version}_x64-setup.exe`]: "exe",
@@ -238,15 +238,13 @@ describe("the update files: what the three builds made, staged for the release (
     stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "- **a change** (aaaaaaa)\n", now: NOW, from: temp(builds(V)), to });
     const latest: unknown = JSON.parse(readFileSync(join(to, "latest.json"), "utf8"));
     const base = `https://github.com/o/loki/releases/download/v${V}`;
-    const mac = { url: `${base}/loki_${V}_universal.app.tar.gz`, signature: "SIGMAC" };
+    const mac = { url: `${base}/loki_${V}_aarch64.app.tar.gz`, signature: "SIGMAC" };
     expect(latest).toEqual({
       version: V,
       notes: "- **a change** (aaaaaaa)\n",
       pub_date: "2026-11-16T09:00:00.000Z",
       platforms: {
-        "darwin-universal": mac,
         "darwin-aarch64": mac,
-        "darwin-x86_64": mac,
         "windows-x86_64": { url: `${base}/loki_${V}_x64-setup.exe`, signature: "SIGWIN" },
         "linux-x86_64": { url: `${base}/loki_${V}_amd64.AppImage`, signature: "SIGLINUX" },
       },
@@ -258,9 +256,9 @@ describe("the update files: what the three builds made, staged for the release (
     const to = out();
     const staged = stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "", now: NOW, from: temp(builds(V)), to });
     expect(staged.versioned.map((f) => f.slice(to.length + 1))).toEqual([
-      `loki_${V}_universal.dmg`,
-      `loki_${V}_universal.app.tar.gz`,
-      `loki_${V}_universal.app.tar.gz.sig`,
+      `loki_${V}_aarch64.dmg`,
+      `loki_${V}_aarch64.app.tar.gz`,
+      `loki_${V}_aarch64.app.tar.gz.sig`,
       `loki_${V}_x64-setup.exe`,
       `loki_${V}_x64-setup.exe.sig`,
       `loki_${V}_amd64.AppImage`,
@@ -269,17 +267,17 @@ describe("the update files: what the three builds made, staged for the release (
     ]);
     expect(staged.rolling.map((f) => f.slice(to.length + 1))).toEqual([
       "latest.json",
-      "loki-macos-universal.app.tar.gz",
+      "loki-macos-arm64.app.tar.gz",
       "loki-windows-x64-setup.exe",
       "loki-linux-x86_64.AppImage",
     ]);
-    expect(INSTALL_FILES).toEqual(["loki-macos-universal.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"]);
+    expect(INSTALL_FILES).toEqual(["loki-macos-arm64.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"]);
     // the copies are the updater's own files, so an install and an update fetch the same bytes
-    expect(readFileSync(join(to, "loki-macos-universal.app.tar.gz"), "utf8")).toBe("mac archive");
+    expect(readFileSync(join(to, "loki-macos-arm64.app.tar.gz"), "utf8")).toBe("mac archive");
     expect(readFileSync(join(to, "loki-windows-x64-setup.exe"), "utf8")).toBe("exe");
     expect(readFileSync(join(to, "loki-linux-x86_64.AppImage"), "utf8")).toBe("appimage");
-    expect(readFileSync(join(to, `loki_${V}_universal.app.tar.gz.sig`), "utf8")).toBe("SIGMAC");
-    expect(staged.dmg).toBe(join(to, `loki_${V}_universal.dmg`));
+    expect(readFileSync(join(to, `loki_${V}_aarch64.app.tar.gz.sig`), "utf8")).toBe("SIGMAC");
+    expect(staged.dmg).toBe(join(to, `loki_${V}_aarch64.dmg`));
   });
 
   test("a nightly's latest.json points at the rolling nightly release", () => {
@@ -348,9 +346,9 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
   };
   const V = "2026.1011.0";
   const versioned = [
-    `staged/loki_${V}_universal.dmg`,
-    `staged/loki_${V}_universal.app.tar.gz`,
-    `staged/loki_${V}_universal.app.tar.gz.sig`,
+    `staged/loki_${V}_aarch64.dmg`,
+    `staged/loki_${V}_aarch64.app.tar.gz`,
+    `staged/loki_${V}_aarch64.app.tar.gz.sig`,
     `staged/loki_${V}_x64-setup.exe`,
     `staged/loki_${V}_x64-setup.exe.sig`,
     `staged/loki_${V}_amd64.AppImage`,
@@ -391,11 +389,11 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
   });
 
   test("a re-run after the stable went out changes nothing on it, and makes the cask from the .dmg it shipped with", () => {
-    const { calls, gh, writes } = fakeGh({ draft: false, target: "f00dfeed", assets: [`loki_${V}_universal.dmg`, "cask.rb", "latest.json"] });
+    const { calls, gh, writes } = fakeGh({ draft: false, target: "f00dfeed", assets: [`loki_${V}_aarch64.dmg`, "cask.rb", "latest.json"] });
     const out = publish({ kind: "stable", version: V, versioned, rolling, sha: "f00dfeed", notesFile: "notes.md", downloadDir: "shipped", gh });
     expect(writes()).toEqual([`release download v${V}`]);
-    expect(calls.at(-1)).toContain(`loki_${V}_universal.dmg`);
-    expect(out.dmg).toBe(join("shipped", `loki_${V}_universal.dmg`));
+    expect(calls.at(-1)).toContain(`loki_${V}_aarch64.dmg`);
+    expect(out.dmg).toBe(join("shipped", `loki_${V}_aarch64.dmg`));
   });
 
   test("a stable whose number is another commit's release fails, and touches nothing: two builds' files never share a release", () => {
@@ -426,7 +424,7 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
 
   test("a nightly puts its files beside the last one's, moves the tag, and announces itself in latest.json last", () => {
     const N = "2026.1011.1-nightly.4821";
-    const { calls, gh, writes } = fakeGh({ draft: false, target: "old", assets: ["loki_2026.1011.1-nightly.4820_universal.dmg"] });
+    const { calls, gh, writes } = fakeGh({ draft: false, target: "old", assets: ["loki_2026.1011.1-nightly.4820_aarch64.dmg"] });
     publish({ kind: "nightly", version: N, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
     expect(writes()).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly", "release upload nightly"]);
     expect(calls.find((c) => c[2] === "PATCH")).toEqual([
@@ -454,7 +452,7 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
   test("a re-run of an older nightly after a newer one went out stops before it uploads, moves the tag or edits the release", () => {
     const older = "2026.1011.1-nightly.4821";
     const { gh, writes } = fakeGh(
-      { draft: false, target: "newer", assets: ["loki_2026.1011.1-nightly.4822_universal.dmg"] },
+      { draft: false, target: "newer", assets: ["loki_2026.1011.1-nightly.4822_aarch64.dmg"] },
       [],
       "loki 2026.1011.1-nightly.4822 (2026.1011.1-nightly.0b1c2d3)",
     );
@@ -481,13 +479,13 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
     const old = "2026.1011.1-nightly.4820";
     const now = "2026.1011.1-nightly.4821";
     const assets = [
-      `loki_${old}_universal.dmg`,
-      `loki_${old}_universal.app.tar.gz`,
-      `loki_${old}_universal.app.tar.gz.sig`,
+      `loki_${old}_aarch64.dmg`,
+      `loki_${old}_aarch64.app.tar.gz`,
+      `loki_${old}_aarch64.app.tar.gz.sig`,
       `loki_${old}_x64-setup.exe`,
       `loki_${old}_amd64.AppImage.sig`,
       `loki_${old}_amd64.deb`,
-      `loki_${now}_universal.dmg`,
+      `loki_${now}_aarch64.dmg`,
       `loki_${now}_x64-setup.exe`,
       `loki_${now}_amd64.AppImage.sig`,
       "latest.json",
@@ -640,11 +638,14 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       expect(upload.with?.["if-no-files-found"], name).toBe("error");
       expect(String(upload.with?.path), name).toContain(".sig");
     }
-    expect(String(job("macos").steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action@"))?.with?.args)).toBe("--target universal-apple-darwin");
+    expect(String(job("macos").steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action@"))?.with?.args)).toBe("--target aarch64-apple-darwin");
     expect(runs(job("windows"))).toContain("npm run tauri -- build --bundles nsis");
     expect(runs(job("linux"))).toContain("npm run tauri -- build --bundles appimage,deb");
     const macPaths = String(job("macos").steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"))?.with?.path);
-    for (const f of ["loki_*_universal.dmg", "loki.app.tar.gz", "loki.app.tar.gz.sig"]) expect(macPaths).toContain(f);
+    for (const f of ["dmg/loki_*_aarch64.dmg", "macos/loki.app.tar.gz", "macos/loki.app.tar.gz.sig"])
+      expect(macPaths).toContain(`src-tauri/target/aarch64-apple-darwin/release/bundle/${f}`);
+    // Apple silicon only: the one Rust target, no Intel or universal build.
+    expect(String(job("macos").steps.find((s) => s.uses?.startsWith("dtolnay/rust-toolchain@"))?.with?.targets)).toBe("aarch64-apple-darwin");
   });
 
   test("a newer merge's nightly cancels an older one still building or publishing; stables and hand runs never queue behind each other", () => {

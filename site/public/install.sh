@@ -1,6 +1,6 @@
 #!/bin/sh
-# Installs the latest loki on macOS or Linux, or updates it in place, then opens it. GitHub Pages serves this file
-# from site/public/ (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, KTD9):
+# Installs the latest loki on a Mac with Apple silicon or on Linux, or updates it in place, then opens it. GitHub
+# Pages serves this file from site/public/ (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, KTD9):
 #
 #   curl -fsSL https://almondlabs.github.io/loki/install.sh | sh
 #   curl -fsSL https://almondlabs.github.io/loki/install.sh | sh -s -- --nightly
@@ -52,12 +52,18 @@ download() {
   fail "Couldn't download $1." "Check your internet connection, then run the line again."
 }
 
+# True on a Mac with Apple silicon, the only Mac loki ships for. sysctl answers 1 there even when this shell runs under
+# Rosetta, where uname -m says x86_64; an Intel Mac answers 0 or has no such key.
+apple_silicon() {
+  [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]
+}
+
 # Unpacks loki.app into /Applications, or ~/Applications when /Applications isn't writable, replacing the old copy.
 # curl and tar set no quarantine flag, so macOS opens the app without asking.
 install_macos() {
   stop_if_running "loki.app/Contents/MacOS/loki"
   say "Downloading the latest loki$channel_name."
-  download "$base_url/loki-macos-universal.app.tar.gz" "$tmp/loki.app.tar.gz"
+  download "$base_url/loki-macos-arm64.app.tar.gz" "$tmp/loki.app.tar.gz"
   mkdir "$tmp/unpacked"
   if ! tar -xzf "$tmp/loki.app.tar.gz" -C "$tmp/unpacked" || [ ! -d "$tmp/unpacked/loki.app" ]; then
     fail "The download isn't a loki app." "Run the line again in a few minutes; if it fails again, tell us at https://github.com/AlmondLabs/loki/issues."
@@ -186,10 +192,15 @@ main() {
   system="$(uname -s)"
   arch="$(uname -m)"
   case "$system" in
-    Darwin) install_macos ;;
+    Darwin)
+      if ! apple_silicon; then
+        fail "loki needs a Mac with Apple silicon." "Use loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine."
+      fi
+      install_macos
+      ;;
     Linux)
       if [ "$arch" != x86_64 ]; then
-        fail "loki for Linux runs on x86_64 only, and this machine is $arch." "Use loki on a Mac, on Windows, or on an x86_64 Linux machine."
+        fail "loki for Linux runs on x86_64 only, and this machine is $arch." "Use loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine."
       fi
       install_linux
       ;;

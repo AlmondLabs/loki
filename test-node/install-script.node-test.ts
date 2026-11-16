@@ -1,7 +1,7 @@
 /**
  * The one-line install (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, U7): site/public/install.sh run
- * with `sh` against a fake release on disk, in a scratch home, with uname, pgrep and ldconfig faked on PATH so both
- * the macOS and the Linux path run on either system. A missing file and a dropped connection come from a local HTTP
+ * with `sh` against a fake release on disk, in a scratch home, with uname, sysctl, pgrep and ldconfig faked on PATH so
+ * both the macOS and the Linux path run on either system. A missing file and a dropped connection come from a local HTTP
  * server, as only HTTP has a 404. Nothing is opened and the real /Applications is never touched. install.ps1 is only
  * parsed, where PowerShell is installed. Runs under Node: npm run test:node
  */
@@ -43,6 +43,12 @@ function scratch(): Scratch {
   };
   for (const d of [s.home, s.tmp, s.apps, s.releases, s.bin]) mkdirSync(d);
   tool(s, "uname", 'case "$1" in -m) echo "$FAKE_ARCH" ;; *) echo "$FAKE_SYSTEM" ;; esac');
+  // hw.optional.arm64 is 1 on Apple silicon, under Rosetta too, 0 on some Intel Macs and missing on the rest.
+  tool(
+    s,
+    "sysctl",
+    'if [ "$*" != "-n hw.optional.arm64" ] || [ "$FAKE_ARM64" = missing ]; then echo "sysctl: unknown oid" >&2; exit 1; fi; echo "$FAKE_ARM64"',
+  );
   tool(s, "pgrep", '[ -n "${FAKE_RUNNING:-}" ]');
   tool(s, "ldconfig", '[ -n "${FAKE_NO_FUSE:-}" ] || echo "\tlibfuse.so.2 (libc6,x86-64) => /lib/x86_64-linux-gnu/libfuse.so.2"');
   return s;
@@ -125,6 +131,7 @@ function install(s: Scratch, opts: { system?: string; arch?: string; args?: stri
     LOKI_NO_OPEN: "1",
     FAKE_SYSTEM: opts.system ?? "Darwin",
     FAKE_ARCH: opts.arch ?? "arm64",
+    FAKE_ARM64: "1",
     ...opts.env,
   };
   const args = opts.args ?? [];
@@ -234,7 +241,7 @@ void test("an unsupported system or architecture, or an unknown option, stops wi
     assert.equal(arm.stdout, "");
     assert.equal(
       arm.stderr,
-      "loki for Linux runs on x86_64 only, and this machine is aarch64.\nUse loki on a Mac, on Windows, or on an x86_64 Linux machine.\n",
+      "loki for Linux runs on x86_64 only, and this machine is aarch64.\nUse loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine.\n",
     );
     const bsd = install(s, { system: "FreeBSD", arch: "amd64" });
     assert.equal(bsd.status, 1);
@@ -243,6 +250,35 @@ void test("an unsupported system or architecture, or an unknown option, stops wi
     assert.equal(option.status, 1);
     assert.match(option.stderr, /^Unknown option: --beta\./);
     assert.deepEqual(snapshot(s.dir), before);
+  } finally {
+    rmSync(s.dir, { recursive: true, force: true });
+  }
+});
+
+void test("an Intel Mac stops with a message before it downloads anything, and changes nothing", { skip: noSh }, () => {
+  const s = scratch();
+  try {
+    macRelease(s, "stable", "stable-1");
+    const before = snapshot(s.dir);
+    for (const arm64 of ["0", "missing"]) {
+      const r = install(s, { arch: "x86_64", env: { FAKE_ARM64: arm64 } });
+      assert.equal(r.status, 1, arm64);
+      assert.equal(r.stdout, "", arm64);
+      assert.equal(r.stderr, "loki needs a Mac with Apple silicon.\nUse loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine.\n", arm64);
+    }
+    assert.deepEqual(snapshot(s.dir), before);
+  } finally {
+    rmSync(s.dir, { recursive: true, force: true });
+  }
+});
+
+void test("an Apple silicon Mac whose shell runs under Rosetta, so uname says x86_64, installs", { skip: noSh }, () => {
+  const s = scratch();
+  try {
+    macRelease(s, "stable", "stable-1");
+    const r = install(s, { arch: "x86_64" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
   } finally {
     rmSync(s.dir, { recursive: true, force: true });
   }

@@ -5,8 +5,10 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 
 ## Requirements
 
-- **macOS 13.3 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
-  shortcut.
+- **A Mac with Apple silicon, on macOS 13.3 or later.** The shell uses the traffic lights over a hidden title bar, the
+  dock badge and a global shortcut. Intel Macs are not supported: the install line and the Homebrew cask refuse one,
+  and the release carries no build for it. A loki already installed on an Intel Mac keeps working, but gets no more
+  updates; its check for one fails, and Preferences › About says so.
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under
   [Windows and Linux](#windows-and-linux).
@@ -23,7 +25,7 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 
 ## Install
 
-One line in a terminal, the same on every system. On macOS or Linux:
+One line in a terminal, the same on every system. On a Mac with Apple silicon, or on Linux:
 
 ```bash
 curl -fsSL https://almondlabs.github.io/loki/install.sh | sh                  # Stable
@@ -39,9 +41,10 @@ $env:LOKI_CHANNEL = "nightly"; irm https://almondlabs.github.io/loki/install.ps1
 
 The script downloads the newest release of its channel from GitHub and opens loki:
 
-- **On a Mac**, `loki.app` goes in `/Applications`, or in `~/Applications` when `/Applications` isn't yours to
-  change. A file `curl` fetches carries no quarantine flag, so macOS opens the unsigned app without the `xattr` line
-  below.
+- **On a Mac** with Apple silicon, `loki.app` goes in `/Applications`, or in `~/Applications` when `/Applications`
+  isn't yours to change. A file `curl` fetches carries no quarantine flag, so macOS opens the unsigned app without the
+  `xattr` line below. On an Intel Mac the script stops before it downloads anything and says loki needs Apple silicon;
+  it checks the Mac itself, so a terminal running under Rosetta still installs.
 - **On Linux** (x86_64), the AppImage goes to `~/.local/share/loki/loki.AppImage`, with a menu entry in
   `~/.local/share/applications/loki.desktop` and its icon beside the app. When the AppImage needs FUSE 2 and it is
   missing, the script stops and names the package command for your distribution (`sudo apt install libfuse2`, or
@@ -72,13 +75,13 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 
 Or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security.
 
-**Homebrew**: `brew install --cask almondlabs/loki/loki`, then the same `xattr` line. Homebrew quarantines cask
-downloads like a browser would, and Homebrew 7 no longer has a flag to skip that (`--no-quarantine` is gone); the
-cask's own caveat says the same. The cask declares that loki updates itself, so Homebrew leaves updates to loki. A loki
-installed with Homebrew before it updated itself reaches the version that does with one last
-`brew upgrade --cask loki` and the `xattr` line; one from an older `.dmg`, with one last download. Nothing in `~/.loki`
-moves. The `loki-nightly` cask is deprecated: the Nightly channel in Preferences › About replaces it, and a loki already
-installed through it keeps updating itself on that channel.
+**Homebrew**: `brew install --cask almondlabs/loki/loki`, then the same `xattr` line. The cask is for Apple silicon,
+and Homebrew refuses it on an Intel Mac. Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no
+longer has a flag to skip that (`--no-quarantine` is gone); the cask's own caveat says the same. The cask declares
+that loki updates itself, so Homebrew leaves updates to loki. A loki installed with Homebrew before it updated itself
+reaches the version that does with one last `brew upgrade --cask loki` and the `xattr` line; one from an older `.dmg`,
+with one last download. Nothing in `~/.loki` moves. The `loki-nightly` cask is deprecated: the Nightly channel in
+Preferences › About replaces it, and a loki already installed through it keeps updating itself on that channel.
 
 **Windows and Linux by hand**, from the [releases page](https://github.com/AlmondLabs/loki/releases/latest):
 `loki_<version>_x64-setup.exe`, an unsigned NSIS installer, which SmartScreen stops as an unknown publisher (**More

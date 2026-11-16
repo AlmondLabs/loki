@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml"><img src="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
-  <img src="https://img.shields.io/badge/macOS-13.3%2B-1a1a20" alt="macOS 13.3 or later">
+  <img src="https://img.shields.io/badge/macOS-13.3%2B%2C%20Apple%20silicon-1a1a20" alt="macOS 13.3 or later, on Apple silicon">
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux-preview-1a1a20" alt="Windows and Linux: preview">
   <img src="https://img.shields.io/badge/licence-Apache--2.0-1a1a20" alt="Apache-2.0">
 </p>
@@ -68,7 +68,7 @@ lists what differs).
 
 ## Install
 
-One line in a terminal. On macOS or Linux:
+One line in a terminal. On a Mac with Apple silicon, or on Linux:
 
 ```bash
 curl -fsSL https://almondlabs.github.io/loki/install.sh | sh
@@ -146,7 +146,8 @@ no winget or Flatpak package.
 
 ### What you need
 
-You need macOS 13.3 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
+You need a Mac with Apple silicon and macOS 13.3 or later (Intel Macs are not supported), 64-bit Windows 10 or 11, or
+a current 64-bit desktop Linux, and:
 
 1. **Nothing for Node.** loki downloads the Node its daemon runs on into `~/.loki/runtime` on first launch, and checks
    it before it runs it; Welcome shows the download.
