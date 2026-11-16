@@ -145,12 +145,16 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
+          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
+          # repository's 10 GB, leaving the next release build cold.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
@@ -227,10 +231,14 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
+          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
+          # repository's 10 GB, leaving the next release build cold.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
@@ -284,10 +292,14 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
+          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
+          # repository's 10 GB, leaving the next release build cold.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"

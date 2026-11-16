@@ -2,9 +2,15 @@ name: shell
 # The Rust shell's tests (src-tauri), on the three systems, for a PR that changes it. It needs nothing of the app's
 # build: tauri::generate_context!() only wants frontendDist (app/dist) and the bundle's resources to exist when it
 # compiles, so a placeholder of each stands in for them (the release builds bundle the real ones). Once a week on main
-# too, as ci.yml is: a shell no PR touched still meets each new runner image.
+# too, as ci.yml is: a shell no PR touched still meets each new runner image. A merge that changes it runs on main as
+# well, so main holds the Rust cache every PR then restores (only main saves one).
 on:
   pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/shell.yml"
+  push:
+    branches: [main]
     paths:
       - "src-tauri/**"
       - ".github/workflows/shell.yml"
@@ -45,6 +51,9 @@ jobs:
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
+          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
+          # repository's 10 GB, leaving the next release build cold.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: stand-ins for the app build and the bundled resources
         run: |
           mkdir -p app/dist src-tauri/resources
