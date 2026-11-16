@@ -21,7 +21,7 @@ mod runtime;
 mod update;
 mod widgets;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::{Manager, State};
 
 /// loki's root, where the daemon, the mod and the shell keep everything: ~/.loki.
@@ -531,7 +531,7 @@ fn dev_checkout() -> Option<PathBuf> {
         if std::env::var_os("LOKI_NO_INSTALL").is_some() {
             return None;
         }
-        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(Path::to_path_buf);
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(std::path::Path::to_path_buf);
     }
     #[allow(unreachable_code)]
     None
