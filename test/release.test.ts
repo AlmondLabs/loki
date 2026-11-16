@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { field, holds } from "./fixtures/actions-expression.ts";
 import { must } from "./fixtures/must.ts";
 import {
   dayNumber,
@@ -84,22 +85,41 @@ describe("versions: the UTC day, then that day's count", () => {
 
 describe("what a run does", () => {
   const tags = ["v2026.10.11"];
-  test("an ordinary merge with something since the last stable is a nightly; nothing new is nothing", () => {
-    const p = plan({ today: OCT11, run: 4821, tags, commitsSinceStable: 3 });
+  test("a merge to main ships no nightly, however much has merged since the last stable", () => {
+    expect(plan({ today: OCT11, run: 4821, tags, event: "push", commitsSinceStable: 3 })).toMatchObject({ kind: "none" });
+    expect(plan({ today: OCT11, run: 4821, tags, event: "push", commitsSinceStable: 0 }).kind).toBe("none");
+  });
+
+  test("a run by hand is a nightly when something has merged since the last stable; nothing new is nothing", () => {
+    const p = plan({ today: OCT11, run: 4821, tags, event: "workflow_dispatch", commitsSinceStable: 3 });
     expect(p).toMatchObject({ kind: "nightly", version: "2026.1011.0-nightly.4821" });
-    expect(plan({ today: OCT11, run: 4821, tags, commitsSinceStable: 0 }).kind).toBe("none");
+    expect(plan({ today: OCT11, run: 4821, tags, event: "workflow_dispatch", commitsSinceStable: 0 }).kind).toBe("none");
   });
 
   test("the release PR landing is a stable, whatever the time of day and however many shipped today", () => {
-    expect(plan({ today: OCT11, run: 4821, tags, commitsSinceStable: 4, releaseMerged: true })).toMatchObject({ kind: "stable", version: "2026.1011.0" });
-    const later = plan({ today: day("2026-10-11T23:59:00Z"), run: 4821, tags: [...tags, "v2026.1011.0"], commitsSinceStable: 1, releaseMerged: true });
+    expect(plan({ today: OCT11, run: 4821, tags, event: "push", commitsSinceStable: 4, releaseMerged: true })).toMatchObject({
+      kind: "stable",
+      version: "2026.1011.0",
+    });
+    const later = plan({
+      today: day("2026-10-11T23:59:00Z"),
+      run: 4821,
+      tags: [...tags, "v2026.1011.0"],
+      event: "push",
+      commitsSinceStable: 1,
+      releaseMerged: true,
+    });
     expect(later).toMatchObject({ kind: "stable", version: "2026.1011.1" }); // a second the same day: .1, not tomorrow
     // even with nothing new: the person asked for a release (the build still decides its number)
-    expect(plan({ today: OCT11, run: 4821, tags, commitsSinceStable: 0, releaseMerged: true }).kind).toBe("stable");
+    expect(plan({ today: OCT11, run: 4821, tags, event: "push", commitsSinceStable: 0, releaseMerged: true }).kind).toBe("stable");
   });
 
-  test("before any stable, the first merge is a nightly of the first stable", () => {
-    expect(plan({ today: OCT11, run: 7, tags: [], commitsSinceStable: 40 })).toMatchObject({
+  test("a run by hand never ships a stable, even of the release PR's merge", () => {
+    expect(plan({ today: OCT11, run: 4821, tags, event: "workflow_dispatch", commitsSinceStable: 4, releaseMerged: true }).kind).toBe("nightly");
+  });
+
+  test("before any stable, a run by hand is a nightly of the first stable", () => {
+    expect(plan({ today: OCT11, run: 7, tags: [], event: "workflow_dispatch", commitsSinceStable: 40 })).toMatchObject({
       kind: "nightly",
       version: "2026.1011.0-nightly.7",
     });
@@ -585,6 +605,7 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
 
   test("it runs on a push to main and by hand, never on a schedule; a merge of docs alone ships nothing", () => {
     expect(Object.keys(wf.on).sort()).toEqual(["push", "workflow_dispatch"]);
+    expect(wf.on.workflow_dispatch).toBeNull(); // no inputs: a run by hand is a nightly
     const ignored = (wf.on.push as { "paths-ignore": string[] })["paths-ignore"];
     expect(ignored).toContain("docs/**");
     expect(ignored).not.toContain(".github/release.txt"); // the release PR's merge is a stable
@@ -599,10 +620,6 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
   test("the version is decided once, in the queued version job, which drafts a stable at that number straight away", () => {
     const version = job("version");
     expect(version.needs).toBe("plan");
-    expect(version.concurrency).toEqual({
-      group: "build-${{ github.event_name == 'push' && needs.plan.outputs.kind || github.run_id }}",
-      "cancel-in-progress": "${{ needs.plan.outputs.kind == 'nightly' }}",
-    });
     const decide = must(
       version.steps.find((s) => s.id === "version"),
       "the version step",
@@ -648,22 +665,9 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     expect(String(job("macos").steps.find((s) => s.uses?.startsWith("dtolnay/rust-toolchain@"))?.with?.targets)).toBe("aarch64-apple-darwin");
   });
 
-  test("a newer merge's nightly cancels an older one still building or publishing; stables and hand runs never queue behind each other", () => {
-    const rolling = "${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' }}";
-    const groups = new Set<string>();
-    for (const name of [...builds, "publish"]) {
-      const c = must(job(name).concurrency, `${name}'s concurrency`);
-      expect(c["cancel-in-progress"], name).toBe(rolling);
-      expect(c.group, name).toBe(`${name}-\${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}`);
-      groups.add(String(c.group));
-    }
-    expect(groups.size).toBe(4);
-  });
-
-  test("publish collects every build, then writes latest.json, the cask and the prune; only a push to main ever publishes", () => {
+  test("publish collects every build, then writes latest.json, the cask and the prune", () => {
     const pub = job("publish");
     expect(([] as string[]).concat(pub.needs ?? []).sort()).toEqual(["linux", "macos", "plan", "version", "windows"]);
-    expect(pub.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
     expect(pub.steps.some((s) => s.uses?.startsWith("actions/download-artifact@"))).toBe(true);
     const at = (part: string) => pub.steps.findIndex((s) => s.run?.includes(part));
     const publishStep = must(
@@ -680,7 +684,7 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     for (const step of pub.steps.slice(pub.steps.indexOf(publishStep) + 1)) expect(step.if ?? "").not.toMatch(/always\(\)|failure\(\)|cancelled\(\)/);
   });
 
-  test("a run that is not a push to main never writes a release: only publish uploads, moves the tag or prunes", () => {
+  test("only publish writes a release: uploads, moves the tag or prunes", () => {
     for (const [name, j] of Object.entries(wf.jobs)) {
       if (name === "publish") continue;
       for (const write of ["release -- publish", "prune-nightly", "gh release", "git/refs/tags"]) expect(runs(j), `${name}: ${write}`).not.toContain(write);
@@ -689,9 +693,84 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     expect(Object.keys(job("version").permissions ?? {})).toEqual(["contents"]);
   });
 
-  test("the release PR is refreshed on an ordinary merge", () => {
-    const pr = job("release-pr");
-    expect(pr.if).toBe("needs.plan.outputs.kind == 'nightly'");
-    expect(runs(pr)).toContain("npm run release -- release-pr");
+  // What a run starts, as Actions would: the plan's kind from plan() for that push or run by hand, then each job in
+  // order when everything it needs ran and its `if:` holds, and the queue each job joins.
+  const RUN = "9001";
+  const scenario = ({
+    event,
+    ref,
+    releaseMerged = false,
+    commitsSinceStable = 3,
+  }: {
+    event: "push" | "workflow_dispatch";
+    ref: string;
+    releaseMerged?: boolean;
+    commitsSinceStable?: number;
+  }) => {
+    const kind = plan({ today: OCT11, run: 4821, tags: ["v2026.10.11"], event, releaseMerged, commitsSinceStable }).kind;
+    const context = { "github.event_name": event, "github.ref": ref, "github.run_id": RUN, "needs.plan.outputs.kind": kind, "env.KIND": kind };
+    const ran = new Set<string>();
+    for (const [name, j] of Object.entries(wf.jobs)) if (([] as string[]).concat(j.needs ?? []).every((n) => ran.has(n)) && holds(j.if, context)) ran.add(name);
+    const queue = (name: string) => {
+      const c = must(job(name).concurrency, `${name}'s concurrency`);
+      return { group: field(c.group, context), cancel: field(c["cancel-in-progress"], context) };
+    };
+    const prunes = holds(
+      must(
+        job("publish").steps.find((s) => s.run?.includes("prune-nightly")),
+        "the prune step",
+      ).if,
+      context,
+    );
+    return { kind, ran: [...ran].sort(), queue, prunes };
+  };
+  const shipsAll = ["linux", "macos", "plan", "publish", "version", "windows"];
+
+  test("a merge to main that is not the release PR's ships nothing: no version, no build, no publish; it refreshes the release PR", () => {
+    const run = scenario({ event: "push", ref: "refs/heads/main" });
+    expect(run.kind).toBe("none");
+    expect(run.ran).toEqual(["plan", "release-pr"]);
+    expect(runs(job("release-pr"))).toContain("npm run release -- release-pr");
+    // nothing since the last stable either: the release PR job closes the PR
+    expect(scenario({ event: "push", ref: "refs/heads/main", commitsSinceStable: 0 }).ran).toEqual(["plan", "release-pr"]);
+  });
+
+  test("the release PR's merge ships a stable: every build and publish, in queues of their own, and no prune", () => {
+    const run = scenario({ event: "push", ref: "refs/heads/main", releaseMerged: true });
+    expect(run.kind).toBe("stable");
+    expect(run.ran).toEqual(shipsAll);
+    expect(run.queue("version")).toEqual({ group: "build-stable", cancel: false });
+    for (const name of [...builds, "publish"]) expect(run.queue(name), name).toEqual({ group: `${name}-${RUN}`, cancel: false });
+    expect(run.prunes).toBe(false);
+  });
+
+  test("a run by hand on main ships a nightly of main in the nightly queues, where a newer nightly cancels it", () => {
+    const run = scenario({ event: "workflow_dispatch", ref: "refs/heads/main" });
+    expect(run.kind).toBe("nightly");
+    expect(run.ran).toEqual(shipsAll); // the release PR is the pushes' job
+    expect(run.queue("version")).toEqual({ group: "build-nightly", cancel: true });
+    for (const name of [...builds, "publish"]) expect(run.queue(name), name).toEqual({ group: `${name}-nightly`, cancel: true });
+    expect(run.prunes).toBe(true);
+    // nothing since the last stable is nothing to build
+    expect(scenario({ event: "workflow_dispatch", ref: "refs/heads/main", commitsSinceStable: 0 }).ran).toEqual(["plan"]);
+  });
+
+  test("a run by hand from a branch builds all three and publishes nothing, in queues of its own", () => {
+    const run = scenario({ event: "workflow_dispatch", ref: "refs/heads/fix/phone-banner" });
+    expect(run.kind).toBe("nightly");
+    expect(run.ran).toEqual(["linux", "macos", "plan", "version", "windows"]);
+    expect(run.queue("version").group).toBe(`build-${RUN}`);
+    for (const name of builds) expect(run.queue(name), name).toEqual({ group: `${name}-${RUN}`, cancel: false });
+  });
+
+  test("publish holds only on main, for a stable from a push and a nightly from a run by hand", () => {
+    const publishes = (event: string, ref: string, kind: string) =>
+      holds(job("publish").if, { "github.event_name": event, "github.ref": ref, "needs.plan.outputs.kind": kind });
+    expect(publishes("push", "refs/heads/main", "stable")).toBe(true);
+    expect(publishes("workflow_dispatch", "refs/heads/main", "nightly")).toBe(true);
+    expect(publishes("push", "refs/heads/main", "nightly")).toBe(false);
+    expect(publishes("workflow_dispatch", "refs/heads/main", "stable")).toBe(false);
+    expect(publishes("workflow_dispatch", "refs/heads/fix/phone-banner", "nightly")).toBe(false);
+    expect(publishes("push", "refs/heads/fix/phone-banner", "stable")).toBe(false);
   });
 });

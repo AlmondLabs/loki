@@ -88,7 +88,7 @@ to date: it checks on launch and every six hours, and installs what it downloade
 ([Updates](docs/manual.md#updates)). Versions are dates and a count: `2026.1011.0` is the first stable of October 11
 (UTC), `2026.1011.1` the second.
 
-**Nightly**, if you want every merge about twenty minutes after it lands:
+**Nightly**, if you want the newest `main` whenever the maintainer releases a nightly, between stables:
 
 ```bash
 curl -fsSL https://almondlabs.github.io/loki/install.sh | sh -s -- --nightly

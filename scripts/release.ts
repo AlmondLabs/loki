@@ -1,6 +1,7 @@
 // Release management (docs/releasing.md). A stable ships when the release PR merges, as many a day as there are
-// merges; every other merge to main ships a nightly. Each is built for the Mac, Windows and Linux in one run, and
-// carries the signed update files and the `latest.json` loki's updater reads (plan 2026-11-15-2319, U6).
+// merges; a nightly ships only when someone runs the release workflow by hand on main (plan 2026-11-16-1226), and any
+// other merge ships nothing. Each is built for the Mac, Windows and Linux in one run, and carries the signed update
+// files and the `latest.json` loki's updater reads (plan 2026-11-15-2319, U6).
 //
 // A stable is `YYYY.MMDD.N`: the UTC year, then month and day (October 11 is 1011, January 1 is 101), then that day's
 // release count from 0 — 2026.1011.0, 2026.1011.1, 2026.1012.0. A nightly is the next stable's number and the release
@@ -10,7 +11,7 @@
 // a PR beforehand, so nothing goes stale and nothing runs on a schedule. A stable's draft is made there at once, so a
 // stable queued behind it takes the next number. The tags are the truth; the version files on main are stamped only on
 // the runner (main takes changes through PRs alone).
-// `.github/workflows/release.yml` runs this on every push to main, and by hand:
+// `.github/workflows/release.yml` runs this on every push to main, and on each run by hand:
 //
 //   npm run release -- plan                    what this run does: stable | nightly | none
 //   npm run release -- version stable [sha]    the number this stable gets, from the tags and drafts as they are now
@@ -36,7 +37,7 @@ import { dmgName } from "./cask.ts";
 
 /** What a release run does: ship a stable, the rolling nightly, or nothing. */
 export type Kind = "stable" | "nightly" | "none";
-/** What `plan` decided for this push, and why (`reason`, a line for the run's log). */
+/** What `plan` decided for this run, and why (`reason`, a line for the run's log). */
 export interface Plan {
   kind: Kind;
   /**
@@ -136,15 +137,17 @@ export function decideStable({ today, sha, tags, releases }: { today: Date; sha:
 }
 
 /**
- * What a run does, on a push to main. The release PR landing is recognised by the push changing RELEASE_FILE
- * (`releaseMerged`): a stable, numbered in the queue. Everything else with commits since the last stable is a nightly;
- * nothing new is nothing to do. `shipped` is the stables published so far (by default every stable tag).
+ * What a run does. A push is a merge to main: the release PR landing, recognised by the push changing RELEASE_FILE
+ * (`releaseMerged`), is a stable, numbered in the queue; any other merge ships nothing. A run by hand is a nightly when
+ * something has merged since the last stable, and never a stable; the workflow publishes it only from main. Nothing new
+ * is nothing to do. `shipped` is the stables published so far (by default every stable tag).
  */
 export function plan({
   today,
   run,
   tags,
   shipped = stablesIn(tags),
+  event,
   commitsSinceStable,
   releaseMerged = false,
 }: {
@@ -153,11 +156,16 @@ export function plan({
   run: number;
   tags: string[];
   shipped?: string[];
+  /** What started the run: a merge to main, or someone running the workflow by hand. */
+  event: "push" | "workflow_dispatch";
   commitsSinceStable: number;
   releaseMerged?: boolean;
 }): Plan {
   const latest = latestStable(shipped.map((v) => `v${v}`));
-  if (releaseMerged) return { kind: "stable", version: nextStable(today, tags), reason: "the release PR landed; the version job numbers the stable" };
+  if (event === "push") {
+    if (releaseMerged) return { kind: "stable", version: nextStable(today, tags), reason: "the release PR landed; the version job numbers the stable" };
+    return { kind: "none", version: latest ?? "", reason: "a merge ships no nightly: run the release workflow by hand on main for one" };
+  }
   if (commitsSinceStable === 0) return { kind: "none", version: latest ?? "", reason: "nothing since the last stable" };
   return {
     kind: "nightly",
@@ -316,16 +324,17 @@ function changedAtHead(file: string): boolean {
 }
 
 function cmdPlan(): void {
-  // Only a push is a merge; a manual run refreshes the release PR and builds a nightly that is never published.
-  const pushed = (process.env.GITHUB_EVENT_NAME ?? "push") === "push";
+  // A run by hand is a nightly (published only from main); anything else, and a run outside Actions, is a push, a merge.
+  const event = process.env.GITHUB_EVENT_NAME === "workflow_dispatch" ? "workflow_dispatch" : "push";
   const p = plan({
     today: new Date(),
     // The plan job's run number is the build's: one workflow run. Outside Actions the nightly it names is only a guess.
     run: Number(process.env.GITHUB_RUN_NUMBER ?? 0),
     tags: tags(),
     shipped: shipped(),
+    event,
     commitsSinceStable: shipping(commitsSince(lastStable())).length,
-    releaseMerged: pushed && changedAtHead(RELEASE_FILE),
+    releaseMerged: event === "push" && changedAtHead(RELEASE_FILE),
   });
   console.error(`release: ${p.kind}${p.version ? ` (as the tags stand, ${p.version})` : ""} — ${p.reason}`);
   output({ kind: p.kind });
@@ -600,9 +609,9 @@ const nightlyAnnounced = (title: string): string | null => /\d+\.\d+\.\d+-nightl
  * the version job, or here when it is missing) gets its files, then is made public and latest; a run again for the same
  * merge picks up where the last one stopped, and one whose release is already public changes nothing on it. A release
  * at this number made for another commit is never joined: two builds' files never share a release. A nightly keeps its
- * release: the new files go up beside the last nightly's, the tag moves to this merge, and latest.json goes last, so a
+ * release: the new files go up beside the last nightly's, the tag moves to this commit, and latest.json goes last, so a
  * run cancelled at any point leaves a nightly that downloads (`prune-nightly`, after the tap has moved, removes the old
- * files). A nightly older than the one the release announces (a re-run after a newer merge's went out) fails before it
+ * files). A nightly older than the one the release announces (a re-run after a newer one went out) fails before it
  * uploads anything.
  *
  * Answers the `.dmg` the cask is made from: this build's, or, when the stable was already public, the one it shipped
@@ -706,7 +715,7 @@ export function pruneNightly(version: string, gh: (...args: string[]) => string)
 /** The release's tag: `v<version>` for a stable, the rolling `nightly` for a nightly. */
 const releaseTag = (version: string): string => (isNightlyVersion(version) ? NIGHTLY_TAG : `v${version}`);
 
-/** The release's notes, written to a file for `gh --notes-file`; a nightly's say which merge it is, since its version carries its run. */
+/** The release's notes, written to a file for `gh --notes-file`; a nightly's say which commit it is, since its version carries its run. */
 function notesFor(version: string, sha: string): { text: string; file: string } {
   const notes = cmdNotes(version).replace(/^## .*\n\n/, "");
   const text = isNightlyVersion(version) ? `Built from ${sha}.\n\n${notes}` : notes;

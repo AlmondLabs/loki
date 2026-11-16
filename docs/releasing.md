@@ -1,26 +1,30 @@
 # Releasing loki
 
-Nothing is tagged by hand. `.github/workflows/release.yml` runs on every push to `main` (and on request from the
-Actions tab) and `scripts/release.ts` decides what the run does. There are two channels, nightly and stable, and one
-PR the workflow keeps for you: the release PR, which ships a stable when it merges. Every release, stable or nightly,
-is built for the Mac, Windows and Linux in one run and carries the signed update files every loki installs from. The
-release PR carries no version number, so it never goes stale. Nothing runs on a schedule.
+Nothing is tagged by hand, and nothing ships until you ask. `.github/workflows/release.yml` runs on every push to
+`main` and whenever you run it from the Actions tab, and `scripts/release.ts` decides what the run does. There are two
+channels, nightly and stable, each released when you choose: a stable when you merge the release PR, which the workflow
+keeps for you, and a nightly when you run the workflow by hand on `main`. An ordinary merge ships nothing. Every
+release, stable or nightly, is built for the Mac, Windows and Linux in one run and carries the signed update files
+every loki installs from. The release PR carries no version number, so it never goes stale. Nothing runs on a
+schedule.
 
 ## How a change ships
 
-1. **Merge a PR into `main`.** About twenty minutes later there is a new **nightly**: the rolling `nightly` prerelease
-   with every system's files (below) and its `latest.json`, and `Casks/loki-nightly.rb` in the tap. A loki on the
-   Nightly channel (About) updates itself to it. Only the newest merge matters: a nightly still building or publishing
-   is cancelled when the next merge's nightly reaches the same job.
-2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "chore(release): the
-   next stable": one commit on top of `main` that writes the `main` it was built from to `.github/release.txt`, and a body
-   listing everything since the last stable and the number it would get if merged now. It is rebuilt from `main` and
-   force-pushed by every further merge, and closed when nothing has merged since the last stable. Do not push to it;
-   anything that should ship goes through an ordinary PR.
+1. **Merge a PR into `main`.** That ships nothing; it creates or refreshes **the release PR**, branch `release/next`,
+   titled "chore(release): the next stable": one commit on top of `main` that writes the `main` it was built from to
+   `.github/release.txt`, and a body listing everything since the last stable and the number it would get if merged
+   now. It is rebuilt from `main` and force-pushed by every further merge, and closed when nothing has merged since the
+   last stable. Do not push to it; anything that should ship goes through an ordinary PR.
+2. **Run the workflow on `main`** whenever you want a **nightly**: Actions › release › Run workflow, with `main` as
+   the branch, or `gh workflow run release.yml --ref main`. It asks nothing; about twenty minutes later there is a new
+   nightly of `main` as it stands: the rolling `nightly` prerelease with every system's files (below) and its
+   `latest.json`, and `Casks/loki-nightly.rb` in the tap. A loki on the Nightly channel (About) updates itself to it.
+   Only the newest run matters: a nightly still building or publishing is cancelled when the next one reaches the same
+   job. With nothing merged since the last stable there is nothing to build, and the run says so.
 3. **Merge the release PR** whenever you want a stable, as often as you like. That merge builds once more, decides
    the number (below), and publishes `v2026.1011.0` with every system's files and the rendered cask attached, marked
    latest, and pushes `Casks/loki.rb` to the tap. Every loki on the Stable channel updates itself to it. That merge
-   produces no nightly; the stable is that build.
+   produces no nightly; the stable is that build. A run by hand never ships a stable.
 
 The Windows and Linux PR (branch `release/preview`, which put those files on a stable after the Mac's) is retired:
 every stable now carries all three. Its branch can be deleted, and its marker, `.github/preview.txt`, is gone.
@@ -28,10 +32,11 @@ every stable now carries all three. Its branch can be deleted, and its marker, `
 ## What a release run builds
 
 1. **plan** (`npm run release -- plan`) decides stable, nightly or nothing. On a push, the release PR landing is
-   recognised by the push itself changing `.github/release.txt`. Everything else with commits since the last stable
-   is a nightly. Commits titled `chore(release): …` (or `release: …`, before October 2026), the release PR's own, do
-   not count as something to ship. A merge of docs alone (`docs/**`, the root's `*.md`) starts no release run at all.
-   A nightly also runs **the release PR** job (`release.ts release-pr`) to refresh it.
+   recognised by the push itself changing `.github/release.txt`, and is a stable; any other push is nothing, and runs
+   **the release PR** job (`release.ts release-pr`) to refresh it. A run by hand is a nightly when anything has merged
+   since the last stable, and never a stable. Commits titled `chore(release): …` (or `release: …`, before October
+   2026), the release PR's own, do not count as something to ship. A merge of docs alone (`docs/**`, the root's
+   `*.md`) starts no release run at all.
 2. **version** decides the number once (`release.ts version`), in a queue that runs one at a time per kind (below).
    For a stable it then drafts the release at that number straight away (`release.ts draft`): a draft has no tag
    yet, but it counts as taken, so a stable queued behind it takes the next number.
@@ -50,9 +55,9 @@ every stable now carries all three. Its branch can be deleted, and its marker, `
    finds no update for itself and stays as it is. Linux builds on the oldest supported Ubuntu so the files run on
    newer glibc too; the apt list is the same as `shell.yml`'s. The Windows installer and the AppImage are their
    systems' update files themselves; the Mac's is the `.app` in a `.tar.gz`.
-4. **publish** runs only when all three builds succeeded, and only for a push to `main`: a run by hand, from `main`
-   or a branch, builds all three and keeps the files as the run's artifacts, and never touches a release or the
-   `nightly` tag. `release.ts publish` writes `latest.json` from the builds' `.sig` files (it fails, naming the
+4. **publish** runs only when all three builds succeeded, and only on `main`: for a stable from the release PR's
+   merge, or a nightly from a run by hand. A run by hand from any other branch builds all three and keeps the files as
+   the run's artifacts, and never touches a release or the `nightly` tag, so it checks that a branch builds. `release.ts publish` writes `latest.json` from the builds' `.sig` files (it fails, naming the
    platform, when one is missing), then uploads in this order:
    1. the versioned files: the `.dmg`, `loki_<v>_aarch64.app.tar.gz` (the Mac's update archive, renamed so it carries
       the version), the `-setup.exe`, the AppImage, each update file's `.sig`, and the `.deb`;
@@ -68,7 +73,7 @@ every stable now carries all three. Its branch can be deleted, and its marker, `
    never deleted: its new files go up beside the last one's, the `nightly` tag moves, `latest.json` goes up last, the
    tap gets the new cask, and only then are the earlier nightlies' files removed (`release.ts prune-nightly`): every
    file whose name carries another version, never `latest.json`, `cask.rb` or the unversioned copies. A nightly
-   cancelled by a newer merge at any point still downloads. A re-run of an older nightly after a newer one went out
+   cancelled by a newer one at any point still downloads. A re-run of an older nightly after a newer one went out
    fails at `publish` before it uploads anything, so the cask, tap and prune steps after it don't run either.
 
 ## What a release carries
@@ -108,8 +113,8 @@ title and notes.
 - **The number is decided once per run, by the version job**, from the date, the stable tags and the drafts, not
   written into the PR: it counts today's `vYYYY.MMDD.*` tags and releases and takes the next. Version jobs run one at
   a time in their kind's queue (`build-stable`, `build-nightly`), and a stable's drafts its release at once, so a stable
-  queued behind another sees its draft and takes the next number. A run by hand gets a queue of its own. GitHub keeps one waiting run per
-  queue: of three release merges within a few minutes the middle one may be dropped, and the third, built from a
+  queued behind another sees its draft and takes the next number. A run by hand from a branch gets a queue of its
+  own. GitHub keeps one waiting run per queue: of three release merges within a few minutes the middle one may be dropped, and the third, built from a
   later `main`, carries its changes. A stable never joins another merge's release: if its number is somehow taken by
   another commit, the publish fails and a re-run numbers it again. Drafts count as taken, and a re-run of the same
   merge takes its own stable's number back (`stableFor`), so **re-run failed jobs** after a stable's later step
@@ -226,7 +231,8 @@ On Windows or Linux, `npm run tauri -- build --bundles nsis` or `npm run tauri -
 same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appimage/` and `deb/` (the Linux build
 needs the apt packages in `shell.yml`). Neither needs the Finder workaround.
 
-`npm run release -- plan` says what the workflow would do for the checkout as it stands,
+`npm run release -- plan` says what the workflow would do for the checkout as it stands, as a merge (with
+`GITHUB_EVENT_NAME=workflow_dispatch`, as a run by hand),
 `npm run release -- version stable` the number a stable built now would get, and `npm run release -- notes` the notes
 the release PR would carry. None of them changes the checkout's files (`version` fetches the tags first); `plan` and
 `notes` ask GitHub (`gh`, signed in) which releases have shipped.

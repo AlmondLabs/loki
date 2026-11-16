@@ -1,25 +1,28 @@
-# Releases, two channels, from every push to main (docs/releasing.md; scripts/release.ts does the deciding). Every
-# release is built for the Mac, Windows and Linux in one run, and carries the signed update files loki installs from,
-# latest.json, and the unversioned files the install scripts fetch (plan 2026-11-15-2319, U6):
-#   nightly  every merge builds all three and replaces the rolling `nightly` prerelease and the loki-nightly cask
+# Releases, two channels, each shipped when someone asks for it (docs/releasing.md; scripts/release.ts does the
+# deciding). Every release is built for the Mac, Windows and Linux in one run, and carries the signed update files loki
+# installs from, latest.json, and the unversioned files the install scripts fetch (plan 2026-11-15-2319, U6):
 #   stable   merging the release PR (branch release/next) publishes vYYYY.MMDD.N and pushes the loki cask, at once and
 #            as often as it is merged
-# plan says which; the version job decides the number once, in a one-at-a-time queue, and drafts a stable at it at
-# once; a build per system makes and signs its files; publish writes latest.json, puts everything on the release,
-# renders the cask and prunes the nightly. Only a push to main publishes: a run by hand builds all three and keeps the
-# files as the run's artifacts. The release PR carries no version, so nothing goes stale and nothing runs on a
-# schedule. Apple signing is optional (the Apple secrets); the update key (TAURI_SIGNING_PRIVATE_KEY) is not, and the
-# builds refuse to make update files without it; TAP_TOKEN pushes the casks.
+#   nightly  a run by hand on main (Run workflow, or `gh workflow run release.yml --ref main`) builds all three and
+#            replaces the rolling `nightly` prerelease and the loki-nightly cask (plan 2026-11-16-1226)
+# Any other merge ships nothing and refreshes the release PR. plan says which; the version job decides the number once,
+# in a one-at-a-time queue, and drafts a stable at it at once; a build per system makes and signs its files; publish
+# writes latest.json, puts everything on the release, renders the cask and prunes the nightly. Only main publishes: a
+# run by hand from a branch builds all three and keeps the files as the run's artifacts. The release PR carries no
+# version, so nothing goes stale and nothing runs on a schedule. Apple signing is optional (the Apple secrets); the
+# update key (TAURI_SIGNING_PRIVATE_KEY) is not, and the builds refuse to make update files without it; TAP_TOKEN
+# pushes the casks.
 name: release
 on:
   push:
     branches: [main]
-    # A merge of docs alone ships nothing: no nightly, and the release PR waits for the next change that does.
+    # A merge of docs alone starts nothing: the release PR waits for the next change that does.
     paths-ignore:
       - "docs/**"
       - "*.md"
       - "LICENSE"
       - ".github/ISSUE_TEMPLATE/**"
+  # No inputs: a run by hand is a nightly, published only when it runs from main.
   workflow_dispatch:
 
 # Nothing by default: each job asks for what it needs, so the builds (third-party actions, the signing secrets) cannot
@@ -48,11 +51,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release -- plan
 
-  # The release PR, refreshed on an ordinary merge.
+  # The release PR, refreshed by every merge but its own.
   release-pr:
     name: the release PR
     needs: plan
-    if: needs.plan.outputs.kind == 'nightly'
+    if: github.event_name == 'push' && needs.plan.outputs.kind != 'stable'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -80,10 +83,10 @@ jobs:
 
   # The number, decided once from the date, the tags and the drafts, in a queue that runs one at a time. A stable is
   # drafted at its number straight away (no tag until it is published), so a stable queued behind it sees the draft and
-  # takes the next number; a re-run of the same merge takes its own draft's number back. Only the newest merge matters
+  # takes the next number; a re-run of the same merge takes its own draft's number back. Only the newest run matters
   # for a nightly. GitHub keeps one waiting run per queue: of three release merges in a few minutes the middle one may
-  # be dropped, and the third, built from a later main, carries its changes. A run by hand gets a queue of its own, so
-  # it never cancels a merge's nightly.
+  # be dropped, and the third, built from a later main, carries its changes. A run by hand from a branch gets a queue
+  # of its own, so it never cancels main's nightly.
   version:
     name: the version (${{ needs.plan.outputs.kind }})
     needs: plan
@@ -92,7 +95,7 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: build-${{ github.event_name == 'push' && needs.plan.outputs.kind || github.run_id }}
+      group: build-${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind || github.run_id }}
       cancel-in-progress: ${{ needs.plan.outputs.kind == 'nightly' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -124,8 +127,8 @@ jobs:
 
   # The builds, one per system, for a stable and a nightly alike, each stamping the queued number on the runner only
   # (main takes changes through PRs alone). Each makes its bundles and its signed update file and hands them to publish
-  # as an artifact. A newer merge's nightly cancels an older one's builds and publish (cancel-in-progress below), so an
-  # older nightly never lands over a newer one; a stable's and a hand run's jobs queue behind nothing.
+  # as an artifact. A newer nightly of main cancels an older one's builds and publish (cancel-in-progress below), so an
+  # older nightly never lands over a newer one; a stable's and a branch run's jobs queue behind nothing.
   # macOS, for Apple silicon only: loki_<version>_aarch64.dmg, and loki.app.tar.gz, its update file.
   macos:
     name: build macOS (${{ needs.version.outputs.version }})
@@ -134,8 +137,8 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: macos-${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' }}
+      group: macos-${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -217,8 +220,8 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: windows-${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' }}
+      group: windows-${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
     defaults:
@@ -275,8 +278,8 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: linux-${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' }}
+      group: linux-${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -327,19 +330,19 @@ jobs:
             src-tauri/target/release/bundle/deb/loki_*_amd64.deb
           if-no-files-found: error
 
-  # Everything goes out together or not at all: publish runs only when all three builds did, and only for a push to
-  # main, so a run by hand never touches a release or the `nightly` tag. Each step is safe to run again: a re-run
-  # finishes what the last run left (plan 096).
+  # Everything goes out together or not at all: publish runs only when all three builds did, and only on main, for a
+  # stable from a merge or a nightly from a run by hand, so a run from a branch never touches a release or the
+  # `nightly` tag. Each step is safe to run again: a re-run finishes what the last run left (plan 096).
   publish:
     name: publish (${{ needs.version.outputs.version }})
     needs: [plan, version, macos, windows, linux]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' && needs.plan.outputs.kind == 'stable' || github.event_name == 'workflow_dispatch' && needs.plan.outputs.kind == 'nightly')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     concurrency:
-      group: publish-${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'push' && needs.plan.outputs.kind == 'nightly' }}
+      group: publish-${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' && 'nightly' || github.run_id }}
+      cancel-in-progress: ${{ github.ref == 'refs/heads/main' && needs.plan.outputs.kind == 'nightly' }}
     env:
       KIND: ${{ needs.plan.outputs.kind }}
       VERSION: ${{ needs.version.outputs.version }}

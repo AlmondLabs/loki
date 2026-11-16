@@ -378,10 +378,11 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   could pair a newer version number with an older build loki signed. On the Mac, when the app's folder is not yours to
   write, loki does not download the update at all and About asks you to move it to a folder you can change, so it never
   asks for an administrator's password.
-- **What reaches Nightly, and when.** A loki on the Nightly channel installs every build of `main`: a merged PR is
-  built about twenty minutes later, and each running loki on Nightly downloads it within six hours (or at its next
-  launch) and installs it when you next quit, with no step of yours. That is the trust Nightly asks for: whatever merges
-  to `main` through a reviewed PR, signed by the same key. Stable installs only the releases a merged release PR ships.
+- **What reaches Nightly, and when.** A loki on the Nightly channel installs every nightly the maintainer releases (a
+  run of the release workflow by hand on `main`; a merge alone ships nothing): each running loki on Nightly downloads it
+  within six hours (or at its next launch) and installs it when you next quit, with no step of yours. That is the trust
+  Nightly asks for: whatever has merged to `main` through a reviewed PR by then, signed by the same key. Stable installs
+  only the releases a merged release PR ships.
 - **The install script, before any of this.** The one-line install runs `install.sh` (macOS and Linux) or
   `install.ps1` (Windows), which GitHub Pages serves over HTTPS from loki's own repository (`site/public/`). The
   script itself is not signed or checksummed: you trust it as you trust that HTTPS connection to loki's GitHub, and

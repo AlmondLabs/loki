@@ -57,9 +57,8 @@ newest release and touches nothing else: your agents, chats and settings in `~/.
 nor git; loki fetches what it needs at its first launch (Requirements). After that, loki updates itself (see
 "Updates" below), and Preferences › About moves it between Stable and Nightly, so the line is never needed again.
 
-**Nightly** is every merge to `main` that changes more than the docs, built about twenty minutes after it lands,
-versioned `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the
-commit). A stable is the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1`
+**Nightly** is `main` as it stands whenever the maintainer releases a nightly, between stables, versioned
+`2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). A stable is the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1`
 the second (before October 2026, `2026.9.28` was simply the day). One loki is installed at a time; both channels share
 `~/.loki`, the daemon and the mod's ports. How releases are cut: [docs/releasing.md](releasing.md).
 
@@ -126,7 +125,7 @@ itself only from a folder you can change, such as `/Applications` on an administ
 anywhere else, About says to move it there rather than downloading an update it could not install. If installing at
 quit fails, About says so the next time loki opens.
 
-Preferences › About offers **Stable** (each release) or **Nightly** (every change as it lands); the choice takes effect at
+Preferences › About offers **Stable** (each release) or **Nightly** (each nightly of `main`); the choice takes effect at
 the next check. Switching from Nightly to Stable never installs an older build: loki stays on its nightly until a stable
 newer than it ships. The Windows installer and the Linux AppImage update the same way; the Linux `.deb` does not, and
 About links the releases page for the next one. A development build never checks.
