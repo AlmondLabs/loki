@@ -1,24 +1,25 @@
-// Release management (docs/releasing.md). A stable ships when the release PR merges, as many a day as there are
-// merges; every other merge to main ships a nightly. Each is built for the Mac, Windows and Linux in one run, and
-// carries the signed update files and the `latest.json` loki's updater reads (plan 2026-11-15-2319, U6).
+// Release management (docs/releasing.md). Both channels ship only when someone runs the release workflow by hand on
+// main and picks nightly or stable (plan 2026-11-16-1226), as often as they like; a merge ships nothing. Each is built
+// for the Mac, Windows and Linux in one run, and carries the signed update files and the `latest.json` loki's updater
+// reads (plan 2026-11-15-2319, U6).
 //
 // A stable is `YYYY.MMDD.N`: the UTC year, then month and day (October 11 is 1011, January 1 is 101), then that day's
 // release count from 0 — 2026.1011.0, 2026.1011.1, 2026.1012.0. A nightly is the next stable's number and the release
 // workflow's run number: `2026.1011.1-nightly.4821`, so nightlies rise run by run and each sorts below the stable it
 // leads up to (semver precedence); the commit it was built from goes in its title and notes. The number is decided
-// once per run, in the workflow's queued version job, from the date, the stable tags and the drafts, never written into
-// a PR beforehand, so nothing goes stale and nothing runs on a schedule. A stable's draft is made there at once, so a
-// stable queued behind it takes the next number. The tags are the truth; the version files on main are stamped only on
-// the runner (main takes changes through PRs alone).
-// `.github/workflows/release.yml` runs this on every push to main, and by hand:
+// once per run, in the workflow's queued version job, from the date, the stable tags and the drafts, never written down
+// beforehand, so nothing goes stale and nothing runs on a schedule. A stable's draft is made there at once, so a stable
+// queued behind it takes the next number. The tags are the truth; the version files on main are stamped only on the
+// runner (main takes changes through PRs alone).
+// `.github/workflows/release.yml` runs this on each run by hand:
 //
 //   npm run release -- plan                    what this run does: stable | nightly | none
 //   npm run release -- version stable [sha]    the number this stable gets, from the tags and drafts as they are now
 //   npm run release -- version nightly <run>   the same for a nightly, from the workflow's run number
 //   npm run release -- draft <version>         the stable's draft release at that number, for HEAD, made once
 //   npm run release -- set <version>           stamp the three version files (+ Cargo.lock), uncommitted
-//   npm run release -- notes [version]         release notes from the commits since the last stable
-//   npm run release -- release-pr              create, refresh or close the one release PR (branch release/next)
+//   npm run release -- notes [version]         release notes from the commits since the last stable (the preview of
+//                                               what the next release would carry)
 //   npm run release -- latest-json <version> <dir>       print the latest.json for the builds' files in dir
 //   npm run release -- publish <kind> <version> <dir>    the GitHub release from the builds' files: a new vX, or the
 //                                                         rolling nightly
@@ -36,7 +37,7 @@ import { dmgName } from "./cask.ts";
 
 /** What a release run does: ship a stable, the rolling nightly, or nothing. */
 export type Kind = "stable" | "nightly" | "none";
-/** What `plan` decided for this push, and why (`reason`, a line for the run's log). */
+/** What `plan` decided for this run, and why (`reason`, a line for the run's log). */
 export interface Plan {
   kind: Kind;
   /**
@@ -47,10 +48,6 @@ export interface Plan {
   reason: string;
 }
 
-/** The one release PR's branch; merging that PR is what ships a stable. */
-export const RELEASE_BRANCH = "release/next";
-/** The release PR's one file: the main it was built from. Merging it is what makes a run a stable. */
-export const RELEASE_FILE = ".github/release.txt";
 /** The rolling nightly's tag and release: each nightly adds its files, moves the tag, then removes the last one's. */
 export const NIGHTLY_TAG = "nightly";
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -115,9 +112,9 @@ export interface ReleaseRef {
 }
 
 /**
- * The stable already made for `sha`, draft or public, as a version; null when none was. A run of the release job
- * again for the same merge takes this number, so a re-run after a failed step finishes that stable rather than
- * shipping the same commit as the next one.
+ * The stable already made for `sha`, draft or public, as a version; null when none was. A stable run again for the
+ * same commit takes this number, so a re-run after a failed step finishes that stable rather than shipping the same
+ * commit as the next one.
  */
 export function stableFor(sha: string, releases: readonly ReleaseRef[]): string | null {
   const mine = releases.filter((r) => r.target === sha && STABLE_TAG.test(r.tag)).map((r) => r.tag.slice(1));
@@ -129,41 +126,52 @@ const stablesIn = (tags: string[]): string[] => tags.filter((t) => STABLE_TAG.te
  * The number a stable gets, decided once in the release workflow's queued version job: the one already made for its
  * commit (a re-run finishes that stable), else today's next, counting the tags and every release, drafts included. The
  * version job drafts the stable at once, so a stable queued behind it sees the draft and takes the next number: two
- * release merges in a day make .0 and .1.
+ * stables in a day make .0 and .1.
  */
 export function decideStable({ today, sha, tags, releases }: { today: Date; sha: string; tags: string[]; releases: readonly ReleaseRef[] }): string {
   return stableFor(sha, releases) ?? nextStable(today, [...tags, ...releases.map((r) => r.tag)]);
 }
 
+/** What someone running the release workflow asked for: Run workflow's `kind` choice. */
+export type Requested = "stable" | "nightly";
+
 /**
- * What a run does, on a push to main. The release PR landing is recognised by the push changing RELEASE_FILE
- * (`releaseMerged`): a stable, numbered in the queue. Everything else with commits since the last stable is a nightly;
- * nothing new is nothing to do. `shipped` is the stables published so far (by default every stable tag).
+ * The kind asked for, from the workflow's `kind` input (REQUESTED_KIND). None, as when the plan runs outside Actions,
+ * is a nightly, Run workflow's default; anything else is a mistake to stop on.
+ */
+export function requestedKind(value: string | undefined): Requested {
+  if (value === undefined || value === "" || value === "nightly") return "nightly";
+  if (value === "stable") return "stable";
+  throw new Error(`the kind asked for is stable or nightly, not ${value}`);
+}
+
+/**
+ * What a run does: what was asked for, when something has merged since the last stable; nothing new is nothing to
+ * do, either way. A stable is numbered in the version job's queue, a nightly by the run. The workflow publishes only a
+ * run on main. `shipped` is the stables published so far (by default every stable tag).
  */
 export function plan({
   today,
   run,
   tags,
   shipped = stablesIn(tags),
+  requested,
   commitsSinceStable,
-  releaseMerged = false,
 }: {
   today: Date;
   /** The release workflow's run number, which numbers a nightly. */
   run: number;
   tags: string[];
   shipped?: string[];
+  requested: Requested;
   commitsSinceStable: number;
-  releaseMerged?: boolean;
 }): Plan {
   const latest = latestStable(shipped.map((v) => `v${v}`));
-  if (releaseMerged) return { kind: "stable", version: nextStable(today, tags), reason: "the release PR landed; the version job numbers the stable" };
   if (commitsSinceStable === 0) return { kind: "none", version: latest ?? "", reason: "nothing since the last stable" };
-  return {
-    kind: "nightly",
-    version: nightlyVersion(nextStable(today, tags), run),
-    reason: `${commitsSinceStable} commit${commitsSinceStable === 1 ? "" : "s"} since ${latest === null ? "the beginning" : `v${latest}`}`,
-  };
+  const since = `${commitsSinceStable} commit${commitsSinceStable === 1 ? "" : "s"} since ${latest === null ? "the beginning" : `v${latest}`}`;
+  const next = nextStable(today, tags);
+  if (requested === "stable") return { kind: "stable", version: next, reason: `${since}; the version job numbers the stable` };
+  return { kind: "nightly", version: nightlyVersion(next, run), reason: since };
 }
 
 /** A commit as the release notes read it. */
@@ -175,25 +183,15 @@ export interface Commit {
 
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
-/**
- * The commits that are changes, not the release PR's own (or the retired Windows and Linux PR's): `chore(release): …`,
- * or `release: …` from before the titles followed Conventional Commits (docs/style.md §9).
- */
-export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^(chore\(release\)|release): /.test(c.subject));
-
 /** GitHub refuses a release body over 125,000 characters; the notes stay under it with room to spare. */
 export const RELEASE_NOTES_MAX = 120_000;
-/** GitHub refuses a pull request body over 65,536 characters; the release PR's notes leave room for its own words. */
-export const PR_NOTES_MAX = 60_000;
 
 /**
- * Release notes: one entry per commit since the last stable, newest first; the release commits themselves and
- * trailers are left out. Notes longer than `max` (GitHub's limit, so a release or PR is never refused for its body)
- * drop the commit bodies first, then the oldest entries, ending with how many were left out and `fullList`, a link to
- * all of them, when given.
+ * Release notes: one entry per commit since the last stable, newest first, trailers left out. Notes longer than `max`
+ * (GitHub's limit, so a release is never refused for its body) drop the commit bodies first, then the oldest entries,
+ * ending with how many were left out and `fullList`, a link to all of them, when given.
  */
 export function releaseNotes(version: string, commits: Commit[], { max = RELEASE_NOTES_MAX, fullList }: { max?: number; fullList?: string } = {}): string {
-  const changes = shipping(commits);
   const subject = (c: Commit) => `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})`;
   const withBody = (c: Commit) => {
     const body = c.body
@@ -213,9 +211,9 @@ export function releaseNotes(version: string, commits: Commit[], { max = RELEASE
   };
   const head = `## ${version}\n\n`;
   const notes = (entries: string[]) => `${head}${entries.length ? entries.join("\n") : "- no changes recorded"}\n`;
-  const full = notes(changes.map(withBody));
+  const full = notes(commits.map(withBody));
   if (full.length <= max) return full;
-  const subjects = changes.map(subject);
+  const subjects = commits.map(subject);
   const short = notes(subjects);
   if (short.length <= max) return short;
   const more = (n: number) => `- and ${n} earlier changes${fullList ? `: ${fullList}` : ""}\n`;
@@ -306,28 +304,19 @@ function output(kv: Record<string, string>): void {
   if (process.env.GITHUB_OUTPUT) writeFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`, { flag: "a" });
 }
 
-/** Whether HEAD's own change touched `file`: the push is that PR's merge. */
-function changedAtHead(file: string): boolean {
-  try {
-    return git("diff", "--name-only", "HEAD^", "HEAD", "--", file) !== "";
-  } catch {
-    return false; // no parent
-  }
-}
-
 function cmdPlan(): void {
-  // Only a push is a merge; a manual run refreshes the release PR and builds a nightly that is never published.
-  const pushed = (process.env.GITHUB_EVENT_NAME ?? "push") === "push";
   const p = plan({
     today: new Date(),
     // The plan job's run number is the build's: one workflow run. Outside Actions the nightly it names is only a guess.
     run: Number(process.env.GITHUB_RUN_NUMBER ?? 0),
     tags: tags(),
     shipped: shipped(),
-    commitsSinceStable: shipping(commitsSince(lastStable())).length,
-    releaseMerged: pushed && changedAtHead(RELEASE_FILE),
+    requested: requestedKind(process.env.REQUESTED_KIND),
+    commitsSinceStable: commitsSince(lastStable()).length,
   });
-  console.error(`release: ${p.kind}${p.version ? ` (as the tags stand, ${p.version})` : ""} — ${p.reason}`);
+  const line = `release: ${p.kind}${p.version ? ` (as the tags stand, ${p.version})` : ""} — ${p.reason}`;
+  console.error(line);
+  if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, `${line}\n`, { flag: "a" });
   output({ kind: p.kind });
 }
 
@@ -354,59 +343,11 @@ function cmdNotes(version: string): string {
 const fullList = (last: string | null, to: string): string | undefined =>
   last === null ? undefined : `https://github.com/${repoName()}/compare/v${last}...${to}`;
 
-/** A pull request body, written to a file for `gh --body-file`: a long one does not fit in a command line (E2BIG). */
+/** Release notes, written to a file for `gh --notes-file`: a long body does not fit in a command line (E2BIG). */
 function bodyFile(name: string, body: string): string {
   const path = join(root, name);
   writeFileSync(path, body);
   return path;
-}
-
-/** The release PR's title, body and the file its one commit writes. */
-export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; mainSha: string; ifMergedNow: string }): {
-  title: string;
-  body: string;
-  marker: string;
-} {
-  return {
-    title: "chore(release): the next stable",
-    marker: `${mainSha}\n`,
-    body: [
-      `Merging this ships **the next stable of loki**: the tag, the published release with the Apple silicon \`.dmg\`, the Windows installer, the Linux AppImage and \`.deb\` and the update files every loki installs from, and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**.`,
-      "",
-      `This PR is rebuilt from \`main\` on every merge; its one commit writes the main it was built from to \`${RELEASE_FILE}\`. Do not push to it; anything that should ship goes through an ordinary PR.`,
-      "",
-      notes.replace(/^## .*\n\n/, ""),
-    ].join("\n"),
-  };
-}
-
-/** The one release PR: branch release/next rebuilt from main with its marker, force-pushed; created once, then edited; closed when nothing waits to ship. */
-function cmdReleasePr(): void {
-  git("fetch", "origin", "main", "--quiet");
-  const open = gh("pr", "list", "--head", RELEASE_BRANCH, "--base", "main", "--state", "open", "--json", "number", "--jq", ".[0].number // empty");
-  const pending = shipping(commitsSince(lastStable(), "origin/main"));
-  if (pending.length === 0) {
-    if (open) gh("pr", "close", open, "--comment", "Nothing has merged since the last stable.");
-    return console.error(`release: nothing since the last stable${open ? `; PR #${open} closed` : ""}`);
-  }
-  const mainSha = git("rev-parse", "origin/main");
-  const ifMergedNow = nextStable(new Date(), tags());
-  const notes = releaseNotes(ifMergedNow, pending, { max: PR_NOTES_MAX, fullList: fullList(lastStable(), mainSha) });
-  const { title, body, marker } = releasePr({ notes, mainSha, ifMergedNow });
-  git("checkout", "-B", RELEASE_BRANCH, "origin/main");
-  writeFileSync(join(root, RELEASE_FILE), marker);
-  git("add", RELEASE_FILE);
-  git(
-    "commit",
-    "--quiet",
-    "-m",
-    `${title}\n\nThe release PR: merge it and main ships as the next stable, numbered at the build. Rebuilt from main on every merge; do not edit.`,
-  );
-  git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${RELEASE_BRANCH}`);
-  const file = bodyFile(".release-pr.md", body);
-  if (open) gh("pr", "edit", open, "--title", title, "--body-file", file);
-  else gh("pr", "create", "--base", "main", "--head", RELEASE_BRANCH, "--title", title, "--body-file", file);
-  console.error(`release: PR ${open ? `#${open} refreshed` : "opened"}; merged now it would be ${ifMergedNow}`);
 }
 
 /** A release as publishing needs it: whether it is still a draft, the commit it is for, and its files' names. */
@@ -443,7 +384,7 @@ function stableRelease(version: string, sha: string, notesFile: string, gh: (...
 
 /**
  * The stable's draft, made by the version job the moment its number is decided (KTD10), so a stable queued behind it
- * sees the number as taken. Run again for the same merge it changes nothing; a number another merge holds fails.
+ * sees the number as taken. Run again for the same commit it changes nothing; a number another commit holds fails.
  */
 export function draftStable({ version, sha, notesFile, gh }: { version: string; sha: string; notesFile: string; gh: (...args: string[]) => string }): void {
   stableRelease(version, sha, notesFile, gh);
@@ -598,11 +539,11 @@ const nightlyAnnounced = (title: string): string | null => /\d+\.\d+\.\d+-nightl
  * Publish a release's files, each step safe to run again (plan 096): the versioned files first, then latest.json and
  * the install copies with `--clobber`, so nothing announces a version whose files are not up. A stable's draft (made by
  * the version job, or here when it is missing) gets its files, then is made public and latest; a run again for the same
- * merge picks up where the last one stopped, and one whose release is already public changes nothing on it. A release
+ * commit picks up where the last one stopped, and one whose release is already public changes nothing on it. A release
  * at this number made for another commit is never joined: two builds' files never share a release. A nightly keeps its
- * release: the new files go up beside the last nightly's, the tag moves to this merge, and latest.json goes last, so a
+ * release: the new files go up beside the last nightly's, the tag moves to this commit, and latest.json goes last, so a
  * run cancelled at any point leaves a nightly that downloads (`prune-nightly`, after the tap has moved, removes the old
- * files). A nightly older than the one the release announces (a re-run after a newer merge's went out) fails before it
+ * files). A nightly older than the one the release announces (a re-run after a newer one went out) fails before it
  * uploads anything.
  *
  * Answers the `.dmg` the cask is made from: this build's, or, when the stable was already public, the one it shipped
@@ -706,7 +647,7 @@ export function pruneNightly(version: string, gh: (...args: string[]) => string)
 /** The release's tag: `v<version>` for a stable, the rolling `nightly` for a nightly. */
 const releaseTag = (version: string): string => (isNightlyVersion(version) ? NIGHTLY_TAG : `v${version}`);
 
-/** The release's notes, written to a file for `gh --notes-file`; a nightly's say which merge it is, since its version carries its run. */
+/** The release's notes, written to a file for `gh --notes-file`; a nightly's say which commit it is, since its version carries its run. */
 function notesFor(version: string, sha: string): { text: string; file: string } {
   const notes = cmdNotes(version).replace(/^## .*\n\n/, "");
   const text = isNightlyVersion(version) ? `Built from ${sha}.\n\n${notes}` : notes;
@@ -775,9 +716,6 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       case "notes":
         process.stdout.write(cmdNotes(args[0] ?? nextStable(new Date(), tags())));
         break;
-      case "release-pr":
-        cmdReleasePr();
-        break;
       case "latest-json":
         process.stdout.write(cmdLatestJson(args[0] ?? "", args[1] ?? "."));
         break;
@@ -791,7 +729,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       }
       default:
         console.error(
-          "usage: npm run release -- plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | release-pr | latest-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
+          "usage: npm run release -- plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | latest-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
         );
         process.exit(2);
     }
