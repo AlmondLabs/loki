@@ -53,9 +53,15 @@ import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptM
 
 export const EXIT_HELD = 3;
 
+/**
+ * The flag every start passes so the shell can tell loki's daemon from any other Node process: `is_own_daemon` in
+ * `src-tauri/src/procs.rs` matches it, with the token file, on a leftover daemon's command line. The daemon never reads it.
+ */
+const DAEMON_MARKER = "loki-daemon";
+
 const { values: args } = parseArgs({
   options: {
-    "loki-daemon": { type: "boolean" },
+    [DAEMON_MARKER]: { type: "boolean" },
     dir: { type: "string" },
     mod: { type: "string" },
     "token-file": { type: "string" },

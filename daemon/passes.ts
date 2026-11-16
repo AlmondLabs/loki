@@ -384,8 +384,7 @@ export class PassRunner {
       await chat.configure(agent, context);
       await chat.reset(undefined, context);
     }
-    // Only what this run adds is read back (plan 047): a reset keeps the pass chat's old entries, which grew to
-    const before = await store.newestEntryId(chat, context);
+    const lastOldEntry = await store.newestEntryId(chat, context);
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const submission = await chat.submit({ type: "input", content, requestId: spec.requestId }, context);
     const limited = withCancel(context);
@@ -403,7 +402,7 @@ export class PassRunner {
     if (settled.status !== "done") throw new Error(`the pass did not finish: ${unansweredWhy(settled)}`);
     const answer: PassAnswer = { text: "", toolCalls: [] };
     const added: EntryRecord[] = [];
-    await store.eachEntry(chat, context, (entry) => added.push(entry), before);
+    await store.eachEntry(chat, context, (entry) => added.push(entry), lastOldEntry);
     for (const entry of added) {
       const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
       if (entry.kind !== "pi.assistant" || m?.role !== "assistant") continue;

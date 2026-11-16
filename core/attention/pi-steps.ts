@@ -1,5 +1,5 @@
 import { contentImages, contentText, toolArgsShown, toolOutput } from "../harness.ts";
-import type { Step } from "./thread.ts";
+import type { Step, StoredStep } from "./thread.ts";
 
 export interface PiMessage {
   role?: string;
@@ -24,7 +24,7 @@ export function messageAt(m: PiMessage): string | null {
   return typeof m.timestamp === "number" && Number.isFinite(m.timestamp) ? new Date(m.timestamp).toISOString() : null;
 }
 
-export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageNamer): Step[] {
+export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageNamer): StoredStep[] {
   if (m.role === "toolResult")
     return typeof m.toolCallId === "string" ? [shownStep({ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true })] : [];
   if (m.role !== "user" && m.role !== "assistant") return [];
@@ -34,7 +34,7 @@ export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageN
     return [{ kind: "user", raw: text, at, ...(images.length ? { images } : {}) }];
   }
   const thought = thinkingText(m.content);
-  const out: Step[] = [...(thought ? [{ kind: "thinking" as const, text: thought, at }] : []), { kind: "assistant", text, at }];
+  const out: StoredStep[] = [...(thought ? [{ kind: "thinking" as const, text: thought, at }] : []), { kind: "assistant", text, at }];
   for (const part of Array.isArray(m.content) ? m.content : []) {
     const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
     if (p?.type === "toolCall" && p.name)
@@ -55,6 +55,8 @@ function thinkingText(content: unknown): string {
   return parts.join("\n\n");
 }
 
+export function shownStep(step: StoredStep): StoredStep;
+export function shownStep(step: Step): Step;
 export function shownStep(step: Step): Step {
   if (step.kind === "result") return { ...step, output: toolOutput(step.output) };
   if (step.kind === "call" || step.kind === "approval") return { ...step, args: toolArgsShown(step.args) };
@@ -63,7 +65,7 @@ export function shownStep(step: Step): Step {
 
 const SHOWN = new Set(["pi.user", "pi.assistant", "pi.tool-result"]);
 
-const COMPACTION = "pi.compaction";
+export const COMPACTION = "pi.compaction";
 
 function summaryOf(m: PiMessage): string | null {
   const text = contentText(m.content);
@@ -71,14 +73,14 @@ function summaryOf(m: PiMessage): string | null {
   return inner.trim() || null;
 }
 
-export function compactionSteps(entry: PiEntry, at: string | null = null): Step[] {
+export function compactionSteps(entry: PiEntry, at: string | null = null): StoredStep[] {
   const m = entry.kind === COMPACTION ? entry.model?.[0] : undefined;
   return m ? [{ kind: "compaction", state: "done", detail: summaryOf(m), at: messageAt(m) ?? at }] : [];
 }
 
 const BRANCH = "loki.branch";
 
-export function entrySteps(entry: PiEntry, nameImage?: ImageNamer): Step[] {
+export function entrySteps(entry: PiEntry, nameImage?: ImageNamer): StoredStep[] {
   if (entry.kind === BRANCH) {
     const message = (entry.data as { message?: PiMessage } | undefined)?.message;
     return message ? messageSteps(message, messageAt(message), nameImage) : [];
