@@ -19,32 +19,16 @@ import { log } from "./log.ts";
 import { execProgram } from "./programs.ts";
 import { readLevelDb } from "./slack-leveldb.ts";
 
-/**
- * The Slack desktop app's sessions on this Mac (plan 067, U6, KTD7). For each workspace signed in there, Slack keeps a
- * desktop token (`xoxc-…`) in its Local Storage and one `d` cookie, encrypted with the "Slack Safe Storage" key in the
- * macOS keychain, that every workspace shares. loki reads both from the app's own files, so connecting Slack needs no
- * Slack app and no admin (R21). This is the one file that knows where Slack keeps them: a Slack update that moves them
- * breaks only this file, and shows as "Slack signed out" (R22).
- *
- * Sessions stay in memory. The only thing written to disk is a snapshot of Slack's files in a private temporary folder,
- * taken because Slack holds a lock on them while it runs, and removed as soon as it is read (KTD2).
- */
-
-/** One signed-in workspace and what calling Slack as the person there takes; kept in memory only. */
 export interface SlackSession {
   team_id: string;
   team_name: string;
-  /** The workspace's own address, `https://<domain>.slack.com/`, where its calls go. */
   url: string;
-  /** The person in that workspace, when the desktop app records it; auth.test always says. */
   user_id: string | null;
-  /** The desktop token, `xoxc-…`. */
   token: string;
   /** The `d` cookie, `xoxd-…`, decoded; a request sends it encoded. */
   cookie: string;
 }
 
-/** A signed-in workspace as the person picks it when connecting: no token, no cookie. */
 export interface SlackWorkspace {
   team_id: string;
   team_name: string;
@@ -52,10 +36,8 @@ export interface SlackWorkspace {
   user_id: string | null;
 }
 
-/** Why the sessions could not be read: on this system at all, no Slack here, no workspace, the keychain, or the files. */
 export type SlackSessionFailure = "not_supported" | "not_found" | "signed_out" | "keychain" | "unreadable";
 
-/** A failure to read the desktop app's sessions, in words for the person, with its kind for the caller. */
 export class SlackSessionError extends Error {
   readonly reason: SlackSessionFailure;
 
@@ -66,23 +48,15 @@ export class SlackSessionError extends Error {
   }
 }
 
-/** Reads one password from the macOS keychain by service (and account, when given); rejects when there is none or the person refuses. */
 export type KeychainReader = (service: string, account?: string) => Promise<string>;
 
-/** Runs a program and resolves to its stdout; rejects with what it said when it fails. */
 export type SlackExec = (bin: string, args: string[], timeoutMs?: number) => Promise<string>;
 
-/** What the session reader is built with; the home folder, the keychain and the temporary folder are injected so tests own them. */
 export interface SlackSessionsOptions {
-  /** The person's home folder, where Slack's data lives. */
   home: string;
-  /** Default process.platform: only macOS is read. */
   platform?: NodeJS.Platform;
-  /** Default: `security find-generic-password -w` through `exec`. */
   keychain?: KeychainReader;
-  /** Runs `security` for the default keychain reader; default execFile. */
   exec?: SlackExec;
-  /** Where the snapshot is taken; default the system's temporary folder. */
   tmp?: string;
 }
 
@@ -110,7 +84,6 @@ const defaultExec: SlackExec = (bin, args, timeoutMs = KEYCHAIN_TIMEOUT) =>
     });
   });
 
-/** The keychain reader over `security`, the macOS command that asks the person once before giving loki the key. */
 export function securityKeychain(exec: SlackExec = defaultExec): KeychainReader {
   return async (service, account) =>
     (await exec("security", ["find-generic-password", "-w", "-s", service, ...(account ? ["-a", account] : [])], KEYCHAIN_TIMEOUT)).trim();
@@ -126,7 +99,6 @@ function storageText(value: Buffer): string {
   return value.toString("utf8");
 }
 
-/** The workspaces in a localConfig: entries with a desktop token and an address; other tokens are not a desktop session. */
 function teamsOf(config: unknown): Array<Omit<SlackSession, "cookie">> {
   const out: Array<Omit<SlackSession, "cookie">> = [];
   for (const [key, value] of Object.entries(rec(rec(config).teams))) {
@@ -170,7 +142,6 @@ function decodedCookie(text: string): string {
   }
 }
 
-/** The desktop app's sessions, read from its files when asked and kept in memory. */
 export class SlackSessions {
   private readonly opts: SlackSessionsOptions;
   private readonly keychain: KeychainReader;
@@ -182,27 +153,20 @@ export class SlackSessions {
     this.keychain = opts.keychain ?? securityKeychain(opts.exec);
   }
 
-  /** Whether Slack can be connected on this system; on Windows and Linux it says why not, in words for the person. */
   available(): { supported: true } | { supported: false; reason: string } {
     return (this.opts.platform ?? process.platform) === "darwin" ? { supported: true } : { supported: false, reason: NOT_SUPPORTED };
   }
 
-  /** The workspaces signed in to the desktop app now, read afresh, for the person to pick one to connect. */
   async workspaces(): Promise<SlackWorkspace[]> {
     return (await this.read()).map((s) => ({ team_id: s.team_id, team_name: s.team_name, url: s.url, user_id: s.user_id }));
   }
 
-  /**
-   * One workspace's session, from memory unless `fresh`; null when the desktop app is no longer signed in to it. A
-   * client asks for a fresh one after Slack refuses the one it has.
-   */
   async get(teamId: string, fresh = false): Promise<SlackSession | null> {
     const known = this.cache.get(teamId);
     if (known && !fresh) return known;
     return (await this.read()).find((s) => s.team_id === teamId) ?? null;
   }
 
-  /** Every session, read afresh; calls made while a read is under way share it. */
   private read(): Promise<SlackSession[]> {
     this.inflight ??= this.readAll().finally(() => {
       this.inflight = null;
@@ -231,7 +195,6 @@ export class SlackSessions {
     return sessions;
   }
 
-  /** One data folder's sessions, from a snapshot that is removed whatever happens. */
   private async readDir(dir: string): Promise<SlackSession[]> {
     const snap = await mkdtemp(join(this.opts.tmp ?? tmpdir(), "loki-slack-"));
     try {
@@ -264,7 +227,6 @@ export class SlackSessions {
     return teams;
   }
 
-  /** The `d` cookie, decrypted with whichever of Slack's keychain keys opens it. */
   private async cookie(file: string): Promise<string> {
     // Imported here so Node's notice that SQLite is experimental shows only once Slack is used.
     const { DatabaseSync } = await import("node:sqlite");
@@ -294,9 +256,7 @@ export class SlackSessions {
       try {
         const password = await this.keychain(SAFE_STORAGE, account);
         if (password && !passwords.includes(password)) passwords.push(password);
-      } catch {
-        // The other build's account, or none: the next lookup may still find the key.
-      }
+      } catch {}
     }
     if (!passwords.length)
       throw new SlackSessionError("cannot read Slack session: the keychain did not give loki Slack's key; allow it when macOS asks", "keychain");

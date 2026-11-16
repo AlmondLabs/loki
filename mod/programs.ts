@@ -9,7 +9,6 @@ import { posix, win32 } from "node:path";
  * with every character quoted so cmd.exe reads none of them as syntax.
  */
 
-/** The system and environment to look in; tests pass Windows' on any machine. */
 export interface Look {
   platform?: NodeJS.Platform;
   env?: Record<string, string | undefined>;
@@ -27,7 +26,6 @@ export function envVar(name: string, look: Look = {}): string | undefined {
   return key === undefined ? undefined : env[key];
 }
 
-/** Every path PATH says `name` could be, in order: each folder, and on Windows each PATHEXT name within it. */
 export function onPath(name: string, look: Look = {}): string[] {
   const windows = (look.platform ?? process.platform) === "win32";
   const p = windows ? win32 : posix;
@@ -43,7 +41,6 @@ export function onPath(name: string, look: Look = {}): string[] {
   return dirs.flatMap((d) => names.map((n) => p.join(d, n)));
 }
 
-/** The first of `candidates` that exists. */
 export function firstExisting(candidates: Array<string | undefined>, look: Look = {}): string | null {
   const exists = look.exists ?? existsSync;
   return candidates.find((c): c is string => !!c && exists(c)) ?? null;
@@ -52,7 +49,6 @@ export function firstExisting(candidates: Array<string | undefined>, look: Look 
 // cmd.exe's metacharacters, each escaped with ^ (the approach of cross-spawn, which npm tooling relies on).
 const META = /([()\][%!^"`<>&|;, *?])/g;
 
-/** A program's path for a line cmd.exe reads: every metacharacter ^-escaped, unquoted. */
 export function escapeCommand(path: string): string {
   return path.replace(META, "^$1");
 }
@@ -68,13 +64,11 @@ export function escapeArgument(arg: string, twice: boolean): string {
   return twice ? a.replace(META, "^$1") : a;
 }
 
-/** How to run `bin` with `args` here: directly, or for a Windows `.cmd`/`.bat` as one escaped line for the shell. */
 export function commandFor(bin: string, args: string[], platform: NodeJS.Platform = process.platform): { file: string; args: string[]; shell: boolean } {
   if (platform !== "win32" || !/\.(cmd|bat)$/i.test(bin)) return { file: bin, args, shell: false };
   return { file: [escapeCommand(bin), ...args.map((a) => escapeArgument(a, true))].join(" "), args: [], shell: true };
 }
 
-/** execFile, but a Windows `.cmd` runs through the shell (commandFor). Output as text. */
 export function execProgram(
   bin: string,
   args: string[],

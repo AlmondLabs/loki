@@ -37,14 +37,6 @@ import type { SeenStore } from "./seen.ts";
 import type { PushTo } from "./sockets.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * This Mac and the Macs paired with it (plan 023): pairing, one link to each, the syncers that keep agents, memory and
- * the person's state the same on all of them, where each chat lives and moving chats between them, and the paired
- * Macs' chats in every list here. The mod hands it its sockets and its local lists; it hands back what the listener,
- * the frames and the lists need. Every paired-Mac piece is wired here once, so mod/index.ts keeps only the desk.
- */
-
-/** The phone listener as pairing Macs uses it: the Macs come in on the same listener as the phones (mod/lan.ts). */
 export interface PeerListener {
   status(): LanStatus;
   refresh(): Promise<unknown>;
@@ -52,77 +44,43 @@ export interface PeerListener {
   closePeer(macId: string): number;
 }
 
-/** What the mod hands the paired Macs' wiring. */
 export interface PeeringDeps {
-  /** This Mac's install id, its name to other Macs. */
   macId: string;
-  /** This loki's build, told to a Mac pairing with it. */
   build: string | null;
-  /** The keychain, for the token this Mac presents to each paired Mac. */
   secrets: SecretBackend;
-  /** The daemon's memory repos and their queue (plan 046). */
   memory: MemoryRepos;
-  /** The chats here, for which this Mac holds. */
   chats: Pick<ChatSource, "list">;
-  /** The daemon's chats, for moves, agents removed elsewhere and label colours. */
   chat: Pick<ChatBackend, "moveCandidates" | "exportChat" | "importChat" | "finishMove" | "removeAgent" | "labelColors" | "applyLabelColors">;
-  /** The marks and focus, which travel between Macs. */
   seen: SeenStore;
-  /** The desk rows, so a chat that moved away loses its own. */
   desks: Pick<DeskRegistry, "forgetConversations">;
-  /** The mod's two listeners (mod/sockets.ts): pushes to the paired Macs and the desktop, and the phone listener. */
   sockets: { push(msg: object, opts?: { to?: PushTo; scope?: Scope }): void; phoneListener(): PeerListener | null };
-  /** Tailscale's view of the tailnet, shared with the phone listener. */
   tailscale: { devices(): TailnetDevice[] };
-  /** A push to every tab, phone and paired Mac, as the mod sends it. */
   broadcast: (msg: object, scope?: Scope) => void;
-  /** This Mac's own chats, as the chat list and the inbox show them. */
   local: { desks: () => DeskSummary[]; inbox: () => InboxRow[] };
   dirs: Pick<typeof paths, "peers" | "state" | "data" | "widgets" | "uploads">;
-  /** Move the open tasks into suggestions (plan 049, U7): again when a Mac comes into reach, as its chats move only then. */
   moveTasks: () => Promise<unknown>;
 }
 
-/** The paired Macs, as the rest of the mod uses them. */
 export interface Peering {
-  /** Pairing as the listener answers it over HTTP. */
   peers: Peers;
-  /** Each chat answered by the Mac it lives on (U5), for the frame bridge. */
   router: ChatRouter;
-  /** Preferences › Macs and the frames other Macs send, for the frame modules. */
   frames: NonNullable<PeersDeps["peers"]>;
-  /** Every chat in the chat list: this Mac's and each paired Mac's, sorted as one list (U4). */
   desks(): DeskSummary[];
-  /** Every inbox row, this Mac's and each paired Mac's, newest first. */
   inbox(): InboxRow[];
-  /** A push of `type` went out here: the paired Macs are told when it was some of the person's state (U8, plan 040). */
   pushed(type: string): void;
-  /** Why a chat may not be written to now (it is moving), or null. */
   chatBlocked(agentId: string, conversationId: string): string | null;
-  /** A Mac by its id, this one for null or its own id: its name, and whether it can be reached now. */
   mac(macId: string | null): { name: string; reachable: boolean };
-  /**
-   * Why an agent may not be deleted now, or null: a Mac out of reach holds its chats (KTD6), or a paired Mac holds
-   * accounts it owns (plan 067, KTD14), which are moved or disconnected on that Mac first.
-   */
   agentDeleteBlocked(agentId: string): string | null;
-  /** The name of the paired Mac that holds an account, as it last said, or null (plan 067, KTD14). */
   accountHeldBy(accountId: string): string | null;
-  /** Every paired Mac's accounts as each last said, marked with its Mac, for Flow's lanes (plan 087, KTD9). */
   accountsElsewhere(): MacAccountView[];
-  /** A picture not here, from whichever paired Mac in reach holds it (plan 029). */
   chatImage(name: string): Promise<Buffer | null>;
-  /** The listener is up: keep it up for the paired Macs, and open a link to each. */
   start(): void;
   stop(): void;
 }
 
-/** Pushes that change the person's state on a paired Mac; Learn's files travel only when they changed (plan 040). */
 const STATE_PUSHES = new Set(["seen", "seen_chat", "desks", "recall_changed"]);
-/** An edit to mcp.json or a mod by hand says nothing: every paired Mac's state is asked for again this often. */
 const STATE_POLL_MS = 5 * 60_000;
 
-/** Wire the paired Macs: built once, when the mod starts, before the listener they come in on. */
 export function startPeering(deps: PeeringDeps): Peering {
   const { macId, chats, chat: chatBackend, seen, sockets, dirs, broadcast } = deps;
   const phones = (): PeerListener => {
@@ -130,24 +88,20 @@ export function startPeering(deps: PeeringDeps): Peering {
     if (!lan) throw new Error("the phone listener is not up yet");
     return lan;
   };
-  /** loki's mods folder as it syncs between Macs (plan 023, U10). */
   const MOD_FILES = { list: listModFiles, safe: isModPath };
   const peerStore = new PeerStore(dirs.peers);
   const peerCodes = new PairingCodes();
   const thisMacName = macName();
-  /** This Mac's tailnet address for other Macs, or null when Tailscale is not running here. */
   const tailnetHost = (): string | null => {
     const s = sockets.phoneListener()?.status();
     return s?.tailscale?.running && s.tailscale.name ? `${s.tailscale.name}:${s.port}` : null;
   };
-  /** Until when a Mac pairing code may be redeemed: the listener stays up for it. */
   let peerCodeUntil = 0;
   let codeLapse: ReturnType<typeof setTimeout> | null = null;
   const peersNeeded = () => peerStore.size() > 0 || peerCodeUntil > Date.now();
   const peerKeys = new PeerKeys(deps.secrets);
   const peersView = () => {
     const paired = new Set(peerStore.list().map((p) => p.host.replace(/:\d+$/, "").toLowerCase()));
-    // Computers only: a phone or a tablet on the tailnet is not a Mac to pair with.
     const tailnet = deps.tailscale
       .devices()
       .filter((d) => /^(macos|linux|windows)$/i.test(d.os))
@@ -157,30 +111,24 @@ export function startPeering(deps: PeeringDeps): Peering {
   const desks = (): DeskSummary[] => sortDesks([...deps.local.desks(), ...remoteChats.desks()]);
   const inbox = (): InboxRow[] =>
     [...deps.local.inbox(), ...remoteChats.inbox()].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
-  // One link to each paired Mac (U2): opened when it pairs, closed when it is forgotten.
   const links: PeerLinks = new PeerLinks({
     token: (id) => peerKeys.get(id),
     defaults: { protocol: PEER_PROTOCOL },
     onStatus: (id, status) => {
       sockets.push({ type: "peers", ...peersView() }, { to: "desktop" });
       remoteChats.setReachable(id, status === "reachable");
-      // A Mac back in reach: take what changed there while the link was down.
       if (status === "reachable") void sync.reached(id);
     },
     onPush: (id, frame) => {
       remoteChats.heard(id, frame);
-      // A chat or desk that lives there: its clients here hear what it does (U5).
       const relay = router.relay(id, frame);
       if (relay) broadcast(frame, relay.scope);
       void sync.heard(id, frame);
     },
-    // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
   });
-  // What keeps this Mac current with the paired ones: each syncer, what wakes it, and the one it waits for.
   const sync: PeerSync = new PeerSync(
     [
-      // Agents first: their memory and chats follow them.
       {
         name: "agents",
         reached: (id) => peerAgents.pull(id),
@@ -188,7 +136,6 @@ export function startPeering(deps: PeeringDeps): Peering {
           agents_changed: async (id) => {
             const applied = await peerAgents.pull(id);
             await Promise.all(applied.created.map((a) => peerMemory.pull(id, a)));
-            // An agent whose home is now this Mac (set on its profile, on either Mac): its chats on that Mac come here.
             const homedHere = [...applied.created, ...applied.updated].some((a) => recordHome(readRecord(backendDir(), a), macId) === macId);
             if (homedHere) await chatMoves.takeOver(id, true);
           },
@@ -198,11 +145,8 @@ export function startPeering(deps: PeeringDeps): Peering {
         name: "memory",
         after: "agents",
         reached: (id) => peerMemory.pullAll(id),
-        // Pushes arrive from another Mac unparsed: what they name is checked here.
         pushes: { memory_changed: (id, f) => (typeof f.agent_id === "string" ? peerMemory.pull(id, f.agent_id) : undefined) },
       },
-      // Once after pairing, the chats there of agents that live here (U9).
-      // A move to this Mac left half-done is finished (or undone) before anything new moves (plan 096).
       {
         name: "moves",
         after: "memory",
@@ -211,27 +155,22 @@ export function startPeering(deps: PeeringDeps): Peering {
           await chatMoves.takeOver(id);
         },
       },
-      // Tasks whose chats live there, which could not move into suggestions while it was out of reach (plan 049, U7).
       { name: "tasks", after: "moves", reached: () => deps.moveTasks() },
       {
         name: "state",
         reached: (id) => peerState.pull(id),
-        // A Mac from before plan 040 names no folders, which asks for all of them.
         pushes: { state_changed: (id, f) => peerState.pull(id, stateFolders(f.folders)) },
       },
-      // Every Mac paired with every other (addendum D): join the Macs that one is paired with and this one is not.
       {
         name: "group",
         reached: (id) => peerGroup.meshWith(id),
         pushes: { group_changed: (id) => peerGroup.meshWith(id) },
       },
-      // The accounts each Mac holds (plan 067, KTD14): one account is connected on one Mac only.
       {
         name: "accounts",
         reached: (id) => peerAccounts.pull(id),
         pushes: { accounts_changed: (id) => peerAccounts.pull(id) },
       },
-      // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
       {
         name: "directory",
         pushes: {
@@ -245,17 +184,13 @@ export function startPeering(deps: PeeringDeps): Peering {
     ],
     (syncer, id, err) => log("peers:sync-failed", { syncer, mac: id, error: messageOf(err) }),
   );
-  // The paired Macs' own chats, for every list here (U4).
   const remoteChats: RemoteChats = new RemoteChats({
     link: (id) => links.get(id),
     name: (id) => peerStore.get(id)?.name ?? "another Mac",
     onChange: () => broadcast({ type: "lists_changed" }),
-    // A Mac's list is its word on which chats it holds (addendum B5).
     onListed: (id, scopes) => directory.heard(id, { kind: "holds", scopes }),
   });
-  // The paired Macs' accounts, kept through a Mac's time out of reach so its owners' deletion stays refused here.
   const peerAccounts = new PeerAccounts({ link: (id) => links.get(id), name: (id) => peerStore.get(id)?.name ?? "another Mac" });
-  // Where each chat lives (addendum B): this Mac's from its store, each paired Mac's from its own word.
   const directory: ChatDirectory = new ChatDirectory({
     here: macId,
     holds: (scope) => chats.list().some((c) => !c.hidden && scopeFor(c.conversationId, c.agentId) === scope),
@@ -269,7 +204,6 @@ export function startPeering(deps: PeeringDeps): Peering {
     },
     tell: (frame) => sockets.push(frame, { to: "macs" }),
   });
-  // Each chat answered by the Mac it lives on (U5): frames about another Mac's chats go there.
   const router: ChatRouter = new ChatRouter({
     here: macId,
     peer: (id) => (peerStore.get(id) ? { mac: id, reachable: links.reachable(id) } : null),
@@ -281,10 +215,8 @@ export function startPeering(deps: PeeringDeps): Peering {
     upload: (id, file) => peers.upload(id, file),
     relist: (id) => remoteChats.refresh(id),
   });
-  // A paired Mac stays awake on power while loki runs, so its chats can be reached from the other (U11, R14).
   const awake = new Awake();
   awake.set(peerStore.size() > 0);
-  // Moving chats between this Mac and the paired ones (U9, addendum A1): the takeover after pairing, and moves by hand.
   const chatMoves: ChatMoves = new ChatMoves({
     here: macId,
     chat: chatBackend,
@@ -300,11 +232,10 @@ export function startPeering(deps: PeeringDeps): Peering {
     },
     onLeft: (chat, to) => {
       directory.left(chat, to);
-      deps.desks.forgetConversations((id) => id === chat.conversation_id); // its desk row lives on the other Mac now
+      deps.desks.forgetConversations((id) => id === chat.conversation_id);
       broadcast({ type: "lists_changed" });
     },
   });
-  // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
     snapshot: (folders) => ({
       marks: seen.snapshot(),
@@ -320,7 +251,6 @@ export function startPeering(deps: PeeringDeps): Peering {
         pins: applyPinChanges(theirs.pins),
         labels: chatBackend.applyLabelColors(theirs.labels),
         learn: theirs.learn ? applyRecall(recallDir(), theirs.learn) : false,
-        // The daemon follows mcp.json and the mods folder itself: a change written here is picked up there.
         mcp: applyMcp(join(dirs.data, "mcp.json"), join(dirs.state, "mcp-sync.json"), theirs.mcp),
         mods: theirs.mods ? applyFiles(join(dirs.data, "mods"), MOD_FILES, theirs.mods) : false,
       };
@@ -337,7 +267,6 @@ export function startPeering(deps: PeeringDeps): Peering {
     for (const p of peerStore.list()) if (links.reachable(p.mac_id)) void peerState.pull(p.mac_id);
   }, STATE_POLL_MS);
   statePoll.unref();
-  // The same memory on every paired Mac (U7): told when a repo here moves, asking when one there does.
   const peerMemory: PeerMemory = new PeerMemory({
     backendDir,
     repos: deps.memory,
@@ -348,7 +277,6 @@ export function startPeering(deps: PeeringDeps): Peering {
     onCloned: () => broadcast({ type: "agents_changed" }),
   });
   peerMemory.start();
-  // The same agents on every paired Mac (U3): pulled from a Mac when its link opens or its agents change.
   const peerAgents: PeerAgents = new PeerAgents({
     backendDir,
     macId,
@@ -356,18 +284,16 @@ export function startPeering(deps: PeeringDeps): Peering {
     remove: (id) => chatBackend.removeAgent(id),
     onChanged: () => broadcast({ type: "agents_changed" }),
   });
-  // Every Mac paired with every other, by introductions through a Mac paired with both (addendum D).
   const peerGroup: PeerGroup = new PeerGroup({
     here: macId,
     paired: (id) => peerStore.get(id) !== null,
     forgotten: (id) => peerStore.isForgotten(id),
     link: (id) => links.get(id),
     join: async (host, invite) => {
-      await phones().refresh(); // the other Mac needs this one's tailnet address to reach it back
+      await phones().refresh();
       return peers.join(host, invite);
     },
   });
-  /** The Macs paired at the last change, so one forgotten since leaves the directory too. */
   let known = new Set(peerStore.list().map((p) => p.mac_id));
   const peers: Peers = new Peers({
     store: peerStore,
@@ -375,7 +301,6 @@ export function startPeering(deps: PeeringDeps): Peering {
     codes: peerCodes,
     me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build: deps.build, protocol: PEER_PROTOCOL }),
     onChange: () => {
-      // The Macs this one is paired with changed: they join any they lack (addendum D1).
       sockets.push({ type: "group_changed" }, { to: "macs" });
       awake.set(peerStore.size() > 0);
       links.sync(peerStore.list());
@@ -388,7 +313,7 @@ export function startPeering(deps: PeeringDeps): Peering {
     },
     onForget: (id) => {
       sockets.phoneListener()?.closePeer(id);
-      seen.forgetMac(id); // its focus no longer counts here
+      seen.forgetMac(id);
     },
   });
 
@@ -398,10 +323,8 @@ export function startPeering(deps: PeeringDeps): Peering {
     begin: async () => {
       const { code, expiresAt } = peerCodes.mint();
       peerCodeUntil = Date.parse(expiresAt);
-      // Bound and Tailscale asked before the address is shown: the other Mac types it.
       await phones().setPeersNeeded(true);
       await phones().refresh();
-      // Once the code has lapsed, the listener stays up only for the Macs already paired (or the phone switch).
       if (codeLapse) clearTimeout(codeLapse);
       codeLapse = setTimeout(() => void sockets.phoneListener()?.setPeersNeeded(peersNeeded()), PAIRING_TTL_MS + 1000);
       codeLapse.unref();
@@ -409,7 +332,6 @@ export function startPeering(deps: PeeringDeps): Peering {
       return { code, host: tailnetHost(), expires_at: expiresAt };
     },
     join: async (to, code) => {
-      // The other Mac needs this Mac's tailnet address to reach it back: ask Tailscale now rather than trust a minute-old answer.
       await phones().refresh();
       if (!tailnetHost()) throw new Error("Tailscale is not running on this Mac: open Tailscale and sign in, then pair again");
       return peers.join(to, code);
@@ -461,7 +383,7 @@ export function startPeering(deps: PeeringDeps): Peering {
       links.sync(peerStore.list());
     },
     stop: () => {
-      links.stop(); // the links to other Macs reopen with the mod
+      links.stop();
       remoteChats.stop();
       peerMemory.stop();
       peerState.stop();

@@ -10,57 +10,25 @@ import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillO
 import { messageOf } from "../core/errors.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
-/**
- * Where an agent's skills came from, and how to refresh the ones that came from elsewhere.
- *
- * An agent's memory holds two kinds of skill. *Self*: the agent (or the person, in the Agents tab) wrote it;
- * nobody else has a copy, nothing to pull. *Other*: it was installed from somewhere — a GitHub repo, a
- * checkout on this Mac linked into ~/.agents/skills, a source installed from the Agents page — and that somewhere may
- * have moved on. The distinction is read off the memory repo's own history: an install commit
- * (`Install skill: x`, `chore(skills): install x`, or our own `chore(skills): refresh x …`) marks a
- * skill as other; a skill with no such commit but a namesake in the global folder is other too;
- * everything else is self.
- *
- * Refresh, for an other skill: find the upstream (the lock file the `skills` CLI keeps, the checkout a
- * global symlink points into, or a source the user typed once, remembered in state/skill-sources.json),
- * fetch its latest, and compare with the memory copy. Nothing changed → say so. The agent never edited
- * its copy → replace it and commit. The agent did edit it → stage upstream beside the memory and hand
- * the agent a message asking it to reconcile: keep what it learned, take what upstream improved. That
- * last step is the agent's, on purpose: the copy is its memory.
- */
-
-/** Where SkillSources reads and writes; the folders left out default to the machine's own. */
 export interface SkillSourcesOptions {
-  /** The local backend (mod/agents.ts backendDir()). */
   backendDir?: string;
-  /** ~/.agents/skills (or the folder it links to). */
   globalDir?: string;
-  /** The `skills` CLI's lock: ~/.agents/.skill-lock.json. */
   lockFile?: string;
   /** state/skill-sources.json: sources the user typed, by "<agentId>/<name>" then "<name>". */
   sourcesFile: string;
-  /** state/upstream: where a fetched upstream is staged for the agent to read. */
   stagingDir: string;
-  /** The daemon's memory repo queue (Host.memory.serial), so a refresh never commits beside a memory write (plan 046). */
   serial: MemoryRepos["serial"];
-  /** Run git; tests inject. */
   exec?: (bin: string, args: string[], opts: { cwd?: string; timeoutMs: number }) => Promise<string>;
 }
 
-/** Commit subjects that mean "this copy came from outside" — loki's installer (mod/skills.ts), an older installer's (in older history) and our refresh. */
 export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) )/;
 
 const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");
 
-/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/os-words.ts). */
 export function machineWord(os: NodeJS.Platform = process.platform): string {
   return os === "darwin" ? "this Mac" : os === "win32" ? "this PC" : "this computer";
 }
 
-/**
- * An agent's memory skills told apart as self or other, and an other skill refreshed from its upstream, as described
- * above.
- */
 export class SkillSources {
   private readonly opts: SkillSourcesOptions;
   private readonly exec: NonNullable<SkillSourcesOptions["exec"]>;
@@ -69,19 +37,15 @@ export class SkillSources {
     this.exec = opts.exec ?? defaultExec;
   }
 
-  /** Every memory skill with its origin, whether the agent edited it, and its source when known. */
   async annotate(agentId: string, skills: MemorySkill[]): Promise<MemorySkillInfo[]> {
     let commits: MemoryCommit[] = [];
     try {
       commits = await memoryLog(agentId, { path: "skills", limit: 200 }, this.opts.backendDir);
-    } catch {
-      // no git: origin falls back to the global folder
-    }
+    } catch {}
     const global = this.opts.globalDir ?? globalSkillsDir();
     return skills.map((s) => {
       const own = commits.filter((c) => c.files.some((f) => f.startsWith(`skills/${s.name}/`)));
       const installed = own.some((c) => INSTALL_RE.test(c.message));
-      // No history to read (no git, or the folder was never committed): a namesake in the global folder is the only clue.
       const namesake = own.length === 0 && existsSync(join(global, s.name, "SKILL.md"));
       const origin: SkillOrigin = installed || namesake ? "other" : "self";
       const edited = own.length > 0 && !INSTALL_RE.test(own[0].message);
@@ -89,7 +53,6 @@ export class SkillSources {
     });
   }
 
-  /** The remembered source, else the global folder's link or the lock file. */
   sourceOf(agentId: string, name: string): SkillSource | null {
     const typed = this.readSources();
     const spec = typed[`${agentId}/${name}`] ?? typed[name];
@@ -105,22 +68,18 @@ export class SkillSources {
         const target = resolve(global, readlinkSync(entry));
         return localSource(target);
       }
-    } catch {
-      // not in the global folder
-    }
+    } catch {}
     const locked = readLock(this.opts.lockFile ?? DEFAULT_LOCK).find((e) => e.name === name);
     if (locked) return { kind: "github", url: locked.sourceUrl, path: dirname(locked.skillPath), ref: null, label: locked.source };
     return null;
   }
 
-  /** A global skill's provenance in a few words: the checkout its link points into, or the repo the lock file names; null when neither. */
   describeGlobal(g: { name: string; path: string; is_link: boolean }): string | null {
     if (g.is_link) return localSource(g.path).label;
     const locked = readLock(this.opts.lockFile ?? DEFAULT_LOCK).find((e) => e.name === g.name);
     return locked ? locked.source : null;
   }
 
-  /** Remember a source the user typed for this agent's skill; returns the parsed source or throws. */
   remember(agentId: string, name: string, spec: string): SkillSource {
     const parsed = parseSource(spec);
     if (!parsed) throw new Error(`a source is a GitHub URL, owner/repo/path, or a folder on ${machineWord()}`);
@@ -134,10 +93,6 @@ export class SkillSources {
     return parsed;
   }
 
-  /**
-   * Fetch upstream, compare, and either replace the untouched copy, stage upstream for the agent to
-   * reconcile, or report the copy current. `spec`, when given, is remembered first.
-   */
   async refresh(agentId: string, name: string, spec?: string): Promise<RefreshOutcome> {
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(name)) throw new Error("not a skill name");
     const memory = memoryRoot(agentId, this.opts.backendDir);
@@ -169,14 +124,12 @@ export class SkillSources {
     }
   }
 
-  /** The upstream skill folder, fresh: a pulled checkout, a folder as it is, or a shallow clone in `tmp`. */
   private async fetch(source: SkillSource, tmp: string): Promise<string> {
     let dir: string;
     if (source.kind === "checkout") {
       try {
         await this.exec("git", ["pull", "--ff-only", "--quiet"], { cwd: source.repo, timeoutMs: 30_000 });
       } catch (err) {
-        // A dirty or offline checkout still has a working tree worth comparing against.
         log("skills:pull-failed", { repo: source.repo, error: messageOf(err) });
       }
       dir = join(source.repo, source.rel);
@@ -193,10 +146,6 @@ export class SkillSources {
     return dir;
   }
 
-  /**
-   * Overwrite the memory copy and commit as the agent, the way an install does (mod/skills.ts), in the repo's queue so
-   * a merge from a paired Mac or a memory write never meets it halfway (plan 023, U7).
-   */
   private replace(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {
     return this.opts.serial(memory, () => this.replaceNow(agentId, memory, name, upstream, label));
   }
@@ -228,7 +177,6 @@ export class SkillSources {
       );
       return (await this.exec("git", ["rev-parse", "HEAD"], { cwd: memory, timeoutMs: 5_000 })).trim();
     } catch (err) {
-      // The hook refused, or git did: put the copy back as it was and say why.
       await this.exec("git", ["reset", "--quiet", "--", spec], { cwd: memory, timeoutMs: 10_000 }).catch(() => "");
       await this.exec("git", ["checkout", "--quiet", "--", spec], { cwd: memory, timeoutMs: 10_000 }).catch(() => "");
       await this.exec("git", ["clean", "-fdq", "--", spec], { cwd: memory, timeoutMs: 10_000 }).catch(() => "");
@@ -247,7 +195,6 @@ export class SkillSources {
   }
 }
 
-/** What the agent is asked when its edited copy and upstream differ. Exported so the wording is tested. */
 export function reconcilePrompt(name: string, label: string, upstreamPath: string, changed: string[]): string {
   const list = changed.length > 12 ? `${changed.slice(0, 12).join(", ")} and ${changed.length - 12} more` : changed.join(", ");
   return [
@@ -257,14 +204,9 @@ export function reconcilePrompt(name: string, label: string, upstreamPath: strin
   ].join("\n\n");
 }
 
-/**
- * A typed source: `https://github.com/o/r`, `https://github.com/o/r/tree/<ref>/<path>`, `o/r`, `o/r/<path>`,
- * or a folder on this Mac (`/…`, `~/…`, `./…`). Null when it is none of these.
- */
 export function parseSource(spec: string): SkillSource | null {
   const s = spec.trim();
   if (!s || /\s/.test(s)) return null;
-  // A folder: absolute for this system (`/…`, or `C:\…` on Windows), under the home (`~`), or relative (`.`).
   if (isAbsolute(s) || s.startsWith("~") || s.startsWith(".")) {
     const p = s.startsWith("~") ? join(homedir(), s.slice(1)) : resolve(s);
     return existsSync(p) ? localSource(p) : null;
@@ -284,7 +226,6 @@ export function parseSource(spec: string): SkillSource | null {
   return null;
 }
 
-/** A folder on this Mac: the git checkout it sits in (then refresh can pull), or the folder itself. */
 export function localSource(path: string): SkillSource {
   const repo = gitRoot(path);
   if (repo) return { kind: "checkout", repo, rel: relative(repo, path) || ".", label: `${basename(repo)} checkout` };
@@ -336,7 +277,6 @@ export function readLock(file: string): LockEntry[] {
   }
 }
 
-/** Files that differ between two skill folders (added, removed or changed), as paths relative to them. */
 export function compareTrees(a: string, b: string): string[] {
   const fa = listFiles(a);
   const fb = listFiles(b);

@@ -2,28 +2,14 @@ import { existsSync, readFileSync, readdirSync, rmSync, statSync, utimesSync } f
 import { join } from "node:path";
 import { writeFileAtomic, writeJsonAtomic } from "./json-file.ts";
 
-/**
- * Learn's files the same on every paired Mac (plan 023, U8, R19). Learn keeps one small JSON file per card, schedule,
- * lead and lesson (mod/recall.ts), so it syncs file by file: the later write wins, by the time each file was last
- * written. A card's review schedule is one of those files, so a review on each Mac made apart keeps the later one.
- * A file removed on one Mac is remembered (`.sync.json`) so the other removes it too rather than sending it back.
- */
-
-/** Learn's folders that sync; worker.json and anything else stay on each Mac. */
 const FOLDERS = ["cards", "schedule", "rejected", "leads", "leads-dismissed", "lessons"];
 const MANIFEST = ".sync.json";
 
-/** Which files of a folder sync (a path under it, forward slashes): how to list them and which paths may be written. */
 export interface SyncedFiles {
   list: (dir: string) => Record<string, number>;
   safe: (path: string) => boolean;
 }
 
-/**
- * One file as it travels: its content and when it was last written (ms). Text goes as it is; a file that is not UTF-8
- * text (an image or a wasm file in a mod) goes as base64, marked `encoding`, so it arrives byte for byte. A Mac on a
- * loki from before this sends no mark, and its files are read as text, as they always were.
- */
 export interface RecallFile {
   content: string;
   mtime: number;
@@ -33,7 +19,6 @@ export interface RecallFile {
 /** Strict UTF-8: a byte sequence that is not text fails here rather than being read with replacement characters. */
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
 
-/** A file's bytes as they travel: text when they are UTF-8, else base64. */
 function encodeFile(bytes: Buffer, mtime: number): RecallFile {
   try {
     return { content: UTF8.decode(bytes), mtime };
@@ -42,14 +27,12 @@ function encodeFile(bytes: Buffer, mtime: number): RecallFile {
   }
 }
 
-/** A Mac's Learn files for another, and the ones it removed (path → when, ms). */
 export interface RecallSnapshot {
   files: Record<string, RecallFile>;
   deleted: Record<string, number>;
 }
 
 interface Manifest {
-  /** Every file this Mac had at its last look, with its time: one missing now was removed. */
   known: Record<string, number>;
   deleted: Record<string, number>;
 }
@@ -67,10 +50,8 @@ function writeManifest(dir: string, m: Manifest): void {
   writeJsonAtomic(join(dir, MANIFEST), m);
 }
 
-/** The record without one key. */
 const without = <T>(o: Record<string, T>, key: string): Record<string, T> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
-/** Every Learn file here, by its path under the Learn folder (forward slashes). */
 function listRecall(dir: string): Record<string, number> {
   const out: Record<string, number> = {};
   for (const folder of FOLDERS) {
@@ -85,13 +66,11 @@ function listRecall(dir: string): Record<string, number> {
   return out;
 }
 
-/** Learn's files: its folders' JSON files. */
 const RECALL: SyncedFiles = {
   list: listRecall,
   safe: (path) => /^[a-z-]+\/[A-Za-z0-9._-]+\.json$/.test(path) && FOLDERS.includes(path.split("/")[0]),
 };
 
-/** Look again: a file known before and gone now was removed now; then the manifest says what is here. */
 function refresh(dir: string, which: SyncedFiles, now: number): { files: Record<string, number>; manifest: Manifest } {
   const files = which.list(dir);
   const manifest = readManifest(dir);
@@ -102,31 +81,25 @@ function refresh(dir: string, which: SyncedFiles, now: number): { files: Record<
   return { files, manifest };
 }
 
-/** This Mac's Learn files and removals, for a paired Mac. */
 export function recallSnapshot(dir: string, now = Date.now()): RecallSnapshot {
   return filesSnapshot(dir, RECALL, now);
 }
 
-/** Take a paired Mac's Learn files: every later write, every later removal. True when a file here changed. */
 export function applyRecall(dir: string, theirs: RecallSnapshot, now = Date.now()): boolean {
   return applyFiles(dir, RECALL, theirs, now);
 }
 
-/** A folder's synced files and removals, for a paired Mac (Learn's, loki's mods). */
 export function filesSnapshot(dir: string, which: SyncedFiles, now = Date.now()): RecallSnapshot {
   const { files, manifest } = refresh(dir, which, now);
   const out: Record<string, RecallFile> = {};
   for (const [path, mtime] of Object.entries(files)) {
     try {
       out[path] = encodeFile(readFileSync(join(dir, path)), mtime);
-    } catch {
-      // removed while reading: the next look says so
-    }
+    } catch {}
   }
   return { files: out, deleted: { ...manifest.deleted } };
 }
 
-/** Take a paired Mac's files of a folder: every later write, every later removal. True when a file here changed. */
 export function applyFiles(dir: string, which: SyncedFiles, theirs: RecallSnapshot, now = Date.now()): boolean {
   const { files, manifest } = refresh(dir, which, now);
   const { safe } = which;

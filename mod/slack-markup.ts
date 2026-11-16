@@ -2,21 +2,12 @@ import shortcodes from "emojibase-data/en/shortcodes/iamcal.json" with { type: "
 import type { EmojiChoice, SlackAttachment, SlackBlock, SlackFile, SlackSpan } from "../core/frame-types.ts";
 import type { SlackMessage } from "./slack.ts";
 
-/**
- * Slack's message markup read the way Slack draws it (plan 075): a message's text, or the layout blocks an app posted
- * instead, into blocks and spans the card draws, and what an app attached under it. Names, channels and the workspace's
- * own emoji are looked up through `SlackNames`, which the caller remembers across messages.
- */
-
-/** What reading a message needs to know about its workspace; each answers null when it cannot tell. */
 export interface SlackNames {
   person(user: string): Promise<string>;
   channel?(id: string): Promise<string | null>;
-  /** A custom emoji's image, or the standard emoji's name it stands for (`alias:<name>`); null when there is none. */
   emoji?(name: string): string | null;
 }
 
-/** Slack's names for the standard emoji (`white_check_mark`), each to the emoji itself. */
 const STANDARD = new Map<string, string>();
 for (const [hex, names] of Object.entries(shortcodes as Record<string, string | string[]>)) {
   const points = hex.split("-").map((h) => Number.parseInt(h, 16));
@@ -25,7 +16,6 @@ for (const [hex, names] of Object.entries(shortcodes as Record<string, string | 
   for (const name of typeof names === "string" ? [names] : names) STANDARD.set(name, char);
 }
 
-/** The emoji Slack's name stands for: a standard character, else the workspace's own image; null when neither. */
 function emojiSpan(name: string, tone: string | undefined, names: SlackNames, depth = 0): SlackSpan | null {
   const own = names.emoji?.(name) ?? null;
   if (own?.startsWith("alias:") && depth < 3) return emojiSpan(own.slice("alias:".length), tone, names, depth + 1);
@@ -36,17 +26,12 @@ function emojiSpan(name: string, tone: string | undefined, names: SlackNames, de
   return { kind: "emoji", text: tone ? char.replace("️", "") + String.fromCodePoint(0x1f3fb + Number(tone) - 2) : char };
 }
 
-/**
- * The emoji a reaction's name draws as (plan 079): Slack names a skin tone after `::` (`+1::skin-tone-2`); null when
- * the name is neither standard nor the workspace's own.
- */
 export function reactionEmoji(name: string, names: Pick<SlackNames, "emoji">): Extract<SlackSpan, { kind: "emoji" }> | null {
   const [base = "", tone] = name.split("::skin-tone-");
   const span = emojiSpan(base, tone, { person: () => Promise.resolve(""), ...names });
   return span?.kind === "emoji" ? span : null;
 }
 
-/** How well an emoji's name answers a search: a whole match, then its start, then a word's start in it, then anywhere. */
 function matchRank(name: string, query: string): number | null {
   if (name === query) return 0;
   if (name.startsWith(query)) return 1;
@@ -54,10 +39,6 @@ function matchRank(name: string, query: string): number | null {
   return name.includes(query) ? 3 : null;
 }
 
-/**
- * The emoji whose names hold `query` (plan 079), standard and the workspace's own (`own`, as emoji.list gives them),
- * the best `limit` matches first, shorter names before longer ones. Names Slack keeps as another's alias draw as it.
- */
 export function searchEmoji(query: string, own: Record<string, string>, limit = 24): EmojiChoice[] {
   const q = query.trim().toLowerCase().replace(/^:|:$/g, "");
   if (!q) return [];
@@ -120,7 +101,6 @@ async function inline(text: string, names: SlackNames, style: Style, out: SlackS
   plain(text.slice(at));
 }
 
-/** One `<…>` entity: a person, channel, group or @channel as a mention, a date by its fallback, else a link. */
 async function entitySpan(inner: string, names: SlackNames, style: Style): Promise<SlackSpan> {
   const bar = inner.indexOf("|");
   const target = bar < 0 ? inner : inner.slice(0, bar);
@@ -153,9 +133,7 @@ function labelStyle(label: string): { text: string; style: Style } {
   return { text, style };
 }
 
-/** Slack's markup as the card draws it: code blocks, `>` quotes and ordinary lines, each read for its spans. */
 export async function slackBlocks(text: string, names: SlackNames): Promise<SlackBlock[]> {
-  // Runs of ordinary or quoted lines are gathered first, then each run is read for its spans as one.
   const runs: Array<{ kind: SlackBlock["kind"]; raw: string }> = [];
   const lines = (chunk: string) => {
     for (const line of chunk.split("\n")) {
@@ -191,7 +169,6 @@ const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object"
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
-/** Text in Slack's layout blocks, as markup; plain text is escaped so its `*` and `_` stay as typed. */
 function blockText(t: unknown): string {
   const r = rec(t);
   const text = str(r.text);
@@ -228,7 +205,6 @@ function barColor(v: unknown): string | null {
   return /^#?[0-9a-f]{6}$/i.test(c) ? (c.startsWith("#") ? c : `#${c}`) : null;
 }
 
-/** What an app attached to a message (plan 075), each with what Slack draws of it; one with nothing to show is left out. */
 export async function slackAttachments(m: Pick<SlackMessage, "raw">, names: SlackNames): Promise<SlackAttachment[]> {
   const out: SlackAttachment[] = [];
   for (const a of list(m.raw.attachments).map(rec)) {
@@ -251,7 +227,6 @@ export async function slackAttachments(m: Pick<SlackMessage, "raw">, names: Slac
   return out;
 }
 
-/** Blocks as plain text, for a hand-off and the phone: links with their address, emoji as characters, lines kept. */
 export function blocksPlain(blocks: readonly SlackBlock[]): string {
   return blocks
     .map((b) => {
@@ -261,7 +236,6 @@ export function blocksPlain(blocks: readonly SlackBlock[]): string {
     .join("\n");
 }
 
-/** An attachment as plain text: its lead line, title, text and fields, a line each. */
 function attachmentPlain(a: SlackAttachment): string {
   const lines: string[] = [];
   if (a.pretext) lines.push(blocksPlain(a.pretext));
@@ -271,18 +245,12 @@ function attachmentPlain(a: SlackAttachment): string {
   return lines.join("\n");
 }
 
-/** Where a shared picture's thumbnail is (plan 080): Slack's address for it, and its size in pixels. */
 export interface SlackThumb {
   url: string;
   width: number;
   height: number;
 }
 
-/**
- * The files shared in a message (plan 080), read from its `files`: each by its title, kind, size and page in Slack,
- * and for a picture where its thumbnail is. A file deleted since, or hidden by the workspace's plan, is kept as just
- * that, so a message of only a file is not an empty row.
- */
 export function slackFileParts(m: Pick<SlackMessage, "raw">): Array<{ file: SlackFile; thumb: SlackThumb | null }> {
   const raw = m.raw.files;
   if (!Array.isArray(raw)) return [];
@@ -307,7 +275,6 @@ export function slackFileParts(m: Pick<SlackMessage, "raw">): Array<{ file: Slac
   return parts;
 }
 
-/** A picture's 360-pixel thumbnail, else its 160-pixel one, with its size; null when Slack made none. */
 function thumbOf(o: Record<string, unknown>): SlackThumb | null {
   for (const size of ["360", "160"]) {
     const url = o[`thumb_${size}`];
@@ -318,18 +285,15 @@ function thumbOf(o: Record<string, unknown>): SlackThumb | null {
   return null;
 }
 
-/** The files shared in a message (plan 080), without where their thumbnails are. */
 export function slackFiles(m: Pick<SlackMessage, "raw">): SlackFile[] {
   return slackFileParts(m).map((p) => p.file);
 }
 
-/** A shared file as a line of plain text, for the phone, a hand-off and a card's header. */
 export function filePlain(f: SlackFile): string {
   if (f.gone) return f.gone === "deleted" ? "file: deleted" : "file: hidden by the workspace's plan";
   return `file: ${f.name}`;
 }
 
-/** A message read whole: its blocks, what an app attached, the files shared in it, and all of it as plain text (plans 075, 080). */
 export async function readSlackMessage(
   m: Pick<SlackMessage, "text" | "raw">,
   names: SlackNames,

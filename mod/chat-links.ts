@@ -25,15 +25,6 @@ import { readJson, writeJsonAtomic } from "./json-file.ts";
 import type { ChatState } from "../core/frames.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 
-/**
- * Chat links and the messages they carry (plan 067). An agent messages another chat with `chat_message`; the first
- * message to a chat it has no link to shows the person a link card, and only an allow there opens a link, one way or
- * both ways, for an hour, a day or until closed. Each chat's Mac keeps the links its chats have and checks them before
- * it delivers a message, so a Mac that says a message is allowed is not taken at its word. A message lands in its chat
- * as a row of its own, never as the person's, and the turn it starts has no more power than the chat that sent it.
- */
-
-/** A chat as a pair of ids. */
 export interface ChatKey {
   agent_id: string;
   conversation_id: string;
@@ -41,16 +32,11 @@ export interface ChatKey {
 
 const keyOf = (c: ChatKey): ChatKey => ({ agent_id: c.agent_id, conversation_id: c.conversation_id });
 
-/** What the links file holds: every link of this Mac's chats, and the duration the card starts on. */
 interface LinksFile {
   links: ChatLink[];
   default_duration: LinkDuration;
 }
 
-/**
- * The links this Mac's chats have, in one file under the state folder: read whole, changed, written whole. Expired
- * links are dropped as the file is read. `now` exists for tests.
- */
 export class LinkStore {
   private readonly file: string;
   private readonly now: () => Date;
@@ -60,23 +46,19 @@ export class LinkStore {
     this.now = now;
   }
 
-  /** Every live link, oldest first. */
   list(): ChatLink[] {
     return this.read().links;
   }
 
-  /** The live links a chat has, at either end. */
   forChat(chat: ChatKey): ChatLink[] {
     return this.list().filter((l) => touches(l, chat));
   }
 
-  /** The live link that lets `from` message `to`, or null. */
   allowing(from: ChatKey, to: ChatKey): ChatLink | null {
     const now = this.now();
     return this.list().find((l) => allows(l, from, to, now)) ?? null;
   }
 
-  /** The duration the link card starts on. */
   defaultDuration(): LinkDuration {
     return this.read().default_duration;
   }
@@ -86,13 +68,11 @@ export class LinkStore {
     this.write({ ...f, default_duration: duration });
   }
 
-  /** Keep a link: a new one, or another Mac's copy of one, which replaces any link of the same id. */
   put(link: ChatLink): void {
     const f = this.read();
     this.write({ ...f, links: [...f.links.filter((l) => l.id !== link.id), link] });
   }
 
-  /** Close a link; the link it was, or null when there was none. */
   close(id: string): ChatLink | null {
     const f = this.read();
     const link = f.links.find((l) => l.id === id) ?? null;
@@ -100,7 +80,6 @@ export class LinkStore {
     return link;
   }
 
-  /** Count one more message a link carried into a chat. */
   sent(id: string, into: string): void {
     const f = this.read();
     const now = this.now();
@@ -120,17 +99,13 @@ export class LinkStore {
   }
 }
 
-/** A chat as the lists know it, for a link's card and checks. */
 export interface ListedChat {
   title: string | null;
   agent_name: string | null;
-  /** The Mac it lives on, by name, when that is not this Mac. */
   mac: string | null;
-  /** Open: not archived or deleted. */
   open: boolean;
 }
 
-/** The frames the links send to the Mac a chat lives on, routed by the chat they name. */
 export type LinkCall =
   | {
       type: "chat_message";
@@ -139,50 +114,34 @@ export type LinkCall =
       from: LinkEnd;
       text: string;
       send_id: string;
-      /** The power the sending chat has: the turn the message starts gets no more. */
       cap: LokiMode | null;
     }
   | { type: "chat_link_put"; agent_id: string; conversation_id: string; link: ChatLink }
   | { type: "chat_link_close"; agent_id: string; conversation_id: string; link_id: string };
 
-/** How a link frame ended: the reply of the Mac that answered it, or why it did not go. */
 export type LinkOutcome = { ok: true; reply: Record<string, unknown> } | { ok: false; message: string };
 
-/** What chat messages are built from. `now` and `newId` exist for tests. */
 export interface ChatMessagesOptions {
   links: LinkStore;
-  /** A chat as the lists know it, this Mac's or a paired Mac's; null when no list has it. */
   chat(ref: ChatKey): ListedChat | null;
-  /** Whether a chat lives on this Mac. */
   here(ref: ChatKey): Promise<boolean>;
-  /** Show the person the link card in the sending chat and wait for the answer, or the turn's stop. */
   ask(source: ChatKey, ask: LinkAsk, signal: AbortSignal): Promise<LinkAnswer>;
-  /** A link frame sent to the Mac its chat lives on (another Mac only: this Mac's are handled here). */
   forward(frame: LinkCall): Promise<LinkOutcome>;
-  /** The power a chat on this Mac has now, as loki's mode; null when it is not known. */
   power(ref: ChatKey): Promise<LokiMode | null>;
-  /**
-   * Send the message into a chat on this Mac, its turn held to `cap`: why the chat did not take it, or null when it
-   * did.
-   */
   deliver(ref: ChatKey, text: string, context: string, sendId: string, cap: LokiMode | null): Promise<string | null>;
-  /** Tell every client what happened in a chat on this Mac, as the daemon's chat events do. */
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
   track?(event: string, properties: Record<string, unknown>): void;
   now?(): Date;
   newId?(): string;
 }
 
-/** A message's text as the receiving chat's agent reads it, cut where it would crowd the chat. */
 const TEXT_MAX = 20_000;
 
-/** A chat's name as it is quoted inside a system reminder: no angle brackets or quotes, one line, not too long. */
 const quotable = (title: string | null) => {
   const plain = (title ?? "").replace(/[<>"]/g, "").replace(/\s+/g, " ").trim();
   return plain.length > 80 ? `${plain.slice(0, 79)}…` : plain || "another chat";
 };
 
-/** Chat messages: the tool's send, a paired Mac's or this Mac's delivery, and the link frames. */
 export class ChatMessages {
   private readonly opts: ChatMessagesOptions;
 
@@ -190,12 +149,10 @@ export class ChatMessages {
     this.opts = opts;
   }
 
-  /** The live links a chat has, for its screen. */
   linksOf(chat: ChatKey): ChatLink[] {
     return this.opts.links.forChat(chat);
   }
 
-  /** Every live link of this Mac's chats, and the card's default duration, for Preferences. */
   view(): { links: ChatLink[]; default_duration: LinkDuration } {
     return { links: this.opts.links.list(), default_duration: this.opts.links.defaultDuration() };
   }
@@ -205,10 +162,6 @@ export class ChatMessages {
     return this.view();
   }
 
-  /**
-   * An agent's message from `source` to `target` (the chat_message tool): sent at once along a live link, otherwise
-   * after the person allows a link on the card. What the agent is told back: sent, or why not.
-   */
   async send(source: ChatKey, target: ChatKey, text: string, signal: AbortSignal): Promise<{ ok: boolean; message: string }> {
     if (source.agent_id === target.agent_id && source.conversation_id === target.conversation_id) return { ok: false, message: "that is this chat" };
     if (!text.trim()) return { ok: false, message: "chat_message needs a text" };
@@ -246,10 +199,6 @@ export class ChatMessages {
     return { ok: true, message: `sent to "${quotable(to.title)}". ${back}` };
   }
 
-  /**
-   * A message arriving for a chat on this Mac, from this Mac or a paired one: delivered only along a live link this
-   * Mac holds, under the link's cap, in a turn held to the sending chat's power.
-   */
   async receive(p: Extract<LinkCall, { type: "chat_message" }>): Promise<LinkOutcome> {
     const target = keyOf(p);
     const link = this.opts.links.allowing(p.from, target);
@@ -277,21 +226,15 @@ export class ChatMessages {
     return { ok: true, reply: { accepted: true } };
   }
 
-  /** Another Mac's copy of a link one of this Mac's chats has. */
   put(link: ChatLink): void {
     this.opts.links.put(link);
     void this.pushLocal(link);
   }
 
-  /**
-   * Close a link from either chat's screen or Preferences: here, and on the other chat's Mac when that is another and
-   * this close did not come from it. True when there was a link to close.
-   */
   async close(id: string, fromPeer: boolean): Promise<boolean> {
     const link = this.opts.links.close(id);
     if (!link) return false;
     await this.pushLocal(link);
-    // The two ends are independent, so both are told at once.
     if (!fromPeer)
       await Promise.all(
         [link.from, link.to].map(async (end) => {
@@ -302,7 +245,6 @@ export class ChatMessages {
     return true;
   }
 
-  /** Open the link the person allowed, here and on the other chat's Mac; the link, or why it could not be opened. */
   private async open(ask: LinkAsk, answer: LinkAnswer): Promise<ChatLink | string> {
     const now = this.opts.now?.() ?? new Date();
     const link: ChatLink = {
@@ -326,7 +268,6 @@ export class ChatMessages {
     return link;
   }
 
-  /** Tell the clients of each of a link's chats on this Mac what links the chat has now. */
   private async pushLocal(link: ChatLink): Promise<void> {
     await Promise.all(
       [link.from, link.to].map(async (end) => {
@@ -336,7 +277,6 @@ export class ChatMessages {
   }
 }
 
-/** The other chat of each of a chat's links, as a line for the agent: its name and which way messages may go. */
 export function linkLines(links: ChatLink[], chat: ChatKey): string[] {
   return links.map((l) => {
     const other = otherEnd(l, chat);
@@ -346,11 +286,6 @@ export function linkLines(links: ChatLink[], chat: ChatKey): string[] {
   });
 }
 
-/**
- * The chat backend with each opened chat's links in the state it opens with, so a client that opens a chat late sees
- * its header as one that was listening does. Every other call goes to the backend as it is; with no links kept, the
- * backend itself.
- */
 export function withLinksOnOpen(backend: ChatBackend, messages: Pick<ChatMessages, "linksOf"> | undefined): ChatBackend {
   if (!messages) return backend;
   const open = async (agentId: string, conversationId: string, mode: string | null): Promise<ChatState> => {

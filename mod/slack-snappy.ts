@@ -1,9 +1,3 @@
-/**
- * Snappy decompression, for the blocks of the Slack desktop app's Local Storage (plan 067, U6). LevelDB compresses its
- * table blocks with Snappy; reading them needs only the decoder, which is small enough to keep here rather than add a
- * dependency. It follows Snappy's format description: a varint length, then literals and copies of earlier output.
- */
-
 function varint(buf: Buffer, at: number): { value: number; next: number } {
   let value = 0;
   let shift = 0;
@@ -19,7 +13,6 @@ function varint(buf: Buffer, at: number): { value: number; next: number } {
   throw new Error("snappy: bad length");
 }
 
-/** The bytes a Snappy-compressed buffer holds; throws on input that is cut short or points outside what it wrote. */
 export function snappyUncompress(input: Buffer): Buffer {
   const { value: length, next } = varint(input, 0);
   const out = Buffer.alloc(length);

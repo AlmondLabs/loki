@@ -5,24 +5,6 @@ import { messageOf } from "../core/errors.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 
-/**
- * Mail replies held before they go, so the person can take one back (plan 076): Gmail's undo send, on this Mac. A held
- * reply is kept in `state/outbox.json` until the moment it is sent, so a daemon that restarts sends it when it starts
- * again instead of losing it.
- *
- * A send that fails is kept, with its reason, and its card says "not sent" until the person sends it again or
- * discards it (plan 096); nothing is sent again by itself. Gmail has no way to make a send safe to repeat, so each
- * reply carries its own header (`X-Loki-Outbox`, mod/gmail.ts), and before any second try the thread is read for it:
- * found, the reply went, and it is not sent again. A reply loki stopped in the middle of sending is checked the same
- * way when it starts again.
- *
- * Agents can write files under `~/.loki`, and the outbox sends as the person: a script that sends mail does so on its
- * own (mod/google-tools/gmail.ts), never through here. So each held reply is written with a seal made
- * with a key from the keychain, which agents cannot read, and a restart sends only the replies whose seal holds: an
- * entry something else put in the file is passed over. Without a keychain nothing is sent after a restart.
- */
-
-/** A file a held reply carries, from the chat's folder: read again, and checked by its MD5, only when it goes. */
 export interface HeldFile {
   name: string;
   path: string;
@@ -30,17 +12,12 @@ export interface HeldFile {
   md5: string;
 }
 
-/** The agent's reply proposal a held reply sends (plan 2026-11-14-1134): where its outcome is reported. */
 export interface HeldProposal {
   agent_id: string;
   conversation_id: string;
   proposal_id: string;
 }
 
-/**
- * One held reply: everything its send needs, and when it goes (ISO). A Slack reply may name the thread it goes into,
- * and an agent's reply carries its files and the proposal it came from (plan 2026-11-14-1134).
- */
 export interface HeldReply {
   outbox_id: string;
   account_id: string;
@@ -52,101 +29,59 @@ export interface HeldReply {
   thread_ts?: string | null;
   files?: HeldFile[];
   proposal?: HeldProposal | null;
-  /**
-   * The people the reply mentions, as stored (plan 2026-11-14-1530, KTD3): the only ones its send writes as the
-   * service's own mentions, and on Gmail the addresses it adds to cc. Left out of a reply that mentions no one.
-   */
   mentions?: ReplyMention[];
 }
 
-/** What MailOutbox is built from; the clock and the timer are injected so tests own them. */
 export interface MailOutboxOptions {
   file: string;
-  /** The send itself, once the hold is over. */
   send: (held: HeldReply) => Promise<OutsideReplied>;
   holdMs?: number;
-  /**
-   * The key held replies are sealed with (`outboxKey`), or null without a keychain. Left out, replies are written
-   * unsealed and none is sent after a restart.
-   */
   key?: Promise<string | null>;
   now?: () => Date;
-  /** Run `fn` after `ms`; returns how to cancel it. A timer when not given. */
   after?: (fn: () => void, ms: number) => () => void;
-  /**
-   * Whether the reply is in its thread already, by its header: asked before it is sent a second time. Left out, a reply
-   * whose send was cut short is never sent again from loki.
-   */
   wentOut?: (held: HeldReply) => Promise<boolean | null>;
-  /** A reply stopped going (`note`, with why and when) or is settled after all (null): its card says so, or stops saying it. */
   onNotSent?: (held: HeldReply, note: { reason: string; at: string } | null) => void;
-  /**
-   * An agent's reply went (or a restart found it had gone before its proposal heard): told again after each restart
-   * until the proposal calls `acknowledge`, so a crash between the send and the proposal's save never loses the news.
-   */
   onSent?: (held: HeldReply) => void;
 }
 
-/**
- * How late a held reply may still go on its own after loki was closed when it was due. Past this it waits for the
- * person: a reply written for a thread as it was then should not arrive days later, after newer mail.
- */
 export const RESUME_MAX_MS = 10 * 60_000;
 
-/** How long a mail reply waits before it goes: one visible constant, long enough to notice a wrong Cc. */
 export const HOLD_MS = 10_000;
 
-/** One held reply in memory: how to cancel its timer, and how to tell whoever waits on it. */
 interface Waiting {
   held: HeldReply;
   cancel: () => void;
   settle: (r: OutsideReplied | Error) => void;
 }
 
-/** The held replies of this Mac. */
 export class MailOutbox {
   private readonly opts: MailOutboxOptions;
   private readonly waiting = new Map<string, Waiting>();
-  /** The replies a "send again" is trying now, so a second press does not send twice. */
   private readonly trying = new Set<string>();
 
   constructor(opts: MailOutboxOptions) {
     this.opts = opts;
   }
 
-  /**
-   * Hold a reply for its time, then send it: resolves as the send went, or as undone when `undo` stopped it first. A
-   * send that fails rejects with its reason. An id already held is refused, so one press never sends twice.
-   */
   hold(reply: Omit<HeldReply, "send_at">): Promise<OutsideReplied> {
     if (this.waiting.has(reply.outbox_id)) return Promise.reject(new Error("that reply is already on its way"));
     const held: HeldReply = { ...reply, send_at: new Date(this.now() + this.holdMs()).toISOString() };
     const waited = new Promise<OutsideReplied>((resolve, reject) => {
       this.wait(held, (r) => (r instanceof Error ? reject(r) : resolve(r)));
     });
-    // Undone while the key was read: there is nothing left to keep. Sent or failing meanwhile: its own write keeps it.
     void this.keep(held, {}, () => this.waiting.get(held.outbox_id)?.held === held);
     return waited;
   }
 
-  /**
-   * An agent's proposal has saved what became of its reply: the entry kept for it, sent or failed, leaves the file.
-   * Anything still waiting or being sent is left alone.
-   */
   acknowledge(outboxId: string): void {
     const held = this.read().find((h) => h.outbox_id === outboxId);
     if (held?.proposal && (held.state === "sent" || held.state === "failed")) this.remove(outboxId);
   }
 
-  /**
-   * Whether the outbox still has a reply by this id: waiting, being sent, or kept with an outcome its proposal has not
-   * acknowledged. An agent's proposal stored as sending with no entry here was cut short with no outcome saved.
-   */
   has(outboxId: string): boolean {
     return this.waiting.has(outboxId) || this.read().some((h) => h.outbox_id === outboxId);
   }
 
-  /** Stop a held reply before it goes; false when it already went, or was never held here. */
   undo(accountId: string, outboxId: string): boolean {
     const w = this.waiting.get(outboxId);
     if (w?.held.account_id !== accountId) return false;
@@ -158,11 +93,6 @@ export class MailOutbox {
     return true;
   }
 
-  /**
-   * The replies a daemon that stopped left in the file. One still held is sent when its time comes (at once when it
-   * has passed), unless it is past RESUME_MAX_MS; one cut short in the middle of its send is looked for in its thread;
-   * one that failed is shown again. Nobody waits on them now, so a failure is shown on the card.
-   */
   resume(): void {
     void this.key().then((key) => {
       for (const held of this.read()) {
@@ -195,11 +125,6 @@ export class MailOutbox {
     });
   }
 
-  /**
-   * The person's "send again" on a reply that did not go: looked for in its thread first, and sent only when it is not
-   * there, so it never goes twice. Rejects with why when it cannot be tried, and with the send's reason when it fails
-   * again (the card then still says "not sent").
-   */
   async resend(accountId: string, outboxId: string): Promise<OutsideReplied> {
     const key = await this.key();
     const held = this.read().find((h) => h.outbox_id === outboxId && h.account_id === accountId);
@@ -215,7 +140,6 @@ export class MailOutbox {
         if (found === null) throw new Error("its thread cannot be searched for it");
         went = found;
       } catch (err) {
-        // Not knowing whether it went is never a reason to send it: it stays as it was.
         this.mark(outboxId, { state: "failed" });
         throw new Error(`the thread could not be read to check it did not go already: ${messageOf(err)}`);
       }
@@ -238,7 +162,6 @@ export class MailOutbox {
     }
   }
 
-  /** The person's "discard" on a reply that did not go: it is forgotten, and its card stops saying "not sent". */
   discard(accountId: string, outboxId: string): boolean {
     const held = this.read().find((h) => h.outbox_id === outboxId && h.account_id === accountId);
     if (held?.state !== "failed" || this.trying.has(outboxId)) return false;
@@ -247,7 +170,6 @@ export class MailOutbox {
     return true;
   }
 
-  /** A reply cut short in the middle of its send: settled when it is in its thread, else kept as not sent. */
   private async checkCutShort(held: Stored): Promise<void> {
     const went = this.opts.wentOut ? await this.opts.wentOut(held).catch(() => null) : null;
     if (went === true) {
@@ -286,12 +208,9 @@ export class MailOutbox {
     const w = this.waiting.get(outboxId);
     if (!w) return;
     this.waiting.delete(outboxId);
-    // Kept, marked as being sent: a crash now leaves it to be looked for in its thread at the next start, never sent
-    // again blindly and never lost.
     await this.keep(w.held, { state: "sending" });
     try {
       const r = await this.opts.send(w.held);
-      // An agent's reply stays, marked sent, until its proposal has saved that; the person's own leaves at once.
       if (w.held.proposal) {
         this.mark(outboxId, { state: "sent" });
         this.opts.onSent?.(w.held);
@@ -304,7 +223,6 @@ export class MailOutbox {
     }
   }
 
-  /** The reply did not go: kept with why, and its card told. */
   private fail(held: HeldReply, reason: string): void {
     const at = new Date(this.now()).toISOString();
     void this.keep(held, { state: "failed", reason, failed_at: at });
@@ -312,11 +230,6 @@ export class MailOutbox {
     this.opts.onNotSent?.(held, { reason, at });
   }
 
-  /**
-   * Write a held reply with `change`, sealed when there is a key: added when the file does not have it yet (the key
-   * is still being read when the hold is short, or the keychain is slow to answer), else changed in place. `still`
-   * says whether it is still wanted once the key is in hand.
-   */
   private async keep(held: HeldReply, change: Partial<Pick<Stored, "state" | "reason" | "failed_at">>, still: () => boolean = () => true): Promise<void> {
     const key = await this.key();
     if (!still()) return;
@@ -327,7 +240,6 @@ export class MailOutbox {
     this.write(at >= 0 ? list.map((h, i) => (i === at ? next : h)) : [...list, next]);
   }
 
-  /** The reply went, or the person let it go: out of the file, and its card no longer says "not sent". */
   private settled(held: HeldReply): void {
     this.remove(held.outbox_id);
     this.opts.onNotSent?.(held, null);
@@ -372,14 +284,12 @@ type Stored = HeldReply & { seal?: unknown; state?: "sending" | "sent" | "failed
  */
 function sealOf(key: string, h: HeldReply): string {
   const base: unknown[] = [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
-  // Mentions came later still (plan 2026-11-14-1530, KTD10's rule): sealed after the rest, only when a reply has them.
   const mentioned = h.mentions !== undefined;
   const more = h.thread_ts != null || h.files !== undefined || h.proposal != null || mentioned;
   const fields = more ? [...base, h.thread_ts ?? null, h.files ?? null, h.proposal ?? null, ...(mentioned ? [h.mentions] : [])] : base;
   return createHmac("sha256", key).update(JSON.stringify(fields)).digest("hex");
 }
 
-/** Whether a reply read from the file carries the seal this daemon would have made for it. */
 function sealed(key: string, h: Stored): boolean {
   if (typeof h.seal !== "string") return false;
   const want = Buffer.from(sealOf(key, h), "hex");
@@ -387,13 +297,8 @@ function sealed(key: string, h: Stored): boolean {
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
-/** The keychain entry the outbox's key is kept under. */
 const KEY_ACCOUNT = "outbox-key";
 
-/**
- * The key held replies are sealed with, made on first use and kept in the keychain; null when the keychain cannot be
- * read or written, and then no reply is sent after a restart.
- */
 export async function outboxKey(secrets: {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
@@ -410,7 +315,6 @@ export async function outboxKey(secrets: {
   }
 }
 
-/** Whether a value read from the file is a held reply; anything else in it is passed over. */
 function isHeld(v: unknown): v is Stored {
   if (typeof v !== "object" || v === null) return false;
   const h = v as Record<string, unknown>;

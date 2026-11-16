@@ -11,41 +11,23 @@ import type { SlackSessions } from "../slack-session.ts";
 import { SlackClient } from "../slack.ts";
 import { errorMessage, fail, reply, type FrameHandlers } from "./context.ts";
 
-/**
- * What connecting an account takes (plan 067, U5): whether an owner exists, Google's sign-in, and the Slack desktop
- * app's sessions. A Jira site needs nothing kept here: it is asked with what the person typed.
- */
 export interface AccountConnectDeps {
   agentExists: (agentId: string) => boolean;
   googleSignIn: Pick<GoogleSignIn, "start">;
   slackSessions: Pick<SlackSessions, "available" | "workspaces" | "get">;
-  /** The fetch Slack's auth.test goes through; default fetch. */
   slackFetch?: typeof fetch;
-  /** The fetch a Jira site is asked through while connecting; default fetch. */
   jiraFetch?: typeof fetch;
 }
 
-/** The moves on a card's thread written back to its account (mod/account-threads.ts; plan 070, U3). */
 export type ThreadWrites = Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "addLabels" | "restore" | "labels">;
 
-/**
- * What the account frames need from their host: this Mac's accounts (mod/accounts.ts), their threads
- * (mod/account-threads.ts) and the ways to connect one; without them every frame fails.
- */
 export interface AccountsDeps {
   accounts?: Pick<Accounts, "list" | "get" | "add" | "setSecret" | "setStatus" | "moveOwner" | "disconnect">;
   threads?: ThreadWrites;
-  /** Handing a card's thread to its owner's chat (mod/handoff.ts). */
   handoff?: Pick<Handoff, "propose" | "handOff">;
-  /**
-   * Reading a card's whole thread and sending the person's reply in it (mod/outside-threads.ts, plan 068), and what a
-   * mail card's recipients line starts from, with the undo of a held mail reply (plan 076).
-   */
   outside?: Pick<OutsideThreads, "read" | "reply" | "compose" | "unsend" | "resend" | "discardUnsent" | "react" | "searchEmoji" | "searchPeople">;
-  /** The ledger of the person's moves on outside cards (mod/inbox-ledger.ts, plan 069). */
   ledger?: Pick<InboxLedger, "record">;
   connect?: AccountConnectDeps;
-  /** The paired Macs' accounts as each last said (PeerAccounts.everywhere), for picking them in a lane (plan 087, KTD9). */
   otherMacs?: () => MacAccountView[];
 }
 
@@ -55,10 +37,6 @@ const NO_THREADS = "Flow accounts are not available in this mod";
 /** Where every Jira Cloud site's API lives: a name under atlassian.net, with no port of its own. */
 const JIRA_CLOUD_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.atlassian\.net$/;
 
-/**
- * The host in a site address as a person gives it: a bare host, a whole URL or a link to a page of the site, in any
- * case; null when there is none. A Jira account is named by its host (KTD4), so every spelling must come to one.
- */
 function hostOf(address: string): string | null {
   const typed = address.trim();
   if (!typed) return null;
@@ -69,22 +47,12 @@ function hostOf(address: string): string | null {
   }
 }
 
-/**
- * Preferences › Accounts on the mod's socket (plan 067, U2, U5): the accounts here and their owners, connecting
- * a Gmail account (a sign-in), a Slack workspace (the desktop app's session) or a Jira site (an API token), moving one
- * to another agent, and disconnecting one, with the paired Macs' accounts beside them for Flow's lanes (plan 087, KTD9);
- * and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
- * now stands, without secrets or the watcher's cursor; the host tells every client when it changed. Archiving an
- * outside card (U3) writes back to its account here, on the Mac the account lives on, and answers with the reason when
- * that failed, so the card comes back. Handing a card off (U8) is proposed and carried out on that Mac too.
- */
 export function accountFrames(deps: AccountsDeps): FrameHandlers {
   const need = () => {
     if (!deps.accounts) throw new Error(NO_THREADS);
     return deps.accounts;
   };
   const listed = () => reply({ accounts: need().list().map(accountView) });
-  /** One write-back on a card's thread, answered with what it changed, or with why it could not be made. */
   const changed = async (accountId: string, threadId: string, write: (threads: ThreadWrites) => Promise<OutsideChange | null>) => {
     if (!deps.threads) return fail(NO_THREADS);
     try {
@@ -94,13 +62,11 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
     }
   };
   return {
-    // Only the list carries the other Macs' accounts: a paired Mac asking wants what this Mac holds.
     account_list: () => reply({ accounts: need().list().map(accountView), other_macs: deps.otherMacs?.() ?? [] }),
     peer_accounts_get: listed,
     account_connect_gmail: ({ owner_agent_id: ownerAgentId, own_app: ownApp, account_id: accountId }) => {
       if (!deps.connect) return fail("connecting Gmail is not available in this mod");
       if (!deps.connect.agentExists(ownerAgentId)) return fail(NO_OWNER);
-      // Signing an account in again is for one connected on this Mac; the sign-in checks it comes back as that one.
       if (accountId && need().get(accountId)?.provider !== "gmail") return fail("that Google account is not connected on this Mac");
       try {
         return reply({
@@ -122,7 +88,6 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       if (!available.supported) return fail(available.reason);
       try {
         if (!teamId) return reply({ workspaces: await connect.slackSessions.workspaces(), account: null });
-        // Slack says who the session is, so the account is the workspace and person the session calls as.
         const client = new SlackClient({
           session: (fresh) => connect.slackSessions.get(teamId, fresh),
           setStatus: () => {},
@@ -132,7 +97,6 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         const accounts = need();
         const accountId = accountIdOf({ provider: "slack", team_id: me.team_id, user_id: me.user_id });
         const existing = accounts.get(accountId);
-        // A workspace here that signed out (R22) is connected again, keeping its owner and its records.
         const account =
           existing && existing.status !== "connected"
             ? accounts.setStatus(accountId, "connected")
@@ -152,8 +116,6 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         new JiraClient({ secret: () => Promise.resolve(secret), setStatus: () => {}, ...(connect.jiraFetch ? { fetch: connect.jiraFetch } : {}) });
       try {
         const accounts = need();
-        // The address typed is not yet known to be the person's site, so it is asked only where the site lives, by a
-        // client that holds no token. The host Jira names is the account's (KTD4), and the only one the token goes to.
         const info = await asking({ site: typed, email: "", token: "" })
           .serverInfo()
           .catch(() => null);
@@ -161,7 +123,6 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         // Jira Cloud's API lives under atlassian.net even for a site with its own domain, so an answer naming any other
         // host is not a Cloud site, and the token must not go there.
         if (!info || !host || !JIRA_CLOUD_HOST.test(host)) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
-        // A custom domain is where people browse the site, so a card's link opens there (R14); the token never goes to it.
         const linkHost = hostOf(info.display_url);
         const secret: JiraSecret = { site: host, email, token, ...(linkHost && linkHost !== host ? { link_host: linkHost } : {}) };
         const me = await asking(secret).myself();
@@ -169,8 +130,6 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         if (reconnecting && reconnecting !== accountId)
           return fail("that site and API token belong to another Jira account than the one being reconnected: nothing was changed");
         const existing = accounts.get(accountId);
-        // A site here whose token Jira rejected (R3) takes the new one and is connected again, keeping its owner and
-        // where its watcher stands.
         if (existing && existing.status !== "connected") {
           await accounts.setSecret(accountId, JSON.stringify(secret));
           accounts.setStatus(accountId, "connected");

@@ -3,27 +3,12 @@ import { envVar, execProgram, firstExisting, onPath, type Look } from "./program
 import type { TailscaleStatus, TailnetDevice } from "../core/frame-types.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * Tailscale, detected and read, never installed (plan Addendum 3). The phone listener asks this for
- * the tailnet's view of the Mac: is the daemon running, what MagicDNS name and 100.x address does it
- * have, and is `tailscale serve` fronting the listener with https. Everything comes from the CLI
- * (`tailscale status --json`, `tailscale serve status --json`), is cached for a few seconds, and never
- * throws: a missing binary, a stopped daemon or a CLI error all land in the returned status. Funnel
- * (public exposure) is never touched.
- */
-
-/** Runs the Tailscale CLI and resolves to its stdout; rejects with what the CLI said when it fails. */
 export type TailscaleExec = (bin: string, args: string[], timeoutMs?: number) => Promise<string>;
 
-/** What a Tailscale reader is built with: the listener's port, and the CLI, runner and cache time tests replace. */
 export interface TailscaleOptions {
-  /** The CLI path. undefined → findTailscale(); null → treat as not installed (tests). */
   bin?: string | null;
-  /** The listener's port: what `serve` proxies to and what serve_url must match. */
   port: number;
-  /** Run the CLI; default execFile. Tests inject recorded output. */
   exec?: TailscaleExec;
-  /** How long a status is trusted (default 10 s). */
   ttlMs?: number;
 }
 
@@ -31,7 +16,6 @@ const STATUS_TIMEOUT = 3000;
 const SERVE_TIMEOUT = 15_000;
 const MAX_ERROR = 400;
 
-/** First existing of LOKI_TAILSCALE_BIN, the app bundle's CLI, Homebrew, /usr/local, then PATH. */
 export function findTailscale(look: Look = {}): string | null {
   return firstExisting(
     [
@@ -45,10 +29,6 @@ export function findTailscale(look: Look = {}): string | null {
   );
 }
 
-/**
- * `tailscale status --json` → the other devices on the tailnet (its `Peer` map), each with its name, MagicDNS name,
- * system and whether it is online: what Preferences › Macs offers to pair with (plan 023).
- */
 export function parseDevices(json: string): TailnetDevice[] {
   let parsed: unknown;
   try {
@@ -151,10 +131,6 @@ const defaultExec: TailscaleExec = (bin, args, timeoutMs = STATUS_TIMEOUT) =>
     });
   });
 
-/**
- * The tailnet reader, for one listener's port: statuses are cached for the ttl, and calls made while
- * the CLI is still answering share its answer.
- */
 export class Tailscale {
   private readonly port: number;
   private readonly exec: TailscaleExec;
@@ -164,7 +140,6 @@ export class Tailscale {
   private last: TailscaleStatus | null = null;
   private lastAt = 0;
   private inflight: Promise<TailscaleStatus> | null = null;
-  /** The other devices on the tailnet at the last read (plan 023). */
   private lastDevices: TailnetDevice[] = [];
 
   constructor(opts: TailscaleOptions) {
@@ -175,12 +150,10 @@ export class Tailscale {
     this.bin = opts.bin === undefined ? findTailscale() : opts.bin;
   }
 
-  /** The last status without asking the CLI; before the first status() an "unknown" with `installed` filled in. */
   cached(): TailscaleStatus {
     return this.last ?? { installed: this.bin !== null, running: false, ip: null, name: null, serve_url: null, error: null };
   }
 
-  /** Ask the CLI (or the cache, inside ttlMs). Never rejects. */
   status(): Promise<TailscaleStatus> {
     if (this.last && Date.now() - this.lastAt < this.ttlMs) return Promise.resolve(this.last);
     if (this.inflight) return this.inflight;
@@ -193,12 +166,10 @@ export class Tailscale {
     return this.inflight;
   }
 
-  /** The other devices on the tailnet as the last status() saw them; empty off the tailnet. */
   devices(): TailnetDevice[] {
     return this.last?.running ? this.lastDevices : [];
   }
 
-  /** Forget the cache: the next status() asks again. */
   invalidate(): void {
     this.last = null;
     this.lastAt = 0;
@@ -226,7 +197,7 @@ export class Tailscale {
   }
 
   private async read(): Promise<TailscaleStatus> {
-    if (!this.bin && this.givenBin === undefined) this.bin = findTailscale(); // installed since we last looked
+    if (!this.bin && this.givenBin === undefined) this.bin = findTailscale();
     const bin = this.bin;
     if (!bin) return { installed: false, running: false, ip: null, name: null, serve_url: null, error: null };
     let running = false;

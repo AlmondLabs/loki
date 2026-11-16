@@ -4,31 +4,15 @@ import { dirname, join } from "node:path";
 import { EVENT_NAME_RE, EVENT_NAME_MAX, SESSION_GAP_MS, makeEvent, type DeviceType, type EventProperties } from "../core/analytics.ts";
 import { rotateIfLarge } from "./log.ts";
 
-/**
- * The analytics writer (core/analytics.ts has the shape): capture() appends one event to
- * ~/.loki/logs/events.jsonl with the system properties filled in — the device, a session cut on a
- * 30-minute gap per device, the app version, and one distinct_id minted per install and kept in
- * state/analytics.json. Past EVENTS_MAX_BYTES the file becomes events.jsonl.1 and a fresh one starts,
- * about two years at a few hundred events a day. Never throws; a null path (LOKI_ANALYTICS=0) captures nothing.
- */
-
-/** The size, in bytes, past which events.jsonl is rotated to events.jsonl.1. */
 export const EVENTS_MAX_BYTES = 20 * 1024 * 1024;
-/** How many captures pass between checks of the file's size, so a capture is not a stat each time. */
 export const EVENTS_CHECK_EVERY = 100;
 
-/** The analytics writer one install keeps: where it writes, the install's distinct_id, and capture(). */
 export interface Analytics {
   path: string | null;
   distinctId: string;
-  /** Append one event; false when refused (no path, or an event name that is not snake_case). */
   capture(device: DeviceType, event: string, properties?: Record<string, unknown>): boolean;
 }
 
-/**
- * The analytics writer over the given events file and state file, minting the distinct_id if there is none. The
- * options past `appVersion` exist for tests: rotation size, check interval, session gap and clock.
- */
 export function createAnalytics(opts: {
   path: string | null;
   statePath: string;
@@ -59,7 +43,6 @@ export function createAnalytics(opts: {
         if (!session || t - session.last > gap) session = { id: randomUUID(), last: t };
         session.last = t;
         sessions.set(device, session);
-        // A client may bring its own properties ($screen among them); the system's win where they overlap.
         const props: EventProperties = { ...properties, $device_type: device, $session_id: session.id, $app_version: opts.appVersion ?? null, $lib: "loki" };
         if (!ready) {
           mkdirSync(dirname(path), { recursive: true });
@@ -72,31 +55,25 @@ export function createAnalytics(opts: {
         appendFileSync(path, `${JSON.stringify(makeEvent(event, distinctId, props, at))}\n`);
         return true;
       } catch {
-        return false; // analytics must never affect the desk
+        return false;
       }
     },
   };
 }
 
-/** The install's id from state/analytics.json, minted on first use. A file that cannot be written leaves an id for this run only. */
 function readOrMintId(statePath: string): string {
   try {
     const v = JSON.parse(readFileSync(statePath, "utf8")) as { distinct_id?: unknown };
     if (typeof v.distinct_id === "string" && v.distinct_id) return v.distinct_id;
-  } catch {
-    // no file yet
-  }
+  } catch {}
   const id = randomUUID();
   try {
     mkdirSync(dirname(statePath), { recursive: true });
     writeFileSync(statePath, `${JSON.stringify({ distinct_id: id })}\n`);
-  } catch {
-    // keep the id for this run
-  }
+  } catch {}
   return id;
 }
 
-/** loki's version: stamped into the bundle by scripts/build-mod.ts, or read from a checkout's package.json. */
 export function appVersion(root: string): string | null {
   if (process.env.LOKI_VERSION) return process.env.LOKI_VERSION;
   try {

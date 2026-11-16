@@ -9,47 +9,20 @@ import { uploadRoute } from "./uploads.ts";
 import { messageOf } from "../core/errors.ts";
 import { GOOGLE_OAUTH_CALLBACK } from "./google-signin.ts";
 
-/**
- * Transport only. HTTP serves /health, /uploads (files attached to messages), the agents' faces, the WebSocket upgrade,
- * and the routes a caller adds (the MCP sign-in's callback); the canvas itself is the loki app (or, in development, a
- * Vite tab proxying /loki/* here).
- */
-
-/**
- * The loopback desk server once listening: the port it bound (which differs from the one asked for when that was 0),
- * and how to close it.
- */
 export interface LokiServer {
   server: Server;
   port: number;
   close(): Promise<void>;
 }
 
-/**
- * Who may upgrade to /ws, or fetch an agent's face. The loopback server
- * checks the desktop token (tokenAuth): from the subprotocol header on /ws (core/ws-auth.ts), from `?t=` on what an
- * <img> fetches, compared in constant time; the LAN listener (mod/lan.ts)
- * looks a device cookie or bearer up and names the device, so its sockets can be
- * closed when the device is forgotten, or a paired Mac's bearer token and names the Mac (mod/peers.ts).
- */
 export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string; peerId?: string; refusal?: Refusal };
 
-/**
- * How a refused socket is answered: 401 when no one here knows its token, 403 when it came the wrong way (the Wi‑Fi
- * for a Mac, a page on another site). Another Mac's link reads only 401 as "this Mac forgot me", so a path problem
- * never unpairs the two. Browsers never see an upgrade's status, so phones and tabs are told nothing new.
- */
 export type Refusal = 401 | 403;
 
-/**
- * The loopback server's Authorize: the desktop token, from the WebSocket subprotocol header or else `?t=`, compared in
- * constant time. With no token every request is refused.
- */
 export const tokenAuth =
   (token: string | undefined): Authorize =>
   (req, url) => ({ ok: !!token && sameSecret(tokenFromProtocols(req.headers["sec-websocket-protocol"]) ?? url.searchParams.get("t"), token) });
 
-/** Whether `given` is `secret`, in time that does not depend on where they first differ. */
 export function sameSecret(given: string | null | undefined, secret: string): boolean {
   if (typeof given !== "string") return false;
   const a = Buffer.from(given);
@@ -57,13 +30,8 @@ export function sameSecret(given: string | null | undefined, secret: string): bo
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** A route of the mod's own beyond the server's: true when it took the request. */
 export type Route = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
 
-/**
- * Starts the loopback desk server on 127.0.0.1: /health, agent faces, uploads when given a folder, then the extra
- * routes in order; anything else is 404. Retries a port still held by the previous server on /reload.
- */
 export async function startServer(opts: {
   port: number;
   health?: () => object;
@@ -72,7 +40,6 @@ export async function startServer(opts: {
   authorize?: Authorize;
   uploads?: string;
   routes?: Route[];
-  /** Ends a Gmail sign-in (GoogleSignIn.finish): the browser back from Google at GOOGLE_OAUTH_CALLBACK, on this loopback server only. */
   googleSignIn?: (params: Record<string, string>) => Promise<{ ok: boolean; message: string }>;
 }): Promise<LokiServer> {
   const authorize = opts.authorize ?? tokenAuth(opts.token);
@@ -99,11 +66,6 @@ export async function startServer(opts: {
   return { server, port, close: () => closeServer(server) };
 }
 
-/**
- * The agent's face: GET /agents/<id>/profile.png, read from its memory filesystem, never cached long.
- * Returns false when the URL is not this route. `denied` is the status for a failed authorize
- * (403 on loopback, where the token is the only credential; 401 on the LAN, where the page can pair).
- */
 export function profileRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -160,41 +122,25 @@ export async function listenWithRetry(server: Server, port: number, tries = 4, h
   }
 }
 
-/**
- * One open /ws socket as a frame handler sees it: the desk it shows, the paired phone behind it if any, and how to send
- * to it.
- */
 export interface Client {
   scope: Scope;
-  /** The paired phone behind this socket (LAN listener only); undefined on loopback. */
   deviceId?: string;
-  /** The paired Mac behind this socket (LAN listener only, over the tailnet); undefined on loopback and for phones. */
   peerId?: string;
   send(msg: object): void;
 }
 
-/** What a listener calls for each socket: once when it opens, and for each JSON object it sends. */
 export interface WsHandlers {
   onConnect(client: Client): void;
   onMessage(client: Client, msg: Record<string, unknown>): void;
 }
 
-/**
- * Who a push on one listener is for: every socket, or only the paired Macs' (plan 023), whose frames about the
- * person's state, memory and group a phone or a tab never reads.
- */
 export type Audience = "all" | "macs";
 
-/** The open /ws sockets of one listener, to broadcast to, count, and close. */
 export interface WsBridge {
-  /** Send to every socket, or only those showing `scope`; `macs` sends only to paired Macs. */
   broadcast(msg: object, scope?: Scope, to?: Audience): void;
   clientCount(): number;
-  /** Terminate every socket a device holds. Returns how many. */
   closeDevice(deviceId: string): number;
-  /** Terminate every socket a paired Mac holds. Returns how many. */
   closePeer(peerId: string): number;
-  /** Terminate every socket a phone holds. Returns how many. */
   closeDevices(): number;
   close(): void;
 }
@@ -204,7 +150,6 @@ export interface WsBridge {
  * library's own limit is 100 MB, and one frame that size from a paired device would hold the daemon in JSON.parse.
  */
 export const MAX_FRAME_BYTES = 32 * 1024 * 1024;
-/** How often each socket is pinged. One that has not answered the ping before is ended: its device is gone. */
 export const HEARTBEAT_MS = 30_000;
 /**
  * The most that may wait unsent on one socket. A phone that left the Wi-Fi stays "open" until TCP gives up, minutes
@@ -213,18 +158,12 @@ export const HEARTBEAT_MS = 30_000;
  */
 export const MAX_BUFFERED_BYTES = 16 * 1024 * 1024;
 
-/** The limits of a listener's sockets; the defaults are the constants above, and tests shorten them. */
 export interface WsLimits {
   maxFrameBytes?: number;
   heartbeatMs?: number;
   maxBufferedBytes?: number;
 }
 
-/**
- * WebSocket upgrades on `/ws` (the bridge). `auth` is the desktop
- * token (checked by tokenAuth: the subprotocol header, or `?t=`) or an Authorize callback; the handlers are the same
- * for both listeners.
- */
 export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers, limits: WsLimits = {}): WsBridge {
   const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
   const maxBuffered = limits.maxBufferedBytes ?? MAX_BUFFERED_BYTES;
@@ -235,7 +174,6 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     handleProtocols: (protocols) => (protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false),
   });
   const clients = new Map<WebSocket, Client>();
-  /** The sockets that answered the last ping (or opened since); the rest are ended at the next one. */
   const alive = new Set<WebSocket>();
   const send = (ws: WebSocket, text: string): void => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -269,8 +207,6 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     }
     const who = authorize(req, url);
     if (!who.ok) {
-      // Said, not just dropped: another Mac's link tells a refused token (it may have been forgotten) from a wrong path
-      // or a network fault.
       const status = who.refusal === 403 ? "403 Forbidden" : "401 Unauthorized";
       // Node takes its own error listener off a socket it hands to "upgrade", and ws only adds one for an upgrade it
       // takes. A caller that hangs up on the refusal with a reset (another Mac's link drops it at once) is an error on
@@ -317,7 +253,6 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     });
   });
 
-  /** Terminate the sockets whose client matches. Returns how many. */
   const closeWhere = (match: (c: Client) => boolean): number => {
     let n = 0;
     for (const [ws, c] of clients) {
@@ -331,8 +266,6 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
 
   return {
     broadcast(msg, scope, to = "all") {
-      // A paired Mac follows every desk: it passes on the ones it shows of this Mac's (plan 023, U5).
-      // Encoded once for every socket (plan 047): a reply streaming in reaches each window, phone and paired Mac.
       let text: string | undefined;
       for (const [ws, c] of clients)
         if ((to === "all" || c.peerId) && (!scope || c.scope === scope || c.peerId) && ws.readyState === WebSocket.OPEN)
@@ -344,7 +277,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     closeDevices: () => closeWhere((c) => c.deviceId !== undefined),
     close: () => {
       clearInterval(heartbeat);
-      for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
+      for (const ws of clients.keys()) ws.terminate();
       clients.clear();
       wss.close();
     },
@@ -379,7 +312,6 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?
 const messageText = (raw: WebSocket.RawData): string =>
   (Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8");
 
-/** The small page the browser shows after an MCP or Google sign-in: signed in or not, and the message, escaped. */
 export function oauthPage(ok: boolean, message: string): string {
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>loki · ${ok ? "signed in" : "sign-in failed"}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#222;background:#fafafa}@media(prefers-color-scheme:dark){body{color:#eee;background:#1b1b1d}}h1{font-size:18px}</style><h1>${ok ? "Signed in" : "Not signed in"}</h1><p>${escapeHtml(message)}</p>`;
 }

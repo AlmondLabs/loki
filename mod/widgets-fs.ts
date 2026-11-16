@@ -8,30 +8,16 @@ import { serialQueue } from "../core/serial.ts";
 import { debounce } from "../core/timers.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * The widgets directory is the agent's half of the desk. This module turns
- * <root>/<scope>/<name>.json|.tsx into manifest entries, syntax-checks modules
- * with esbuild so the agent hears about a broken file without a tab open, and
- * watches for changes.
- */
-
 const MODULE_EXT = new Set([".tsx", ".jsx"]);
 
-/** What one scan of the widgets folder found changed since the last: widgets added, changed and removed. */
 export interface WidgetsDiff {
   added: WidgetManifestEntry[];
   changed: WidgetManifestEntry[];
   removed: string[];
-  /** The entries behind `removed`, as they were before the file went (for the change log's title). */
   removedEntries: WidgetManifestEntry[];
-  /** The watcher's first scan: what was already on disk when the mod started, not a fresh write. */
   initial: boolean;
 }
 
-/**
- * A JSON widget file's title, kit type and data, with an error naming what is wrong when it is not valid JSON, not an
- * object, or lacks a known type or a title.
- */
 export function parseJsonWidget(text: string): {
   title?: string;
   type?: string;
@@ -57,22 +43,15 @@ export function parseJsonWidget(text: string): {
   return { title, type, data };
 }
 
-/** `export const title = "…"` in a module, if present. */
 export function titleFromModule(source: string): string | null {
   const m = /export\s+const\s+title\s*(?::\s*string\s*)?=\s*(["'`])([^"'`\n]+)\1/.exec(source);
   return m ? m[2] : null;
 }
 
-/**
- * esbuild is a development dependency of the repo; the mod the app installs is a single bundle
- * without node_modules, so the checker loads it lazily and does without when it is absent (the
- * app's own transpiler still reports a broken file inside the widget's frame).
- */
 type Esbuild = typeof esbuild;
 let esbuildPromise: Promise<Esbuild | null> | undefined;
 const loadEsbuild = (): Promise<Esbuild | null> => (esbuildPromise ??= import("esbuild").catch(() => null));
 
-/** Syntax-check a TSX module. Returns esbuild's message or null. */
 export async function checkModule(source: string, file: string): Promise<string | null> {
   try {
     const esbuild = await loadEsbuild();
@@ -98,11 +77,6 @@ function splitName(fileName: string): { stem: string; ext: string } | null {
   return { stem: fileName.slice(0, dot), ext: fileName.slice(dot) };
 }
 
-/**
- * What a scan read of each file, by its path, with the file's mtime and size then: a file that has not changed since
- * is not read or checked again. Every change to any widget rescans the folder, and each module's esbuild check made
- * that a recompile of all of them.
- */
 export type ScanCache = Map<string, { mtime: number; size: number; entry: WidgetManifestEntry }>;
 
 async function readEntry(root: string, scope: Scope, fileName: string, cache?: ScanCache): Promise<WidgetManifestEntry | null> {
@@ -154,14 +128,13 @@ async function readCached(root: string, scope: Scope, fileName: string, cache?: 
   return entry;
 }
 
-/** Read every widget file under root; with a cache, only the files that changed since the last scan with it. */
 export async function scanWidgets(root: string, cache?: ScanCache): Promise<Map<string, WidgetManifestEntry>> {
   const out = new Map<string, WidgetManifestEntry>();
   const list = (dir: string) => {
     try {
       return readdirSync(dir, { withFileTypes: true });
     } catch {
-      return []; // removed mid-scan (the agent deleted a desk): treat as empty
+      return [];
     }
   };
   if (!existsSync(root)) return out;
@@ -177,22 +150,14 @@ export async function scanWidgets(root: string, cache?: ScanCache): Promise<Map<
   return out;
 }
 
-/** The live manifest of the widgets folder, kept by watchWidgets. */
 export interface WidgetsWatcher {
-  /** Current manifest, runtime errors merged in. */
   entries(scope?: Scope): WidgetManifestEntry[];
   get(id: string): WidgetManifestEntry | undefined;
-  /** Runtime error reported by a tab (null clears). Returns true if it changed. */
   setRuntimeError(id: string, message: string | null): boolean;
-  /** Force a rescan now (tests). */
   rescan(): Promise<void>;
   close(): void;
 }
 
-/**
- * Watches the widgets folder and calls `onDiff` after each scan that found a change, scans debounced (80 ms by default)
- * and run one at a time. The first scan's diff is marked initial. Where the system cannot watch, only rescan() scans.
- */
 export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, opts: { debounceMs?: number } = {}): WidgetsWatcher {
   const debounceMs = opts.debounceMs ?? 80;
   mkdirSync(root, { recursive: true });
@@ -220,7 +185,7 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
       if (!prev) diff.added.push(e);
       else if (prev.hash !== e.hash) {
         diff.changed.push(e);
-        runtimeErrors.delete(id); // file changed: stale runtime error
+        runtimeErrors.delete(id);
       }
     }
     for (const [id, e] of index) {
@@ -232,10 +197,8 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
     if (diff.added.length || diff.changed.length || diff.removed.length) onDiff(diff);
   };
 
-  /** A burst of file events rescans once the folder has been quiet for `debounceMs`. */
   const settling = debounce(() => void rescan(), debounceMs);
 
-  /** Scans run one at a time; each caller's promise resolves after a scan that started after the call. */
   const rescan = (): Promise<void> => {
     return scans(doScan);
   };
@@ -251,9 +214,7 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
       watcher?.close();
       watcher = null;
     });
-  } catch {
-    // no watcher: tools call rescan() explicitly
-  }
+  } catch {}
   void rescan();
 
   return {

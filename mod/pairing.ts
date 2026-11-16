@@ -10,22 +10,15 @@ import { randomInt } from "node:crypto";
  */
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 export { PAIRING_ALPHABET, PAIRING_LENGTH };
-/** How long a pairing code may be redeemed, in milliseconds. */
 export const PAIRING_TTL_MS = 10 * 60_000;
 
-/** A freshly minted pairing code and when it stops working. */
 export interface PairingCode {
   code: string;
-  /** ISO timestamp. */
   expiresAt: string;
 }
 
-/**
- * The live pairing codes, in memory only, so a restart voids every code. Expired codes are pruned on each mint and
- * redeem.
- */
 export class PairingCodes {
-  private readonly codes = new Map<string, number>(); // code → expiry (ms)
+  private readonly codes = new Map<string, number>();
   private readonly now: () => number;
   private readonly ttl: number;
 
@@ -43,7 +36,6 @@ export class PairingCodes {
     return { code, expiresAt: new Date(expires).toISOString() };
   }
 
-  /** True while the code is inside its window. Case-insensitive; whitespace ignored. */
   redeem(code: string): boolean {
     this.prune();
     const key = normalize(code);
@@ -52,10 +44,6 @@ export class PairingCodes {
     return expires !== undefined && expires > this.now();
   }
 
-  /**
-   * `redeem`, and the code is gone: for pairing a Mac, where one code lets in one Mac. A paired Mac receives this
-   * Mac's mods and MCP servers, so a code someone else saw must not pair a second one.
-   */
   spend(code: string): boolean {
     const ok = this.redeem(code);
     if (ok) this.codes.delete(normalize(code));
@@ -68,7 +56,6 @@ export class PairingCodes {
   }
 }
 
-/** A typed code as stored: spaces and dashes dropped, upper case; empty for anything not a string. */
 export const normalize = (code: string): string => (typeof code === "string" ? code.replace(/[\s-]/g, "").toUpperCase() : "");
 
 function generate(): string {

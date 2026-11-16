@@ -10,20 +10,8 @@ import type { PairingCodes } from "./pairing.ts";
 import { log } from "./log.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
-/**
- * The other Macs this one is paired with (plan 023, U1, KTD1). Pairing is mutual: each Mac mints a token for the other
- * to present when it connects, keeps only that token's sha256 here (state/peers.json, mode 0600), and keeps the token
- * the other Mac minted for it in the keychain (PeerKeys). So neither file nor keychain alone lets a third party in, and
- * forgetting a Mac on either side ends the pairing for both.
- */
-
-/**
- * The version of what Macs say to each other. Two Macs on different numbers stay paired but sync nothing (KTD12); it
- * goes up with any change one side could misread.
- */
 export const PEER_PROTOCOL = 1;
 
-/** What a Mac says about itself when pairing and when another Mac asks (`GET /peer/hello`). */
 export interface PeerHello extends MacIdentity {
   /** Where other Macs reach it: its tailnet name and port. */
   host: string;
@@ -31,34 +19,27 @@ export interface PeerHello extends MacIdentity {
   protocol: number;
 }
 
-/** A paired Mac as state/peers.json keeps it. */
 export interface PeerRecord extends PeerHello {
   /** sha256 hex of the token this Mac minted for it, which it presents when it connects. */
   token_hash: string;
   paired_at: string;
   last_seen_at: string;
-  /** This Mac has taken over the chats of its agents from that Mac, once, after pairing (U9). */
   moves_done?: boolean;
 }
 
 const SEEN_WRITE_INTERVAL_MS = 60_000;
 const TOKEN = /^[a-f0-9]{64}$/;
-/** The shape of the install id daemon/providers.ts mints (a UUID); anything else is not a Mac this code made. */
 const MAC_ID = /^[0-9a-f-]{36}$/i;
 
-/** A new token for another Mac to present: 32 random bytes as hex, the same strength as a phone's. */
 export const mintPeerToken = (): string => randomBytes(32).toString("hex");
 
-/** Whether a string has the shape of a token this code mints. */
 export const isPeerToken = (v: unknown): v is string => typeof v === "string" && TOKEN.test(v);
 
-/** Another Mac's hello as sent over the network, or null when it is not one. */
 export function parsePeerHello(v: unknown): PeerHello | null {
   if (typeof v !== "object" || v === null) return null;
   const m = v as Record<string, unknown>;
   if (typeof m.mac_id !== "string" || !MAC_ID.test(m.mac_id)) return null;
   if (typeof m.name !== "string" || !m.name.trim()) return null;
-  // The host is kept and dialled on every start, so one that is not an address is refused here, not found later.
   const host = typeof m.host === "string" ? m.host.trim().slice(0, 255) : "";
   if (!host || !peerBase(host)) return null;
   if (typeof m.protocol !== "number" || !Number.isInteger(m.protocol)) return null;
@@ -66,15 +47,10 @@ export function parsePeerHello(v: unknown): PeerHello | null {
   return { mac_id: m.mac_id, name: m.name.trim().slice(0, 64), host, build, protocol: m.protocol };
 }
 
-/**
- * The paired Macs, kept in state/peers.json and loaded once at start; an unreadable file means none. Writes are best
- * effort, as for phones: a failed one costs a re-pair, never a crash.
- */
 export class PeerStore {
   private peers: PeerRecord[] = [];
   private readonly path: string;
   private readonly now: () => number;
-  /** The Macs forgotten here on purpose (addendum D3), beside peers.json: never joined or invited again by themselves. */
   private forgotten = new Set<string>();
   private readonly forgottenPath: string;
 
@@ -111,18 +87,15 @@ export class PeerStore {
     }
   }
 
-  /** Pair with a Mac, or pair it again: `token` is the one this Mac minted for it, kept only as a hash. */
   add(hello: PeerHello, token: string): PeerRecord {
     const at = new Date(this.now()).toISOString();
     const record: PeerRecord = { ...hello, token_hash: hashToken(token), paired_at: at, last_seen_at: at };
     this.peers = [...this.peers.filter((p) => p.mac_id !== hello.mac_id), record];
     this.persist();
-    // Paired again on purpose: it is part of the group again.
     if (this.forgotten.delete(hello.mac_id)) this.persistForgotten();
     return record;
   }
 
-  /** The Mac a token belongs to, or null; refreshes when it was last seen, written at most once a minute. */
   verify(token: string): PeerRecord | null {
     if (!isPeerToken(token)) return null;
     const hash = hashToken(token);
@@ -132,7 +105,6 @@ export class PeerStore {
     return peer;
   }
 
-  /** A Mac answered: keep what it now says about itself (its name, address, build, protocol) and when. */
   heard(hello: PeerHello): void {
     const peer = this.get(hello.mac_id);
     if (!peer) return;
@@ -141,7 +113,6 @@ export class PeerStore {
     this.persist();
   }
 
-  /** The chats of this Mac's agents have been taken over from that Mac: it is not asked again (U9). */
   markMovesDone(macId: string): void {
     const peer = this.get(macId);
     if (!peer || peer.moves_done) return;
@@ -149,7 +120,6 @@ export class PeerStore {
     this.persist();
   }
 
-  /** Forget a Mac; `onPurpose` (the person forgot it here) also keeps it from being joined or invited again. */
   forget(macId: string, onPurpose = false): boolean {
     if (onPurpose && !this.forgotten.has(macId)) {
       this.forgotten.add(macId);
@@ -162,7 +132,6 @@ export class PeerStore {
     return true;
   }
 
-  /** Whether the person forgot this Mac here on purpose (addendum D3). */
   isForgotten(macId: string): boolean {
     return this.forgotten.has(macId);
   }
@@ -175,7 +144,6 @@ export class PeerStore {
     return this.peers.length;
   }
 
-  /** The paired Macs as Settings shows them; `reachable` says which have an open peer link (U2), none when omitted. */
   list(reachable: (macId: string) => boolean = () => false): PeerSummary[] {
     return this.peers.map((p) => ({
       mac_id: p.mac_id,
@@ -200,23 +168,18 @@ export class PeerStore {
     try {
       mkdirSync(dirname(this.forgottenPath), { recursive: true });
       writeFileSync(this.forgottenPath, JSON.stringify([...this.forgotten], null, 2) + "\n", { mode: 0o600 });
-    } catch {
-      // best effort, as for peers.json
-    }
+    } catch {}
   }
 
   private persist(): void {
     try {
       writeJsonAtomic(this.path, this.peers, { pretty: true, newline: true, mode: 0o600, pidTemp: true });
-    } catch {
-      // best effort: a failed write costs a re-pair, never a crash
-    }
+    } catch {}
   }
 }
 
 const isHex = (v: unknown): v is string => typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
 
-/** The tokens other Macs minted for this one, which it presents to them: in the keychain, one entry per Mac. */
 export class PeerKeys {
   private readonly secrets: SecretBackend;
 
@@ -240,9 +203,7 @@ export class PeerKeys {
   async delete(macId: string): Promise<void> {
     try {
       await this.secrets.delete(this.account(macId));
-    } catch {
-      // nothing to delete
-    }
+    } catch {}
   }
 }
 
@@ -254,9 +215,7 @@ export function macName(): string {
   try {
     const name = execFileSync("/usr/sbin/scutil", ["--get", "ComputerName"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim();
     if (name) return name.slice(0, 64);
-  } catch {
-    // not macOS, or scutil unavailable
-  }
+  } catch {}
   try {
     return (
       hostname()
@@ -268,44 +227,30 @@ export function macName(): string {
   }
 }
 
-/** The answer to an HTTP route the listener hands to Peers: a status and a JSON body. */
 export interface PeerAnswer {
   status: number;
   body: object;
 }
 
-/** How a contact with a paired Mac went: it answered, it no longer knows this Mac, or it could not be reached. */
 export type PeerContact = "ok" | "unpaired" | "unreachable";
 
-/** What Peers is built from; `fetch` and the timeout are replaced in tests. */
 export interface PeersOptions {
   store: PeerStore;
   keys: PeerKeys;
-  /** Codes for pairing Macs only: a phone's code never pairs a Mac, nor the other way round. */
   codes: PairingCodes;
-  /** This Mac's hello, read when needed (its tailnet name can change). */
   me: () => PeerHello;
   fetch?: typeof fetch;
   timeoutMs?: number;
-  /** A Mac was paired, re-paired or forgotten. */
   onChange?: () => void;
-  /** A Mac was forgotten: close its sockets. */
   onForget?: (macId: string) => void;
   now?: () => number;
 }
 
-/** How long an invite for a Mac being introduced lives (addendum D4). */
 export const INVITE_TTL_MS = 2 * 60_000;
 
-/**
- * Pairing between Macs, both sides of it. The Mac that shows a code answers `POST /peer/pair`; the Mac the person
- * types the code into calls `join`. Each side ends holding the other's token in its keychain and the hash of its own
- * in peers.json. `forget` tells the other Mac when it can, and `contact` notices when the other Mac forgot this one.
- */
 export class Peers {
   private readonly opts: PeersOptions;
   private readonly fetch: typeof fetch;
-  /** Invites for Macs being introduced (addendum D4): code → the Mac it is for, and when it lapses. In memory only. */
   private readonly invites = new Map<string, { mac_id: string; expires: number }>();
 
   constructor(opts: PeersOptions) {
@@ -313,7 +258,6 @@ export class Peers {
     this.fetch = opts.fetch ?? fetch;
   }
 
-  /** This Mac's hello. */
   hello(): PeerHello {
     return this.opts.me();
   }
@@ -322,16 +266,10 @@ export class Peers {
     return this.opts.store.list();
   }
 
-  /** The Mac a presented token belongs to, or null. */
   verify(token: string): string | null {
     return this.opts.store.verify(token)?.mac_id ?? null;
   }
 
-  /**
-   * An invite for `macId`, which a Mac paired with this one is introducing (addendum D4): 32 random bytes, for that Mac
-   * only, once, for two minutes; with this Mac's tailnet address to redeem it at. Null for a Mac forgotten here on
-   * purpose, or for this Mac itself.
-   */
   invite(macId: string): { code: string; host: string } | null {
     const me = this.hello();
     if (macId === me.mac_id || this.opts.store.isForgotten(macId) || !me.host) return null;
@@ -343,21 +281,15 @@ export class Peers {
     return { code, host: me.host };
   }
 
-  /**
-   * `POST /peer/pair` on the Mac showing the code: `body` is the joining Mac's code (or invite), hello and the token it
-   * minted for this one.
-   */
   async accept(body: Record<string, unknown> | null): Promise<PeerAnswer> {
     const hello = parsePeerHello(body?.hello);
     const token = body?.token;
     if (!body || typeof body.code !== "string" || !hello || !isPeerToken(token)) return { status: 400, body: { error: "expected {code, hello, token}" } };
-    // An invite is spent by its first use, whoever brings it.
     const invite = this.invites.get(body.code);
     this.invites.delete(body.code);
     const invited = !!invite && invite.mac_id === hello.mac_id && invite.expires > this.now();
     const me = this.hello();
     if (hello.mac_id === me.mac_id) return { status: 409, body: { error: "that code is this Mac's own" } };
-    // A code is spent by the Mac it lets in: whoever else saw it cannot pair a second Mac with it.
     if (!invited && !this.opts.codes.spend(body.code)) return { status: 404, body: { error: "unknown or expired code" } };
     const mine = mintPeerToken();
     await this.opts.keys.set(hello.mac_id, token);
@@ -367,7 +299,6 @@ export class Peers {
     return { status: 200, body: { hello: me, token: mine } };
   }
 
-  /** Pair with the Mac at `host` (its tailnet name, with a port or not) using the code it shows. Throws a message for the person. */
   async join(host: string, code: string): Promise<PeerSummary> {
     const base = peerBase(host);
     if (!base) throw new Error("type the other Mac's tailnet name, as its Preferences › Macs shows it");
@@ -382,7 +313,6 @@ export class Peers {
     if (!hello || !isPeerToken(token)) throw new Error("the other Mac's answer was not one loki understands: update loki on both Macs");
     if (hello.mac_id === me.mac_id) throw new Error("that address is this Mac");
     await this.opts.keys.set(hello.mac_id, token);
-    // The address the person typed reached it, so it is the one to keep.
     this.opts.store.add({ ...hello, host: hostWithPort(host) }, mine);
     log("peers:paired", { mac: hello.mac_id, name: hello.name, by: "join" });
     this.opts.onChange?.();
@@ -391,7 +321,6 @@ export class Peers {
     return summary;
   }
 
-  /** Forget a Mac here, telling it first when it can be reached, so it forgets this one too. */
   async forget(macId: string): Promise<boolean> {
     const peer = this.opts.store.get(macId);
     if (!peer) return false;
@@ -401,13 +330,11 @@ export class Peers {
     return this.drop(macId, "here");
   }
 
-  /** `POST /peer/unpair` from a Mac that forgot this one: forget it too. */
   forgotBy(macId: string): PeerAnswer {
     void this.drop(macId, "there");
     return { status: 200, body: { ok: true } };
   }
 
-  /** Ask a paired Mac for its hello: it answers (and its record is refreshed), it no longer knows this Mac (forgotten here too), or it is out of reach. */
   async contact(macId: string): Promise<PeerContact> {
     const peer = this.opts.store.get(macId);
     const token = await this.opts.keys.get(macId);
@@ -425,11 +352,6 @@ export class Peers {
     return "ok";
   }
 
-  /**
-   * Send a file this Mac holds to a paired Mac's uploads (U5), for a chat that lives there; resolves to its path on
-   * that Mac, or null when it could not be sent.
-   */
-  /** A picture in a message, by its name, from a paired Mac that holds it (plan 029); null when it does not. */
   async chatImage(macId: string, name: string): Promise<Buffer | null> {
     const peer = this.opts.store.get(macId);
     const token = await this.opts.keys.get(macId);
@@ -487,7 +409,6 @@ export class Peers {
     return gone;
   }
 
-  /** One request to another Mac, or null when it could not be reached in time. */
   private async call(url: string, init: { method: string; body?: string; token?: string }): Promise<Response | null> {
     try {
       return await this.fetch(url, {
@@ -502,10 +423,8 @@ export class Peers {
   }
 }
 
-/** The listener port a typed host means when it names none. */
 const PEER_PORT = 41415;
 
-/** A host as typed, with the listener's port added when it has none. */
 export function hostWithPort(host: string): string {
   const h = host
     .trim()
@@ -514,7 +433,6 @@ export function hostWithPort(host: string): string {
   return /:\d+$/.test(h) ? h : `${h}:${PEER_PORT}`;
 }
 
-/** The base URL for a peer's host, or null when the text cannot be one (a path, spaces, nothing). */
 export function peerBase(host: string): string | null {
   const h = hostWithPort(host);
   const shaped = /^[A-Za-z0-9.-]+:\d+$/.test(h) || /^\[[0-9a-f:]+\]:\d+$/i.test(h);

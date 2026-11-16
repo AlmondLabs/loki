@@ -1,39 +1,22 @@
 import type { SlackPerson } from "../core/frame-types.ts";
 import type { SlackClient, SlackUser } from "./slack.ts";
 
-/**
- * The people in each Slack workspace the person can mention in a reply (plan 082). The reply box suggests them as the
- * person types `@`, and a pick writes their name and keeps them as a mention, which the send makes Slack's (`<@U123>`)
- * while the name is in the text (plan 2026-11-14-1530, KTD8); a typed `@handle` stays as typed.
- */
-
-/** How long a workspace's people are kept before they are read again, so someone who just joined can be mentioned. */
 const PEOPLE_TTL_MS = 60 * 60_000;
 
-/** The most pages of people read, 200 a page; a workspace larger than this is searched among the first 10,000. */
 const MAX_PAGES = 50;
 
-/** How many people a search gives. */
 const SEARCH_LIMIT = 8;
 
-/**
- * Someone in a workspace with every name Slack keeps for them (plan 2026-11-14-1530, U2): the person's full name and
- * the display name they chose, beside the handle, so an agent's `@Grace Lee` finds Grace as `@grace` does.
- */
 export interface SlackMember extends SlackPerson {
-  /** The full name in their profile; empty when they set none. */
   real_name: string;
-  /** The name they chose to show; empty when they set none. */
   display_name: string;
 }
 
-/** Every name a person goes by, in lower case: the one shown, and the full and chosen ones when the person is a member. */
 const namesOf = (p: SlackPerson): string[] => {
   const extra = "real_name" in p && "display_name" in p ? [String(p.real_name), String(p.display_name)] : [];
   return [...new Set([p.name, ...extra].map((n) => n.toLowerCase()).filter(Boolean))];
 };
 
-/** How well a person's handle and names match a query: 0 best, null not at all. */
 function rank(p: SlackPerson, q: string): number | null {
   const handle = p.handle.toLowerCase();
   const names = namesOf(p);
@@ -44,7 +27,6 @@ function rank(p: SlackPerson, q: string): number | null {
   return null;
 }
 
-/** The people whose handle or names hold `query`, best matches first, then by name; an empty query matches no one. */
 export function searchPeople<P extends SlackPerson>(people: readonly P[], query: string, limit = SEARCH_LIMIT): P[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
@@ -57,7 +39,6 @@ export function searchPeople<P extends SlackPerson>(people: readonly P[], query:
   return ranked.slice(0, limit).map((x) => x.p);
 }
 
-/** A workspace member as a person to mention; a bot, or someone with no handle, is no one to mention. */
 function memberOf(u: SlackUser): SlackMember | null {
   if (u.is_bot || !u.name) return null;
   return {
@@ -70,13 +51,10 @@ function memberOf(u: SlackUser): SlackMember | null {
   };
 }
 
-/** A member as the reply box's suggestions send it, without the extra names the frames do not carry. */
 const personOf = (m: SlackMember): SlackPerson => ({ id: m.id, handle: m.handle, name: m.name, avatar: m.avatar });
 
-/** Reads a workspace's people; the account's Slack client in loki, a fake in tests. */
 type PeopleClient = Pick<SlackClient, "usersList">;
 
-/** Each workspace's people, read once an hour at most and only when a reply asks. */
 export class SlackPeople {
   private readonly client: (accountId: string) => PeopleClient;
   private readonly now: () => number;
@@ -87,20 +65,14 @@ export class SlackPeople {
     this.now = opts.now ?? Date.now;
   }
 
-  /** The people in the account's workspace whose handle or name holds `query`, for the reply box's suggestions. */
   async search(accountId: string, query: string): Promise<SlackPerson[]> {
     return searchPeople(await this.people(accountId), query).map(personOf);
   }
 
-  /**
-   * Everyone in the account's workspace with all their names, from the same hour-long read as the suggestions, for
-   * finding a person an agent names (mod/people.ts).
-   */
   members(accountId: string): Promise<SlackMember[]> {
     return this.people(accountId);
   }
 
-  /** The workspace's people, read again once they are an hour old; a read that fails is tried again next time. */
   private people(accountId: string): Promise<SlackMember[]> {
     const had = this.read.get(accountId);
     if (had && this.now() - had.at < PEOPLE_TTL_MS) return had.people;
@@ -117,7 +89,6 @@ export class SlackPeople {
     const out: SlackMember[] = [];
     let cursor: string | null = null;
     for (let page = 0; page < MAX_PAGES; page++) {
-      // Each page names the next, so they are read one after another.
       const r = await client.usersList(cursor);
       for (const u of r.users) {
         const p = memberOf(u);
@@ -130,18 +101,10 @@ export class SlackPeople {
   }
 }
 
-/** How long who is in a conversation is kept: a reply's card notes who will not be notified, and a few minutes late is fine. */
 const MEMBERS_TTL_MS = 5 * 60_000;
 
-/** The client calls reading who is in a conversation. */
 type MembersClient = Pick<SlackClient, "conversationsMembers">;
 
-/**
- * Who is in each Slack conversation, for the note on a reply's mention of someone who will not be notified
- * (plan 2026-11-14-1530, R22). The card's `@` picker asks on every search, and a large channel takes many pages, so
- * each conversation is read once every few minutes at most, by one read that every ask meanwhile shares, and only its
- * first pages; a read that fails is tried again next time.
- */
 export class ChannelMembers {
   private readonly client: (accountId: string) => MembersClient;
   private readonly now: () => number;
@@ -152,7 +115,6 @@ export class ChannelMembers {
     this.now = opts.now ?? Date.now;
   }
 
-  /** The ids of the people in the account's conversation `channel`, as Slack listed them a few minutes ago at most. */
   of(accountId: string, channel: string): Promise<Set<string>> {
     const key = `${accountId}\n${channel}`;
     const had = this.read.get(key);
@@ -170,7 +132,6 @@ export class ChannelMembers {
     const ids = new Set<string>();
     let cursor: string | null = null;
     for (let page = 0; page < MAX_PAGES; page++) {
-      // Each page names the next, so they are read one after another.
       const r = await client.conversationsMembers(channel, cursor);
       for (const id of r.members) ids.add(id);
       cursor = r.next_cursor;

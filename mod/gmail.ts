@@ -4,28 +4,13 @@ import type { Accounts } from "./accounts.ts";
 import type { GoogleApp } from "./google-app.ts";
 import { GOOGLE_TIMEOUT_MS, GoogleAuth, GoogleError } from "./google-auth.ts";
 
-/**
- * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, labels and label changes,
- * and send. `sendReply` is reached by the reply frame the person's own devices send
- * (mod/outside-threads.ts) and by the scripts' Gmail tool (mod/google-tools/gmail.ts, plan 2026-11-11 scripts); no tool
- * the model calls directly sends. Its calls go through the account's sign-in (mod/google-auth.ts), which refreshes the
- * tokens in the keychain and marks the account disconnected when Google refuses them, so the Inbox can say how to
- * reconnect (R22).
- */
-
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** Gmail's upload route for a send, which takes a message up to Gmail's 25 MB where the JSON route stops far sooner. */
 const UPLOAD_SEND = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send";
-/** The files a reply may carry together (R8): Gmail's 25 MB counts the encoded message, which grows about a third. */
 const UPLOAD_CAP_BYTES = 17 * 1024 * 1024;
 
-/**
- * How long a send through the upload route may take (KTD11): 120 seconds for a message at the files' cap, in proportion
- * below it, and never less than an ordinary call's 20 seconds.
- */
 const uploadTimeoutMs = (bytes: number): number => Math.max(GOOGLE_TIMEOUT_MS, Math.ceil((120_000 * bytes) / UPLOAD_CAP_BYTES));
 
-/** One message header, as Gmail names it. */
 export interface GmailHeader {
   name: string;
   value: string;
@@ -60,13 +45,11 @@ export interface GmailThread {
   messages: GmailMessage[];
 }
 
-/** A message and the labels a history record says were added to or removed from it. */
 export interface GmailLabelChange {
   message: GmailMessage;
   labelIds: string[];
 }
 
-/** One history record, in Gmail's own names; each list is empty when the record has none of that kind. */
 export interface GmailHistoryRecord {
   id: string;
   messagesAdded: GmailMessage[];
@@ -75,70 +58,52 @@ export interface GmailHistoryRecord {
   labelsRemoved: GmailLabelChange[];
 }
 
-/**
- * What changed since a history id: every record, across pages, and the mailbox's history id now; or, when Gmail no
- * longer keeps history that far back, that it expired, so the watcher starts again from a fresh listing.
- */
 export type GmailHistory = { kind: "changes"; history: GmailHistoryRecord[]; history_id: string } | { kind: "expired" };
 
-/** One of the account's labels: Gmail's own (`system`, as INBOX) or one the person made (`user`), by id and name. */
 export interface GmailLabel {
   id: string;
   name: string;
   type: "system" | "user";
 }
 
-/** One page of a message search: the ids found and where the next page starts. */
 export interface GmailMessagePage {
   messages: Array<{ id: string; threadId: string }>;
   nextPageToken?: string;
 }
 
-/** One page of the inbox's threads (plan 088): their ids, newest first, and where the next page starts. */
 export interface GmailThreadPage {
   threads: string[];
   nextPageToken?: string;
 }
 
-/** The mailbox: its address and its newest history id. */
 export interface GmailProfile {
   emailAddress: string;
   historyId: string;
 }
 
-/** A file carried by a forwarded mail (plan 076): its name, type and bytes. */
 export interface GmailAttachment {
   filename: string;
   mimeType: string;
   data: Buffer;
 }
 
-/**
- * A message to send: a reply in the thread it answers, or a script's new mail with no thread yet. `body` is plain text; with `html` the message carries both (plan 076), as Gmail's own replies do.
- */
 export interface GmailDraftInput {
   threadId: string;
-  /** The Message-ID header of the message replied to. */
   inReplyTo: string;
-  /** The thread's References, to which inReplyTo is added. */
   references: string[];
   to: string[];
   cc: string[];
   subject: string;
   body: string;
-  /** The From header, as `"Name" <address>` or a bare address; Gmail's default when left out. */
   from?: string;
   bcc?: string[];
   html?: string;
   attachments?: GmailAttachment[];
-  /** A held reply's id (mod/mail-outbox.ts), written as `X-Loki-Outbox` so loki can tell later whether it went. */
   outboxId?: string;
 }
 
-/** The header a held reply carries its outbox id in, and is looked for by before it is sent a second time (plan 096). */
 export const OUTBOX_HEADER = "X-Loki-Outbox";
 
-/** One address the person sends from (Gmail's send-as), with the name it shows and its signature as Gmail keeps it, in HTML. */
 export interface GmailSendAs {
   address: string;
   name: string;
@@ -146,17 +111,13 @@ export interface GmailSendAs {
   isDefault: boolean;
 }
 
-/** What GmailClient is built from; fetch and the clock are injected so tests own them. */
 export interface GmailClientOptions {
   accounts: Accounts;
   account_id: string;
-  /** The account's sign-in, shared with the Google tools (mod/index.ts); one of its own is made when left out. */
   auth?: GoogleAuth;
-  /** The app to refresh with when the account was signed in with the shared one (SHARED_GOOGLE_APP). */
   sharedApp?: GoogleApp;
   fetch?: typeof fetch;
   now?: () => Date;
-  /** A fresh signal for each call, aborted when the call has run too long; tests pass one they abort themselves. */
   timeout?: () => AbortSignal;
 }
 
@@ -232,17 +193,11 @@ const mailboxes = (entry: string): string[] =>
 const base64Lines = (data: Buffer): string => (data.toString("base64").match(/.{1,76}/g) ?? []).join("\r\n");
 /** Text as a base64 MIME body, its lines ended the way mail ends them. */
 const textBody = (text: string): string => base64Lines(Buffer.from(text.replace(/\r?\n/g, "\r\n"), "utf8"));
-/** A MIME part: its headers, then its body. */
 const part = (headers: string[], body: string): string => `${headers.join("\r\n")}\r\n\r\n${body}`;
-/** Parts under one boundary, closed. */
 const multipart = (boundary: string, parts: string[]): string => `${parts.map((p) => `--${boundary}\r\n${p}`).join("\r\n")}\r\n--${boundary}--`;
 /** A file name as a MIME parameter, in RFC 2231's form so a name in any language survives. */
 const fileParam = (name: string): string => `filename*=UTF-8''${encodeURIComponent(oneLine(name) || "attachment")}`;
 
-/**
- * The reply as an RFC 2822 message, threaded by In-Reply-To and References: plain text alone, as drafts were before
- * plan 076, or plain text and HTML together, with any forwarded files after them.
- */
 export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
   const references = [...d.references, d.inReplyTo].map(oneLine).filter(Boolean);
   const to = d.to.flatMap(mailboxes);
@@ -291,10 +246,8 @@ export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
   return `${headers.join("\r\n")}\r\n${whole}\r\n`;
 }
 
-/** How long the send-as settings are kept before they are read again: a signature changed in Gmail shows within this. */
 const SEND_AS_KEEP_MS = 10 * 60 * 1000;
 
-/** One connected Gmail account's calls. */
 export class GmailClient {
   private readonly opts: GmailClientOptions;
   private readonly auth: GoogleAuth;
@@ -309,24 +262,15 @@ export class GmailClient {
     return (this.opts.now?.() ?? new Date()).getTime();
   }
 
-  /** The mailbox's address and newest history id. */
   async profile(): Promise<GmailProfile> {
     const r = rec(await this.call("GET", "/profile"));
     return { emailAddress: str(r.emailAddress), historyId: str(r.historyId) };
   }
 
-  /**
-   * The addresses the person writes from, so a message to any of them counts as to them. A mailbox whose settings
-   * cannot be read gives its own address alone.
-   */
   async sendAsAddresses(): Promise<string[]> {
     return (await this.sendAs()).map((s) => s.address);
   }
 
-  /**
-   * The addresses the person writes from, each with its name and signature (plan 076), kept for SEND_AS_KEEP_MS. A
-   * mailbox whose settings cannot be read gives its own address alone, with no name or signature.
-   */
   async sendAs(): Promise<GmailSendAs[]> {
     const kept = this.sendAsKept;
     if (kept && this.now() - kept.at < SEND_AS_KEEP_MS) return kept.list;
@@ -348,7 +292,6 @@ export class GmailClient {
     return found;
   }
 
-  /** One attachment's bytes, by the message it is on and Gmail's id for it, for a forward (plan 076). */
   async attachment(messageId: string, attachmentId: string): Promise<Buffer> {
     const r = rec(await this.call("GET", `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`));
     return Buffer.from(str(r.data), "base64url");
@@ -374,7 +317,6 @@ export class GmailClient {
     return { kind: "changes", history, history_id: latest };
   }
 
-  /** One page of the messages matching a Gmail search (`q`, as in Gmail's search box). */
   async listMessages(q: string, pageToken?: string): Promise<GmailMessagePage> {
     const r = rec(await this.call("GET", "/messages", { q, ...(pageToken ? { pageToken } : {}) }));
     const next = str(r.nextPageToken);
@@ -384,10 +326,6 @@ export class GmailClient {
     };
   }
 
-  /**
-   * One page of the threads in the inbox, newest first (plan 088), by the INBOX label rather than a search, since a
-   * search can lag behind the mailbox and the label cannot.
-   */
   async listInbox(pageToken?: string): Promise<GmailThreadPage> {
     const r = rec(await this.call("GET", "/threads", { labelIds: "INBOX", maxResults: "500", ...(pageToken ? { pageToken } : {}) }));
     const next = str(r.nextPageToken);
@@ -399,12 +337,10 @@ export class GmailClient {
     };
   }
 
-  /** One message with every part (format full), for the attachment a script saves (mod/google-tools/gmail.ts). */
   async getMessage(messageId: string): Promise<GmailMessage> {
     return parseMessage(await this.call("GET", `/messages/${encodeURIComponent(messageId)}`, { format: "full" }));
   }
 
-  /** A thread with its messages: their headers only (metadata), or every part (full). */
   async getThread(threadId: string, format: "metadata" | "full"): Promise<GmailThread> {
     const r = rec(await this.call("GET", `/threads/${encodeURIComponent(threadId)}`, { format }));
     return { id: str(r.id), historyId: str(r.historyId), messages: list(r.messages).map(parseMessage) };
@@ -426,20 +362,12 @@ export class GmailClient {
     });
   }
 
-  /** The account's labels: Gmail's own (INBOX, UNREAD, STARRED and the like) and the ones the person made. */
   async labels(): Promise<GmailLabel[]> {
     const r = rec(await this.call("GET", "/labels"));
     return list(r.labels).map((l) => ({ id: str(rec(l).id), name: str(rec(l).name), type: rec(l).type === "system" ? "system" : "user" }));
   }
 
-  /**
-   * Send a message now: a reply in its thread, the person's own (plan 068) or an agent's on the person's Send (plan
-   * 2026-11-14-1134), both from mod/outside-threads.ts, or a script's mail (mod/google-tools/gmail.ts, plan 2026-11-11
-   * scripts). Those two are its only callers; no tool the model calls directly sends. A message with files goes through the upload route, one without as JSON. Answers with the
-   * sent message's id and the thread Gmail put it in.
-   */
   async sendReply(reply: GmailDraftInput): Promise<{ id: string; threadId?: string }> {
-    // A new message (a script's, plan 2026-11-11) has no thread yet: Gmail starts one.
     const thread = reply.threadId ? { threadId: reply.threadId } : {};
     const r = rec(
       reply.attachments?.length
@@ -449,10 +377,6 @@ export class GmailClient {
     return { id: str(r.id), ...(typeof r.threadId === "string" ? { threadId: r.threadId } : {}) };
   }
 
-  /**
-   * Send a message with files through Gmail's upload route (KTD6), as a multipart upload: the thread in a JSON part,
-   * since the message alone cannot say which thread it joins, then the message itself as RFC 822.
-   */
   private upload(message: string, thread: { threadId?: string }): Promise<unknown> {
     // The boundary must not occur in the message, whose own boundaries start "loki-" and whose files are base64.
     const boundary = `upload-${randomUUID()}`;
@@ -474,7 +398,6 @@ export class GmailClient {
     });
   }
 
-  /** A Gmail call through the account's sign-in (GoogleAuth): its JSON answer, `{}` for an empty one. */
   private call(method: "GET" | "POST", path: string, query?: Record<string, string>, body?: unknown): Promise<unknown> {
     return this.auth.json({ service: "gmail", method, url: `${API}${path}`, ...(query ? { query } : {}), ...(body === undefined ? {} : { json: body }) });
   }

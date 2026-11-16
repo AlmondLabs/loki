@@ -1,14 +1,6 @@
 import type { MailPerson } from "../core/frame-types.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 
-/**
- * The people each Gmail account has mail with (plan 076), for the recipients line's suggestions: everyone in the From,
- * To and Cc of the mail loki already reads, and whoever the person sends to from loki. It is built from headers only,
- * kept in one file on the account's Mac (`state/mail-people.json`), and holds names and addresses, never a token or a
- * word of the mail. It needs no permission beyond Gmail's; an agent's mentions find people in Google Contacts and the
- * directory instead (mod/people.ts, plan 2026-11-14-1530), under the contacts permission the account grants.
- */
-
 /** One person as the file keeps them: the name they last showed, how many messages they were on, and the newest one's time. */
 interface Seen {
   name: string;
@@ -16,24 +8,17 @@ interface Seen {
   last: number;
 }
 
-/** What MailPeople is built from; the clock and the deferred write are injected so tests own them. */
 export interface MailPeopleOptions {
   file: string;
   now?: () => Date;
-  /** Run a write a moment later, so a batch of threads costs one write; a timer when not given. */
   defer?: (write: () => void) => void;
 }
 
-/** The most people kept for one account: the least seen go first past it. */
 const KEEP = 2000;
-/** How many people the recipients line is given at once. */
 export const PEOPLE_SHOWN = 300;
-/** Being on a message counts half as much after this long, so the people the person writes with now come first. */
 const HALF_LIFE_MS = 30 * 24 * 3600 * 1000;
-/** How long a write waits for more of a batch. */
 const WRITE_AFTER_MS = 2000;
 
-/** The people each account has mail with, ranked by how often and how lately. */
 export class MailPeople {
   private readonly opts: MailPeopleOptions;
   private data: Map<string, Map<string, Seen>> | null = null;
@@ -43,10 +28,6 @@ export class MailPeople {
     this.opts = opts;
   }
 
-  /**
-   * People seen on one message of an account at a time (ms): each is counted once per newer message, so reading the same
-   * thread again counts nobody twice. The person's own addresses are left out.
-   */
   saw(accountId: string, people: readonly MailPerson[], at: number, own: readonly string[]): void {
     const mine = new Set(own.map((a) => a.toLowerCase()));
     const data = this.load();
@@ -71,7 +52,6 @@ export class MailPeople {
     this.schedule();
   }
 
-  /** The account's people, the most often and most lately on its mail first. */
   top(accountId: string, n = PEOPLE_SHOWN): MailPerson[] {
     const book = this.load().get(accountId);
     if (!book) return [];
@@ -83,12 +63,10 @@ export class MailPeople {
       .map(({ name, address }) => ({ name, address }));
   }
 
-  /** Forget an account's people, when it is disconnected. */
   forget(accountId: string): void {
     if (this.load().delete(accountId)) this.schedule();
   }
 
-  /** Write what is waiting now. */
   flush(): void {
     this.pending = false;
     if (!this.data) return;
@@ -128,7 +106,6 @@ export class MailPeople {
   }
 }
 
-/** Keep the KEEP people seen most, dropping the least often and longest ago first. */
 function trim(book: Map<string, Seen>): void {
   if (book.size <= KEEP) return;
   const least = [...book].sort((a, b) => a[1].count - b[1].count || a[1].last - b[1].last);

@@ -29,15 +29,12 @@ export default async function activate(api: unknown, host: unknown): Promise<unk
     logLevel: "silent",
   });
 
-  // keep the directory small; the running instance already holds its module in memory
   try {
     for (const f of readdirSync(outDir)) {
       const p = join(outDir, f);
       if (p !== outfile && f.startsWith("mod-") && existsSync(p)) unlinkSync(p);
     }
-  } catch {
-    // housekeeping only
-  }
+  } catch {}
 
   const mod = (await import(pathToFileURL(outfile).href)) as { default: (api: unknown, host: unknown) => unknown };
   return mod.default(api, host);

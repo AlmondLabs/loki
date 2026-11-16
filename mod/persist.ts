@@ -16,7 +16,6 @@ function isDeskState(v: unknown): v is DeskState {
   );
 }
 
-/** Load every <dir>/<scope>.json into the store. Corrupt files are skipped. Returns scopes loaded. */
 export function loadDesks(store: DeskStore, dir: string): Scope[] {
   let files: string[];
   try {
@@ -32,20 +31,13 @@ export function loadDesks(store: DeskStore, dir: string): Scope[] {
         store.load({ ...parsed, rev: typeof parsed.rev === "number" ? parsed.rev : 0 });
         loaded.push(parsed.scope);
       }
-    } catch {
-      // skip
-    }
+    } catch {}
   }
   return loaded;
 }
 
-/** The letters scopeFor makes a scope of. */
 const SAFE_SCOPE = /^[A-Za-z0-9_-]+$/;
 
-/**
- * Persist desks on change, debounced per scope, atomic write. A desk with no
- * layout and no overlay is never written — desks exist lazily.
- */
 export function persistDesks(store: DeskStore, dir: string, debounceMs = DEBOUNCE_MS): () => void {
   const timers = new Map<Scope, ReturnType<typeof setTimeout>>();
 
@@ -58,9 +50,7 @@ export function persistDesks(store: DeskStore, dir: string, debounceMs = DEBOUNC
     if (Object.keys(state.layout).length === 0 && Object.keys(state.overlay).length === 0) return;
     try {
       writeJsonAtomic(join(dir, `${scope}.json`), state, { pretty: true });
-    } catch {
-      // never break the desk over a snapshot; next change retries
-    }
+    } catch {}
   };
 
   const unsubscribe = store.subscribe((scope) => {
