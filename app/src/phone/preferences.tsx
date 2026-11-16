@@ -95,6 +95,7 @@ export function ConnectionPage({
       onUnpaired();
     } catch (err) {
       setError(messageOf(err));
+    } finally {
       setBusy(false);
     }
   };

@@ -676,6 +676,7 @@ function useNewDesk(
       openConversation(rt.agent_id, rt.conversation_id);
     } catch (err) {
       setError(messageOf(err));
+    } finally {
       setBusy(false);
     }
   };
