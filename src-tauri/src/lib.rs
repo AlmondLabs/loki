@@ -450,14 +450,16 @@ fn install_wanted() -> bool {
     !cfg!(debug_assertions) || std::env::var_os("LOKI_INSTALL").is_some()
 }
 
+#[cfg(debug_assertions)]
 fn dev_checkout() -> Option<PathBuf> {
-    #[cfg(debug_assertions)]
-    {
-        if std::env::var_os("LOKI_NO_INSTALL").is_some() {
-            return None;
-        }
-        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(std::path::Path::to_path_buf);
+    if std::env::var_os("LOKI_NO_INSTALL").is_some() {
+        return None;
     }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(std::path::Path::to_path_buf)
+}
+
+#[cfg(not(debug_assertions))]
+fn dev_checkout() -> Option<PathBuf> {
     None
 }
 
