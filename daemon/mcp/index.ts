@@ -25,43 +25,22 @@ import { McpServers, type McpTool } from "./servers.ts";
 import { coalesce } from "../../core/timers.ts";
 import { messageOf } from "../../core/errors.ts";
 
-/**
- * MCP on loki's daemon (the `loki.mcp` extension). Every connected server's tools are registered once, named
- * `mcp__<server>__<tool>`, but a chat starts with none of them: its tool filter hides each one until `mcp_search` finds
- * it, and pi-durable's `addTools` control (in the search's result) shows it from the chat's next step, as a real tool
- * with its real schema. Up front every chat sees only the `mcp` section: each server, what it is for, and the bare
- * names of its tools, so the agent knows what to search for. Adding servers never fills the context: Claude Code's
- * and Cursor's answer to MCP tool bloat. A server's `alwaysLoad` tools skip the search. Loaded tools stay for the chat;
- * /clear and a compaction unload them (`forget`). Big results spill to `<loki>/tool-results/<chat>/`.
- */
-
-/** How many of a server's tool names the section lists before "… and n more". */
 const NAMES_LISTED = 60;
-/** How many tools a free-text search loads. */
 const SEARCH_LIMIT = 5;
 
-/** The name of the tool that finds MCP tools and loads them into a chat. */
 export const SEARCH_TOOL = "mcp_search";
 
 type Capture = (event: string, properties: Record<string, unknown>) => void;
-/** Where `${keychain:…}` secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend), under mcp.<name>. */
 export interface Secrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
   delete?(account: string): Promise<void>;
 }
 
-/** A remote server signs in with OAuth unless its headers carry its own Authorization. */
 export const usesOauth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
 
-/** About how many tokens a tool's definition costs once loaded (four characters a token). */
 export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
 
-/**
- * The `loki.mcp` extension and its settings: registers the connected servers' tools and the
- * search, keeps each chat's tool filter, the servers switched off per agent and the OAuth sign-ins, and answers the
- * MCP part of Settings (McpView).
- */
 export class McpTools {
   readonly servers: McpServers;
   private readonly registry: Registry;
@@ -70,15 +49,11 @@ export class McpTools {
   private readonly report: (message: string) => void;
   private capture: Capture = () => {};
   private problems: string[] = [];
-  /** Re-register the extension once per burst of server changes. */
   private readonly installing = coalesce(() => this.install(), 0, { unref: true });
   private watching = false;
   private readonly secrets: Secrets | null;
-  /** Each agent's switched-off servers (Agents › Profile), kept in `<loki>/state/mcp-agents.json`. */
   private readonly offPath: string;
   private off: Record<string, string[]>;
-  // Sign-ins (daemon/mcp/oauth.ts): each remote server's provider, the page each waiting one sends you to, the state
-  // each page carries (one-time, matched when the browser comes back), and the servers known to hold a token.
   private readonly oauthStore: OauthStore;
   private readonly providers = new Map<string, ServerOauth>();
   private readonly signInUrls = new Map<string, string>();
@@ -114,19 +89,16 @@ export class McpTools {
         resolve: (c) => withSecrets(c, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null))),
         oauthFor: (c) => this.oauthFor(c),
       });
-    // A server connecting, failing or changing its tools re-registers the extension (once per burst of changes).
     this.servers.onChange(() => {
       this.installing.schedule();
     });
     this.install();
   }
 
-  /** Product analytics for searches and calls (the daemon's analytics is made after the tools are). */
   setCapture(capture: Capture): void {
     this.capture = capture;
   }
 
-  /** Read the config and connect, then follow the file: an edit reconnects only the servers it changed. */
   start(): void {
     this.reload();
     if (this.watching) return;
@@ -148,7 +120,6 @@ export class McpTools {
     await this.servers.close();
   }
 
-  /** The permission kind's input for a tool name (daemon/approvals.ts kindOf): MCP's own hints; the search only reads. */
   annotations(name: string): { readOnly?: boolean; destructive?: boolean } | undefined {
     if (name === SEARCH_TOOL) return { readOnly: true };
     if (!name.startsWith("mcp__")) return undefined;
@@ -156,17 +127,10 @@ export class McpTools {
     return tool ? { readOnly: tool.readOnly, destructive: tool.destructive } : undefined;
   }
 
-  /** The servers an agent has switched off. */
   offFor(agentId: string | null | undefined): Set<string> {
     return new Set(agentId ? (this.off[agentId] ?? []) : []);
   }
 
-  /**
-   * The servers an agent has on, as an ACP session takes them (plan 044): the agent connects to each itself, with its
-   * `${keychain:…}` values filled in, and signs in itself to one that wants OAuth (loki's sign-in stays loki's). A
-   * local server's command goes by its full path, as ACP names it. A local server with its own folder (ACP has no
-   * field for one), or whose command or secret cannot be found, is left out with a line in the daemon's log.
-   */
   async acpServers(agentId: string): Promise<acp.McpServer[]> {
     const off = this.offFor(agentId);
     const secrets = this.secrets;
@@ -190,20 +154,17 @@ export class McpTools {
     return out;
   }
 
-  /** The tools that only read, of the servers an agent has on, as an ACP agent names them: it runs them without asking. */
   acpReadOnly(agentId: string): string[] {
     return this.toolsFor(agentId)
       .filter((t) => t.readOnly)
       .map((t) => `mcp__${t.server}__${t.name}`);
   }
 
-  /** The tools an agent can use: its switched-off servers' left out. */
   private toolsFor(agentId: string | null | undefined): McpTool[] {
     const off = this.offFor(agentId);
     return this.servers.tools().filter((t) => !off.has(t.server));
   }
 
-  /** What a chat of `agentId` sees up front: its servers and their tools' names, or nothing when it has none. */
   sectionText(agentId?: string | null): string | undefined {
     const off = this.offFor(agentId);
     const status = this.servers.status().filter((s) => !off.has(s.name));
@@ -224,7 +185,6 @@ export class McpTools {
     ].join("\n");
   }
 
-  /** Register the current tools (and the search and the section) as `loki.mcp`, replacing the last registration. */
   install(): void {
     this.registry.install(this.extension());
   }
@@ -285,7 +245,7 @@ export class McpTools {
         const started = Date.now();
         const spillDir = await toolResultsDir(this.lokiDir, api, api.conversationId, context);
         try {
-          const input: unknown = args; // the model's arguments, as JSON: the schema is the server's, not typed here
+          const input: unknown = args;
           const result = await this.servers.call(t.key, (input ?? {}) as Record<string, unknown>, context.abortSignal);
           const mapped = mapResult(result, { spillDir, name: t.key });
           this.capture("mcp_call", {
@@ -305,17 +265,10 @@ export class McpTools {
     });
   }
 
-  /**
-   * Set a chat's tool filter before it runs: every MCP tool hidden unless it was loaded in this chat (known when the
-   * filter was last set, and not hidden since) or its server always loads it. A chat that names its tools outright (a
-   * background pass's) is left alone. Writes only when something changed.
-   */
   async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
     const agentId = (await store.harness.snapshot(AgentInfoDoc, context))?.id;
     const off = this.offFor(agentId);
     const all = this.servers.tools().map((t) => t.key);
-    // A switched-off server's tools are hidden whatever the chat loaded, and count as unknown, so switching it back
-    // on does not bring back what the chat had: it searches again.
     const usable = new Set(
       this.servers
         .tools()
@@ -348,9 +301,6 @@ export class McpTools {
     }, context);
   }
 
-  // --- Preferences › MCP servers and Agents › Profile ------------------------------------------------------------------------
-
-  /** Everything Settings shows: each server with its state, tools and their costs, and who has it switched off. */
   view(): McpView {
     const status = new Map(this.servers.status().map((s) => [s.name, s]));
     const tools = this.servers.tools();
@@ -385,11 +335,6 @@ export class McpTools {
     return { servers, problems: this.problems, config_path: this.configPath };
   }
 
-  /**
-   * Add, change, rename (`rename`) or remove (`edit` null) a server in mcp.json, and connect as it now says. A server
-   * removed, renamed or pointed at a new address leaves its old sign-in behind, so that is forgotten: tokens and
-   * registration both, which a later server of the same name and address would otherwise be handed.
-   */
   setServer(entry: string, edit: ServerEdit | null, rename?: string): McpView {
     const before = this.servers.configs().filter((c) => c.kind === "remote" && usesOauth(c));
     editServer(this.configPath, entry, edit, rename ? { rename } : {});
@@ -417,7 +362,6 @@ export class McpTools {
     return this.view();
   }
 
-  /** Keep a secret in the keychain for mcp.json to name: the `${keychain:…}` reference to write instead of it. */
   async storeSecret(name: string, value: string): Promise<string> {
     if (!this.secrets) throw new Error("no keychain on this system; write the value into mcp.json instead");
     const safe = name.replace(/[^A-Za-z0-9_.-]+/g, "_").slice(0, 80) || "secret";
@@ -425,15 +369,8 @@ export class McpTools {
     return keychainRef(safe);
   }
 
-  // --- OAuth sign-ins ----------------------------------------------------------------------------------------------
-
-  /**
-   * The sign-in a server uses (its provider, made once), or none. The provider tells loki when the server sends you to
-   * its authorization page, and which servers hold a token, so Settings can say "sign in" or "sign out".
-   */
   oauthFor(config: ServerConfig): ServerOauth | undefined {
     if (!usesOauth(config) || config.kind !== "remote") return undefined;
-    // By name and address: a server pointed somewhere else gets a provider, and a sign-in, of its own.
     const key = `${config.name}\u0000${config.url}`;
     let p = this.providers.get(key);
     if (!p) {
@@ -466,10 +403,6 @@ export class McpTools {
     return p;
   }
 
-  /**
-   * The browser came back from a server's authorization page (mod/server.ts, MCP_OAUTH_CALLBACK): match its state to
-   * the sign-in that sent it, redeem the code, and connect. Every outcome is a line for the page the browser shows.
-   */
   async finishAuth(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
     const server = params.state ? this.pendingStates.get(params.state) : undefined;
     if (!server)
@@ -480,7 +413,6 @@ export class McpTools {
       };
     this.pendingStates.delete(params.state);
     const config = this.servers.configs().find((c) => c.name === server);
-    // The page the browser shows names the server as you wrote it (its tool-safe name only when it is gone).
     const named = config?.entry ?? server;
     if (params.error) return { ok: false, server, message: `${named} did not sign in: ${params.error_description || params.error}` };
     const provider = config && this.oauthFor(config);
@@ -496,7 +428,6 @@ export class McpTools {
     }
   }
 
-  /** Forget a server's sign-in, tokens and registration both, and connect again, which asks for a sign-in. */
   async signOut(name: string): Promise<McpView> {
     const config = this.servers.configs().find((c) => c.name === name);
     await (config && this.oauthFor(config))?.signOut();
@@ -505,7 +436,6 @@ export class McpTools {
     return this.view();
   }
 
-  /** Switch a server on or off for one agent; its chats follow from their next run. */
   setAgentServer(agentId: string, server: string, on: boolean): McpView {
     const next = new Set(this.off[agentId] ?? []);
     if (on) next.delete(server);
@@ -517,11 +447,10 @@ export class McpTools {
     }
     mkdirSync(dirname(this.offPath), { recursive: true });
     writeFileSync(this.offPath, `${JSON.stringify({ off: this.off }, null, 2)}\n`);
-    this.install(); // the section reads the switches
+    this.install();
     return this.view();
   }
 
-  /** Unload every MCP tool a chat has (/clear, a compaction): its next run starts with none. */
   async forget(chat: Conversation, context: Context): Promise<void> {
     await chat.commit(async (tx) => {
       const doc = await tx.doc(ChatDoc, chat.id);
@@ -532,7 +461,6 @@ export class McpTools {
 
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && new Set([...a, ...b]).size === new Set(a).size;
 
-/** A found tool in one line: what it does, then its parameters (required ones bare, optional ones with ?). */
 function summary(t: McpTool): string {
   const props = Object.keys(t.inputSchema.properties ?? {});
   const required = new Set(Array.isArray(t.inputSchema.required) ? (t.inputSchema.required as string[]) : []);
@@ -540,7 +468,6 @@ function summary(t: McpTool): string {
   return `${desc}${props.length ? ` (${props.map((p) => (required.has(p) ? p : `${p}?`)).join(", ")})` : ""}`;
 }
 
-/** The switched-off servers per agent, as saved; anything unreadable is none. */
 function readOff(path: string): Record<string, string[]> {
   if (!existsSync(path)) return {};
   try {

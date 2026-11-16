@@ -1,11 +1,6 @@
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
 import { withKind } from "./tool-kinds.ts";
 
-/**
- * Web search (plan 017, U12): DuckDuckGo's plain HTML results, which need no key. A result is its title, link and snippet; the tool keeps the first few.
- */
-
-/** One search result: `url` is the real address, not DuckDuckGo's redirect, and `snippet` is empty when the page had none. */
 export interface SearchResult {
   title: string;
   url: string;
@@ -13,7 +8,6 @@ export interface SearchResult {
 }
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'", "&#39;": "'", "&nbsp;": " " };
-/** A numeric entity's character; one past Unicode (a malformed page) stays as written rather than throwing. */
 const codePoint = (n: number, entity: string) => (Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : entity);
 const plain = (html: string) =>
   html
@@ -35,7 +29,6 @@ function realUrl(href: string): string {
   }
 }
 
-/** The results in a DuckDuckGo HTML page, ads left out. */
 export function parseResults(html: string, limit = 8): SearchResult[] {
   const out: SearchResult[] = [];
   const blocks = html.split(/<div[^>]+class="[^"]*\bresult\b[^"]*"/).slice(1);
@@ -54,7 +47,6 @@ export function parseResults(html: string, limit = 8): SearchResult[] {
   return out;
 }
 
-/** Search DuckDuckGo for `query`: its first eight results, in plain text. Throws when the page does not come back. */
 export async function webSearch(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const response = await fetch("https://html.duckduckgo.com/html/", {
     method: "POST",
@@ -66,7 +58,6 @@ export async function webSearch(query: string, signal?: AbortSignal): Promise<Se
   return parseResults(await response.text());
 }
 
-/** The `web_search` tool, as an extension; `search` stands in for DuckDuckGo in tests. */
 export function webSearchExtension(search: (query: string, signal?: AbortSignal) => Promise<SearchResult[]> = webSearch): Extension {
   return defineExtension({
     name: "loki.web",

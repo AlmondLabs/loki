@@ -17,7 +17,6 @@ const MOD_FILES = new Set([".js", ".mjs", ".ts"]);
 
 let loads = 0;
 
-/** esbuild, when this install has it. */
 async function bundler(): Promise<typeof esbuild | null> {
   try {
     return await import("esbuild");
@@ -26,7 +25,6 @@ async function bundler(): Promise<typeof esbuild | null> {
   }
 }
 
-/** Import one mod file afresh. */
 export async function importMod(file: string, buildDir: string): Promise<LokiMod> {
   let url = pathToFileURL(file);
   const esbuild = await bundler();
@@ -55,16 +53,12 @@ export async function importMod(file: string, buildDir: string): Promise<LokiMod
   return { ...mod, name: mod.name || basename(file, extname(file)) };
 }
 
-/**
- * Load every mod in `dir` and keep them current: a changed file is loaded again, a removed one unloaded. Returns a
- * function that stops watching.
- */
 export async function loadModFolder(mods: ModRegistry, dir: string, report: (message: string) => void): Promise<() => void> {
   mkdirSync(dir, { recursive: true });
   const buildDir = join(dir, ".build");
   rmSync(buildDir, { recursive: true, force: true });
-  const names = new Map<string, string>(); // file → mod name
-  const loadedAt = new Map<string, number>(); // file → its modification time when last loaded
+  const names = new Map<string, string>();
+  const loadedAt = new Map<string, number>();
   const load = async (file: string) => {
     const path = join(dir, file);
     const modified = modifiedAt(path);
@@ -78,7 +72,6 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
     loadedAt.set(file, modified);
     try {
       const mod = await importMod(path, buildDir);
-      // The file renamed its mod: the old name goes, or it would keep running beside the new one.
       const was = names.get(file);
       if (was !== undefined && was !== mod.name) {
         mods.unload(was);
@@ -90,13 +83,11 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
     }
   };
   const isMod = (file: string) => MOD_FILES.has(extname(file)) && !file.startsWith(".");
-  // Every file that is new, changed or gone since it was last loaded.
   const sweep = async () => {
     const files = new Set(readdirSync(dir).filter(isMod));
     for (const file of new Set([...files, ...loadedAt.keys()])) if (!files.has(file) || loadedAt.get(file) !== modifiedAt(join(dir, file))) await load(file);
   };
   // Watching starts before the first look, and a second look follows once the watch is surely running: on macOS
-  // fs.watch returns before its event stream has started, and a file written in between was never loaded.
   const stop = watchFiles(dir, isMod, load, 150, false);
   await sweep();
   const again = setTimeout(() => {
@@ -109,10 +100,8 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
   };
 }
 
-/** How long after a watch starts the folder is looked at again, for what changed before it was running. */
 const WATCH_SETTLE_MS = 1000;
 
-/** A file's modification time in milliseconds, or null when it is gone. */
 function modifiedAt(path: string): number | null {
   try {
     return statSync(path).mtimeMs;
@@ -121,7 +110,6 @@ function modifiedAt(path: string): number | null {
   }
 }
 
-/** Call `changed(file)` once a burst of edits to a file under `dir` settles; `file` is relative to `dir`. */
 export function watchFiles(dir: string, include: (file: string) => boolean, changed: (file: string) => unknown, settleMs = 150, recursive = true): () => void {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const watcher = watch(dir, { recursive }, (_event, file) => {

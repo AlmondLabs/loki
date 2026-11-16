@@ -7,11 +7,6 @@ import { backupBeforeMigration } from "../store-backup.ts";
 import { STORE_VERSION, acpConversations, markStoreVersion, migrateStoredEntries, storeVersion } from "../store-migration.ts";
 import { Listeners } from "../../core/listeners.ts";
 
-/**
- * Every agent's store (plan 017, KTD2, KTD18): one pi-durable Harness over one SQLite file per agent, opened on first
- * use and shared after. A storage error closes a Harness and every later call on it fails; the manager notices the
- * close it did not ask for and opens the store again, so that agent's chats come back while the others never stopped.
- */
 export class StoreManager {
   private readonly open = new Map<string, Promise<AgentStore>>();
   private readonly closing = new Set<string>();
@@ -22,7 +17,6 @@ export class StoreManager {
   private readonly report: (message: string) => void;
   private readonly openStore: (file: string) => Promise<AgentStore>;
 
-  /** `openStore` opens one store; tests open them on memory. */
   constructor(
     dir: string,
     options: StoreOptions,
@@ -38,12 +32,10 @@ export class StoreManager {
       (async (file) => {
         mkdirSync(dir, { recursive: true });
         // A newer pi-durable migrates the store as it opens it, for good: copy it first (plan 039). A copy that fails
-        // stops the store from opening, reported, rather than leaving it with no way back.
         const copy = backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION);
         if (copy) report(`store ${file} copied to ${copy} before pi-durable migrates it`);
         const behind = storeVersion(file) < STORE_VERSION;
         const store = await AgentStore.open({ file }, options, context);
-        // Saved chats take the shapes loki writes now, once, before anything reads them (plans 044, 045); copied first.
         if (behind) {
           const migrated = migrateStoredEntries(
             file,
@@ -57,12 +49,10 @@ export class StoreManager {
       });
   }
 
-  /** Where an agent's store lives. */
   file(agentId: string): string {
     return join(this.dir, `${agentId}.sqlite`);
   }
 
-  /** The agent's store, opened if it is not yet. */
   get(agentId: string): Promise<AgentStore> {
     const known = this.open.get(agentId);
     if (known) return known;
@@ -72,7 +62,6 @@ export class StoreManager {
       this.listeners.emit(agentId, store);
       return store;
     });
-    // A store that fails to open is forgotten, so the next call tries again.
     opening.catch((error: unknown) => {
       this.open.delete(agentId);
       this.report(`store of ${agentId} did not open: ${String(error)}`);
@@ -81,17 +70,14 @@ export class StoreManager {
     return opening;
   }
 
-  /** The agents whose stores are open now. */
   agents(): string[] {
     return [...this.open.keys()];
   }
 
-  /** Called with each store as it opens, and again when it reopens after a failure. */
   onOpen(listener: (agentId: string, store: AgentStore) => void): () => void {
     return this.listeners.add(listener);
   }
 
-  /** Close one agent's store, as when the agent is deleted. */
   async close(agentId: string): Promise<void> {
     const opening = this.open.get(agentId);
     if (!opening) return;
@@ -108,7 +94,6 @@ export class StoreManager {
     await Promise.all(this.agents().map((id) => this.close(id)));
   }
 
-  /** A store closed: by us, nothing to do; on its own (a storage error), open it again once the old one is gone. */
   private closed(agentId: string, store: AgentStore): void {
     if (this.closing.has(agentId)) return;
     void this.open.get(agentId)?.then((current) => {

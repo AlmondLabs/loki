@@ -18,120 +18,69 @@ import { AcpProcess } from "./process.ts";
 import { acpTurnProperties } from "../telemetry.ts";
 import type { ModRegistry } from "../mods/registry.ts";
 
-/** How long a page the agent asks the person to open waits for them: Claude Code's own wait for a sign-in. */
 const SIGN_IN_WAIT_MS = 10 * 60_000;
-/** How long Stop waits for the agent to say it stopped before loki ends the turn without it. */
 const STOP_WAIT_MS = 3_000;
-/**
- * Chats that run on an ACP agent (plan 020). Each chat has a session on its agent's process; a message is a
- * `session/prompt`, and what the agent reports as it works (`session/update`) becomes loki's chat events for every
- * client and, as each message completes, entries in the chat's own store. So the thread, the Inbox, history and the
- * passes read an ACP chat as they read any other (R7), and the usage the agent reports lands in the usage ledger
- * (R9). The agent's permission requests are loki's approval cards (KD10).
- */
 
-/** What the ACP chats are made with. */
 export interface AcpChatsDeps {
   stores: StoreManager;
   approvals: Approvals;
   context: Context;
-  /** The ACP agents loki knows (daemon/acp/agents.ts), read on each use so an added agent needs no restart. */
   agents: () => AcpAgentConfig[];
-  /** What is added to the agent's system prompt for a loki agent: its persona and memory (KD5); null for nothing. */
   systemPrompt?: (agentId: string, withTools: boolean) => string | null;
-  /**
-   * The daemon's mods (plan 067): their prompt sections for the chat's agent join its system prompt when the session
-   * opens, and their message transforms run on the person's messages, as on loki's engine; absent, neither.
-   */
   mods?: Pick<ModRegistry, "renderSections" | "transformMessage">;
-  /** The folder a chat with none set runs in. */
   homeDir: string;
-  /**
-   * The MCP servers a chat's session opens with (plan 044): loki's own tools (daemon/acp/loki-tools.ts) and the
-   * servers set up in loki that are on for the agent, which it connects to itself; absent, none. Those over HTTP or SSE go only to an agent that
-   * says it takes them.
-   */
   mcpServers?: (agentId: string, conversationId: string) => Promise<acp.McpServer[]>;
-  /** Opens a web page in this Mac's browser: an MCP server's sign-in the agent asked for (plan 044); absent, none opens. */
   openUrl?: (url: string) => void;
-  /** Tools the agent runs without asking (plan 044): those that only read, as Claude Code names them. */
   allowedTools?: (agentId: string) => string[];
-  /** loki's tool server limited to a background pass's own tools (plan 061); absent, a pass gets no tools. */
   passServer?: (agentId: string, conversationId: string, tools: readonly string[]) => acp.McpServer | null;
-  /** Analytics: each turn's `turn_finished` line (daemon/telemetry.ts); absent, nothing is recorded. */
   capture?: (event: string, properties: Record<string, unknown>) => void;
-  /** Where each line the agents write to stderr goes, named by agent, so a hang can be traced; absent, nowhere. */
   report?: (message: string) => void;
-  /** How long Stop waits for the agent to answer it, in milliseconds; absent, three seconds. */
   stopWaitMs?: number;
-  /** The person's agents file (`state/acp.json`), which Preferences › Engines edits; absent, the agents cannot be edited. */
   configFile?: string;
-  /**
-   * Where what each agent last offered (its models, modes and commands) is kept, so the model picker and a chat's
-   * menus have them before the agent next starts; absent, they are kept only while the daemon runs.
-   */
   cacheFile?: string;
   now?: () => Date;
 }
 
-/** A tool call in the turn running now: shown as it changes, written when it finishes. */
 interface Call {
   name: string;
   args: unknown;
-  /** The words the agent wrote before the call, which the stored assistant message carries with it. */
   textBefore: string;
-  /** What the agent thought before the call (its thought chunks), stored as the message's thinking part (plan 097, U9). */
   thoughtBefore: string;
   output: string;
   done: boolean;
-  /** The agent said it failed, or the turn ended before it finished. */
   failed?: boolean;
 }
 
 /** Whether a call's arguments say anything yet (Claude's adapter opens a call as "Preparing file…" with none). */
 const hasArgs = (args: unknown) => args !== undefined && args !== null && !(typeof args === "object" && Object.keys(args).length === 0);
 
-/** The turn running in a chat. */
 interface Turn {
   id: string;
   abort: AbortController;
-  /** The words of the answer in flight, since the last tool call. */
   text: string;
-  /** What the agent thought since the last tool call, from its thought chunks. */
   thought: string;
   at: string | null;
   calls: Map<string, Call>;
   plan: acp.PlanEntry[] | null;
-  /** The model the agent says answered (Claude's adapter names it on its usage updates). */
   model: string | null;
-  /** Dollars the agent reported spending in this turn. */
   cost: number;
-  /** Finished calls being written, which the turn's end waits for so its last words come after them. */
   writes: Array<Promise<void>>;
-  /** For its `turn_finished` line: when it was sent and first answered (ms), and how many replies it wrote. */
   startedAt: number;
   firstOutputAt: number | null;
   responses: number;
 }
 
-/** One ACP chat as loki is running it now; made on first use, and forgotten when the daemon stops. */
 interface Live {
   agentId: string;
   conversationId: string;
   agent: string;
-  /** The model the chat runs on, as the picker named it. */
   model: string;
-  /** The effort the chat asked for (plan 021); null leaves the agent's own. */
   effort: string | null;
   sessionId: string | null;
-  /** The process start the session belongs to: a restarted agent has none of its sessions open. */
   epoch: number;
-  /** The agent replays a loaded session's history as updates; loki has it already, so they are dropped. */
   loading: boolean;
-  /** Words for the agent's first prompt of a session, when it takes no system prompt (KD5). */
   preamble: string | null;
   turn: Turn | null;
-  /** What Stop ends: the turn running now, or the session being opened ahead of the first message (`warm`). */
   stop: AbortController | null;
   queue: Promise<void>;
   sent: Set<string>;
@@ -140,44 +89,32 @@ interface Live {
   commands: acp.AvailableCommand[];
   /** The agent's running total of dollars for the session (it reports the total, not each turn's). */
   costSoFar: number;
-  /**
-   * A background pass's hidden chat (plan 061): its session opens with the job's instructions and only the job's
-   * tools, and every permission the agent asks for is refused without a card.
-   */
   pass: { instructions: string; tools: readonly string[] } | null;
 }
 
-/** What one turn came to: the agent's last words, and why it failed or null. */
 interface TurnOutcome {
   text: string;
   error: string | null;
 }
 
-/** What a background pass asks of an ACP agent (plan 061), in a hidden chat of its own. */
 export interface PassRun {
   agentId: string;
-  /** The pass's hidden chat, made on first use. */
   chatId: string;
   title: string;
   engine: ChatEngine;
-  /** The folder the session runs in: the agent's memory, so what the agent reads without asking is the pass's own. */
   cwd: string;
   instructions: string;
-  /** loki's tools the job may call, by loki's names; empty for none. */
   tools: readonly string[];
   prompt: string;
-  /** How long the turn may take before it is stopped and the run fails. */
   timeoutMs: number;
 }
 
 const key = (agentId: string, conversationId: string) => `${agentId}\u0000${conversationId}`;
 
-/** A tool call's content as text: its words, a diff as a unified diff, a terminal by name. */
 function contentOutput(content: acp.ToolCallContent[] | null | undefined): string {
   return (content ?? [])
     .map((c) => {
       if (c.type === "diff") {
-        // A file's last newline ends its last line; it is not one more line.
         const lines = (text: string) => text.replace(/\n$/, "").split("\n");
         const old = lines(c.oldText ?? "").map((l) => `-${l}`);
         const now = lines(c.newText).map((l) => `+${l}`);
@@ -189,24 +126,17 @@ function contentOutput(content: acp.ToolCallContent[] | null | undefined): strin
     .join("\n");
 }
 
-/** A raw output the agent attached, as text, when its content said nothing. */
 function rawText(raw: unknown): string {
   if (raw === undefined || raw === null) return "";
   return typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
 }
 
-/** The plan as a checklist, one "[x] what" line each; planItems (core/harness.ts) reads it back into the Plan's entries. */
 function planText(entries: acp.PlanEntry[]): string {
   return entries.map((e) => `${e.status === "completed" ? "[x]" : e.status === "in_progress" ? "[~]" : "[ ]"} ${e.content}`).join("\n");
 }
 
-/** Thrown when Stop ended the wait on the agent: it did not answer in time. */
 class Stopped extends Error {}
 
-/**
- * The agent's answer, unless Stop comes first and the agent has not answered `waitMs` later: a stuck agent cannot keep
- * a chat busy, and one that stops when asked still says its last words.
- */
 function unlessStopped<T>(work: Promise<T>, signal: AbortSignal, waitMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -222,7 +152,6 @@ function unlessStopped<T>(work: Promise<T>, signal: AbortSignal, waitMs: number)
   });
 }
 
-/** Why a turn stopped short, for the person; null when it simply ended. */
 function stopNote(reason: acp.StopReason): string | null {
   if (reason === "refusal") return "the agent refused to continue";
   if (reason === "max_tokens") return "the agent's answer hit its length limit";
@@ -230,19 +159,15 @@ function stopNote(reason: acp.StopReason): string | null {
   return null;
 }
 
-/** The chats on ACP agents, as DaemonChats routes them here (daemon/chat-backend.ts). */
 export class AcpChats {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly live = new Map<string, Live>();
   private readonly bySession = new Map<string, Live>();
   /** Updates for a session loki has not registered yet (they can arrive with its `session/new` answer), replayed once it has. */
   private readonly early = new Map<string, acp.SessionNotification[]>();
-  /** Who waits for a session to be registered: a sign-in it asks for while it opens (see `elicit`). */
   private readonly registering = new Map<string, Array<(live: Live) => void>>();
   private readonly processes = new Map<string, AcpProcess>();
-  /** The agents loki knows, how each stands, and what each offered (daemon/acp/catalog.ts). */
   private readonly catalog: AcpCatalog;
-  /** How long Stop waits for the agent to answer it. */
   private readonly stopWaitMs: number;
   private readonly deps: AcpChatsDeps;
 
@@ -252,7 +177,6 @@ export class AcpChats {
     this.catalog = new AcpCatalog({ agents: deps.agents, configFile: deps.configFile, cacheFile: deps.cacheFile });
   }
 
-  /** Tell the catalog what a session offers, for the picker and for chats whose agent is not running now. */
   private remember(live: Live): void {
     const known = this.catalog.offeredBy(live.agent);
     const modeOption = live.configOptions.find((o) => o.category === "mode");
@@ -263,7 +187,6 @@ export class AcpChats {
       const levels = selectOptions(effortOption)
         .map((o) => o.value)
         .filter((v) => v !== "default");
-      // Filed under the model the agent says it is on, and under the chat's own name for it ("default").
       for (const model of new Set([modelOption?.type === "select" ? modelOption.currentValue : null, live.model])) if (model) efforts[model] = levels;
     }
     this.catalog.offer(live.agent, {
@@ -278,26 +201,22 @@ export class AcpChats {
     });
   }
 
-  /** Preferences › Engines: every agent, how it starts and how it stands. */
   engines(): EnginesView {
     return this.catalog.engines();
   }
 
-  /** Add an agent, or change how one starts; its process starts again the new way on the next message. */
   setEngine(agent: AcpAgentConfig): Promise<EnginesView> {
     this.catalog.set(agent);
     this.restart(agent.id);
     return Promise.resolve(this.catalog.engines());
   }
 
-  /** Remove an agent; a built-in one goes back to how loki ships it. */
   removeEngine(id: string): Promise<EnginesView> {
     this.catalog.remove(id);
     this.restart(id);
     return Promise.resolve(this.catalog.engines());
   }
 
-  /** Start an agent afresh and initialize it, to see that it starts; sign-in shows only on a first message. */
   async checkEngine(id: string): Promise<EnginesView> {
     const proc = this.process(id);
     await proc.close();
@@ -310,31 +229,26 @@ export class AcpChats {
     return this.catalog.engines();
   }
 
-  /** The agent's process goes, so the next message starts it as its settings now say. */
   private restart(id: string): void {
     void this.processes.get(id)?.close();
     this.processes.delete(id);
   }
 
-  /** The chat's engine as the app shows it: the agent's name, the model, and its modes and commands. */
   view(engine: Pick<ChatEngine, "agent" | "model">): ChatEngineView {
     return this.catalog.view(engine);
   }
 
-  /** Tell every client the chat's engine changed (its modes or commands arrived), and its mode when that is known. */
   private pushView(live: Live, engine: Pick<ChatEngine, "agent" | "model">, mode?: string): void {
     const view = this.catalog.view(engine);
     this.push(live.agentId, live.conversationId, [{ kind: "device", engine: view, ...(mode ? { mode } : {}) }]);
   }
 
-  /** The mode the agent's session is in now: its mode state, or its mode option. */
   private currentMode(live: Live): string | null {
     if (live.modes) return live.modes.currentModeId;
     const option = live.configOptions.find((o) => o.category === "mode");
     return option?.type === "select" ? option.currentValue : null;
   }
 
-  /** Each ACP agent's models for the model picker (AcpCatalog.models). */
   models(): ModelEntry[] {
     return this.catalog.models();
   }
@@ -347,12 +261,10 @@ export class AcpChats {
     return (this.deps.now?.() ?? new Date()).toISOString();
   }
 
-  /** The agent named `id`, if loki knows it. */
   agent(id: string): AcpAgentConfig | undefined {
     return this.catalog.agent(id);
   }
 
-  /** The agent's process, made on first use (it starts when first asked for something). */
   private process(agent: string): AcpProcess {
     let proc = this.processes.get(agent);
     if (!proc) {
@@ -371,7 +283,6 @@ export class AcpChats {
 
   private liveOf(agentId: string, conversationId: string, engine: ChatEngine): Live {
     let live = this.live.get(key(agentId, conversationId));
-    // Moved to another agent before its first message, after its session was opened early (`warm`): start over.
     if (live && live.agent !== engine.agent && !live.turn) {
       if (live.sessionId) this.bySession.delete(live.sessionId);
       live = undefined;
@@ -410,12 +321,10 @@ export class AcpChats {
     return { store, chat, info };
   }
 
-  /** Whether a turn is running in the chat or waits on the person. */
   busy(agentId: string, conversationId: string): boolean {
     return Boolean(this.live.get(key(agentId, conversationId))?.turn) || this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
   }
 
-  /** The chat as a client opening it sees it: running or not, the answer in flight, its mode and folder. */
   async state(agentId: string, conversationId: string): Promise<ChatState> {
     const { store, chat, info } = await this.chat(agentId, conversationId);
     const live = this.live.get(key(agentId, conversationId));
@@ -434,7 +343,6 @@ export class AcpChats {
     };
   }
 
-  /** The person's message: it waits for the turn before it, then runs as its own (a message sent twice runs once). */
   send(p: PayloadOf<"chat_send">, engine: ChatEngine): void {
     const live = this.liveOf(p.agent_id, p.conversation_id, engine);
     if (p.send_id) {
@@ -445,16 +353,10 @@ export class AcpChats {
     this.enqueue(live, text, p.images, { typed: p.text.trim() !== "" });
   }
 
-  /**
-   * Open the chat's session now, ahead of its first message, so the agent says which models and effort levels it
-   * offers before anything is sent (plan 021, R4) and the first message starts sooner. Queued like a turn; a failure
-   * here is left for the first message to report.
-   */
   warm(agentId: string, conversationId: string, engine: ChatEngine): void {
     const live = this.liveOf(agentId, conversationId, engine);
     live.queue = live.queue
       .then(async () => {
-        // Stop ends the wait too: an agent that never finishes opening must not hold the messages queued behind it.
         const stop = new AbortController();
         live.stop = stop;
         try {
@@ -468,12 +370,10 @@ export class AcpChats {
       .catch(() => {});
   }
 
-  /** A message from loki itself (a schedule's prompt, a background task's notice): queued like the person's. */
   deliver(agentId: string, conversationId: string, text: string, engine: ChatEngine): void {
     this.enqueue(this.liveOf(agentId, conversationId, engine), text, []);
   }
 
-  /** A turn queued behind the chat's others; `person` marks the person's own message, which the mods' transforms see. */
   private enqueue(live: Live, text: string, images: PayloadOf<"chat_send">["images"], person?: { typed: boolean }): void {
     live.queue = live.queue
       .then(() => this.run(live, text, images, person))
@@ -481,11 +381,6 @@ export class AcpChats {
       .catch(() => {});
   }
 
-  /**
-   * A background pass on an ACP agent (plan 061): its hidden chat, made on first use in the agent's memory folder and
-   * put on the engine given, starts a new session each run, with the job's instructions and only its tools, and the
-   * agent's last words come back. A run past `timeoutMs` is stopped and fails, as one on loki's engine does.
-   */
   async runPass(p: PassRun): Promise<string> {
     const { context } = this.deps;
     const store = await this.deps.stores.get(p.agentId);
@@ -493,7 +388,6 @@ export class AcpChats {
     const engine: ChatEngine = { ...p.engine, session_id: null };
     await store.updateChat(p.chatId, { engine }, context);
     const live = this.liveOf(p.agentId, p.chatId, engine);
-    // A new session each run, as a pass chat on loki's engine is cleared first: nothing carries over between runs.
     if (live.sessionId) this.bySession.delete(live.sessionId);
     live.sessionId = null;
     live.agent = engine.agent;
@@ -521,23 +415,16 @@ export class AcpChats {
     }
   }
 
-  /**
-   * Stop the turn running now, or the session being opened for the first message: what waits on the person is
-   * withdrawn and the agent is asked to cancel. The chat is free again once the agent answers, or `STOP_WAIT_MS` later
-   * if it does not; the messages queued behind it then go.
-   */
   abort(agentId: string, conversationId: string): void {
     const live = this.live.get(key(agentId, conversationId));
     if (!live?.stop) return;
     live.stop.abort();
-    // Not awaited: an agent stuck starting would hold Stop itself.
     if (live.sessionId)
       void this.process(live.agent)
         .cancel(live.sessionId)
         .catch(() => {});
   }
 
-  /** The agent's mode for the chat (KD10): remembered on the chat, and set on its session when one is open. */
   async setMode(agentId: string, conversationId: string, modeId: string): Promise<void> {
     const { store } = await this.chat(agentId, conversationId);
     await store.updateChat(conversationId, { mode: modeId }, this.deps.context);
@@ -546,7 +433,6 @@ export class AcpChats {
     this.push(agentId, conversationId, [{ kind: "device", mode: modeId }]);
   }
 
-  /** The agent's model and effort for the chat: set on its session when one is open; a new session starts on them. */
   async setModel(agentId: string, conversationId: string, model: string, effort: string | null = null): Promise<void> {
     const live = this.live.get(key(agentId, conversationId));
     if (!live) return;
@@ -560,12 +446,10 @@ export class AcpChats {
     this.pushView(live, { agent: live.agent, model });
   }
 
-  /** The slash commands the agent offers in this chat, as it last listed them. */
   commands(agentId: string, conversationId: string): acp.AvailableCommand[] {
     return this.live.get(key(agentId, conversationId))?.commands ?? [];
   }
 
-  /** Stop every agent process; the daemon is stopping. */
   async close(): Promise<void> {
     await Promise.all([...this.processes.values()].map((p) => p.close()));
   }
@@ -592,7 +476,6 @@ export class AcpChats {
     }
   }
 
-  /** The chat's effort on its session, when the agent offers that level for the model it is on now; null leaves the agent's. */
   private async applyEffort(live: Live, effort: string | null): Promise<void> {
     if (!live.sessionId || !effort) return;
     const option = live.configOptions.find((o) => o.category === "thought_level" && o.type === "select");
@@ -600,10 +483,6 @@ export class AcpChats {
     live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, effort)).configOptions;
   }
 
-  /**
-   * The chat's session on its agent, opened if it has none on the running process: the one it had, loaded, when the
-   * agent can load sessions (R8); otherwise a new one, and the chat says the agent starts afresh.
-   */
   private async session(live: Live, store: AgentStore, chat: Conversation, info: Readonly<ChatInfo>, engine: ChatEngine): Promise<string> {
     const proc = this.process(live.agent);
     const caps = await proc.capabilities();
@@ -620,8 +499,6 @@ export class AcpChats {
     const mcpServers = servers.filter((m) =>
       !("type" in m) ? true : m.type === "http" ? Boolean(caps.mcpCapabilities?.http) : m.type === "sse" ? Boolean(caps.mcpCapabilities?.sse) : false,
     );
-    // A pass runs on its job's instructions alone; a chat gets its agent's prompt and the mods' sections for it, read
-    // once as the session opens, since the agent keeps the system prompt it opened with.
     const prompt = pass
       ? pass.instructions
       : [
@@ -648,7 +525,6 @@ export class AcpChats {
       try {
         opened = { sessionId: engine.session_id, ...(await proc.loadSession({ sessionId: engine.session_id, ...opening })) };
       } catch {
-        // The agent no longer has it (its own history was cleared, say): a new session, said so below.
         opened = null;
       } finally {
         live.loading = false;
@@ -662,7 +538,6 @@ export class AcpChats {
       opened = await proc.newSession(opening);
       // Known before anything else is awaited: the agent sends its commands right after it answers.
       this.register(opened.sessionId, live);
-      // Only while the chat is still on this agent: one opened early may have moved on while the agent started.
       const now = (await store.chatInfo(chat.id, this.deps.context))?.engine;
       if (now?.kind === "acp" && now.agent === engine.agent)
         await store.updateChat(live.conversationId, { engine: { ...now, session_id: opened.sessionId } }, this.deps.context);
@@ -673,12 +548,9 @@ export class AcpChats {
     live.configOptions = opened.configOptions ?? [];
     live.preamble = prompt && !takesPrompt ? prompt : null;
     this.register(opened.sessionId, live);
-    // The chat's latest choice: a session opened early may have been asked for another while the agent started.
     await this.applyModel(live, live.model);
     await this.applyEffort(live, live.effort);
     this.remember(live);
-    // The chat's mode, when it is one of the agent's; otherwise the chat takes the mode the agent is in. Read again
-    // now: it may have been chosen while the agent started.
     const wanted = (await store.chatInfo(chat.id, this.deps.context))?.mode ?? info.mode;
     const offered = this.catalog.offeredBy(live.agent)?.modes ?? [];
     if (wanted && offered.some((m) => m.id === wanted)) await this.applyMode(live, wanted).catch(() => {});
@@ -688,16 +560,10 @@ export class AcpChats {
     return opened.sessionId;
   }
 
-  /** The agent's name, as the mods hear it on loki's engine (daemon/mods/registry.ts). */
   private async agentName(store: AgentStore): Promise<string> {
     return (await store.harness.snapshot(AgentInfoDoc, this.deps.context))?.name ?? "";
   }
 
-  /**
-   * The person's message after the mods' transforms (plan 067), as loki's engine sends it: what a mod has for the
-   * agent, such as what became of its reply proposals, rides with it. The agent takes the text; pictures go separately,
-   * so a transform's own non-text parts are left out.
-   */
   private async transformed(live: Live, store: AgentStore, text: string, typed: boolean): Promise<string> {
     const mods = this.deps.mods;
     if (!mods) return text;
@@ -706,14 +572,9 @@ export class AcpChats {
     return content.flatMap((p) => (p.type === "text" && typeof p.text === "string" ? [p.text] : [])).join("\n\n");
   }
 
-  /**
-   * One turn: the message written and shown, sent to the agent, and the chat settled when it answers or fails. What it
-   * comes to: the agent's last words, and why it failed or null; a background pass reads both (plan 061).
-   */
   private async run(live: Live, sent: string, images: PayloadOf<"chat_send">["images"], person?: { typed: boolean }): Promise<TurnOutcome> {
     const { store, chat, info } = await this.chat(live.agentId, live.conversationId);
     if (info.engine?.kind !== "acp") return { text: "", error: "the chat is not on an ACP agent" };
-    // Transformed as the turn starts rather than when queued, so what a mod has for the agent by then rides with it.
     const text = person ? await this.transformed(live, store, sent, person.typed) : sent;
     const proc = this.process(live.agent);
     const turn: Turn = {
@@ -747,7 +608,6 @@ export class AcpChats {
     let stopReason: acp.StopReason | null = null;
     const outcome: TurnOutcome = { text: "", error: null };
     try {
-      // Inside the try: the chat already reads as running, so a write the store refuses must still end the turn.
       await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
       const sessionId = await unlessStopped(this.session(live, store, chat, info, info.engine), turn.abort.signal, this.stopWaitMs);
       const caps = await proc.capabilities();
@@ -770,7 +630,6 @@ export class AcpChats {
     } catch (error) {
       await this.finish(live, store, chat, turn, null, info.engine).catch(() => {});
       if (error instanceof Stopped) {
-        // The agent may still be working on it; the chat no longer waits.
         stopReason = "cancelled";
         outcome.error = "the turn was stopped";
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "the agent did not answer the stop, so loki ended the turn without it" }]);
@@ -789,7 +648,6 @@ export class AcpChats {
     return outcome;
   }
 
-  /** The turn's `turn_finished` line: what the agent reported, and what loki saw go by. */
   private measure(live: Live, turn: Turn, engine: ChatEngine, usage: acp.Usage | null, stopReason: acp.StopReason | null): void {
     const calls = [...turn.calls.values()];
     this.deps.capture?.(
@@ -820,10 +678,8 @@ export class AcpChats {
     );
   }
 
-  /** The end of a turn: calls left open fail, the plan and the last words are written, and the usage counted; the words. */
   private async finish(live: Live, store: AgentStore, chat: Conversation, turn: Turn, usage: acp.Usage | null, engine: ChatEngine): Promise<string> {
     await Promise.allSettled(turn.writes);
-    // One at a time, in the order the calls were made: the thread is read back in the order its entries were written.
     for (const [id, call] of turn.calls) {
       if (call.done) continue;
       call.done = true;
@@ -881,7 +737,6 @@ export class AcpChats {
     return words;
   }
 
-  /** A tool call that finished (or never will): its call and its result written, and the result shown. */
   private async writeCall(live: Live, store: AgentStore, chat: Conversation, id: string, call: Call, failed: boolean, output: string): Promise<void> {
     const at = Date.parse(this.now());
     const content = [
@@ -905,7 +760,6 @@ export class AcpChats {
     );
   }
 
-  /** A session is the chat's from now on; what it reported before loki knew it is taken in now. */
   private register(sessionId: string, live: Live): void {
     if (this.bySession.get(sessionId) === live) return;
     this.bySession.set(sessionId, live);
@@ -916,11 +770,9 @@ export class AcpChats {
     for (const n of early) this.update(n);
   }
 
-  /** What the agent reports as it works, for whichever chat the session is. */
   private update(n: acp.SessionNotification): void {
     const live = this.bySession.get(n.sessionId);
     if (!live) {
-      // A few, for a few sessions: only what comes between an answer and its session being registered.
       const held = this.early.get(n.sessionId) ?? [];
       if (held.length < 20) this.early.set(n.sessionId, [...held, n]);
       if (this.early.size > 8) this.early.delete(this.early.keys().next().value ?? "");
@@ -960,7 +812,6 @@ export class AcpChats {
         turn.text += u.content.text;
         push([{ kind: "step", step: { kind: "assistant", text: u.content.text, at: now, chunk: true } }]);
         return;
-      // What the agent thinks as it works: shown live as a piece, kept for the reply or call it leads to.
       case "agent_thought_chunk":
         if (u.content.type !== "text" || !u.content.text) return;
         turn.firstOutputAt ??= Date.parse(now);
@@ -969,7 +820,6 @@ export class AcpChats {
         return;
       case "tool_call": {
         turn.firstOutputAt ??= Date.parse(now);
-        // The words so far belong before the call: they settle as written, and go into the call's stored message.
         const call: Call = {
           name: u.title || u.name || u.kind || "tool",
           args: u.rawInput ?? {},
@@ -983,7 +833,6 @@ export class AcpChats {
         turn.thought = "";
         turn.at = null;
         turn.calls.set(u.toolCallId, call);
-        // A call is shown once it has arguments, not under the agent's placeholder title.
         if (hasArgs(call.args)) {
           push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now } }]);
         }
@@ -1025,7 +874,6 @@ export class AcpChats {
     }
   }
 
-  /** A call the agent says finished: done now (so the turn's end leaves it be), written in the background. */
   private completeCall(live: Live, turn: Turn, id: string, call: Call, failed: boolean, raw: string): void {
     call.done = true;
     call.failed = failed;
@@ -1034,13 +882,6 @@ export class AcpChats {
     turn.writes.push(this.chat(live.agentId, live.conversationId).then(({ store, chat }) => this.writeCall(live, store, chat, id, call, failed, output)));
   }
 
-  /**
-   * The agent asks the person to open a page (plan 044): Claude Code's sign-in to an MCP server, whose answer comes
-   * back to a listener Claude Code runs on this Mac. A loki card asks first, in the chat, on the Mac and the phone;
-   * allowed, the page opens in this Mac's browser wherever the card was answered. Claude Code keeps the token for
-   * every later session, so each server asks once. A form, or a page that is not a web address, is declined; the card
-   * waits as long as the agent does (ten minutes).
-   */
   private async elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse> {
     // The request's type keeps room for modes a later ACP adds, so its fields are read as unknown and checked.
     const url = r.mode === "url" && "url" in r && typeof r.url === "string" && /^https?:\/\//i.test(r.url) ? r.url : null;
@@ -1061,7 +902,6 @@ export class AcpChats {
     }
   }
 
-  /** The chat a session belongs to, waiting for it to be registered when the agent asks before `session/new` answers. */
   private sessionLive(sessionId: string, signal: AbortSignal): Promise<Live | null> {
     const known = this.bySession.get(sessionId);
     if (known) return Promise.resolve(known);
@@ -1078,15 +918,9 @@ export class AcpChats {
     });
   }
 
-  /**
-   * The agent asks before a tool call: a loki approval card with the agent's own choices behind it. Allow picks its
-   * "allow once" (or "always allow" when the person ticked always), deny its "reject once"; a stopped turn answers
-   * cancelled, as ACP asks.
-   */
   private async permission(r: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse> {
     const live = this.bySession.get(r.sessionId);
     if (!live?.turn) return { outcome: { outcome: "cancelled" } };
-    // A pass has no one to ask: whatever the agent would do beyond its job's tools is refused (plan 061).
     if (live.pass) {
       const reject = r.options.find((o) => o.kind === "reject_once") ?? r.options.find((o) => o.kind === "reject_always");
       return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };

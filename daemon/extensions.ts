@@ -14,33 +14,19 @@ import { CODING_TOOL_KINDS, declaredKind, type ToolKind } from "./tool-kinds.ts"
 import { fileToolsExtension } from "./tools.ts";
 import { webSearchExtension } from "./web-search.ts";
 
-/**
- * What the built-in extensions are made from: the approval gate (which the question card shares), the agents' backend
- * folder for memory and skills, the background tasks and schedules, which deliver into chats through the daemon, and
- * the daemon's copy of every chat, which the history tools read.
- */
 export interface BuiltinDeps {
   approvals: Approvals;
   backendDir: string;
   background: BackgroundTasks;
   schedules: Schedules;
   history: ChatHistory;
-  /** The script tool and its confinement (daemon/scripts.ts), installed last; absent, chats have no scripts. */
   scripts?: readonly Extension[];
 }
 
-/**
- * Every chat's built-in extensions, in the order they are installed: the permission gate first, so it sees every tool
- * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools for scripts, memory, skills,
- * helpers (subagents), web search, background tasks, schedules, the chat's own history, the quick-replies prompt and
- * scripts. The mods install after these;
- * loki.mcp installs before them, from McpTools' constructor, and has no hooks.
- */
 export function builtinExtensions(deps: BuiltinDeps): Extension[] {
   return [
     deps.approvals.extension(),
     askExtension(deps.approvals),
-    // `read` shrinks the pictures it shows, as they are kept in the chat's store for good (plan 094).
     createCodingTools({ images: shrinkingProcessor() }),
     fileToolsExtension(),
     memoryExtension(deps.backendDir),
@@ -55,11 +41,6 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
   ];
 }
 
-/**
- * Each built-in tool's kind, by name, as the tools declare it (`withKind`), and pi-durable's coding tools as
- * CODING_TOOL_KINDS names them. A built-in tool that declares nothing is missing here, which test/extensions.test.ts
- * forbids.
- */
 export function builtinKinds(extensions: readonly Extension[]): Map<string, ToolKind> {
   const kinds = new Map<string, ToolKind>();
   for (const extension of extensions)

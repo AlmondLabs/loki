@@ -2,15 +2,6 @@ import { readFileSync } from "node:fs";
 import { LABEL_COLORS } from "../core/labels.ts";
 import { writeJsonAtomic } from "../mod/json-file.ts";
 
-/**
- * Each label's colour (plan 022, KD4), kept in `state/labels.json` as an index into the app's palette. A label seen
- * for the first time takes the colour the fewest labels have, the earliest of those, so colours spread out before
- * they repeat. Without a file (tests), colours are kept only while the daemon runs.
- *
- * Colours are the person's on every paired Mac (plan 023, U8): each colour the person chose carries when, and a
- * paired Mac's later choice wins; a colour given automatically counts as chosen long ago.
- */
-
 /** A Mac's label colours for another: each colour, and when the person chose it. */
 export interface LabelColorsSnapshot {
   colors: Record<string, number>;
@@ -19,10 +10,8 @@ export interface LabelColorsSnapshot {
 
 const LONG_AGO = "1970-01-01T00:00:00.000Z";
 
-/** Each label's colour, kept in state/labels.json and shared with paired Macs (see above). */
 export class LabelColors {
   private readonly colors: Map<string, number>;
-  /** When the person chose each colour. */
   private readonly changed: Map<string, string>;
   private readonly file: string | undefined;
   private readonly now: () => string;
@@ -46,12 +35,10 @@ export class LabelColors {
     }
   }
 
-  /** Every colour and when it was chosen, for a paired Mac. */
   snapshot(): LabelColorsSnapshot {
     return { colors: Object.fromEntries(this.colors), changed: Object.fromEntries(this.changed) };
   }
 
-  /** Take a paired Mac's colours: one this Mac lacks, or one chosen there later. True when a colour here moved. */
   apply(theirs: LabelColorsSnapshot): boolean {
     let moved = false;
     for (const [label, color] of Object.entries(theirs.colors)) {
@@ -84,12 +71,9 @@ export class LabelColors {
     try {
       const changed = this.changed.size ? { changed: Object.fromEntries(this.changed) } : {};
       writeJsonAtomic(this.file, { colors: Object.fromEntries(this.colors), ...changed }, { pretty: true, newline: true });
-    } catch {
-      // Only colours: a label that lost its colour takes one again when next seen.
-    }
+    } catch {}
   }
 
-  /** A label's colour, given one now if it has none. */
   colorOf(label: string): number {
     const known = this.colors.get(label);
     if (known !== undefined) return known;
@@ -101,14 +85,12 @@ export class LabelColors {
     return color;
   }
 
-  /** Change a label's colour. */
   set(label: string, color: number): void {
     this.colors.set(label, color);
     this.changed.set(label, this.now());
     this.save();
   }
 
-  /** A label renamed: its colour goes with it (or, renamed onto one that exists, that one's stays). */
   rename(from: string, to: string): void {
     const color = this.colors.get(from);
     this.colors.delete(from);
@@ -116,7 +98,6 @@ export class LabelColors {
     this.save();
   }
 
-  /** A label deleted. */
   remove(label: string): void {
     if (this.colors.delete(label)) this.save();
   }

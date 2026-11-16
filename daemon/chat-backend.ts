@@ -40,42 +40,24 @@ import type { ModRegistry } from "./mods/registry.ts";
 import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
 import { SYNCED_FIELDS, addTombstone, stamp, type Stamp } from "./store/agent-sync.ts";
 
-/**
- * Chats on loki's daemon, as the mod's chat frames ask for them (plan 017, U5; mod/frames/chat.ts). Each chat runs on
- * an engine (daemon/engine.ts): loki's own on pi-durable (daemon/loki-engine.ts), or an ACP agent
- * (daemon/acp/engine.ts). This module finds a chat's engine and hands it every call about that chat; what it keeps is
- * what spans engines or chats: when a chat may move to another engine, labels, agents, the passes and moves.
- */
-
 interface Deps {
   stores: StoreManager;
   approvals: Approvals;
   providers: Providers;
-  /** The background passes (daemon/passes.ts): reflection and Learn. Absent in tests that run none. */
   passes?: { runner: PassRunner; state: PassState };
-  /** MCP (daemon/mcp/): each chat's filter is set before it runs and emptied by /clear and a compaction; Settings edits it. */
   mcp?: McpTools;
   mods: ModRegistry;
   models: Models;
-  /** Chats on ACP agents (daemon/acp/, plan 020); absent in tests that run none. */
   acp?: AcpChats;
-  /** Where each label's colour is kept (`state/labels.json`, plan 022); absent, only while the daemon runs. */
   labelsFile?: string;
-  /** Keeps the person's pictures as files a window loads (daemon/chat-images.ts, plan 029); absent in tests that need none. */
   nameImage?: ImageNamer;
-  /** The daemon's agents' folder (daemon/store/agents.ts). */
   backendDir: string;
   context: Context;
   report?: (message: string) => void;
-  /** This Mac's install id (plan 023): stamped on agent record changes so paired Macs keep the later one. */
   macId?: string;
-  /** The scheduled tasks (daemon/schedule.ts), which move with their chat to another Mac (plan 023, U9). */
   schedules?: Schedules;
-  /** The background tasks, stopped for an agent that is removed. Absent in tests that run none. */
   background?: Pick<BackgroundTasks, "stopAgent">;
-  /** The clock for those stamps and for the time a message from loki carries; Date.now unless a test sets it. */
   now?: () => number;
-  /** Each agent's top usual model (mod/usual-models.ts), the one a new chat starts on; absent, it starts on the agent's own. */
   usualModel?: (agentId: string) => { handle: string; reasoning_effort: ReasoningEffort | null } | null;
 }
 
@@ -85,10 +67,6 @@ interface Deps {
  */
 const settled = <T>(work: () => T): Promise<T> => new Promise((resolve) => resolve(work()));
 
-/**
- * loki's own models as the picker lists them: one entry per model, or one per reasoning effort pi-ai says it takes
- * (its thinking levels, "off" as no reasoning), so Select model offers the levels under the list (plan 021).
- */
 export function lokiModelEntries(available: ReadonlyArray<Parameters<typeof getSupportedThinkingLevels>[0]>): ModelEntry[] {
   return available.flatMap((m) => {
     const handle = `${m.provider}/${m.id}`;
@@ -100,20 +78,13 @@ export function lokiModelEntries(available: ReadonlyArray<Parameters<typeof getS
   });
 }
 
-/**
- * The daemon's ChatBackend: opens, sends to and changes chats through their engines, and pushes their events, the
- * approvals and questions included, to the clients through `attach`'s callback.
- */
 export class DaemonChats implements ChatBackend {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly deps: Deps;
-  /** The two engines a chat can run on (daemon/engine.ts): loki's own, and an ACP agent when the daemon runs them. */
   private readonly loki: LokiEngine;
   private readonly acpEngine: AcpEngine | null;
 
-  /** Each label's colour (plan 022). */
   private readonly colors: LabelColors;
-  /** One send at a time per chat while a hold is read and changed (plan 067), so a hold and its message stay together. */
   private readonly capped = keyedQueue();
 
   constructor(deps: Deps) {
@@ -122,14 +93,9 @@ export class DaemonChats implements ChatBackend {
     const push = (agentId: string, conversationId: string, events: ChatEvent[]) => this.push(agentId, conversationId, events);
     this.loki = new LokiEngine({ ...deps, push });
     this.acpEngine = deps.acp ? new AcpEngine({ acp: deps.acp, context: deps.context, push }) : null;
-    // A store that reopens after a failure has new conversations: what followed the old ones follows again on open.
     deps.stores.onOpen((agentId) => this.loki.forgetAgent(agentId));
   }
 
-  /**
-   * Where chat events go: to every window following the chat (the mod's sockets). Every engine's events pass here,
-   * so this is where a step is cut to what a window shows (plan 035): a tool's whole output never leaves the daemon.
-   */
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void {
     const shown = (agentId: string, conversationId: string, events: ChatEvent[]) =>
       push(
@@ -147,20 +113,17 @@ export class DaemonChats implements ChatBackend {
     return this.deps.acp;
   }
 
-  /** Whether anything has been said in the chat yet: its engine is fixed from the first message (plan 020, KD4). */
   private async started(chat: Conversation): Promise<boolean> {
     const page = await chat.entries({ order: "ascending" }, 50, undefined, this.deps.context);
     return page.items.some((e) => e.kind === "pi.user" || e.kind === "pi.assistant");
   }
 
-  /** A chat with the engine it runs on: an ACP agent when it names one and the daemon runs them, else loki's own. */
   private async resolve(agentId: string, conversationId: string): Promise<{ c: EngineChat; engine: Engine }> {
     const found = await this.find(agentId, conversationId);
     if (!found) throw new Error(`no chat ${conversationId} for ${agentId}`);
     return found;
   }
 
-  /** As `resolve`, or null when the agent has no such chat. */
   private async find(agentId: string, conversationId: string): Promise<{ c: EngineChat; engine: Engine } | null> {
     const store = await this.deps.stores.get(agentId);
     const chat = await store.chat(conversationId, this.deps.context);
@@ -173,7 +136,6 @@ export class DaemonChats implements ChatBackend {
   async open(agentId: string, conversationId: string, mode: string | null = null): Promise<ChatState> {
     const { c, engine } = await this.resolve(agentId, conversationId);
     const state = await engine.open(c, mode);
-    // What the chat is waiting on reaches a client that opens it late, after the state it opens with.
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId);
     if (waiting.length) queueMicrotask(() => this.push(agentId, conversationId, waiting));
     return state;
@@ -250,7 +212,6 @@ export class DaemonChats implements ChatBackend {
     if (c.engine) return lokiModeOf((await this.acp.state(agentId, conversationId)).mode, true);
     const info = await c.store.chatInfo(c.chat.id, this.deps.context);
     const own = modeOf(info?.mode);
-    // A turn held to a cap passes it on: a message it sends gives the next chat no more than the first had.
     return info?.turn_cap ? stricterMode(own, lokiModeOf(info.turn_cap, false)) : own;
   }
 
@@ -263,7 +224,6 @@ export class DaemonChats implements ChatBackend {
       await engine.send(c, p);
       return null;
     }
-    // The hold is written before the message goes in, under the chat's queue, so no turn it starts runs without it.
     await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
       const held = (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap;
       const next = held ? stricterMode(lokiModeOf(held, false), cap) : (cap ?? "strict");
@@ -277,17 +237,11 @@ export class DaemonChats implements ChatBackend {
     return settled(() => this.deps.approvals.answer(p.question_id, p.input));
   }
 
-  /** Whether a turn is running in a chat, or waits on the person (the background passes leave such a chat alone). */
   async busy(agentId: string, conversationId: string): Promise<boolean> {
-    // Each engine's busy counts an approval or question waiting too.
     const found = await this.find(agentId, conversationId);
     return found ? found.engine.busy(found.c) : false;
   }
 
-  /**
-   * A new chat here. `home` is the Mac the person picked for it; picked here while its agent lives on another Mac, the
-   * chat is placed (addendum A2), so the hand-over of that agent's chats leaves it here.
-   */
   async create(agentId: string, cwd: string | null, title: string | null, home: string | null = null): Promise<{ agentId: string; conversationId: string }> {
     const store = await this.deps.stores.get(agentId);
     const conversationId = `local-conv-${randomUUID()}`;
@@ -296,8 +250,6 @@ export class DaemonChats implements ChatBackend {
     const here = this.deps.macId ?? "";
     if (home && here && homeOf(readRecord(this.deps.backendDir, agentId), here) !== here)
       await store.updateChat(conversationId, { placed: true }, this.deps.context);
-    // The agent's usual model, harness and effort (plan 2026-11-13-1240), set as a switch would before the first
-    // message, so an ACP agent's takes the chat there; not counted as one. Its agent gone, the chat keeps the agent's model.
     const usual = this.deps.usualModel?.(agentId);
     if (usual)
       await this.model({ agent_id: agentId, conversation_id: conversationId, handle: usual.handle, reasoning_effort: usual.reasoning_effort }).catch(
@@ -309,22 +261,14 @@ export class DaemonChats implements ChatBackend {
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
     await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
-      // The person's message to an idle chat ends a hold another chat's message put on it (plan 067). One sent while a
-      // held turn runs leaves the hold, so the rest of that turn keeps it, and so does the person's own turn after it.
       if (!c.engine && (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap && !(await engine.busy(c)))
         await c.store.updateChat(p.conversation_id, { turn_cap: null }, this.deps.context);
       await engine.send(c, p);
     });
-    // A suggestion saved as a draft waits only until the chat next sends (plan 049, KTD7), from whichever box.
     if ((await c.store.chatInfo(c.chat.id, this.deps.context))?.draft) await c.store.updateChat(p.conversation_id, { draft: null }, this.deps.context);
     return true;
   }
 
-  /**
-   * A message from loki itself (a background task's notice, a schedule's prompt). `steer` puts it into a running turn
-   * at its next step, where the work it reports on is; otherwise it waits for the turn to end and starts its own. It
-   * carries the time after its text (plan 057): nothing the person sent may have told the agent the day for a while.
-   */
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<Delivery | null> {
     const { c, engine } = await this.resolve(agentId, conversationId);
     return engine.deliver(c, `${text}\n\n${daemonTimeReminder(new Date((this.deps.now ?? Date.now)()))}`, whenBusy);
@@ -337,7 +281,6 @@ export class DaemonChats implements ChatBackend {
 
   async update(p: PayloadOf<"chat_update">): Promise<Replies["chat_done"]> {
     const store = await this.deps.stores.get(p.agent_id);
-    // A draft goes first and alone, so a refused one changes nothing else.
     if (p.draft) {
       const saved = await store.saveDraft(p.conversation_id, p.draft, this.deps.context);
       if (saved === "missing") throw new Error(`no chat ${p.conversation_id}`);
@@ -352,12 +295,10 @@ export class DaemonChats implements ChatBackend {
       ...(p.draft === null ? { draft: null } : {}),
     };
     if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
-    // A new label takes its colour now, so every client shows it the same from the start.
     for (const label of p.labels ?? []) this.colors.colorOf(label);
     return p.draft ? { draft_suggestion_id: p.draft.suggestion_id } : {};
   }
 
-  /** Every agent's chats with their saved details, for what spans them all (labels). */
   private async everyChat(): Promise<Array<{ store: AgentStore; info: ChatInfo }>> {
     const all = await Promise.all(
       listAgents(this.deps.backendDir).map(async (id) => {
@@ -375,10 +316,6 @@ export class DaemonChats implements ChatBackend {
     return { labels: labels.sort((a, b) => a.name.localeCompare(b.name)) };
   }
 
-  /**
-   * Rename, recolour or delete a label (plan 022, R6). A rename or a delete changes every chat that carries it; a
-   * rename onto a label a chat already has leaves it there once.
-   */
   async setLabel(p: PayloadOf<"chat_label_set">): Promise<{ labels: LabelView[] }> {
     if ("remove" in p || p.rename) {
       const to = "remove" in p ? null : (p.rename ?? null);
@@ -399,10 +336,6 @@ export class DaemonChats implements ChatBackend {
     return engine.folder(c, cwd);
   }
 
-  /**
-   * The chat's model. An ACP model (`acp:<agent>/<model>`) makes it an ACP chat; before its first message a chat can
-   * move between engines, and after it only between one engine's models (plan 020, KD4).
-   */
   async model(p: PayloadOf<"chat_model">): Promise<void> {
     const { c, engine: from } = await this.resolve(p.agent_id, p.conversation_id);
     const wanted = acpHandle(p.handle);
@@ -418,7 +351,6 @@ export class DaemonChats implements ChatBackend {
 
   async models(): Promise<ModelEntry[]> {
     const own = lokiModelEntries(await this.deps.models.getAvailable());
-    // Each ACP agent's models after loki's own (plan 020, KD3): picking one before the first message moves the chat there.
     return [...own, ...(this.deps.acp?.models() ?? [])];
   }
 
@@ -431,7 +363,6 @@ export class DaemonChats implements ChatBackend {
     );
   }
 
-  /** Now, on this Mac: the stamp a record change carries to paired Macs (plan 023, U3). */
   private stampNow(): Stamp {
     return { at: new Date((this.deps.now ?? Date.now)()).toISOString(), mac: this.deps.macId ?? "" };
   }
@@ -444,7 +375,6 @@ export class DaemonChats implements ChatBackend {
       ...(p.model ? { model: p.model } : {}),
       ...(this.deps.macId ? { home_mac: this.deps.macId } : {}),
     });
-    // Every field is new here: a paired Mac takes them all, and the agent lives on the Mac that made it.
     const file = join(this.deps.backendDir, "agents", `${backendName(id)}.json`);
     writeRecord(this.deps.backendDir, id, stamp(JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>, SYNCED_FIELDS, this.stampNow()));
     const store = await this.deps.stores.get(id);
@@ -495,24 +425,20 @@ export class DaemonChats implements ChatBackend {
     });
   }
 
-  /** Learn's "Run now": every settled chat it has new material in, whether Learn is on or not. */
   async runLearn(): Promise<void> {
     if (!this.deps.passes) throw new Error("the background passes are not running");
     await this.deps.passes.runner.runAllNow("learn");
   }
 
-  /** A slash command: loki's passes (/reflect, /doctor) run here; every other is the chat's engine's (Engine.command). */
   async command(p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
     switch (p.command) {
       case "reflect":
         if (!this.deps.passes) return { success: false, output: "reflection is not running" };
-        // The pass runs on its own, even with reflection off; its memory changes show on the agent's page when it is done.
         void this.deps.passes.runner.runNow("reflection", p.agent_id, p.conversation_id).catch(() => {});
         return { success: true, output: "reflecting on this chat; its memory changes show on the agent's page" };
       case "doctor": {
         if (!this.deps.passes) return { success: false, output: "the background passes are not running" };
-        // Waits for the review: its report is the command's answer, and each change is a commit on the agent's Changes page.
         const r = await this.deps.passes.runner.runDoctor(p.agent_id);
         const tail = r.changes
           ? `\n\n${r.changes} change${r.changes === 1 ? "" : "s"} committed by Doctor; Agents › Changes shows each, and Revert undoes one.`
@@ -520,12 +446,10 @@ export class DaemonChats implements ChatBackend {
         return { success: r.outcome !== "failed" && r.outcome !== "skipped", output: `${r.report}${tail}` };
       }
       default:
-        // Every other command is the engine's: pi-durable's /compact, /clear and /remember, or the agent's own.
         return engine.command(c, p);
     }
   }
 
-  /** A skill made global: a link to its folder in the global skills folder, ~/.agents/skills (mod/skills.ts). */
   enableSkill(path: string): Promise<{ name: string; linkPath: string }> {
     return settled(() => {
       if (!existsSync(join(path, "SKILL.md"))) throw new Error(`${path} has no SKILL.md`);
@@ -551,17 +475,10 @@ export class DaemonChats implements ChatBackend {
     await editMemoryFile(this.deps.backendDir, p.agent_id, p.path, p.content, p.message);
   }
 
-  /** One memory commit undone, by a new commit as yours (the Agents page's Revert). */
   async revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void> {
     await revertMemoryCommit(this.deps.backendDir, p.agent_id, p.sha);
   }
 
-  /** Delete an agent here and leave a tombstone, so paired Macs delete it too rather than send it back. */
-  /**
-   * The chats here of agents that live on `mac`, for that Mac to take over when it first pairs (plan 023, U9): the
-   * person's own, not hidden, and not on an ACP agent, whose session belongs to this Mac. A chat put here on purpose
-   * stays (addendum A2).
-   */
   async moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>> {
     const out: Array<{ agent_id: string; conversation_id: string }> = [];
     for (const agentId of listAgents(this.deps.backendDir)) {
@@ -575,7 +492,6 @@ export class DaemonChats implements ChatBackend {
     return out;
   }
 
-  /** A chat copied out for another Mac, or `busy` while a turn runs or an approval waits, when it must wait to move. */
   async exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }> {
     if (await this.busy(agentId, chatId)) return { chat: null, busy: true };
     const store = await this.deps.stores.get(agentId);
@@ -588,10 +504,6 @@ export class DaemonChats implements ChatBackend {
     return { chat: await exportChat(store, agentId, chatId, { schedules, cursors }, this.deps.context), busy: false };
   }
 
-  /**
-   * A chat moved here from another Mac: its log, its schedules and its passes' cursors. False when it was already here.
-   * `names` marks the thread where it moved and tells the agent with the next message (addendum A5).
-   */
   async importChat(moved: MovedChat, names?: MoveNames): Promise<boolean> {
     const store = await this.deps.stores.get(moved.agent_id);
     const made = await importChat(store, moved, this.deps.context, names);
@@ -602,7 +514,6 @@ export class DaemonChats implements ChatBackend {
     return made;
   }
 
-  /** The other Mac has the chat now: hide it here and stop its schedules, so it lives and fires on one Mac only. */
   async finishMove(agentId: string, chatId: string): Promise<void> {
     const store = await this.deps.stores.get(agentId);
     await store.updateChat(chatId, { hidden: true }, this.deps.context);
@@ -610,12 +521,10 @@ export class DaemonChats implements ChatBackend {
       if (t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId) this.deps.schedules?.cancel(agentId, t.id);
   }
 
-  /** The person's label colours, for a paired Mac (plan 023, U8). */
   labelColors(): LabelColorsSnapshot {
     return this.colors.snapshot();
   }
 
-  /** A paired Mac's label colours: true when one here changed. */
   applyLabelColors(theirs: LabelColorsSnapshot): boolean {
     return this.colors.apply(theirs);
   }
@@ -625,9 +534,7 @@ export class DaemonChats implements ChatBackend {
     await this.removeAgent(agentId);
   }
 
-  /** Remove an agent's store, memory and record here, as a delete on another Mac asks; no tombstone of this Mac's. */
   async removeAgent(agentId: string): Promise<void> {
-    // What would still act for the agent goes first: a schedule that fired later would open a new, empty store for it.
     this.deps.schedules?.cancelAgent(agentId);
     this.deps.background?.stopAgent(agentId);
     await this.deps.stores.close(agentId);

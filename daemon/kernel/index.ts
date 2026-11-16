@@ -15,17 +15,6 @@ import {
 } from "@earendil-works/pi-durable";
 import type { SavedDraft, Suggestion } from "../../core/frame-types.ts";
 
-/**
- * The daemon's only door to pi-durable (plan 017, KTD1). Each agent has one store, a Harness over one SQLite file
- * (KTD2), holding every chat of that agent. pi-durable numbers its conversations itself, so a session document maps
- * loki's chat ids (`local-conv-…`, `default`) to them, and a conversation document carries what loki keeps
- * about a chat (KTD6). When pi-durable's API changes, this module changes and nothing that imports it does.
- */
-
-/**
- * When a document writes a whole copy instead of a change (pi-durable 1.4 asks each to say, plan 039): never, for
- * loki's: each is a few fields and changes whole, so its changes stay small, as they were before.
- */
 const smallDoc = (): boolean => false;
 
 /** loki's chat id → pi-durable conversation id, for one agent's store. */
@@ -37,7 +26,6 @@ export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({
   checkpointWhen: smallDoc,
 });
 
-/** What loki keeps about one chat, committed with the chat it describes. */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a pi-durable document must be a JsonObject, and an interface with optional fields cannot extend one
 export type ChatInfo = {
   id: string;
@@ -97,7 +85,6 @@ export type ChatInfo = {
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- part of ChatInfo, a pi-durable document
 export type ChatEngine = { kind: "acp"; agent: string; model: string; effort?: string | null; session_id: string | null };
 
-/** A message as pi-ai and pi-durable carry it, written into a chat by `importEntries`. */
 export type ImportedMessage = Record<string, unknown> & { role: string; timestamp: number };
 
 /**
@@ -106,7 +93,6 @@ export type ImportedMessage = Record<string, unknown> & { role: string; timestam
  */
 export const BRANCH_KIND = "loki.branch";
 
-/** One entry written into a chat by `importEntries`: its pi-durable draft, where it came from, and its place there. */
 export interface ImportedEntry {
   sourceId: string;
   line: number;
@@ -118,7 +104,6 @@ export interface ImportedEntry {
   headSourceId?: string;
 }
 
-/** The pi-durable document that holds a chat's ChatInfo, one per conversation, keeping only its latest state; a fork starts from the empty one. */
 export const ChatDoc = defineDoc<ChatInfo>({
   kind: "loki.chat",
   version: 1,
@@ -129,7 +114,6 @@ export const ChatDoc = defineDoc<ChatInfo>({
   checkpointWhen: smallDoc,
 });
 
-/** Which agent a store belongs to, so a tool or section can name it without asking the daemon. */
 export const AgentInfoDoc = defineDoc<{ id: string; name: string }>({
   kind: "loki.agent",
   version: 1,
@@ -138,13 +122,11 @@ export const AgentInfoDoc = defineDoc<{ id: string; name: string }>({
   checkpointWhen: smallDoc,
 });
 
-/** Tokens and cost to add to a chat's totals: what an ACP agent reported for a turn (AgentStore.appendEntries). */
 export interface UsageAdd {
   input: number;
   output: number;
   cacheRead: number;
   cacheWrite: number;
-  /** Dollars, as the agent estimated them; the agent gives no split by token type. */
   cost: number;
 }
 
@@ -154,10 +136,8 @@ export interface UsageAdd {
  */
 const AFTER_FAILED_RUN: HarnessSettings = { afterFailedRun: "continue" };
 
-/** The Harness options a store is opened with; the storage is the store's own (AgentStore.open). */
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
 
-/** One agent's chats on one pi-durable Harness. */
 export class AgentStore {
   readonly harness: Harness;
 
@@ -165,10 +145,6 @@ export class AgentStore {
     this.harness = harness;
   }
 
-  /**
-   * Open a store over `storage`, or over the SQLite file at `file`. The SQLite backend is Node's own `node:sqlite`,
-   * loaded only when a file is asked for, so tests on memory storage need no SQLite.
-   */
   static async open(where: { file: string } | { storage: Storage }, options: StoreOptions, context: Context): Promise<AgentStore> {
     const storage =
       "storage" in where ? where.storage : await (await import("@earendil-works/pi-durable/storage/sqlite/node")).openNodeSqliteStorage(where.file);
@@ -177,7 +153,6 @@ export class AgentStore {
     return new AgentStore(await Harness.open(storage, { ...options, settings }, context));
   }
 
-  /** Record which agent this store is, once, or when its name changes. */
   async setAgent(agent: { id: string; name: string }, context: Context): Promise<void> {
     const known = await this.harness.snapshot(AgentInfoDoc, context);
     if (known?.id === agent.id && known.name === agent.name) return;
@@ -188,24 +163,20 @@ export class AgentStore {
     }, context);
   }
 
-  /** The pi-durable conversation of a loki chat id, if the store has it. */
   async chat(id: string, context: Context): Promise<Conversation | undefined> {
     const index = await this.harness.snapshot(ChatIndex, context);
     const conversationId = index?.chats[id];
     return conversationId === undefined ? undefined : this.harness.conversation(conversationId as ConversationId, context);
   }
 
-  /** What loki keeps about one conversation, if it is a chat of loki's. */
   chatInfo(conversationId: ConversationId, context: Context): Promise<Readonly<ChatInfo> | undefined> {
     return this.harness.snapshot(ChatDoc, conversationId, context);
   }
 
-  /** What a conversation runs with (model, thinking level, folder), as pi-durable stores it. */
   agentSettings(conversationId: ConversationId, context: Context): Promise<Readonly<object> | undefined> {
     return this.harness.snapshot(PiAgentDoc, conversationId, context);
   }
 
-  /** Change what loki keeps about a chat: its title, whether it is archived or hidden, its labels, purpose, draft or suggestions. */
   async updateChat(
     id: string,
     change: Partial<
@@ -233,11 +204,6 @@ export class AgentStore {
     return true;
   }
 
-  /**
-   * Save a suggestion's draft in a chat's box (plan 049, KTD7) unless it holds another suggestion's, which is never
-   * replaced; the same suggestion's again (a retry) is saved. Checked and written in one commit, so two drafts that
-   * arrive together cannot both pass.
-   */
   async saveDraft(id: string, draft: SavedDraft, context: Context): Promise<"saved" | "held" | "missing"> {
     const chat = await this.chat(id, context);
     if (!chat) return "missing";
@@ -250,10 +216,6 @@ export class AgentStore {
     return out.held ? "held" : "saved";
   }
 
-  /**
-   * Set aside the copy of a chat this Mac let go when it moved away (plan 023, addendum A4), so the chat can come back
-   * under its own id: the copy stays, hidden, under a new key, and its usage is still counted. False when there is none.
-   */
   async retireChat(id: string, context: Context): Promise<boolean> {
     const chat = await this.chat(id, context);
     if (!chat) return false;
@@ -269,28 +231,21 @@ export class AgentStore {
     return true;
   }
 
-  /** A conversation's token and cost totals so far, by model and by tool (pi-durable's `pi.usage`). */
   usage(conversationId: ConversationId, context: Context): Promise<Readonly<UsageState> | undefined> {
     return this.harness.snapshot(UsageDoc, conversationId, context);
   }
 
-  /** The conversation of every chat this store holds; a helper's child conversation is not among them. */
   async chatConversations(context: Context): Promise<ConversationId[]> {
     const index = await this.harness.snapshot(ChatIndex, context);
     return Object.values(index?.chats ?? {}).map((id) => id as ConversationId);
   }
 
-  /** Every chat this store holds, as loki knows it. */
   async chats(context: Context): Promise<ChatInfo[]> {
     const index = await this.harness.snapshot(ChatIndex, context);
     const infos = await Promise.all(Object.values(index?.chats ?? {}).map((id) => this.harness.snapshot(ChatDoc, id as ConversationId, context)));
     return infos.filter((info): info is ChatInfo => info !== undefined);
   }
 
-  /**
-   * A new chat under loki's id, its index entry and info written in the commit that creates it. `agent` is what the
-   * conversation runs with (model, cwd, instructions); unset fields follow the store's settings.
-   */
   async createChat(
     id: string,
     options: { title?: string | null; hidden?: boolean; agent?: Parameters<Harness["createConversation"]>[0]["agent"]; createdAt?: string },
@@ -314,15 +269,10 @@ export class AgentStore {
     );
   }
 
-  /**
-   * Write entries brought from elsewhere into a chat (a chat moving from another Mac, daemon/chat-move.ts), in one
-   * commit, without asking the model anything. Returns each source line's new entry id.
-   */
   async importEntries(conversation: Conversation, entries: readonly ImportedEntry[], context: Context): Promise<Map<number, EntryId>> {
     return conversation.commit(async (tx) => {
       const bySource = new Map<string, EntryId>();
       const byLine = new Map<number, EntryId>();
-      // In order: each entry's id is minted as it is appended, and a compaction names one appended before it.
       for (const entry of entries) {
         const head = entry.headSourceId === undefined ? undefined : bySource.get(entry.headSourceId);
         if (entry.kind === "pi.compaction" && head === undefined) continue;
@@ -339,11 +289,6 @@ export class AgentStore {
     }, context);
   }
 
-  /**
-   * Write a chat's messages as they happen elsewhere (an ACP agent's turn, plan 020), without asking pi's model
-   * anything, in one commit. `usage`, when given, is added to the chat's `pi.usage` totals under `model` in the same
-   * commit, so the usage ledger (daemon/usage.ts) counts it as it counts loki's own turns.
-   */
   async appendEntries(
     conversation: Conversation,
     entries: ReadonlyArray<{ kind: "pi.user" | "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }>,
@@ -375,18 +320,12 @@ export class AgentStore {
     }, context);
   }
 
-  /** Every entry of a chat, oldest first, including those before its newest compaction. */
   async entries(conversation: Conversation, context: Context): Promise<EntryRecord[]> {
     const out: EntryRecord[] = [];
     await this.eachEntry(conversation, context, (entry) => out.push(entry));
     return out;
   }
 
-  /**
-   * Every entry of a chat, oldest first, handed over a page at a time (plan 042): a reader that keeps less than the
-   * whole record, as the chat projection does, then never holds a long chat's every record at once. With `after`, only
-   * the entries newer than that one (plan 047).
-   */
   async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void, after?: EntryId): Promise<void> {
     let cursor: Parameters<Conversation["entries"]>[2];
     do {
@@ -396,7 +335,6 @@ export class AgentStore {
     } while (cursor !== undefined);
   }
 
-  /** The id of a chat's newest entry, undefined when it has none: where a later `eachEntry(…, after)` starts. */
   async newestEntryId(conversation: Conversation, context: Context): Promise<EntryId | undefined> {
     const page = await conversation.entries({ order: "descending" }, 1, undefined, context);
     return page.items[0]?.id;

@@ -15,13 +15,11 @@ import type { McpTools } from "./mcp/index.ts";
 import type { ModRegistry } from "./mods/registry.ts";
 import { turnIdOf } from "./telemetry.ts";
 
-/** A model handle (`provider/model`) as pi-durable's model reference. */
 export function modelRef(handle: string): { provider: string; modelId: string } | undefined {
   const slash = handle.indexOf("/");
   return slash > 0 && slash < handle.length - 1 ? { provider: handle.slice(0, slash), modelId: handle.slice(slash + 1) } : undefined;
 }
 
-/** loki's reasoning effort as pi's thinking level. */
 function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
   if (!effort) return undefined;
   return effort === "none" ? "off" : effort;
@@ -29,37 +27,25 @@ function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
 
 const keyOf = (agentId: string, conversationId: string) => `${agentId}\u0000${conversationId}`;
 
-/**
- * loki's own engine (glossary: Engine): a chat in its agent's pi-durable store, run by pi-durable on one of loki's
- * models (plan 017). A chat a client opens, or a message goes into, is followed through pi-durable's event stream,
- * converted to loki's chat events and pushed to every client, so a client that opened it before the daemon restarted
- * still hears the answer. The person's message passes through every mod's transform before it is sent (loki's own adds
- * what you did on the canvas); one sent while the chat is busy waits its turn, or with `steer` joins it.
- */
 export class LokiEngine implements Engine {
   private readonly deps: {
     approvals: Approvals;
-    /** MCP (daemon/mcp/): each chat's filter is set before it runs, and emptied by /clear and a compaction. */
     mcp?: McpTools;
     mods: ModRegistry;
     models: Models;
     backendDir: string;
     context: Context;
     push: (agentId: string, conversationId: string, events: ChatEvent[]) => void;
-    /** Keeps the person's pictures as files a window loads (plan 029). */
     nameImage?: ImageNamer;
-    /** How a chat's events are followed: pi-durable's own, unless a test stands in for it. */
     watch?: typeof watchEvents;
   };
   private readonly following = new Map<string, Promise<AgentEventStream>>();
-  /** Each followed chat's event converter, which knows the answer in flight (open hands it to a late client). */
   private readonly converters = new Map<string, ChatEventConverter>();
 
   constructor(deps: LokiEngine["deps"]) {
     this.deps = deps;
   }
 
-  /** The agent's store reopened after a failure, with new conversations: what followed the old ones follows again on open. */
   forgetAgent(agentId: string): void {
     for (const key of [...this.following.keys()]) if (key.startsWith(`${agentId}\u0000`)) this.following.delete(key);
   }
@@ -96,7 +82,6 @@ export class LokiEngine implements Engine {
       content: parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts,
       typed: p.text.trim() !== "",
     });
-    // Sent during a turn on purpose: placed after the current tool round, inside the turn (pi-durable's steer).
     const whenBusy = p.steer ? { whenBusy: "steer" as const } : {};
     await c.chat.submit({ type: "input", content: content as never, ...whenBusy, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
   }
@@ -128,15 +113,10 @@ export class LokiEngine implements Engine {
     await c.chat.configure({ model, ...(level ? { thinkingLevel: level as never } : {}) }, this.deps.context);
   }
 
-  /** The chat moved to an ACP agent: stop following it, or the messages that side writes would show a second time. */
   async leave(c: EngineChat): Promise<void> {
     await this.forgetChat(c.agentId, c.conversationId);
   }
 
-  /**
-   * Stop following a chat. A chat that comes back from another Mac is a new conversation under the same id, and the
-   * stream kept for the old one would leave the new one's answers unseen.
-   */
   async forgetChat(agentId: string, conversationId: string): Promise<void> {
     const key = keyOf(agentId, conversationId);
     const stream = this.following.get(key);
@@ -145,7 +125,6 @@ export class LokiEngine implements Engine {
     await (await stream)?.stop();
   }
 
-  /** /compact [instructions], /clear and /remember [what], run in pi-durable. */
   async command(c: EngineChat, p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
     switch (p.command) {
       case "compact":
@@ -170,22 +149,18 @@ export class LokiEngine implements Engine {
     }
   }
 
-  /** Before a message goes in: the chat's MCP tools and its agent's mod tools set, and the chat followed. */
   private async ready(c: EngineChat): Promise<void> {
     await this.deps.mcp?.prepare(c.store, c.chat, this.deps.context);
     await this.deps.mods.prepare(c.store, c.chat, this.deps.context);
     await this.watch(c);
   }
 
-  /** Follow a chat, once: from now on its events go to every client. */
   private async watch(c: EngineChat): Promise<void> {
     const key = keyOf(c.agentId, c.conversationId);
     let following = this.following.get(key);
     if (!following) {
       following = this.follow(c);
       this.following.set(key, following);
-      // A follow that failed is forgotten, so the next open or send tries again. Kept, it would answer every later
-      // call with the same error until the store reopened or the daemon restarted.
       following.catch(() => {
         if (this.following.get(key) === following) this.following.delete(key);
       });
@@ -193,7 +168,6 @@ export class LokiEngine implements Engine {
     await following;
   }
 
-  /** Push every event of a chat from now on. */
   private async follow({ store, chat, agentId, conversationId }: EngineChat): Promise<AgentEventStream> {
     const stream = await (this.deps.watch ?? watchEvents)(store.harness, chat.id, this.deps.context);
     const converter = new ChatEventConverter(agentId, this.deps.nameImage);
@@ -201,7 +175,6 @@ export class LokiEngine implements Engine {
     stream.start(async (batch) => {
       const events = batch.flatMap((ev) => converter.convert(ev));
       if (events.length) this.deps.push(agentId, conversationId, events);
-      // A compaction drops what the chat had loaded from MCP with the rest of its context.
       if (batch.some((ev) => ev.type === "compaction_end")) await this.deps.mcp?.forget(chat, this.deps.context).catch(() => {});
     });
     return stream;
@@ -214,7 +187,6 @@ export class LokiEngine implements Engine {
       store.chatInfo(chat.id, this.deps.context),
     ]);
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
-    // The answer in flight so far: the client that opens now missed its first pieces (they went out before it listened).
     const streaming = view?.run ? (this.converters.get(keyOf(agentId, conversationId))?.inFlight() ?? null) : null;
     return {
       agent_id: agentId,
@@ -227,10 +199,6 @@ export class LokiEngine implements Engine {
     };
   }
 
-  /**
-   * What the agent is told, once, with the first message after its chat moved here (addendum A5): the two Macs, and
-   * what did not come along. Cleared as it is read, so it goes with one message only. Null when the chat did not move.
-   */
   private async movedNote(store: AgentStore, chat: Conversation): Promise<string | null> {
     const info = await store.chatInfo(chat.id, this.deps.context);
     if (!info?.moved) return null;

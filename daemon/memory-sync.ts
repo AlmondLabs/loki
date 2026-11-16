@@ -5,18 +5,8 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { onRepoSettled, serial } from "./repo-queue.ts";
 
-/**
- * An agent's memory kept the same on every paired Mac (plan 023, U7, KTD7, R15, R16). Memory is a git repo, so it
- * travels as git does: a Mac asks another for the commits it lacks, which come as a bundle, and merges them inside the
- * repo's queue. Git merges edits to different notes, and to different parts of one note, on its own. When two Macs
- * changed the same lines, the note keeps the text of the agent's home Mac and the other text goes to one conflicts
- * note (CONFLICTS_PATH), which the agent's next reflection reads and reconciles: a note never holds conflict markers,
- * and nothing is silently lost.
- */
-
 const run = promisify(execFile);
 // Git tidies a repo after a fetch, merge or commit in a process of its own that outlives the call; kept in the call
-// (`autoDetach=false`), it is done before loki's next git step on the repo, and never writes under it afterwards.
 const git = (root: string, ...args: string[]) =>
   run(
     "git",
@@ -26,12 +16,9 @@ const git = (root: string, ...args: string[]) =>
     },
   );
 
-/** Where the other side of a clash is kept for reflection, relative to the memory root. */
 export const CONFLICTS_PATH = "conflicts/sync.md";
-/** Who a merge's commit is by, as the Agents page shows it. */
 const SYNC = { name: "Sync", email: "sync@loki.local" };
 
-/** The repo's current commit, or null when there is no repo or no commit yet. */
 export async function memoryHead(root: string): Promise<string | null> {
   if (!existsSync(join(root, ".git"))) return null;
   try {
@@ -41,10 +28,6 @@ export async function memoryHead(root: string): Promise<string | null> {
   }
 }
 
-/**
- * The commits another Mac lacks, as a base64 git bundle: everything reachable from HEAD but not from the commits it
- * says it has (those this repo does not know are left out of the sum). Null when there is nothing it lacks, or no repo.
- */
 export async function memoryBundle(root: string, have: string[]): Promise<string | null> {
   const head = await memoryHead(root);
   if (!head) return null;
@@ -54,9 +37,7 @@ export async function memoryBundle(root: string, have: string[]): Promise<string
     try {
       await git(root, "cat-file", "-e", `${sha}^{commit}`);
       known.push(sha);
-    } catch {
-      // a commit only the asking Mac has
-    }
+    } catch {}
   }
   if (known.includes(head)) return null;
   const dir = mkdtempSync(join(tmpdir(), "loki-bundle-"));
@@ -71,14 +52,8 @@ export async function memoryBundle(root: string, have: string[]): Promise<string
   }
 }
 
-/** What taking another Mac's memory did here. */
 export type MemoryApplied = "cloned" | "merged" | "conflicted" | "unchanged";
 
-/**
- * Take another Mac's commits for an agent's memory: clone them when this Mac has no repo yet, else merge them. On a
- * clash each clashing note keeps the home Mac's text (`homeIsHere` says whether that is this Mac's side) and the
- * other text is added to the conflicts note, all in one merge commit by "Sync".
- */
 export function applyMemoryBundle(root: string, bundle: string, opts: { from: string; homeIsHere: boolean; now?: () => Date }): Promise<MemoryApplied> {
   return serial(root, async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-bundle-"));
@@ -101,7 +76,6 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
         return (await memoryHead(root)) === before ? "unchanged" : "merged";
       } catch (error) {
         // Only a merge git stopped part way (MERGE_HEAD set) is a clash to settle; one that never began (a file in the
-        // way, a lock) is said as it is, not as a clash whose commit then fails.
         const merging = await git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").then(
           () => true,
           () => false,
@@ -116,7 +90,6 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
   });
 }
 
-/** Finish a merge that clashed: the home Mac's text in each note, the other side in the conflicts note, one commit. */
 async function settleClash(root: string, opts: { from: string; homeIsHere: boolean; now?: () => Date }): Promise<void> {
   const unmerged = (await git(root, "diff", "--name-only", "--diff-filter=U")).stdout.split("\n").filter(Boolean);
   const stage = async (n: 2 | 3, path: string): Promise<string | null> => {
@@ -150,11 +123,6 @@ async function settleClash(root: string, opts: { from: string; homeIsHere: boole
   await git(root, "-c", `user.name=${SYNC.name}`, "-c", `user.email=${SYNC.email}`, "commit", "--quiet", "--no-edit");
 }
 
-/**
- * The memory repos as loki's mod reaches them, through its host (plan 046). The mod is bundled apart from the daemon,
- * so a copy of repo-queue.ts imported there would be a second queue: its commits would race the daemon's on the repo's
- * index.lock, and it would never hear the daemon's commits. Handing it these keeps one queue.
- */
 export const memoryRepos = {
   serial,
   onSettled: onRepoSettled,
@@ -163,10 +131,8 @@ export const memoryRepos = {
   apply: applyMemoryBundle,
 };
 
-/** The type of `memoryRepos`, which the mod imports in place of the functions themselves. */
 export type MemoryRepos = typeof memoryRepos;
 
-/** The clashes waiting for reflection in an agent's memory, or null when there are none. */
 export function pendingConflicts(root: string): string | null {
   try {
     const text = readFileSync(join(root, CONFLICTS_PATH), "utf8");

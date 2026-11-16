@@ -2,28 +2,15 @@ import { createHash, randomBytes } from "node:crypto";
 import type { OAuthClientMetadata, OAuthClientProvider, StoredOAuthClientInformation, StoredOAuthTokens } from "@modelcontextprotocol/client";
 import { DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK } from "../../mod/paths.ts";
 
-/**
- * Signing in to a remote MCP server (OAuth 2.1 with PKCE, as MCP's authorization spec has it). The SDK does the
- * protocol: it finds the server's authorization server, registers loki as a client when the server allows it, and
- * redeems codes and refreshes tokens. This is what it keeps and where the browser goes. A sign-in opens the server's
- * authorization page; the browser comes back to loki's loopback server at MCP_OAUTH_CALLBACK, the one address a
- * registration names, matched by a one-time `state`; the tokens, the registration and the PKCE verifier are kept
- * per server and address in the keychain (in memory when there is none, which lasts until the daemon stops).
- */
-
-/** Where the browser comes back to, on the loopback server the mod serves (mod/server.ts). */
 export const callbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT)): string => `http://127.0.0.1:${port}${MCP_OAUTH_CALLBACK}`;
 
-/** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<address hash>.<kind>`. */
 type Kind = "tokens" | "client" | "verifier";
-/** Where a sign-in's secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend); a keychain without `delete` gets an empty value instead. */
 export interface OauthSecrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
   delete?(account: string): Promise<void>;
 }
 
-/** A sign-in's tokens, client registration and PKCE verifier, per server, as JSON in the keychain or, without one, in memory; an unreadable value reads as nothing. */
 export class OauthStore {
   private readonly memory = new Map<string, string>();
   private readonly secrets: OauthSecrets | null;
@@ -54,29 +41,20 @@ export class OauthStore {
     const secrets = this.secrets;
     for (const kind of kinds) this.memory.delete(this.account(server, kind));
     if (!secrets) return;
-    // Each kind is its own keychain item, so they go together. A keychain without delete gets an empty value, which reads as nothing.
     await Promise.all(
       kinds.map((kind) => (secrets.delete ? secrets.delete(this.account(server, kind)) : secrets.set(this.account(server, kind), "")).catch(() => {})),
     );
   }
 }
 
-/**
- * Where a server's sign-in is kept: its name and its address. A server given a new address under the same name, or
- * another server added under a removed one's name, is not handed the tokens the old address issued.
- */
 export const oauthKey = (server: string, url: string): string => `${server}.${createHash("sha256").update(url).digest("hex").slice(0, 12)}`;
 
-/** One remote server's side of the flow, as the SDK's transport and `auth()` ask for it. */
 export class ServerOauth implements OAuthClientProvider {
   private lastState: string | null = null;
-  /** Whether this daemon registered loki with the server, so the registration is good for the sign-in under way. */
   private registered = false;
   readonly server: string;
-  /** Where this server's sign-in is kept (oauthKey). */
   private readonly key: string;
   private readonly store: OauthStore;
-  /** The authorization page to send the person to, and the state it carries: Settings shows "sign in". */
   private readonly onRedirect: (server: string, url: URL, state: string) => void;
   private readonly redirect: string;
 
@@ -153,17 +131,11 @@ export class ServerOauth implements OAuthClientProvider {
     return v;
   }
 
-  /**
-   * Signing out: forget the tokens, any sign-in under way and loki's registration with the server, so the next sign-in
-   * registers again. A registration the server has since forgotten fails on its own authorization page, in the browser,
-   * where loki never hears of it: signing out is how the person clears one that tokens were issued to.
-   */
   async signOut(): Promise<void> {
     this.registered = false;
     await this.store.delete(this.key, ["tokens", "verifier", "client"]);
   }
 
-  /** The server said what it holds is no longer good (a revoked token, a forgotten registration): forget it. */
   async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier" | "discovery"): Promise<void> {
     if (scope === "discovery") return;
     if (scope === "all" || scope === "client") this.registered = false;
