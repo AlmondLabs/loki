@@ -95,10 +95,13 @@ export class ChatEventConverter {
         return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
       }
       // A message begun. A user message is shown at its end, which comes with it and says what entry it is: a
-      // compaction's summary is a user message too, and shown as one it put the whole summary in the thread.
+      // compaction's summary is a user message too, and shown as one it put the whole summary in the thread. An
+      // answer's start is its first partial, and often holds its first words: dropped here, they showed only once the
+      // answer was written.
       case "message_start":
-        if (ev.message.role !== "user") this.blocks.clear();
-        return [];
+        if (ev.message.role === "user") return [];
+        this.blocks = textBlocks(ev.message.role === "assistant" ? ev.message : undefined);
+        return this.streamed(now);
       // The in-flight message changes in batches, and a batch's words can come in any of four shapes: a text block
       // begun (holding all it has so far: an answer's first words, often), words added to one, a block or the whole
       // message rewritten. Taking only the added words lost the first ones until the written answer replaced them.
@@ -109,14 +112,7 @@ export class ChatEventConverter {
           } else if (change.type === "text_delta") this.blocks.set(change.contentIndex, (this.blocks.get(change.contentIndex) ?? "") + change.delta);
           else if (change.type === "message") this.blocks = textBlocks(change.message);
         }
-        const was = this.partial?.text ?? "";
-        const text = this.joined();
-        if (text === was) return [];
-        const at = this.partial?.at ?? now;
-        this.partial = text ? { text, at } : null;
-        // What was shown still leads: the rest goes as a piece. Otherwise the client is handed the answer so far.
-        if (text.startsWith(was)) return [{ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } }];
-        return [{ kind: "streaming", text, at }];
+        return this.streamed(now);
       }
       // The attempt failed and pi-durable tries again: what it streamed is not the answer. An empty written answer
       // clears it on the client (ThreadModel), and the next attempt streams afresh.
@@ -163,6 +159,18 @@ export class ChatEventConverter {
       default:
         return [];
     }
+  }
+
+  /** What the client is sent for the answer's words as they stand now, against what it was sent before. */
+  private streamed(now: string): ChatEvent[] {
+    const was = this.partial?.text ?? "";
+    const text = this.joined();
+    if (text === was) return [];
+    const at = this.partial?.at ?? now;
+    this.partial = text ? { text, at } : null;
+    // What was shown still leads: the rest goes as a piece. Otherwise the client is handed the answer so far.
+    if (text.startsWith(was)) return [{ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } }];
+    return [{ kind: "streaming", text, at }];
   }
 
   /** The text blocks joined as the written answer joins them (contentText). */

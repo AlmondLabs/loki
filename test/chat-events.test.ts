@@ -114,6 +114,15 @@ describe("chat event converter", () => {
       expect(fold(events)).toEqual({ shown: ["Yes. Skills give townhall a way to preserve how"], inFlight: "Yes. Skills give townhall a way to preserve how" });
     });
 
+    test("a message begun with its first words already in it, then words added", () => {
+      // The Skill Registry case: "Then " came with the message's start and showed only once the answer was written.
+      const events = [
+        { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "Then " }] } } as AgentEvent,
+        piece("all published skills"),
+      ];
+      expect(fold(events)).toEqual({ shown: ["Then all published skills"], inFlight: "Then all published skills" });
+    });
+
     test("a block after thinking: only the text shows, and a second text block joins as the written answer joins them", () => {
       const events = [
         update(
@@ -235,8 +244,14 @@ describe("chat event converter", () => {
     ]);
   });
 
-  test("a real streamed answer shows from its first word while it streams, after thinking", async () => {
-    // Fast enough that pi-durable saves several words per batch: the text block then begins with its first words in it.
+  const ANSWER = "Yes. Skills give townhall a way to preserve how the organisation does things, not just what people discussed.";
+  test.each([
+    // The text block begins with its first words in it, after the thinking.
+    ["after thinking", [fauxThinking("Let me think about skills for a moment here."), fauxText(ANSWER)]],
+    // The message itself begins with its first words in it: pi-durable sends them as the message's start.
+    ["with no thinking first", [fauxText(ANSWER)]],
+  ])("a real streamed answer shows from its first word while it streams, %s", async (_, content) => {
+    // Fast enough that pi-durable saves several words per batch.
     const faux = fauxProvider({ tokensPerSecond: 40, tokenSize: { min: 3, max: 3 } });
     const models = createModels();
     models.setProvider(faux.provider);
@@ -255,8 +270,7 @@ describe("chat event converter", () => {
           }
         return Promise.resolve();
       });
-      const ANSWER = "Yes. Skills give townhall a way to preserve how the organisation does things, not just what people discussed.";
-      faux.setResponses([fauxAssistantMessage([fauxThinking("Let me think about skills for a moment here."), fauxText(ANSWER)])]);
+      faux.setResponses([fauxAssistantMessage(content)]);
       await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await new Promise((r) => setTimeout(r, 50));
       await stream.stop();
