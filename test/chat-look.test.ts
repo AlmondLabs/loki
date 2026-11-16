@@ -30,6 +30,18 @@ describe("the thread under the floating header and dock", () => {
     expect(css).toMatch(/padding-top: calc\(var\(--loki-header-height\) \+ 20px\);/);
     expect(css).toMatch(/padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
   });
+
+  test("any thread with a dock beside it pads by the dock, the chat inset on the canvas too, not only the hosts named", () => {
+    expect(css).toMatch(/:has\(> \.loki-dock\) \[data-slot="message-scroller-content"\] \{\s*padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
+    expect(css).toMatch(/:has\(> \.loki-dock\) \[data-slot="message-scroller-button"\] \{\s*bottom: calc\(var\(--loki-dock-height\) \+ 12px\);/);
+    expect(css).not.toMatch(/\.loki-(desk-pane-messages|flow-card) \[data-slot="message-scroller-content"\] \{[^}]*--loki-dock-height/);
+  });
+
+  test("the dock is measured again when it comes back: kept in state, not in a ref that re-runs nothing", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "conversation.tsx"), "utf8");
+    expect(src).toMatch(/ref=\{setDockEl\} className=\{proposals \? "loki-dock/);
+    expect(src).toMatch(/useCallback\(\(\) => dockEl, \[dockEl\]\)/);
+  });
 });
 
 describe("the keyboard (U5)", () => {
@@ -89,9 +101,8 @@ describe("Flow (U6)", () => {
     expect(out).not.toContain("<kbd");
   });
 
-  test("a Flow card pads its thread under the dock, and an outside card's reply box is the glass capsule", () => {
+  test("an outside Flow card's reply box is the glass capsule", () => {
     const css = readFileSync(join(import.meta.dirname, "..", "app", "src", "components", "components.css"), "utf8");
-    expect(css).toMatch(/\.loki-flow-card \[data-slot="message-scroller-content"\] \{\s*padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
     expect(css).toMatch(/\.loki-flow-card \[data-reply-box\] \[data-slot="input-group"\] \{[^}]*var\(--loki-glass-strong\)/);
   });
 });

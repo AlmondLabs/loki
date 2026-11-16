@@ -1971,9 +1971,13 @@ button.loki-list-section-toggle {
   }
   .loki-desk-pane-messages [data-slot="message-scroller-content"] {
     padding-top: calc(var(--loki-header-height) + 20px);
+  }
+  /* Every thread with a dock beside it pads itself by the dock: the chat pane's, a Flow card's and the chat inset on
+     the canvas, which named no rule of its own and so ran its last rows under the box. */
+  :has(> .loki-dock) [data-slot="message-scroller-content"] {
     padding-bottom: calc(var(--loki-dock-height) + 20px);
   }
-  .loki-desk-pane-messages [data-slot="message-scroller-button"] {
+  :has(> .loki-dock) [data-slot="message-scroller-button"] {
     bottom: calc(var(--loki-dock-height) + 12px);
   }
   .loki-dock {
@@ -2080,14 +2084,7 @@ button.loki-list-section-toggle {
     color: var(--loki-accent);
   }
 
-  /* Flow (U6): a chat card holds the same floating dock as the chat pane, so its thread pads itself the same way; an
-     outside card's reply box is the same glass capsule as the composer. */
-  .loki-flow-card [data-slot="message-scroller-content"] {
-    padding-bottom: calc(var(--loki-dock-height) + 20px);
-  }
-  .loki-flow-card [data-slot="message-scroller-button"] {
-    bottom: calc(var(--loki-dock-height) + 12px);
-  }
+  /* Flow (U6): an outside card's reply box is the same glass capsule as the composer. */
   .loki-flow-card [data-reply-box] [data-slot="input-group"] {
     border-color: transparent;
     border-radius: 24px;

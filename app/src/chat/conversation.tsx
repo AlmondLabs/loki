@@ -220,8 +220,10 @@ export function Conversation({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
   const threadRef = useRef<ThreadHandle>(null);
-  const dockRef = useRef<HTMLDivElement>(null);
-  const dock = useCallback(() => dockRef.current, []);
+  // The dock goes while the box is drawn elsewhere (the Messages tab under Canvas) and comes back as a new element, so
+  // it is kept in state: a ref's change re-ran nothing, and the thread lost its padding and slid under the box.
+  const [dockEl, setDockEl] = useState<HTMLDivElement | null>(null);
+  const dock = useCallback(() => dockEl, [dockEl]);
   useHeightVar(dock, "--loki-dock-height");
   const { draft, setDraft, images, setImages, submit } = useDraft({
     question,
@@ -389,7 +391,7 @@ export function Conversation({
         // The dock: decisions, the box and the moves. It floats over the thread, which scrolls on beneath it
         // (components.css). On the desktop it keeps the thread's 20px gutter, and its columns centre in it at the
         // thread's width.
-        <div ref={dockRef} className={proposals ? "loki-dock px-5" : "loki-dock"}>
+        <div ref={setDockEl} className={proposals ? "loki-dock px-5" : "loki-dock"}>
           {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
           <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 empty:hidden" : "contents"}>
             {question &&
