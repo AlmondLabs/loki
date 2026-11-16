@@ -7,6 +7,7 @@ import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
 import { cleanQuery } from "../shared/search";
 import { buildIndex, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./search-index";
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
+import { useTopClearance } from "./ui";
 
 /** What Search covers, said plainly wherever it would otherwise look like message search. */
 const COVERAGE = "Searches chat titles, agents, waiting items and pages on this phone — not message text.";
@@ -43,6 +44,7 @@ export function Search({
   // The stored places, read once and again only after a Clear; what still resolves is checked against sources below.
   const [placeHashes, setPlaceHashes] = useState(() => recentPlaces.read());
   const input = useRef<HTMLInputElement>(null);
+  const top = useTopClearance<HTMLElement>();
   const scroller = useRef<HTMLDivElement>(null);
   // A fresh Search starts at the top; one come back to keeps its place (scroll memory "search").
   useState(() => fresh && scrollMemory.save("search", 0));
@@ -89,7 +91,7 @@ export function Search({
         : null;
   return (
     <div className="loki-phone-page">
-      <header className="loki-phone-search-bar">
+      <header ref={top} className="loki-phone-topbar loki-phone-search-bar">
         <button type="button" className="loki-phone-icon-btn" aria-label={`Back to ${backLabel}`} onClick={onBack}>
           <Icon name="back" size={22} />
         </button>

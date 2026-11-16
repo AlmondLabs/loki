@@ -22,8 +22,9 @@
         var theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference;
         document.documentElement.dataset.theme = theme;
         document.documentElement.dataset.themePreference = preference;
-        // Linux starts Liquid Glass on its solid look-alike (theme.tsx GLASS_ON), before any stylesheet paints.
-        if (/Linux|X11|CrOS/.test(navigator.userAgent) && navigator.userAgent.indexOf("like Mac OS X") < 0) document.documentElement.dataset.glass = "solid";
+        // Linux starts Liquid Glass on its solid look-alike (theme.tsx GLASS_ON), before any stylesheet paints. A phone
+        // never does: an iPhone's agent says "like Mac OS X" and an Android one "Android" (plan 2026-11-16-0959, KTD3).
+        if (/Linux|X11|CrOS/.test(navigator.userAgent) && !/like Mac OS X|Android/.test(navigator.userAgent)) document.documentElement.dataset.glass = "solid";
         // The Mac app's window has the sidebar material behind the page (theme.tsx VIBRANT), so Liquid Glass starts clear.
         if (window.__TAURI_INTERNALS__ && /Mac/.test(navigator.userAgent) && !/like Mac OS X/.test(navigator.userAgent)) document.documentElement.dataset.vibrant = "on";
         document.documentElement.style.colorScheme = theme;

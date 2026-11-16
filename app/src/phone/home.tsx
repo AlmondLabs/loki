@@ -19,7 +19,7 @@ import { deskName, homeLists, shortcutLine, type HomeAttention, type HomeCounts,
 import type { Me } from "./pair";
 import { navigate, openConversation, type Route } from "./router";
 import { PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
-import { Scroll } from "./ui";
+import { Scroll, useTopClearance } from "./ui";
 import { RenameSheet } from "./rename-sheet";
 import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-folders";
 import { canRename } from "../shell/sidebar-model";
@@ -132,8 +132,7 @@ export function Home({
 
   return (
     <div className="loki-phone-page" hidden={hidden}>
-      <HomeHeader me={me} link={link} filtered={filtered} onMenu={() => setSheet("menu")} />
-      {banner}
+      <HomeHeader me={me} link={link} filtered={filtered} onMenu={() => setSheet("menu")} banner={banner} />
       {/* Rows glide when the arrangement changes under you; not while a filter is typed (nothing moves for the keyboard). */}
       <Scroll memory="home" flush flip={filtered ? undefined : homeOrder(attention, more, groups, folded)}>
         <ShortcutRail counts={counts} />
@@ -363,10 +362,15 @@ function DeskSections({
   );
 }
 
-/** loki's mark, the name as the large title, and on the right the menu and the profile with the Mac's presence. */
-function HomeHeader({ me, link, filtered, onMenu }: { me: Me; link: LinkState; filtered: boolean; onMenu: () => void }) {
+/**
+ * loki's mark, the name as the large title, and on the right the menu and the profile with the Mac's presence, in one
+ * glass pill. It floats over Home's list as every screen's top bar does (plan 2026-11-16-0959, U3), the screen's notice
+ * with it.
+ */
+function HomeHeader({ me, link, filtered, onMenu, banner }: { me: Me; link: LinkState; filtered: boolean; onMenu: () => void; banner?: ReactNode }) {
+  const top = useTopClearance<HTMLElement>();
   return (
-    <header className="loki-phone-topbar loki-phone-home-top">
+    <header ref={top} className="loki-phone-topbar loki-phone-home-top">
       <div className="loki-phone-home-bar">
         {/* loki's mark, the L (app/public/mark.png): the app's icon at the size of a small one. */}
         <img src="/mark.png" alt="" aria-hidden className="loki-phone-workspace" width={44} height={44} />
@@ -398,6 +402,7 @@ function HomeHeader({ me, link, filtered, onMenu }: { me: Me; link: LinkState; f
           </button>
         </div>
       </div>
+      {banner}
     </header>
   );
 }

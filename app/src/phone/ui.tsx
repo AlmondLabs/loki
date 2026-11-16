@@ -1,7 +1,8 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useRef, type CSSProperties, type ReactNode } from "react";
 import { useFlip } from "../kit/use-flip";
 import { Button, Sheet } from "../components";
 import { Icon } from "./icons";
+import { useHeightVar } from "../shared/use-height-var";
 import { useScrollMemory } from "./session";
 
 /**
@@ -11,16 +12,35 @@ import { useScrollMemory } from "./session";
  */
 
 /**
- * `progress` (0..1) swaps the bottom hairline for a 2px bar that fills as a pass goes; the deck uses it
- * for "n of N". null keeps the hairline. Static looks are classes in phone.css; only the row height and
- * the fill are inline, since they come from the caller. The title is the screen's heading: the one
- * element focus moves to when a route opens (session.ts restoreFocus), hence tabIndex -1.
+ * A floating top bar's ref: its height is kept in --phone-top-clearance on its own screen (the element's parent),
+ * which that screen's scroller starts below (phone.css). TopBar uses it; Home's header and Search's bar, which draw
+ * their own rows, use it too.
+ */
+export function useTopClearance<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useHeightVar(
+    useCallback(() => ref.current, []),
+    "--phone-top-clearance",
+  );
+  return ref;
+}
+
+/**
+ * The screen's top bar, floating over its list (plan 2026-11-16-0959, KTD4): back and actions in glass capsules,
+ * the title bare between them on a fade of the ground. What used to sit between the bar and the list (the screen's
+ * `banner`, a pass's `progress`) rides in the same layer, and the layer's height is kept in --phone-top-clearance on
+ * its own screen, so that screen's scroller starts below it and a hidden screen's bar never moves another's.
+ * `progress` (0..1) is a 2px bar along the layer's foot that fills as a pass goes; the deck uses it for "n of N".
+ * Static looks are classes in phone.css; only the row height and the fill are inline, since they come from the
+ * caller. The title is the screen's heading: the one element focus moves to when a route opens (session.ts
+ * restoreFocus), hence tabIndex -1.
  */
 export function TopBar({
   left,
   title,
   sub,
   right,
+  banner,
   progress = null,
   height = 48,
 }: {
@@ -28,21 +48,24 @@ export function TopBar({
   title: ReactNode;
   sub?: ReactNode;
   right?: ReactNode;
+  /** A notice for the whole screen (the Mac out of reach, say), under the bar's row. */ banner?: ReactNode;
   progress?: number | null;
   /** The row's height; 44 for a bar with no second line. */ height?: number;
 }) {
+  const ref = useTopClearance<HTMLElement>();
   return (
-    <header className={progress === null ? "loki-phone-topbar" : "loki-phone-topbar loki-phone-topbar--progress"}>
+    <header ref={ref} className="loki-phone-topbar">
       <div className="loki-phone-topbar-row" style={{ minHeight: height }}>
-        {left}
+        {left && <div className="loki-phone-topbar-group">{left}</div>}
         <div className="loki-phone-topbar-copy">
           <h1 className="loki-phone-title loki-phone-topbar-title" data-phone-heading tabIndex={-1}>
             {title}
           </h1>
           {sub && <div className="loki-phone-topbar-sub">{sub}</div>}
         </div>
-        {right && <div className="loki-phone-topbar-actions">{right}</div>}
+        {right && <div className="loki-phone-topbar-group loki-phone-topbar-actions">{right}</div>}
       </div>
+      {banner}
       {progress !== null && (
         <div aria-hidden className="loki-phone-progress">
           <div className="loki-phone-progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progress)).toFixed(3)})` }} />

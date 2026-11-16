@@ -35,8 +35,7 @@ function Page({
 }) {
   return (
     <div className="loki-phone-page">
-      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title={title} />
-      {banner}
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title={title} banner={banner} />
       <Scroll flush>
         <div className="loki-phone-groups">{children}</div>
       </Scroll>

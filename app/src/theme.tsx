@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { inTauri, platform, type Platform } from "./desk/env";
+import { inLan, inTauri, platform, type Platform } from "./desk/env";
 
 /** The appearance choices: follow the system, or always light or dark. */
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
@@ -62,7 +62,9 @@ function applyTheme(preference: ThemePreference): void {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.dataset.themePreference = preference;
-  if (GLASS_ON[platform] === "solid") root.dataset.glass = "solid";
+  // A paired phone decides for itself (plan 2026-11-16-0959, KTD3): platform is the host's OS, not the phone's, and the
+  // phone's only solid state is Increase Contrast (phone.css).
+  if (GLASS_ON[platform] === "solid" && !inLan) root.dataset.glass = "solid";
   // The Mac's window carries the system's sidebar material behind the page (src-tauri lib.rs, U13).
   if (VIBRANT) root.dataset.vibrant = "on";
   root.style.colorScheme = theme;

@@ -68,8 +68,7 @@ function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: Reac
   const deleted = snap ? snap.rejected.length + snap.dismissed_leads.length : 0;
   return (
     <div className="loki-phone-page">
-      <TopBar left={back} title="Learn" />
-      {banner}
+      <TopBar left={back} title="Learn" banner={banner} />
       <Scroll flush memory="learn">
         {!snap ? (
           <SkeletonRows label="Loading Learn…" rows={4} />
@@ -122,8 +121,8 @@ function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: Dec
         title="Review"
         sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}${current && pass.total ? ` · ${pass.passed.size + 1} of ${pass.total}` : ""}`}
         progress={pass.total ? pass.passed.size / pass.total : null}
+        banner={banner}
       />
-      {banner}
       <Scroll>
         <div className="loki-phone-learn">
           {!recall.snap ? (
@@ -185,8 +184,7 @@ function Leads({
   };
   return (
     <div className="loki-phone-page">
-      <TopBar left={back} title="Leads" sub={snap ? `${leads.length} lead${leads.length === 1 ? "" : "s"}` : undefined} />
-      {banner}
+      <TopBar left={back} title="Leads" sub={snap ? `${leads.length} lead${leads.length === 1 ? "" : "s"}` : undefined} banner={banner} />
       <Scroll>
         <div className="loki-phone-learn">
           {!snap ? (
@@ -264,8 +262,7 @@ function Lessons({
   const lessons = snap?.lessons ?? [];
   return (
     <div className="loki-phone-page">
-      <TopBar left={back} title="Lessons under way" />
-      {banner}
+      <TopBar left={back} title="Lessons under way" banner={banner} />
       <Scroll flush>
         {!snap ? (
           <SkeletonRows label="Loading the lessons…" rows={3} />
@@ -314,8 +311,7 @@ function Deleted({ recall, banner, back }: { recall: RecallModel; banner: ReactN
   const leads = snap?.dismissed_leads ?? [];
   return (
     <div className="loki-phone-page">
-      <TopBar left={back} title="Deleted" />
-      {banner}
+      <TopBar left={back} title="Deleted" banner={banner} />
       <Scroll flush>
         {!snap ? (
           <SkeletonRows label="Loading what was deleted…" rows={3} />

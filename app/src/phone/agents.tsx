@@ -102,8 +102,8 @@ export function Agents({
             </span>
           ) : undefined
         }
+        banner={banner}
       />
-      {banner}
       <Scroll memory="agents" flush>
         {rows.length > 0 && (
           <div role="group" aria-label="Show" className="loki-phone-chips loki-phone-filter">

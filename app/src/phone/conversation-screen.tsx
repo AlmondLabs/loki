@@ -28,6 +28,7 @@ import { threadLine } from "./model";
 import { navigate, openConversation } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "../shared/drafts";
+import { useTopClearance } from "./ui";
 
 const noop = () => {};
 
@@ -200,12 +201,14 @@ export function ConversationScreen({
         backLabel={backLabel}
         onBack={onBack}
         onActions={() => setActionsOpen(true)}
+        links={
+          view.links?.length ? (
+            <div className="loki-phone-links">
+              <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
+            </div>
+          ) : null
+        }
       />
-      {view.links?.length ? (
-        <div className="loki-phone-links">
-          <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
-        </div>
-      ) : null}
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
@@ -350,9 +353,10 @@ function ScreenThread({
 }
 
 /**
- * The header, Slack's DM bar: a back circle, the identity pill (the agent's face with its working dot, its
- * name, "working · <desk>" under it and the chat's purpose under that; a tap opens the agent's profile), and a circle for the actions sheet.
- * The heading wraps the pill so focus lands on the conversation's name when the page opens.
+ * The header: a glass back circle, the agent bare between (its face with the working dot, its name, "working ·
+ * <desk>" under it and the chat's purpose under that; a tap opens the agent's profile), and a glass circle for the
+ * actions sheet. It floats over the thread as every top bar does (plan 2026-11-16-0959, U4), the chat's links row
+ * with it. The heading wraps the agent so focus lands on the conversation's name when the page opens.
  */
 function ThreadHeader({
   thread,
@@ -362,6 +366,7 @@ function ThreadHeader({
   backLabel,
   onBack,
   onActions,
+  links,
 }: {
   thread: Thread;
   view: ThreadView;
@@ -370,33 +375,38 @@ function ThreadHeader({
   backLabel: string;
   onBack: () => void;
   onActions: () => void;
+  /** The chat's links to other chats, a row under the header that floats with it. */ links?: ReactNode;
 }) {
+  const top = useTopClearance<HTMLElement>();
   const name = thread.agentName ?? "agent";
   const line = threadLine({ status: view.status, approval: view.pending, question: view.question, waiting, desk: thread.title });
   const working = view.status !== "idle";
   return (
-    <header className="loki-phone-convo-head">
-      <button type="button" className="loki-phone-circle" onClick={onBack} aria-label={`Back to ${backLabel}`}>
-        <Icon name="back" size={22} />
-      </button>
-      <h1 className="loki-phone-convo-heading" data-phone-heading tabIndex={-1}>
-        <button
-          type="button"
-          className="loki-phone-convo-who"
-          onClick={() => navigate({ kind: "agent", agentId: thread.agentId })}
-          aria-label={`${name}${line ? `, ${line}` : ""}. Open profile`}
-        >
-          <Avatar name={thread.agentName} src={avatarUrl(thread.agentId)} size={32} presence={working} />
-          <span className="loki-phone-convo-copy">
-            <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>
-            {line && <span className="loki-phone-convo-line loki-phone-ellipsis">{line}</span>}
-            {purpose && <span className="loki-phone-convo-line loki-phone-ellipsis">{purpose}</span>}
-          </span>
+    <header ref={top} className="loki-phone-topbar loki-phone-convo-head">
+      <div className="loki-phone-convo-row">
+        <button type="button" className="loki-phone-circle" onClick={onBack} aria-label={`Back to ${backLabel}`}>
+          <Icon name="back" size={22} />
         </button>
-      </h1>
-      <button type="button" className="loki-phone-circle" onClick={onActions} aria-label="Conversation actions" aria-haspopup="dialog">
-        <Icon name="more" size={22} />
-      </button>
+        <h1 className="loki-phone-convo-heading" data-phone-heading tabIndex={-1}>
+          <button
+            type="button"
+            className="loki-phone-convo-who"
+            onClick={() => navigate({ kind: "agent", agentId: thread.agentId })}
+            aria-label={`${name}${line ? `, ${line}` : ""}. Open profile`}
+          >
+            <Avatar name={thread.agentName} src={avatarUrl(thread.agentId)} size={32} presence={working} />
+            <span className="loki-phone-convo-copy">
+              <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>
+              {line && <span className="loki-phone-convo-line loki-phone-ellipsis">{line}</span>}
+              {purpose && <span className="loki-phone-convo-line loki-phone-ellipsis">{purpose}</span>}
+            </span>
+          </button>
+        </h1>
+        <button type="button" className="loki-phone-circle" onClick={onActions} aria-label="Conversation actions" aria-haspopup="dialog">
+          <Icon name="more" size={22} />
+        </button>
+      </div>
+      {links}
     </header>
   );
 }

@@ -565,9 +565,9 @@ describe("phone tokens: one system under the phone root", () => {
     if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
     return hit;
   };
-  // The glass material, the monogram and the segmented control's chosen segment are the desktop's; the phone inherits
-  // them from :root rather than restating them.
-  const DESKTOP_ONLY = /^(glass|monogram|on-monogram|segment)/;
+  // The monogram and the segmented control's chosen segment are the desktop's; the phone inherits them from :root rather
+  // than restating them. The glass material is restated with the phone's own values (plan 2026-11-16-0959, KTD1).
+  const DESKTOP_ONLY = /^(monogram|on-monogram|segment)/;
   const desktopColours = [...themeBlock("dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
     .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t) && !DESKTOP_ONLY.test(t));

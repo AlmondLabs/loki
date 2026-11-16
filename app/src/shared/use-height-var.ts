@@ -1,7 +1,10 @@
 import { useLayoutEffect } from "react";
 
-/** The heights Liquid Glass lays the thread under (tokens.css defines both, 0 by default). */
-export type HeightVar = "--loki-header-height" | "--loki-dock-height";
+/**
+ * The heights Liquid Glass lays content under: the desktop thread's header and dock (tokens.css defines both, 0 by
+ * default), and a phone screen's floating top bar (phone.css, plan 2026-11-16-0959).
+ */
+export type HeightVar = "--loki-header-height" | "--loki-dock-height" | "--phone-top-clearance";
 
 /**
  * Keeps an element's height in a custom property on its parent (plan 2026-11-12-1505, U4): the chat pane's header and its dock of decisions, box and moves float over the thread, which pads itself by these so
