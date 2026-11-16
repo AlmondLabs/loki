@@ -23,25 +23,48 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 
 ## Install
 
-**Homebrew**, the recommended way:
+One line in a terminal, the same on every system. On macOS or Linux:
 
 ```bash
-brew install --cask almondlabs/loki/loki
-xattr -dr com.apple.quarantine /Applications/loki.app
+curl -fsSL https://almondlabs.github.io/loki/install.sh | sh                  # Stable
+curl -fsSL https://almondlabs.github.io/loki/install.sh | sh -s -- --nightly  # Nightly
 ```
 
-The second line matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned
-download as "damaged"; Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no longer has
-a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand once per install. The cask's
-own caveat says the same. After that loki updates itself (see "Updates" below). Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
+On Windows, in PowerShell:
 
-**Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main` that changes more than the docs, built about twenty
-minutes after it lands, versioned `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). The two casks
-conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
-and an install. Once installed, either build can move to the other channel in Preferences › About (see "Updates"). How releases are cut: [docs/releasing.md](releasing.md).
+```powershell
+irm https://almondlabs.github.io/loki/install.ps1 | iex                                  # Stable
+$env:LOKI_CHANNEL = "nightly"; irm https://almondlabs.github.io/loki/install.ps1 | iex   # Nightly
+```
 
-**The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
-Open is not enough for an unsigned app on macOS 14 and later):
+The script downloads the newest release of its channel from GitHub and opens loki:
+
+- **On a Mac**, `loki.app` goes in `/Applications`, or in `~/Applications` when `/Applications` isn't yours to
+  change. A file `curl` fetches carries no quarantine flag, so macOS opens the unsigned app without the `xattr` line
+  below.
+- **On Linux** (x86_64), the AppImage goes to `~/.local/share/loki/loki.AppImage`, with a menu entry in
+  `~/.local/share/applications/loki.desktop` and its icon beside the app. When the AppImage needs FUSE 2 and it is
+  missing, the script stops and names the package command for your distribution (`sudo apt install libfuse2`, or
+  `libfuse2t64` on Ubuntu 24.04).
+- **On Windows** (64-bit 10 or 11), the setup runs silently for you alone, into `%LOCALAPPDATA%\loki`, with no
+  administrator prompt and a Start menu entry.
+
+It stops, and says so, when loki is open; quit it and run the line again. Run again, it replaces the app with the
+newest release and touches nothing else: your agents, chats and settings in `~/.loki` stay. It installs neither Node
+nor git; loki fetches what it needs at its first launch (Requirements). After that, loki updates itself (see
+"Updates" below), and Preferences › About moves it between Stable and Nightly, so the line is never needed again.
+
+**Nightly** is every merge to `main` that changes more than the docs, built about twenty minutes after it lands,
+versioned `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the
+commit). A stable is the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1`
+the second (before October 2026, `2026.9.28` was simply the day). One loki is installed at a time; both channels share
+`~/.loki`, the daemon and the mod's ports. How releases are cut: [docs/releasing.md](releasing.md).
+
+### Other ways in
+
+**The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
+Applications, then clear the quarantine flag once. loki is not signed with an Apple Developer ID, and macOS refuses to
+open an unsigned download as "damaged" (right-click → Open is not enough on macOS 14 and later):
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/loki.app
@@ -49,20 +72,25 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 
 Or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security.
 
+**Homebrew**: `brew install --cask almondlabs/loki/loki`, then the same `xattr` line. Homebrew quarantines cask
+downloads like a browser would, and Homebrew 7 no longer has a flag to skip that (`--no-quarantine` is gone); the
+cask's own caveat says the same. The cask declares that loki updates itself, so Homebrew leaves updates to loki. A loki
+installed with Homebrew before it updated itself reaches the version that does with one last
+`brew upgrade --cask loki` and the `xattr` line; one from an older `.dmg`, with one last download. Nothing in `~/.loki`
+moves. The `loki-nightly` cask is deprecated: the Nightly channel in Preferences › About replaces it, and a loki already
+installed through it keeps updating itself on that channel.
+
+**Windows and Linux by hand**, from the [releases page](https://github.com/AlmondLabs/loki/releases/latest):
+`loki_<version>_x64-setup.exe`, an unsigned NSIS installer, which SmartScreen stops as an unknown publisher (**More
+info**, then **Run anyway**, once); `loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2; or
+`loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`). The Linux files are built on Ubuntu 22.04. The
+`-setup.exe` and the AppImage update themselves after that; the `.deb` does not, and its next version is another
+download from the releases page. No package manager carries them.
+
 **From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout or
 `npm run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
-**Windows (preview)**: `loki_<version>_x64-setup.exe` from a stable release, an unsigned NSIS installer. SmartScreen
-stops it as an unknown publisher; **More info**, then **Run anyway**, once.
-
-**Linux (preview)**: `loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`) or
-`loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2 (`libfuse2`, `libfuse2t64` on Ubuntu 24.04).
-Both are built on Ubuntu 22.04.
-
-Windows and Linux files come on stable releases only, published on their own before or after the `.dmg` of the
-same version, so take them from the newest release that has them; nightlies are Mac-only. The `-setup.exe` and the
-AppImage update themselves after that, as the Mac's app does; the `.deb` updates from the releases page. No package
-manager carries them yet.
+### First launch
 
 Whichever way, loki brings its own Node (Requirements). Then:
 
@@ -132,6 +160,20 @@ records take pi-ai's name for ChatGPT's provider and keep their effort as `reaso
 `~/.letta/loki` name `~/.loki` in a commit by loki, chats run on pi-ai's model names in folders under `~/.loki`, and
 Learn's chats from Letta are hidden; a helper agent Letta made is moved to `~/.loki/backend/backup-letta-<date>/`.
 loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's.
+
+### Uninstall
+
+Quit loki first, then remove the app. Removing the app leaves your agents, chats and settings in `~/.loki` and loki's
+skill in `~/.agents/skills/loki`, so a later install picks up where you left off; delete those two as well to remove
+everything loki wrote.
+
+- **Mac:** move `loki.app` from `/Applications` (or `~/Applications`) to the Bin, then, if you want, delete `~/.loki`
+  and `~/.agents/skills/loki`. Installed with Homebrew, `brew uninstall --cask loki` removes the app, and
+  `brew uninstall --zap --cask loki` removes those two folders too.
+- **Windows:** Settings › Apps › Installed apps, then loki's **Uninstall**, or `uninstall.exe` in
+  `%LOCALAPPDATA%\loki`. Then, if you want, delete `%USERPROFILE%\.loki` and `%USERPROFILE%\.agents\skills\loki`.
+- **Linux:** delete `~/.local/share/loki` (the AppImage and its icon) and `~/.local/share/applications/loki.desktop`,
+  or, for the `.deb`, `sudo apt remove loki`. Then, if you want, delete `~/.loki` and `~/.agents/skills/loki`.
 
 ## The window
 

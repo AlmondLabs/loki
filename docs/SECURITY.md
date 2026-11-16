@@ -8,7 +8,8 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
 ## What runs where
 
 - **The shell** (`src-tauri`, Rust) opens the window, writes the capability token, installs the daemon and mod
-  bundles under `~/.loki` on each launch, and starts loki's daemon on the machine's own Node (22.19 or newer). It
+  bundles under `~/.loki` on each launch, and starts loki's daemon on the Node it downloaded and checked ([What loki
+  downloads](#what-loki-downloads); a development build, on the machine's own Node 22.19 or newer). It
   restarts the daemon when it exits and stops it when loki quits. It relays nothing: the page talks to the daemon
   itself.
 - **The daemon** (`daemon/`, TypeScript on Node) is one long-lived process that runs as you, with your permissions. It
@@ -377,6 +378,20 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   could pair a newer version number with an older build loki signed. On the Mac, when the app's folder is not yours to
   write, loki does not download the update at all and About asks you to move it to a folder you can change, so it never
   asks for an administrator's password.
+- **What reaches Nightly, and when.** A loki on the Nightly channel installs every build of `main`: a merged PR is
+  built about twenty minutes later, and each running loki on Nightly downloads it within six hours (or at its next
+  launch) and installs it when you next quit, with no step of yours. That is the trust Nightly asks for: whatever merges
+  to `main` through a reviewed PR, signed by the same key. Stable installs only the releases a merged release PR ships.
+- **The install script, before any of this.** The one-line install runs `install.sh` (macOS and Linux) or
+  `install.ps1` (Windows), which GitHub Pages serves over HTTPS from loki's own repository (`site/public/`). The
+  script itself is not signed or checksummed: you trust it as you trust that HTTPS connection to loki's GitHub, and
+  you can read it before you run it. It downloads the release's files over HTTPS from github.com, puts the app in
+  place and opens it; it never runs `sudo` or asks for administrator rights (on Linux without FUSE 2 it names the
+  package command and stops). The first install is not checked against the update key: the key only checks the
+  updates that follow. Files `curl` fetches carry no quarantine flag on a Mac, which is why that way needs no `xattr`
+  line, and why macOS's own check for downloaded apps never looks at it. On Windows the setup is fetched by PowerShell
+  without the mark a browser puts on a download, so SmartScreen's unknown-publisher screen does not show (Smart App
+  Control, where it is on, may still block it), and it installs for you alone.
 - **Claude Code, when you choose it for a chat.** loki runs the ACP adapter with `npx`, at a version each loki
   release pins (`daemon/acp/agents.ts`), so npm fetches that version from its registry the first time. An ACP agent
   of your own runs the command you wrote for it.
