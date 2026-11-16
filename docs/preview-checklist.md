@@ -2,23 +2,28 @@
 
 The Windows and Linux builds are built and tested in CI, but nobody on the project has tried them on a real
 machine. If you have one, this is what to try. Each item says what should happen; anything else is worth an
-[issue](https://github.com/AlmondLabs/loki/issues). Say which system and version, which file you installed
-(`-setup.exe`, AppImage or `.deb`), which Node loki found (Preferences › About names it), and attach what the logs
+[issue](https://github.com/AlmondLabs/loki/issues). Say which system and version, how you installed loki
+(the install line, the `-setup.exe`, the AppImage or the `.deb`), which Node loki runs on (Preferences › About names it), and attach what the logs
 say: `~/.loki/logs/daemon.log` (the daemon's output) and `~/.loki/mod.log` (on Windows `~` is `%USERPROFILE%`).
 Leave out tokens, transcripts and agent memory.
 
-The files are on stable releases, published on their own before or after the `.dmg` of the same version: take
-them from the newest [release](https://github.com/AlmondLabs/loki/releases) that has them (one made by Windows and
-Linux first is not marked latest until the Mac's lands); nightlies carry none. The manual's Install section has
-the steps.
+Every release, stable and nightly, carries the Windows and Linux files beside the Mac's. The quickest way in is the
+install line ([the manual's Install section](manual.md#install)); the files on the
+[releases page](https://github.com/AlmondLabs/loki/releases/latest) are the other way, and worth trying too.
 
 ## Install
 
-1. **Windows.** `loki_<version>_x64-setup.exe` runs; SmartScreen's **More info → Run anyway** gets past the
+1. **Windows, the install line.** `irm https://almondlabs.github.io/loki/install.ps1 | iex` in PowerShell installs
+   loki into `%LOCALAPPDATA%\loki` with no administrator prompt and no SmartScreen screen; loki appears in the Start
+   menu and opens. Run again while loki is open, it says to quit loki first and changes nothing.
+2. **Linux, the install line.** `curl -fsSL https://almondlabs.github.io/loki/install.sh | sh` puts the AppImage in
+   `~/.local/share/loki` and opens loki; loki appears in the applications menu with its icon. Without FUSE 2 it stops
+   before installing and names the package command for your distribution.
+3. **Windows, by hand.** `loki_<version>_x64-setup.exe` runs; SmartScreen's **More info → Run anyway** gets past the
    unknown-publisher screen; loki appears in the Start menu and opens.
-2. **Linux, `.deb`.** `sudo apt install ./loki_*_amd64.deb` installs; loki appears in the applications menu and
+4. **Linux, `.deb`.** `sudo apt install ./loki_*_amd64.deb` installs; loki appears in the applications menu and
    opens.
-3. **Linux, AppImage.** After `chmod +x`, it runs. Without `libfuse2` (`libfuse2t64` on Ubuntu 24.04), started
+5. **Linux, AppImage by hand.** After `chmod +x`, it runs. Without `libfuse2` (`libfuse2t64` on Ubuntu 24.04), started
    from a terminal it prints a FUSE error; with the package installed it opens.
 
 ## First run
@@ -79,6 +84,7 @@ the steps.
    the message box works, and Enter confirms the composition without sending half of it.
 2. **New chat › Browse…** opens the system's own folder dialog; the chosen folder fills the field. Typing
    `C:\` or `~\` (Windows) or `~/` completes folders.
-3. **Update check.** On an older build, Preferences › About says a newer loki is out and links this system's file
-   (the `-setup.exe`, or the AppImage or `.deb`), not the `.dmg`, from the newest release that has it, even when a
-   newer Mac-only release is out.
+3. **Updates.** On an older build (the Nightly channel gets one soonest), loki downloads the newer version in the
+   background, Preferences › About says it is ready, and quitting or **Restart to Update** installs it; the next
+   launch is the new version, with your chats in place. A `.deb` install never updates: About links the releases page
+   instead.

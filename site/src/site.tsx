@@ -4,10 +4,16 @@ import { LearnDemo } from "./learn-demo";
 import { PhoneDemo } from "./phone-demo";
 import { SuggestionsDemo } from "./suggestions-demo";
 
-/** Where people get loki: the newest release, Homebrew, the source. */
+/** Where people get loki: the newest release, the source, and the README's other ways in (the .dmg and Homebrew). */
 const RELEASES = "https://github.com/AlmondLabs/loki/releases/latest";
 const SOURCE = "https://github.com/AlmondLabs/loki";
-const BREW = "brew install --cask almondlabs/loki/loki";
+const OTHER_WAYS = `${SOURCE}#other-ways-in`;
+
+/** The one-line install per system, from the scripts in site/public/ that GitHub Pages serves beside this page. */
+const INSTALL_LINES = [
+  { system: "macOS and Linux", line: "curl -fsSL https://almondlabs.github.io/loki/install.sh | sh" },
+  { system: "Windows PowerShell", line: "irm https://almondlabs.github.io/loki/install.ps1 | iex" },
+];
 
 /** What loki is besides its demos, each in a line or two. */
 const FACTS = [
@@ -46,8 +52,8 @@ export function Site() {
           <a href="#learn">learn</a>
           <a href={SOURCE}>GitHub</a>
         </nav>
-        <a className="site-button site-button-small" href={RELEASES}>
-          download
+        <a className="site-button site-button-small" href="#top">
+          install
         </a>
       </header>
 
@@ -61,15 +67,12 @@ export function Site() {
               later is a live widget you can drag, tick and slide. What you did rides along on your next message, so the agent sees the canvas the way you left
               it.
             </p>
+            <Install />
             <div className="site-actions">
-              <a className="site-button" href={RELEASES}>
-                download for macOS
-              </a>
               <a className="site-link" href={SOURCE}>
                 source on GitHub →
               </a>
             </div>
-            <Install />
             <p className="site-fine">Free and open source under Apache-2.0. Windows and Linux in preview.</p>
           </div>
           <HeroCanvas />
@@ -175,15 +178,12 @@ export function Site() {
         <section className="site-cta">
           <h2>Give your agents a canvas</h2>
           <p className="site-lede">Free, open source, and running on your own Mac in a few minutes.</p>
+          <Install />
           <div className="site-actions">
-            <a className="site-button" href={RELEASES}>
-              download for macOS
-            </a>
             <a className="site-link" href={SOURCE}>
               source on GitHub →
             </a>
           </div>
-          <Install />
         </section>
       </main>
 
@@ -196,14 +196,24 @@ export function Site() {
   );
 }
 
-/** The Homebrew line with a copy button. */
+/** The install line for each system, each with a copy button, then a quiet line to the other ways in. */
 function Install() {
   return (
-    <div className="site-install">
-      <code>{BREW}</code>
-      <button type="button" onClick={() => void navigator.clipboard.writeText(BREW).catch(() => {})}>
-        copy
-      </button>
+    <div className="site-install-block">
+      <div className="site-install">
+        {INSTALL_LINES.map(({ system, line }) => (
+          <div className="site-install-row" key={system}>
+            <span className="site-install-system">{system}</span>
+            <code>{line}</code>
+            <button type="button" aria-label={`copy the ${system} line`} onClick={() => void navigator.clipboard.writeText(line).catch(() => {})}>
+              copy
+            </button>
+          </div>
+        ))}
+      </div>
+      <p className="site-install-other">
+        Or the <a href={RELEASES}>releases page</a> and <a href={OTHER_WAYS}>Homebrew</a>, which need one more line on a Mac.
+      </p>
     </div>
   );
 }

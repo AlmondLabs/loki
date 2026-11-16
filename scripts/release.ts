@@ -1,46 +1,49 @@
 // Release management (docs/releasing.md). A stable ships when the release PR merges, as many a day as there are
-// merges.
+// merges; every other merge to main ships a nightly. Each is built for the Mac, Windows and Linux in one run, and
+// carries the signed update files and the `latest.json` loki's updater reads (plan 2026-11-15-2319, U6).
 //
 // A stable is `YYYY.MMDD.N`: the UTC year, then month and day (October 11 is 1011, January 1 is 101), then that day's
 // release count from 0 — 2026.1011.0, 2026.1011.1, 2026.1012.0. A nightly is the next stable's number and the release
 // workflow's run number: `2026.1011.1-nightly.4821`, so nightlies rise run by run and each sorts below the stable it
-// leads up to (semver precedence); the commit it was built from goes in its title and notes. The number is decided when
-// the release is built, from the date and the stable tags, never written into a PR beforehand, so nothing goes stale
-// and nothing runs on a schedule. The tags are the truth; the version files on main are stamped only on the runner
-// (main takes changes through PRs alone).
+// leads up to (semver precedence); the commit it was built from goes in its title and notes. The number is decided
+// once per run, in the workflow's queued version job, from the date, the stable tags and the drafts, never written into
+// a PR beforehand, so nothing goes stale and nothing runs on a schedule. A stable's draft is made there at once, so a
+// stable queued behind it takes the next number. The tags are the truth; the version files on main are stamped only on
+// the runner (main takes changes through PRs alone).
 // `.github/workflows/release.yml` runs this on every push to main, and by hand:
 //
-//   npm run release -- plan                    what this run does: stable | nightly | preview | none
-//   npm run release -- version stable [sha]    the number this build gets, from the tags as they are now
+//   npm run release -- plan                    what this run does: stable | nightly | none
+//   npm run release -- version stable [sha]    the number this stable gets, from the tags and drafts as they are now
 //   npm run release -- version nightly <run>   the same for a nightly, from the workflow's run number
+//   npm run release -- draft <version>         the stable's draft release at that number, for HEAD, made once
 //   npm run release -- set <version>           stamp the three version files (+ Cargo.lock), uncommitted
 //   npm run release -- notes [version]         release notes from the commits since the last stable
 //   npm run release -- release-pr              create, refresh or close the one release PR (branch release/next)
-//   npm run release -- publish <kind> <version> <dmg…>   the GitHub release: a new vX, or the rolling nightly
-//   npm run release -- preview-pr [version]    create, refresh or close the Windows and Linux PR (branch release/preview)
-//   npm run release -- attach <tag> <files…>   the Windows and Linux files onto the stable vX
+//   npm run release -- latest-json <version> <dir>       print the latest.json for the builds' files in dir
+//   npm run release -- publish <kind> <version> <dir>    the GitHub release from the builds' files: a new vX, or the
+//                                                         rolling nightly
+//   npm run release -- prune-nightly <version>  take every other version's files off the rolling nightly
 //
-// Windows and Linux are previews and only ever stables (plan 014 R12): their PR puts their files on the newest stable
-// that lacks them, built from main as it is at that merge. Nightlies are the Mac's alone.
+// Each release carries every system's versioned files, `latest.json`, and unversioned copies of what the install
+// scripts fetch (KTD9), replaced on every release and never pruned.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compareVersions } from "../core/version.ts";
+import { dmgName } from "./cask.ts";
 
-/** What a release run does: ship a stable, the rolling nightly, the Windows and Linux files onto a stable, or nothing. */
-export type Kind = "stable" | "nightly" | "preview" | "none";
+/** What a release run does: ship a stable, the rolling nightly, or nothing. */
+export type Kind = "stable" | "nightly" | "none";
 /** What `plan` decided for this push, and why (`reason`, a line for the run's log). */
 export interface Plan {
   kind: Kind;
   /**
-   * What this run builds: a preview's stable, a nightly's number, or a stable's number as the tags stand now — the
-   * build decides a stable's again when it starts (`version`), after any stable queued before it has tagged.
+   * The number this run would get as the tags stand now, for the log only: the version job decides it in the queue,
+   * after any stable queued before it has drafted its own.
    */
   version: string;
-  /** The stable the Windows and Linux PR targets after this run: the newest the Mac has shipped. */
-  nextPreview: string;
   reason: string;
 }
 
@@ -48,10 +51,6 @@ export interface Plan {
 export const RELEASE_BRANCH = "release/next";
 /** The release PR's one file: the main it was built from. Merging it is what makes a run a stable. */
 export const RELEASE_FILE = ".github/release.txt";
-/** The Windows and Linux PR's branch, and the one file its commit changes: the tag its files go on, `v2026.9.24`. */
-export const PREVIEW_BRANCH = "release/preview";
-/** The one file the Windows and Linux PR's commit changes, naming the stable tag its files go on. */
-export const PREVIEW_FILE = ".github/preview.txt";
 /** The rolling nightly's tag and release: each nightly adds its files, moves the tag, then removes the last one's. */
 export const NIGHTLY_TAG = "nightly";
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -65,10 +64,6 @@ function repoName(): string {
     .replace(/^https?:\/\/github\.com\//, "")
     .replace(/\.git$/, "");
 }
-
-/** The line the Windows and Linux PR and a release carrying their files open with while those builds are unconfirmed (plan 014 R12). */
-export const previewLine = (repo: string): string =>
-  `**Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. Report what you find at https://github.com/${repo}/issues.`;
 
 /** The UTC day as a stable's middle number: month then two-digit day, October 11 → "1011", January 1 → "101". */
 export const dayNumber = (d: Date): string => `${d.getUTCMonth() + 1}${String(d.getUTCDate()).padStart(2, "0")}`;
@@ -92,7 +87,7 @@ export const byVersion = (a: string, b: string): number => {
   return order;
 };
 
-/** The newest stable among the tags (or the Mac's releases, as `v…`), as a version without the `v`; null when nothing has shipped. */
+/** The newest stable among the tags (or the published releases, as `v…`), as a version without the `v`; null when nothing has shipped. */
 export function latestStable(tags: string[]): string | null {
   const stable = tags.filter((t) => /^v\d+\.\d+\.\d+$/.test(t)).sort(byVersion);
   return stable.length ? stable[stable.length - 1].slice(1) : null;
@@ -131,11 +126,19 @@ export function stableFor(sha: string, releases: readonly ReleaseRef[]): string 
 const stablesIn = (tags: string[]): string[] => tags.filter((t) => STABLE_TAG.test(t)).map((t) => t.slice(1));
 
 /**
+ * The number a stable gets, decided once in the release workflow's queued version job: the one already made for its
+ * commit (a re-run finishes that stable), else today's next, counting the tags and every release, drafts included. The
+ * version job drafts the stable at once, so a stable queued behind it sees the draft and takes the next number: two
+ * release merges in a day make .0 and .1.
+ */
+export function decideStable({ today, sha, tags, releases }: { today: Date; sha: string; tags: string[]; releases: readonly ReleaseRef[] }): string {
+  return stableFor(sha, releases) ?? nextStable(today, [...tags, ...releases.map((r) => r.tag)]);
+}
+
+/**
  * What a run does, on a push to main. The release PR landing is recognised by the push changing RELEASE_FILE
- * (`releaseMerged`): a stable, numbered when it is built. The Windows and Linux PR landing is recognised by the push
- * changing PREVIEW_FILE (`previewMerged`, the tag it names): a preview, whose files go on that stable when it exists
- * and nowhere when it does not. Everything else with commits since the last stable is a nightly; nothing new is
- * nothing to do. `shipped` is the stables the Mac has: releases with a `.dmg` (by default every stable tag).
+ * (`releaseMerged`): a stable, numbered in the queue. Everything else with commits since the last stable is a nightly;
+ * nothing new is nothing to do. `shipped` is the stables published so far (by default every stable tag).
  */
 export function plan({
   today,
@@ -144,7 +147,6 @@ export function plan({
   shipped = stablesIn(tags),
   commitsSinceStable,
   releaseMerged = false,
-  previewMerged = null,
 }: {
   today: Date;
   /** The release workflow's run number, which numbers a nightly. */
@@ -153,23 +155,13 @@ export function plan({
   shipped?: string[];
   commitsSinceStable: number;
   releaseMerged?: boolean;
-  previewMerged?: string | null;
 }): Plan {
   const latest = latestStable(shipped.map((v) => `v${v}`));
-  const nextPreview = latest ?? "";
-  const marker = previewMerged?.trim() ?? "";
-  if (STABLE_TAG.test(marker)) {
-    if (tags.includes(marker))
-      return { kind: "preview", version: marker.slice(1), nextPreview, reason: `the Windows and Linux PR for ${marker} landed; its files join that release` };
-    return { kind: "none", version: "", nextPreview, reason: `the Windows and Linux PR named ${marker}, which has no release; nothing is built` };
-  }
-  if (releaseMerged)
-    return { kind: "stable", version: nextStable(today, tags), nextPreview, reason: "the release PR landed; the build numbers the stable when it starts" };
-  if (commitsSinceStable === 0) return { kind: "none", version: latest ?? "", nextPreview, reason: "nothing since the last stable" };
+  if (releaseMerged) return { kind: "stable", version: nextStable(today, tags), reason: "the release PR landed; the version job numbers the stable" };
+  if (commitsSinceStable === 0) return { kind: "none", version: latest ?? "", reason: "nothing since the last stable" };
   return {
     kind: "nightly",
     version: nightlyVersion(nextStable(today, tags), run),
-    nextPreview,
     reason: `${commitsSinceStable} commit${commitsSinceStable === 1 ? "" : "s"} since ${latest === null ? "the beginning" : `v${latest}`}`,
   };
 }
@@ -184,8 +176,8 @@ export interface Commit {
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
 /**
- * The commits that are changes, not the release PR's or the Windows and Linux PR's own: `chore(release): …`, or
- * `release: …` from before the titles followed Conventional Commits (docs/style.md §9).
+ * The commits that are changes, not the release PR's own (or the retired Windows and Linux PR's): `chore(release): …`,
+ * or `release: …` from before the titles followed Conventional Commits (docs/style.md §9).
  */
 export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^(chore\(release\)|release): /.test(c.subject));
 
@@ -277,7 +269,10 @@ function releaseRefs(): ReleaseRef[] {
       return { tag, target };
     });
 }
-/** The stables the Mac has shipped: the versions of the releases carrying a `.dmg`, from GitHub (the tags cannot tell). */
+/**
+ * The stables published so far: the versions of the public releases carrying a `.dmg`, from GitHub. A tag alone may be
+ * a release still being made, or one from before every stable carried every system.
+ */
 let shippedCache: string[] | null = null;
 function shipped(): string[] {
   shippedCache ??= stablesIn(
@@ -291,7 +286,7 @@ function shipped(): string[] {
   );
   return shippedCache;
 }
-/** The last stable the Mac shipped, which the notes and the nightly count from. */
+/** The last stable published, which the notes and the nightly count from. */
 const lastStable = (): string | null => latestStable(shipped().map((v) => `v${v}`));
 function commitsSince(tag: string | null, head = "HEAD"): Commit[] {
   const range = tag ? `v${tag}..${head}` : head;
@@ -320,18 +315,8 @@ function changedAtHead(file: string): boolean {
   }
 }
 
-/** The tag PREVIEW_FILE names at HEAD when HEAD's own change touched it (the Windows and Linux PR's merge), else null. */
-function previewMergedAtHead(): string | null {
-  if (!changedAtHead(PREVIEW_FILE)) return null;
-  try {
-    return git("show", `HEAD:${PREVIEW_FILE}`) || null;
-  } catch {
-    return null; // the file was removed
-  }
-}
-
 function cmdPlan(): void {
-  // Only a push is a merge; a manual run refreshes the two PRs and ships nothing.
+  // Only a push is a merge; a manual run refreshes the release PR and builds a nightly that is never published.
   const pushed = (process.env.GITHUB_EVENT_NAME ?? "push") === "push";
   const p = plan({
     today: new Date(),
@@ -341,25 +326,18 @@ function cmdPlan(): void {
     shipped: shipped(),
     commitsSinceStable: shipping(commitsSince(lastStable())).length,
     releaseMerged: pushed && changedAtHead(RELEASE_FILE),
-    previewMerged: pushed ? previewMergedAtHead() : null,
   });
-  console.error(`release: ${p.kind} — ${p.reason}`);
-  output({ kind: p.kind, version: p.version, preview: p.nextPreview });
+  console.error(`release: ${p.kind}${p.version ? ` (as the tags stand, ${p.version})` : ""} — ${p.reason}`);
+  output({ kind: p.kind });
 }
 
 /**
- * The number this build gets, from the tags as they are when it starts. Stable builds run one at a time, so a stable
- * queued behind another sees its tag and takes the next number: two release merges in a day make .0 and .1. A stable
- * takes its commit (`ref`, HEAD when left out), a nightly the workflow's run number.
+ * The number this run gets, from the tags and releases as they are when the version job starts (`decideStable`). A
+ * stable takes its commit (`ref`, HEAD when left out), a nightly the workflow's run number.
  */
 function cmdVersion(kind: string, ref: string | undefined): string {
   git("fetch", "--tags", "--force", "--quiet", "origin");
-  if (kind === "stable") {
-    // Drafts count as taken too: a stable whose run failed before it went public holds its number, and its merge run
-    // again takes that number back.
-    const releases = releaseRefs();
-    return stableFor(ref ?? git("rev-parse", "HEAD"), releases) ?? nextStable(new Date(), [...tags(), ...releases.map((r) => r.tag)]);
-  }
+  if (kind === "stable") return decideStable({ today: new Date(), sha: ref ?? git("rev-parse", "HEAD"), tags: tags(), releases: releaseRefs() });
   if (kind === "nightly") {
     if (ref === undefined) throw new Error("version nightly: give the release workflow's run number");
     return nightlyVersion(nextStable(new Date(), tags()), Number(ref));
@@ -393,7 +371,7 @@ export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; main
     title: "chore(release): the next stable",
     marker: `${mainSha}\n`,
     body: [
-      `Merging this ships **the next stable of loki**: the tag, the universal \`.dmg\`, the published release and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**. Windows and Linux follow with their own PR once it is out.`,
+      `Merging this ships **the next stable of loki**: the tag, the published release with the universal \`.dmg\`, the Windows installer, the Linux AppImage and \`.deb\` and the update files every loki installs from, and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**.`,
       "",
       `This PR is rebuilt from \`main\` on every merge; its one commit writes the main it was built from to \`${RELEASE_FILE}\`. Do not push to it; anything that should ship goes through an ordinary PR.`,
       "",
@@ -431,15 +409,6 @@ function cmdReleasePr(): void {
   console.error(`release: PR ${open ? `#${open} refreshed` : "opened"}; merged now it would be ${ifMergedNow}`);
 }
 
-/** A release's notes, or null when there is no such release (`gh release view` fails). */
-function releaseBody(tag: string, gh: (...args: string[]) => string): string | null {
-  try {
-    return gh("release", "view", tag, "--json", "body", "--jq", ".body");
-  } catch {
-    return null;
-  }
-}
-
 /** A release as publishing needs it: whether it is still a draft, the commit it is for, and its files' names. */
 export interface ReleaseState {
   draft: boolean;
@@ -461,16 +430,180 @@ export function releaseState(tag: string, gh: (...args: string[]) => string): Re
   return { draft: r.isDraft === true, target: typeof r.targetCommitish === "string" ? r.targetCommitish : "", assets };
 }
 
-/** The nightly's `.dmg` files other than `keep`: the ones an earlier nightly left, removed once the tap has moved on. */
-export const staleNightlyFiles = (assets: readonly string[], keep: string): string[] => assets.filter((a) => a.endsWith(".dmg") && a !== keep);
+/** The stable's release at `tag`, made a draft for `sha` (no tag yet) when there is none. Throws when another commit holds it. */
+function stableRelease(version: string, sha: string, notesFile: string, gh: (...args: string[]) => string): ReleaseState | null {
+  if (!isStableVersion(version)) throw new Error(`a stable looks like 2026.1011.0, not ${version}`);
+  const tag = `v${version}`;
+  const state = releaseState(tag, gh);
+  if (state && state.target !== sha)
+    throw new Error(`${tag} already exists for another commit (${state.target.slice(0, 7)}): this build's number was taken; re-run the run to number it again`);
+  if (!state) gh("release", "create", tag, "--draft", "--target", sha, "--title", `loki ${version}`, "--notes-file", notesFile);
+  return state;
+}
 
 /**
- * Publish the Mac's files, each step safe to run again (plan 096). A stable is made as a draft (no tag yet), given
- * its files, then made public and latest; a run again for the same merge picks up where the last one stopped, and one
- * whose release is already public changes nothing on it. A release at this number made for another commit is never
- * joined: two builds' files never share a release. A nightly keeps its release: the new files go up beside the last
- * nightly's, then the tag moves to this merge, so a run cancelled at any point leaves a nightly that downloads
- * (`prune-nightly`, after the tap has moved, removes the old `.dmg`).
+ * The stable's draft, made by the version job the moment its number is decided (KTD10), so a stable queued behind it
+ * sees the number as taken. Run again for the same merge it changes nothing; a number another merge holds fails.
+ */
+export function draftStable({ version, sha, notesFile, gh }: { version: string; sha: string; notesFile: string; gh: (...args: string[]) => string }): void {
+  stableRelease(version, sha, notesFile, gh);
+}
+
+// --- the update files ---------------------------------------------------------------------------------------
+
+/**
+ * The platform keys latest.json lists, as tauri-plugin-updater looks them up (`<os>-<arch>`, after
+ * `<os>-<arch>-<installer>`). The universal Mac build answers both Mac architectures; `darwin-universal` is
+ * tauri-action's own name for it, kept for anyone reading the file.
+ */
+export const UPDATE_PLATFORMS = ["darwin-universal", "darwin-aarch64", "darwin-x86_64", "windows-x86_64", "linux-x86_64"] as const;
+
+/**
+ * The unversioned copies every release carries for the install scripts (KTD9): the Mac's update archive, the Windows
+ * installer and the AppImage. The scripts fetch them from `releases/latest/download/` or `releases/download/nightly/`
+ * without asking GitHub's API which file is newest. Replaced on every release, never pruned.
+ */
+export const INSTALL_FILES = ["loki-macos-universal.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"] as const;
+
+/** A system's update file: the name its build gives it, the versioned name it ships as, the install scripts' copy, and its platform keys. */
+interface UpdateFile {
+  built: string;
+  shipped: string;
+  install: string;
+  platforms: readonly string[];
+}
+
+/** The three update files a release's builds make (createUpdaterArtifacts): the Mac's archive, and the Windows and Linux installers themselves. */
+const updateFiles = (version: string): UpdateFile[] => [
+  // The bundler names the Mac's archive after the app alone, so it ships under a versioned name like the other two.
+  { built: "loki.app.tar.gz", shipped: `loki_${version}_universal.app.tar.gz`, install: INSTALL_FILES[0], platforms: UPDATE_PLATFORMS.slice(0, 3) },
+  { built: `loki_${version}_x64-setup.exe`, shipped: `loki_${version}_x64-setup.exe`, install: INSTALL_FILES[1], platforms: ["windows-x86_64"] },
+  { built: `loki_${version}_amd64.AppImage`, shipped: `loki_${version}_amd64.AppImage`, install: INSTALL_FILES[2], platforms: ["linux-x86_64"] },
+];
+
+/** latest.json as tauri-plugin-updater 2 reads it (its `RemoteRelease`): the version, notes, an RFC 3339 date, and per platform the download and its signature. */
+export interface LatestJson {
+  version: string;
+  notes: string;
+  pub_date: string;
+  platforms: Record<string, { url: string; signature: string }>;
+}
+
+/** latest.json for `updates`, each file listed under its platform keys at `baseUrl`, the release's own download folder. */
+export function latestJson({
+  version,
+  notes,
+  now,
+  baseUrl,
+  updates,
+}: {
+  version: string;
+  notes: string;
+  now: Date;
+  baseUrl: string;
+  updates: ReadonlyArray<{ name: string; signature: string; platforms: readonly string[] }>;
+}): LatestJson {
+  const platforms: LatestJson["platforms"] = {};
+  for (const u of updates) for (const p of u.platforms) platforms[p] = { url: `${baseUrl}/${u.name}`, signature: u.signature };
+  return { version, notes, pub_date: now.toISOString(), platforms };
+}
+
+/** Every file under `dir`, by name: actions/download-artifact keeps each artifact's own folders. */
+function filesByName(dir: string): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const rel of readdirSync(dir, { recursive: true, encoding: "utf8" })) if (!found.has(basename(rel))) found.set(basename(rel), join(dir, rel));
+  return found;
+}
+
+/** What the three builds made, found under `from`: every bundle and every update signature, or an error naming what is missing. */
+function builtFiles(from: string, version: string): { path: (name: string) => string; updates: Array<UpdateFile & { signature: string }> } {
+  const found = filesByName(from);
+  const read = (name: string) => {
+    const path = found.get(name);
+    return path === undefined ? "" : readFileSync(path, "utf8").trim();
+  };
+  const updates = updateFiles(version).map((u) => ({ ...u, signature: read(`${u.built}.sig`) }));
+  // A release without one system's signature would leave that system's loki unable to update: nothing ships.
+  const unsigned = updates.filter((u) => !u.signature).flatMap((u) => u.platforms);
+  if (unsigned.length) throw new Error(`no update signature for ${unsigned.join(", ")}: was TAURI_SIGNING_PRIVATE_KEY set for every build?`);
+  const absent = [dmgName(version), ...updates.map((u) => u.built), `loki_${version}_amd64.deb`].filter((n) => !found.has(n));
+  if (absent.length) throw new Error(`the builds did not make ${absent.join(", ")}`);
+  return { path: (name) => found.get(name) ?? join(from, name), updates };
+}
+
+/** The release's download folder for `tag`, where latest.json's URLs point. */
+const downloadBase = (repo: string, tag: string) => `https://github.com/${repo}/releases/download/${tag}`;
+
+/** What a release uploads, staged under their release names: the versioned files in upload order, then latest.json and the install copies. */
+export interface Staged {
+  versioned: string[];
+  rolling: string[];
+  /** The staged `.dmg`, which the cask is made from. */
+  dmg: string;
+}
+
+/**
+ * Stage a release from the builds' files under `from` into `to`: every versioned file (the `.dmg`, each update file
+ * and its `.sig`, the `.deb`), latest.json pointing at the versioned update files on the release at `tag`, and the
+ * install scripts' unversioned copies. Throws, staging nothing, when a signature or a bundle is missing.
+ */
+export function stageRelease({
+  version,
+  tag,
+  repo,
+  notes,
+  now,
+  from,
+  to,
+}: {
+  version: string;
+  tag: string;
+  repo: string;
+  notes: string;
+  now: Date;
+  from: string;
+  to: string;
+}): Staged {
+  const { path, updates } = builtFiles(from, version);
+  mkdirSync(to, { recursive: true });
+  const stage = (source: string, name: string) => {
+    copyFileSync(path(source), join(to, name));
+    return join(to, name);
+  };
+  const dmg = stage(dmgName(version), dmgName(version));
+  const versioned = [
+    dmg,
+    ...updates.flatMap((u) => [stage(u.built, u.shipped), stage(`${u.built}.sig`, `${u.shipped}.sig`)]),
+    stage(`loki_${version}_amd64.deb`, `loki_${version}_amd64.deb`),
+  ];
+  const latest = latestJson({ version, notes, now, baseUrl: downloadBase(repo, tag), updates: updates.map((u) => ({ ...u, name: u.shipped })) });
+  writeFileSync(join(to, "latest.json"), `${JSON.stringify(latest, null, 2)}\n`);
+  const rolling = [join(to, "latest.json"), ...updates.map((u) => stage(u.built, u.install))];
+  return { versioned, rolling, dmg };
+}
+
+// --- publishing ---------------------------------------------------------------------------------------------
+
+/** The public stables' tags, newest first as GitHub lists them. */
+const publicStables = (gh: (...args: string[]) => string): string[] =>
+  gh("release", "list", "--exclude-drafts", "--exclude-pre-releases", "--limit", "100", "--json", "tagName", "--jq", ".[].tagName").split("\n").filter(Boolean);
+
+/**
+ * The nightly version a release title announces, `loki <version> (<stable>-nightly.<sha>)`: its first run-numbered
+ * nightly version, or null for a title without one (the older `-nightly.<sha>` shape).
+ */
+const nightlyAnnounced = (title: string): string | null => /\d+\.\d+\.\d+-nightly\.\d+(?![0-9A-Za-z])/.exec(title)?.[0] ?? null;
+
+/**
+ * Publish a release's files, each step safe to run again (plan 096): the versioned files first, then latest.json and
+ * the install copies with `--clobber`, so nothing announces a version whose files are not up. A stable's draft (made by
+ * the version job, or here when it is missing) gets its files, then is made public and latest; a run again for the same
+ * merge picks up where the last one stopped, and one whose release is already public changes nothing on it. A release
+ * at this number made for another commit is never joined: two builds' files never share a release. A nightly keeps its
+ * release: the new files go up beside the last nightly's, the tag moves to this merge, and latest.json goes last, so a
+ * run cancelled at any point leaves a nightly that downloads (`prune-nightly`, after the tap has moved, removes the old
+ * files). A nightly older than the one the release announces (a re-run after a newer merge's went out) fails before it
+ * uploads anything.
  *
  * Answers the `.dmg` the cask is made from: this build's, or, when the stable was already public, the one it shipped
  * with, downloaded to `downloadDir`, since a rebuild is not the same file and its checksum would not match.
@@ -478,7 +611,8 @@ export const staleNightlyFiles = (assets: readonly string[], keep: string): stri
 export function publish({
   kind,
   version,
-  files,
+  versioned,
+  rolling,
   sha,
   notesFile,
   repo = "",
@@ -487,32 +621,33 @@ export function publish({
 }: {
   kind: string;
   version: string;
-  files: string[];
+  versioned: string[];
+  rolling: string[];
   sha: string;
   notesFile: string;
   repo?: string;
   downloadDir?: string;
   gh: (...args: string[]) => string;
 }): { dmg: string } {
-  if (!files.length) throw new Error("publish: no files");
-  const dmg = files.find((f) => f.endsWith(".dmg")) ?? files[0];
+  if (!versioned.length || !rolling.length) throw new Error("publish: no files");
+  const dmg = versioned.find((f) => f.endsWith(".dmg")) ?? versioned[0];
+  const upload = (tag: string, files: string[]) => gh("release", "upload", tag, ...files, "--clobber");
   if (kind === "stable") {
     if (!isStableVersion(version)) throw new Error(`a stable looks like 2026.1011.0, not ${version}`);
     const tag = `v${version}`;
-    const state = releaseState(tag, gh);
-    if (state && state.target !== sha)
-      throw new Error(
-        `${tag} already exists for another commit (${state.target.slice(0, 7)}): this build's number was taken; re-run the job to number it again`,
-      );
+    const state = stableRelease(version, sha, notesFile, gh);
     if (state && !state.draft) {
       const shipped = state.assets.find((a) => a.endsWith(".dmg"));
       if (!shipped) throw new Error(`${tag} is public but carries no .dmg`);
       gh("release", "download", tag, "--pattern", shipped, "--dir", downloadDir, "--clobber");
       return { dmg: join(downloadDir, shipped) };
     }
-    if (!state) gh("release", "create", tag, "--draft", "--target", sha, "--title", `loki ${version}`, "--notes-file", notesFile);
-    gh("release", "upload", tag, ...files, "--clobber");
-    gh("release", "edit", tag, "--draft=false", "--latest");
+    upload(tag, versioned);
+    upload(tag, rolling);
+    // Stables build side by side, so an earlier one can finish after a later one is out: it is never made latest over
+    // it, which would take `releases/latest` (latest.json, the install scripts' files) back a version.
+    const newest = latestStable(publicStables(gh));
+    gh("release", "edit", tag, "--draft=false", newest === null || byVersion(newest, version) <= 0 ? "--latest" : "--latest=false");
     return { dmg };
   }
   if (kind === "nightly") {
@@ -530,39 +665,87 @@ export function publish({
       } catch {
         // no such tag
       }
-      gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", title, "--notes-file", notesFile, ...files);
+      gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", title, "--notes-file", notesFile, ...versioned);
+      upload(NIGHTLY_TAG, rolling);
       return { dmg };
     }
-    gh("release", "upload", NIGHTLY_TAG, ...files, "--clobber");
+    // A re-run of an older run after a newer nightly went out would take the channel back a version and its prune
+    // would delete the newer files, so it stops here; the failed step keeps the cask, tap and prune steps from running.
+    const announced = nightlyAnnounced(gh("release", "view", NIGHTLY_TAG, "--json", "name", "--jq", ".name"));
+    if (announced !== null && byVersion(announced, version) > 0) {
+      throw new Error(`the nightly already announces ${announced}, newer than this run's ${version}: nothing was published`);
+    }
+    upload(NIGHTLY_TAG, versioned);
     gh("api", "-X", "PATCH", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`, "-f", `sha=${sha}`, "-F", "force=true");
     gh("release", "edit", NIGHTLY_TAG, "--title", title, "--notes-file", notesFile, "--prerelease");
+    upload(NIGHTLY_TAG, rolling);
     return { dmg };
   }
   throw new Error(`publish: kind is stable or nightly, not ${kind}`);
 }
 
-/** Remove the `.dmg` files an earlier nightly left on the rolling release, now that the tap points at `keep`. */
-export function pruneNightly(keep: string, gh: (...args: string[]) => string): string[] {
+/** A release file that carries a version in its name, `loki_<version>_…`; latest.json and the install copies carry none. */
+const VERSIONED_FILE = /^loki_(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)_/;
+
+/** The nightly's files carrying a version other than `version`: the ones earlier nightlies left, removed once the tap has moved on. */
+export const staleNightlyFiles = (assets: readonly string[], version: string): string[] =>
+  assets.filter((a) => {
+    const carried = VERSIONED_FILE.exec(a)?.[1];
+    return carried !== undefined && carried !== version;
+  });
+
+/** Remove the files earlier nightlies left on the rolling release, now that latest.json and the tap point at `version`. */
+export function pruneNightly(version: string, gh: (...args: string[]) => string): string[] {
   const state = releaseState(NIGHTLY_TAG, gh);
   if (!state) return [];
-  const stale = staleNightlyFiles(state.assets, keep);
+  const stale = staleNightlyFiles(state.assets, version);
   for (const name of stale) gh("release", "delete-asset", NIGHTLY_TAG, name, "--yes");
   return stale;
 }
 
-function cmdPublish(kind: string, version: string, files: string[]): void {
-  if (!files.length) throw new Error("publish: no files");
-  const notesFile = join(root, ".release-notes.md");
-  const sha = git("rev-parse", "HEAD");
+/** The release's tag: `v<version>` for a stable, the rolling `nightly` for a nightly. */
+const releaseTag = (version: string): string => (isNightlyVersion(version) ? NIGHTLY_TAG : `v${version}`);
+
+/** The release's notes, written to a file for `gh --notes-file`; a nightly's say which merge it is, since its version carries its run. */
+function notesFor(version: string, sha: string): { text: string; file: string } {
   const notes = cmdNotes(version).replace(/^## .*\n\n/, "");
-  // A nightly's version carries its run, not its commit: the notes say which merge it is.
-  writeFileSync(notesFile, kind === "nightly" ? `Built from ${sha}.\n\n${notes}` : notes);
+  const text = isNightlyVersion(version) ? `Built from ${sha}.\n\n${notes}` : notes;
+  return { text, file: bodyFile(".release-notes.md", text) };
+}
+
+function cmdDraft(version: string): void {
+  const sha = git("rev-parse", "HEAD");
+  draftStable({ version, sha, notesFile: notesFor(version, sha).file, gh });
+  console.error(`release: v${version} is drafted for ${sha.slice(0, 7)}`);
+}
+
+function cmdLatestJson(version: string, dir: string): string {
+  const { updates } = builtFiles(dir, version);
+  const notes = notesFor(version, git("rev-parse", "HEAD")).text;
+  const json = latestJson({
+    version,
+    notes,
+    now: new Date(),
+    baseUrl: downloadBase(repoName(), releaseTag(version)),
+    updates: updates.map((u) => ({ ...u, name: u.shipped })),
+  });
+  return `${JSON.stringify(json, null, 2)}\n`;
+}
+
+function cmdPublish(kind: string, version: string, dir: string): void {
+  if (!dir) throw new Error("publish: give the folder the builds' files were downloaded to");
+  const sha = git("rev-parse", "HEAD");
+  const notes = notesFor(version, sha);
+  const to = join(root, ".release-assets");
+  rmSync(to, { recursive: true, force: true });
+  const staged = stageRelease({ version, tag: releaseTag(version), repo: repoName(), notes: notes.text, now: new Date(), from: dir, to });
   const { dmg } = publish({
     kind,
     version,
-    files,
+    versioned: staged.versioned,
+    rolling: staged.rolling,
     sha,
-    notesFile,
+    notesFile: notes.file,
     repo: repoName(),
     downloadDir: join(root, ".release-shipped"),
     gh,
@@ -570,110 +753,6 @@ function cmdPublish(kind: string, version: string, files: string[]): void {
   console.error(`release: published ${kind} ${version}`);
   // The step after reads which .dmg to make the cask from.
   output({ dmg });
-}
-
-// --- the Windows and Linux PR ------------------------------------------------------------------------------
-
-/** Whether a release's asset names include every preview file: the -setup.exe, the AppImage and the .deb. */
-export const hasPreviewFiles = (assets: string[]): boolean =>
-  ["_x64-setup.exe", "_amd64.AppImage", "_amd64.deb"].every((s) => assets.some((a) => a.endsWith(s)));
-
-/**
- * What the Windows and Linux PR should do now, from the stable it targets, that release's asset names (null: no such
- * release, so nothing to put files on) and the tag main's PREVIEW_FILE records: open (or refresh) it while the release
- * lacks the files, close it once they are there or when there is no release, and wait when main already records this
- * version — its merge is building, or failed and wants a re-run, and a PR writing the same marker would change nothing.
- */
-export function previewAction({ version, assets, marker }: { version: string; assets: string[] | null; marker: string }): "open" | "close" | "wait" {
-  if (assets === null || hasPreviewFiles(assets)) return "close";
-  return marker.trim() === `v${version}` ? "wait" : "open";
-}
-
-/** The Windows and Linux PR's title, body and the marker its one commit writes. */
-export function previewPr(version: string, repo: string): { title: string; body: string; marker: string } {
-  const tag = `v${version}`;
-  return {
-    title: `chore(release): the Windows and Linux preview ${version}`,
-    marker: `${tag}\n`,
-    body: [
-      `**Windows and Linux ${version}.** Merging this builds \`main\` as it is at the merge on Windows and Linux and publishes the files on the ${tag} release:`,
-      "",
-      `1. \`loki_${version}_x64-setup.exe\`, the NSIS installer (64-bit Windows 10 or 11)`,
-      `2. \`loki_${version}_amd64.AppImage\` and \`loki_${version}_amd64.deb\`, built on Ubuntu 22.04`,
-      "",
-      `The files join the Mac's stable \`${tag}\`, built from \`main\` as it is when this merges, so anything merged since that stable is in them too. The merge makes no nightly and touches neither the \`.dmg\` nor the casks.`,
-      "",
-      "The files are unsigned previews: SmartScreen asks for **More info → Run anyway** once, and the AppImage needs `chmod +x`.",
-      "",
-      previewLine(repo),
-      "",
-      `Its one commit records the tag in \`${PREVIEW_FILE}\`. It is rebuilt from \`main\` on every merge, opened when a stable ships without these files and closed once ${tag} has them; do not push to it.`,
-    ].join("\n"),
-  };
-}
-
-/**
- * Put the Windows and Linux files on the stable `tag`, replacing any from an earlier run, and the preview line on its
- * notes once. The release must exist: Windows and Linux never make one of their own.
- */
-export function attachPreview({ tag, files, repo, gh }: { tag: string; files: string[]; repo: string; gh: (...args: string[]) => string }): void {
-  if (!files.length) throw new Error("attach: no files");
-  if (!STABLE_TAG.test(tag)) throw new Error(`attach: a stable tag like v2026.1011.0, not ${tag}`);
-  const body = releaseBody(tag, gh);
-  if (body === null) throw new Error(`attach: ${tag} has no release to put the Windows and Linux files on`);
-  const line = previewLine(repo);
-  gh("release", "upload", tag, ...files, "--clobber");
-  if (!body.includes(line)) gh("release", "edit", tag, "--notes", `${line}\n\n${body}`.trimEnd());
-}
-
-/** The one Windows and Linux PR: branch release/preview rebuilt from main with the marker, force-pushed; the PR created once, then edited, closed once the release has the files. */
-function cmdPreviewPr(version: string): void {
-  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`the Windows and Linux PR targets a stable, not ${version || "nothing"}`);
-  const tag = `v${version}`;
-  let assets: string[] | null = null;
-  try {
-    assets = gh("release", "view", tag, "--json", "assets", "--jq", ".assets[].name").split("\n").filter(Boolean);
-  } catch {
-    // no such release: nothing to put files on
-  }
-  git("fetch", "origin", "main", "--quiet");
-  let marker = "";
-  try {
-    marker = git("show", `origin/main:${PREVIEW_FILE}`);
-  } catch {
-    // no Windows and Linux PR merged yet
-  }
-  const action = previewAction({ version, assets, marker });
-  const open = gh("pr", "list", "--head", PREVIEW_BRANCH, "--base", "main", "--state", "open", "--json", "number", "--jq", ".[0].number // empty");
-  if (action === "close") {
-    const why = assets === null ? `${tag} has no release to put files on` : `${tag} already has its Windows and Linux files`;
-    if (open) gh("pr", "close", open, "--comment", `${why}.`);
-    return console.error(`release: ${why}${open ? `; PR #${open} closed` : ""}`);
-  }
-  if (action === "wait")
-    return console.error(
-      `release: the Windows and Linux PR for ${tag} is merged but its files are not on the release yet — it is building, or re-run its failed jobs`,
-    );
-  const { title, body, marker: text } = previewPr(version, repoName());
-  git("checkout", "-B", PREVIEW_BRANCH, "origin/main");
-  writeFileSync(join(root, PREVIEW_FILE), text);
-  git("add", PREVIEW_FILE);
-  git(
-    "commit",
-    "--quiet",
-    "-m",
-    `${title}\n\nThe Windows and Linux PR: merge it and main is built on Windows and Linux and published on ${tag}. Rebuilt from main on every merge; do not edit.`,
-  );
-  git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${PREVIEW_BRANCH}`);
-  const file = bodyFile(".preview-pr.md", body);
-  if (open) gh("pr", "edit", open, "--title", title, "--body-file", file);
-  else gh("pr", "create", "--base", "main", "--head", PREVIEW_BRANCH, "--title", title, "--body-file", file);
-  console.error(`release: Windows and Linux PR ${open ? `#${open} refreshed` : "opened"} for ${tag}`);
-}
-
-function cmdAttach(tag: string, files: string[]): void {
-  attachPreview({ tag, files, repo: repoName(), gh });
-  console.error(`release: put ${files.length} Windows and Linux file${files.length === 1 ? "" : "s"} on ${tag}`);
 }
 
 // Run as a script (`npm run release -- …`), not imported by its test.
@@ -687,6 +766,9 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       case "version":
         console.log(cmdVersion(args[0] ?? "", args[1]));
         break;
+      case "draft":
+        cmdDraft(args[0] ?? "");
+        break;
       case "set":
         console.log(setVersion(args[0] ?? "").join("\n"));
         break;
@@ -696,23 +778,20 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       case "release-pr":
         cmdReleasePr();
         break;
+      case "latest-json":
+        process.stdout.write(cmdLatestJson(args[0] ?? "", args[1] ?? "."));
+        break;
       case "publish":
-        cmdPublish(args[0] ?? "", args[1] ?? "", args.slice(2));
+        cmdPublish(args[0] ?? "", args[1] ?? "", args[2] ?? "");
         break;
       case "prune-nightly": {
         const gone = pruneNightly(args[0] ?? "", gh);
         console.error(`release: removed ${gone.length} earlier nightly file${gone.length === 1 ? "" : "s"}`);
         break;
       }
-      case "preview-pr":
-        cmdPreviewPr(args.at(0) ?? lastStable() ?? "");
-        break;
-      case "attach":
-        cmdAttach(args[0] ?? "", args.slice(1));
-        break;
       default:
         console.error(
-          "usage: npm run release -- plan | version stable [sha] | version nightly <run> | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | prune-nightly <kept .dmg name> | preview-pr [version] | attach <tag> <files…>",
+          "usage: npm run release -- plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | release-pr | latest-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
         );
         process.exit(2);
     }

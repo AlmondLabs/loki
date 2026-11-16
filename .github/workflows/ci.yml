@@ -13,7 +13,6 @@ on:
       - "LICENSE"
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/release.txt"
-      - ".github/preview.txt"
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
