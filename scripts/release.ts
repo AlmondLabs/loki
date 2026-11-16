@@ -189,16 +189,28 @@ const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
  */
 export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^(chore\(release\)|release): /.test(c.subject));
 
-/** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
-export function releaseNotes(version: string, commits: Commit[]): string {
-  const entries = shipping(commits).map((c) => {
+/** GitHub refuses a release body over 125,000 characters; the notes stay under it with room to spare. */
+export const RELEASE_NOTES_MAX = 120_000;
+/** GitHub refuses a pull request body over 65,536 characters; the release PR's notes leave room for its own words. */
+export const PR_NOTES_MAX = 60_000;
+
+/**
+ * Release notes: one entry per commit since the last stable, newest first; the release commits themselves and
+ * trailers are left out. Notes longer than `max` (GitHub's limit, so a release or PR is never refused for its body)
+ * drop the commit bodies first, then the oldest entries, ending with how many were left out and `fullList`, a link to
+ * all of them, when given.
+ */
+export function releaseNotes(version: string, commits: Commit[], { max = RELEASE_NOTES_MAX, fullList }: { max?: number; fullList?: string } = {}): string {
+  const changes = shipping(commits);
+  const subject = (c: Commit) => `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})`;
+  const withBody = (c: Commit) => {
     const body = c.body
       .split("\n")
       .map((l) => l.trimEnd())
       .filter((l) => !TRAILER.test(l))
       .join("\n")
       .trim();
-    return `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})${
+    return `${subject(c)}${
       body
         ? `\n${body
             .split("\n")
@@ -206,8 +218,19 @@ export function releaseNotes(version: string, commits: Commit[]): string {
             .join("\n")}`
         : ""
     }`;
-  });
-  return `## ${version}\n\n${entries.length ? entries.join("\n") : "- no changes recorded"}\n`;
+  };
+  const head = `## ${version}\n\n`;
+  const notes = (entries: string[]) => `${head}${entries.length ? entries.join("\n") : "- no changes recorded"}\n`;
+  const full = notes(changes.map(withBody));
+  if (full.length <= max) return full;
+  const subjects = changes.map(subject);
+  const short = notes(subjects);
+  if (short.length <= max) return short;
+  const more = (n: number) => `- and ${n} earlier changes${fullList ? `: ${fullList}` : ""}\n`;
+  let kept = 0;
+  let used = head.length + more(subjects.length).length;
+  while (kept < subjects.length && used + subjects[kept].length + 1 <= max) used += subjects[kept++].length + 1;
+  return `${head}${subjects.slice(0, kept).join("\n")}\n${more(subjects.length - kept)}`;
 }
 
 /** The three version files and the lockfile, set to `version`; returns what changed. */
@@ -345,7 +368,19 @@ function cmdVersion(kind: string, ref: string | undefined): string {
 }
 
 function cmdNotes(version: string): string {
-  return releaseNotes(version, commitsSince(lastStable()));
+  const last = lastStable();
+  return releaseNotes(version, commitsSince(last), { fullList: fullList(last, git("rev-parse", "HEAD")) });
+}
+
+/** GitHub's comparison of everything since the last stable, which notes too long to list in full link to. */
+const fullList = (last: string | null, to: string): string | undefined =>
+  last === null ? undefined : `https://github.com/${repoName()}/compare/v${last}...${to}`;
+
+/** A pull request body, written to a file for `gh --body-file`: a long one does not fit in a command line (E2BIG). */
+function bodyFile(name: string, body: string): string {
+  const path = join(root, name);
+  writeFileSync(path, body);
+  return path;
 }
 
 /** The release PR's title, body and the file its one commit writes. */
@@ -378,7 +413,8 @@ function cmdReleasePr(): void {
   }
   const mainSha = git("rev-parse", "origin/main");
   const ifMergedNow = nextStable(new Date(), tags());
-  const { title, body, marker } = releasePr({ notes: releaseNotes(ifMergedNow, pending), mainSha, ifMergedNow });
+  const notes = releaseNotes(ifMergedNow, pending, { max: PR_NOTES_MAX, fullList: fullList(lastStable(), mainSha) });
+  const { title, body, marker } = releasePr({ notes, mainSha, ifMergedNow });
   git("checkout", "-B", RELEASE_BRANCH, "origin/main");
   writeFileSync(join(root, RELEASE_FILE), marker);
   git("add", RELEASE_FILE);
@@ -389,8 +425,9 @@ function cmdReleasePr(): void {
     `${title}\n\nThe release PR: merge it and main ships as the next stable, numbered at the build. Rebuilt from main on every merge; do not edit.`,
   );
   git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${RELEASE_BRANCH}`);
-  if (open) gh("pr", "edit", open, "--title", title, "--body", body);
-  else gh("pr", "create", "--base", "main", "--head", RELEASE_BRANCH, "--title", title, "--body", body);
+  const file = bodyFile(".release-pr.md", body);
+  if (open) gh("pr", "edit", open, "--title", title, "--body-file", file);
+  else gh("pr", "create", "--base", "main", "--head", RELEASE_BRANCH, "--title", title, "--body-file", file);
   console.error(`release: PR ${open ? `#${open} refreshed` : "opened"}; merged now it would be ${ifMergedNow}`);
 }
 
@@ -628,8 +665,9 @@ function cmdPreviewPr(version: string): void {
     `${title}\n\nThe Windows and Linux PR: merge it and main is built on Windows and Linux and published on ${tag}. Rebuilt from main on every merge; do not edit.`,
   );
   git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${PREVIEW_BRANCH}`);
-  if (open) gh("pr", "edit", open, "--title", title, "--body", body);
-  else gh("pr", "create", "--base", "main", "--head", PREVIEW_BRANCH, "--title", title, "--body", body);
+  const file = bodyFile(".preview-pr.md", body);
+  if (open) gh("pr", "edit", open, "--title", title, "--body-file", file);
+  else gh("pr", "create", "--base", "main", "--head", PREVIEW_BRANCH, "--title", title, "--body-file", file);
   console.error(`release: Windows and Linux PR ${open ? `#${open} refreshed` : "opened"} for ${tag}`);
 }
 

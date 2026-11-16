@@ -22,6 +22,7 @@ import {
   stableFor,
   staleNightlyFiles,
   releaseNotes,
+  PR_NOTES_MAX,
   releasePr,
   setVersion,
   shipping,
@@ -163,6 +164,31 @@ describe("notes and files", () => {
     ]);
     expect(notes).toBe("## 2026.1011.0\n\n- **inbox: a priority queue** (aaaaaaa)\n  One score per card.\n- **settings: the ladder** (ccccccc)\n");
     expect(releaseNotes("2026.1011.0", [])).toContain("no changes recorded");
+  });
+
+  test("notes too long for GitHub drop commit bodies first, then the oldest entries, with a link to the whole list", () => {
+    const many = Array.from({ length: 400 }, (_, i) => ({
+      sha: `${String(i).padStart(7, "0")}f`,
+      subject: `chat: change ${i}`,
+      body: "A paragraph about the change. ".repeat(10),
+    }));
+    const fits = releaseNotes("2026.1011.0", many, { max: 1_000_000 });
+    expect(fits).toContain("A paragraph about the change.");
+    const subjects = releaseNotes("2026.1011.0", many, { max: 20_000 });
+    expect(subjects.length).toBeLessThanOrEqual(20_000);
+    expect(subjects).not.toContain("A paragraph about the change.");
+    expect(subjects).toContain("- **chat: change 399** (0000399)");
+    const cut = releaseNotes("2026.1011.0", many, { max: 4_000, fullList: "https://github.com/o/loki/compare/v2026.1010.0...abc" });
+    expect(cut.length).toBeLessThanOrEqual(4_000);
+    expect(cut).toContain("- **chat: change 0** (0000000)"); // newest first: the newest stay
+    expect(cut).not.toContain("chat: change 399");
+    expect(cut).toMatch(/- and \d+ earlier changes: https:\/\/github\.com\/o\/loki\/compare\/v2026\.1010\.0\.\.\.abc\n$/);
+  });
+
+  test("the release PR's body stays under GitHub's limit however much waits to ship", () => {
+    const many = Array.from({ length: 2000 }, (_, i) => ({ sha: `${String(i).padStart(7, "0")}f`, subject: `chat: change ${i}`, body: "x ".repeat(200) }));
+    const { body } = releasePr({ notes: releaseNotes("2026.1011.0", many, { max: PR_NOTES_MAX }), mainSha: "abc", ifMergedNow: "2026.1011.0" });
+    expect(body.length).toBeLessThanOrEqual(65_536);
   });
 
   test("a stable's notes promise no Windows or Linux files: the preview line is added where those files are", () => {
