@@ -296,7 +296,7 @@ jobs:
       - name: smoke-test the bundle
         run: npm run build:mod && npm run smoke
       - name: build the AppImage and .deb
-        run: npm run tauri -- build --bundles appimage,deb
+        run: npm run tauri -- build --bundles appimage,deb --verbose
         # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
