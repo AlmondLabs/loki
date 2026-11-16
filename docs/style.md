@@ -174,20 +174,24 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 - Accessibility: every control has a name (`aria-label` where there is no visible text), lists are lists, a custom
   widget has its role, and everything works from the keyboard. Shortcuts go in `shell/keymap.ts`, nowhere else.
 
-## 5. Comments and doc comments
+## 5. Comments
 
-- **Every export outside the tests has a doc comment** (`/** … */`): what it is or does, in terms of loki, and
-  anything the caller must know. **checked**: ESLint (`jsdoc/require-jsdoc` on exported functions, classes,
-  interfaces, type aliases, components and constants; `test/`, `test-node/` and `*.config.ts` are skipped). shadcn's
-  components in `app/src/ui/` are skipped too: they are upstream source, kept close to the registry so
-  `shadcn add --diff` can merge an update; loki's own code that wraps them is not exempt.
-- **Comments say why**, or what something means for the person using loki; the code already says what it does.
-  Write the reason a reader would otherwise have to rediscover: the bug it avoids, the constraint behind it, the
-  decision it records. **review**.
-- **Full sentences, plain words**, present tense, about the thing itself ("A suggestion the agent made waits for them to
-  act on it"), not about us ("we", "I") or the history of the edit ("changed to", "now"). **review**.
-- No commented-out code; git keeps it. No `TODO` without an issue link or a name and date. **review**.
-- Keep comments true: changing behaviour means changing the comment beside it in the same commit. **review**.
+- **The code says what it does and why; a comment is the exception.** A comment stays only when it is one of these:
+  - a legal or licence header;
+  - behaviour forced by something outside loki that we cannot reshape (a dependency, the platform, a vendor, a
+    protocol), true today on a live path;
+  - `// prettier-ignore`, or a lint suppression whose rule is faulty, pedantic or style-only;
+  - a doc comment (`/** … */`, `///`) that states a contract across a process or disk boundary: the frames between the
+    daemon and the app, files saved under `~/.loki`, the API the daemon hands the mod, the arguments of the agent's
+    tools, and the Tauri commands the app calls;
+  - an issue or RFC link that explains a constraint the code cannot express.
+
+  When it is not clear that one of these applies, the comment goes. **review**.
+- **A surprise in loki's own code is fixed, not explained**: rename, extract, add a type or change the design until the
+  code reads plainly. A comment that would explain it marks the change still to make. **review**.
+- A suppression whose rule catches real bugs is not allowed; the code changes instead. **review**.
+- No commented-out code, no `TODO`, no plan or unit tags, no history of the edit; git keeps all of it. **review**.
+- A comment that stays is written in full sentences and plain words, and changes with the code beside it. **review**.
 
 ## 6. Words on screen
 
