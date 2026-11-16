@@ -6,8 +6,6 @@ import { join } from "node:path";
 import { LabelPicker } from "../app/src/desk/label-picker.tsx";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-// Plan 2026-11-12-1505, U20: an email card's label picker is a menu hung over the card from its Label move.
-
 const noop = () => {};
 const picker = () =>
   createElement(LabelPicker, {

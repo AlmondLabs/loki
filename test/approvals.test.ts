@@ -72,18 +72,12 @@ describe("the permission modes", () => {
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
-    // A suggestion is already the person's decision (plan 049, KTD4): finding chats and suggesting never ask, strict included.
     for (const name of ["chat_list", "suggestion_create"]) expect(asks("strict", name, {}, {})).toBe(false);
-    // A chat message asks on its own link card (plan 067), which no mode stands in for.
     expect(asks("strict", "chat_message", {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
   });
 });
 
-/**
- * A store whose chats run through the gate, with a command tool and an edit tool that record their runs; `helpers`
- * adds the subagent tool, kinded as the daemon kinds it, and a folder for the chat.
- */
 async function setup(mode: PermissionMode, opts: { alwaysPath?: string; helpers?: boolean } = {}) {
   const faux = fauxProvider();
   const models = createModels();
@@ -144,10 +138,9 @@ describe("approvals in a chat", () => {
       await until(() => approvalIds(s.pushed).length === 1);
       expect(s.approvals.decide("approval-t1", true, undefined, true)).toBe(true);
       await run;
-      expect(s.ran).toEqual(["bash:1", "bash:2"]); // the second call never asked
+      expect(s.ran).toEqual(["bash:1", "bash:2"]);
       expect(approvalIds(s.pushed)).toEqual(["approval-t1"]);
       expect(JSON.parse(readFileSync(alwaysPath, "utf8"))).toEqual({ always: ["bash"] });
-      // Strict mode asks for everything, always-allowed tools too.
       await s.store.updateChat("c", { mode: "strict" }, ctx);
       s.faux.setResponses([
         s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "3" }, { id: "t3" }), { stopReason: "toolUse" })),
@@ -160,7 +153,6 @@ describe("approvals in a chat", () => {
     } finally {
       await s.store.close(ctx);
     }
-    // A new gate (the daemon restarted) reads what was kept; taken back, the tool asks again.
     const again = new Approvals({ alwaysPath });
     expect(again.always()).toEqual(["bash"]);
     expect(again.setAlways("bash", false)).toEqual([]);
@@ -182,7 +174,6 @@ describe("approvals in a chat", () => {
       s.approvals.decide("approval-t1", true);
       await run;
       expect(s.ran).toEqual(["bash:1"]);
-      // Without the hold the same chat runs it freely.
       await s.store.updateChat("c", { turn_cap: null }, ctx);
       s.faux.setResponses([
         s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "2" }, { id: "t2" }), { stopReason: "toolUse" })),
@@ -201,7 +192,7 @@ describe("approvals in a chat", () => {
     try {
       s.faux.setResponses([
         s.reply(fauxAssistantMessage(fauxToolCall("subagent", { prompt: "count" }, { id: "p1" }), { stopReason: "toolUse" })),
-        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "h1" }, { id: "h1" }), { stopReason: "toolUse" })), // the helper
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "h1" }, { id: "h1" }), { stopReason: "toolUse" })),
         s.reply(fauxAssistantMessage("counted")),
         s.reply(fauxAssistantMessage("done")),
       ]);
@@ -230,7 +221,6 @@ describe("approvals in a chat", () => {
       ]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 1);
-      // An edit inside the folder runs freely in acceptEdits; strict asks for it.
       await s.store.updateChat("c", { mode: "strict" }, ctx);
       s.approvals.decide("approval-h1", true);
       await until(() => approvalIds(s.pushed).length === 2);
@@ -257,7 +247,7 @@ describe("approvals in a chat", () => {
       expect(s.approvals.waitingIn("agent-local-a", "c")).toEqual([{ kind: "approval", request_id: "approval-t1", tool_name: "bash", input: { x: "1" } }]);
       expect(s.pushed).toContainEqual({ kind: "loop", state: "approval" });
       expect(s.approvals.decide("approval-t1", true)).toBe(true);
-      expect(s.approvals.decide("approval-t1", true)).toBe(false); // a second client's answer finds nothing waiting
+      expect(s.approvals.decide("approval-t1", true)).toBe(false);
       await run;
       expect(s.ran).toEqual(["bash:1"]);
       expect(s.approvals.waitingIn("agent-local-a", "c")).toEqual([]);
@@ -353,16 +343,10 @@ describe("approvals in a chat", () => {
   });
 });
 
-/**
- * Scripts (plan 2026-11-11, U3): a store whose chats run through the gate and run scripts, with `write` (an edit) and
- * `bash` (a command) recording their runs. `mayCall` is the gate's list of what scripts may call; the daemon's is
- * daemon/scripts.ts's scriptMayCall.
- */
 async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => boolean = (name) => name === "write") {
   const faux = fauxProvider();
   const models = createModels();
   models.setProvider(faux.provider);
-  // As the daemon's built-in kinds have them: the script tool is a read (plan 097), `write` an edit, the rest commands.
   const approvals = new Approvals({ kindOfTool: (name) => (name === "write" ? "edit" : name === "codemode" ? "read" : "command"), scriptMayCall: mayCall });
   const pushed: ChatEvent[] = [];
   approvals.attach((_a, _c, events) => pushed.push(...events));
@@ -507,7 +491,6 @@ describe("approvals for scripts", () => {
       s.faux.setResponses([s.script("try { await tools.write({ x: 'a' }) } catch (e) { return e.message }", "s1"), fauxAssistantMessage("done")]);
       await (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       expect(s.ran).toEqual([]);
-      // Blocked by the gate, with its reason, not failed some other way.
       const results = (await s.entries()).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
       expect(results.join("\n")).toContain("A script may not call write.");
     } finally {

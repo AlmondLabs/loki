@@ -3,11 +3,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ListRow, ListSection, PaneHeader, countText, rowStatus } from "../app/src/components/index.tsx";
 
-/**
- * The desktop's Slack building blocks (components/index.tsx): a row says its state in words as well as
- * weight and colour, so a screen reader and a colour-blind reader get the same news the red badge gives.
- */
-
 describe("list row words", () => {
   test("counts past two digits read 99+", () => {
     expect([countText(1), countText(99), countText(100)]).toEqual(["1", "99", "99+"]);
@@ -17,7 +12,6 @@ describe("list row words", () => {
     expect(rowStatus({ badge: 1, badgeNoun: "needs you" })).toBe("1 needs you");
     expect(rowStatus({ badge: 0 })).toBe("");
     expect(rowStatus({})).toBe("");
-    // a note says more than "unread" (the desk sidebar: "new messages", "viewed, not done")
     expect(rowStatus({ unread: true, note: "new messages", badge: 1 })).toBe("new messages, 1 waiting");
     expect(rowStatus({ unread: false, note: "viewed, not done" })).toBe("viewed, not done");
   });

@@ -9,7 +9,6 @@ afterEach(() => {
   for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
 });
 
-/** A checkout with a page source, a core source and, when `built`, a build of the page. */
 function checkout(built: boolean): string {
   const root = mkdtempSync(join(tmpdir(), "loki-page-build-"));
   roots.push(root);
@@ -24,7 +23,6 @@ function checkout(built: boolean): string {
   return root;
 }
 
-/** A build that writes `html` as the --outDir's index.html, or fails with `output`. */
 function runner(html: string | null, output = ""): { run: Runner; calls: string[][] } {
   const calls: string[][] = [];
   const run: Runner = (_cmd, args) => {
@@ -38,7 +36,6 @@ function runner(html: string | null, output = ""): { run: Runner; calls: string[
   return { run, calls };
 }
 
-/** Set a file's change time, in seconds since the epoch. */
 const touch = (path: string, at: number) => utimesSync(path, at, at);
 
 describe("the built page in a checkout (plan 041)", () => {

@@ -9,12 +9,6 @@ import { serial } from "../daemon/repo-queue.ts";
 import { must } from "./fixtures/must.ts";
 import { INSTALL_RE, SkillSources, compareTrees, parseSource, readLock, reconcilePrompt } from "../mod/skill-sources.ts";
 
-/**
- * mod/skill-sources.ts: which of an agent's skills are its own and which came from elsewhere, and what
- * refresh does to the latter — replace an untouched copy, stage upstream for an edited one, or say it
- * is current. Real git repos in a temp dir; no network (the "github" kind is only parsed here).
- */
-
 const AGENT = "agent-local-skills-test";
 let root: string;
 let backend: string;
@@ -22,7 +16,6 @@ let memory: string;
 let global: string;
 let checkout: string;
 let sources: SkillSources;
-/** The memory repos each git sequence was queued on, through the queue the host hands the mod (plan 046). */
 const queuedOn: string[] = [];
 const queued: typeof serial = (repo, work) => {
   queuedOn.push(repo);
@@ -52,7 +45,6 @@ beforeAll(() => {
   mkdirSync(join(memory, "skills"), { recursive: true });
   git(memory, "init", "-q", "-b", "main");
 
-  // The team checkout, with two skills; the global folder links one of them.
   checkout = join(root, "team-skills");
   mkdirSync(checkout, { recursive: true });
   git(checkout, "init", "-q", "-b", "main");
@@ -66,8 +58,6 @@ beforeAll(() => {
   symlinkSync(join(checkout, "fmt-linked"), join(global, "fmt-linked"), "junction");
   skill(global, "copied-in", "a global copy from a lock file");
 
-  // Memory: an installed copy (SKILL.md only, as Letta's old installer left them), an installed-then-edited
-  // copy, a self-written skill, and one installed with no known source.
   skill(join(memory, "skills"), "fmt-linked", "v1 of the linked skill");
   git(memory, "add", "-A");
   git(memory, "commit", "-q", "-m", "Install skill: fmt-linked");
@@ -125,7 +115,7 @@ describe("origin: self or other", () => {
     expect(by["my-own"].origin).toBe("self");
     expect(by["my-own"].source).toBeNull();
     expect(by.mystery.origin).toBe("other");
-    expect(by.mystery.source).toBeNull(); // nobody said where it came from
+    expect(by.mystery.source).toBeNull();
   });
   test("the source: a global symlink into a checkout; a lock-file entry for a copied folder; nothing otherwise", async () => {
     const info = await sources.annotate(AGENT, memorySkills(AGENT, backend));
@@ -161,7 +151,6 @@ describe("origin: self or other", () => {
 
 describe("refresh", () => {
   test("nothing changed upstream: current", async () => {
-    // Memory has SKILL.md only; the checkout has references/a.md too — so it is *not* current. Make an exact twin first.
     skill(join(memory, "skills"), "twin", "same everywhere");
     git(memory, "add", "-A");
     git(memory, "commit", "-q", "-m", "Install skill: twin");
@@ -182,25 +171,22 @@ describe("refresh", () => {
       `tester <${AGENT}@loki.local> chore(skills): refresh fmt-linked from team-skills checkout`,
     );
     expect(git(memory, "status", "--short").trim()).toBe("");
-    expect(queuedOn).toContain(memory); // the commit took the daemon's queue, not one of the mod's own
-    // And now it is current, still other, still unedited.
+    expect(queuedOn).toContain(memory);
     expect((await sources.refresh(AGENT, "fmt-linked")).outcome).toBe("current");
     const info = await sources.annotate(AGENT, memorySkills(AGENT, backend));
     expect(info.find((s) => s.name === "fmt-linked")).toMatchObject({ origin: "other", edited: false });
-  }, 20_000); // several git invocations; a busy machine took this past the 5 s default once
+  }, 20_000);
   test("an edited copy is not overwritten: upstream is staged and the agent is asked to reconcile", async () => {
-    // Upstream moves on.
     writeFileSync(join(checkout, "fmt-typed", "SKILL.md"), readFileSync(join(checkout, "fmt-typed", "SKILL.md"), "utf8").replace("v1", "v2"));
     git(checkout, "add", "-A");
     git(checkout, "commit", "-q", "-m", "fmt-typed v2");
-    // The source is typed once (a folder inside the checkout) and remembered.
     const r = await sources.refresh(AGENT, "fmt-typed", join(checkout, "fmt-typed"));
     expect(r.outcome).toBe("reconcile");
     if (r.outcome !== "reconcile") return;
     expect(r.changed).toEqual(["SKILL.md"]);
     expect(r.upstream_path).toBe(join(root, "state", "upstream", AGENT, "fmt-typed"));
     expect(readFileSync(join(r.upstream_path, "SKILL.md"), "utf8")).toContain("v2");
-    expect(readFileSync(join(memory, "skills", "fmt-typed", "SKILL.md"), "utf8")).toContain("always check twice"); // untouched
+    expect(readFileSync(join(memory, "skills", "fmt-typed", "SKILL.md"), "utf8")).toContain("always check twice");
     expect(r.prompt).toBe(reconcilePrompt("fmt-typed", "team-skills checkout", r.upstream_path, ["SKILL.md"]));
     expect(r.prompt).toContain("keep what you learned");
     expect(JSON.parse(readFileSync(join(root, "state", "skill-sources.json"), "utf8"))).toMatchObject({ [`${AGENT}/fmt-typed`]: join(checkout, "fmt-typed") });
@@ -236,7 +222,7 @@ describe("sources and trees", () => {
     expect(parseSource("")).toBeNull();
     expect(parseSource("two words")).toBeNull();
     expect(parseSource("/definitely/not/here")).toBeNull();
-    expect(parseSource("example.com/x")).toBeNull(); // a host, not owner/repo
+    expect(parseSource("example.com/x")).toBeNull();
   });
   test("readLock reads the CLI's object-by-name form and an array form, keeping well-formed entries only", () => {
     const f = join(root, "lock2.json");

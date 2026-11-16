@@ -2,15 +2,8 @@ import { describe, expect, test } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
-/**
- * `core/` is shared by the canvas, the mod and the phone app. It must not know
- * where it runs: no browser globals, no Tauri, no reach into app/. Relative imports carry the `.ts`
- * extension so Node (the mod) and Metro (the phone) can both resolve them from source.
- */
 const CORE = resolve(import.meta.dirname, "..", "core");
-// The globals themselves, not a file name that ends in the word (`transcript-window.ts`).
 const LEAKS = /(?<![\w-])window\.|(?<![\w-])document\.|localStorage|(?<![\w-])navigator\.|@tauri-apps/;
-/** Bare specifiers the package may import: the hook layer needs React; everything else is its own. */
 const ALLOWED_BARE = new Set(["react"]);
 
 function tsFiles(dir: string): string[] {

@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import { OLD_KEYS, migrateKeys } from "../core/snake-keys.ts";
 import { assertSnakeCase } from "./fixtures/frames.ts";
 
-/** Data saved camelCase before October 2026 reads as snake_case, renaming only the fields loki knew, never ids. */
 describe("migrateKeys", () => {
   test("renames the old field names at any depth, in arrays too, and says it changed something", () => {
     const old = { agentId: "a1", source: { conversationId: "c1", agentName: "Friday" }, cards: [{ createdAt: "2026-10-01" }] };
@@ -39,7 +38,6 @@ describe("the bridge tests' guard", () => {
       "frame.desks[0].agentId is camelCase; on the wire it is agent_id",
     );
     expect(() => assertSnakeCase({ type: "desks", desks: [{ scope: "s", agent_id: "a1" }] })).not.toThrow();
-    // A widget's data is the agent's own JSON, and a task's metadata is checked by its own migration.
     expect(() => assertSnakeCase({ type: "desk", widgets: [{ data: { widgetId: "mine" } }] })).not.toThrow();
   });
 });

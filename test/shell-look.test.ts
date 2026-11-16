@@ -3,9 +3,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { must } from "./fixtures/must.ts";
 
-// Plan 2026-11-12-1505, U3: the window shell on Liquid Glass. Its rules live in components.css in one :root block laid
-// over the plainer rules above it; these read the stylesheet and the shell's markup.
-
 const APP = join(import.meta.dirname, "..", "app", "src");
 const css = readFileSync(join(APP, "components", "components.css"), "utf8");
 const shell = readFileSync(join(APP, "shell", "shell.tsx"), "utf8");
@@ -77,13 +74,11 @@ describe("Windows and Linux on Liquid Glass (U10)", () => {
     expect(GLASS_ON).toEqual({ macos: "glass", windows: "glass", linux: "solid" });
     const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
     expect(theme).toMatch(/if \(GLASS_ON\[platform\] === "solid"\) root\.dataset\.glass = "solid";/);
-    // the prepaint script says the same before any stylesheet, so Linux never flashes glass
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     expect(html).toMatch(/Linux\|X11\|CrOS[^\n]*dataset\.glass = "solid"/);
   });
 
   test("the ☰ menu on Windows and Linux is the same strong glass as a Mac's menus, solid where glass is off", () => {
-    // It is a drawn menu (plan 2026-11-15-1930), its titles' submenus too, so it takes the popovers' strong glass.
     const menu = readFileSync(join(APP, "shell", "title-menu.tsx"), "utf8");
     expect(menu.match(/className=\{?[^>]*loki-popover/g)?.length).toBe(2);
   });
@@ -173,17 +168,14 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(lib).toContain("native::add_unified_toolbar(&window);");
     expect(native).toContain("ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);");
     expect(lib).not.toContain("traffic_light_position");
-    // the page reads where they are before it first draws
     expect(lib).toContain("native::traffic_lights,");
     const boot = readFileSync(join(APP, "boot.tsx"), "utf8");
     expect(boot.indexOf("adoptTrafficLights()")).toBeGreaterThan(-1);
     expect(boot.indexOf("adoptTrafficLights()")).toBeLessThan(boot.indexOf("createRoot("));
     const { GLASS_LIGHTS, adoptTrafficLights, paneTop, sidebarToggleTop, sidebarToggleLeft } = await import("../app/src/shell/sidebar.tsx");
-    // a 28 px toggle and the 52 px title bars centred on the buttons' centre line, the toggle just past the zoom button
     expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.middle);
     expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
     expect(sidebarToggleLeft(true, "macos")).toBe(GLASS_LIGHTS.right + 18);
-    // a shell that cannot say leaves the defaults; what it says is parsed, not trusted
     const before = { ...GLASS_LIGHTS };
     vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: "x", right: 70, middle: 26 }) }));
     await adoptTrafficLights();
@@ -201,16 +193,13 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     const { GLASS_INSET, GLASS_LIGHTS, LIST_BAR, PLACE_PADDING, PLACES_INSET, sidebarToggleLeft, sidebarToggleLeftShown } =
       await import("../app/src/shell/sidebar.tsx");
     const { SIDEBAR_MIN } = await import("../app/src/shell/columns.ts");
-    // its 18 px symbol ends 5 px inside the 28 px box, where a count ends: the places' and the row's padding in
     expect(sidebarToggleLeftShown(280, true, "macos") + 28 - 5).toBe(GLASS_INSET + 280 - PLACES_INSET - PLACE_PADDING);
-    // those paddings are the stylesheet's, so the toggle moves with them
     const css = readFileSync(join(APP, "components", "components.css"), "utf8");
     expect(css).toMatch(new RegExp(`\\.loki-places \\{[^}]*padding: 0 ${PLACES_INSET}px ${PLACES_INSET}px;`));
     expect(css).toMatch(new RegExp(`\\.loki-place \\{[^}]*padding: 0 ${PLACE_PADDING}px;`));
     expect(css).toMatch(new RegExp(`\\.loki-content-list-bar \\{[^}]*padding: 4px 8px 4px ${LIST_BAR.padding}px;[^}]*\\}`));
     expect(css).toMatch(new RegExp(`\\.loki-content-list-bar \\{[^}]*gap: ${LIST_BAR.gap}px;`));
     expect(sidebarToggleLeftShown(SIDEBAR_MIN, true, "macos")).toBeGreaterThan(GLASS_LIGHTS.right);
-    // Windows, Linux and a browser tab keep it at the leading edge
     expect(sidebarToggleLeftShown(280, true, "windows")).toBe(sidebarToggleLeft(true, "windows"));
     expect(sidebarToggleLeftShown(280, false, "macos")).toBe(sidebarToggleLeft(false, "macos"));
   });
@@ -239,7 +228,6 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
 describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
   test("a header with tab views centres them between two equal sides, the trailing one never narrower than its symbols", () => {
     const centred = must(/\.loki-pane-header:has\(> \[data-slot="tabs"\] > \.loki-tabs\) \{([^}]*)\}/.exec(glass), "the centred rule")[1];
-    // equal sides centre the tabs; when the symbols need more than half, the tabs fall in line before them
     expect(centred).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr)");
   });
 
@@ -262,7 +250,6 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
 });
 
 describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
-  // The ban on --loki-text-* and on literal font sizes lives in tokens.test.ts, which reads every file.
   const styles = readFileSync(join(APP, "styles.css"), "utf8");
   const index = readFileSync(join(APP, "..", "index.html"), "utf8");
 
@@ -282,7 +269,7 @@ describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
 
 describe("blue for what waits on you, grey for counts and faces (U17)", () => {
   const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
-  const block = (selector: string) => must(new RegExp(`\\n${selector.replace(/[[\]]/g, "\\$&")} \\{([\\s\\S]*?)\\n\\}`).exec(tokens), selector)[1];
+  const block = (selector: string) => must(new RegExp(`(?:^|\\n)${selector.replace(/[[\]]/g, "\\$&")} \\{([\\s\\S]*?)\\n\\}`).exec(tokens), selector)[1];
   test("attention is the blue of the accent, red only for failures", () => {
     const dark = block(":root");
     const light = block(':root[data-theme="light"]');

@@ -4,12 +4,6 @@ import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, isDataPath, isJsonValue, readFrameM
 import { rewriteSharedImports } from "../app/src/frame/rewrite.ts";
 import { BOOT_REPORTER, FRAME_CSP, buildFrameHtml } from "../app/src/frame/build.ts";
 
-/**
- * Agent-written widgets run in a sandboxed iframe, never in the page (where they could read the daemon token and
- * approve their own commands). The sandbox stays opaque, the page takes only the messages it knows from the one
- * frame it made, and nothing in the frame's document carries the token.
- */
-
 const frame = {} as Window;
 const other = {} as Window;
 const msg = (data: Record<string, unknown>, source: unknown = frame) => readFrameMessage({ source, data: { bridge: BRIDGE, ...data } }, frame);
@@ -60,7 +54,6 @@ describe("widget frame: messages from the frame", () => {
   test("set: a dot-path into the widget's data and a JSON value; the page names the widget", () => {
     expect(msg({ type: "set", path: "days", value: 3 })).toEqual({ type: "set", path: "days", value: 3 });
     expect(msg({ type: "set", path: "a.b", value: { x: [1, "y", null, true] } })).toEqual({ type: "set", path: "a.b", value: { x: [1, "y", null, true] } });
-    // a widget id the frame sends is not read: the page uses its own
     expect(msg({ type: "set", id: "other/widget", path: "x", value: 1 })).toEqual({ type: "set", path: "x", value: 1 });
     expect(msg({ type: "set", path: "x" })).toBeNull();
     expect(msg({ type: "set", path: "", value: 1 })).toBeNull();
@@ -103,7 +96,6 @@ describe("widget frame: where the module comes from", () => {
     });
   });
   test("the Vite tab fetches it from the dev server; a built page without the shell has none", () => {
-    // the dev server's route takes the .js name, as widgets.rs does (a .tsx name was a 404 there)
     expect(widgetSource("trip/my widget.tsx", "a b", { tauri: false, os: "macos", dev: true })).toEqual({ fetch: "/@loki-widget/trip/my%20widget.js?v=a%20b" });
     expect(widgetSource("trip/chart.jsx", "abc", { tauri: false, os: "macos", dev: true })).toEqual({ fetch: "/@loki-widget/trip/chart.js?v=abc" });
     expect(widgetSource("trip/budget.tsx", "abc", { tauri: false, os: "macos", dev: false })).toBeNull();
@@ -136,7 +128,6 @@ describe("widget frame: the document", () => {
   test("the built frame carries its policy and nothing of the token", async () => {
     const html = await buildFrameHtml(true);
     expect(html).toContain(`<meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}">`);
-    // two scripts, the boot reporter then the runtime, and no stray </script> cutting the runtime short
     expect(html.match(/<\/script>/g)?.length).toBe(2);
     expect(html.indexOf(BOOT_REPORTER)).toBeGreaterThan(-1);
     expect(html.indexOf(BOOT_REPORTER)).toBeLessThan(html.lastIndexOf("<script>"));

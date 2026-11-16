@@ -2,9 +2,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Plan 2026-11-12-1505, U18: Settings in a window of its own on the Mac. The window itself is the
-// shell's (a browser cannot open one), so these read what opens it, what it loads and how the two windows keep step.
-
 const ROOT = join(import.meta.dirname, "..");
 const APP = join(ROOT, "app", "src");
 const read = (...p: string[]) => readFileSync(join(...p), "utf8");
@@ -40,13 +37,11 @@ describe("the Settings window", () => {
   });
 
   test("About in either window hears the shell's update status, and knows from its own chats whether one is working", () => {
-    // Plan 2026-11-15-2319, U5 (R11): each window asks the shell and listens for loki:update itself, and Restart to
-    // Update in About asks before stopping a chat's turn, from the same attention model the window already reads.
     expect(read(APP, "shell", "settings-window.tsx")).toContain("const update = useLokiUpdate();");
     expect(read(APP, "shell", "shell.tsx")).toContain("const update = useLokiUpdate();");
     const hook = read(APP, "shell", "use-loki-update.ts");
     expect(hook).toContain('export const UPDATE_EVENT = "loki:update";');
-    expect(hook).toContain("return followStatus("); // test/update-status.test.ts covers the order and the cleanup
+    expect(hook).toContain("return followStatus(");
     expect(hook).not.toContain("api.github.com");
     expect(read(APP, "shell", "views.tsx")).toContain("working: chatWorking(catchUp.items),");
   });

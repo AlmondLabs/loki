@@ -47,7 +47,7 @@ describe("store manager", () => {
     stores.onOpen((id) => seen.push(id));
     const a = await stores.get("agent-a");
     const b = await stores.get("agent-b");
-    await a.harness.close(ctx); // what a storage error does
+    await a.harness.close(ctx);
     await until(() => seen.filter((id) => id === "agent-a").length === 2);
     expect(seen).toEqual(["agent-a", "agent-b", "agent-a"]);
     expect(await stores.get("agent-a")).not.toBe(a);

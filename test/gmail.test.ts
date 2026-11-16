@@ -11,9 +11,7 @@ import { fakeGoogle } from "./fixtures/gmail.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { must } from "./fixtures/must.ts";
 
-/** A fetch's URL as text, whatever form it came in. */
 const urlOf = (input: RequestInfo | URL): string => (input instanceof Request ? input.url : input instanceof URL ? input.href : input);
-/** An abort's reason as an Error, as fetch rejects with it. */
 const asError = (reason: unknown): Error => (reason instanceof Error ? reason : new Error(String(reason)));
 
 const SHARED = { client_id: "shared-client", client_secret: "shared-secret" };
@@ -25,7 +23,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** A mailbox connected through a real sign-in against the fake Google, and its client, on a clock the test moves. */
 async function connected(ownApp?: GoogleApp) {
   const dir = mkdtempSync(join(tmpdir(), "loki-gmail-"));
   dirs.push(dir);
@@ -60,7 +57,6 @@ describe("the Gmail client's tokens", () => {
     expect(formOf(google.tokenRequests()[0]?.body).get("grant_type")).toBe("refresh_token");
     const kept = JSON.parse(must(secrets.entries.get(`account:${ACCOUNT}`), "the secret")) as { access_token: string };
     expect(kept.access_token).toBe(google.issued.access.at(-1));
-    // The new token lasts: a second call needs no refresh.
     await client.profile();
     expect(google.tokenRequests()).toHaveLength(1);
   });
@@ -97,10 +93,6 @@ describe("the Gmail client's tokens", () => {
   });
 });
 
-/**
- * A fetch that, while `hang` is on, never answers until its signal is aborted, and a timeout the test fires itself:
- * `reached` settles once a hung call is under way, `expire` aborts it as a timeout would.
- */
 function hanging(inner: typeof fetch) {
   const signals: AbortController[] = [];
   let hit: (url: string) => void = () => undefined;
@@ -139,7 +131,6 @@ describe("a Gmail call that never answers", () => {
   test("a token refresh fails when its time runs out, and the account stays connected", async () => {
     const { accounts, google } = await connected();
     const t = hanging(google.fetch);
-    // An hour on, the access token has lapsed and the call starts with a refresh.
     const now = () => new Date("2026-11-04T10:00:01Z");
     const client = new GmailClient({ accounts, account_id: ACCOUNT, sharedApp: SHARED, fetch: t.fetch, timeout: t.timeout, now });
     t.hang = true;
@@ -156,7 +147,6 @@ describe("the Gmail client's calls", () => {
     const { client, google, advance } = await connected();
     expect(await client.sendAsAddresses()).toEqual(["ada@acme.com", "ada@example.org"]);
     google.state.sendAs = 403;
-    // Kept for ten minutes (plan 076): a reply and the recipients line do not each read the settings again.
     expect(await client.sendAsAddresses()).toEqual(["ada@acme.com", "ada@example.org"]);
     advance(10 * 60 * 1000);
     expect(await client.sendAsAddresses()).toEqual(["ada@acme.com"]);
@@ -293,7 +283,6 @@ describe("only the person's own reply sends from Gmail (plan 068)", () => {
 
   test("sendReply is the client's only send call, and nothing else it does reaches a send endpoint", async () => {
     const names = Object.getOwnPropertyNames(GmailClient.prototype);
-    // sendAs and sendAsAddresses read the addresses the person writes from; they send nothing.
     expect(names.filter((n) => /send/i.test(n)).sort()).toEqual(["sendAs", "sendAsAddresses", "sendReply"]);
 
     const { client, google, advance } = await connected();

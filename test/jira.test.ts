@@ -7,7 +7,6 @@ import { JIRA_ADA, JIRA_BOB, JIRA_MEDIA_HOST, JIRA_ME, JIRA_THUMBNAIL_BYTES, fak
 const T0 = Date.parse("2026-11-10T10:00:00.000Z");
 const at = (iso: string) => new Date(iso);
 
-/** A client over a fake site with the token it accepts, a status log and a clock the test moves. */
 function setup(secret: Partial<JiraSecret> = {}) {
   const clock = { t: T0 };
   const jira = fakeJira({ now: () => new Date(clock.t) });
@@ -21,7 +20,6 @@ function setup(secret: Partial<JiraSecret> = {}) {
   return { c, jira, statuses, clock };
 }
 
-/** The error a call ends in, or a failure when it ends well. */
 async function refusal(call: Promise<unknown>): Promise<JiraError> {
   const err = await call.then(
     () => null,
@@ -222,7 +220,6 @@ describe("a ticket's events", () => {
       },
     ];
     expect((await c.comments("OPS-1")).events).toEqual(expected);
-    // A ticket answers to its numeric id as well as its key.
     expect((await c.comments(id)).events).toEqual(expected);
   });
 
@@ -267,7 +264,6 @@ describe("a ticket's events", () => {
   test("ids sort by creation time across comments and history, with two in one millisecond and a +0530 time among them", async () => {
     const { c, jira } = setup();
     jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
-    // In creation order: h 900 (09:00:00.000), c 1000 and h 85 (both 09:00:00.500), c 99 (09:00:01.000 as +0530), c 100000 (09:00:02).
     jira.change("OPS-1", { at: at("2026-11-10T09:00:00.000Z"), author: JIRA_ADA, id: "900", items: [{ field: "status", from: "To Do", to: "Done" }] });
     jira.comment("OPS-1", { at: at("2026-11-10T09:00:00.500Z"), author: JIRA_ADA, text: "same instant", id: "1000" });
     jira.change("OPS-1", { at: at("2026-11-10T09:00:00.500Z"), author: JIRA_BOB, id: "85", items: [{ field: "Rank", from: null, to: "Ranked higher" }] });
@@ -523,7 +519,6 @@ describe("a ticket's files (plan 093)", () => {
   });
 });
 
-/** An attach request as the site received it: its headers and the multipart body's entries. */
 interface AttachRequest {
   url: URL;
   headers: Headers;
@@ -531,10 +526,6 @@ interface AttachRequest {
   signal: AbortSignal | null;
 }
 
-/**
- * A client over a fake site that also takes attachments: the fake records the request with every other, and this
- * answers it as Jira does, with the list of files attached, or with `answer` when a test names one.
- */
 function attachSetup(answer?: (req: AttachRequest) => Promise<Response>) {
   const base = setup();
   const attaches: AttachRequest[] = [];
@@ -649,10 +640,8 @@ describe("the user searches (plan 2026-11-14-1530, U2)", () => {
   });
 });
 
-/** Names that would change something in Jira: the client may have none but the comment and the attach call. */
 const WRITES = /post|send|add|attach(?!ments)|create|update|edit|delete|remove|assign|transition|watch(?!ed)|set|put|move|mark/i;
 
-/** The client's own helpers, which make no request of their own choosing. */
 const PRIVATE = ["now", "sprintField", "call", "request", "page", "rejected", "rateLimited", "hold"];
 
 describe("the only things the client writes are the person's comment and its files", () => {
@@ -687,7 +676,6 @@ describe("the only things the client writes are the person's comment and its fil
       ["POST", "/rest/api/3/issue/OPS-1/comment"],
     ]);
     const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment", "attachFiles"].includes(n));
-    // Every public method was exercised above; a new one must be added here, where its requests are checked.
     expect(
       called.filter(
         (n) =>

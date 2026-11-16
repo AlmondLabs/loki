@@ -11,8 +11,6 @@ import { ChangeEntry, EventEntry } from "../app/src/item/event-entry.tsx";
 import type { ItemEntry } from "../app/src/item/item-view.ts";
 import type { WidgetMark } from "../app/src/chat/transcript.tsx";
 
-// Plan 097, U3: the Timeline's entries, rendered without a browser. Pressing things is checked by hand in the app.
-
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 
 const message = (over: Partial<Extract<ItemEntry, { kind: "message" }>> = {}): Extract<ItemEntry, { kind: "message" }> => ({

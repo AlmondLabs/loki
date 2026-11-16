@@ -49,7 +49,7 @@ describe("the seen push", () => {
           rest: whole.rests?.[key] ?? null,
         });
       }
-      expect(seenChatFrame(seen, "a", "undone").seen).toBeNull(); // a later "not done" undoes the done
+      expect(seenChatFrame(seen, "a", "undone").seen).toBeNull();
       expect(seenChatFrame(seen, "a", "done").seen).toBe("2026-10-30T10:00:00.000Z");
       seen.flush();
     } finally {
@@ -97,8 +97,8 @@ describe("the seen push", () => {
       bridge.onMessage(c, { type: "return_times_set", return_times: times });
       expect(broadcasts.map((b) => b.frame.type)).toEqual(["seen"]);
       expect(broadcasts[0]?.frame.return_times).toEqual(times);
-      bridge.onMessage(c, { type: "return_times_set", return_times: times }); // the same again sends nothing
-      bridge.onMessage(c, { type: "return_times_set", return_times: { later: { chat: "5d" } } }); // refused
+      bridge.onMessage(c, { type: "return_times_set", return_times: times });
+      bridge.onMessage(c, { type: "return_times_set", return_times: { later: { chat: "5d" } } });
       expect(broadcasts).toHaveLength(1);
       seen.flush();
     } finally {

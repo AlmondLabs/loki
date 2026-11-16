@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import { gmailThread, mailHeader, mailParts } from "../mod/account-ops/gmail.ts";
 import type { GmailMessage, GmailMessagePart, GmailThread } from "../mod/gmail.ts";
 
-/** The account operations (plan 097, U1): one reader per service, which every caller shares. */
-
 const b64 = (text: string): string => Buffer.from(text, "utf8").toString("base64url");
 const part = (mimeType: string, text: string, filename = ""): GmailMessagePart => ({
   mimeType,

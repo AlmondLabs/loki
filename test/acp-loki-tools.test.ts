@@ -29,7 +29,6 @@ afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
 });
 
-/** A tool that answers with the chat it was called for, as loki's tools find it. */
 const whoami: ChatTool = {
   name: "whoami",
   description: "Which chat this is.",
@@ -46,7 +45,6 @@ const echo: ChatTool = {
   run: (args) => Promise.resolve({ output: [{ type: "text", text: String(args.words) }] }),
 };
 
-/** loki's tools for one chat, served as to an ACP session; `make` gives the tools, from the chat's store. */
 async function setup(make: (store: AgentStore, conversationId: string) => Promise<ChatTool[]> = () => Promise.resolve([whoami, echo]), scripts?: AcpScripts) {
   const dir = mkdtempSync(join(tmpdir(), "loki-acp-tools-"));
   const models = createModels();
@@ -73,7 +71,6 @@ async function setup(make: (store: AgentStore, conversationId: string) => Promis
   return { tools, conversationId };
 }
 
-/** An MCP client on one of the session's servers, as the ACP agent connects to it. */
 async function connect(server: { url: string; headers: Array<{ name: string; value: string }> }) {
   const client = new Client({ name: "test", version: "1" });
   const headers = Object.fromEntries(server.headers.map((h) => [h.name, h.value]));
@@ -82,7 +79,6 @@ async function connect(server: { url: string; headers: Array<{ name: string; val
   return client;
 }
 
-/** One of the session's servers, which loki always serves over HTTP. */
 const http = (s: acp.McpServer | undefined) => {
   if (!s || !("type" in s) || s.type !== "http") throw new Error("not an HTTP server");
   return s;
@@ -147,7 +143,6 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect((await loki.listTools()).tools.map((t) => t.name)).toEqual(["script"]);
     const found = await loki.callTool({ name: "script", arguments: { code: "return await tools.history_search({ query: 'readme' })" } });
     expect(JSON.stringify(found.content)).toContain(`#${asked} person`);
-    // The script tool runs without the agent asking; the history tools are not served, so they are not named.
     expect(tools.readOnly()).toEqual(["mcp__loki__script"]);
   });
 
@@ -336,7 +331,6 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     });
     expect(JSON.stringify(out.content)).toContain("sugg-1");
     expect([...stored.values()].flat()).toMatchObject([{ id: "sugg-1", status: "pending", target: { agent_id: "agent-local-ira", folder: "/work/site" } }]);
-    // chat_list is a script's now (plan 099), so it is not served or named; suggestion_create still runs unasked.
     expect(tools.readOnly()).toContain("mcp__loki__suggestion_create");
     expect(tools.readOnly()).not.toContain("mcp__loki__chat_list");
   });

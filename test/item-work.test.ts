@@ -5,8 +5,6 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { AgentTurn } from "../app/src/item/agent-turn.tsx";
 import { StepOpened, Work } from "../app/src/item/work.tsx";
 
-// Plan 097, U4: the agent's turn and its work on AI Elements, rendered without a browser.
-
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const bash = (over: Partial<NonNullable<TranscriptRow["tool"]>> = {}): TranscriptRow => ({
   role: "tool",
@@ -42,7 +40,6 @@ describe("AgentTurn", () => {
 });
 
 describe("Work", () => {
-  // Closed, a stretch is its header alone; its running step shimmers once opened, which is checked in the app.
   test("a running stretch shimmers its closed header", () => {
     const out = html(createElement(Work, { rows: [bash(), bash({ output: undefined })], running: true, arrived: false }));
     expect(out).toContain("shimmer");
@@ -132,7 +129,6 @@ describe("thoughts on the work line (plan 2026-11-14-0852, 4)", () => {
     const { into, folded } = thoughtsIntoWork([[steps, message]]);
     expect(into.get("r-0")).toEqual([answer]);
     expect([...folded]).toEqual(["r-1"]);
-    // A reply with no work before it keeps its own line.
     expect(thoughtsIntoWork([[message]]).folded.size).toBe(0);
   });
 

@@ -86,10 +86,8 @@ describe("reflection on the background passes", () => {
       expect(s.log().split("\n")[0]).toBe("Reflection|Remember the tea");
       expect(readFileSync(join(memoryRoot(s.dir, s.agentId), "system", "human.md"), "utf8")).toBe("Prefers strong tea.\n");
       expect(seen.text).toContain("never coffee");
-      // The instructions hold the durable bar.
       expect(seen.text).toContain("leave out one-off details");
       expect(s.events.at(-1)).toMatchObject({ job: "reflection", outcome: "changed", items: { memory_changes: 1 } });
-      // The pass's own chat is hidden, so it never shows as a chat.
       expect(s.chats.list().find((c) => c.conversationId === `reflection-${s.agentId}`)?.hidden).toBe(true);
     } finally {
       await s.cleanup();
@@ -117,7 +115,6 @@ describe("reflection on the background passes", () => {
     try {
       const seen = { text: "" };
       const HUGE = LONG.repeat(150);
-      // Compaction may also run on its own mid-chat, so each answer is picked by what is asked, not by its turn.
       const answer = (c: { messages: unknown }) => {
         const text = JSON.stringify(c.messages);
         if (!text.includes("since you last reflected on it")) return fauxAssistantMessage("a summary");

@@ -8,9 +8,6 @@ import { Places } from "../app/src/shell/sidebar.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-// Plan 2026-11-14-1330, U6: Flow's lanes are sources under its place in the sidebar, as Mail's mailboxes, and the lane's
-// cards are the list's rows.
-
 const ira = (id: string, status: "done" | "running" = "done") =>
   attentionItem(id, { agent_id: "ira", agent_name: "ira", status, runtime: { agent_id: "ira", conversation_id: id } });
 const friday = (id: string) => attentionItem(id, { agent_id: "friday", agent_name: "friday", runtime: { agent_id: "friday", conversation_id: id } });

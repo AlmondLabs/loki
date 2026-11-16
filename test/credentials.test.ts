@@ -45,7 +45,6 @@ describe("provider credentials", () => {
 describe("the keychain's index", () => {
   test("providers saved at the same moment are all listed", async () => {
     const secrets = memorySecrets();
-    // A slow keychain, so every save's read of the index overlaps the others'.
     const slow = {
       ...secrets,
       get: async (a: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.get(a)),

@@ -6,8 +6,6 @@ import { USUAL_MAX, readUsualModels, recordUsualModel, topUsualModel } from "../
 import { chatFrames, type ChatBackend } from "../mod/frames/chat.ts";
 import type { FrameContext } from "../mod/frames/context.ts";
 
-// Plan 2026-11-13-1240: each agent keeps its three usual model configurations, written only on a switch.
-
 const file = () => join(mkdtempSync(join(tmpdir(), "loki-usual-")), "state", "usual-models.json");
 const at = (minute: number) => new Date(Date.UTC(2026, 10, 13, 12, minute));
 const shape = (f: string, agent: string) =>

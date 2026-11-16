@@ -17,7 +17,7 @@ describe("program lookup", () => {
       String.raw`C:\Windows\system32\letta.bat`,
       String.raw`C:\Windows\system32\letta.cmd`,
     ]);
-    expect(found).toContain(String.raw`C:\Program Files\nodejs\letta.exe`); // a quoted folder loses its quotes
+    expect(found).toContain(String.raw`C:\Program Files\nodejs\letta.exe`);
     expect(found).toContain(String.raw`C:\Users\someone\AppData\Roaming\npm\letta.cmd`);
     expect(found).toHaveLength(12);
     // No PATHEXT: Windows' own default list. A name with its extension is taken as is.
@@ -39,7 +39,6 @@ describe("program lookup", () => {
       String.raw`C:\Users\some^ one\AppData\Roaming\npm\letta.cmd ^^^"install^^^" ^^^"owner/repo^^^&calc^^^" ^^^"--agent^^^" ^^^"agent-1^^^"`,
     );
     expect(commandFor("C:\\x\\run.BAT", [], "win32").shell).toBe(true);
-    // An .exe, and anything off Windows, runs directly with its arguments untouched.
     expect(commandFor("C:\\bd\\bd.exe", ["list", "a&b"], "win32")).toEqual({ file: "C:\\bd\\bd.exe", args: ["list", "a&b"], shell: false });
     expect(commandFor("/usr/local/bin/letta.cmd", ["x"], "linux")).toEqual({ file: "/usr/local/bin/letta.cmd", args: ["x"], shell: false });
   });

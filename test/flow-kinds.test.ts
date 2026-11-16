@@ -10,8 +10,6 @@ import { FilterPills } from "../app/src/shell/filter-pills.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 
-// Plan 2026-11-15-1740: Flow's kind pills narrow its deck to one kind of card, as Chats' state pills narrow its list.
-
 const chat = attentionItem("c1", { agent_id: "ira", agent_name: "ira", runtime: { agent_id: "ira", conversation_id: "c1" } });
 const mail = outsideItem("Your invoice");
 const base = outsideItem("Launch");

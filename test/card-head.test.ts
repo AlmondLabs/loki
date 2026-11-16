@@ -5,8 +5,6 @@ import type { OutsideReach } from "../core/frame-types.ts";
 import { REACH_LABEL, REACH_LEVEL, mailReach, slackReach } from "../core/outside-reach.ts";
 import { CardFace } from "../app/src/desk/card-head.tsx";
 
-/** Every Inbox card's header (plan 073): who, where or what, and how directly it is meant for the person. */
-
 describe("how directly a card is meant for the person", () => {
   test("a mail sent by a machine or a list reads as that even when it is addressed to the person", () => {
     expect(mailReach({ to_you: true, list: false, automated: true, category: null })).toBe("automated");

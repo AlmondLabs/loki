@@ -6,8 +6,6 @@ import { messageSteps } from "../core/attention/pi-steps.ts";
 import { THOUGHT_MAX } from "../core/attention/transcript.ts";
 import { Thought } from "../app/src/item/thought.tsx";
 
-// Plan 097, U9: what the agent thought, kept on the row it led to and drawn as AI Elements' Reasoning.
-
 const at = (s: number) => new Date(Date.UTC(2026, 10, 12, 9, 0, s)).toISOString();
 
 describe("a thought on the thread", () => {

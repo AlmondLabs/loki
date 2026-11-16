@@ -8,8 +8,6 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import { gmailThreadText } from "../mod/account-ops/gmail.ts";
 import type { GmailMessagePart, GmailThread } from "../mod/gmail.ts";
 
-/** A desktop mail card laid out as Gmail lays out a thread (plan 078). */
-
 const OWN = ["sam@acme.test"];
 
 describe("the header line", () => {

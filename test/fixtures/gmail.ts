@@ -1,13 +1,5 @@
 import { createHash } from "node:crypto";
 
-/**
- * A stand-in for Google's token endpoint and the Gmail API, driven through an injected fetch (plan 067, U4). It keeps
- * the codes the authorization page would have issued, bound to their PKCE challenge, client and redirect; the tokens it
- * issued, each with its expiry on the test's clock; and a small mailbox. Every request is recorded, so a test can say
- * which endpoints were reached and with what.
- */
-
-/** A request the fake received: its method, URL and body as text. */
 export interface FakeRequest {
   method: string;
   url: URL;
@@ -18,14 +10,12 @@ interface Code {
   challenge: string;
   client_id: string;
   redirect: string;
-  /** The scopes the person left ticked on Google's page. */
   scope: string;
 }
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 
-/** Every scope loki asks for (mod/google-signin.ts GOOGLE_SCOPES), as a grant of all of them reads. */
 export const ALL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/drive",
@@ -40,30 +30,22 @@ export const ALL_SCOPES = [
 ];
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-/** Google and one Gmail mailbox, on the test's clock. */
 export function fakeGoogle(opts: { now: () => Date; email?: string }) {
   const codes = new Map<string, Code>();
   const access = new Map<string, { expires: number; client_id: string }>();
-  /** Each refresh token's client and the scopes it was granted. */
   const refresh = new Map<string, { client_id: string; scope: string }>();
   const requests: FakeRequest[] = [];
   const drafts: Array<{ raw: string; threadId: string }> = [];
   const sentMail: Array<{ raw: string; threadId: string }> = [];
   const modified: Array<{ ids: unknown; addLabelIds?: unknown; removeLabelIds?: unknown }> = [];
   const state = {
-    /** History older than this id is gone: a history call from before it is 404. */
     oldestHistoryId: 100,
-    /** The history records, served two to a page. */
     history: [] as Array<{ id: string; messagesAdded: Array<{ message: { id: string; threadId: string } }> }>,
     historyId: "500",
-    /** What /settings/sendAs answers: the addresses, or a status to refuse with. */
     sendAs: ["ada@acme.com", "ada@example.org"] as string[] | number,
-    /** A Workspace admin has stopped the app: every call is refused with Google's reason. */
     adminBlocked: false,
-    /** The account the person signs in as: a test changes it to sign in as someone else. */
     email: opts.email ?? "ada@acme.com",
   };
-  /** Every token issued, in order, so a test can name the ones a sign-in kept. */
   const issued = { access: [] as string[], refresh: [] as string[] };
   let tokenSeq = 0;
 
@@ -203,10 +185,6 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
     sentMail,
     modified,
     state,
-    /**
-     * The person approves on Google's page: a code bound to the URL's challenge, client and redirect, granting every
-     * scope the URL asked for, or only `granted` when the person unticked some.
-     */
     authorize(authUrl: string, granted?: readonly string[]): { code: string; state: string } {
       const u = new URL(authUrl);
       const code = `code-${++tokenSeq}`;
@@ -218,11 +196,8 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
       });
       return { code, state: u.searchParams.get("state") ?? "" };
     },
-    /** Google stops honouring every access token it issued, before their time (a password change, a reset). */
     revokeAccessTokens: () => access.clear(),
-    /** The person revoked loki's access: every refresh token is refused with invalid_grant. */
     revokeRefreshTokens: () => refresh.clear(),
-    /** Requests to the token endpoint. */
     tokenRequests: () => requests.filter((r) => r.url.href === TOKEN_URL),
   };
 }

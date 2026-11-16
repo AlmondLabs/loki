@@ -1,15 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { NO_LOOKS, nextLook, type Looks } from "../app/src/shared/use-viewed.ts";
 
-/**
- * Viewed, not done (shared/use-viewed.ts): a conversation on screen is looked at once per new last message. While
- * its reply streams every chunk moves the last message, so the look waits for the turn to settle, or for you to
- * leave or look away first; either way the conversation ends up viewed at what you saw.
- */
 const ids = { agentId: "a", conversationId: "c" };
 const at = (t: string) => `a/c@2026-09-25T10:00:${t}Z`;
 
-/** Feed a run of states through nextLook; the marks it sends, in order. */
 function run(states: Array<Parameters<typeof nextLook>[1]>, from: Looks = NO_LOOKS): { marks: string[]; looks: Looks } {
   let looks = from;
   const marks: string[] = [];
@@ -27,7 +21,6 @@ describe("viewed marks while a reply streams", () => {
     expect(run(chunks).marks).toEqual([]);
     const settled = run([...chunks, { looking: true, running: false, stamp: at("06"), ...ids }]);
     expect(settled.marks).toEqual(["a/c"]);
-    // the mark lands (the stamp goes null: nothing new since the look), and nothing more goes out
     expect(run([{ looking: true, running: false, stamp: null, ...ids }], settled.looks).marks).toEqual([]);
   });
 
@@ -36,10 +29,8 @@ describe("viewed marks while a reply streams", () => {
       { looking: true, running: true, stamp: at("01"), ...ids },
       { looking: true, running: true, stamp: at("02"), ...ids },
     ]);
-    // the pane shows something else (or the conversation closes): the look is not lost
     const left = run([{ looking: false, running: true, stamp: null, ...ids }], streaming.looks);
     expect(left.marks).toEqual(["a/c"]);
-    // it streams on unseen: nothing more is marked until you look again
     expect(
       run(
         [

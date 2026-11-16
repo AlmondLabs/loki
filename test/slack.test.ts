@@ -3,7 +3,6 @@ import type { AccountStatus } from "../core/frame-types.ts";
 import { SlackClient, SlackError, uploadTimeoutMs } from "../mod/slack.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
 
-/** A session as the desktop app gives it; every value is made up. */
 const SESSION: SlackSession = {
   team_id: "T0ACME",
   team_name: "Acme",
@@ -20,7 +19,6 @@ interface Sent {
   params: Record<string, string>;
 }
 
-/** A fake Slack: each request is recorded and answered by `answer`, by method name. */
 function fakeSlack(answer: (method: string, params: Record<string, string>) => { status?: number; body?: unknown; headers?: Record<string, string> }) {
   const sent: Sent[] = [];
   const fetchFn: typeof fetch = (input, init) => {
@@ -34,7 +32,6 @@ function fakeSlack(answer: (method: string, params: Record<string, string>) => {
   return { sent, fetch: fetchFn };
 }
 
-/** A client over a fake Slack, a session provider that counts fresh reads, a status log and a clock the test moves. */
 function client(answer: Parameters<typeof fakeSlack>[0], sessions: { stale?: SlackSession | null; fresh?: SlackSession | null } = {}) {
   const slack = fakeSlack(answer);
   const statuses: AccountStatus[] = [];
@@ -315,7 +312,6 @@ describe("the person's reactions (plan 079)", () => {
 
 describe("a shared picture's thumbnail (plan 080)", () => {
   const THUMB = "https://files.slack.com/files-tmb/T0ACME-F1-abc/photo_360.png";
-  /** A client whose fetch answers every address with `answer`, recording what was asked and with which headers. */
   const thumbs = (answer: () => Response, session: SlackSession | null = SESSION) => {
     const asked: Array<{ url: string; headers: Record<string, string> }> = [];
     const statuses: AccountStatus[] = [];
@@ -363,7 +359,6 @@ describe("a reply with files (plan 2026-11-14-1134, U3)", () => {
     params: Record<string, string>;
     bytes: number[] | null;
   }
-  /** A fake Slack that hands out an upload address per file and records every request, its form or its bytes. */
   const uploads = (opts: { uploadUrl?: (n: number) => string; complete?: { ok: boolean; error?: string } } = {}) => {
     const asked: Asked[] = [];
     let n = 0;
@@ -456,7 +451,6 @@ describe("a reply with files (plan 2026-11-14-1134, U3)", () => {
 
 describe("only the person's own reply posts on Slack (plan 068)", () => {
   const SEND = /send|post|update|delete|schedule|share|chat\./i;
-  /** Posting the person's own reply, with or without files, is the one send, reached only from the person's own Send. */
   const ALLOWED = ["postReply", "postWithFiles"];
 
   test("the person's reply posts in its thread, with Slack's markup characters escaped so it arrives as typed", async () => {

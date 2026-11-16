@@ -26,11 +26,9 @@ const SESSION: SlackSession = {
   cookie: "xoxd-fixture",
 };
 const ACCOUNT = accountIdOf({ provider: "slack", team_id: "T0ACME", user_id: "U0ME" });
-/** When the account was connected, in seconds: the line between watching and the batches of older items. */
 const CONNECTED = Date.parse("2026-11-04T10:00:00Z") / 1000;
 const DAY = 86_400;
 
-/** A Slack ts `seconds` after the account was connected (negative for before). */
 const at = (seconds: number) => `${String(CONNECTED + seconds)}.000100`;
 
 interface FakeMessage {
@@ -50,11 +48,6 @@ interface FakeItem {
   unread: boolean;
 }
 
-/**
- * A made-up Slack workspace answering the calls SlackSync makes, as Slack shapes them: DMs with read markers, channel
- * messages, the Activity feed (which, unlike Slack, ignores the types asked for, so a reaction reaches the client and
- * must be dropped there) and people. Every request is recorded.
- */
 function fakeWorkspace() {
   const kinds = new Map<string, "im" | "mpim" | "channel">();
   const lastRead = new Map<string, string>();
@@ -62,7 +55,6 @@ function fakeWorkspace() {
   const activity: FakeItem[] = [];
   const users: Partial<Record<string, string>> = { U0GRACE: "Grace Hopper", U0ALAN: "Alan Turing", U0ME: "Ada" };
   const sent: Array<{ method: string; params: Record<string, string> }> = [];
-  /** A Slack error to answer conversations.mark with, when set. */
   const refuse = { mark: null as string | null, feedAt: null as string | null, activityMark: null as string | null };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
@@ -139,7 +131,6 @@ function fakeWorkspace() {
         return { ok: true };
       case "activity.markRead":
       case "activity.markUnread": {
-        // As Slack checks it: a list of items, each named by its kind, key and feed time (plan 092).
         if (refuse.activityMark) return { ok: false, error: refuse.activityMark };
         const entries: unknown = JSON.parse(p.entries ?? "null");
         if (!Array.isArray(entries)) return { ok: false, error: "invalid_arguments" };
@@ -200,7 +191,6 @@ function fakeWorkspace() {
   };
 }
 
-/** One connected workspace over the fake, its thread records and its sync. */
 async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
   const dir = mkdtempSync(join(tmpdir(), "loki-slack-sync-"));
   dirs.push(dir);
@@ -210,11 +200,9 @@ async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
   const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
   const now = () => new Date(clock.t);
   const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch, now });
-  // The cards resting in the Inbox, by thread, which the past's cap leaves out (plan 078).
   const resting = new Set<string>();
   const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client, now, resting: (r) => resting.has(r.thread_id) });
   const open = () => threads.list(ACCOUNT).filter((r) => r.state === "open");
-  // The person's reply (plan 070, U5), sent through the same client and records the sync uses.
   const outside = new OutsideThreads({
     accounts,
     threads,
@@ -343,7 +331,6 @@ describe("Activity", () => {
     expect(cards[`C0GEN:${at(10)}`]).toMatchObject({ reach: "mention", place: "#general" });
     expect(cards[`C0GEN:${at(20)}`]).toMatchObject({ reach: "channel", place: "#general", sender_avatar: "https://avatars.example/U0ALAN.png" });
     expect(cards[`C0ENG:${at(30)}`]).toMatchObject({ reach: "group", place: "#eng" });
-    // A channel's name is asked for once, however many cards it has.
     expect(slack.sent.filter((c) => c.method === "conversations.info" && c.params.channel === "C0GEN")).toHaveLength(1);
     const row = threads.rows().find((r) => r.outside?.thread_id === `C0GEN:${at(20)}`);
     expect(row?.outside).toMatchObject({ reach: "channel", place: "#general", only_account: true });
@@ -386,7 +373,6 @@ describe("Activity", () => {
 });
 
 describe("walking the Activity feed", () => {
-  /** 120 unread mentions: three pages of 50. */
   const busy = (slack: ReturnType<typeof fakeWorkspace>) => {
     for (let i = 1; i <= 120; i++) {
       slack.post("C0GEN", { ts: at(i), user: "U0GRACE", text: `<@U0ME> item ${String(i)}` });
@@ -423,7 +409,6 @@ describe("walking the Activity feed", () => {
     expect(feedCalls(slack)).toEqual(["0", "50"]);
     expect(open().length).toBeGreaterThan(0);
     slack.refuse.feedAt = null;
-    // Slack's wait (a minute, with no Retry-After) passes; the walk goes on at its second page, not its first.
     clock.t += 61_000;
     await sync.tick();
     expect(feedCalls(slack)).toEqual(["0", "50", "50", "100"]);
@@ -470,7 +455,6 @@ describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
     await sync.tick();
     const card = `C0ENG:${at(10)}`;
     expect(threads.get(ACCOUNT, card)?.newest_message_id).toBe(at(12));
-    // A mention that came after the card was drawn is not the person's to have seen.
     slack.post("C0ENG", { ts: at(13), user: "U0ALAN", text: "<@U0ME> one more", thread_ts: at(10) });
     slack.item({ key: "late", type: "at_user", channel: "C0ENG", ts: at(13), thread_ts: at(10) });
     await threads.archive(ACCOUNT, card);
@@ -566,7 +550,6 @@ describe("older unread items", () => {
     mention("live", 60);
     await sync.tick();
     expect(open()).toHaveLength(21);
-    // Closing all makes room for everything left, from every window back, in one tick.
     await clear();
     await sync.tick();
     expect(

@@ -1,5 +1,3 @@
-// An unsent reply on a mail or Slack card is kept per card for the session (plan 087, KTD7): a lane switch that hides
-// the card and brings it back leaves the words in its box, and a sent reply clears them.
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -33,11 +31,9 @@ describe("an outside card's reply box across a lane switch", () => {
     const item = outsideItem("Quarterly numbers", { outside: { ...must(outsideItem("x").outside, "facts"), provider: "slack" } });
     const facts = must(item.outside, "the card's facts");
     const id = idOf(item);
-    // Typed, then the card leaves the screen (a lane that hides it), and the box is drawn again when it returns.
     outsideReplies.set(id, "looking at it now");
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts, keep: id, onSend: () => Promise.resolve({ sent: true, error: null }) }));
     expect(html).toContain("looking at it now");
-    // Another card's box starts empty.
     const other = renderToStaticMarkup(createElement(OutsideReply, { facts, keep: "other/t9", onSend: () => Promise.resolve({ sent: true, error: null }) }));
     expect(other).not.toContain("looking at it now");
     outsideReplies.set(id, "");

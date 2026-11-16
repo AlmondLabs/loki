@@ -2,10 +2,6 @@ import { describe, expect, test } from "vitest";
 import { macsFromFrame, withMark, withScope } from "../app/src/desk/desk-pushes.ts";
 import { keepSame } from "../core/same-data.ts";
 
-/**
- * The mod repeats itself: the whole seen frame comes on every connect, and the desk list and titles come again
- * unchanged. A frame that says what the state already holds keeps the objects it has, so nothing re-renders on it.
- */
 describe("desk socket: an identical frame keeps its references", () => {
   const seenFrame = () => ({
     seen: { "a/c1": "2026-09-25T10:00:00Z", "a/c2": "2026-09-24T09:00:00Z" },
@@ -15,7 +11,7 @@ describe("desk socket: an identical frame keeps its references", () => {
 
   test("the seen, viewed and focus maps stay the same objects when a seen frame repeats them", () => {
     const held = seenFrame();
-    const again = seenFrame(); // fresh objects off the wire, the same content
+    const again = seenFrame();
     expect(keepSame(held.seen, again.seen)).toBe(held.seen);
     expect(keepSame(held.viewed, again.viewed)).toBe(held.viewed);
     expect(keepSame(held.focus, again.focus)).toBe(held.focus);

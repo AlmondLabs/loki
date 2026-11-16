@@ -24,7 +24,7 @@ describe("lifecycle event routing", () => {
       debouncer.schedule("desk-a", () => fired.push("old-a"));
       debouncer.schedule("desk-b", () => fired.push("b"));
       vi.advanceTimersByTime(600);
-      debouncer.schedule("desk-a", () => fired.push("new-a")); // desk-a's clock starts again; desk-b's does not
+      debouncer.schedule("desk-a", () => fired.push("new-a"));
       vi.advanceTimersByTime(600);
       expect(fired).toEqual(["b"]);
       vi.advanceTimersByTime(600);

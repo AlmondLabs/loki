@@ -14,7 +14,6 @@ describe("speed at letting go", () => {
         100,
       ),
     ).toBeCloseTo(600);
-    // uses the sample at least 60 ms back, not the whole drag: a slow start then a flick
     const samples = [
       { at: 0, t: 0 },
       { at: 10, t: 300 },
@@ -48,9 +47,7 @@ describe("projection", () => {
     expect(releaseCommits(150, 0, 120, 8)).toBe(true);
     expect(releaseCommits(100, 0, 120, 8)).toBe(false);
     expect(releaseCommits(40, 900, 120, 8)).toBe(true);
-    // past the line but thrown back: stays
     expect(releaseCommits(150, -1500, 120, 8)).toBe(false);
-    // inside the slop, however fast: a tap
     expect(releaseCommits(6, 5000, 120, 8)).toBe(false);
   });
 });

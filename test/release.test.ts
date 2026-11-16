@@ -29,8 +29,6 @@ import {
 } from "../scripts/release.ts";
 import { channelOf, compareVersions } from "../core/version.ts";
 
-/** Releases on merge (scripts/release.ts): a stable is YYYY.MMDD.N, numbered when it is built; the tags are the truth. */
-
 const day = (iso: string) => new Date(iso);
 const OCT11 = day("2026-10-11T09:00:00Z");
 
@@ -38,26 +36,26 @@ describe("versions: the UTC day, then that day's count", () => {
   test("a stable is year, month and two-digit day, then the count from 0; a nightly is the next stable and the run", () => {
     expect(dayNumber(OCT11)).toBe("1011");
     expect(dayNumber(day("2027-01-01T00:30:00Z"))).toBe("101");
-    expect(dayNumber(day("2026-12-31T23:30:00-05:00"))).toBe("101"); // UTC decides: that is 2027-01-01 04:30 UTC
+    expect(dayNumber(day("2026-12-31T23:30:00-05:00"))).toBe("101");
     expect(stableVersion(OCT11, 0)).toBe("2026.1011.0");
     expect(stableVersion(day("2026-11-05T12:00:00Z"), 2)).toBe("2026.1105.2");
     expect(isStableVersion("2026.1011.0")).toBe(true);
     expect(isStableVersion("2027.101.12")).toBe(true);
-    expect(isStableVersion("2026.10.11")).toBe(false); // the old scheme
-    expect(isStableVersion("2026.1311.0")).toBe(false); // no 13th month
+    expect(isStableVersion("2026.10.11")).toBe(false);
+    expect(isStableVersion("2026.1311.0")).toBe(false);
     expect(isStableVersion("2026.1011.0-nightly.4821")).toBe(false);
     expect(isNightlyVersion("2026.1011.1-nightly.4821")).toBe(true);
-    expect(isNightlyVersion("2026.1011.1-nightly.a96ee85")).toBe(false); // the old shape: no new nightly is numbered so
-    expect(isNightlyVersion("2026.1011.1-nightly.04821")).toBe(false); // not semver: a number with a leading zero
+    expect(isNightlyVersion("2026.1011.1-nightly.a96ee85")).toBe(false);
+    expect(isNightlyVersion("2026.1011.1-nightly.04821")).toBe(false);
     expect(isNightlyVersion("0.1.0")).toBe(false);
   });
 
   test("the next stable counts on from today's tags, ignoring other days, other schemes and other tags", () => {
     expect(nextStable(OCT11, [])).toBe("2026.1011.0");
-    expect(nextStable(OCT11, ["v2026.10.10", "v2026.10.11", "nightly"])).toBe("2026.1011.0"); // the old scheme's Oct 11 is not today's count
+    expect(nextStable(OCT11, ["v2026.10.10", "v2026.10.11", "nightly"])).toBe("2026.1011.0");
     expect(nextStable(OCT11, ["v2026.1011.0"])).toBe("2026.1011.1");
     expect(nextStable(OCT11, ["v2026.1011.0", "v2026.1011.1", "v2026.1010.4"])).toBe("2026.1011.2");
-    expect(nextStable(OCT11, ["v2026.1011.0", "v2026.1011.3"])).toBe("2026.1011.4"); // after the highest, never reusing one
+    expect(nextStable(OCT11, ["v2026.1011.0", "v2026.1011.3"])).toBe("2026.1011.4");
     expect(nextStable(OCT11, ["v2026.1011.1-rc", "v2025.1011.0"])).toBe("2026.1011.0");
     expect(nextStable(day("2026-10-12T00:00:01Z"), ["v2026.1011.0", "v2026.1011.1"])).toBe("2026.1012.0");
   });
@@ -68,8 +66,8 @@ describe("versions: the UTC day, then that day's count", () => {
     expect(n).toBe("2026.1011.1-nightly.4821");
     expect(isNightlyVersion(n)).toBe(true);
     expect(compareVersions("2026.1011.0", n)).toBeLessThan(0);
-    expect(compareVersions(n, "2026.1011.1")).toBeLessThan(0); // the stable it led up to is newer: switching to Stable waits for it
-    expect(compareVersions(n, nightlyVersion(nextStable(OCT11, tags), 4822))).toBeLessThan(0); // a later run of the same day
+    expect(compareVersions(n, "2026.1011.1")).toBeLessThan(0);
+    expect(compareVersions(n, nightlyVersion(nextStable(OCT11, tags), 4822))).toBeLessThan(0);
     expect(channelOf(n)).toBe("nightly");
   });
 
@@ -86,7 +84,7 @@ describe("what a run does", () => {
   test("a run by hand asking for a stable is a stable, numbered today, however many shipped today", () => {
     expect(plan({ today: OCT11, run: 4821, tags, requested: "stable", commitsSinceStable: 4 })).toMatchObject({ kind: "stable", version: "2026.1011.0" });
     const later = plan({ today: day("2026-10-11T23:59:00Z"), run: 4821, tags: [...tags, "v2026.1011.0"], requested: "stable", commitsSinceStable: 1 });
-    expect(later).toMatchObject({ kind: "stable", version: "2026.1011.1" }); // a second the same day: .1, not tomorrow
+    expect(later).toMatchObject({ kind: "stable", version: "2026.1011.1" });
   });
 
   test("a run by hand asking for a nightly is a nightly of the next stable, numbered by the run", () => {
@@ -151,7 +149,7 @@ describe("notes and files", () => {
     expect(subjects).toContain("- **chat: change 399** (0000399)");
     const cut = releaseNotes("2026.1011.0", many, { max: 4_000, fullList: "https://github.com/o/loki/compare/v2026.1010.0...abc" });
     expect(cut.length).toBeLessThanOrEqual(4_000);
-    expect(cut).toContain("- **chat: change 0** (0000000)"); // newest first: the newest stay
+    expect(cut).toContain("- **chat: change 0** (0000000)");
     expect(cut).not.toContain("chat: change 399");
     expect(cut).toMatch(/- and \d+ earlier changes: https:\/\/github\.com\/o\/loki\/compare\/v2026\.1010\.0\.\.\.abc\n$/);
   });
@@ -175,7 +173,7 @@ describe("notes and files", () => {
       const lock = readFileSync(join(dir, "src-tauri", "Cargo.lock"), "utf8");
       expect(lock).toContain('name = "libc"\nversion = "0.1.0"');
       expect(lock).toContain('name = "loki"\nversion = "2026.1011.0"');
-      expect(setVersion("2026.1011.0", dir)).toEqual([]); // already there
+      expect(setVersion("2026.1011.0", dir)).toEqual([]);
       expect(() => setVersion("v2026.1011.0", dir)).toThrow(/not a version/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -252,7 +250,6 @@ describe("the update files: what the three builds made, staged for the release (
       "loki-linux-x86_64.AppImage",
     ]);
     expect(INSTALL_FILES).toEqual(["loki-macos-arm64.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"]);
-    // the copies are the updater's own files, so an install and an update fetch the same bytes
     expect(readFileSync(join(to, "loki-macos-arm64.app.tar.gz"), "utf8")).toBe("mac archive");
     expect(readFileSync(join(to, "loki-windows-x64-setup.exe"), "utf8")).toBe("exe");
     expect(readFileSync(join(to, "loki-linux-x86_64.AppImage"), "utf8")).toBe("appimage");
@@ -307,10 +304,6 @@ describe("the install scripts fetch the copies every release carries (KTD9)", ()
 });
 
 describe("publish: every system's files, each step safe to run again (plan 096)", () => {
-  /**
-   * gh as publishing meets it: `release view` answers the release's state, or its title when asked for `name` (or fails
-   * as gh does), `release list` the public stables, the rest is recorded.
-   */
   const fakeGh = (state: { draft: boolean; target: string; assets: string[] } | null = null, publicStables: string[] = [], title = "") => {
     const calls: string[][] = [];
     const gh = (...args: string[]) => {
@@ -393,9 +386,7 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
     );
     expect(create).toContain("--prerelease");
     const title = create[create.indexOf("--title") + 1];
-    expect(title).toBe("loki 2026.1011.1-nightly.4821 (2026.1011.1-nightly.a96ee85)"); // the commit, now the version has none
-    // A nightly installed before run numbers reads the title with the old reader (kept here as it shipped) and finds a
-    // version other than its own, so it still offers the update.
+    expect(title).toBe("loki 2026.1011.1-nightly.4821 (2026.1011.1-nightly.a96ee85)");
     const shippedReader = (t: string) => /\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}/.exec(t)?.[0] ?? null;
     expect(shippedReader(title)).toBe("2026.1011.1-nightly.a96ee85");
     for (const f of versioned) expect(create).toContain(f);
@@ -487,7 +478,7 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
     expect(() => publish({ kind: "stable", version: "2026.1011.1-nightly.4821", versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(
       /looks like 2026.1011.0/,
     );
-    expect(() => publish({ kind: "stable", version: "2026.10.11", versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(/looks like 2026.1011.0/); // no new stable in the old scheme
+    expect(() => publish({ kind: "stable", version: "2026.10.11", versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(/looks like 2026.1011.0/);
     expect(() => publish({ kind: "preview", version: V, versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(/stable or nightly/);
     expect(calls).toEqual([]);
   });
@@ -502,12 +493,10 @@ describe("a stable's number: decided once, in the queue, and held by its draft (
     ];
     expect(stableFor("bbb", releases)).toBe("2026.1011.1");
     expect(stableFor("ccc", releases)).toBeNull();
-    // A merge shipped twice before this change: the newer number is the one to finish.
     expect(stableFor("aaa", [...releases, { tag: "v2026.1011.2", target: "aaa" }])).toBe("2026.1011.2");
   });
 
   test("two stables started close together get .0 and .1, because the second sees the first one's draft", () => {
-    // GitHub as the version jobs meet it: the releases, drafts included, and a create that adds one.
     const releases: Array<{ tag: string; target: string }> = [];
     const calls: string[][] = [];
     const gh = (...args: string[]) => {
@@ -528,11 +517,9 @@ describe("a stable's number: decided once, in the queue, and held by its draft (
     const creates = calls.filter((c) => c[1] === "create");
     expect(creates).toHaveLength(2);
     expect(creates[0]).toEqual(["release", "create", "v2026.1011.0", "--draft", "--target", "aaa", "--title", "loki 2026.1011.0", "--notes-file", "notes.md"]);
-    // a re-run of the first merge takes its own number back and makes no second draft
     expect(decideStable({ today: OCT11, sha: "aaa", tags: [], releases })).toBe("2026.1011.0");
     draftStable({ version: "2026.1011.0", sha: "aaa", notesFile: "notes.md", gh });
     expect(calls.filter((c) => c[1] === "create")).toHaveLength(2);
-    // a number another merge holds is never joined
     expect(() => draftStable({ version: "2026.1011.0", sha: "ccc", notesFile: "notes.md", gh })).toThrow(/another commit/);
     expect(() => draftStable({ version: "2026.1011.1-nightly.4", sha: "ccc", notesFile: "notes.md", gh })).toThrow(/looks like 2026.1011.0/);
   });
@@ -591,10 +578,8 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       "the draft step",
     );
     expect(draft.env?.VERSION).toBe("${{ steps.version.outputs.version }}");
-    // the notes this run ships, in the run's summary while it builds
     expect(runs(version)).toContain('npm run --silent release -- notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"');
     expect(version.outputs?.version).toBe("${{ steps.version.outputs.version }}");
-    // nothing reads a number decided before the queue
     expect(text).not.toContain("needs.plan.outputs.version");
   });
 
@@ -604,7 +589,7 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       const j = job(name);
       expect(j["runs-on"], name).toBe(runners[name as keyof typeof runners]);
       expect(j.needs, name).toEqual(["plan", "version"]);
-      expect(j.if, name).toBeUndefined(); // stable and nightly alike
+      expect(j.if, name).toBeUndefined();
       expect(j.env?.VERSION, name).toBe("${{ needs.version.outputs.version }}");
       expect(runs(j), name).toContain('npm run release -- set "$VERSION"');
       expect(runs(j), name).toContain("npm run build:mod && npm run smoke");
@@ -612,7 +597,7 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
         j.steps.find((s) => s.uses?.startsWith("actions/checkout")),
         `${name}'s checkout`,
       );
-      expect(checkout.with?.ref, name).toBeUndefined(); // the merge commit, not a tag
+      expect(checkout.with?.ref, name).toBeUndefined();
       const upload = must(
         j.steps.find((s) => s.uses?.startsWith("actions/upload-artifact@")),
         `${name}'s upload`,
@@ -626,7 +611,6 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     const macPaths = String(job("macos").steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"))?.with?.path);
     for (const f of ["dmg/loki_*_aarch64.dmg", "macos/loki.app.tar.gz", "macos/loki.app.tar.gz.sig"])
       expect(macPaths).toContain(`src-tauri/target/aarch64-apple-darwin/release/bundle/${f}`);
-    // Apple silicon only: the one Rust target, no Intel or universal build.
     expect(String(job("macos").steps.find((s) => s.uses?.startsWith("dtolnay/rust-toolchain@"))?.with?.targets)).toBe("aarch64-apple-darwin");
   });
 
@@ -645,7 +629,6 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     expect(prune).toBeGreaterThan(at("git push --quiet origin main"));
     expect(pub.steps[prune]?.if).toBe("env.KIND == 'nightly'");
     // A publish that stops (a re-run of an older nightly, say) fails its step, and nothing after it runs: no cask, no
-    // tap push, no prune. A status check such as always() on a later step would let it run anyway.
     for (const step of pub.steps.slice(pub.steps.indexOf(publishStep) + 1)) expect(step.if ?? "").not.toMatch(/always\(\)|failure\(\)|cancelled\(\)/);
   });
 
@@ -654,12 +637,9 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       if (name === "publish") continue;
       for (const write of ["release -- publish", "prune-nightly", "gh release", "git/refs/tags"]) expect(runs(j), `${name}: ${write}`).not.toContain(write);
     }
-    // The version job writes one thing, a stable's draft on main (no tag until it is published).
     expect(Object.keys(job("version").permissions ?? {})).toEqual(["contents"]);
   });
 
-  // What a run starts, as Actions would: the plan's kind from plan() for the kind asked for, then each job in order
-  // when everything it needs ran and its `if:` holds, and the queue each job joins.
   const RUN = "9001";
   const scenario = ({ requested, ref, commitsSinceStable = 3 }: { requested: "stable" | "nightly"; ref: string; commitsSinceStable?: number }) => {
     const kind = plan({ today: OCT11, run: 4821, tags: ["v2026.10.11"], requested, commitsSinceStable }).kind;

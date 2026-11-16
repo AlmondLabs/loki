@@ -11,8 +11,8 @@ describe("DeskStore", () => {
     const seen: string[] = [];
     store.subscribe((scope, state) => seen.push(`${scope}:${state.rev}`));
     store.gesture("d", { kind: "move", id: "d/a", position: { x: 1, y: 1 } });
-    store.seen("d", "d/a"); // already has layout → no change
-    store.fileChanged("d", "d/a"); // no overlay, not hidden → no change
+    store.seen("d", "d/a");
+    store.fileChanged("d", "d/a");
     expect(seen).toEqual(["d:2"]);
   });
 
@@ -23,19 +23,18 @@ describe("DeskStore", () => {
     store.seen("c1", "c1/a");
     expect(store.get("shared").layout["shared/welcome"].position).toEqual({ x: 120, y: 120 });
     expect(store.get("c1").layout["c1/a"].position).toEqual({ x: 424, y: 120 });
-    // pile two more on top by hand, then arrange
     store.gesture("c1", { kind: "move", id: "c1/b", position: { x: 424, y: 130 } });
     store.gesture("c1", { kind: "move", id: "c1/c", position: { x: 430, y: 140 } });
     store.arrange("c1");
     const ps = ["c1/a", "c1/b", "c1/c"].map((id) => store.get("c1").layout[id].position);
     expect(new Set(ps.map((p) => `${p.x},${p.y}`)).size).toBe(3);
-    expect(ps.every((p) => !(p.x < 400 && p.y < 320))).toBe(true); // none over the shared widget
+    expect(ps.every((p) => !(p.x < 400 && p.y < 320))).toBe(true);
   });
 
   test("a new shared widget avoids widgets on every desk", () => {
     const store = new DeskStore();
-    store.seen("c1", "c1/a"); // (120,120)
-    store.seen("c2", "c2/a"); // (120,120) too — different desk, never shown together
+    store.seen("c1", "c1/a");
+    store.seen("c2", "c2/a");
     store.seen("shared", "shared/w");
     const p = store.get("shared").layout["shared/w"].position;
     expect(p).not.toEqual({ x: 120, y: 120 });
@@ -57,8 +56,7 @@ describe("persistence", () => {
     try {
       const store = new DeskStore();
       const stop = persistDesks(store, dir, 10);
-      store.subscribe(() => {}); // noop
-      // a scope with nothing in it: no file
+      store.subscribe(() => {});
       expect(store.get("empty").rev).toBe(0);
       store.gesture("conv1", { kind: "move", id: "conv1/w", position: { x: 9, y: 9 } });
       await new Promise((r) => setTimeout(r, 40));

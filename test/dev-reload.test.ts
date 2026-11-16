@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { DevReload } from "../daemon/dev-reload.ts";
 
-/** A dev reload with its reload, build and checks in the test's hands; `built` gives it a page to build (plan 041). */
 function setup(built = false) {
   const said: string[] = [];
   const restarts: string[] = [];
@@ -28,7 +27,6 @@ function setup(built = false) {
   return { dev, state, said, restarts };
 }
 
-/** Let the update's awaits run. */
 const settle = async () => {
   for (let i = 0; i < 5; i++) await Promise.resolve();
 };
@@ -71,7 +69,7 @@ describe("a checkout keeping up with its sources (plan 024)", () => {
     expect(await s.dev.restart(true)).toBeNull();
     expect(s.restarts).toEqual(["daemon/passes.ts changed"]);
     s.state.idle = true;
-    expect(await setup().dev.restart(false)).toBeNull(); // asked with nothing due: the installed app's restart
+    expect(await setup().dev.restart(false)).toBeNull();
   });
 
   test("under Vite a page change is hot reload's: nothing is due", () => {

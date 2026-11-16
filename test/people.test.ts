@@ -17,8 +17,6 @@ import { SlackPeople } from "../mod/slack-people.ts";
 import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
 
-/** One people resolver over Slack, Jira and Gmail (plan 2026-11-14-1530, U2): the match rule, its refusals and `people_find`. */
-
 const AGENT = "agent-work";
 const SLACK = "slack:T1:U1";
 const SITE = `jira:acme.atlassian.net:${JIRA_ME.account_id}`;
@@ -46,14 +44,12 @@ const contact = (name: string, address: string, source: GoogleContactSource, tit
   source,
 });
 
-/** What each of the Gmail account's three places answers, or how it fails, with every search recorded. */
 interface FakeContacts {
   contacts: GoogleContact[];
   other: GoogleContact[];
   directory: GoogleContact[] | Error;
 }
 
-/** Accounts of every kind owned by one agent, a Slack workspace, a Jira site and a Gmail account's places to search. */
 async function fixture(opts: { slackUsers?: SlackUser[] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-people-"));
   dirs.push(dir);
@@ -70,7 +66,6 @@ async function fixture(opts: { slackUsers?: SlackUser[] } = {}) {
     services: ["gmail"],
     contacts: ["contacts", "other_contacts", "directory"],
   });
-  // Signed in before loki asked for contacts.
   await accounts.add({ account_id: OLD_MAIL, provider: "gmail", address: "mina@home.net", owner_agent_id: AGENT, services: ["gmail"] });
 
   const slackUsers = opts.slackUsers ?? [

@@ -17,11 +17,6 @@ import {
   type Route,
 } from "../app/src/phone/router.ts";
 
-/**
- * The phone's hash routes (app/src/phone/router.ts): every route both ways, file paths with slashes
- * and encoded slashes, conversation ids as the daemon mints them (local-conv-…), and the fallback to home.
- */
-
 const roundTrip = (r: Route) => expect(parseRoute(formatRoute(r))).toEqual(r);
 
 describe("tabs", () => {
@@ -35,7 +30,6 @@ describe("tabs", () => {
   test("legacy You and Settings links land on More and preferences", () => {
     expect(parseRoute("#/you")).toEqual({ kind: "tab", tab: "more" });
     expect(parseRoute("#/settings")).toEqual({ kind: "preferences" });
-    // and they format to the canonical address, so the shell can swap the legacy one out
     expect(formatRoute(parseRoute("#/you"))).toBe("#/more");
     expect(formatRoute(parseRoute("#/settings"))).toBe("#/preferences");
   });
@@ -45,7 +39,7 @@ describe("tabs", () => {
     expect(parseRoute("#/")).toEqual(HOME);
     expect(parseRoute("#/nowhere")).toEqual(HOME);
     expect(parseRoute("#/home/extra")).toEqual(HOME);
-    expect(parseRoute("#/c/only-agent")).toEqual(HOME); // a conversation needs both ids
+    expect(parseRoute("#/c/only-agent")).toEqual(HOME);
   });
   test("the leading # is optional", () => {
     expect(parseRoute("/inbox")).toEqual({ kind: "tab", tab: "inbox" });
@@ -132,11 +126,9 @@ describe("child routes", () => {
     roundTrip({ kind: "search", q: "loki mobile" });
     roundTrip({ kind: "search", q: "a&b=c?/#%" });
     expect(parseRoute("#/search?q=loki+mobile")).toEqual({ kind: "search", q: "loki mobile" });
-    // an empty query is the bare address
     expect(formatRoute({ kind: "search", q: "" })).toBe("#/search");
     expect(parseRoute("#/search?q=")).toEqual({ kind: "search" });
     expect(parseRoute("#/search")).toEqual({ kind: "search" });
-    // the query never reaches analytics or the Back label
     expect(screenOf({ kind: "search", q: "secret" })).toBe("search");
     expect(labelOf({ kind: "search", q: "secret" })).toBe("search");
   });
@@ -175,7 +167,6 @@ describe("ownership and Back", () => {
     expect(backTarget(conv, inbox)).toEqual(inbox);
     expect(backTarget(conv, null)).toEqual({ kind: "tab", tab: "home" });
     expect(backTarget({ kind: "archive" }, { kind: "tab", tab: "more" })).toEqual({ kind: "tab", tab: "more" });
-    // an origin equal to the page itself (a reload of a typed address) is no origin
     expect(backTarget(conv, conv)).toEqual({ kind: "tab", tab: "home" });
   });
   test("the origin rides in the history entry and survives foreign state", () => {

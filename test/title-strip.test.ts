@@ -14,7 +14,6 @@ import { must } from "./fixtures/must.ts";
 
 const strip = (os: Platform, shell = true) => renderToStaticMarkup(createElement(TitleStrip, { os, shell }));
 
-/** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
@@ -67,7 +66,6 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
 
   test("Windows and Linux: the strip keeps its ☰ and window buttons over the sidebar and the list beside it", () => {
     const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
-    // the list column and the detail start under the strip, never over its buttons
     expect(shell).toMatch(/className="loki-list-column"[\s\S]*?top: paneTop\(\),/);
     expect(shell).toMatch(/<main[^>]*style=\{\{[^}]*top: paneTop\(\),/);
     for (const os of ["windows", "linux"] as const) expect(paneTop(true, os)).toBe(titlebarHeight(true, os));
@@ -77,7 +75,6 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
       const frame = { windowWidth: 1280, inset: 8, clearance: sidebarClearance(true, os), hasList: true, peek: false };
       const pref = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, collapsed: false, listHidden: false };
       expect(columnsLayout(pref, frame)).toMatchObject({ sidebarShown: true, listShown: true, listLeft: 236, list: 300 });
-      // folded, the list starts past the sidebar toggle at the strip's left
       expect(columnsLayout({ ...pref, collapsed: true }, frame).listLeft).toBe(52);
     }
   });
@@ -114,7 +111,6 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
 });
 
 describe("the ☰ menu (plan 014 U4, KTD4)", () => {
-  /** The words in a tree of elements, in order, without rendering it (the menu's parts need a DOM to draw). */
   const words = (node: ReactNode): string[] =>
     elements(node).flatMap((el) =>
       (Array.isArray(el.props.children) ? el.props.children : [el.props.children]).filter((c): c is string => typeof c === "string"),

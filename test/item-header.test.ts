@@ -9,8 +9,6 @@ import { ChatItemHeader, type ChatMoves } from "../app/src/desk/catch-up-parts.t
 import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-toolbar.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
-// Plan 097, U8: the item's header; plan 2026-11-14-1330, U6: a Flow card's toolbar, its moves as symbols.
-
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({
   account_id: "gmail:ada@example.com",
@@ -34,7 +32,6 @@ const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({
 const noop = () => {};
 const moves = { read: noop, later: noop, archive: noop, label: noop };
 
-/** The elements a function component returned, depth first, for pressing a button without a DOM. */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
@@ -56,7 +53,6 @@ describe("the item's title", () => {
   });
 });
 
-/** The toolbar items drawn, by name, in order, each with whether it is prominent and whether it is off. */
 const items = (out: string) =>
   [...out.matchAll(/<button[^>]*class="(loki-toolbar-item[^"]*)"[^>]*aria-label="([^"]+)"([^>]*)>/g)].map((m) => ({
     label: m[2],
@@ -143,7 +139,6 @@ describe("an outside card's toolbar and moves", () => {
     const out = items(bar({ facts: facts({ disconnected: "sign_in_again" }), onHandoff: noop, onSignIn: noop }));
     const on = out.filter((i) => !i.off).map((i) => i.label);
     expect(on).toEqual(["Sign In…", "Later", "Mark as Read", "Archive"]);
-    // Without a way to mend it there is nothing to press.
     expect(items(bar({ facts: facts({ disconnected: "sign_in_again" }) })).map((i) => i.label)).not.toContain("Sign In…");
   });
 

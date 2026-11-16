@@ -1,5 +1,3 @@
-// The phone's Flow in a lane (plan 087, U7): the title names the lane and opens the sheet, the deck and its counts
-// follow the lane, the quiet line counts the rest, and an emptied lane offers the way back to Everything.
 import { describe, expect, test } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -15,12 +13,10 @@ import { attentionItem } from "./fixtures/attention.ts";
 
 const work: Lane = { id: "work", name: "Work", chats: ["ada"], accounts: [] };
 const home: Lane = { id: "home", name: "Home", chats: ["bo"], accounts: [] };
-/** A lane of an agent with nothing in Flow. */
 const quiet: Lane = { id: "quiet", name: "Quiet", chats: ["cy"], accounts: [] };
 const chat = (id: string, agentId: string, over: Partial<AttentionItem> = {}) =>
   attentionItem(id, { agent_id: agentId, agent_name: agentId, runtime: { agent_id: agentId, conversation_id: id }, ...over });
 
-// Two of Ada's chats (Work) and two of Bo's (Home), each waiting on the person.
 const items = [chat("w1", "ada"), chat("w2", "ada"), chat("h1", "bo"), chat("h2", "bo")];
 
 const flowIn = (lane: ResolvedLane | null): FlowLane => ({
@@ -71,7 +67,6 @@ const moves: InboxMoves = {
   labelsOf: () => Promise.resolve([]),
 };
 
-/** Draw an element as the phone's page would, with the browser globals it reads faked and put back after. */
 function inPage(el: ReactElement): string {
   const g = globalThis as Record<string, unknown>;
   const saved = { window: g.window, localStorage: g.localStorage, location: g.location };
@@ -85,7 +80,6 @@ function inPage(el: ReactElement): string {
   }
 }
 
-/** The phone's Inbox in a lane, over every item, with the lane's cards as its deck. */
 function inbox(lane: ResolvedLane | null, visible: AttentionItem[]): string {
   const flow = flowIn(lane);
   return inPage(
@@ -158,20 +152,16 @@ describe("Flow follows the lane", () => {
     expect(otherLanesLine(1)).toBe("1 waiting in other lanes");
   });
   test("the card on top stays on top when the new lane holds it, and the visit's moves carry across", () => {
-    // In Everything, w2 is on top (an undo or a reply pinned it there) and h1 was passed over.
     const pinned = { ...EMPTY_DECK, topId: idOf(items[1]) };
     const passed = commitCard(pinned, items[2], "later");
     const everything = reconcileDeck({ ...passed, topId: idOf(items[1]) }, items);
     expect(deckQueue(items, everything).map((i) => i.id)).toEqual(["w2", "w1", "h2"]);
-    // Work holds w2: it stays on top.
     const workItems = laneItems(items, work);
     const inWork = reconcileDeck(everything, workItems, items);
     expect(deckQueue(workItems, inWork).map((i) => i.id)).toEqual(["w2", "w1"]);
-    // Home does not: its own first card comes up, and h1, passed over in Everything, stays passed over.
     const homeItems = laneItems(items, home);
     const inHome = reconcileDeck(inWork, homeItems, items);
     expect(deckQueue(homeItems, inHome).map((i) => i.id)).toEqual(["h2"]);
-    // Back in Everything, h1 is still passed over.
     const back = reconcileDeck(inHome, items, items);
     expect(deckQueue(items, back).map((i) => i.id)).not.toContain("h1");
   });

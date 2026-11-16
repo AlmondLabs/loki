@@ -3,9 +3,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Popover } from "../app/src/components/index.tsx";
 
-// Plan 2026-11-15-2130: Popover owns its control. The desktop's is Base UI's, drawn over the window when open; the
-// phone's is loki's own panel beside the control.
-
 const trigger = createElement("button", { type: "button" as const }, "Links");
 const props = { trigger, onOpenChange: () => {}, role: "dialog" as const, "aria-label": "Links to other chats" };
 

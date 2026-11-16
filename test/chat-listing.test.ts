@@ -22,7 +22,6 @@ let layouts: Scope[];
 let canvases: Scope[];
 let passChats: Set<string>;
 
-/** An agent's record, and its memory folder unless `memory` is false. */
 function agent(id: string, opts: { tags?: string[]; record?: boolean; memory?: boolean } = {}) {
   if (opts.record !== false)
     writeFileSync(

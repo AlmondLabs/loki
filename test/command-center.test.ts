@@ -6,8 +6,6 @@ import { commandsFor, registerActions, KEYMAP } from "../app/src/shell/keymap.ts
 import { openCommandCenter, takeCommandCenter, type SharedModels } from "../app/src/shell/command-center.ts";
 import type { ModelEntry } from "../core/models.ts";
 
-// Plan 2026-11-12-1505, U23: ⌘K is loki's one command panel: search, this screen's commands, the open chat's models.
-
 const ROOT = join(import.meta.dirname, "..");
 const entry = (handle: string, label: string): ModelEntry => ({ id: handle, handle, label });
 const models = (over: Partial<SharedModels> = {}): SharedModels => ({

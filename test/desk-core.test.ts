@@ -25,8 +25,7 @@ describe("desk-core reducer", () => {
     expect(a.layout["d/x"].z).toBe(1);
     expect(ensureLayout(a, "d/x")).toBe(a);
     const b = ensureLayout(a, "d/y");
-    expect(b.layout["d/y"].position).toEqual({ x: 424, y: 120 }); // to the right, one gap over
-    // ten widgets never overlap and wrap onto new rows
+    expect(b.layout["d/y"].position).toEqual({ x: 424, y: 120 });
     let s = emptyDesk("d");
     for (let i = 0; i < 10; i++) s = ensureLayout(s, `d/w${i}`);
     const rects = occupiedRects(s);
@@ -40,7 +39,6 @@ describe("desk-core reducer", () => {
     const p = findFreeSpot(shared, { w: 280, h: 100 });
     expect(overlap({ ...p, w: 280, h: 100 }, shared[0])).toBe(false);
     expect(p).toEqual({ x: 424, y: 120 });
-    // a very wide widget that cannot share the row starts a new row below everything
     const wide = findFreeSpot(shared, { w: 1280, h: 100 });
     expect(wide).toEqual({ x: 120, y: 444 });
   });
@@ -55,7 +53,7 @@ describe("desk-core reducer", () => {
 
   test("arrangeLayout packs stacked widgets into a non-overlapping grid around fixed rects", () => {
     let s = emptyDesk("d");
-    for (let i = 0; i < 5; i++) s = applyGesture(s, { kind: "move", id: `d/w${i}`, position: { x: 140 + i * 30, y: 120 + i * 24 } }); // the old cascade
+    for (let i = 0; i < 5; i++) s = applyGesture(s, { kind: "move", id: `d/w${i}`, position: { x: 140 + i * 30, y: 120 + i * 24 } });
     s = applyMeasure(s, "d/w2", { w: 280, h: 320 });
     const fixed: Rect[] = [{ x: 120, y: 120, w: 280, h: 160 }];
     const t = arrangeLayout(s, fixed);
@@ -75,7 +73,7 @@ describe("desk-core reducer", () => {
     const s2 = applyGesture(s1, { kind: "focus", id: "d/a" });
     expect(s2.layout["d/a"].z).toBe(3);
     const s3 = applyGesture(s2, { kind: "focus", id: "d/a" });
-    expect(s3.layout["d/a"].z).toBe(3); // already on top: no bump
+    expect(s3.layout["d/a"].z).toBe(3);
     const s4 = applyGesture(s3, { kind: "close", id: "d/b" });
     expect(s4.layout["d/b"].hidden).toBe(true);
   });
@@ -187,13 +185,12 @@ describe("deskView (app/src/desk/view.ts)", () => {
     const v = deskView("d", desks, widgets);
     expect(v.visible.map((w) => w.entry.id)).toEqual(["shared/a", "d/x", "d/y"]);
     expect(v.closed.map((e) => e.id)).toEqual(["shared/b"]);
-    expect(v.visible[0].layout).toEqual({ position: autoPlace(0), z: 0 }); // no layout yet: the cascade
+    expect(v.visible[0].layout).toEqual({ position: autoPlace(0), z: 0 });
     expect(v.visible[1].layout.position).toEqual({ x: 5, y: 6 });
     expect(v.visible[1].overlay).toEqual({ k: 1 });
     expect(v.visible[2].layout).toEqual({ position: autoPlace(1), z: 0 });
-    expect(v.ownCount).toBe(2); // shared ones do not count
+    expect(v.ownCount).toBe(2);
     expect(v.loaded).toBe(true);
-    // the shared desk shows only its own widgets, and a desk with no frame yet is not loaded
     expect(deskView("shared", desks, widgets).visible.map((w) => w.entry.id)).toEqual(["shared/a"]);
     expect(deskView("other", desks, widgets)).toMatchObject({ ownCount: 0, loaded: false });
   });

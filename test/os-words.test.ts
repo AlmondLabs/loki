@@ -9,10 +9,6 @@ import type { Platform } from "../app/src/desk/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
 import { must } from "./fixtures/must.ts";
 
-/**
- * Words for each system (plan 014 U8): copy that names the machine or its file manager reads right on Windows and
- * Linux, and the Mac's reads as it did.
- */
 describe("the words table", () => {
   test("machine and file manager per system", () => {
     expect([osWords("macos").machine, osWords("windows").machine, osWords("linux").machine]).toEqual(["this Mac", "this PC", "this computer"]);
@@ -69,15 +65,9 @@ describe("Hide loki off the Mac is Minimise loki", () => {
   });
 });
 
-/**
- * No string the app shows names this Mac or Finder, the Mac's command line tools or a Linux package command outside the
- * words table and the views of Mac-only features (the phone, which pairs with a Mac; Preferences › Phone), plus the
- * Mac-only lines inside shared views, listed one by one. Comments are not strings.
- */
 describe("the machine comes from the words table", () => {
   const APP = join(import.meta.dirname, "..", "app", "src");
   const ALLOW = ["shell/os-words.ts", "phone/", "settings/phone.tsx"];
-  /** Phone pairing is on the Mac only (U3): the rail's Settings label says so only while it is on. */
   const MAC_ONLY_LINES = ["shell/sidebar.tsx: , phones can reach this Mac"];
   const MAC_WORDS = /\b[Tt]his Mac\b|\bFinder\b|\b[Cc]ommand [Ll]ine [Tt]ools\b|\bsudo (?:apt|dnf)\b/;
   const walk = (dir: string): string[] =>
@@ -117,7 +107,7 @@ describe("the machine comes from the words table", () => {
   });
   test("no string outside the table and the Mac-only views", () => {
     const hits = walk(APP)
-      .map((p) => ({ path: p.slice(APP.length + 1).replaceAll("\\", "/"), text: readFileSync(p, "utf8") })) // "/" on Windows too, as ALLOW names them
+      .map((p) => ({ path: p.slice(APP.length + 1).replaceAll("\\", "/"), text: readFileSync(p, "utf8") }))
       .filter((f) => !ALLOW.some((a) => f.path.startsWith(a)))
       .flatMap((f) => strings(f.path, f.text))
       .filter((h) => !MAC_ONLY_LINES.includes(h.replace(/:\d+: /, ": ")));

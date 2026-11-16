@@ -8,8 +8,6 @@ import { CONTACTS_NOT_ALLOWED, GoogleError } from "../mod/google-auth.ts";
 import { GooglePeople } from "../mod/google-people.ts";
 import { must } from "./fixtures/must.ts";
 
-/** The People API client (plan 2026-11-14-1530, U2): warm-up, page size, parsing, refusals and the grant a refresh keeps. */
-
 const ACCOUNT = "gmail:ada@acme.com";
 const NOW = new Date("2026-11-14T10:00:00.000Z");
 const CONTACTS = "https://www.googleapis.com/auth/contacts.readonly";
@@ -76,7 +74,6 @@ function fakePeople(opts: { contacts?: FakePerson[]; other?: FakePerson[]; direc
   return { fetch: fetchFn, requests };
 }
 
-/** An account with a sign-in in an in-memory keychain, its token expiring at `expires`. */
 async function account(expires = "2026-11-14T11:00:00.000Z") {
   const dir = mkdtempSync(join(tmpdir(), "loki-google-people-"));
   dirs.push(dir);
@@ -118,7 +115,6 @@ describe("searching a Google account's people", () => {
       ["/v1/otherContacts:search", "", "30"],
       ["/v1/otherContacts:search", "bo", "30"],
     ]);
-    // Other contacts answer names and addresses only; the rest are asked for a title too.
     expect(google.requests.map((u) => u.searchParams.get("readMask"))).toEqual([
       "names,emailAddresses,organizations",
       "names,emailAddresses,organizations",

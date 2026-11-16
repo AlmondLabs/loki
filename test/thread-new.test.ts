@@ -12,9 +12,6 @@ import { Thread } from "../app/src/chat/conversation.tsx";
 import type { WidgetMark } from "../app/src/chat/transcript.tsx";
 import { clockLabel } from "../app/src/shared/thread.ts";
 
-// Plan 096, U5: the new thread on shadcn. Its reading order is a pure function (entries.ts); its pieces render without a
-// browser. Scrolling, following and anchoring are MessageScroller's and are checked by hand in the app.
-
 const NOW = Date.parse("2026-11-11T15:00:00Z");
 const user = (text: string, at?: string): TranscriptRow => ({ role: "user", text, ...(at ? { at } : {}) });
 const agent = (text: string, at?: string): TranscriptRow => ({ role: "assistant", text, ...(at ? { at } : {}) });
@@ -68,7 +65,6 @@ describe("the new thread's reading order", () => {
     const entries = threadEntries(input(rows, { dividerAt: 3, dividerDay: "Today" }));
     expect(kinds(entries)).toEqual(["day", "user*", "assistant*", "day", "user*", "new", "assistant*"]);
     const nl = entries.find((e) => e.kind === "new");
-    // With times, the day markers name the day; the New line does not.
     expect(nl?.kind === "new" && nl.day).toBeNull();
   });
 
@@ -87,7 +83,6 @@ describe("the new thread's reading order", () => {
       ["one", false],
       ["two", true],
     ]);
-    // A widget row breaks the run: the agent's message after it is named again.
     expect(kinds(entries)).toEqual(["day", "user*", "widget", "assistant*", "widget", "assistant*"]);
   });
 

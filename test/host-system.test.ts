@@ -9,11 +9,6 @@ import { SystemFact } from "../app/src/settings/settings.tsx";
 import { HostSystemRow } from "../app/src/phone/preferences.tsx";
 import { bootScript, hostOs } from "../mod/static.ts";
 
-/**
- * Two systems, not one: the one loki runs on (the host: the shell's or the mod's word) and the one the viewer
- * types on (the keyboard: the host in the app, the user agent in a browser tab). A Mac loki opened from Chrome
- * on Windows is still a Mac loki, with Ctrl keys.
- */
 const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)";
 const WIN = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 const ANDROID = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";

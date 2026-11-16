@@ -9,12 +9,6 @@ import { DESTINATIONS, buildIndex, isPlace, recentPlaceHits, search, type Search
 import { GROUP_MAX, MAX_QUERY, cleanQuery, tierOf } from "../app/src/shared/search.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
-/**
- * The phone's local Search (app/src/phone/search-index.ts): what it matches (declared fields only — desk
- * titles and agents, agent names and descriptions, the loaded Inbox items, the named pages), how it ranks,
- * and how the recent histories resolve to rows with the stale ones dropped.
- */
-
 const desk = (title: string | null, over: Partial<DeskSummary> = {}): DeskSummary => ({
   scope: `s-${title}`,
   title,
@@ -107,7 +101,6 @@ describe("matching", () => {
     expect(titles(src(), "theme", "pages")).toEqual(["Preferences"]);
     expect(titles(src(), "archive", "pages")).toContain("Archived chats");
     expect(search(src(), "connection").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "connection" });
-    // Flow was the Inbox (plan 087): the old word still finds it.
     expect(titles(src(), "inbox", "pages")).toEqual(["Flow"]);
     expect(search(src(), "inbox").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "tab", tab: "inbox" });
     for (const d of DESTINATIONS) expect(d.route.kind).not.toBe("search");
@@ -146,7 +139,6 @@ describe("ranking", () => {
     expect(titles(src(), "mobile", "desks")).toEqual(["Mobile budget", "Loki mobile", "Automobile notes"]);
   });
   test("a title match beats an agent-name match of the same tier", () => {
-    // both exact; the older desk named Atlas still comes before the newer one whose agent is Atlas
     const s = src({
       desks: [
         desk("Notes", { agent_name: "Atlas", conversation_id: "n1" }),

@@ -5,9 +5,6 @@ import { XIcon } from "lucide-react";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { Glyph, Icon } from "../app/src/shared/icons.tsx";
 
-// Plan 2026-11-12-1505, R8, and the person's choice (2026-11-13): loki has one icon set, Lucide, everywhere. U11 retired
-// loki's own drawings along with today's look.
-
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 
 describe("loki's icons", () => {

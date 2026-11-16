@@ -9,9 +9,7 @@ import { startServer } from "../mod/server.ts";
 import { ALL_SCOPES, fakeGoogle } from "./fixtures/gmail.ts";
 import { must } from "./fixtures/must.ts";
 
-/** A fetch's URL as text, whatever form it came in. */
 const urlOf = (input: RequestInfo | URL): string => (input instanceof Request ? input.url : input instanceof URL ? input.href : input);
-/** An abort's reason as an Error, as fetch rejects with it. */
 const asError = (reason: unknown): Error => (reason instanceof Error ? reason : new Error(String(reason)));
 
 const SHARED = { client_id: "shared-client.apps.googleusercontent.com", client_secret: "shared-secret" };
@@ -23,7 +21,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** A sign-in over a fresh state folder, an in-memory keychain, a fake Google and a clock the test moves. */
 function fixture(sharedApp = SHARED) {
   const dir = mkdtempSync(join(tmpdir(), "loki-google-"));
   dirs.push(dir);
@@ -44,7 +41,6 @@ describe("signing in to Gmail", () => {
     expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
     const q = url.searchParams;
     expect(q.get("scope")?.split(" ")).toEqual(ALL_SCOPES);
-    // The three People API scopes find people by name (plan 2026-11-14-1530, KTD7), and none of them can change a contact.
     expect(GOOGLE_SCOPES).toEqual(
       expect.arrayContaining([
         "https://www.googleapis.com/auth/contacts.readonly",
@@ -81,7 +77,6 @@ describe("signing in to Gmail", () => {
       expires_at: "2026-11-04T10:00:00.000Z",
       scopes: ALL_SCOPES.join(" "),
     });
-    // The redemption carried the verifier the challenge was made from (the fake checks it) and the shared app.
     const form = new URLSearchParams(must(google.tokenRequests()[0], "a token request").body);
     expect([form.get("grant_type"), form.get("client_id"), form.get("client_secret")]).toEqual(["authorization_code", SHARED.client_id, SHARED.client_secret]);
     expect(readFileSync(file, "utf8")).not.toMatch(/access-|refresh-/);
@@ -95,7 +90,6 @@ describe("signing in to Gmail", () => {
     const late = google.authorize(signIn.start({ owner_agent_id: "agent-work" }));
     advance(10 * 60 * 1000 + 1);
     expect(await signIn.finish(late)).toMatchObject({ ok: false, message: expect.stringContaining("longer than 10 minutes") as unknown });
-    // The expired sign-in is gone too: trying it again is a state loki does not know.
     expect(await signIn.finish(late)).toMatchObject({ ok: false, message: expect.stringContaining("not one loki started") as unknown });
 
     expect(google.tokenRequests()).toHaveLength(0);
@@ -125,7 +119,6 @@ describe("signing in to Gmail", () => {
     const { google, signIn } = fixture({ client_id: "", client_secret: "" });
     expect(() => signIn.start({ owner_agent_id: "agent-work" })).toThrow("the shared Google app is not set; use your own Google app in Preferences › Accounts");
     expect(google.requests).toHaveLength(0);
-    // The person's own app still works there.
     expect(new URL(signIn.start({ owner_agent_id: "agent-work", own_app: OWN })).searchParams.get("client_id")).toBe(OWN.client_id);
   });
 
@@ -181,7 +174,6 @@ describe("signing in to Gmail", () => {
       ["contacts", "other_contacts", "directory"],
     ]);
 
-    // A personal account may untick the directory; the other two places are still searched.
     const [gmail, , , , , contacts, other] = ALL_SCOPES;
     const again = () => signIn.start({ owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com" });
     await signIn.finish(google.authorize(again(), [gmail, contacts, other, "openid"]));
@@ -200,7 +192,6 @@ describe("signing in to Gmail", () => {
     const heard: string[] = [];
     accounts.onChange((c) => heard.push(`${c.kind} ${c.account_id}`));
     const before = secrets.entries.get("account:gmail:ada@acme.com");
-    // The row's sign-in names the account; the owner sent with it is the account's own, and a new one would be ignored.
     const again = await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-home", account_id: "gmail:ada@acme.com" })));
     expect(again.ok).toBe(true);
     const record = must(accounts.get("gmail:ada@acme.com"), "the account");

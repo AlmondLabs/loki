@@ -13,7 +13,6 @@ describe("catch up queue merge", () => {
       c = item("c");
     const q = mergeQueue([a, b], [a, item("b", { status: "running" }), c], [], { selectedId: "a1/a" });
     expect(q.map((i) => i.id)).toEqual(["a", "c"]);
-    // a chat you have read is still in the Inbox: it stays until it is archived
     expect(mergeQueue([a, b], [a, item("b", { status: "idle", unread: false })], [], { selectedId: "a1/a" }).map((i) => i.id)).toEqual(["a", "b"]);
   });
 
@@ -40,7 +39,6 @@ describe("catch up queue merge", () => {
       d = item("d", { score: 50 });
     const q = mergeQueue([a, b, c], [a, b, c, d], [], { selectedId: "a1/b" });
     expect(q.map((i) => i.id)).toEqual(["a", "b", "d", "c"]);
-    // one that scores below a row under the selection goes after it
     const e = item("e", { score: 2 });
     expect(mergeQueue(q, [a, b, c, d, e], [], { selectedId: "a1/b" }).map((i) => i.id)).toEqual(["a", "b", "d", "e", "c"]);
   });
@@ -66,22 +64,17 @@ describe("catch up queue merge", () => {
   test("a conversation decided this pass comes back only when it has moved on", () => {
     const a = item("a");
     const decided = [{ item: a, action: "seen" as const, stamp: stampOf(a) }];
-    // same message, still unread (kept unread): not re-queued
     expect(mergeQueue([], [a], decided)).toEqual([]);
-    // only the timestamp moved (turn boundary, list refresh, streaming): NOT re-queued
     const bumped = item("a", { last_message_at: "2026-09-05T10:05:00Z" });
     expect(mergeQueue([], [bumped], decided)).toEqual([]);
-    // the agent said something new: re-queued
     const later = item("a", { last_message_at: "2026-09-05T10:05:00Z", lastAssistantText: "here is the answer" });
     expect(mergeQueue([], [later], decided).map((i) => i.id)).toEqual(["a"]);
-    // a new approval on the same conversation: re-queued
     const approval = item("a", { status: "approval", pendingApproval: { requestId: "perm-1", toolName: "Bash", input: {}, at: "2026-09-05T10:06:00Z" } });
     expect(mergeQueue([], [approval], decided).map((i) => i.id)).toEqual(["a"]);
   });
 
   test("what arrives is placed by score, not appended: a card from the chat in focus goes right under the selection, a quiet one to the back", () => {
     const now = new Date("2026-09-16T10:00:00Z").getTime();
-    // items arrive stamped, as buildItems hands them over; "focused" is the chat you have been working in
     const stamp = (i: AttentionItem) => scored([i], now, { "a1/focused": 0.5 })[0];
     const head = stamp(item("head", { last_message_at: "2026-09-16T06:00:00Z" }));
     const old = stamp(item("old", { last_message_at: "2026-09-16T07:00:00Z" }));
@@ -89,7 +82,6 @@ describe("catch up queue merge", () => {
     const focused = stamp(item("focused", { last_message_at: "2026-09-16T09:58:00Z" }));
     const q = mergeQueue([head, old], [head, old, quiet, focused], [], { selectedId: "a1/head" });
     expect(q.map((i) => i.id)).toEqual(["head", "focused", "quiet", "old"]);
-    // the selection stays even when something blocked arrives; the blocked card is next
     const blocked = stamp(
       item("blocked", {
         status: "approval",

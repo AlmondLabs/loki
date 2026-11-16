@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { Approvals } from "../daemon/approvals.ts";
 import { MERGED_TOOLS, RENAMED_TOOLS, SPLIT_TOOLS, isOldTool, renameToolsIn, renamedCall } from "../daemon/tool-kinds.ts";
 
-/** loki's tools under their names now, and every old name moving to one (plan 044). */
 describe("loki's tool names, old and now", () => {
   test("every name now is <subject>_<verb> or one word, and no old name is a name now", () => {
     const now = [

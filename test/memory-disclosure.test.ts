@@ -8,7 +8,6 @@ import { reflectionJob } from "../daemon/reflection.ts";
 import { briefDescription } from "../mod/skills.ts";
 import { must } from "./fixtures/must.ts";
 
-/** A memory repo with the files given, path to text; removed after the test body. */
 function withMemory(files: Record<string, string>, body: (root: string) => void | Promise<void>) {
   return async () => {
     const root = mkdtempSync(join(tmpdir(), "loki-disclosure-"));

@@ -6,12 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ContentList } from "../app/src/shell/content-list.tsx";
 import { must } from "./fixtures/must.ts";
 
-// Plan 2026-11-14-2224, U4: the list column has one text edge and one box edge (KTD5), and its title shares a top line
-// with the detail's (KTD4). These read components.css, where the glass block's rules come after and win.
-
 const css = readFileSync(join(import.meta.dirname, "..", "app", "src", "components", "components.css"), "utf8");
 
-/** Every declaration given to `selector` alone, in stylesheet order, so a later one wins as in the cascade. */
 function decls(selector: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -28,12 +24,10 @@ function decls(selector: string): Map<string, string> {
   return out;
 }
 
-/** The first value of a padding shorthand, or `padding-top` when set after it. */
 function paddingTop(rule: Map<string, string>): string {
   return rule.get("padding-top") ?? must(/^\S+/.exec(rule.get("padding") ?? ""), "a padding")[0];
 }
 
-/** The side value of a padding shorthand: its second word, else its first. */
 function paddingSide(rule: Map<string, string>): string {
   const words = (rule.get("padding") ?? "").split(/\s+/);
   return words[1] ?? words[0];
@@ -131,7 +125,6 @@ describe("Flow's rows are divided", () => {
   test("its rows get 8px above and below, and a hairline from the text's edge between them", () => {
     expect(decls(`${divided} .loki-list-row`).get("padding-block")).toBe("8px");
     const line = decls(`${divided} .loki-list-item + .loki-list-item::before`);
-    // the row's 12px padding, its 20px icon and 8px gap: where the text starts
     expect(line.get("left")).toBe(`${12 + 20 + 8}px`);
     expect(line.get("right")).toBe(paddingSide(decls(".loki-list-row")));
     expect(line.get("border-top")).toBe("1px solid var(--loki-border)");

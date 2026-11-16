@@ -1,6 +1,5 @@
 import type { AttentionItem } from "../../core/attention/model.ts";
 
-/** One inbox item with every field filled in; tests override what they care about. Unscored until a test stamps it. */
 export const attentionItem = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({
   id,
   agent_id: "a1",

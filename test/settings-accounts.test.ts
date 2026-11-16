@@ -7,7 +7,6 @@ import { accountRows, connectState, deleteBlockers, moveTargets, ownAppOf, recon
 import { jiraConnectOf } from "../app/src/settings/jira-connect.tsx";
 import { must } from "./fixtures/must.ts";
 
-/** A mod socket that records each request and answers from `replies` by its type; a type with none is refused. */
 function fakeRequest(replies: Record<string, unknown>) {
   const sent: Array<{ type: string; payload: unknown }> = [];
   const request = ((type: string, payload: unknown) => {
@@ -74,7 +73,6 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         service: "Gmail",
         owner_agent_id: "agent-work",
         owner: "Work",
-        // Signed in before loki asked for more than Gmail: the row offers the sign-in for the rest (plan 2026-11-11, R17).
         state: "Connected; scripts cannot use Drive, Sheets, Docs and Calendar until it signs in again",
         problem: false,
         reconnect: null,
@@ -82,7 +80,6 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
           reconnect: { provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null },
           services: "Drive, Sheets, Docs, Calendar and Contacts",
         },
-        // Nor did it grant contacts (plan 2026-11-14-1530, R15): agents name people there by address only.
         people: "Agents can find people here only by address until it signs in again for Contacts",
       },
       {
@@ -127,7 +124,6 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
       reconnect: { provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null },
       services: "Contacts",
     });
-    // A disconnected account says only how to reconnect; Slack and Jira have no contacts grant to ask for.
     expect([stale.people, slack.people]).toEqual([null, null]);
   });
 
@@ -257,7 +253,6 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
     expect(listed).toEqual([MAIL]);
     expect(accountRows(typeof listed === "string" ? [] : listed, AGENTS).map((r) => r.account_id)).toEqual(["gmail:ada@acme.com"]);
     expect(await calls.everywhere()).toEqual({ accounts: [MAIL], other_macs: [other] });
-    // A mod from before other Macs' accounts answers without the list.
     expect(await daemonCalls(fakeRequest({ account_list: { accounts: [MAIL] } }).request).accounts.everywhere()).toEqual({ accounts: [MAIL], other_macs: [] });
   });
 

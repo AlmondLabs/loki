@@ -3,12 +3,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 
-// Plan 2026-11-15-2358: Preferences' grey notes and a setting's own help are one sentence each, as System Settings'
-// are; the manual holds the rest. This reads every `help` prop in app/src/settings and counts its sentences.
-
 const DIR = join(import.meta.dirname, "..", "app", "src", "settings");
 
-/** Every piece of text a `help` prop can show: its string literals and templates, a substitution read as one word. */
 function helpTexts(file: string): string[] {
   const source = ts.createSourceFile(file, readFileSync(join(DIR, file), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const texts: string[] = [];

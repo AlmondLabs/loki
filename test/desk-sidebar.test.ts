@@ -37,13 +37,6 @@ import { outsideItem } from "./fixtures/outside-item.ts";
 // A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
-/**
- * The desk sidebar's model (app/src/shell/sidebar-model.ts, plan 013 U4): Pinned, then one section per agent
- * by recent activity, each live desk once, the agent's main chat first; the filter; the marks; the pin and
- * archive rules; the "needs you" pills; and what survives a reload. Since plan 2026-11-14-1330 (U3) the same rules
- * give Chats' sources in the sidebar and each source's rows in the list.
- */
-
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
   scope,
   title: scope,
@@ -80,7 +73,7 @@ describe("sections (scenario 1)", () => {
     const m = sidebarModel(desks, [], {});
     expect(m.sections.map((s) => [s.id, s.title, scopes(s.rows)])).toEqual([
       ["pinned", "Pinned", ["email"]],
-      ["agent:a2", "ira", ["default-a2", "notes"]], // ira's main chat is the most recent activity
+      ["agent:a2", "ira", ["default-a2", "notes"]],
       ["agent:a1", "friday", ["default-a1", "jira", "aws"]],
     ]);
   });
@@ -217,7 +210,6 @@ describe("choosing another source (KTD8)", () => {
     expect(["pinned", "agent:a2", "archived"].map((x) => sourceHolds(x, jira))).toEqual([false, false, false]);
     expect(sourceHolds("archived", desks[6])).toBe(true);
     expect(sourceHolds("all", desks[6])).toBe(false);
-    // The canvas's shared scope has no conversation: it is in no source, the archive included.
     expect(sourceHolds("archived", desk("shared", { status: "none", conversation_id: null }))).toBe(false);
   });
 });
@@ -287,11 +279,9 @@ describe("marks (scenario 3)", () => {
     );
     expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false });
     expect(looked.note).toBeUndefined();
-    // waiting stays bold with its badge whatever the look: it needs you to act
     expect(
       deskRowState(item("a1", "jira", "approval", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),
     ).toMatchObject({ kind: "waits", badge: 1, unread: true });
-    // done: neither
     expect(deskRowState(item("a1", "jira", "idle", { unread: false, last_message_at: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({
       kind: "none",
       unread: false,
@@ -382,7 +372,6 @@ describe("rename rules", () => {
     expect(cleanDeskName("   \n ")).toBeNull();
     const long = "x".repeat(DESK_NAME_MAX + 20);
     expect(cleanDeskName(long)).toBe("x".repeat(DESK_NAME_MAX));
-    // Capping never leaves a trailing space behind.
     expect(cleanDeskName(`${"y".repeat(DESK_NAME_MAX - 1)} tail`)).toBe("y".repeat(DESK_NAME_MAX - 1));
   });
 });
@@ -509,7 +498,6 @@ describe("the Chats list, rendered", () => {
     expect(html.indexOf(">ira<")).toBeLessThan(html.indexOf(">friday<"));
     expect(html).toContain("unread, 1 needs approval</span>");
     expect(html).toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*aws/);
-    // Not connected: archive is there but disabled, with the reason.
     expect(html).toMatch(/aria-label="Archive"[^>]*disabled|disabled[^>]*aria-label="Archive"/);
     expect(html).toContain("Archiving needs loki&#x27;s daemon");
   });

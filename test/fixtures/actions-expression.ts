@@ -1,8 +1,3 @@
-// The GitHub Actions expressions a workflow's `if:` and `concurrency:` use, evaluated the way Actions does, so a test
-// can say which jobs a run starts and which queue each joins rather than compare the expressions' text. It knows
-// literals, context names, `!`, `==`, `!=`, `&&`, `||` and parentheses; a name the context lacks throws, so a typo in
-// the workflow fails the test instead of reading as empty.
-
 export type Value = string | number | boolean | null;
 export type Context = Record<string, Value>;
 
@@ -25,7 +20,6 @@ const truthy = (v: Value): boolean => v !== false && v !== 0 && v !== "" && v !=
 /** Actions compares strings without regard to case. */
 const equal = (a: Value, b: Value): boolean => (typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b);
 
-/** The value of one expression, without its `${{ }}`. */
 export function evaluate(expr: string, context: Context): Value {
   const tokens = tokenize(expr);
   let i = 0;

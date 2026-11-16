@@ -6,10 +6,6 @@ import { Composer, type ComposerProps } from "../app/src/item/composer.tsx";
 import { matchModes } from "../app/src/shell/search-sheet.tsx";
 import type { SharedModes } from "../app/src/shell/command-center.ts";
 
-// Plan 2026-11-12-1505, U21: on the desktop the message box is Messages': "+" outside a one-line capsule, one round
-// button inside it, no pills. The model and the permission mode change rarely, so ⌘K is their one home (⌘⇧M, ⌘⇧P),
-// with no second control in the box or the toolbar. Typing, the menus and the keys are checked in the app.
-
 const noop = () => {};
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 const box = (over: Partial<ComposerProps> = {}) =>
@@ -31,7 +27,6 @@ describe("the message box", () => {
     expect(out).toContain('data-composer="messages"');
     expect(out).toContain("loki-composer-capsule");
     expect(out).not.toContain("data-pill");
-    // "+" comes before the capsule, outside it, and only attaches files: no menu of model or mode.
     expect(out.indexOf("loki-composer-plus")).toBeLessThan(out.indexOf("loki-composer-capsule"));
     expect(out).toMatch(/class="loki-composer-plus"[^>]*aria-label="Attach Files"/);
     expect(out).not.toContain('aria-haspopup="menu"');

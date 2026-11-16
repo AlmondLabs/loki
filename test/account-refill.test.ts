@@ -6,7 +6,6 @@ const DAY = 24 * 3600 * 1000;
 const ANCHOR = "2026-11-04T09:00:00.000Z";
 const daysBack = (d: number) => new Date(Date.parse(ANCHOR) - d * DAY).toISOString();
 
-/** Walk the windows of an account whose every window comes back not full and not empty. */
 function walk(steps: number): Array<{ after: string; before: string }> {
   let cursor = firstRefill(new Date(ANCHOR));
   const out: Array<{ after: string; before: string }> = [];

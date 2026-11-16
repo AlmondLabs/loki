@@ -14,23 +14,23 @@ describe("fsrs", () => {
   });
   test("the first answer sets the stability from the weights: harder answers, shorter gaps", () => {
     const gaps = ([1, 2, 3, 4] as const).map((g) => new Date(review(newSchedule(T0), g, T0).due).getTime() - T0);
-    expect(gaps[0]).toBe(10 * 60_000); // again: back in the sitting
+    expect(gaps[0]).toBe(10 * 60_000);
     expect(gaps[1]).toBeLessThan(gaps[2]);
     expect(gaps[2]).toBeLessThan(gaps[3]);
-    expect(gaps[3]).toBeGreaterThanOrEqual(10 * DAY); // easy on first sight: about two weeks
+    expect(gaps[3]).toBeGreaterThanOrEqual(10 * DAY);
   });
   test("good answers on time stretch the interval each round", () => {
     let s = review(newSchedule(T0), 3, T0);
     let now = T0;
     const intervals: number[] = [];
     for (let i = 0; i < 5; i++) {
-      now = new Date(s.due).getTime(); // reviewed exactly when due
+      now = new Date(s.due).getTime();
       const before = s.stability;
       s = review(s, 3, now);
       expect(s.stability).toBeGreaterThan(before);
       intervals.push((new Date(s.due).getTime() - now) / DAY);
     }
-    for (let i = 1; i < intervals.length; i++) expect(intervals[i]).toBeGreaterThanOrEqual(intervals[i - 1]); // capped at a year
+    for (let i = 1; i < intervals.length; i++) expect(intervals[i]).toBeGreaterThanOrEqual(intervals[i - 1]);
     expect(intervals[1]).toBeGreaterThan(intervals[0]);
     expect(s.reps).toBe(6);
     expect(s.lapses).toBe(0);
@@ -75,9 +75,9 @@ describe("fsrs", () => {
     s = review(s, 1, T0 + DAY + 1_200_000);
     expect(keepsFailing(s)).toBe(true);
     s = review(s, 3, T0 + 2 * DAY);
-    expect(keepsFailing(s)).toBe(true); // 1,1,1,3
+    expect(keepsFailing(s)).toBe(true);
     s = review(s, 3, T0 + 3 * DAY);
-    expect(keepsFailing(s)).toBe(false); // 1,1,3,3
+    expect(keepsFailing(s)).toBe(false);
   });
 });
 
@@ -115,7 +115,7 @@ describe("recall queue", () => {
     expect(updatedSinceReview({ card: card("x", { previous: prev, updated_by: "you", updated_at: new Date(T0 + DAY).toISOString() }), schedule: s })).toBe(
       false,
     );
-    expect(updatedSinceReview({ card: card("x"), schedule: newSchedule(T0) })).toBe(false); // never edited
+    expect(updatedSinceReview({ card: card("x"), schedule: newSchedule(T0) })).toBe(false);
   });
   test("anki export: front TAB back TAB tags, newlines as <br>", () => {
     const rows: CardWithSchedule[] = [{ card: card("1", { front: "What\tis X?", back: "line 1\nline 2", tags: ["aws", "iam"] }), schedule: newSchedule(T0) }];

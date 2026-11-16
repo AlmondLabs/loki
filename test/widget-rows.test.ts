@@ -3,12 +3,6 @@ import type { WidgetLogEntry } from "../core/desk-core.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { parseWidgetEntry, widgetMarks, withEntry, withHistoryLog } from "../app/src/desk/widget-rows.ts";
 
-/**
- * Widget rows in the thread (plan 013 U8, R15, AE2): the desk's widget change log merged among the
- * messages by time, live entries kept per desk and replaced by id, and a removed widget's row that says
- * it is gone instead of framing anything.
- */
-
 const T0 = Date.parse("2026-09-23T10:00:00.000Z");
 const iso = (min: number) => new Date(T0 + min * 60_000).toISOString();
 const entry = (over: Partial<WidgetLogEntry> = {}): WidgetLogEntry => ({
@@ -62,7 +56,6 @@ describe("widget rows: merge by time", () => {
       ["n1", 2, null],
       ["n2", 2, null],
     ]);
-    // nothing older: no summary; nothing live either: only the summary
     expect(widgetMarks(rows, log.slice(3), "friday", since).map((m) => m.id)).toEqual(["n1", "n2"]);
     expect(widgetMarks(rows, log.slice(0, 3), "friday", since).map((m) => [m.id, m.earlier])).toEqual([["earlier", 3]]);
   });

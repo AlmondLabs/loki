@@ -58,7 +58,6 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
   test("an empty name or one another lane has, case aside, is refused with a reason and nothing to send", () => {
     expect(saveLane([HOME], { ...newDraft("lane-new"), name: "  " })).toBe("A lane needs a name");
     expect(saveLane([HOME], { ...newDraft("lane-new"), name: "home" })).toBe("Another lane is called Home");
-    // A lane keeps its own name when saved again.
     expect(saveLane([HOME], { ...draftOf(HOME), name: "home" })).toEqual([{ ...HOME, name: "home" }]);
   });
 
@@ -149,7 +148,6 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
     expect(out).toContain("Chats from Work and Ops, mail and Slack from one account");
     expect(out).toContain('aria-label="Edit Work"');
     expect(out.indexOf("Work")).toBeLessThan(out.indexOf("Add Lane…"));
-    // The editor is a sheet, opened from a row; none shows until then.
     expect(out).not.toContain("Lane name");
   });
 

@@ -3,7 +3,6 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Recall as RecallModel } from "../app/src/shell/use-recall.ts";
 
-// Learn's view is the window's, kept in sessionStorage: this file's window shows Leads.
 vi.hoisted(() => {
   Object.assign(globalThis, { sessionStorage: { getItem: () => "leads", setItem: () => {} } });
 });

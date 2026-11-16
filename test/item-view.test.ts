@@ -6,8 +6,6 @@ import { threadEntries, threadTurns } from "../app/src/item/entries.ts";
 import { chatItem, outsideItem, type ItemEntry } from "../app/src/item/item-view.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-// Plan 097, U2: every source becomes one ItemView, built without rendering. What loki has no data for stays empty.
-
 const NOW = Date.parse("2026-11-11T15:00:00Z");
 
 const turnsOf = (rows: TranscriptRow[]) =>
@@ -93,7 +91,6 @@ describe("an agent chat", () => {
     const view = chatItem({ item: attentionItem("c1"), live, turns: [] });
     expect(view.proposals.map((p) => p.kind)).toEqual(["approval", "question", "reply", "suggestion"]);
     const approval = view.proposals[0];
-    // A script is new code at every call, so its approval never offers "always".
     expect(approval.kind === "approval" && approval.always).toBe(false);
   });
 
@@ -229,7 +226,6 @@ describe("a Jira ticket", () => {
       ["auth, safari", true],
     ]);
     expect(view.header.flags).toEqual(["unread", "mentions_you", "changed"]);
-    // Comments and the status change read in time order; a comment has no reactions on a Jira card.
     expect(view.entries.map((e) => (e.kind === "event" ? e.text : e.kind === "message" ? e.who : e.kind))).toEqual([
       "Sam",
       "status To do → In progress",

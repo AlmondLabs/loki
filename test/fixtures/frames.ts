@@ -7,13 +7,8 @@ import type { Client } from "../../mod/server.ts";
 import type { WidgetsWatcher } from "../../mod/widgets-fs.ts";
 import { OLD_KEYS } from "../../core/snake-keys.ts";
 
-/** Fields that hold user content or maps keyed by ids, where any key is data: the guard does not look inside them. */
 const DATA_FIELDS = new Set(["data", "overlay", "layout", "input", "args", "metadata"]);
 
-/**
- * Throws when a frame the mod sends carries a field under its camelCase name from before October 2026 (docs/style.md,
- * data): every bridge test becomes a check that the wire is snake_case, a spread that brings an old key along included.
- */
 export function assertSnakeCase(frame: unknown, path = "frame"): void {
   if (Array.isArray(frame)) return frame.forEach((v, i) => assertSnakeCase(v, `${path}[${i}]`));
   if (!frame || typeof frame !== "object") return;
@@ -24,7 +19,6 @@ export function assertSnakeCase(frame: unknown, path = "frame"): void {
   }
 }
 
-/** A client that records what the mod sent it; a `deviceId` makes it a paired phone. */
 export function client(scope: string, deviceId?: string, peerId?: string): Client & { sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
   return {
@@ -39,7 +33,6 @@ export function client(scope: string, deviceId?: string, peerId?: string): Clien
   };
 }
 
-/** A widget watcher over fixed entries, with runtime errors kept in memory. */
 export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
   const runtime = new Map<string, string>();
   return {
@@ -60,7 +53,6 @@ export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { 
 
 type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; capture?: BridgeDeps["capture"]; modules?: BridgeDeps["modules"] };
 
-/** The bridge the mod builds, over in-memory desks unless given others: every module from these deps, or only `modules`. */
 export function bridgeOf(deps: BridgeOf = {}) {
   const full: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), ...deps };
   return createBridge({
@@ -71,7 +63,6 @@ export function bridgeOf(deps: BridgeOf = {}) {
   });
 }
 
-/** A bridge as bridgeOf builds it, and every broadcast it made. */
 export function bridgeWith(deps: BridgeOf = {}) {
   const broadcasts: Array<{ frame: Record<string, unknown>; scope?: string }> = [];
   const bridge = bridgeOf({
@@ -81,5 +72,4 @@ export function bridgeWith(deps: BridgeOf = {}) {
   return { bridge, broadcasts };
 }
 
-/** Let a handler's promise settle. */
 export const settled = () => new Promise((r) => setTimeout(r, 0));

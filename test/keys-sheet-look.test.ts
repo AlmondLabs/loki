@@ -7,8 +7,6 @@ import { KeysSheet } from "../app/src/shell/keys-sheet.tsx";
 // A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
-// Plan 2026-11-12-1505, U20: the keys sheet is a plain panel that dims nothing; U11 made it the only one.
-
 const noop = () => {};
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 const sheet = () => createElement(KeysSheet, { segment: "desk", onClose: noop, onSettings: noop });

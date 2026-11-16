@@ -6,8 +6,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 const { Sheet, sheetCloses } = await import("../app/src/components/index.tsx");
 
-// Plan 2026-11-15-1900: the desktop's sheets are shadcn's Dialog on Base UI; the phone's bottom sheet keeps its own.
-
 const noop = () => {};
 
 describe("a desktop sheet", () => {

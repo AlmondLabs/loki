@@ -21,7 +21,7 @@ describe("pairing codes", () => {
     expect(PAIRING_TTL_MS).toBe(10 * 60_000);
     expect(codes.redeem(code)).toBe(true);
     expect(codes.redeem(code)).toBe(true); // a Home Screen web app has its own cookie jar
-    expect(codes.redeem(code.toLowerCase())).toBe(true); // typed on a phone keyboard
+    expect(codes.redeem(code.toLowerCase())).toBe(true);
     expect(codes.redeem("ZZZZZZ")).toBe(false);
     expect(codes.redeem("")).toBe(false);
     now += 9 * 60_000;

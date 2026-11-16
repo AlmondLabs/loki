@@ -2,11 +2,6 @@ import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-/**
- * The release bundle (src-tauri/resources/mod/loki-mod.mjs) is what every Homebrew and .dmg install runs; a
- * checkout runs mod/boot.ts instead, so a bundle that does not import under Node goes unnoticed for weeks
- * (found 2026-09-15, docs/plans/…-009).
- */
 describe("the release bundle's build", () => {
   const src = readFileSync(new URL("../scripts/build-mod.ts", import.meta.url), "utf8");
 
@@ -33,7 +28,6 @@ describe("the release bundle's build", () => {
   });
 
   // quickjs-wasi and the keyring's prebuilt binary are dependencies of dependencies: npm puts them at the top of
-  // node_modules, pnpm beside the package that wants them, so a fixed path built under npm and failed under pnpm.
   test("finds a dependency's own dependencies from that dependency, so a pnpm install builds too", () => {
     expect(src).toContain('packageDir("quickjs-wasi", codemode)');
     expect(src).toContain("findPackageDir(name, keyring)");
@@ -43,7 +37,6 @@ describe("the release bundle's build", () => {
   test("the mod takes ws from one module, the package esbuild inlines", () => {
     const ws = readFileSync(new URL("../mod/ws.ts", import.meta.url), "utf8");
     expect(ws).toContain('export { WebSocket, WebSocketServer } from "ws";');
-    // and nothing else in the mod reaches for the package directly
     for (const f of readdirSync(new URL("../mod/", import.meta.url)).filter((n) => n.endsWith(".ts") && n !== "ws.ts")) {
       expect(readFileSync(new URL(`../mod/${f}`, import.meta.url), "utf8"), f).not.toMatch(/from "ws"/);
     }
@@ -51,11 +44,6 @@ describe("the release bundle's build", () => {
   });
 });
 
-/**
- * The mod is bundled apart from the daemon, so a daemon module it bundles is a second copy with its own module state.
- * The memory repos' queue (daemon/repo-queue.ts) must be the daemon's one: the mod takes it from its host, and a copy
- * of its own would race the daemon's commits on a repo's index.lock and never hear them (plan 046).
- */
 describe("the mod's bundle", () => {
   test("leaves out the memory repos' queue, which it takes from its host", async () => {
     const { build } = await import("esbuild");

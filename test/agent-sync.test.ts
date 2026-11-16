@@ -9,7 +9,6 @@ const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 const FRIDAY = "agent-local-11111111-1111-4111-8111-111111111111";
 
-/** A backend folder holding one agent record with its memory folder, as the daemon lays them out. */
 function backend(records: Record<string, Record<string, unknown>> = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-agent-sync-"));
   for (const [id, record] of Object.entries(records)) {
@@ -53,7 +52,6 @@ describe("one agent's record across two Macs", () => {
       expect(homeOf(readRecord(b.dir, FRIDAY), BOOK)).toBe(BOOK);
       const [shared] = sharedAgents(b.dir, BOOK);
       expect(shared.record).toMatchObject({ home_mac: BOOK, changed: { home_mac: { at: "", mac: BOOK } } });
-      // A home set later anywhere wins over that unstamped one.
       expect(merge(shared.record, stamp({ id: FRIDAY, home_mac: MINI }, ["home_mac"], { at: "2026-10-18T10:00:00Z", mac: MINI }))?.home_mac).toBe(MINI);
     } finally {
       b.done();
@@ -78,7 +76,6 @@ describe("taking another Mac's agents", () => {
       const applied = await applyShared(mini.dir, { agents: sharedAgents(book.dir, BOOK), tombstones: [] }, () => Promise.resolve());
       expect(applied).toEqual({ created: [FRIDAY], updated: [], deleted: [] });
       expect(readRecord(mini.dir, FRIDAY)).toMatchObject({ id: FRIDAY, name: "Friday", model: "m", home_mac: BOOK });
-      // Sent again, nothing changes.
       expect(await applyShared(mini.dir, { agents: sharedAgents(book.dir, BOOK), tombstones: [] }, () => Promise.resolve())).toEqual({
         created: [],
         updated: [],

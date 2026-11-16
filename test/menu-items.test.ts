@@ -4,8 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { DrawnMenu } from "../app/src/shell/menu-items.tsx";
 import type { MenuEntry } from "../app/src/shell/native-menu.ts";
 
-// Plan 2026-11-15-2330: loki's drawn menus are shadcn's DropdownMenu on Base UI, hung from their button or a point.
-
 const entries: MenuEntry[] = [{ type: "item", id: "a", label: "Arrange Widgets", run: () => {} }];
 const trigger = createElement("button", { type: "button" as const }, "More");
 

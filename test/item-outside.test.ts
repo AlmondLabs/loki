@@ -5,9 +5,6 @@ import type { MailCompose, OutsideFacts, OutsideMessage } from "../core/frame-ty
 import { OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
 import { ItemMailThread } from "../app/src/item/outside-rows.tsx";
 
-// Plan 097, U7: an outside card's thread drawn with the item components. The thread keeps its own window, loading,
-// scrolling and reacting; these check the rows and the seam.
-
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({
   account_id: "slack:acme",
@@ -46,7 +43,6 @@ describe("the outside thread's seam", () => {
     expect(plain).not.toContain("data-row-item");
     const items = html(createElement(OutsideThread, { facts: facts(), state: read(SLACK), items: true }));
     expect(items).toContain("data-row-item");
-    // Yours sits in the run as everyone else's does in a Slack channel, not in the block a mail or chat gives it.
     expect(items.match(/data-row="person"/g)?.length).toBe(3);
     expect(items).not.toContain('data-row="user"');
     expect(items).toContain(">You<");

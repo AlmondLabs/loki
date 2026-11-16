@@ -7,12 +7,6 @@ import { clockLabel, dayLabel, formattersBuilt } from "../app/src/shared/thread.
 import { olderRowsAbove } from "../app/src/chat/use-transcript-scroll.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
-/**
- * A long thread mounts only its newest rows (perf round 2): the window's arithmetic as pure functions, the
- * New line kept inside it, find reaching past it, the streaming flag on the last row only, live rows that
- * keep their identity between updates, and the clock and day formatters built once.
- */
-
 const T0 = Date.parse("2026-09-20T08:00:00Z");
 const thread = (n: number): TranscriptRow[] =>
   Array.from({ length: n }, (_, i) => ({ role: i % 2 ? "assistant" : "user", text: `message ${i}`, at: new Date(T0 + i * 60_000).toISOString() }));
@@ -67,7 +61,6 @@ describe("the New line with a window", () => {
     expect(from).toBeLessThanOrEqual(dividerAt);
     const html = renderToStaticMarkup(createElement(Transcript, { rows, people, dividerAt, from }));
     expect(html).toContain("loki-msg-divider-new");
-    // the window without the pull would have left it out
     expect(renderToStaticMarkup(createElement(Transcript, { rows, people, dividerAt, from: openStart(rows.length) }))).not.toContain("loki-msg-divider-new");
   });
 });
@@ -78,8 +71,8 @@ describe("find with a window", () => {
     rows[12] = { ...rows[12], text: "the **zebra** crossing" };
     const start = openStart(rows.length);
     expect(findStart(rows, start, "zebra")).toBe(12);
-    expect(findStart(rows, start, "Zebra crossing")).toBe(12); // case and markdown do not hide it
-    expect(findStart(rows, start, "message 419")).toBe(start); // already in the window
+    expect(findStart(rows, start, "Zebra crossing")).toBe(12);
+    expect(findStart(rows, start, "message 419")).toBe(start);
     expect(findStart(rows, start, "nowhere at all")).toBe(start);
     expect(findStart(rows, start, "  ")).toBe(start);
     const html = renderToStaticMarkup(createElement(Transcript, { rows, people, from: findStart(rows, start, "zebra") }));
@@ -94,7 +87,6 @@ describe("find with a window", () => {
   });
 });
 
-/** The Row elements a Transcript render hands down (Transcript itself calls no hooks, so its body runs bare). */
 function rowElements(props: Parameters<typeof Transcript>[0]): Array<ReactElement<Record<string, unknown>>> {
   const inner = (Transcript as unknown as { type: (p: typeof props) => ReactNode }).type;
   const out: Array<ReactElement<Record<string, unknown>>> = [];
@@ -132,7 +124,6 @@ describe("streaming touches only the tail", () => {
   });
 });
 
-/** Each Row a Transcript render hands down, as its text under the key of the nearest keyed element above it. */
 function rowKeys(props: Parameters<typeof Transcript>[0]): Map<string, string> {
   const inner = (Transcript as unknown as { type: (p: typeof props) => ReactNode }).type;
   const out = new Map<string, string>();
@@ -194,7 +185,6 @@ describe("the clock and day formatters", () => {
       dayLabel(new Date(now - i * 86_400_000).toISOString(), now);
     }
     expect(built).toBe(once);
-    // one per locale and options in use (a clock, a weekday, a date, a dated year), however many messages
     expect(formattersBuilt()).toBeGreaterThan(0);
     expect(formattersBuilt()).toBeLessThanOrEqual(4);
     expect(first.clock).toBe(new Date(now).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }));

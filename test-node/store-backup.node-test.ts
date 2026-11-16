@@ -1,7 +1,3 @@
-/**
- * Plan 039: a chat store is copied whole before a newer pi-durable migrates its schema, for good. Runs under Node (the
- * store is `node:sqlite`): npm run test:node
- */
 import { strict as assert } from "node:assert";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +15,6 @@ import { trialRegistry } from "./trial-registry.ts";
 const ctx = BACKGROUND_CONTEXT;
 const day = new Date("2026-10-26T12:00:00Z");
 
-/** A store as pi-durable 1.1 left it: its first schema only, version 1. */
 async function storeAtVersion1(file: string): Promise<void> {
   const db = await openNodeSqliteDatabase(file);
   await applySqliteMigrations(db, SQLITE_MIGRATIONS.slice(0, 1));
@@ -43,7 +38,6 @@ void test("a store on an older schema is copied before it migrates; the copy sta
     const copy = backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION, day);
     assert.equal(copy, join(dir, "backup-schema-1-2026-10-26", "agent-local-a.sqlite"));
     assert.equal(versionOf(copy), 1);
-    // Asked again the same day (a store that failed to open, say), the first copy is kept.
     assert.equal(backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION, day), copy);
   } finally {
     rmSync(dir, { recursive: true, force: true });

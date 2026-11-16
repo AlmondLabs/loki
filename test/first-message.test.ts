@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { firstMessageStep, type FirstMessage } from "../app/src/desk/use-first-message.ts";
 
-// Plan 2026-11-12-1505, U20: a chat made by its first message. Opening the chat renews the link, so the message waits
-// for the new chat's link rather than going out on the one about to close.
-
 const waiting: FirstMessage = { scope: "ada/new", runtime: { agent_id: "ada", conversation_id: "new" }, text: "hello", images: [], left: false };
 
 describe("a new chat's first message", () => {

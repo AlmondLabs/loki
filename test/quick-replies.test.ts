@@ -7,10 +7,6 @@ import type { TranscriptRow } from "../app/src/chat/transcript.tsx";
 import type { ChatStatus } from "../app/src/chat/conversation.tsx";
 import type { PendingQuestion } from "../core/attention/model.ts";
 
-/**
- * Quick replies (plan 066): an agent ends a reply with a few options, drawn as buttons under its last reply; a click, or
- * 1 to 4 while a reply has focus on the Mac, sends the option as the person's message.
- */
 const offer = "Ready to migrate.\n\n<loki-replies>\n- run the migration\n- show me the diff first\n</loki-replies>";
 const reply: TranscriptRow = { role: "assistant", text: offer };
 const key = (k: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altKey: boolean }> = {}) => ({
@@ -21,7 +17,6 @@ const key = (k: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altK
   ...mods,
 });
 
-/** Both the desktop's chips and the phone's row are named "quick replies". */
 const OFFERED = 'aria-label="Quick replies"';
 const draw = (rows: TranscriptRow[], status: ChatStatus = "idle", question: PendingQuestion | null = null, touch = false) =>
   renderToStaticMarkup(createElement(Conversation, { touch, view: { rows, status, question }, actions: { onSend: () => {}, onAnswer: () => {} } }));
@@ -66,7 +61,6 @@ describe("quick replies (plan 066)", () => {
 
   test("a digit in the message box is only a digit: the box never sends a quick reply", () => {
     const html = draw([reply]);
-    // The box's handler no longer reads replyKey; the replies' own group does.
     expect(html).toContain(OFFERED);
     const sent: string[] = [];
     const group = QuickReplies({ options: ["yes", "no"], onPick: (t) => sent.push(t) });

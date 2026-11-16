@@ -3,8 +3,6 @@ import { archivedDesks, liveDesks } from "../app/src/shell/desk-tree.tsx";
 
 import type { DeskSummary } from "../core/frame-types.ts";
 
-/** The chat lists the phone shares (app/src/shell/desk-tree.tsx): live chats pinned first then by last message, and the archive. */
-
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
   ({
     scope,

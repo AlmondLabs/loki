@@ -20,7 +20,7 @@ describe("slash commands", () => {
   test("matchCommands puts prefix matches first, then matches inside the name or description", () => {
     const ids = matchCommands("re", allCommands()).map((c) => c.id);
     expect(ids.slice(0, 2)).toEqual(["remember", "reflect"]);
-    expect(ids).toContain("clear"); // "afresh" in its description
+    expect(ids).toContain("clear");
     expect(matchCommands("", allCommands()).length).toBe(LOKI_COMMANDS.length + HARNESS_COMMANDS.length);
     expect(matchCommands("zzz", allCommands())).toEqual([]);
   });
