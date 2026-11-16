@@ -1,3 +1,6 @@
+import type { IncomingMessage } from "node:http";
+import { connect } from "node:net";
+import type { Duplex } from "node:stream";
 import { describe, expect, test } from "vitest";
 import { attachWs, sameSecret, startServer, type Client } from "../mod/server.ts";
 import { WS_PROTOCOL, tokenFromProtocols, tokenProtocols } from "../core/ws-auth.ts";
@@ -157,6 +160,34 @@ describe("the limits of a socket", () => {
       expect(fed).toBeLessThan(64);
       ws.terminate();
     } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+});
+
+describe("a refused upgrade", () => {
+  test("a caller that hangs up on the refusal with a reset leaves the server serving", async () => {
+    const s = await startServer({ port: 0 });
+    const bridge = attachWs(s.server, "0123456789abcdef0123456789abcdef", { onConnect: () => {}, onMessage: () => {} });
+    // The server's end of the upgrade: an error on it with nobody listening would be thrown before it closes.
+    const ends: Duplex[] = [];
+    s.server.on("upgrade", (_req: IncomingMessage, socket: Duplex) => ends.push(socket));
+    const caller = connect(s.port, "127.0.0.1");
+    try {
+      caller.write(
+        "GET /ws HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n" +
+          "Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n",
+      );
+      const answer = await new Promise<string>((resolve) => caller.once("data", (chunk: Buffer) => resolve(chunk.toString())));
+      expect(answer).toMatch(/^HTTP\/1\.1 401/);
+      const closed = new Promise((resolve) => ends[0]?.once("close", resolve));
+      // Another Mac's link drops a refusal at once: a reset, which the server reads as ECONNRESET.
+      caller.resetAndDestroy();
+      await closed;
+      expect((await fetch(`http://127.0.0.1:${s.port}/health`)).status).toBe(200);
+    } finally {
+      caller.destroy();
       bridge.close();
       await s.close();
     }
