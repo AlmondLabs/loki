@@ -42,21 +42,22 @@ every stable now carries all three. Its branch can be deleted, and its marker, `
 
    | job     | runner           | how                                                                              | files                                                          |
    | ------- | ---------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-   | macOS   | `macos-15`       | `tauri-apps/tauri-action`, `--target universal-apple-darwin`                     | `loki_<v>_universal.dmg`, `loki.app.tar.gz` and its `.sig`     |
+   | macOS   | `macos-15`       | `tauri-apps/tauri-action`, `--target aarch64-apple-darwin`                       | `loki_<v>_aarch64.dmg`, `loki.app.tar.gz` and its `.sig`       |
    | Windows | `windows-latest` | `npm run tauri -- build --bundles nsis`                                          | `loki_<v>_x64-setup.exe` and its `.sig`                        |
    | Linux   | `ubuntu-22.04`   | the WebKitGTK apt packages, then `npm run tauri -- build --bundles appimage,deb` | `loki_<v>_amd64.AppImage` and its `.sig`, `loki_<v>_amd64.deb` |
 
-   Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
-   `shell.yml`'s. The Windows installer and the AppImage are their systems' update files themselves; the Mac's is the
-   `.app` in a `.tar.gz`.
+   The Mac build is for Apple silicon only, so `latest.json` has no `darwin-x86_64`: a loki already on an Intel Mac
+   finds no update for itself and stays as it is. Linux builds on the oldest supported Ubuntu so the files run on
+   newer glibc too; the apt list is the same as `shell.yml`'s. The Windows installer and the AppImage are their
+   systems' update files themselves; the Mac's is the `.app` in a `.tar.gz`.
 4. **publish** runs only when all three builds succeeded, and only for a push to `main`: a run by hand, from `main`
    or a branch, builds all three and keeps the files as the run's artifacts, and never touches a release or the
    `nightly` tag. `release.ts publish` writes `latest.json` from the builds' `.sig` files (it fails, naming the
    platform, when one is missing), then uploads in this order:
-   1. the versioned files: the `.dmg`, `loki_<v>_universal.app.tar.gz` (the Mac's update archive, renamed so it carries
+   1. the versioned files: the `.dmg`, `loki_<v>_aarch64.app.tar.gz` (the Mac's update archive, renamed so it carries
       the version), the `-setup.exe`, the AppImage, each update file's `.sig`, and the `.deb`;
    2. `latest.json` and the install scripts' unversioned copies, replaced with `--clobber`:
-      `loki-macos-universal.app.tar.gz` (the Mac's update archive), `loki-windows-x64-setup.exe` and
+      `loki-macos-arm64.app.tar.gz` (the Mac's update archive), `loki-windows-x64-setup.exe` and
       `loki-linux-x86_64.AppImage`.
 
    It then renders the cask from the `.dmg`, attaches `cask.rb` to the release and pushes it to the tap. Each of those
@@ -72,16 +73,16 @@ every stable now carries all three. Its branch can be deleted, and its marker, `
 
 ## What a release carries
 
-| file                                                                                          | for                                                                                               |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `latest.json`                                                                                 | the updater: version, notes, date, and per platform the versioned update file's URL and signature |
-| `loki_<v>_universal.dmg`                                                                      | a download by hand, and the casks                                                                 |
-| `loki_<v>_universal.app.tar.gz` (+ `.sig`)                                                    | the Mac's update file (`darwin-aarch64`, `darwin-x86_64`, `darwin-universal`)                     |
-| `loki_<v>_x64-setup.exe` (+ `.sig`)                                                           | the Windows installer and update file (`windows-x86_64`)                                          |
-| `loki_<v>_amd64.AppImage` (+ `.sig`)                                                          | the Linux AppImage and update file (`linux-x86_64`)                                               |
-| `loki_<v>_amd64.deb`                                                                          | Debian and Ubuntu; it does not update itself                                                      |
-| `loki-macos-universal.app.tar.gz`, `loki-windows-x64-setup.exe`, `loki-linux-x86_64.AppImage` | the install scripts (`site/public/install.sh`, `install.ps1`)                                     |
-| `cask.rb`                                                                                     | what the tap carries, to check                                                                    |
+| file                                                                                      | for                                                                                               |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `latest.json`                                                                             | the updater: version, notes, date, and per platform the versioned update file's URL and signature |
+| `loki_<v>_aarch64.dmg`                                                                    | a download by hand, and the casks                                                                 |
+| `loki_<v>_aarch64.app.tar.gz` (+ `.sig`)                                                  | the Mac's update file (`darwin-aarch64`)                                                          |
+| `loki_<v>_x64-setup.exe` (+ `.sig`)                                                       | the Windows installer and update file (`windows-x86_64`)                                          |
+| `loki_<v>_amd64.AppImage` (+ `.sig`)                                                      | the Linux AppImage and update file (`linux-x86_64`)                                               |
+| `loki_<v>_amd64.deb`                                                                      | Debian and Ubuntu; it does not update itself                                                      |
+| `loki-macos-arm64.app.tar.gz`, `loki-windows-x64-setup.exe`, `loki-linux-x86_64.AppImage` | the install scripts (`site/public/install.sh`, `install.ps1`)                                     |
+| `cask.rb`                                                                                 | what the tap carries, to check                                                                    |
 
 loki's updater reads `https://github.com/AlmondLabs/loki/releases/latest/download/latest.json` on the Stable channel
 and `https://github.com/AlmondLabs/loki/releases/download/nightly/latest.json` on the Nightly one; the install scripts

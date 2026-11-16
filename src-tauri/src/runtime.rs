@@ -47,13 +47,12 @@ impl Manifest {
     }
 }
 
-/// The manifest's name for a system and architecture, as Rust names them (`std::env::consts`). On the Mac it is the
-/// architecture the app is running on, so the universal app fetches one Node, not two. Anything else is an error
-/// rather than a guess: a Node built for another machine would not run.
+/// The manifest's name for a system and architecture, as Rust names them (`std::env::consts`). loki ships for Apple
+/// silicon Macs only, so an Intel Mac is an error like any other unsupported machine, rather than a guess: a Node built
+/// for another machine would not run.
 pub fn target(os: &str, arch: &str) -> Result<&'static str, String> {
     match (os, arch) {
         ("macos", "aarch64") => Ok("darwin-arm64"),
-        ("macos", "x86_64") => Ok("darwin-x64"),
         ("windows", "x86_64") => Ok("win-x64"),
         ("linux", "x86_64") => Ok("linux-x64"),
         _ => Err(format!("loki has no Node for {os} on {arch}")),
@@ -606,15 +605,17 @@ pub(crate) mod tests {
     #[test]
     fn each_system_and_architecture_picks_its_own_target_and_an_unknown_one_is_an_error() {
         assert_eq!(target("macos", "aarch64"), Ok("darwin-arm64"));
-        assert_eq!(target("macos", "x86_64"), Ok("darwin-x64"));
         assert_eq!(target("windows", "x86_64"), Ok("win-x64"));
         assert_eq!(target("linux", "x86_64"), Ok("linux-x64"));
         let err = target("linux", "aarch64").unwrap_err();
         assert!(err.contains("linux") && err.contains("aarch64"), "{err}");
+        // loki ships for Apple silicon Macs only, so an Intel Mac has no Node to fetch.
+        let err = target("macos", "x86_64").unwrap_err();
+        assert!(err.contains("macos") && err.contains("x86_64"), "{err}");
         assert!(target("freebsd", "x86_64").is_err());
         // Each target unpacks its own archive.
         let server = Server::new();
-        for t in ["darwin-arm64", "darwin-x64", "linux-x64", "win-x64"] {
+        for t in ["darwin-arm64", "linux-x64", "win-x64"] {
             let root = temp_root();
             let rt = ensure(&host(&root, t, &server), &mut |_| {}).unwrap();
             assert!(rt.node.starts_with(root.join(format!("node-22.23.5-{t}"))), "{t}: {:?}", rt.node);
@@ -628,7 +629,9 @@ pub(crate) mod tests {
         let version = node::parse_version(&m.node.version).unwrap();
         assert!(version >= node::NODE_MIN, "{}", m.node.version);
         let hex = |s: &str| s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit());
-        for t in ["darwin-arm64", "darwin-x64", "linux-x64", "win-x64"] {
+        let targets: Vec<&str> = m.node.targets.keys().map(String::as_str).collect();
+        assert_eq!(targets, ["darwin-arm64", "linux-x64", "win-x64"], "one Node per target loki ships for");
+        for t in targets {
             let a = &m.node.targets[t];
             let ext = if t == "win-x64" { "zip" } else { "tar.gz" };
             assert_eq!(a.url, format!("https://nodejs.org/dist/v{0}/node-v{0}-{t}.{ext}", m.node.version));

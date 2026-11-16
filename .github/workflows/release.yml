@@ -126,6 +126,7 @@ jobs:
   # (main takes changes through PRs alone). Each makes its bundles and its signed update file and hands them to publish
   # as an artifact. A newer merge's nightly cancels an older one's builds and publish (cancel-in-progress below), so an
   # older nightly never lands over a newer one; a stable's and a hand run's jobs queue behind nothing.
+  # macOS, for Apple silicon only: loki_<version>_aarch64.dmg, and loki.app.tar.gz, its update file.
   macos:
     name: build macOS (${{ needs.version.outputs.version }})
     needs: [plan, version]
@@ -147,7 +148,7 @@ jobs:
           node-version: 22
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: aarch64-apple-darwin
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
@@ -178,13 +179,13 @@ jobs:
           echo "signing with $APPLE_SIGNING_IDENTITY"
       # The update key signs the updater archive every loki installs from (plan 2026-11-15-2319, U4); the bundler
       # refuses to build it without the key. This step's env alone, so no later step sees it.
-      - name: build the universal dmg and update archive
+      - name: build the Apple silicon dmg and update archive
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target universal-apple-darwin
+          args: --target aarch64-apple-darwin
       # The build was the last step that signs: the steps after it get no Apple secret.
       - name: drop the signing secrets
         run: |
@@ -199,9 +200,9 @@ jobs:
         with:
           name: macos
           path: |
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/loki_*_universal.dmg
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/loki.app.tar.gz
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/loki.app.tar.gz.sig
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/loki_*_aarch64.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/loki.app.tar.gz
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/loki.app.tar.gz.sig
           if-no-files-found: error
 
   # Windows: the NSIS installer, loki_<version>_x64-setup.exe, which is also its update file.
