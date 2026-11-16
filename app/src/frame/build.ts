@@ -28,7 +28,6 @@ export const FRAME_CSP = [
   "base-uri 'none'",
 ].join("; ");
 
-/** Bundle the frame runtime. `production` minifies and selects React's production build. */
 export async function buildFrameScript(production: boolean): Promise<string> {
   const result = await build({
     entryPoints: [fileURLToPath(new URL("./main.tsx", import.meta.url))],
@@ -40,7 +39,6 @@ export async function buildFrameScript(production: boolean): Promise<string> {
     jsx: "automatic",
     minify: production,
     legalComments: "none",
-    // Styles come from the page (it posts its stylesheets in), never from the bundle.
     loader: { ".css": "empty" },
     define: { "process.env.NODE_ENV": JSON.stringify(production ? "production" : "development") },
     logLevel: "silent",
@@ -48,13 +46,8 @@ export async function buildFrameScript(production: boolean): Promise<string> {
   return result.outputFiles[0].text;
 }
 
-/**
- * Runs before the runtime: an error that stops the frame from starting reaches the page as the widget's error
- * (hash "boot"), instead of a frame that never says it is ready. Removed once the runtime has started.
- */
 export const BOOT_REPORTER = `(function(){function r(m){try{parent.postMessage({bridge:"loki-widget",type:"error",hash:"boot",message:"widget frame: "+String(m)},"*")}catch(_){}}window.__lokiBootError=function(e){r(e&&e.message||e)};window.addEventListener("error",window.__lokiBootError);window.addEventListener("unhandledrejection",function(e){r(e.reason&&e.reason.message||e.reason)})})();`;
 
-/** The frame document around a bundled runtime. */
 export function frameHtml(script: string): string {
   // esbuild escapes "</script" inside strings and regexes; any that is left would end the tag early.
   if (/<\/script/i.test(script)) throw new Error("widget frame bundle contains </script");
@@ -77,10 +70,6 @@ body { overflow-x: auto; overflow-y: hidden; }
 `;
 }
 
-/**
- * The whole widget-frame.html, with the bundled runtime inlined; `production` minifies it. The Vite tab
- * serves it to module widgets in development.
- */
 export async function buildFrameHtml(production: boolean): Promise<string> {
   return frameHtml(await buildFrameScript(production));
 }

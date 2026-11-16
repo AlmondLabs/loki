@@ -5,7 +5,6 @@ import { widgetMarks } from "../desk/widget-rows";
 import { InlineWidget } from "./inline-widget";
 import type { WidgetMark } from "./transcript";
 
-/** What a thread needs from the desk socket to show a desk's widgets inline (useDesk has all of it). */
 export interface InlineWidgetSource {
   widgetLogOf: (scope: Scope) => WidgetLogEntry[] | undefined;
   widgetsOf: (scope: Scope) => { entries: WidgetManifestEntry[]; overlay: Record<string, Record<string, unknown>> } | undefined;
@@ -13,14 +12,8 @@ export interface InlineWidgetSource {
   gesture: (g: Gesture) => void;
 }
 
-/** The phone's widget source, provided once at its root, so its threads need not be handed it (desktop hosts pass theirs). */
 export const WidgetSourceContext = createContext<InlineWidgetSource | undefined>(undefined);
 
-/**
- * A thread's widget rows and the widgets drawn under them: the marks (desk/widget-rows.ts) from the desk's change
- * log, and `inline(widgetId)` for the live widget. The desk's widgets are asked for once something in the thread
- * shows one (watchDesk), and again when they change. `readOnly` is the phone: it draws, it does not edit.
- */
 export function useInlineWidgets(
   given: InlineWidgetSource | undefined,
   scope: Scope | null,
@@ -33,7 +26,6 @@ export function useInlineWidgets(
   const log = scope ? source?.widgetLogOf(scope) : undefined;
   const widgets = useMemo(() => widgetMarks(rows, log, agentName), [rows, log, agentName]);
   const shows = !!scope && widgets.some((w) => w.earlier === undefined && !w.gone);
-  // Read through refs: the socket's functions are new each render, and the transcript is memoised on `inline`.
   const watch = useRef(source?.watchDesk);
   const send = useRef(source?.gesture);
   const open = useRef(opts.onOpen);

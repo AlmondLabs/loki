@@ -1,32 +1,7 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import type { IconName } from "./icons";
 
-/**
- * A stretch of the agent's work read as one quiet line in the thread, the way Claude's apps show them: "Ran 3
- * commands", "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed", or "Working" while the last
- * step has not come back (workSummary). Opened, each
- * step is a verb and what it was done to ("Ran · ls -la", "Read · app/src/…"), and opened again, its input and
- * output. When the agent said what a call is for (Bash's description), that is the step's line instead
- * ("Ran · Find hard-coded names in tests"), and a lone command's run reads by it. Pure, shared by the phone's
- * sheet and the desktop's inline list (chat/tool-steps.tsx).
- */
-
-/** Tools that run a shell command: they count as commands, the rest as tools. */
-// The capitalised names are Claude Code's own (Bash, Agent, Skill, TaskOutput…), as its chats name
-// steps. loki's own old names are not here: saved chats are renamed once (daemon/store-migration.ts, plan 044).
-const SHELL = new Set([
-  "Bash",
-  "bash", // pi's, on loki's own engine
-  "background_run",
-  "BashOutput",
-  "Shell",
-  "run_command",
-  "execute_command",
-  "exec_command",
-  "shell",
-  "local_shell",
-]);
-/** Tools that change files: Claude-style edits and Codex-style patches (the agent's memory files too). */
+const SHELL = new Set(["Bash", "bash", "background_run", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
 const EDITS = new Set([
   "Edit",
   "MultiEdit",
@@ -40,14 +15,10 @@ const EDITS = new Set([
   "memory_edit",
   "memory_delete",
 ]);
-/** The background-task tools beside the one that starts a command: loki's one, and Claude Code's that read, wait on and stop it. */
 const BACKGROUND = new Set(["background_watch", "TaskOutput", "Monitor", "TaskStop"]);
-/** The tool that loads a skill: loki's `skill`, or Claude Code's `Skill`. */
 const isSkillTool = (name: string): boolean => name === "skill" || name === "Skill";
-/** Tools that hand work to another agent. */
 const AGENTS = new Set(["Task", "subagent", "Agent", "SendAgentMessage"]);
 
-/** A tool's name as a sheet's title shows it (plan 038): "Bash", "Memory read", an MCP tool as server.tool. */
 export function stepTitle(name: string): string {
   const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
   if (mcp) return `${mcp[1]}.${mcp[2]}`;
@@ -55,11 +26,9 @@ export function stepTitle(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** What a step did: the phone's first line (plan 038), the desktop list's second. */
 export function stepVerb(name: string): string {
   if (name === "Background task") return "Ran in background";
   if (name === "mcp_search") return "Loaded MCP tools";
-  // mcp__<server>__<tool> (daemon/mcp/servers.ts toolKey): the server and the tool, as the person named them.
   const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
   if (mcp) return `Used ${mcp[1]}.${mcp[2]}`;
   if (name === "background_run") return "Started in background";
@@ -117,7 +86,6 @@ export function stepVerb(name: string): string {
   }
 }
 
-/** The step's icon in the list. */
 export function stepIcon(name: string): IconName {
   if (name === "Background task") return "terminal";
   if (isSkillTool(name)) return "skill";
@@ -130,19 +98,13 @@ export function stepIcon(name: string): IconName {
   return "widget";
 }
 
-/** A row the agent's work is made of: a tool call, a background task's notice, or a skill it loaded. */
 export function isWorkRow(row: TranscriptRow): boolean {
   return row.role === "tool" || (row.role === "event" && (isBackgroundTask(row) || row.text === "skill loaded"));
 }
 const isBackgroundTask = (row: TranscriptRow): boolean => row.role === "event" && row.text.startsWith("background task");
 
-/** What kind of step a work row is: the ones with a name of their own are listed; the rest are housekeeping. */
 export type StepKind = "background" | "command" | "agent" | "skill" | "read" | "edit" | "search" | "web" | "plan" | "tool";
 
-/**
- * What kind of step a work row is, read from its tool's name: a background task's notice or a loaded skill for an event
- * row, else a command, an agent, a read, an edit, a search, a web call, a plan, or any other tool.
- */
 export function stepKind(row: TranscriptRow): StepKind {
   if (row.role === "event") return isBackgroundTask(row) ? "background" : "skill";
   const name = stepName(row);
@@ -156,15 +118,12 @@ export function stepKind(row: TranscriptRow): StepKind {
   return "tool";
 }
 
-/** Whether a step failed: a tool's result said so, or a background task's notice did. */
 export const stepFailed = (row: TranscriptRow): boolean =>
   row.role === "event" ? isBackgroundTask(row) && /\b(failed|error|killed)\b/.test(row.text) : !!row.tool?.failed;
 
-/** A tool row's name: its step's, or (rows from before steps were kept) the label's head. */
 export const stepName = (row: TranscriptRow): string =>
   row.role === "event" ? (isBackgroundTask(row) ? "Background task" : "Skill") : (row.tool?.name ?? row.text.split(" · ")[0].trim());
 
-/** The step's second line: what the agent said it is for, else what it was done to (the label's tail), or nothing. */
 export function stepTarget(row: TranscriptRow): string | null {
   if (row.role === "event") return row.summary ?? null;
   if (row.tool?.description) return row.tool.description;
@@ -172,11 +131,6 @@ export function stepTarget(row: TranscriptRow): string | null {
   return i >= 0 ? row.text.slice(i + 3).trim() || null : null;
 }
 
-/**
- * Where each stretch of work starts, from row `from`, and where it ends (exclusive): consecutive tool calls,
- * background-task notices and skill loads are one stretch; a message, another event (canvas activity, a
- * compaction) or a mark ends it.
- */
 export function toolRuns(rows: TranscriptRow[], from = 0, breaks?: (i: number) => boolean): Map<number, number> {
   const runs = new Map<number, number>();
   for (let i = from; i < rows.length; i++) {
@@ -189,12 +143,9 @@ export function toolRuns(rows: TranscriptRow[], from = 0, breaks?: (i: number) =
   return runs;
 }
 
-/** Steps with a name of their own, shown in full; everything else is housekeeping, listed quieter. */
 const NAMED: ReadonlySet<StepKind> = new Set(["background", "command", "agent"]);
-/** Whether a step is listed in full: a background task, a command or an agent, or any step that failed. */
 export const isNamedStep = (row: TranscriptRow): boolean => NAMED.has(stepKind(row)) || stepFailed(row);
 
-/** "14 min", "1 h 5 min"; null under a minute, or when the rows carry no times. */
 export function workDuration(rows: TranscriptRow[]): string | null {
   const times = rows.map((r) => (r.at ? Date.parse(r.at) : NaN)).filter(Number.isFinite);
   if (times.length < 2) return null;
@@ -203,17 +154,11 @@ export function workDuration(rows: TranscriptRow[]): string | null {
   return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`;
 }
 
-/**
- * The stretch's one line: how long the agent worked, what it ran, and what failed. "Worked 14 min · 10 background
- * tasks, 3 commands, 11 tools · 1 failed"; a lone described command reads by its description, as before; "Working"
- * while the last step has not come back.
- */
 export function workSummary(rows: TranscriptRow[], running = false): string {
   const took = workDuration(rows);
   if (running) return took ? `Working · ${took}` : "Working";
   const only = rows.length === 1 ? rows[0] : null;
   if (only?.tool?.description && stepKind(only) === "command") return `Ran ${only.tool.description}${only.tool.failed ? " · failed" : ""}`;
-  // One step that names what it was done to says so ("Read signups.csv"), not "Used a tool".
   const target = only?.role === "tool" && !["command", "background", "agent"].includes(stepKind(only)) ? stepTarget(only) : null;
   if (only && target) {
     const verb = stepVerb(stepName(only));
@@ -241,16 +186,11 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
   return failed ? `${what} · ${failed} failed` : what;
 }
 
-/** The last step that failed, by its name: shown under the closed line so a failure needs no click to notice. */
 export function lastFailure(rows: TranscriptRow[]): number | null {
   for (let k = rows.length - 1; k >= 0; k--) if (stepFailed(rows[k])) return k;
   return null;
 }
 
-/**
- * A stretch as it is listed: the agent's Skill call is dropped when the skill's own body follows in the same stretch
- * (one "Loaded skill · loki" line, not two). A call whose skill never loaded stays, so a failure still shows.
- */
 export function withoutSkillCalls(rows: TranscriptRow[]): TranscriptRow[] {
   const loaded = new Set(rows.filter((r) => r.role === "event" && r.text === "skill loaded").map((r) => r.summary ?? ""));
   return rows.filter((r) => !(r.role === "tool" && isSkillTool(stepName(r)) && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));

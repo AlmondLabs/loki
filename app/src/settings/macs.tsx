@@ -7,22 +7,15 @@ import { Block, Setting } from "./layout";
 import type { Pushes } from "../../../core/frames.ts";
 import type { TailnetDevice } from "../../../core/frame-types.ts";
 
-/** What useDesk exposes as `macs`: this Mac, the Macs paired with it, the last code minted here, and the actions. */
 export interface MacsApi {
   view: Pushes["peers"] | null;
   lastCode: Pushes["peer_pair_code"] | null;
   refresh: () => void;
   beginPair: () => void;
-  /** Pair with the Mac at `host` using its code; resolves with null, or the reason it did not pair. */
   join: (host: string, code: string) => Promise<string | null>;
   forget: (macId: string) => void;
 }
 
-/**
- * Preferences › Macs (plan 023, U1): this Mac's name and tailnet address, the two halves of pairing (show a code here, or
- * type another Mac's address and code), and the Macs paired with this one. Pairing is mutual: either side can forget
- * the other, and both stop.
- */
 export function Macs({ macs, connected }: { macs: MacsApi; connected: boolean }) {
   const refresh = useEffectEvent(() => macs.refresh());
   useEffect(() => {
@@ -57,7 +50,6 @@ export function Macs({ macs, connected }: { macs: MacsApi; connected: boolean })
   );
 }
 
-/** Both halves of pairing: a code to show here, or the other Mac's address and code typed here. */
 function Pair({ macs }: { macs: MacsApi }) {
   const [host, setHost] = useState("");
   const [code, setCode] = useState("");
@@ -119,10 +111,6 @@ function Pair({ macs }: { macs: MacsApi }) {
   );
 }
 
-/**
- * The other computers on your tailnet, from Tailscale (plan 023): pick the Mac to pair with and its address fills in,
- * so only its code is typed. An offline one is listed but not picked; one already paired says so.
- */
 function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice & { paired: boolean }>; picked: string; onPick: (address: string) => void }) {
   if (devices.length === 0) return null;
   return (
@@ -162,7 +150,6 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
   );
 }
 
-/** The code, the address to type beside it, and the time left; the button above mints another. */
 function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   const now = useNow(1000);
   const left = countdown(code.expires_at, now);
@@ -184,7 +171,6 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   );
 }
 
-/** The Macs paired with this one: name, when last heard from, a note when one needs an update, and forget. */
 function PairedMacs({ peers, onForget }: { peers: Pushes["peers"]["peers"]; onForget: (macId: string) => void }) {
   const now = useNow();
   if (peers.length === 0) return <Setting label="None yet" help="Pair one below." />;

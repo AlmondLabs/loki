@@ -3,20 +3,10 @@ import { Field, NavButton } from "../components";
 import { Icon } from "../shared/icons";
 import { GROUPS, PAGE_ICON, pageAfterKey, pageTitle, pagesMatching, type SettingsPage } from "./pages";
 
-/** A page row's padding (`.loki-nav`). The search field takes it too, and its 1px border is the row's, so its text starts where the page names do. */
 export const NAV_ROW_PADDING = 8;
 
-/** Where a page name's text starts inside its row: the row's padding and its 1px border. Preferences' title starts there too (R8). */
 export const NAV_TEXT_INSET = NAV_ROW_PADDING + 1;
 
-/**
- * Preferences' section list as System Settings draws it (plan 2026-11-15-1035, U6): a filter, then each group as a small
- * grey heading over one row per page, the page's symbol in its coloured square before its name. The rows are a vertical
- * tablist with a roving tab stop, as TabRow is across; Tab lands on the chosen page, ↑↓ step the pages the filter left
- * and stop at the ends, Home and End go to the first and last, and focus moves with the choice. When the page changes
- * some other way (⌘[ ⌘]) while focus is in the list, focus follows it. In the filter, Enter opens the first page left
- * and Esc clears it (an empty one lets Esc close Preferences).
- */
 export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: (p: SettingsPage) => void; extra?: (p: SettingsPage) => ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -28,10 +18,8 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
     list.querySelector<HTMLElement>(`[data-page="${page}"]`)?.focus();
   }, [page]);
   const focusPage = (p: SettingsPage) => requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>(`[data-page="${p}"]`)?.focus());
-  // The chosen page keeps the tab stop while it is shown; otherwise the first page left takes it.
   const stop = shown.includes(page) ? page : shown[0];
   return (
-    // The heading and the filter stay; the list under them scrolls when the window is short.
     <div className="flex flex-col gap-3 flex-1" style={{ minHeight: 0 }}>
       <Field
         size="sm"
@@ -78,7 +66,6 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
             {pages.map((p) => {
               const on = p === page;
               const mark = PAGE_ICON[p];
-              // aria-selected is the tab's state; the list's highlight keys off it (aria-current is for links).
               return (
                 <NavButton
                   key={p}

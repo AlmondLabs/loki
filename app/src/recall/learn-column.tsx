@@ -5,11 +5,6 @@ import { LEARN_VIEWS, learnViews, type LearnView } from "./views";
 
 const VIEW_ICON: Record<LearnView, IconName> = { review: "learn", leads: "link", all: "file", deleted: "trash" };
 
-/**
- * Learn's views as its sources in the sidebar (plan 2026-11-14-1330, R14), in the order ⌘[ ⌘] step them. Only Review
- * has a grey count, the cards due, as Mail counts only the unread; the list's toolbar counts the rest. Choosing one
- * shows that view's items in the list.
- */
 export function learnSources({
   snap,
   due,

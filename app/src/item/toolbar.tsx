@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 import type { ItemProperty } from "./item-view";
 
-/**
- * An item's title as a Mac toolbar draws it under Liquid Glass (plan 2026-11-12-1505, U13, U16): the name over a grey
- * line of its facts, joined by dots, the one that waits on you led by its dot. With `onOpen` the name is a button that
- * opens the item where it lives (a Flow card's chat), its key in the tooltip.
- */
 export function ToolbarTitle({
   title,
   facts,
@@ -17,12 +12,10 @@ export function ToolbarTitle({
 }: {
   title: string;
   facts: readonly ItemProperty[];
-  /** More of the grey line after the facts: the chat's links, when and why it is here. */
   extra?: ReactNode;
   titleAs?: "h1" | "h2";
   onOpen?: () => void;
   openTitle?: string;
-  /** The name as a menu of its own (Flow's lane switcher) in place of the plain name; `title` stays its tooltip. */
   menu?: ReactNode;
 }) {
   return (
@@ -51,22 +44,15 @@ export function ToolbarTitle({
   );
 }
 
-/**
- * One of a toolbar group's items: a symbol whose name is said to a screen reader and shown, with its key, on hover; or,
- * without a symbol, its name in words (Sign In…).
- */
 export interface ToolbarMove {
   label: string;
   icon?: ReactNode;
   run: () => void;
-  /** The tooltip: the name and its key, or why the move is off. */
   title?: string;
   disabled?: boolean;
-  /** The group's one prominent item, tinted as a Mac toolbar's (plan 2026-11-14-1330, R10): what finishes the item. */
   prominent?: boolean;
 }
 
-/** The item's moves as one glass group of symbols at the toolbar's trailing edge, as Mail's toolbar draws them. */
 export function ToolbarGroup({ label, moves }: { label: string; moves: readonly ToolbarMove[] }) {
   return (
     <span className="loki-toolbar-group" role="group" aria-label={label}>

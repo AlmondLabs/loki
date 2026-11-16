@@ -7,14 +7,8 @@ import type { AgentDetails, AgentSkill } from "./types";
 import type { AgentStore } from "./use-agent-details";
 import type { ReadingState } from "./use-reading";
 
-/** The skills page's add form: write one here, or install from a source. */
 export type Adding = null | "write" | "install";
 
-/**
- * The Skills page's items, the list's rows (plan 2026-11-14-1330, KTD9): the agent's own skills, then the installed
- * ones, each group under its heading; a row's line is the skill's description, or for an installed one where it came
- * from ("Source?" in the accent when nobody recorded it).
- */
 export function skillRows(skills: readonly AgentSkill[]): ContentRow[] {
   return (["self", "other"] as const).flatMap((origin) =>
     skills
@@ -28,10 +22,6 @@ export function skillRows(skills: readonly AgentSkill[]): ContentRow[] {
   );
 }
 
-/**
- * The Skills page's detail: Write and Install, which open the add form, then the skill chosen in the list with refresh
- * and remove. Global skills are not an agent's and live in Preferences › Skills.
- */
 export function SkillsPage({
   d,
   store,
@@ -68,7 +58,6 @@ export function SkillsPage({
   );
 }
 
-/** The picked skill, read: its path and actions above, where it came from, its description, then the SKILL.md. */
 function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: AgentStore; skill: AgentSkill | null; reading: ReadingState }) {
   const { content, loadingView } = reading;
   if (!skill) return <div className="loki-meta loki-meta--wrap">{d.agent.name} has no skills in memory yet.</div>;
@@ -87,7 +76,6 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
   );
 }
 
-/** The line above a skill: its path, refresh (installed ones) and remove. */
 function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: AgentSkill; loadingView: boolean }) {
   const { refreshing, refreshSkill, removeSkill, flash } = store;
   return (
@@ -118,7 +106,6 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
   );
 }
 
-/** Where the skill came from: written by the agent, from a source, or installed with the source unknown (in the accent, as a nudge). */
 function SkillOrigin({ skill, agentName }: { skill: AgentSkill; agentName: string }) {
   return (
     <div style={{ fontSize: "var(--text-xs)", color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
@@ -128,7 +115,6 @@ function SkillOrigin({ skill, agentName }: { skill: AgentSkill; agentName: strin
   );
 }
 
-/** Add a skill to this agent: write one here, or install from a source the CLI knows. */
 function SkillAdd({
   mode,
   onWrite,
@@ -245,7 +231,6 @@ function SkillAdd({
   );
 }
 
-/** Where an installed skill came from, asked once: a GitHub URL or owner/repo/path, or a folder on this Mac. The mod remembers the answer. */
 function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: string) => Promise<string | null>; onCancel: () => void }) {
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);

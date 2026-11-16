@@ -22,24 +22,15 @@ export function keepsFollowing(el: HTMLElement, e: { deltaY: number } | { key: s
   return DOWN_KEYS.has(e.key) && !(e.key === " " && e.shiftKey);
 }
 
-/** The thread's last row as drawn: queued messages wait in the Composer's queue (plan 097, U6), not in the thread. */
 export function lastShown(rows: readonly TranscriptRow[]): TranscriptRow | null {
   for (let i = rows.length - 1; i >= 0; i--) if (!rows[i].queued) return rows[i];
   return null;
 }
 
-/**
- * The rows the thread draws: queued messages wait in the Composer's queue (plan 097, U6). The agent's live reply comes
- * after a queued message, so every queued row is left out, not only a trailing run; with none queued, the same list.
- */
 export function drawnRows(rows: TranscriptRow[]): TranscriptRow[] {
   return rows.some((r) => r.queued) ? rows.filter((r) => !r.queued) : rows;
 }
 
-/**
- * How many messages, yours and the agent's, are drawn from row `from` on, for the jump button's count. `rows` and `from`
- * count drawn rows (drawnRows): a queued row going in before the live reply would otherwise move it past the mark.
- */
 export function newSince(rows: readonly TranscriptRow[], from: number): number {
   return rows.slice(from).filter((r) => r.role === "user" || r.role === "assistant").length;
 }

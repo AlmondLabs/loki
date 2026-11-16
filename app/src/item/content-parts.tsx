@@ -10,17 +10,10 @@ import { clockLabel } from "../shared/thread";
 import type { WidgetMark } from "../chat/transcript";
 import type { ItemPart, ItemSource } from "./item-view";
 
-/**
- * What an outside entry carries, one renderer per part (plan 097, ContentParts): Slack's blocks and what its apps
- * attached, a mail's HTML in its locked frame, plain text with its links, and files as chips. The renderers are the
- * outside cards' own, so a message reads the same here as there. An agent chat's words are markdown and go through
- * MessageResponse instead; its widgets are drawn by WidgetArtifact.
- */
 export function ContentParts({ parts, source, title }: { parts: readonly ItemPart[]; source: ItemSource; title: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-2 text-sm">
       {parts.map((p, k) => (
-        // A message's parts never reorder, so their place is their key.
         <div key={k} className="min-w-0">
           {partOf(p, source, title)}
         </div>
@@ -37,7 +30,6 @@ function partOf(p: ItemPart, source: ItemSource, title: string): ReactNode {
           <LinkedText text={p.text} />
         </p>
       );
-    // A Slack block keeps its line breaks inside its words, so they are drawn as written, as the phone's rows do.
     case "blocks":
       return (
         <div className="whitespace-pre-wrap">
@@ -61,11 +53,6 @@ function partOf(p: ItemPart, source: ItemSource, title: string): ReactNode {
   }
 }
 
-/**
- * A widget the agent changed, drawn as AI Elements' Artifact (plan 097): its title, who changed it and when, an action
- * that opens the Canvas tab framed on it, and the live widget inside while this is its latest change. A widget since
- * removed says so and opens nothing. The summary of earlier changes stays one quiet line that opens the canvas.
- */
 export function WidgetArtifact({
   mark: w,
   live,

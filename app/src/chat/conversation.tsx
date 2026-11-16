@@ -50,10 +50,8 @@ import { Composer } from "../item/composer";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposals } from "../item/proposal";
 import { Timeline } from "../item/timeline";
 
-/** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
 
-/** What a conversation looks like right now. `rows` is undefined until the transcript has loaded. */
 export interface ConversationView {
   rows: TranscriptRow[] | undefined;
   status: ChatStatus;
@@ -61,46 +59,32 @@ export interface ConversationView {
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   mode?: string | null;
-  /** The ACP agent the chat runs on (plan 020): its models, modes and commands replace loki's; absent on loki's engine. */
   engine?: ChatEngineView | null;
   approval?: PendingApproval | null;
   question?: PendingQuestion | null;
-  /** Load the page of history older than `rows` (the reader reached the top); null or absent when there is none. */
   older?: (() => void) | null;
-  /** The thread's first page did not come (plan 041): try again. Null or absent while it loads, or once it came. */
   loadFailed?: (() => void) | null;
-  /** Fetch what a history page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
   loadStep?: (row: number) => Promise<WholeRow | null>;
-  /** The name of the Mac the chat lives on, when it is another one: the thread says it is loading from there. */
   home?: string | null;
-  /** The chat's live links to other chats (plan 067), as its header shows them. */
   links?: LinkSeen[];
-  /** A chat not started yet (⌘N): its empty thread says nothing, as a new message in Messages. */
   blank?: boolean;
 }
 
-/** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
 export interface ConversationActions {
   onSend: (text: string, images?: Attachment[]) => void;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
   onApprove?: (behavior: "allow" | "deny" | "always") => void;
-  /** Slash commands the box offers (see core/attention/commands.ts) and their runner. */
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
   onPickModel?: (selection: ModelSelection) => Promise<void>;
   onPickMode?: (mode: string) => Promise<void>;
   onLoadModels?: () => void;
-  /** Take back a message typed mid-turn before it went out. */
   onCancelQueued?: (text: string) => void;
-  /** Stop the agent's turn where it is, so the person can take over (the harness's abort_message); resolves to an error or null. */
   onStop?: () => Promise<string | null>;
-  /** Close one of the chat's links (plan 067); resolves to an error or null. */
   onCloseLink?: (linkId: string) => Promise<string | null>;
-  /** Keep the chat on this Mac when its move cannot finish, the other Mac out of reach (plan 096); an error or null. */
   onKeepHere?: () => Promise<string | null>;
 }
 
-/** Safe-area insets a host adds inside the thread and under the last row (the phone's notch and home indicator). */
 export interface Gutter {
   left?: string;
   right?: string;
@@ -110,15 +94,6 @@ export interface Gutter {
 const EMPTY: TranscriptRow[] = [];
 const NO_GUTTER: Required<Gutter> = { left: "0px", right: "0px", bottom: "0px" };
 
-/**
- * One conversation, the same in every room: the desk's chat panel, an inbox card, the phone's thread.
- * Top to bottom — the host's header, find, the thread (newest at the bottom, followed only while you are
- * there), the agent's open question or the tool it is paused on, the message box (its bottom row holds "+", the
- * model pill that opens Select model, the permission mode beside it, the chip for the suggestions its agent made for
- * other chats when some wait, the mic and send), and a last row with
- * approve / deny when something waits, then whatever actions the host adds on the right. The host owns
- * the frame around it and renders this inside a flex column.
- */
 export function Conversation({
   view,
   actions,
@@ -149,68 +124,36 @@ export function Conversation({
 }: {
   view: ConversationView;
   actions: ConversationActions;
-  /** list_models, for the picker and to know which efforts the current model offers. */
   models?: ModelEntry[] | null;
-  /** The agent's usual models, most used first (mod/usual-models.ts): the switcher leads with them. */
   usualModels?: readonly UsualChoice[];
   agentName?: string | null;
-  /** Above the thread: a ConversationHeader, or the host's own. */
   header?: ReactNode;
-  /** Key legends on approve / deny (the inbox's A / D, ⌘↵ / ⌘⇧D while typing). */
   hints?: { approve?: string; deny?: string };
-  /** The message box, when the host needs to focus it (the inbox's R). */
   inputRef?: RefObject<HTMLTextAreaElement | null>;
-  /** Text the host wants in the box (an "ask the agent to…" from another view); a new tick replaces the draft. */
   prefill?: { text: string; tick: number } | null;
-  /** Bumped by the host to put the caret in the message box, open find, the model picker, the mode menu. */
   focusTick?: number;
   findTick?: number;
   modelPickerTick?: number;
   modeMenuTick?: number;
-  /** Bumped by the host to open the suggestions (⌘⇧S, the Inbox card's mark, /suggestions). */
   suggestionsTick?: number;
-  /** Touch-sized controls (the phone); Select model opens as a bottom sheet instead of a popover. */
   touch?: boolean;
   gutter?: Gutter;
-  /** Older rows step back a little; the phone reads them all at full weight. */
   dim?: boolean;
-  /** The box gained or lost focus — the inbox switches its key grammar on this. */
   onTyping?: (typing: boolean) => void;
-  /** Esc in an empty box, after it has blurred (the inbox closes the deck; a draft is kept and only blurs). */
   onEscapeEmpty?: () => void;
-  /** A message or an answer went out from the box. */
   onSent?: () => void;
-  /** The host keeps the draft (the phone's per-conversation store); omitted, the box keeps its own, as on the desktop. */
   draft?: ControlledDraft;
-  /** The avatar-led message layout and the unread divider (Transcript's MessageLayout); omitted, bubbles. */
   layout?: MessageLayout;
-  /** A line between the thread and the box: "atlas is waiting for your reply", the link state. */
   notice?: ReactNode;
-  /** The empty box's words, in place of boxPlaceholder's. */
   placeholder?: string;
-  /**
-   * False keeps only the header, find and the thread: a view that is hidden but must keep its scroll (the
-   * desk's Messages tab while the Desk tab shows), so the box, its switchers and the open question or
-   * approval are drawn once, by the view on screen.
-   */
   composer?: boolean;
-  /**
-   * The suggestions made in this chat for other chats (plan 049), behind a chip in the message box (plan 052), drawn
-   * only by the view that draws the box; null or absent, none. The same source carries the replies its agent proposed
-   * (plan 067), drawn as cards above the box when the source has them.
-   */
   suggestions?: (SuggestionsProps & { source: Partial<ReplySource> }) | null;
 }) {
-  // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
-  // would be drawn again with each one (plan 032).
   const status = view.status;
-  // The desktop draws what the agent asks of the person as Proposals (plan 097, U5); the phone keeps its cards.
   const proposals = !touch;
-  // The new pane shows what waits to send in the Composer's queue rather than at the end of the thread.
   const queuedRows = proposals ? (view.rows ?? EMPTY).filter((r) => r.queued) : EMPTY;
   const approval = view.approval ?? null;
   const question = view.question ?? null;
-  // A link card (plan 067) comes as a question whose input is the link asked for.
   const linkAsk = question ? linkAskOf(question.input) : null;
   const model = view.model ?? null;
   const reasoningEffort = view.reasoningEffort ?? null;
@@ -220,8 +163,6 @@ export function Conversation({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
   const threadRef = useRef<ThreadHandle>(null);
-  // The dock goes while the box is drawn elsewhere (the Messages tab under Canvas) and comes back as a new element, so
-  // it is kept in state: a ref's change re-ran nothing, and the thread lost its padding and slid under the box.
   const [dockEl, setDockEl] = useState<HTMLDivElement | null>(null);
   const dock = useCallback(() => dockEl, [dockEl]);
   useHeightVar(dock, "--loki-dock-height");
@@ -260,15 +201,12 @@ export function Conversation({
 
   const pillRef = useRef<HTMLButtonElement>(null);
   const hasModelPicker = !!actions.onPickModel;
-  // The effort shows in the pill only when the model offers a choice of levels.
   const effort = effortEntriesFor(models ?? [], model).length > 1 ? reasoningEffort : null;
-  // An agent that has not run yet has not said what its modes are; the chip waits for them.
   const hasModeMenu = !!actions.onPickMode && (!modes || modes.length > 0);
   const onApprove = approval ? actions.onApprove : undefined;
   const canApprove = !!onApprove;
   const hasFooter = canApprove && !proposals;
   const hasContent = !!draft.trim() || images.length > 0;
-  // Stop, asked for and not yet ended: the button waits until the harness says the turn is over.
   const running = status !== "idle";
   const [stopping, setStopping] = useState(false);
   if (stopping && !running) setStopping(false);
@@ -276,25 +214,18 @@ export function Conversation({
   const stop = onStop
     ? () => {
         setStopping(true);
-        // Refused (the link down, the harness said no): the button comes back so it can be tried again.
         void onStop().then((err) => err && setStopping(false));
       }
     : undefined;
   const waiting = !!approval || !!question;
-  // The agent's quick replies (plan 066): only once its turn is over, and not while it waits on a question or approval.
   const replies = status === "idle" && !waiting ? lastReplies(view.rows) : null;
   const sendReply = (text: string) => {
     actions.onSend(text);
     onSent?.();
   };
   const onBoxKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    // No key typed alone into the box acts for the person: ⌘↵ allows a step (the keymap's chat.allow), and a quick
-    // reply's digit works only while the replies have focus (plan 2026-11-14-0852, 5).
     return palette.onKeyDown(e);
   };
-  // On the desktop the model and the permission mode are changed in ⌘K (plan 2026-11-12-1505, U19, U21, U23), their one
-  // home: the chat shares its controls, and ⌘⇧M and ⌘⇧P open ⌘K on the Models or Permissions scope. The phone keeps its
-  // popover (plan 097, U6).
   const inCommand = !touch && hasModelPicker;
   const modesInCommand = !touch && hasModeMenu;
   const modeList = modes ?? MODES;
@@ -318,8 +249,6 @@ export function Conversation({
         }
       : null,
   );
-  // On the desktop the box is Messages' (plan 2026-11-12-1505, U21): no pills in it, and "+" only attaches files; the
-  // model is picked in ⌘K. The phone's pills open its sheet.
   const picker =
     hasModelPicker &&
     (inCommand ? (
@@ -354,7 +283,6 @@ export function Conversation({
           onClose={() => setFindOpen(false)}
         />
       )}
-      {/* On the phone a run of tools opens as a bottom sheet; on the desktop it unfolds in place (tool-steps.tsx). */}
       <StepsTouch.Provider value={touch}>
         <Thread
           ref={threadRef}
@@ -388,11 +316,7 @@ export function Conversation({
       </StepsTouch.Provider>
 
       {composer && (
-        // The dock: decisions, the box and the moves. It floats over the thread, which scrolls on beneath it
-        // (components.css). On the desktop it keeps the thread's 20px gutter, and its columns centre in it at the
-        // thread's width.
         <div ref={setDockEl} className={proposals ? "loki-dock px-5" : "loki-dock"}>
-          {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
           <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 empty:hidden" : "contents"}>
             {question &&
               actions.onAnswer &&
@@ -423,7 +347,6 @@ export function Conversation({
           </div>
           {notice}
 
-          {/* The message box; a draft that starts with "/" opens the command palette above. */}
           <div
             className={proposals ? "relative" : "loki-composer"}
             style={proposals ? undefined : { padding: `8px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(12px + ${g.bottom})`} calc(12px + ${g.left})` }}
@@ -433,11 +356,9 @@ export function Conversation({
                 const list = (
                   <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />
                 );
-                // In the new pane the palette rises from the Composer's column, not the pane's edge.
                 return proposals ? <div className="relative mx-auto w-full max-w-3xl">{list}</div> : list;
               })()}
             {(() => {
-              // The desktop's Composer takes the same props as the phone's box, plus the queue it shows above the field.
               const Box = proposals ? Composer : ChatInput;
               return (
                 <Box
@@ -470,9 +391,7 @@ export function Conversation({
                             onClick={controls.togglePicker}
                           />
                         )}
-                        {/* The permission mode beside the model: both say how this conversation's agent works. */}
                         {hasModeMenu && <ModeSwitch mode={currentMode} modes={modes} controls={controls} />}
-                        {/* After the chat's own pills, never beside send: it shows only while suggestions wait, and must not move send. */}
                         {suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} />}
                       </>
                     )
@@ -489,11 +408,9 @@ export function Conversation({
               );
             })()}
           </div>
-          {/* The phone's sheet is drawn outside the box, over the whole screen; the desktop's opens ⌘K. */}
           {picker}
           {modesInCommand && <OpenScope scope="permissions" open={controls.modeOpen} onOpened={controls.closeMode} />}
 
-          {/* The phone's approve and deny, under the box; the desktop's approval is a Proposal above it. */}
           {onApprove && !proposals && (
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
               {(() => {
@@ -507,7 +424,6 @@ export function Conversation({
                     Deny
                   </Button>
                 );
-                // Allows this call and every later one of the same tool, in any chat, until taken back in Preferences › Chat (not in strict mode).
                 const always = (
                   <Button
                     key="always"
@@ -520,9 +436,7 @@ export function Conversation({
                     Always Allow
                   </Button>
                 );
-                // A script's card has no "always allow": each script is new code (offersAlways).
                 const more = approval && offersAlways(approval) ? [always] : [];
-                // Deny comes first, in reading order as on screen (the phone's two wide buttons).
                 return [deny, ...more, approve];
               })()}
             </div>
@@ -533,10 +447,6 @@ export function Conversation({
   );
 }
 
-/**
- * What the empty box says (plan 2026-11-12-1505, U4–U5): plain words with no keys in them, the keys living in the menu
- * and the tooltips; while an approval waits, that a reply or the buttons above answer it.
- */
 export function boxPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined, touch = false): string {
   if (view.question) return "Answer in your own words, or pick above";
   if (view.approval) return touch ? "Reply, or approve or deny the step" : "Reply, or allow or deny the step";
@@ -544,10 +454,6 @@ export function boxPlaceholder(view: Pick<ConversationView, "status" | "approval
   return view.status === "idle" ? `Message ${who}` : `Message ${who} — sends when this turn ends`;
 }
 
-/**
- * The title, the chat's purpose line under it when it has one, then the agent's face and name with whatever else the
- * host says about the conversation; `right` sits at the end of the row.
- */
 export function ConversationHeader({
   title,
   purpose,
@@ -558,12 +464,10 @@ export function ConversationHeader({
   right,
 }: {
   title: ReactNode;
-  /** The person's one line on what the chat is for (plan 049, R11). */
   purpose?: string | null;
   agentName: string | null | undefined;
   agentId: string | null | undefined;
   children?: ReactNode;
-  /** A line under the agent's (the chat's links, plan 067). */
   below?: ReactNode;
   right?: ReactNode;
 }) {
@@ -594,15 +498,11 @@ export function ConversationHeader({
   );
 }
 
-/** What a conversation can ask of its thread, for find in page. */
 export interface ThreadHandle {
-  /** Stop following the bottom (find moved the selection into view; the next delta must not pull it away). */
   unpin: () => void;
-  /** Mount the rows above the window that hold `query`, before find searches the page. */
   reveal: (query: string) => void;
 }
 
-/** What a thread draws and how it reaches its host; the phone's thread and the Timeline take the same (plan 096, KTD7). */
 export interface ThreadProps {
   rows: TranscriptRow[] | undefined;
   status?: ChatStatus;
@@ -612,35 +512,22 @@ export interface ThreadProps {
   dim?: boolean;
   onCancelQueued?: (text: string) => void;
   onRetry?: (text: string) => void;
-  /** Keep the chat on this Mac when its move cannot finish, the other Mac out of reach (plan 096); an error or null. */
   onKeepHere?: () => Promise<string | null>;
   older?: (() => void) | null;
   loadFailed?: (() => void) | null;
   loadStep?: (row: number) => Promise<WholeRow | null>;
   home?: string | null;
-  /** An empty thread says nothing (ConversationView's `blank`): a chat not started yet. */
   blank?: boolean;
   layout?: MessageLayout;
-  /**
-   * Drawn after the last row, inside the scroll (the agent's quick replies): going away it leaves the thread's height
-   * alone, so a message sent in its place is followed as any other.
-   */
   tail?: ReactNode;
   style?: CSSProperties;
-  /** The phone's thread, which keeps its own rows until its own plan; the desktop draws the Timeline. */
   phone?: boolean;
 }
 
-/** The thread: the Timeline on loki's new components on the desktop (plan 097), the phone's own on the phone. */
 export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ phone = false, ...props }, ref) {
   return phone ? <PhoneThread ref={ref} {...props} /> : <Timeline ref={ref} {...props} />;
 });
 
-/**
- * What scrolls: a note while the thread loads or when it is empty, the rows, then the thinking marker or
- * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
- * way back. The phone's inbox draws this alone inside a swipe card.
- */
 const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(function PhoneThread(
   {
     rows,
@@ -666,7 +553,6 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
-  // A long thread mounts its newest rows and reveals older ones as you scroll up (transcript-window.ts).
   const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, above, reveal } = useTranscriptScroll(
     scrollRef,
     list,
@@ -676,14 +562,11 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
     older,
   );
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
-  // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
-  // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
   const cancelQueuedRef = useRef(onCancelQueued);
   useEffect(() => {
     cancelQueuedRef.current = onCancelQueued;
   }, [onCancelQueued]);
   const cancelQueued = useCallback((row: TranscriptRow) => cancelQueuedRef.current?.(row.text), []);
-  // The step loader the same way: a fresh one each render would redraw every run of steps through the context.
   const loadStepRef = useRef(loadStep);
   useEffect(() => {
     loadStepRef.current = loadStep;
@@ -750,7 +633,6 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
         {status === "thinking" && !waiting && (
           <div className="loki-thinking">
             Thinking
-            {/* Three dots that rise in turn, as a typing bubble does (chat.css); read as "thinking". */}
             <span className="loki-thinking-dots" aria-hidden>
               <span />
               <span />
@@ -769,7 +651,6 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
           className="loki-latest-chip"
           style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}
         >
-          {/* Keyed by the count: a new message makes a new label, which pops (chat.css). */}
           <span key={fresh}>{fresh > 0 ? `↓ ${fresh} new` : "↓ latest"}</span>
         </Chip>
       )}
@@ -779,10 +660,6 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
 
 const NO_USUAL: readonly UsualChoice[] = [];
 
-/**
- * ⌘⇧M or ⌘⇧P asked for the model or the mode (the switcher's open flag): ⌘K opens on its Models or Permissions scope
- * (U21, U23), and the flag is handed back so the next key opens it again.
- */
 function OpenScope({ scope, open, onOpened }: { scope: CommandScope; open: boolean; onOpened: () => void }) {
   const opened = useRef(onOpened);
   useEffect(() => {

@@ -29,18 +29,8 @@ import { LEARN_VIEW_LABEL, stepLearnView, type LearnView as View } from "./views
 
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
 
-/** Each list view's chosen row; Review's is the card under your hands, held by the deck pass. */
 type Picked = Record<Exclude<View, "review">, string | null>;
 
-/**
- * Learn, the place's owner (plan 2026-11-14-1330, KTD1, KTD10): the view, its Search, the row chosen in each view and
- * the card being edited, drawn as the list column and the detail. The views are the sidebar's sources (learn-column.tsx)
- * and ⌘[ ⌘] step them. Review is the cards the worker wrote, one at a time: the front, then the answer on space, then
- * one of two answers — again, or got it — that schedules the next sight of it. Its list mirrors the due queue with the
- * card under your hands selected, and choosing a row reviews that card next. Deleting a card (X) puts it on the pile
- * the worker reads as "not this". Leads lists what is worth learning properly, each a lesson away; All Cards edits the
- * card chosen in the detail; Deleted holds the deleted cards and the dismissed leads, with Restore.
- */
 export function Recall({
   recall,
   active,
@@ -58,11 +48,9 @@ export function Recall({
   const cards = snap?.cards ?? [];
   const pass = useDeckPass(cards);
   const { current, revealed } = pass;
-  /** Per-card UI state, by id, so it leaves with the card. */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previousId, setPreviousId] = useState<string | null>(null);
   const editing = !!current && editingId === current.card.id;
-  /** All Cards' Search (it was the card list's own field). */
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Picked>({ leads: null, all: null, deleted: null });
   const pick = (v: keyof Picked, id: string | null) => setPicked((p) => ({ ...p, [v]: id }));
@@ -81,14 +69,11 @@ export function Recall({
     const s = cards.find((c) => c.card.id === id)?.card.source;
     if (s?.agent_id && s.conversation_id) onOpenDesk(s.agent_id, s.conversation_id);
   };
-  /** Review's list, so X, E and O act on the row the person sees: it commits a pending highlight first (KTD3). */
   const listRef = useRef<ContentListHandle>(null);
   const onSeen = (run: (id: string) => void) => {
     if (listRef.current) listRef.current.act(run);
     else if (current) run(current.card.id);
   };
-  // Space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a pass
-  // through the deck is → → → with ← for the ones that slipped.
   const answer = (g: Grade) => (revealed ? grade(g) : pass.reveal());
   const keys = useRef({ reveal: () => {}, again: () => {}, good: () => {}, remove: () => {}, edit: () => {}, open: () => {} });
   useEffect(() => {
@@ -101,7 +86,6 @@ export function Recall({
       open: () => onSeen(open),
     };
   });
-  // The deck's keys, registered once per showing; the handlers above are read at press time.
   useEffect(() => {
     if (!active || view !== "review") return;
     return registerActions({
@@ -114,7 +98,6 @@ export function Recall({
       "recall.undo": () => void recall.undo(),
     });
   }, [active, view, recall]);
-  // The place's own keys, whichever view shows: ⌘[ and ⌘] step the views (R16), ⌘R refreshes.
   useEffect(() => {
     if (!active) return;
     return registerActions({
@@ -124,7 +107,6 @@ export function Recall({
     });
   }, [active, recall, view, setView]);
 
-  /** Return or Tab on a row: focus goes into the detail, where Review's keys answer the card. */
   const detailRef = useRef<HTMLDivElement>(null);
 
   const deck = current && (
@@ -151,7 +133,6 @@ export function Recall({
 
   const shown = viewList(view, { snap, pass, query, picked, now });
   const listColumn = (
-    // Review's list keeps the deck's answers to itself while it has focus (holdDeckKeys): → browses, never grades.
     <div className="loki-learn-list" onKeyDown={view === "review" ? (e) => holdDeckKeys(e.nativeEvent) : undefined}>
       <ContentList
         key={view}
@@ -178,7 +159,6 @@ export function Recall({
         </ReviewView>
       );
     }
-    // With no snapshot the notices are all there is to show (an error, most likely); the wrapper leaves them to this.
     if (!snap) return <Notices recall={recall} />;
     const chosen = shown.selectedId;
     if (view === "leads") {
@@ -274,10 +254,6 @@ export function Recall({
             boxSizing: "border-box",
           }}
         >
-          {/* The toolbar keeps its place across the views, at the pane's top as every pane's is. Inside the body, the
-            deck sits in the middle of what is left (a little above it, where the eye rests); an item starts at the top,
-            at the title's edge (LearnColumn). The gutter is reserved so a long item's scrollbar does not shift the
-            column sideways. */}
           <LearnColumn view={view}>
             <div key={view} className="flex flex-1 flex-col gap-4" style={{ animation: "loki-view-in 120ms ease-out" }}>
               {view !== "review" && snap && <Notices recall={recall} />}
@@ -292,13 +268,8 @@ export function Recall({
   return <PlaceColumns list={listColumn} detail={detail} />;
 }
 
-/** The item's name in each view's "No … Selected"; Review always shows the deck or what it says instead. */
 const NOUN: Record<View, string> = { review: "Card", leads: "Lead", all: "Card", deleted: "Item" };
 
-/**
- * A view's list: its rows, the one selected, and the sentence it says when empty (KTD3). Review's selection is the
- * card under your hands, falling back to the queue's first (KTD8); the other views select only what was chosen.
- */
 function viewList(
   view: View,
   { snap, pass, query, picked, now }: { snap: RecallSnapshot | null; pass: ReturnType<typeof useDeckPass>; query: string; picked: Picked; now: number },
@@ -324,13 +295,11 @@ function viewList(
   }
 }
 
-/** The title and the counts; the views are the sidebar's sources. */
 function RecallHeader({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   const cards = snap?.cards.length ?? 0;
   const leads = snap?.leads.length ?? 0;
   const deleted = snap?.rejected.length ?? 0;
-  // Learn's toolbar, the chat's anatomy (plan 2026-11-14-1300, 3): its name over a grey line of its counts.
   const facts: ItemProperty[] = [
     { key: "status", label: `${recall.due} due`, editable: false, ...(recall.due > 0 ? { tone: "attention" as const } : {}) },
     { key: "status", label: `${cards} ${cards === 1 ? "card" : "cards"}`, editable: false },
@@ -340,7 +309,6 @@ function RecallHeader({ recall }: { recall: RecallModel }) {
   return <PaneHeader title="Learn" line={<ToolbarTitle title="Learn" facts={facts} titleAs="h1" />} />;
 }
 
-/** The notices above any view: an error, and the writer being off while cards exist. */
 function Notices({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   return (
@@ -362,7 +330,6 @@ function Notices({ recall }: { recall: RecallModel }) {
   );
 }
 
-/** The review view: the intro until the writer has ever been on, else the deck (passed in) with its states around it. */
 function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: ReturnType<typeof useDeckPass>; children: React.ReactNode }) {
   const { snap } = recall;
   const fresh = !!snap && !snap.worker.enabled && snap.cards.length === 0;
@@ -382,7 +349,6 @@ function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: Ret
   );
 }
 
-/** What the review view shows around the card: loading, no cards at all, nothing due, or the deck with its key legend. */
 function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pass: ReturnType<typeof useDeckPass>; children: React.ReactNode }) {
   const now = useNow();
   if (!snap) return <Meta>Loading…</Meta>;
@@ -404,12 +370,9 @@ function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pas
       </Empty>
     );
   }
-  // No key legend under the deck (plan 2026-11-15-1035, R14): each key is in its button's tooltip, the Learn menu and
-  // Preferences › Keyboard shortcuts.
   return children;
 }
 
-/** One card: its source, the front, the answer once shown, and the two answers. */
 function Deck({
   c,
   position,
@@ -522,7 +485,6 @@ function Deck({
           ))}
         </div>
       )}
-      {/* Delete is the destructive one, red and apart at the trailing edge, as a Mac sheet keeps it from the rest. */}
       <div className="flex flex-wrap items-center gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
         <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>
           Edit

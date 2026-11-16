@@ -9,20 +9,10 @@ import type { AgentsApi, ReflectionControls } from "./types";
 import type { ReadingState } from "./use-reading";
 import type { MemoryCommit, ReflectionState } from "../../../core/frame-types.ts";
 
-/** Reflection's runs, the Reflection page's items (plan 2026-11-14-1330, KTD9): the memory commits a reflection pass made, newest first. */
 export function reflectionRuns(log: readonly MemoryCommit[]): MemoryCommit[] {
   return log.filter((c) => passAuthor(c.author) === "reflection");
 }
 
-/**
- * The reflection page: whether loki keeps its agents' memory up to date in the background (daemon/passes.ts). Once
- * a chat has been quiet for half an hour, reflection reads what was said since it last read it (a batch of the agent's
- * quiet chats at once, daemon/passes.ts), as the agent,
- * and keeps what will matter in later chats as memory commits by "Reflection"; it also reads a chat right after its
- * context is compacted. The switch is for every agent at once; /reflect in a chat starts a pass by hand. Under the
- * settings, the run chosen in the list is read as a commit, or the last change reflection made when it has no run in
- * the latest changes.
- */
 export function ReflectionPage({
   agentId,
   agentName,
@@ -40,12 +30,10 @@ export function ReflectionPage({
   reading: ReadingState;
   onRevert: (sha: string) => void;
 }) {
-  /** undefined: reading; null: the daemon did not answer. */
   const [settings, setSettings] = useState<PassSettings | null | undefined>(undefined);
   const [state, setState] = useState<ReflectionState | null | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Mounted per agent (agents.tsx keys this page by the agent id), so the state above starts fresh with each tab.
   const readState = useEffectEvent((id: string) => api.reflection(id));
   const readSettings = useEffectEvent(() => reflect.get());
   useEffect(() => {
@@ -63,7 +51,6 @@ export function ReflectionPage({
     if (err) setNotice(err);
     else setSettings({ ...settings, reflection: { enabled } });
   };
-  // Whether an agent with no model loki can reach runs its passes on its Claude Code or Cursor agent (plan 061).
   const toggleAcp = async (enabled: boolean) => {
     if (!settings) return;
     const err = await reflect.set({ acp: { enabled } });

@@ -1,4 +1,3 @@
-/** The styles that decide where a textarea lays out its text; a mirror with the same ones wraps the same way. */
 const MIRRORED = [
   "boxSizing",
   "width",
@@ -48,7 +47,6 @@ export function caretOffset(el: HTMLTextAreaElement, index: number): { left: num
   return at;
 }
 
-/** A list's left edge so it starts at `want` but stays inside a box `room` wide: never past the right edge, never before the left. */
 export function fitLeft(want: number, width: number, room: number): number {
   return Math.max(0, Math.min(want, room - width));
 }

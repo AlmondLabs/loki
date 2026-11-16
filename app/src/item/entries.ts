@@ -3,11 +3,6 @@ import { clockLabel, dayPills } from "../shared/thread";
 import { isWorkRow, stepFailed, toolRuns, workDuration } from "../shared/tool-steps";
 import type { WidgetMark } from "../chat/transcript";
 
-/**
- * One thing the new thread draws (plan 096, U5), in reading order. Rows keep their thread-wide index; a stretch of work
- * is one entry for all its rows. Keys count past `above`, the rows an older page put in front since the thread opened,
- * so an entry keeps its key, its memo and its own state (a stretch left open) when a page arrives above it.
- */
 export type ThreadEntry =
   | { kind: "day"; key: string; label: string }
   | { kind: "new"; key: string; day: string | null }
@@ -16,45 +11,26 @@ export type ThreadEntry =
   | { kind: "event"; key: string; row: TranscriptRow; arrived: boolean }
   | { kind: "message"; key: string; row: TranscriptRow; last: boolean; first: boolean; arrived: boolean };
 
-/** What the entries are built from: the thread's rows and where its window starts, and the marks laid among them. */
 export interface EntryInput {
   rows: TranscriptRow[];
-  /** The first row mounted (the window, transcript-window.ts). */
   from: number;
-  /** Rows loaded above since the thread opened. */
   above: number;
-  /** The New line sits before this row. */
   dividerAt: number | null;
-  /** The day named beside the New line when the rows carry no times. */
   dividerDay: string | null;
   widgets: readonly WidgetMark[];
-  /** The agent is working: a last stretch still waiting on its result reads as running. */
   busy: boolean;
-  /**
-   * Liquid Glass tells time at gaps (plan 2026-11-12-1505, U14): before your message when this many ms or more have
-   * passed since the row before, a marker with its time, and the day's marker carries the time where both fall. Unset,
-   * only the day is marked.
-   */
   gaps?: number;
-  /** Rows from this index on came in while the thread was open. */
   arrivedFrom: number;
   now?: number;
 }
 
-/**
- * The thread as entries: each row's widget marks, a day marker where the calendar day changes (only when the rows carry
- * times), the New line, then the row itself: a message, an event, or the first row of a stretch of work standing for
- * the whole stretch. A widget mark, a day or the New line ends a stretch and starts a new run of messages.
- */
 export function threadEntries({ rows, from, above, dividerAt, dividerDay, widgets, busy, arrivedFrom, gaps, now = Date.now() }: EntryInput): ThreadEntry[] {
   const first = Math.max(0, Math.min(from, rows.length));
   const marks = new Map<number, WidgetMark[]>();
   for (const w of widgets) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
-  // Each widget is drawn live once, under its latest row.
   const latest = new Map<string, string>();
   for (const w of widgets) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
 
-  // Reading order, so a day is named at whatever opens it, a message or a widget row.
   const order: Array<{ i: number; row?: TranscriptRow; mark?: WidgetMark }> = [];
   for (let i = first; i <= rows.length; i++) {
     for (const mark of marks.get(i) ?? []) order.push({ i, mark });
@@ -73,7 +49,6 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   });
   const tools = toolRuns(rows, first, (k) => marks.has(k) || dayAt.has(k) || k === dividerAt);
 
-  // Where a time marker goes (gaps): your message, a gap or more after the timed row before it, or the first one.
   const timeAt = new Map<number, string>();
   if (gaps !== undefined && timed) {
     let before = Number.NaN;
@@ -118,7 +93,6 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
       if (end === undefined) return;
       const run = rows.slice(i, end);
       const tail = run[run.length - 1];
-      // A lean row from a page finished; only the live tail of the thread can still be running.
       const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output && tail.tool?.row === undefined;
       out.push({ kind: "steps", key, rows: run, running, arrived });
       return;
@@ -134,36 +108,18 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   return out;
 }
 
-/**
- * A part of the agent's turn: its words, a stretch of its work, an event, a widget it changed, or a day or the New line
- * that fell inside it. A marker inside a turn is drawn where it fell and does not end the turn, so coming back to a chat
- * mid-turn shows one turn with the New line in it, not two turns with the agent's name twice.
- */
 export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event" | "widget" | "day" | "new" }>;
 
-/** What the turn header says about where the turn stands. */
 export type TurnState = "working" | "needs you" | "failed" | "done";
 
-/**
- * The thread as Turns draws it (plan 096, U6): your messages stand alone, and so do the day and New markers that fall
- * between turns; everything the agent did between two of your messages (its words, stretches of work, events, widget
- * changes, and any marker among them) is one turn, keyed by its first part so it keeps its key as it grows.
- */
 export type TurnEntry =
   | Extract<ThreadEntry, { kind: "day" | "new" }>
   | Extract<ThreadEntry, { kind: "message" }>
   | { kind: "turn"; key: string; parts: TurnPart[]; state: TurnState; failed: number; took: string | null };
 
-/**
- * Groups the entries into turns. Only the last turn can be working (the agent is busy) or waiting on you (an approval or
- * a question is open). Before that a turn reads failed only when its last step failed: a step the agent got past is
- * still counted on its work line, but the turn did not fail. How long it took comes from the times on its rows.
- */
 export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: boolean; waiting: boolean }): TurnEntry[] {
   const out: TurnEntry[] = [];
   let open: TurnPart[] | null = null;
-  // Markers met while a turn is open wait here: the agent's next part takes them into its turn, your next message
-  // leaves them standing between turns.
   let held: Array<Extract<ThreadEntry, { kind: "day" | "new" }>> = [];
   const close = () => {
     const parts: TurnPart[] | null = open;
@@ -189,7 +145,6 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
     }
   }
   close();
-  // The live turn is the last one, with only the markers it held after it.
   const at = out.length - 1;
   const last = out.at(-1);
   if (last?.kind === "turn" && (busy || waiting)) out[at] = { ...last, state: waiting ? "needs you" : "working" };
@@ -197,12 +152,6 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
   return out;
 }
 
-/**
- * Where a turn's thoughts are drawn (plan 2026-11-14-0852, 4): a thought before a reply that follows a stretch of work
- * joins that stretch's Work line as its last step, so a turn that thinks, reads, thinks and answers is one line before
- * the answer, not three. `into` gives each stretch the rows whose thoughts it takes; `folded` the replies whose
- * thought it took, which then draw no Thought line of their own. A thought with no stretch before it keeps its line.
- */
 export function thoughtsIntoWork(turns: ReadonlyArray<readonly TurnPart[]>): { into: Map<string, TranscriptRow[]>; folded: Set<string> } {
   const into = new Map<string, TranscriptRow[]>();
   const folded = new Set<string>();

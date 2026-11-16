@@ -3,22 +3,14 @@ import { AGENT_PAGE_KEY, DEFAULT_AGENT_PAGE, isAgentPage, type AgentPage } from 
 import { firstAgentId } from "./reading";
 import { Listeners } from "../../../core/listeners.ts";
 
-/** The agent last chosen, kept for the window beside the page (sessionStorage). */
 export const AGENT_ID_KEY = "loki.agentsAgent";
 
-/**
- * What the sidebar's Agents sources and the Agents place both read (plan 2026-11-14-1330, KTD9): the chosen agent,
- * its page, and whether the new-agent form is open. The sidebar stays mounted while the place mounts only while it
- * shows, so the choice sits here rather than in either. `agent` is undefined before
- * any pick (the desk's agent shows) and null after the shown one is deleted (the first shows).
- */
 export interface AgentsSelectionState {
   agent: string | null | undefined;
   page: AgentPage;
   creating: boolean;
 }
 
-/** A store of the Agents selection: read it, subscribe to it, and change the agent, the page or whether the new-agent form is open. */
 export interface AgentsSelection {
   get: () => AgentsSelectionState;
   subscribe: (fn: () => void) => () => void;
@@ -29,7 +21,6 @@ export interface AgentsSelection {
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-/** A blocked store only costs remembering across reloads. */
 function tryStore<T>(fn: () => T, fallback: T): T {
   try {
     return fn();
@@ -38,7 +29,6 @@ function tryStore<T>(fn: () => T, fallback: T): T {
   }
 }
 
-/** A selection that remembers the page and the agent in `store` (sessionStorage in the app), restored on creation; null keeps them in memory only. */
 export function createAgentsSelection(store: Store | null): AgentsSelection {
   const savedPage = store ? tryStore(() => store.getItem(AGENT_PAGE_KEY), null) : null;
   const savedAgent = store ? tryStore(() => store.getItem(AGENT_ID_KEY), null) : null;
@@ -65,14 +55,8 @@ export function createAgentsSelection(store: Store | null): AgentsSelection {
   };
 }
 
-/** The window's one selection: sessionStorage when there is one (not in tests or a blocked context). */
 export const agentsSelection = createAgentsSelection(tryStore(() => (typeof sessionStorage === "undefined" ? null : sessionStorage), null));
 
-/**
- * The agent on show: the picked one; before any pick the desk's agent; else (none picked, or it was deleted) the
- * first. A remembered pick the loaded list no longer has (deleted elsewhere, then a reload) is treated as no pick;
- * an empty list is still loading, so the pick stands until it arrives.
- */
 export function shownAgent(picked: string | null | undefined, initialAgentId: string | null, agents: ReadonlyArray<{ id: string }>): string | null {
   if (picked && agents.length && !agents.some((a) => a.id === picked)) picked = undefined;
   if (picked) return picked;
@@ -80,16 +64,10 @@ export function shownAgent(picked: string | null | undefined, initialAgentId: st
   return firstAgentId(agents);
 }
 
-/**
- * Whether the Agents place shows its list column (plan 2026-11-14-1330, R13): the page's items fill it on Memory,
- * Changes, Reflection and Skills. Profile has no items, and neither have the new-agent form or the invitation before
- * the first agent, so their detail spans the list and detail columns.
- */
 export function agentsHasList(state: AgentsSelectionState, agentCount: number): boolean {
   return agentCount > 0 && !state.creating && state.page !== "profile";
 }
 
-/** The selection's state, re-rendering on each change. */
 export function useAgentsSelection(selection: AgentsSelection = agentsSelection): AgentsSelectionState {
   return useSyncExternalStore(selection.subscribe, selection.get, selection.get);
 }

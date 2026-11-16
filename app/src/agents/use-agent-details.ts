@@ -3,12 +3,6 @@ import { useEffect, useEffectEvent, useState } from "react";
 import type { AgentDetails, AgentEdit, AgentSkill, AgentsApi, AgentsWrite } from "./types";
 import type { MemoryCommit, MemorySkill } from "../../../core/frame-types.ts";
 
-/**
- * The selected agent's record and memory log, loaded once per agent and kept by id, and the writes
- * against it: save the identity, delete the agent, add, install, refresh or remove a skill. Each write
- * reports through `notice` (a line that clears itself after three seconds) and reloads the agent.
- * `confirmDelete`, `refreshing` and `needsSource` are the writes' confirm and in-flight state.
- */
 export function useAgentDetails({
   selected,
   api,
@@ -23,9 +17,7 @@ export function useAgentDetails({
   write: AgentsWrite;
   onUpdateAgent: (agentId: string, body: AgentEdit) => Promise<string | null>;
   onAskToUpdate: (agentId: string, text: string) => void;
-  /** The agent is gone: the caller drops its pick. */
   onDeleted: () => void;
-  /** A skill was written: the caller shows it. */
   onSkillAdded: (name: string) => void;
 }) {
   const [details, setDetails] = useState<Record<string, AgentDetails | null | undefined>>({});
@@ -40,7 +32,6 @@ export function useAgentDetails({
         return api.log(id, undefined, 40);
       })
       .then((log) => setCommits((x) => ({ ...x, [id]: log })));
-  // Null is what a failed or slow answer gives as well as a missing record, so it is asked again when picked again.
   const loadIfUnseen = useEffectEvent((id: string) => {
     if (!details[id]) void load(id);
   });
@@ -66,7 +57,6 @@ export function useAgentDetails({
     if (!selected || !d) return;
     const name = d.agent.name;
     const err = await write.deleteAgent(selected);
-    // A refused delete keeps the confirm open, where the accounts the agent still owns can be moved or disconnected (plan 067, R4).
     if (err) return flash(err);
     setConfirmDelete(false);
     setDetails((x) => ({ ...x, [selected]: undefined }));
@@ -102,11 +92,6 @@ export function useAgentDetails({
     void load(selected);
     return null;
   };
-  /**
-   * Refresh an installed skill from where it came from. Current: say so. Untouched and changed upstream:
-   * the mod replaced it. Edited by the agent: the mod staged upstream and the agent is asked, in its main
-   * chat, to reconcile — the request is prefilled, you send it. No known source: ask for one, once.
-   */
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [needsSource, setNeedsSource] = useState<string | null>(null);
   const refreshSkill = async (skill: AgentSkill, source?: string): Promise<string | null> => {
@@ -134,7 +119,6 @@ export function useAgentDetails({
     return null;
   };
 
-  /** Undo a memory commit (the Changes page's Revert): the undo is a commit of its own, newest in the log. */
   const revertCommit = async (sha: string) => {
     if (!selected) return;
     const err = await write.revertMemory(selected, sha);
@@ -162,5 +146,4 @@ export function useAgentDetails({
   };
 }
 
-/** The selected agent's details and the writes against it, as `useAgentDetails` returns them. */
 export type AgentStore = ReturnType<typeof useAgentDetails>;

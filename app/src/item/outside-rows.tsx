@@ -5,12 +5,6 @@ import { addressIn, mailWhen, senderName, sentToLine, snippet } from "../desk/ma
 import { outsideMessageEntry } from "./item-view";
 import { MessageEntry } from "./message-entry";
 
-/**
- * A Slack message or a Jira comment drawn as a MessageEntry, for the Slack card's thread (plan 097, U7). The thread
- * keeps its own window, loading, scrolling and reacting (slack-thread.tsx); only the row is the item's: the sender's
- * picture and name on the first of a run, the words through ContentParts, reactions that toggle the person's own, the
- * hover bar of quick reactions, the picker, and a post's replies.
- */
 export function itemSlackRow(provider: AccountProvider) {
   return function ItemSlackRow(m: OutsideMessage, at: SlackRowAt) {
     return (
@@ -25,11 +19,6 @@ export function itemSlackRow(provider: AccountProvider) {
   };
 }
 
-/**
- * An email thread on the item components (plan 097, U7): oldest first, each mail before the newest folded to its
- * sender, time and first line until pressed, as a mail client shows a thread; an open one is a MessageEntry with its
- * address and who it went to under the name, and its HTML in the locked frame.
- */
 export function ItemMailThread({ messages, own, now = new Date() }: { messages: readonly OutsideMessage[]; own: readonly string[]; now?: Date }) {
   return (
     <div className="flex flex-col gap-3" data-mail-thread>

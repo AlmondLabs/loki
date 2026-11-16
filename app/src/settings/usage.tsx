@@ -5,11 +5,6 @@ import { UsageBars } from "../shared/usage-bars";
 import { useUsage, type UsageApi } from "../shared/use-usage";
 import { Block, Fact, Segmented } from "./layout";
 
-/**
- * Preferences › Usage: what the agents cost over a period, from the daemon's usage ledger (daemon/usage.ts). The figures
- * are estimates at each provider's API prices; a subscription sign-in is billed by its plan. Choosing a line of a
- * breakdown narrows the page to it.
- */
 export function UsagePage({ usage }: { usage: UsageApi }) {
   const { period, pick, setFilter, failed, summary, priced, seededUntil, agentName, narrowed } = useUsage(usage);
   if (!summary) return <Block title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "Loading…"} />}</Block>;
@@ -30,7 +25,6 @@ export function UsagePage({ usage }: { usage: UsageApi }) {
   );
 }
 
-/** The period, what it cost, a bar a day, and what the estimate leaves out or cannot split. */
 function SpendSection({
   summary,
   period,
@@ -83,7 +77,6 @@ function SpendSection({
   );
 }
 
-/** Tokens and their cost by type, what could not be split, and what the cache saved. */
 function TokensSection({ summary }: { summary: UsageSummary }) {
   const { tokens, cost } = summary;
   return (
@@ -101,7 +94,6 @@ function TokensSection({ summary }: { summary: UsageSummary }) {
   );
 }
 
-/** Tokens, and what they cost. */
 function Amount({ tokens, cost, note = null }: { tokens: number; cost: number; note?: string | null }) {
   return (
     <span>
@@ -114,7 +106,6 @@ function Amount({ tokens, cost, note = null }: { tokens: number; cost: number; n
   );
 }
 
-/** A breakdown's lines, costliest first: a name, its share as a bar, its cost and tokens. Choosing one narrows the page. */
 function Breakdown({
   lines,
   name,
@@ -127,7 +118,6 @@ function Breakdown({
   onPick: (key: string) => void;
 }) {
   if (lines.length === 0) return <Fact label="Nothing" value="No calls in this period" />;
-  // A line of tokens with no cost at all was spent on models with no known price (an agent on a local model, say).
   const known = (l: UsageLine) => priced(l.key) && (l.cost > 0 || l.tokens === 0);
   return (
     <div className="grid gap-0.5">

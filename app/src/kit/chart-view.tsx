@@ -2,10 +2,6 @@ import { useMemo } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CHART_HEIGHT, type KitProps } from "./index";
 
-/**
- * The kit's chart of `data.points` (x, y), drawn as a line, a bar or an area chart by `data.kind` (line when unset).
- * A module of its own so `recharts`, the biggest package the page has, loads only when a chart card shows (plan 038).
- */
 export function ChartView({ data }: KitProps) {
   const points = useMemo(() => ((data.points as Array<{ x: string | number; y: number }> | undefined) ?? []).map((p) => ({ ...p })), [data.points]);
   const kind = (data.kind as string | undefined) ?? "line";

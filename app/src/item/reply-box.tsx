@@ -5,7 +5,6 @@ import { InputGroup, InputGroupTextarea } from "@/ui/input-group";
 import { PromptInputFooter, PromptInputSubmit, PromptInputTools } from "@/ui/ai-elements/prompt-input";
 import { sentence } from "../components";
 
-/** The reply box's field as the outside card wires it: its text, its mentions and the deck's keys. */
 export interface ReplyField {
   ref: (el: HTMLTextAreaElement | null) => void;
   value: string;
@@ -19,14 +18,6 @@ export interface ReplyField {
   onBlur: () => void;
 }
 
-/**
- * An outside card's reply box drawn as the new pane's Composer (plan 097, U7): the target on top (a mail's recipients
- * line, else where the reply goes: "reply in the thread", "comment on the ticket"), the field with its mention list,
- * a mail's signature and the quoted mail behind •••, then send with its key, and discard for a mail. The behaviour is
- * the card's own (outside-card.tsx OutsideReply): what is sent and how, the deck's ⌘], ⌘[ and ⌘E that send with their
- * move, who a mail goes to. The card's moves sit under it. Its words follow Apple's (title case on controls, sentences
- * elsewhere) and send's key is in its tooltip, not on the box's face.
- */
 export function ItemReplyBox({
   isMail,
   target,
@@ -105,9 +96,7 @@ export function ItemReplyBox({
   );
 }
 
-/** The reply box's words, in Apple's style: title case on controls, sentences elsewhere. */
 interface ReplyWords {
-  /** A line of plain text, as a sentence. */
   line: (s: string) => string;
   noSignature: string;
   removeSignature: string;
@@ -116,7 +105,6 @@ interface ReplyWords {
   discard: string;
   send: string;
   sending: string;
-  /** Send's tooltip, which names the key, since the box's face shows none. */
   sendTitle: (title: string, keys: string) => string;
 }
 
@@ -132,7 +120,6 @@ const WORDS: ReplyWords = {
   sendTitle: (title, keys) => `${sentence(title)} (${keys})`,
 };
 
-/** A mail's signature with its toggle, and the quoted mail folded behind •••; nothing when there is neither. */
 function SignatureAndQuote({
   signature,
   quote,

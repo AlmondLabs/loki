@@ -3,11 +3,9 @@ import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 import { Button, Field, TextArea } from "../components";
 import { formatKeys } from "../shell/keymap";
 
-/** What the persona box says before anything is typed: what goes there, and where it ends up. */
 export const PERSONA_HINT =
   "Who this agent is and how it works, in your words (optional) — it starts the agent's memory, system/persona.md, which the agent keeps up from there";
 
-/** The form for a new agent: name, description, persona (in the person's own words), a model. */
 export function NewAgent({
   models,
   onLoadModels,
@@ -109,12 +107,6 @@ export function NewAgent({
   );
 }
 
-/**
- * A labelled line in the new-agent form: one label column wide enough for the longest label, so every control starts
- * at the same edge; the label sits level with the control's first line (a list's label at its top, not its middle).
- * A named line is a `<label>`, so its words name the field to a screen reader and a click on them focuses it; the
- * unnamed line holding the buttons stays a plain box, where a label would turn a stray click into a press of Cancel.
- */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   const Line = label ? "label" : "div";
   return (
