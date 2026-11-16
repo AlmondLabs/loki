@@ -35,10 +35,10 @@ describe("ci: a PR's checks", () => {
     expect(ci.concurrency).toEqual({ group: "ci-${{ github.event.pull_request.number || github.ref }}", "cancel-in-progress": true });
   });
 
-  test("starts nothing for a PR of docs or the release PR's marker, but runs for the skill the app ships", () => {
+  test("starts nothing for a PR of docs alone, but runs for the skill the app ships", () => {
     const ignored = ci.on.pull_request?.["paths-ignore"] ?? [];
-    for (const p of ["docs/**", "*.md", ".github/release.txt"]) expect(ignored).toContain(p);
-    expect(ignored).not.toContain(".github/preview.txt"); // the retired Windows and Linux PR's marker
+    for (const p of ["docs/**", "*.md"]) expect(ignored).toContain(p);
+    for (const p of [".github/release.txt", ".github/preview.txt"]) expect(ignored).not.toContain(p); // the retired release PRs' markers
     expect(ignored.some((p) => p.startsWith("skills"))).toBe(false);
   });
 
@@ -114,14 +114,14 @@ describe("supply chain", () => {
     expect([...macs]).toEqual(["macos-15"]);
   });
 
-  test("release grants nothing by default; only the jobs that draft, publish or open the PR can write", () => {
+  test("release grants nothing by default; only the jobs that draft or publish can write", () => {
     const rel = workflow("release") as Workflow & { permissions?: unknown; jobs: Record<string, Job & { permissions?: Record<string, string> }> };
     expect(rel.permissions).toEqual({});
     const writers = Object.entries(rel.jobs)
       .filter(([, j]) => Object.values(j.permissions ?? {}).includes("write"))
       .map(([k]) => k)
       .sort();
-    expect(writers).toEqual(["publish", "release-pr", "version"]);
+    expect(writers).toEqual(["publish", "version"]);
     for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
   });
 

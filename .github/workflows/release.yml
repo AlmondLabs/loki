@@ -1,29 +1,26 @@
-# Releases, two channels, each shipped when someone asks for it (docs/releasing.md; scripts/release.ts does the
-# deciding). Every release is built for the Mac, Windows and Linux in one run, and carries the signed update files loki
-# installs from, latest.json, and the unversioned files the install scripts fetch (plan 2026-11-15-2319, U6):
-#   stable   merging the release PR (branch release/next) publishes vYYYY.MMDD.N and pushes the loki cask, at once and
-#            as often as it is merged
-#   nightly  a run by hand on main (Run workflow, or `gh workflow run release.yml --ref main`) builds all three and
-#            replaces the rolling `nightly` prerelease and the loki-nightly cask (plan 2026-11-16-1226)
-# Any other merge ships nothing and refreshes the release PR. plan says which; the version job decides the number once,
-# in a one-at-a-time queue, and drafts a stable at it at once; a build per system makes and signs its files; publish
-# writes latest.json, puts everything on the release, renders the cask and prunes the nightly. Only main publishes: a
-# run by hand from a branch builds all three and keeps the files as the run's artifacts. The release PR carries no
-# version, so nothing goes stale and nothing runs on a schedule. Apple signing is optional (the Apple secrets); the
-# update key (TAURI_SIGNING_PRIVATE_KEY) is not, and the builds refuse to make update files without it; TAP_TOKEN
-# pushes the casks.
+# Releases, two channels, each shipped only when someone runs this workflow by hand on main and picks which
+# (docs/releasing.md; scripts/release.ts does the deciding). Every release is built for the Mac, Windows and Linux in
+# one run, and carries the signed update files loki installs from, latest.json, and the unversioned files the install
+# scripts fetch (plan 2026-11-15-2319, U6):
+#   nightly  (the default) builds all three and replaces the rolling `nightly` prerelease and the loki-nightly cask
+#   stable   publishes vYYYY.MMDD.N and pushes the loki cask, as often as it is run
+# Run workflow in the Actions tab, or `gh workflow run release.yml --ref main -f kind=stable` (plan 2026-11-16-1226). A
+# merge starts nothing. plan says what the run does (nothing, when nothing has merged since the last stable); the
+# version job decides the number once, in a one-at-a-time queue, drafts a stable at it at once, and writes the notes to
+# the run's summary; a build per system makes and signs its files; publish writes latest.json, puts everything on the
+# release, renders the cask and prunes the nightly. Only main publishes: a run from a branch builds all three and keeps
+# the files as the run's artifacts. Nothing is written down before the run, so nothing goes stale and nothing runs on a
+# schedule. Apple signing is optional (the Apple secrets); the update key (TAURI_SIGNING_PRIVATE_KEY) is not, and the
+# builds refuse to make update files without it; TAP_TOKEN pushes the casks.
 name: release
 on:
-  push:
-    branches: [main]
-    # A merge of docs alone starts nothing: the release PR waits for the next change that does.
-    paths-ignore:
-      - "docs/**"
-      - "*.md"
-      - "LICENSE"
-      - ".github/ISSUE_TEMPLATE/**"
-  # No inputs: a run by hand is a nightly, published only when it runs from main.
   workflow_dispatch:
+    inputs:
+      kind:
+        description: What to ship (only a run on main publishes; a branch only builds)
+        type: choice
+        options: [nightly, stable]
+        default: nightly
 
 # Nothing by default: each job asks for what it needs, so the builds (third-party actions, the signing secrets) cannot
 # write, and the plan cannot write at all.
@@ -49,44 +46,15 @@ jobs:
       - id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_KIND: ${{ inputs.kind }}
         run: npm run release -- plan
-
-  # The release PR, refreshed by every merge but its own.
-  release-pr:
-    name: the release PR
-    needs: plan
-    if: github.event_name == 'push' && needs.plan.outputs.kind != 'stable'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: write
-    concurrency:
-      group: release-pr
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          # RELEASE_TOKEN (optional, see releasing.md) makes the PR's pushes trigger ci.yml; the workflow token cannot.
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 22
-      - run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: the release PR
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: npm run release -- release-pr
 
   # The number, decided once from the date, the tags and the drafts, in a queue that runs one at a time. A stable is
   # drafted at its number straight away (no tag until it is published), so a stable queued behind it sees the draft and
-  # takes the next number; a re-run of the same merge takes its own draft's number back. Only the newest run matters
-  # for a nightly. GitHub keeps one waiting run per queue: of three release merges in a few minutes the middle one may
-  # be dropped, and the third, built from a later main, carries its changes. A run by hand from a branch gets a queue
-  # of its own, so it never cancels main's nightly.
+  # takes the next number; a stable run again for the same commit takes its own draft's number back. Only the newest
+  # run matters for a nightly. GitHub keeps one waiting run per queue: of three stables started in a few minutes the
+  # middle one may be dropped, and the third, built from a later main, carries its changes. A run from a branch gets a
+  # queue of its own, so it never cancels main's nightly.
   version:
     name: the version (${{ needs.plan.outputs.kind }})
     needs: plan
@@ -120,10 +88,23 @@ jobs:
             VERSION="$(npm run --silent release -- version nightly "$GITHUB_RUN_NUMBER")"
           else
             VERSION="$(npm run --silent release -- version stable "$GITHUB_SHA")"
-            npm run release -- draft "$VERSION"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "this run is $KIND $VERSION"
+      # Only a stable of main takes its number: a branch's stable is a trial build and drafts nothing.
+      - name: draft the stable
+        if: needs.plan.outputs.kind == 'stable' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npm run release -- draft "$VERSION"
+      # What this run ships, in the run's summary while the builds take their few minutes: cancel the run before
+      # publish if it is not what you meant to ship.
+      - name: the notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npm run --silent release -- notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
   # The builds, one per system, for a stable and a nightly alike, each stamping the queued number on the runner only
   # (main takes changes through PRs alone). Each makes its bundles and its signed update file and hands them to publish
@@ -330,13 +311,13 @@ jobs:
             src-tauri/target/release/bundle/deb/loki_*_amd64.deb
           if-no-files-found: error
 
-  # Everything goes out together or not at all: publish runs only when all three builds did, and only on main, for a
-  # stable from a merge or a nightly from a run by hand, so a run from a branch never touches a release or the
-  # `nightly` tag. Each step is safe to run again: a re-run finishes what the last run left (plan 096).
+  # Everything goes out together or not at all: publish runs only when all three builds did, and only on main, so a run
+  # from a branch never touches a release or the `nightly` tag. Each step is safe to run again: a re-run finishes what
+  # the last run left (plan 096).
   publish:
     name: publish (${{ needs.version.outputs.version }})
     needs: [plan, version, macos, windows, linux]
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' && needs.plan.outputs.kind == 'stable' || github.event_name == 'workflow_dispatch' && needs.plan.outputs.kind == 'nightly')
+    if: github.ref == 'refs/heads/main' && (needs.plan.outputs.kind == 'stable' || needs.plan.outputs.kind == 'nightly')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
