@@ -306,7 +306,7 @@ export class UsageLedger {
     if (!origin) {
       origin = (async () => {
         const info = await store.chatInfo(conversationId, this.deps.context);
-        return info?.id ? originOfChat(info.id, agentId) : "helpers";
+        return info?.id && info.helper_for === undefined ? originOfChat(info.id, agentId) : "helpers";
       })();
       this.origins.set(key, origin);
     }
