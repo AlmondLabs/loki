@@ -6,6 +6,7 @@ import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { forLibc, thisLibc } from "./native-binaries.ts";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const root = here("..");
@@ -82,12 +83,12 @@ await build({
 });
 // The keychain binding and this system's prebuilt binary (@napi-rs/keyring-<platform>, the one optional dependency
 // the install fetched), where Node finds them from daemon.mjs: <data>/daemon/node_modules. Each release runner builds
-// its own system's.
+// its own system's; on Linux only the build for this C library, as linuxdeploy cannot read the other (native-binaries.ts).
 const keyring = packageDir("@napi-rs/keyring", root);
 const { optionalDependencies = {} } = JSON.parse(readFileSync(join(keyring, "package.json"), "utf8")) as {
   optionalDependencies?: Record<string, string>;
 };
-const binaries = Object.keys(optionalDependencies).flatMap((name) => {
+const binaries = forLibc(Object.keys(optionalDependencies), thisLibc()).flatMap((name) => {
   const dir = findPackageDir(name, keyring);
   return dir ? [{ name, dir }] : [];
 });

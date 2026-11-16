@@ -195,7 +195,7 @@ jobs:
       # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
       - name: check the update key
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: macos
           path: |
@@ -248,7 +248,7 @@ jobs:
       # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
       - name: check the update key
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: windows
           path: |
@@ -305,7 +305,7 @@ jobs:
       # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
       - name: check the update key
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linux
           path: |
@@ -340,7 +340,7 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: dist
           merge-multiple: true
