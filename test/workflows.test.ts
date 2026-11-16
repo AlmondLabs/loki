@@ -35,9 +35,10 @@ describe("ci: a PR's checks", () => {
     expect(ci.concurrency).toEqual({ group: "ci-${{ github.event.pull_request.number || github.ref }}", "cancel-in-progress": true });
   });
 
-  test("starts nothing for a PR of docs or the release PRs' markers, but runs for the skill the app ships", () => {
+  test("starts nothing for a PR of docs or the release PR's marker, but runs for the skill the app ships", () => {
     const ignored = ci.on.pull_request?.["paths-ignore"] ?? [];
-    for (const p of ["docs/**", "*.md", ".github/release.txt", ".github/preview.txt"]) expect(ignored).toContain(p);
+    for (const p of ["docs/**", "*.md", ".github/release.txt"]) expect(ignored).toContain(p);
+    expect(ignored).not.toContain(".github/preview.txt"); // the retired Windows and Linux PR's marker
     expect(ignored.some((p) => p.startsWith("skills"))).toBe(false);
   });
 
@@ -113,26 +114,26 @@ describe("supply chain", () => {
     expect([...macs]).toEqual(["macos-15"]);
   });
 
-  test("release grants nothing by default; only the jobs that publish or open PRs can write", () => {
+  test("release grants nothing by default; only the jobs that draft, publish or open the PR can write", () => {
     const rel = workflow("release") as Workflow & { permissions?: unknown; jobs: Record<string, Job & { permissions?: Record<string, string> }> };
     expect(rel.permissions).toEqual({});
     const writers = Object.entries(rel.jobs)
       .filter(([, j]) => Object.values(j.permissions ?? {}).includes("write"))
       .map(([k]) => k)
       .sort();
-    expect(writers).toEqual(["attach", "build", "preview-pr-after-stable", "release-prs"]);
+    expect(writers).toEqual(["publish", "release-pr", "version"]);
     for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
   });
 
   test("a release job that installs dependencies keeps no token in its checkout, and no Apple secret past the build", () => {
     const rel = workflow("release");
     const installers = Object.entries(rel.jobs).filter(([, j]) => /\bnpm ci\b/.test(runs(j)));
-    expect(installers.map(([k]) => k).sort()).toEqual(["build", "linux", "windows"]);
+    expect(installers.map(([k]) => k).sort()).toEqual(["linux", "macos", "windows"]);
     for (const [k, j] of installers) {
       const checkout = j.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
       expect(checkout?.with?.["persist-credentials"], k).toBe(false);
     }
-    const steps = must(rel.jobs.build, "the build job").steps;
+    const steps = must(rel.jobs.macos, "the macos job").steps;
     const built = steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@"));
     const dropped = steps.findIndex((s) => /APPLE_CERTIFICATE[^\n]*\n\s*echo "\$v=" >> "\$GITHUB_ENV"/.test(s.run ?? ""));
     expect(built).toBeGreaterThan(-1);
@@ -152,13 +153,13 @@ describe("supply chain", () => {
       }
     const release = workflow("release").jobs;
     const builds = [
-      must(release.build, "the build job").steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@")),
+      must(release.macos, "the macos job").steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@")),
       must(release.windows, "the windows job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
       must(release.linux, "the linux job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
     ];
-    expect(holders).toEqual([`release/build/tauri-apps/tauri-action`, `release/windows/${builds[1]}`, `release/linux/${builds[2]}`]);
+    expect(holders).toEqual([`release/macos/tauri-apps/tauri-action`, `release/windows/${builds[1]}`, `release/linux/${builds[2]}`]);
     for (const [job, i] of [
-      ["build", builds[0]],
+      ["macos", builds[0]],
       ["windows", builds[1]],
       ["linux", builds[2]],
     ] as const)
@@ -173,7 +174,7 @@ describe("supply chain", () => {
   test("each build checks its update signatures against the compiled-in key before it ships them", () => {
     const release = workflow("release").jobs;
     for (const [job, isBuild, isShip] of [
-      ["build", (s: Step) => s.uses?.startsWith("tauri-apps/tauri-action@"), (s: Step) => s.id === "publish"],
+      ["macos", (s: Step) => s.uses?.startsWith("tauri-apps/tauri-action@"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
       ["windows", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
       ["linux", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
     ] as const) {

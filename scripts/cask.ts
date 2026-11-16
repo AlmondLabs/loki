@@ -4,8 +4,11 @@
 // (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
 // The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
 // xattr line that lets macOS open it; System Settings › Privacy & Security › Open Anyway is the other way.
-// The cask still depends on the `node` formula, which builds from before loki fetched its own Node need; the
-// self-updating cask drops it (plan 2026-11-15-2319, U6).
+// Both casks declare `auto_updates`: loki replaces itself through its signed updater, so `brew upgrade` leaves a
+// running loki alone, and it fetches the Node its daemon runs on, so neither depends on Homebrew's (plan
+// 2026-11-15-2319, U6). One last `brew upgrade` brings a loki from before that to the self-updating version. The
+// nightly cask is deprecated: the Nightly channel in loki's About replaces it, and it keeps being rendered only so that
+// last upgrade reaches the people on it.
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +21,9 @@ export interface CaskInput {
   sha256: string;
   channel?: Channel;
 }
+
+/** The day the nightly cask was deprecated, fixed so every nightly renders the same stanza. */
+export const NIGHTLY_DEPRECATED = "2026-11-16";
 
 /** The dmg the release workflow attaches (tauri's `--target universal-apple-darwin`). */
 export function dmgName(version: string): string {
@@ -52,13 +58,21 @@ ${
     strategy :github_latest
   end`
 }
+${
+  nightly
+    ? `
+  # Homebrew finishes the sentence: "has been deprecated because it …".
+  deprecate! date: "${NIGHTLY_DEPRECATED}", because: "is replaced by the loki cask and the Nightly channel in loki's About"
+`
+    : ""
+}
+  # loki replaces itself through its signed updater; brew upgrade leaves it to that.
+  auto_updates true
 
   # One loki at a time: both builds share ~/.loki and the mod's port.
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
   depends_on macos: :ventura
-  # Builds from before loki fetched its own Node run their daemon on Homebrew's.
-  depends_on formula: "node"
 
   app "loki.app"
 
