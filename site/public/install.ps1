@@ -39,8 +39,14 @@ function Install-Loki {
   $channel = if ($Nightly) { "nightly" } elseif ($env:LOKI_CHANNEL) { $env:LOKI_CHANNEL } else { "stable" }
   $releases = if ($env:LOKI_DOWNLOAD_URL) { $env:LOKI_DOWNLOAD_URL } else { "https://github.com/AlmondLabs/loki/releases" }
   switch ($channel) {
-    "stable" { $base = "$releases/latest/download"; $name = "loki" }
-    "nightly" { $base = "$releases/download/nightly"; $name = "loki Nightly" }
+    "stable" {
+      $base = "$releases/latest/download"; $name = "loki"
+      $notPublishedNext = 'For loki Nightly, run $env:LOKI_CHANNEL = "nightly" and then the line again, or download loki from https://github.com/AlmondLabs/loki/releases.'
+    }
+    "nightly" {
+      $base = "$releases/download/nightly"; $name = "loki Nightly"
+      $notPublishedNext = "Run the line again in a few minutes, or download loki from https://github.com/AlmondLabs/loki/releases."
+    }
     default {
       Write-Failure "Unknown channel: $channel." "Set LOKI_CHANNEL to stable or nightly, or leave it out."
       return $false
@@ -61,7 +67,14 @@ function Install-Loki {
     try {
       Invoke-WebRequest -Uri "$base/loki-windows-x64-setup.exe" -OutFile $setup -UseBasicParsing
     } catch {
-      Write-Failure "Couldn't download $base/loki-windows-x64-setup.exe." "Check your internet connection, then run the line again."
+      # A 404 is a release that doesn't carry the file yet, not a connection problem. Windows PowerShell's exception
+      # carries an HttpWebResponse and PowerShell 7's an HttpResponseMessage; both have a StatusCode.
+      $response = $_.Exception.Response
+      if ($response -and [int]$response.StatusCode -eq 404) {
+        Write-Failure "The latest $name isn't published yet." $notPublishedNext
+      } else {
+        Write-Failure "Couldn't download $base/loki-windows-x64-setup.exe." "Check your internet connection, then run the line again."
+      }
       return $false
     }
 

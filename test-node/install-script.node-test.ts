@@ -1,16 +1,21 @@
 /**
  * The one-line install (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, U7): site/public/install.sh run
  * with `sh` against a fake release on disk, in a scratch home, with uname, pgrep and ldconfig faked on PATH so both
- * the macOS and the Linux path run on either system. Nothing is opened and the real /Applications is never touched.
- * install.ps1 is only parsed, where PowerShell is installed. Runs under Node: npm run test:node
+ * the macOS and the Linux path run on either system. A missing file and a dropped connection come from a local HTTP
+ * server, as only HTTP has a 404. Nothing is opened and the real /Applications is never touched. install.ps1 is only
+ * parsed, where PowerShell is installed. Runs under Node: npm run test:node
  */
 import { strict as assert } from "node:assert";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, relative, resolve } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
+import { INSTALL_FILES } from "../scripts/release.ts";
+
+const [MAC_FILE, , LINUX_FILE] = INSTALL_FILES;
 
 const SCRIPT = resolve(import.meta.dirname, "..", "site", "public", "install.sh");
 const PS_SCRIPT = resolve(import.meta.dirname, "..", "site", "public", "install.ps1");
@@ -57,12 +62,12 @@ function channelDir(s: Scratch, channel: "stable" | "nightly"): string {
 }
 
 /** A release's macOS archive: loki.app with an Info.plist carrying `version`, as the updater's own archive is laid out. */
-function macRelease(s: Scratch, channel: "stable" | "nightly", version: string): void {
+function macRelease(s: Scratch, channel: "stable" | "nightly", version: string, app = "loki.app"): void {
   const stage = mkdtempSync(join(s.dir, "stage-"));
-  mkdirSync(join(stage, "loki.app", "Contents"), { recursive: true });
-  writeFileSync(join(stage, "loki.app", "Contents", "Info.plist"), `<plist><string>${version}</string></plist>\n`);
-  const out = join(channelDir(s, channel), "loki-macos-universal.app.tar.gz");
-  const tar = spawnSync("tar", ["-czf", out, "-C", stage, "loki.app"], { encoding: "utf8" });
+  mkdirSync(join(stage, app, "Contents"), { recursive: true });
+  writeFileSync(join(stage, app, "Contents", "Info.plist"), `<plist><string>${version}</string></plist>\n`);
+  const out = join(channelDir(s, channel), MAC_FILE);
+  const tar = spawnSync("tar", ["-czf", out, "-C", stage, app], { encoding: "utf8" });
   assert.equal(tar.status, 0, tar.stderr);
 }
 
@@ -77,13 +82,36 @@ function linuxRelease(s: Scratch, channel: "stable" | "nightly", version: string
     fuse2 ? "# dlopen libfuse.so.2" : "",
     'if [ "$1" = --appimage-extract ]; then mkdir -p squashfs-root; echo png > squashfs-root/.DirIcon; fi',
   ];
-  writeFileSync(join(channelDir(s, channel), "loki-linux-x86_64.AppImage"), lines.join("\n") + "\n");
+  writeFileSync(join(channelDir(s, channel), LINUX_FILE), lines.join("\n") + "\n");
 }
 
 interface Run {
   status: number | null;
   stdout: string;
   stderr: string;
+}
+
+/**
+ * A local HTTP server for the files under `root`, answering as GitHub's download URLs do: a missing file is a 404. A
+ * path under /drop/ closes the connection without a reply, as a network failure would.
+ */
+async function serve(root: string): Promise<{ url: string; close: () => void }> {
+  const code = `
+    const { createServer } = require("node:http");
+    const { readFile } = require("node:fs");
+    const { join, normalize } = require("node:path");
+    createServer((req, res) => {
+      const path = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+      if (path.startsWith("/drop/")) return req.socket.destroy();
+      readFile(join(process.argv[1], normalize(path)), (err, data) => {
+        res.statusCode = err ? 404 : 200;
+        res.end(err ? "Not Found" : data);
+      });
+    }).listen(0, "127.0.0.1", function () { console.log(this.address().port); });
+  `;
+  const server = spawn(process.execPath, ["-e", code, root], { stdio: ["ignore", "pipe", "inherit"] });
+  const [port] = (await once(server.stdout, "data")) as [Buffer];
+  return { url: `http://127.0.0.1:${port.toString().trim()}`, close: () => void server.kill() };
 }
 
 /** install.sh as `sh install.sh …`, or, with `piped`, as `curl … | sh -s -- …` reads it. */
@@ -284,6 +312,81 @@ void test("on Linux without FUSE 2, an AppImage that needs it stops with the com
     const ok = install(s, { system: "Linux", arch: "x86_64", env: { FAKE_NO_FUSE: "1" } });
     assert.equal(ok.status, 0, ok.stderr);
     assert.match(readFileSync(join(s.home, ".local", "share", "loki", "loki.AppImage"), "utf8"), /static-runtime/);
+  } finally {
+    rmSync(s.dir, { recursive: true, force: true });
+  }
+});
+
+void test("a release without the file says it isn't published yet, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
+  const s = scratch();
+  const server = await serve(s.releases);
+  try {
+    macRelease(s, "stable", "stable-1");
+    assert.equal(install(s).status, 0);
+    rmSync(join(s.releases, "latest"), { recursive: true });
+    const before = snapshot(s.apps);
+    const stable = install(s, { env: { LOKI_DOWNLOAD_URL: server.url } });
+    assert.equal(stable.status, 1);
+    assert.match(
+      stable.stderr,
+      /The latest loki isn't published yet\.\nRun the line with --nightly for loki Nightly, or download loki from https:\/\/github\.com\/AlmondLabs\/loki\/releases\.\n$/,
+    );
+    const nightly = install(s, { args: ["--nightly"], env: { LOKI_DOWNLOAD_URL: server.url } });
+    assert.equal(nightly.status, 1);
+    assert.match(
+      nightly.stderr,
+      /The latest loki Nightly isn't published yet\.\nRun the line again in a few minutes, or download loki from https:\/\/github\.com\/AlmondLabs\/loki\/releases\.\n$/,
+    );
+    assert.deepEqual(snapshot(s.apps), before);
+    assert.deepEqual(readdirSync(s.tmp), []);
+  } finally {
+    server.close();
+    rmSync(s.dir, { recursive: true, force: true });
+  }
+});
+
+void test("a download the network cuts off says to check the connection, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
+  const s = scratch();
+  const server = await serve(s.releases);
+  try {
+    macRelease(s, "stable", "stable-1");
+    assert.equal(install(s).status, 0);
+    const before = snapshot(s.apps);
+    const r = install(s, { env: { LOKI_DOWNLOAD_URL: `${server.url}/drop` } });
+    assert.equal(r.status, 1);
+    assert.match(
+      r.stderr,
+      new RegExp(
+        `Couldn't download ${literal(`${server.url}/drop/latest/download/${MAC_FILE}`)}\\.\nCheck your internet connection, then run the line again\\.\n$`,
+      ),
+    );
+    assert.deepEqual(snapshot(s.apps), before);
+    assert.deepEqual(readdirSync(s.tmp), []);
+  } finally {
+    server.close();
+    rmSync(s.dir, { recursive: true, force: true });
+  }
+});
+
+void test("a download that isn't a loki app stops with a message, keeps the installed loki, and leaves no temp files", { skip: noSh }, () => {
+  const s = scratch();
+  try {
+    macRelease(s, "stable", "stable-1");
+    assert.equal(install(s).status, 0);
+    const before = snapshot(s.apps);
+    const notLoki = (): void => macRelease(s, "stable", "other-1", "other.app");
+    const notArchive = (): void => writeFileSync(join(channelDir(s, "stable"), MAC_FILE), "not an archive");
+    for (const release of [notLoki, notArchive]) {
+      release();
+      const r = install(s);
+      assert.equal(r.status, 1, release.name);
+      assert.match(
+        r.stderr,
+        /The download isn't a loki app\.\nRun the line again in a few minutes; if it fails again, tell us at https:\/\/github\.com\/AlmondLabs\/loki\/issues\.\n$/,
+      );
+      assert.deepEqual(snapshot(s.apps), before, release.name);
+      assert.deepEqual(readdirSync(s.tmp), [], release.name);
+    }
   } finally {
     rmSync(s.dir, { recursive: true, force: true });
   }

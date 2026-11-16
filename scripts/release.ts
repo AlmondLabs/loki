@@ -589,6 +589,12 @@ const publicStables = (gh: (...args: string[]) => string): string[] =>
   gh("release", "list", "--exclude-drafts", "--exclude-pre-releases", "--limit", "100", "--json", "tagName", "--jq", ".[].tagName").split("\n").filter(Boolean);
 
 /**
+ * The nightly version a release title announces, `loki <version> (<stable>-nightly.<sha>)`: its first run-numbered
+ * nightly version, or null for a title without one (the older `-nightly.<sha>` shape).
+ */
+const nightlyAnnounced = (title: string): string | null => /\d+\.\d+\.\d+-nightly\.\d+(?![0-9A-Za-z])/.exec(title)?.[0] ?? null;
+
+/**
  * Publish a release's files, each step safe to run again (plan 096): the versioned files first, then latest.json and
  * the install copies with `--clobber`, so nothing announces a version whose files are not up. A stable's draft (made by
  * the version job, or here when it is missing) gets its files, then is made public and latest; a run again for the same
@@ -596,7 +602,8 @@ const publicStables = (gh: (...args: string[]) => string): string[] =>
  * at this number made for another commit is never joined: two builds' files never share a release. A nightly keeps its
  * release: the new files go up beside the last nightly's, the tag moves to this merge, and latest.json goes last, so a
  * run cancelled at any point leaves a nightly that downloads (`prune-nightly`, after the tap has moved, removes the old
- * files).
+ * files). A nightly older than the one the release announces (a re-run after a newer merge's went out) fails before it
+ * uploads anything.
  *
  * Answers the `.dmg` the cask is made from: this build's, or, when the stable was already public, the one it shipped
  * with, downloaded to `downloadDir`, since a rebuild is not the same file and its checksum would not match.
@@ -661,6 +668,12 @@ export function publish({
       gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", title, "--notes-file", notesFile, ...versioned);
       upload(NIGHTLY_TAG, rolling);
       return { dmg };
+    }
+    // A re-run of an older run after a newer nightly went out would take the channel back a version and its prune
+    // would delete the newer files, so it stops here; the failed step keeps the cask, tap and prune steps from running.
+    const announced = nightlyAnnounced(gh("release", "view", NIGHTLY_TAG, "--json", "name", "--jq", ".name"));
+    if (announced !== null && byVersion(announced, version) > 0) {
+      throw new Error(`the nightly already announces ${announced}, newer than this run's ${version}: nothing was published`);
     }
     upload(NIGHTLY_TAG, versioned);
     gh("api", "-X", "PATCH", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`, "-f", `sha=${sha}`, "-F", "force=true");

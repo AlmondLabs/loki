@@ -309,15 +309,38 @@ describe("the update files: what the three builds made, staged for the release (
   });
 });
 
+describe("the install scripts fetch the copies every release carries (KTD9)", () => {
+  const script = (name: string) => readFileSync(join(import.meta.dirname, "..", "site", "public", name), "utf8");
+  const RELEASES = "https://github.com/AlmondLabs/loki/releases";
+
+  test("install.sh fetches the Mac and Linux copies, and install.ps1 the Windows one, from the stable or the nightly release", () => {
+    const [mac, windows, linux] = INSTALL_FILES;
+    const sh = script("install.sh");
+    expect(sh).toContain(`releases_url="\${LOKI_DOWNLOAD_URL:-${RELEASES}}"`);
+    expect(sh).toContain('base_url="$releases_url/latest/download"');
+    expect(sh).toContain('base_url="$releases_url/download/nightly"');
+    for (const file of [mac, linux]) expect(sh).toContain(`"$base_url/${file}"`);
+    const ps = script("install.ps1");
+    expect(ps).toContain(`else { "${RELEASES}" }`);
+    expect(ps).toContain('$base = "$releases/latest/download"');
+    expect(ps).toContain('$base = "$releases/download/nightly"');
+    expect(ps).toContain(`"$base/${windows}"`);
+  });
+});
+
 describe("publish: every system's files, each step safe to run again (plan 096)", () => {
-  /** gh as publishing meets it: `release view` answers the release's state (or fails as gh does), `release list` the public stables, the rest is recorded. */
-  const fakeGh = (state: { draft: boolean; target: string; assets: string[] } | null = null, publicStables: string[] = []) => {
+  /**
+   * gh as publishing meets it: `release view` answers the release's state, or its title when asked for `name` (or fails
+   * as gh does), `release list` the public stables, the rest is recorded.
+   */
+  const fakeGh = (state: { draft: boolean; target: string; assets: string[] } | null = null, publicStables: string[] = [], title = "") => {
     const calls: string[][] = [];
     const gh = (...args: string[]) => {
       calls.push(args);
       if (args[1] === "list") return publicStables.join("\n");
       if (args[1] !== "view") return "";
       if (state === null) throw new Error("release not found");
+      if (args[args.indexOf("--json") + 1] === "name") return title;
       return JSON.stringify({ isDraft: state.draft, targetCommitish: state.target, assets: state.assets.map((name) => ({ name })) });
     };
     const writes = () => calls.filter((c) => c[1] !== "view" && c[1] !== "list").map((c) => c.slice(0, 3).join(" "));
@@ -426,6 +449,32 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
       ["release", "upload", "nightly", ...rolling, "--clobber"],
     ]);
     expect(calls.some((c) => c[1] === "delete")).toBe(false);
+  });
+
+  test("a re-run of an older nightly after a newer one went out stops before it uploads, moves the tag or edits the release", () => {
+    const older = "2026.1011.1-nightly.4821";
+    const { gh, writes } = fakeGh(
+      { draft: false, target: "newer", assets: ["loki_2026.1011.1-nightly.4822_universal.dmg"] },
+      [],
+      "loki 2026.1011.1-nightly.4822 (2026.1011.1-nightly.0b1c2d3)",
+    );
+    expect(() => publish({ kind: "nightly", version: older, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh })).toThrow(
+      "the nightly already announces 2026.1011.1-nightly.4822, newer than this run's 2026.1011.1-nightly.4821: nothing was published",
+    );
+    expect(writes()).toEqual([]);
+  });
+
+  test("a nightly publishes over the one it follows, and a re-run of the same nightly finishes what the last run left", () => {
+    const N = "2026.1011.1-nightly.4821";
+    for (const title of [
+      "loki 2026.1011.1-nightly.4820 (2026.1011.1-nightly.7943572)",
+      `loki ${N} (2026.1011.1-nightly.a96ee85)`,
+      "loki 2026.1010.0-nightly.f00dfee",
+    ]) {
+      const { gh, writes } = fakeGh({ draft: false, target: "old", assets: [] }, [], title);
+      publish({ kind: "nightly", version: N, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
+      expect(writes(), title).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly", "release upload nightly"]);
+    }
   });
 
   test("after the tap moves, only files carrying an earlier version are removed: never latest.json or the install copies", () => {
@@ -625,6 +674,9 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     const prune = at('npm run release -- prune-nightly "$VERSION"');
     expect(prune).toBeGreaterThan(at("git push --quiet origin main"));
     expect(pub.steps[prune]?.if).toBe("env.KIND == 'nightly'");
+    // A publish that stops (a re-run of an older nightly, say) fails its step, and nothing after it runs: no cask, no
+    // tap push, no prune. A status check such as always() on a later step would let it run anyway.
+    for (const step of pub.steps.slice(pub.steps.indexOf(publishStep) + 1)) expect(step.if ?? "").not.toMatch(/always\(\)|failure\(\)|cancelled\(\)/);
   });
 
   test("a run that is not a push to main never writes a release: only publish uploads, moves the tag or prunes", () => {

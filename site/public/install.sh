@@ -42,10 +42,14 @@ stop_if_running() {
   fi
 }
 
+# A 404 is a release that doesn't carry the file yet, not a connection problem, so it says so. curl writes the status
+# even when -f fails, and 000 when nothing answered.
 download() {
-  if ! curl -fsSL "$1" -o "$2"; then
-    fail "Couldn't download $1." "Check your internet connection, then run the line again."
+  if status="$(curl -fsSL -w '%{http_code}' -o "$2" "$1")"; then return 0; fi
+  if [ "$status" = 404 ]; then
+    fail "The latest loki$channel_name isn't published yet." "$not_published_next"
   fi
+  fail "Couldn't download $1." "Check your internet connection, then run the line again."
 }
 
 # Unpacks loki.app into /Applications, or ~/Applications when /Applications isn't writable, replacing the old copy.
@@ -165,10 +169,12 @@ main() {
     stable)
       base_url="$releases_url/latest/download"
       channel_name=""
+      not_published_next="Run the line with --nightly for loki Nightly, or download loki from https://github.com/AlmondLabs/loki/releases."
       ;;
     nightly)
       base_url="$releases_url/download/nightly"
       channel_name=" Nightly"
+      not_published_next="Run the line again in a few minutes, or download loki from https://github.com/AlmondLabs/loki/releases."
       ;;
     *) fail "Unknown channel: $channel." "Set LOKI_CHANNEL to stable or nightly, or leave it out." ;;
   esac

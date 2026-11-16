@@ -67,7 +67,8 @@ every stable now carries all three. Its branch can be deleted, and its marker, `
    never deleted: its new files go up beside the last one's, the `nightly` tag moves, `latest.json` goes up last, the
    tap gets the new cask, and only then are the earlier nightlies' files removed (`release.ts prune-nightly`): every
    file whose name carries another version, never `latest.json`, `cask.rb` or the unversioned copies. A nightly
-   cancelled by a newer merge at any point still downloads.
+   cancelled by a newer merge at any point still downloads. A re-run of an older nightly after a newer one went out
+   fails at `publish` before it uploads anything, so the cask, tap and prune steps after it don't run either.
 
 ## What a release carries
 
@@ -89,6 +90,11 @@ asking GitHub's API which release is newest. The nightly is a prerelease, so `re
 stable. `npm run release -- latest-json <version> <dir>` prints the `latest.json` a release would carry for built
 files in `<dir>`; with `LOKI_UPDATE_URL` pointing at a copy of it on a throwaway prerelease, an update can be tried
 by hand.
+
+The Stable install line works only once a stable built by this workflow is out: older stables carry no unversioned
+copies, so until then `releases/latest/download/` answers 404 and the scripts say the latest loki isn't published
+yet. Merge the release PR right after the change that brought the one-line install lands; until that stable ships,
+the Nightly line works.
 
 ## Versions
 
