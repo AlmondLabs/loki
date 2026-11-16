@@ -1,6 +1,13 @@
 import { expect, test } from "vitest";
-import { compareVersions, isNewerVersion, nightlyVersionIn, parseVersion } from "../core/version.ts";
+import { compareVersions, parseVersion } from "../core/version.ts";
 import { byVersion, nightlyVersion, stableVersion } from "../scripts/release.ts";
+
+/** Whether `candidate` comes after `current` by semver precedence, the updater's order. */
+function newer(current: string, candidate: string): boolean {
+  const order = compareVersions(current, candidate);
+  if (order === null) throw new Error(`not versions: ${current}, ${candidate}`);
+  return order < 0;
+}
 
 test("release tags and plain versions parse alike", () => {
   expect(parseVersion("v0.3.0")).toEqual([0, 3, 0]);
@@ -9,19 +16,18 @@ test("release tags and plain versions parse alike", () => {
 });
 
 test("newer means strictly after, per component", () => {
-  expect(isNewerVersion("0.3.0", "v0.3.1")).toBe(true);
-  expect(isNewerVersion("0.3.0", "0.4.0")).toBe(true);
-  expect(isNewerVersion("0.3.0", "1.0.0")).toBe(true);
-  expect(isNewerVersion("0.3.0", "0.3.0")).toBe(false);
-  expect(isNewerVersion("0.3.1", "0.3.0")).toBe(false);
-  expect(isNewerVersion("0.3.0", "garbage")).toBe(false);
+  expect(newer("0.3.0", "v0.3.1")).toBe(true);
+  expect(newer("0.3.0", "0.4.0")).toBe(true);
+  expect(newer("0.3.0", "1.0.0")).toBe(true);
+  expect(newer("0.3.0", "0.3.0")).toBe(false);
+  expect(newer("0.3.1", "0.3.0")).toBe(false);
 });
 
 test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through months, years and same-day releases", () => {
   // the last stables of the old scheme, then the first of the new
-  expect(isNewerVersion("2026.10.11", "2026.1011.0")).toBe(true);
-  expect(isNewerVersion("2026.12.31", "2026.1011.0")).toBe(true); // any old-scheme day: a month never reaches 101
-  expect(isNewerVersion("2026.1011.0", "2026.10.31")).toBe(false);
+  expect(newer("2026.10.11", "2026.1011.0")).toBe(true);
+  expect(newer("2026.12.31", "2026.1011.0")).toBe(true); // any old-scheme day: a month never reaches 101
+  expect(newer("2026.1011.0", "2026.10.31")).toBe(false);
   const inOrder = [
     "2026.1011.0",
     "2026.1011.1",
@@ -35,8 +41,8 @@ test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through mo
     "2027.201.0",
   ];
   for (let i = 1; i < inOrder.length; i++) {
-    expect(isNewerVersion(inOrder[i - 1], inOrder[i])).toBe(true);
-    expect(isNewerVersion(inOrder[i], inOrder[i - 1])).toBe(false);
+    expect(newer(inOrder[i - 1], inOrder[i])).toBe(true);
+    expect(newer(inOrder[i], inOrder[i - 1])).toBe(false);
   }
 });
 
@@ -45,16 +51,16 @@ test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through mo
  * and a nightly's run number compares as a number. So switching from Nightly to Stable never installs an older build.
  */
 test("a stable is newer than the nightlies that led up to it, and no older stable is (AE4)", () => {
-  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0")).toBe(true);
-  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1119.2")).toBe(false);
-  expect(isNewerVersion("2026.1120.0", "2026.1120.0-nightly.4821")).toBe(false);
+  expect(newer("2026.1120.0-nightly.4821", "2026.1120.0")).toBe(true);
+  expect(newer("2026.1120.0-nightly.4821", "2026.1119.2")).toBe(false);
+  expect(newer("2026.1120.0", "2026.1120.0-nightly.4821")).toBe(false);
 });
 
 test("nightlies of one stable order by run number, as numbers", () => {
-  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4822")).toBe(true);
-  expect(isNewerVersion("2026.1120.0-nightly.9999", "2026.1120.0-nightly.10000")).toBe(true);
-  expect(isNewerVersion("2026.1120.0-nightly.10000", "2026.1120.0-nightly.9999")).toBe(false);
-  expect(isNewerVersion("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4821")).toBe(false);
+  expect(newer("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4822")).toBe(true);
+  expect(newer("2026.1120.0-nightly.9999", "2026.1120.0-nightly.10000")).toBe(true);
+  expect(newer("2026.1120.0-nightly.10000", "2026.1120.0-nightly.9999")).toBe(false);
+  expect(newer("2026.1120.0-nightly.4821", "2026.1120.0-nightly.4821")).toBe(false);
 });
 
 test("prerelease ties break by semver: words above numbers, longer above shorter, build metadata ignored", () => {
@@ -67,14 +73,8 @@ test("prerelease ties break by semver: words above numbers, longer above shorter
 });
 
 test("a nightly of the next stable is newer than the current stable", () => {
-  expect(isNewerVersion("2026.1120.0", "2026.1121.0-nightly.4900")).toBe(true);
-  expect(isNewerVersion("2026.1121.0-nightly.4900", "2026.1120.0")).toBe(false);
-});
-
-test("a release title's nightly version is found in the new shape and the old", () => {
-  expect(nightlyVersionIn("loki 2026.1120.0-nightly.4821")).toBe("2026.1120.0-nightly.4821");
-  expect(nightlyVersionIn("loki 2026.1120.0-nightly.4821 (a96ee85)")).toBe("2026.1120.0-nightly.4821");
-  expect(nightlyVersionIn("loki 2026.1011.1-nightly.a96ee85")).toBe("2026.1011.1-nightly.a96ee85");
+  expect(newer("2026.1120.0", "2026.1121.0-nightly.4900")).toBe(true);
+  expect(newer("2026.1121.0-nightly.4900", "2026.1120.0")).toBe(false);
 });
 
 test("stables and nightlies sort together by precedence", () => {

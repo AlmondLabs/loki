@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
+import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
 import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
@@ -36,7 +37,7 @@ import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome"
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
 import { TitleMenu } from "./title-menu";
-import { SKIPPED_KEY, offeredNow, readSkipped, updateItemLabel, useLokiUpdate } from "./use-loki-update";
+import { updateItemLabel, useLokiUpdate } from "./use-loki-update";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useShellKeys } from "./use-shell-keys";
 import { KeysSheet } from "./keys-sheet";
@@ -462,11 +463,10 @@ export function Shell() {
     if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
     setPrefsOpen(true);
   };
-  // A newer loki is offered from the loki menu and ☰, retitled while one waits (plan 2026-11-15-1035, R15), until
-  // Settings › loki skips that version; the Settings window may be the one that skips it, so its storage is followed.
-  const [skippedVersion, setSkippedVersion] = useState(readSkipped);
-  useStorageKey(SKIPPED_KEY, setSkippedVersion);
-  const offered = offeredNow(update, skippedVersion);
+  // The loki menu's and ☰'s update item checks now, or reads Restart to Update… once one is ready (plan
+  // 2026-11-15-2319, U5); restarting asks first while a chat is mid-turn.
+  const working = chatWorking(catchUp.items);
+  const updateLabel = updateItemLabel(update.status);
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -541,10 +541,10 @@ export function Shell() {
       "chat.suggestions": () => chatKey("chat.suggestions", (inset) => (inset && setChatOpen(true), setSuggestionsTick((n) => n + 1))),
       "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
       "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
-      "app.update": () => showPreferences("loki"),
+      "app.update": () => runUpdateItem(update, working, () => showPreferences("loki")),
     },
     { toList, toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
-    { "app.update": updateItemLabel(offered) },
+    { "app.update": updateLabel },
   );
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (search-model.ts SearchTarget). */
@@ -584,7 +584,7 @@ export function Shell() {
             borderRadius: "var(--radius-xl)",
           }}
         />
-        <TitleStrip menuLabels={{ "app.update": updateItemLabel(offered) }} />
+        <TitleStrip menuLabels={{ "app.update": updateLabel }} />
         {column.has && (
           <span
             style={{
@@ -598,7 +598,7 @@ export function Shell() {
             <ColumnToggle open={column.open} onToggle={column.toggle} />
             {/* A browser tab has no menu bar: ☰ beside the toggle opens the same menus, so every command can be tried in a
                 tab (plan 2026-11-15-1035, KTD10). The Mac app has its menu bar, and Windows and Linux their strip's ☰. */}
-            {!inTauri && <TitleMenu className="loki-browser-menu" labels={{ "app.update": updateItemLabel(offered) }} />}
+            {!inTauri && <TitleMenu className="loki-browser-menu" labels={{ "app.update": updateLabel }} />}
           </span>
         )}
 
@@ -808,6 +808,7 @@ export function Shell() {
       )}
       <Notices />
       <RestartNotice due={desk.daemon.restartDue} restart={desk.daemon.restart} />
+      <UpdateNotice update={update} working={working} />
     </div>
   );
 }

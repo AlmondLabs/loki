@@ -7,7 +7,7 @@ import { Accounts, type AccountsApi, type AgentName } from "./accounts";
 import { useEffect, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
-import { lokiUpgrade, osWords, runsOn } from "../shell/os-words";
+import { osWords, runsOn } from "../shell/os-words";
 import { Button, Dot, Field, IconButton, Sheet, Switch, sentence } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
@@ -17,7 +17,9 @@ import { Macs, type MacsApi } from "./macs";
 import { Skills, type GlobalSkillsApi } from "./skills";
 import type { DaemonStatus } from "../shell/bootstrap";
 import { useHarnessFacts, type InstallReport } from "../shell/use-harness-facts";
-import { offeredNow, readSkipped, saveSkipped, type LokiUpdate } from "../shell/use-loki-update";
+import type { LokiUpdate, UpdateState } from "../shell/use-loki-update";
+import { restartToUpdate } from "../shell/update-notice";
+import { channelOf, type Channel } from "../../../core/version.ts";
 import type { GlobalShortcut } from "../shell/use-global-shortcut";
 import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
@@ -109,6 +111,7 @@ export function Settings({
   links,
   labels,
   update,
+  working,
   shortcut,
   recall,
   usage,
@@ -150,8 +153,10 @@ export function Settings({
   links?: ChatLinksApi;
   /** Preferences › Labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
   labels: LabelsApi;
-  /** Newer loki releases, from GitHub (Preferences › About). */
+  /** loki's own update, as the shell reports it (Preferences › About). */
   update: LokiUpdate;
+  /** Whether a chat is mid-turn, so About's Restart to Update says that turn will stop before it restarts. */
+  working: boolean;
   /** ⌥Space, held or released (Preferences › Keyboard shortcuts). */
   shortcut: GlobalShortcut;
   /** The card writer's switch and knobs (Preferences › Learn). */
@@ -186,7 +191,7 @@ export function Settings({
 
   // Each page's body, by page: a table rather than a chain of conditions, so adding a page adds no branch here.
   const pageBody: Record<SettingsPage, () => ReactNode> = {
-    loki: () => <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
+    loki: () => <LokiPage update={update} working={working} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
     inbox: () => <InboxPage returnTimes={returnTimes} lanes={{ lanes, accounts, agents }} />,
     accounts: () =>
@@ -300,12 +305,14 @@ function AppearancePage() {
 /** Preferences › About: this app, the mod, what loki needs on this machine, and what launch installed. */
 function LokiPage({
   update,
+  working,
   harness,
   daemon,
   modConnection,
   deskCount,
 }: {
   update: LokiUpdate;
+  working: boolean;
   harness: ReturnType<typeof useHarnessFacts>;
   daemon: DaemonStatus | null;
   modConnection: ModConnection;
@@ -314,7 +321,7 @@ function LokiPage({
   return (
     <>
       <Block>
-        <LokiVersionFact update={update} />
+        <LokiVersionFact update={update} working={working} />
         <SystemFact />
       </Block>
       <Block title="Mod" help="Canvas layout, widget files, transcripts and chats, served by loki's daemon.">
@@ -354,68 +361,102 @@ export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; 
   );
 }
 
+/** About's channel choice in Apple's words. */
+const CHANNEL_LABEL: Record<Channel, string> = { stable: "Stable", nightly: "Nightly" };
+
+const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
+
+/** A Linux `.deb` never updates itself; the whole line links the releases page when the build names one. */
+const DEB_WORDS = "This install updates from the releases page";
+
+/** What failed, in one clause before "this version is still running" (R12). */
+const FAILED: Record<Extract<UpdateState, { kind: "failed" }>["stage"], string> = {
+  check: "Could not check for updates",
+  download: "The update did not download",
+  signature: "The update failed its signature check",
+  install: "The update did not install",
+};
+
 /**
- * The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path on the
- * Mac; this system's file on the release elsewhere, where the build is also a preview (plan 014 R12). There the
- * check reads the newest release carrying that file, so the link is the file (the release page if it has none).
+ * The update's state after the version (plan 2026-11-15-2319, U5): a quiet line, with the one button the state needs.
+ * Called as a function, not drawn as a component, so the tests find its buttons in About's tree.
  */
-export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate; os?: Platform }) {
-  const cask = update.channel === "nightly" ? "loki-nightly" : "loki";
-  const upgrade = lokiUpgrade(cask, os);
-  const preview =
-    os === "macos" ? null : (
-      <Note>
-        A preview build: built and tested in CI, not yet tried on real machines
-        {update.issues ? (
-          <>
-            {" "}
-            — <a href={update.issues}>Report problems</a>
-          </>
-        ) : null}
-      </Note>
-    );
-  const value = update.newer ? (
-    <span>
-      {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
-      <Note>{os === "macos" ? upgrade : <a href={update.download ?? update.url ?? "#"}>{upgrade}</a>}</Note>
-      <SkipVersion update={update} />
-      {preview}
-    </span>
-  ) : update.latest ? (
-    <span>
-      {update.current}
-      <Note>{update.channel === "nightly" ? "The newest nightly" : "The newest release"}</Note>
-      {preview}
-    </span>
-  ) : (
-    <span>
-      {update.current}
-      {update.error ? <Note>Could not check for a newer release — {update.error}</Note> : null}
-      {preview}
+function updateLine(update: LokiUpdate, state: UpdateState, working: boolean): React.ReactNode {
+  const button = (label: string, onClick: () => void) => (
+    <span className="block" style={{ marginTop: 8 }}>
+      <Button onClick={onClick}>{label}</Button>
     </span>
   );
-  return <Fact label="Version" value={value} />;
+  switch (state.kind) {
+    case "idle":
+      return <Note>Up to date</Note>;
+    case "checking":
+      return <Note>Checking…</Note>;
+    case "downloading":
+      return <Note>{state.total ? `Downloading… ${megabytes(state.done)} of ${megabytes(state.total)} MB` : "Downloading…"}</Note>;
+    case "ready": {
+      const version = state.version;
+      return (
+        <>
+          <Note>Ready — installs when you quit loki</Note>
+          {button("Restart to Update", () => restartToUpdate(version, working, update.restart))}
+        </>
+      );
+    }
+    case "failed":
+      // The shell's own words go in the tooltip: the line stays one quiet sentence.
+      return (
+        <>
+          <span title={state.message}>
+            <Note>{FAILED[state.stage]}; this version is still running</Note>
+          </span>
+          {button("Check Again", update.check)}
+        </>
+      );
+    case "unsupported":
+      return state.reason === "development" ? (
+        <Note>Updates are off in development builds</Note>
+      ) : (
+        <Note>{update.releases ? <a href={update.releases}>{DEB_WORDS}</a> : DEB_WORDS}</Note>
+      );
+  }
 }
 
 /**
- * Skip This Version (plan 2026-11-15-1035, U7): the loki menu stops offering this stable version until a newer one, in
- * every window, since the skip is kept in shared storage. Nothing while there is none to skip, or once it is skipped.
+ * The app's own version and its update (plan 2026-11-15-2319, U5): the shell checks on launch and every six hours,
+ * downloads in the background and installs when loki quits. Stable or Nightly takes effect at the next check; Stable
+ * never installs an older build, so a nightly stays until a newer stable ships (R16). Outside the shell, where nothing
+ * updates, the version alone.
  */
-function SkipVersion({ update }: { update: LokiUpdate }) {
-  const [skipped, setSkipped] = useState(readSkipped);
-  const offered = offeredNow(update, skipped);
-  if (!offered) return null;
+export function LokiVersionFact({ update, working }: { update: LokiUpdate; working: boolean }) {
+  const status = update.status;
+  if (!status) return <Fact label="Version" value={__LOKI_VERSION__} />;
+  const updates = status.state.kind !== "unsupported";
+  const onNightly = channelOf(status.current) === "nightly";
   return (
-    <span className="block" style={{ marginTop: 8 }}>
-      <Button
-        onClick={() => {
-          saveSkipped(offered);
-          setSkipped(offered);
-        }}
-      >
-        Skip This Version
-      </Button>
-    </span>
+    <>
+      <Fact
+        label="Version"
+        value={
+          <span>
+            {status.current}
+            {updateLine(update, status.state, working)}
+          </span>
+        }
+      />
+      {updates && (
+        <Setting
+          label="Channel"
+          help={
+            onNightly
+              ? "You're on a nightly, and Stable stays on it until the next stable release."
+              : "Stable gets each release, Nightly every change as it lands."
+          }
+        >
+          <Segmented label="Update channel" options={["stable", "nightly"] as const} value={status.channel} onPick={update.setChannel} labels={CHANNEL_LABEL} />
+        </Setting>
+      )}
+    </>
   );
 }
 

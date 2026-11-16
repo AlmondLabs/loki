@@ -361,10 +361,22 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   without Apple's command line tools, Welcome's Install Command Line Tools runs `xcode-select --install`, which only
   shows macOS's own installer for you to accept; on Linux without git, Welcome names the package command for you to
   run. The daemon, the mod and the phone's canvas come inside the app and are copied to `~/.loki` on launch.
-- **Updates are yours to take.** The app asks GitHub's releases API for a newer loki (on launch and every six hours,
-  on the stable or nightly channel it came from) and only links to it: the release page on the Mac, that system's
-  `-setup.exe`, AppImage or `.deb` on Windows and Linux. It never downloads or installs a loki itself, and the
-  daemon never updates itself. The Windows and Linux files are unsigned previews, like the Mac's `.dmg`.
+- **Updates, signed and checked before they install.** A release build asks GitHub for its channel's `latest.json`
+  (the newest stable's, or the rolling nightly's, as you chose in About) over HTTPS, at launch and every six hours.
+  When it names a newer version, the app downloads that system's update file (the `.app.tar.gz` on the Mac, the
+  `-setup.exe` on Windows, the AppImage on Linux) and keeps it, in memory only, once its signature verifies against
+  loki's update public key, which is compiled into the app (`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`).
+  A file that does not verify is dropped, About says the update failed, and the running version stays. Nothing
+  installs until you quit loki or choose Restart to Update. The private key is only in the release workflow's secrets,
+  given to the one step that builds the app. `LOKI_UPDATE_URL` points the check at another `latest.json` (HTTPS only),
+  for trying an update by hand; the signature is still checked against the compiled-in key, so it cannot install
+  anything the key did not sign. A development build and a Linux `.deb` never check, and the daemon never updates
+  itself apart from the app. The app is still unsigned by Apple and Microsoft: the update key is what ties an update
+  to loki's releases. The signed version is not yet checked against the one `latest.json` announces (that needs a
+  Tauri CLI that records it in the signature, then the plugin's `requireSignedVersion`), so a tampered `latest.json`
+  could pair a newer version number with an older build loki signed. On the Mac, when the app's folder is not yours to
+  write, loki does not download the update at all and About asks you to move it to a folder you can change, so it never
+  asks for an administrator's password.
 - **Claude Code, when you choose it for a chat.** loki runs the ACP adapter with `npx`, at a version each loki
   release pins (`daemon/acp/agents.ts`), so npm fetches that version from its registry the first time. An ACP agent
   of your own runs the command you wrote for it.

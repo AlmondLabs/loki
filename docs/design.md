@@ -315,10 +315,10 @@ Internals keep the name desk.
 
 - **Places.** The sidebar's first rows (plan 2026-11-12-1505, U12) are Chats, Flow, Agents and Learn, each a symbol
   in the accent, its name and a grey count (what waits in Flow, the cards due in Learn), the one showing filled and
-  never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A newer loki is
-  offered from the loki menu, as a Mac app offers one (plan 2026-11-15-1035, U7): **Check for Updates…**, retitled
-  **Update to <version>…** while a stable release waits, opens Preferences › loki, where **Skip This Version** stops the
-  offer until a newer one; a nightly or development build never reads as having one waiting. The page lists the loki
+  never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. Updates are
+  offered from the loki menu, as a Mac app offers them (plan 2026-11-15-2319, U5): **Check for Updates…** checks now
+  and opens Preferences › About, and once an update has downloaded it reads **Restart to Update…**; a development
+  build never has one ready. The page lists the loki
   menu's items in `menuSpec` like every other menu, so the Mac's menu bar, the ☰ menu on Windows and Linux, and the ☰
   beside the sidebar toggle in a browser tab show the same items. A place is a small grey **heading** that is not a row, as Mail's Favourites is, and its
   **sources** are the rows under it (plan 2026-11-15-1035, R5): the same rows in every place, so changing place moves

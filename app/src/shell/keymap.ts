@@ -56,7 +56,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "loki/settings" },
-  // A newer loki is offered here, retitled "Update to <version>…" while one waits (plan 2026-11-15-1035, R15).
+  // Checks for a newer loki now; retitled "Restart to Update…" once one is ready (plan 2026-11-15-2319, U5).
   { id: "app.update", keys: [], where: "anywhere", label: "Check for Updates…", typing: true, menu: "loki/update" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },

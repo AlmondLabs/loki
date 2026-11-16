@@ -159,8 +159,13 @@ jobs:
             [ -n "${!v}" ] && echo "$v=${!v}" >> "$GITHUB_ENV"
           done
           echo "signing with $APPLE_SIGNING_IDENTITY"
+      # The update key signs the updater archive every loki installs from (plan 2026-11-15-2319, U4); the bundler
+      # refuses to build it without the key. This step's env alone, so no later step sees it.
       - name: build the universal dmg
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: --target universal-apple-darwin
       # The build was the last step that signs: the steps after it publish, and get no Apple secret.
@@ -169,6 +174,10 @@ jobs:
           for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
             echo "$v=" >> "$GITHUB_ENV"
           done
+      # tauri-cli only warns when the key that signed is not tauri.conf.json's pubkey's pair, and a loki built that way
+      # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
+      - name: check the update key
+        run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
       # A new release at the merge, made a draft first and public last, or the rolling nightly (plan 096). Each step is
       # safe to run again: a re-run finishes what the last run left. It answers the .dmg the cask is made from: this
       # build's, or the one a stable already went out with, since a rebuild is not the same file.
@@ -280,6 +289,14 @@ jobs:
         run: npm run build:mod && npm run smoke
       - name: build the installer
         run: npm run tauri -- build --bundles nsis
+        # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # tauri-cli only warns when the key that signed is not tauri.conf.json's pubkey's pair, and a loki built that way
+      # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
+      - name: check the update key
+        run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: windows
@@ -322,6 +339,14 @@ jobs:
         run: npm run build:mod && npm run smoke
       - name: build the AppImage and .deb
         run: npm run tauri -- build --bundles appimage,deb
+        # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # tauri-cli only warns when the key that signed is not tauri.conf.json's pubkey's pair, and a loki built that way
+      # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
+      - name: check the update key
+        run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: linux

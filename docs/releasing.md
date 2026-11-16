@@ -161,6 +161,15 @@ signs whenever that variable exists, even empty, so passing missing secrets stra
 with "failed to import keychain certificate", as the first release attempt did. Without the secrets the build
 succeeds unsigned. Both channels are signed the same way.
 
+## The update key
+
+Each build signs the files loki updates from with the `TAURI_SIGNING_PRIVATE_KEY` secret (and its password), and the
+app verifies them against `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, which is compiled in. tauri-cli
+only warns when the two are not one pair, so after each build `scripts/check-update-key.ts` compares the key id of
+every `.sig` the build made with the pubkey's. The job fails, naming the file, when they differ, when the pubkey is
+still the placeholder, or when the build made no `.sig`. A loki released with the wrong pubkey could never verify an
+update, and only a reinstall by hand would get past it.
+
 ## Building locally
 
 `npm run desktop:build` produces the `.app` and the `.dmg` under `src-tauri/target/release/bundle/`, at the version

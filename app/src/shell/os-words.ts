@@ -94,13 +94,6 @@ export function osWords(os: Platform = platform): OsWords {
   return WORDS[os];
 }
 
-/** How to get a newer loki: the cask (or the .dmg) on the Mac, this system's download from the release page elsewhere. */
-export function lokiUpgrade(cask: string, os: Platform = platform): string {
-  if (os === "windows") return "download the -setup.exe from the release page";
-  if (os === "linux") return "download the AppImage or .deb from the release page";
-  return `brew upgrade --cask ${cask}, or the .dmg on the release page`;
-}
-
 /** Preferences › About's System fact: "loki runs on this Mac (macOS)" in the app, "…on a Mac (macOS); you're viewing it in a browser" in a tab. */
 export function runsOn(os: Platform, shell: boolean): string {
   const w = WORDS[os];

@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent } from "react";
 import { notify } from "../components";
 
-/** The one update notice: shown again in place, never stacked. */
+/** The daemon's update notice in a checkout: shown again in place, never stacked. */
 const ID = "loki-restart-due";
 
 const showing = () => notify.getToasts().some((t) => t.id === ID);

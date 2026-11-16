@@ -27,7 +27,7 @@ import {
   shipping,
   stableVersion,
 } from "../scripts/release.ts";
-import { channelOf, isNewerVersion, nightlyVersionIn } from "../core/version.ts";
+import { channelOf, compareVersions } from "../core/version.ts";
 
 /** Releases on merge (scripts/release.ts): a stable is YYYY.MMDD.N, numbered when it is built; the tags are the truth. */
 
@@ -67,12 +67,10 @@ describe("versions: the UTC day, then that day's count", () => {
     const n = nightlyVersion(nextStable(OCT11, tags), 4821);
     expect(n).toBe("2026.1011.1-nightly.4821");
     expect(isNightlyVersion(n)).toBe(true);
-    expect(isNewerVersion("2026.1011.0", n)).toBe(true);
-    expect(isNewerVersion(n, "2026.1011.1")).toBe(true); // the stable it led up to is newer: switching to Stable waits for it
-    expect(isNewerVersion(n, nightlyVersion(nextStable(OCT11, tags), 4822))).toBe(true); // a later run of the same day
+    expect(compareVersions("2026.1011.0", n)).toBeLessThan(0);
+    expect(compareVersions(n, "2026.1011.1")).toBeLessThan(0); // the stable it led up to is newer: switching to Stable waits for it
+    expect(compareVersions(n, nightlyVersion(nextStable(OCT11, tags), 4822))).toBeLessThan(0); // a later run of the same day
     expect(channelOf(n)).toBe("nightly");
-    expect(nightlyVersionIn(`loki ${n} (2026.1011.1-nightly.a96ee85)`)).toBe(n);
-    expect(nightlyVersionIn("loki 2026.1011.0")).toBeNull();
   });
 
   test("the latest stable is the newest v-tag, across both schemes", () => {
@@ -273,10 +271,9 @@ describe("publish: the Mac's files, each step safe to run again (plan 096)", () 
     const title = create[create.indexOf("--title") + 1];
     expect(title).toBe("loki 2026.1011.1-nightly.4821 (2026.1011.1-nightly.a96ee85)"); // the commit, now the version has none
     // A nightly installed before run numbers reads the title with the old reader (kept here as it shipped) and finds a
-    // version other than its own, so it still offers the update; the new reader takes the run-numbered one.
+    // version other than its own, so it still offers the update.
     const shippedReader = (t: string) => /\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}/.exec(t)?.[0] ?? null;
     expect(shippedReader(title)).toBe("2026.1011.1-nightly.a96ee85");
-    expect(nightlyVersionIn(title)).toBe("2026.1011.1-nightly.4821");
     expect(create).toContain(nightly);
   });
 
