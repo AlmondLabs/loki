@@ -3,20 +3,6 @@ import { countText } from "../components";
 import { AgentFace } from "../desk/agent-chip";
 import { Icon, type IconName } from "./icons";
 
-/**
- * The phone's one list row, Slack's anatomy: an avatar or an icon at the start, the title (bold when
- * something is new in it) over one muted preview line, and on the right either the time or an unread
- * badge. Home, Archive and, later, Agents and Search draw their lists with it, so every list reads the
- * same. The whole row is one button; its actions (pin, archive…) open from a long press, a right-click
- * or the context-menu key, and from a trailing button that stays out of sight until it has focus, so
- * keyboards and screen readers reach them too.
- */
-
-/**
- * A long press: `onHold` fires after 550ms with the finger still down, and the tap that ends that press
- * is swallowed so the row does not also open. Owns the timer and the "held" flag; hands back the row's
- * pointer handlers and a wrapper for its click.
- */
 export function useHold(onHold: (() => void) | null | undefined) {
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
@@ -42,7 +28,6 @@ export function useHold(onHold: (() => void) | null | undefined) {
   return { start, end, tap };
 }
 
-/** An agent's face at row size; `presence` adds Slack's dot at the corner (true: on, false: a hollow ring). */
 export function Avatar({ name, src, size = 36, presence }: { name: string | null | undefined; src: string | null; size?: number; presence?: boolean }) {
   return (
     <span className="loki-phone-avatar">
@@ -52,7 +37,6 @@ export function Avatar({ name, src, size = 36, presence }: { name: string | null
   );
 }
 
-/** An icon in the avatar's place: the # before a desk, the archive box. */
 export function RowIcon({ name }: { name: IconName }) {
   return (
     <span aria-hidden className="loki-phone-row-icon">
@@ -61,39 +45,24 @@ export function RowIcon({ name }: { name: IconName }) {
   );
 }
 
-/** The props of the phone's list row: its lead, title and preview, the time or badge on the right, and its marks. */
 export interface PhoneRowProps {
-  /** The start: an Avatar or a RowIcon; none for a chat, whose section says whose it is. */
   lead?: ReactNode;
   title: ReactNode;
-  /** One muted line under the title, e.g. "atlas · needs approval". */
   preview?: ReactNode;
-  /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
   time?: string | null;
-  /** The unread badge: a number above zero draws a count pill; null or zero draws nothing. */
   badge?: number | null;
-  /** Bold title in full ink: something in it is new. */
   unread?: boolean;
-  /** Small marks after the title, e.g. the pin. */
   flags?: ReactNode;
-  /** The row button's accessible name; the visible text when omitted. */
   label?: string;
   onOpen: () => void;
-  /** Opens the row's actions; null or omitted, the row has none. */
   onActions?: (() => void) | null;
-  /** The trailing actions button's name, e.g. "Actions for Loki mobile". */
   actionsLabel?: string;
-  /** Drawn quieter: an archived desk. */
   dim?: boolean;
-  /** A turn is running: the pulsing dot on the right, in the time's place, as on the Mac. */
   live?: boolean;
-  /** `data-launch`, so focus comes back to this row after the page it opened (session.ts). */
   launch?: string;
-  /** What the row is for its glide (kit/use-flip.ts) when that is not its launch key: a conversation, so it glides between sections. */
   flip?: string;
 }
 
-/** One row inside a `<ul className="loki-phone-list">`. */
 export function PhoneRow({
   lead,
   title,
@@ -163,11 +132,6 @@ export function PhoneRow({
   );
 }
 
-/**
- * A Slack section: an icon, a bold title, a count, and on the right either a chevron that folds the
- * list (`open` + `onToggle`) or one that opens the section's own page (`onTitle`). Folded, the list is
- * not rendered, and the header says so with aria-expanded.
- */
 export function RowSection({
   icon,
   lead,
@@ -181,15 +145,14 @@ export function RowSection({
   children,
 }: {
   icon: IconName;
-  /** In the icon's place: an agent's face, for its section of desks. */ lead?: ReactNode;
+  lead?: ReactNode;
   title: string;
-  /** Quiet words after the title: the Mac an agent lives on. */
   aside?: ReactNode;
   count?: number | null;
   open?: boolean;
   onToggle?: () => void;
   onTitle?: () => void;
-  /** The header button's name when it opens a page. */ titleLabel?: string;
+  titleLabel?: string;
   children: ReactNode;
 }) {
   const inner = (
@@ -229,19 +192,7 @@ export function RowSection({
   );
 }
 
-/**
- * A group of utility rows, Slack's You and Preferences grammar: an optional quiet heading, then rows on
- * hairlines. More, Preferences, the connection and About are built from these and the rows below.
- */
-export function RowGroup({
-  title,
-  radio = false,
-  children,
-}: {
-  title?: string;
-  /** The rows are one choice (MenuRow `checked`): the list is a radio group named by the title. */ radio?: boolean;
-  children: ReactNode;
-}) {
+export function RowGroup({ title, radio = false, children }: { title?: string; radio?: boolean; children: ReactNode }) {
   return (
     <section className="loki-phone-group" aria-label={title}>
       {title && <h2 className="loki-phone-group-title">{title}</h2>}
@@ -252,11 +203,6 @@ export function RowGroup({
   );
 }
 
-/**
- * One utility row: an icon, the name, a quiet aside, and a chevron when it opens a page (`page`). A row that
- * opens a sheet says so with aria-haspopup; `danger` draws a destructive one in the negative colour, and
- * `checked` turns the row into one choice of a radio group. `launch` brings focus back to it (session.ts).
- */
 export function MenuRow({
   icon,
   label,
@@ -303,7 +249,6 @@ export function MenuRow({
   );
 }
 
-/** A fact, not a control: its name on the left, the value on the right, wrapping under it when long. */
 export function FactRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <li className="loki-phone-fact">
@@ -313,7 +258,6 @@ export function FactRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-/** A link's state: a dot and its word, so it is never told by colour alone. `on` fills the dot, `off` rings it red. */
 export function StateWord({ state, children }: { state: "on" | "wait" | "off"; children: ReactNode }) {
   return (
     <span className="loki-phone-state">
@@ -323,7 +267,6 @@ export function StateWord({ state, children }: { state: "on" | "wait" | "off"; c
   );
 }
 
-/** Row widths for the placeholders' two lines, so a loading list looks like a list and not a grid. */
 const SKELETON_WIDTHS = [
   [62, 84],
   [48, 70],
@@ -332,11 +275,6 @@ const SKELETON_WIDTHS = [
   [66, 64],
 ] as const;
 
-/**
- * A list still being read: rows' shapes where the rows will be, with a light passing over them, as iOS
- * lists load. They show only after a moment, so a list that answers at once never flashes them. `label`
- * is what a screen reader hears instead ("Reading the desks…").
- */
 export function SkeletonRows({ label, rows = 4 }: { label: string; rows?: number }) {
   return (
     <div className="loki-phone-skeleton" role="status">
@@ -356,7 +294,6 @@ export function SkeletonRows({ label, rows = 4 }: { label: string; rows?: number
   );
 }
 
-/** A card still being read (the Inbox, Learn): its header and a few lines of body, with the same passing light. */
 export function SkeletonCard({ label }: { label: string }) {
   return (
     <div className="loki-phone-skeleton loki-phone-skel-card" role="status">

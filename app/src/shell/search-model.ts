@@ -22,73 +22,44 @@ import { osWords } from "./os-words";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { LabelView } from "../../../core/labels.ts";
 
-/**
- * The desktop's ⌘K search, pure (test/desktop-search.test.ts; plan 013 U9): the desktop's adapter over
- * shared/search.ts, as phone/search-index.ts is the phone's. It looks only at what the window holds, in
- * declared fields — a desk's title and agent, an agent's name, a waiting Inbox item's title and agent, the
- * named pages. Never a transcript. A hit carries where it goes (`target`); shell.tsx does the going.
- *
- * Groups come in the order of their best hit, so the first row drawn is the top result Enter opens.
- */
-
-/** What search covers, said wherever it could pass for message search (the phone says the same). */
 export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
 
-/**
- * ⌘K's foot line: what plain ⌘K finds. It also runs this screen's commands (U23) and, with a chat open, offers its
- * models and permission modes (U21), and says so.
- */
 export function coverageLine({ commands, chat }: { commands: boolean; chat: boolean }): string {
   if (!commands && !chat) return COVERAGE;
   const kinds = ["chats", "agents", "labels", "waiting items", "pages", ...(commands ? ["commands"] : []), ...(chat ? ["this chat's models and modes"] : [])];
   return `Finds ${kinds.slice(0, -1).join(", ")} and ${kinds.at(-1) ?? ""}, not message text.`;
 }
 
-/** ⌘K search's groups: chats ("desks", the code's older name), agents, labels, what waits on you, and the app's pages. */
 export type GroupId = "desks" | "agents" | "labels" | "waiting" | "pages";
 const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", labels: "Labels", waiting: "Waiting", pages: "Pages" };
 
-/**
- * Where a hit goes. A desk opens on Messages with the box focused (Shell's openDesk). A waiting item opens
- * its desk on Messages too, where the question or approval shows in the thread, rather than dropping into
- * the Inbox pass mid-queue. An agent opens Agents on that agent; a page, its section or Preferences on that page.
- */
 export type SearchTarget =
   | { kind: "desk"; agentId: string; conversationId: string }
   | { kind: "agent"; agentId: string }
-  /** The sidebar filtered to a label's chats (plan 022, R5). */
   | { kind: "label"; name: string }
   | { kind: "section"; segment: Exclude<Segment, "settings"> }
   | { kind: "preferences"; page: SettingsPage | null };
 
-/** One ⌘K result: the row it draws, where it goes, and what the recent places remember of it. */
 export interface SearchHit {
-  /** Stable, for React and the row's data-launch. */
   key: string;
-  /** What the recent places store when it is opened: a waiting item is remembered as its desk. */
   place: string;
   group: GroupId;
   title: string;
   preview: string;
   target: SearchTarget;
   lead: Lead;
-  /** Drawn quieter: an archived desk. */
   dim: boolean;
 }
 
-/** One group of ⌘K results, the first GROUP_MAX of those that matched. */
 export type SearchGroup = HitGroup<SearchHit, GroupId>;
 
-/** What the window has loaded: the desks list, the agents, the attention items. */
 export interface SearchSources {
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
-  /** The labels on chats, with how many carry each; absent before they load. */
   labels?: readonly LabelView[] | null;
 }
 
-/** A named page, and the words people use for it. */
 interface Page {
   key: string;
   target: SearchTarget;
@@ -98,7 +69,6 @@ interface Page {
   keywords: string[];
 }
 
-/** The places search opens by name: the rail's sections, Preferences, and each Preferences page. */
 export const DESTINATIONS: readonly Page[] = [
   {
     key: "page:desk",
@@ -143,18 +113,12 @@ export const DESTINATIONS: readonly Page[] = [
   })),
 ];
 
-/** The recent places, the desktop's own key (the phone's are loki.phone.*). */
 export const PLACES_KEY = "loki.desktop.recentPlaces";
-/** The places opened from ⌘K lately, newest first. */
 export const recentPlaces = createRecents({ key: PLACES_KEY, max: 8 });
 
-// ---- hits -----------------------------------------------------------------------------------------
-
 type OpenableDesk = DeskSummary & { agent_id: string; conversation_id: string };
-/** Desks search can open: a real conversation, not the shared scope, not deleted. */
 const openable = (d: DeskSummary): d is OpenableDesk => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
-/** The Chats list's name for a desk (ChatList): its title, else Main chat, New desk, or its scope. */
 const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversation_id === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
 
 const agentNamer = (src: SearchSources) => {
@@ -213,12 +177,8 @@ const pageHit = (p: Page): SearchHit => ({
   dim: false,
 });
 
-// ---- the index ------------------------------------------------------------------------------------
-
-/** The ⌘K index over what the window holds. */
 export type SearchIndex = CoreIndex<SearchHit>;
 
-/** The sources as searchable entries, fields folded: build once per sources, query per keystroke. */
 export function buildIndex(src: SearchSources): SearchIndex {
   const name = agentNamer(src);
   const out: Array<Indexed<SearchHit>> = [];
@@ -227,8 +187,6 @@ export function buildIndex(src: SearchSources): SearchIndex {
       out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: timeOf(d.last_active) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
   for (const l of src.labels ?? []) out.push({ hit: labelHit(l), fields: [l.name, `label:${l.name}`], recency: 0 });
-  // What needs you: the waiting group; every chat is findable by its title among the chats above. A waiting hit
-  // opens its chat, so an email or Slack thread (plan 067), which is no chat, is left to the Inbox.
   for (const i of catchUpQueue(src.items)) {
     if (i.outside) continue;
     const n = name(i.agent_id, i.agent_name);
@@ -238,22 +196,16 @@ export function buildIndex(src: SearchSources): SearchIndex {
   return buildSearchIndex(out);
 }
 
-/** The groups for a query, each in the order of its best hit, empty ones left out; a blank query is none (the recents show instead). */
 export function search(idx: SearchIndex, raw: string, max = GROUP_MAX): SearchGroup[] {
   const hits = rankHits(idx, raw);
   const order = [...new Set(hits.map((h) => h.group))];
   return groupHits(hits, (h) => h.group, order, GROUP_TITLE, max);
 }
 
-/** The rows as drawn, top to bottom: what ↑ ↓ walk. */
 export const flatHits = (groups: readonly SearchGroup[]): SearchHit[] => groups.flatMap((g) => g.hits);
 
-/** What Enter opens with nothing highlighted: the first row. */
 export const topHit = (groups: readonly SearchGroup[]): SearchHit | null => groups[0]?.hits[0] ?? null;
 
-// ---- recent places --------------------------------------------------------------------------------
-
-/** A remembered key as the row that opens it, or null when it no longer resolves (a desk or agent gone, junk). */
 export function placeHit(key: string, src: SearchSources): SearchHit | null {
   const page = DESTINATIONS.find((p) => p.key === key);
   if (page) return pageHit(page);
@@ -273,14 +225,11 @@ export function placeHit(key: string, src: SearchSources): SearchHit | null {
   return null;
 }
 
-/** The recent places as rows, the stale ones gone. */
 export function recentPlaceHits(keys: readonly string[], src: SearchSources): SearchHit[] {
   return keys.map((k) => placeHit(k, src)).filter((h): h is SearchHit => h !== null);
 }
 
-/** The key a visit is remembered under: a desk by scope, a section by name (Preferences pages are remembered when opened from search). */
 export function deskPlace(scope: string): string {
   return `desk:${scope}`;
 }
-/** The key a section is remembered under among the recent places. */
 export const sectionPlace = (segment: Exclude<Segment, "settings">): string => `page:${segment}`;

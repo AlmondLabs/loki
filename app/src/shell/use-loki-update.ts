@@ -28,21 +28,14 @@ export interface UpdateStatus {
   state: UpdateState;
 }
 
-/** loki's own update, as a window sees it: the shell's status and the commands that act on it. */
 export interface LokiUpdate {
-  /** Null until the shell answered, and always outside the shell, where nothing updates. */
   status: UpdateStatus | null;
-  /** The releases page, which a Linux `.deb` updates from; null when the build names no repository. */
   releases: string | null;
-  /** Check for Updates: a check now, whose results arrive as status. */
   check: () => void;
-  /** About's Stable or Nightly, saved by the shell for the next check. */
   setChannel: (channel: Channel) => void;
-  /** Install the ready update and open the new version; resolves to why not, when it could not. */
   restart: () => Promise<string | null>;
 }
 
-/** A shell command, loaded on first use so the page outside the shell never pulls in Tauri's API. */
 async function invokeShell<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<T>(command, args);
@@ -52,8 +45,6 @@ const check = (): void => {
   if (inTauri) void invokeShell("check_for_updates").catch((e: unknown) => console.warn("loki: check for updates", e));
 };
 
-// The shell sends the new status as `loki:update` once the channel is saved, so the picker moves with it; a failed save
-// leaves the picker where it was.
 const setChannel = (channel: Channel): void => {
   if (inTauri) void invokeShell("set_update_channel", { channel }).catch((e: unknown) => console.warn("loki: set update channel", e));
 };
@@ -66,17 +57,11 @@ const restart = (): Promise<string | null> =>
       )
     : Promise.resolve("updates come with the app");
 
-/** The two shell calls that follow the status, as Tauri's `listen` and `invoke` have them; tests pass stand-ins. */
 export interface StatusCalls {
   listen: (event: string, handler: (e: { payload: UpdateStatus }) => void) => Promise<() => void>;
   invoke: (command: string) => Promise<UpdateStatus>;
 }
 
-/**
- * Follow the shell's update status into `apply`: listen for `loki:update` first, then ask once for the status from
- * before this page loaded, which an event heard meanwhile overrides since it is newer. Returns the cleanup, which stops
- * listening even when it comes before the listener is in place.
- */
 export function followStatus({ listen, invoke }: StatusCalls, apply: (status: UpdateStatus) => void): () => void {
   let live = true;
   let heard = false;
@@ -103,22 +88,14 @@ export function followStatus({ listen, invoke }: StatusCalls, apply: (status: Up
   };
 }
 
-/** The ready update's version, or null while none is. */
 export function readyVersion(status: UpdateStatus | null): string | null {
   return status?.state.kind === "ready" ? status.state.version : null;
 }
 
-/** The update item's words in the loki menu and the ☰ menu: the restart once an update is ready, else the plain check. */
 export function updateItemLabel(status: UpdateStatus | null): string {
   return readyVersion(status) ? "Restart to Update…" : "Check for Updates…";
 }
 
-/**
- * loki's update (plan 2026-11-15-2319, U5): the shell checks its channel on launch and every six hours, downloads a
- * newer loki in the background and installs it when loki quits. This mirrors the shell's status, asked once and then
- * kept current by `loki:update`, and hands out the commands About, the menu and the notice use. Outside the shell the
- * status stays null.
- */
 export function useLokiUpdate(): LokiUpdate {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   useEffect(() => {

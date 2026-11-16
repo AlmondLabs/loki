@@ -48,7 +48,6 @@ const BROWSER_KEYS = new Set([
   "browserforward",
   "browserrefresh",
 ]);
-/** Hold back the webview's own browser keys (BROWSER_KEYS) in the packaged app on Windows and Linux; loki's own bindings on those chords still run. */
 export function guardBrowserKey(
   e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">,
   os: Platform = keyboard,
@@ -59,18 +58,8 @@ export function guardBrowserKey(
   if (BROWSER_KEYS.has(chord)) e.preventDefault();
 }
 
-/** One thing Esc can do, tried in order: close Preferences, peel Chats' Desk tab back to Messages, move focus to the list. */
 export type EscapeStep = "preferences" | "messages" | "list";
 
-/**
- * What Esc does, the same in every place (plan 2026-11-14-1330, KTD14), as the steps to try in order; the first that
- * acts takes the key. In the detail it moves focus to the list, and in the list, or anywhere else, it does nothing; it
- * never leaves the place. While typing the key is the text's, except in Flow's reply box, which is in the detail. In
- * Chats the Desk tab goes back to Messages first. A dialog keeps it, but Esc with focus slipped out of Preferences
- * closes it. An Esc something inside already took (`prevented`: the sheet, the slash palette, the find bar) does
- * nothing more, so one press dismisses only the innermost thing; a box that hands the key on (Flow's reply box) leaves
- * it unprevented.
- */
 export function escapeSteps(at: { segment: Segment; dialog: DialogState; typing: boolean; inDetail: boolean; prevented: boolean }): EscapeStep[] {
   if (at.prevented) return [];
   if (at.dialog === "preferences") return ["preferences"];
@@ -80,22 +69,10 @@ export function escapeSteps(at: { segment: Segment; dialog: DialogState; typing:
   return at.inDetail ? [...steps, "list"] : steps;
 }
 
-/** Whether a key's target is in the detail: the window's one `<main>`. */
 function inDetail(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("main") !== null;
 }
 
-/**
- * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
- * their own: the sheet's zoom, the deck's decisions), the one keydown listener that
- * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
- * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
- * registered once. Dialogs own their keys; Preferences, the one dialog that is part of the shell, lets ⌘,
- * ⌘1-6 and its ⌘[ ⌘] through, and search lets ⌘K through to close it (shellKeyAllowed). Esc is
- * `escapeSteps`': Chats' Desk tab back to Messages (`toMessages` says whether it took it), then focus from the detail
- * to the list (`toList`). `menuLabels` names menu items whose words change (the update item); the Mac's menu bar is
- * built again when they do.
- */
 export function useShellKeys(
   view: { segment: Segment },
   actions: Record<string, () => void>,
@@ -108,14 +85,12 @@ export function useShellKeys(
   });
   useEffect(() => registerActions(Object.fromEntries(Object.keys(ref.current.actions).map((id) => [id, () => ref.current.actions[id]()]))), []);
 
-  // Capture phase, ahead of every view's own handler, so a view that stops a key cannot let a reload through.
   useEffect(() => {
     const guard = (e: KeyboardEvent) => guardBrowserKey(e);
     window.addEventListener("keydown", guard, true);
     return () => window.removeEventListener("keydown", guard, true);
   }, []);
 
-  /** The chord the key handler just acted on: every id it could mean, so the menu's echo is dropped whichever id it carries. */
   const lastKeyFired = useRef<{ ids: Set<string>; at: number } | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -123,7 +98,6 @@ export function useShellKeys(
       const dialog = dialogState();
       if (e.key === "Escape") {
         const { escape } = ref.current;
-        // The sheet closes itself on Esc from inside; "preferences" catches focus that slipped out of it.
         const steps = escapeSteps({ segment, dialog, typing: typingIn(e), inDetail: inDetail(e.target), prevented: e.defaultPrevented });
         for (const step of steps) {
           if (step === "preferences" && !escape.closePreferences) continue;
@@ -151,7 +125,6 @@ export function useShellKeys(
   // when macOS also fires an accelerator for a chord we already handled, the echo arrives within a beat — drop
   // it, even when the menu's item for that chord is a different binding (⌘] is "next desk" in the Desk menu
   // and "read the card" in the inbox; the key handler already ran the right one).
-  // As one string, so the menu is built again only when an item's words change, not on every render's new object.
   const labels = JSON.stringify(menuLabels);
   useEffect(() => {
     if (!inTauri) return;

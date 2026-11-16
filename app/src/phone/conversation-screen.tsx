@@ -31,7 +31,6 @@ import { draftKey, useDraft } from "../shared/drafts";
 
 const noop = () => {};
 
-/** The conversation a card opened; kept apart from the item so the screen survives the card clearing. */
 export interface Thread {
   agentId: string;
   conversationId: string;
@@ -39,35 +38,18 @@ export interface Thread {
   agentName: string | null;
 }
 
-/**
- * What the phone's conversation page shows of a chat besides its rows: what the agent is doing, the approval or
- * question waiting, the turn's error, and a way to load older rows when there are any. The rows are read by the
- * thread itself (ScreenThread), so a streamed piece redraws the thread and not the page around it (plan 032).
- */
 export interface ThreadView {
   status: ChatStatus;
   pending: PendingApproval | null;
   question: PendingQuestion | null;
   error: string | null;
-  /** The ACP agent the chat runs on (plan 020), whose models the picker offers once the chat has started. */
   engine?: ChatEngineView | null;
   older?: (() => void) | null;
-  /** The thread's first page did not come (plan 041): try again. */
   loadFailed?: (() => void) | null;
-  /** Fetch what a history page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
   loadStep?: (row: number) => Promise<WholeRow | null>;
-  /** The chat's live links to other chats (plan 067), for the strip under the header. */
   links?: ChatLink[];
 }
 
-/**
- * One conversation, full screen, the way Slack lays out a DM on a phone. Explicit regions top to bottom:
- * the header (back, the agent and what it is doing, the actions circle), the thread (the only thing that
- * scrolls), the open question or approval, the notice pill, then the box, which owns the bottom inset
- * (the navigation is hidden on this page). The same Conversation the desk and the Inbox card show does the
- * work; the draft is the one the Inbox card for this conversation edits (session.ts). The box's model pill
- * opens Select model as a bottom sheet.
- */
 export function ConversationScreen({
   thread,
   view,
@@ -103,60 +85,38 @@ export function ConversationScreen({
 }: {
   thread: Thread;
   view: ThreadView;
-  /** Where the thread's rows are read (useAttention's), by ScreenThread. */
   chats: Pick<ChatViews, "watchThreads" | "threadRows">;
-  /** The model the conversation runs on (the mod's desks list) and its effort; null when not known. */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
-  /** list_models, for the pill's name and Select model; loaded on the first ask. */
   models?: ModelEntry[] | null;
   onLoadModels?: () => void;
-  /** Switch this conversation's model; left out (no link to the daemon), the box has no pill. */
   onPickModel?: (rt: Runtime, selection: ModelSelection) => Promise<void>;
-  /** The conversation's Inbox item, when it has one: its unread boundary, last message day and notice. */
   item?: AttentionItem | null;
-  /** The chat has something new for you: offer Mark as read. */
   waiting: boolean;
-  /** "Mac unreachable · last seen …": takes the notice's place, over the box, so the thread stays readable. */
   banner?: ReactNode;
-  /** Where back goes, as a word, for the back control's name. */
   backLabel?: string;
-  /** Text the host wants in the reply box (an "ask the agent to…" from the agent's page); a new tick replaces the draft, as the desktop chat does. */
   prefill?: { text: string; tick: number } | null;
-  /** The desk's pin state, when the mod knows this conversation as a desk; null hides the action. */
   pinned?: boolean | null;
   onPin?: (pinned: boolean) => void;
-  /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the daemon cannot take it. */
   rename?: {
     name: string;
     onRename: ((name: string) => Promise<string | null>) | null;
-    /** Save the purpose line too (plan 049, R11); null or left out, the Rename sheet has no purpose field. */
     onPurpose?: ((purpose: string) => Promise<string | null>) | null;
   } | null;
-  /** The person's one line on what the chat is for (plan 049, R11), shown in the header under its name. */
   purpose?: string | null;
-  /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the daemon cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
-  /** The chat's labels (plan 022), their colours and saving them; `onChange` null while the daemon cannot take it. */
   labels?: { current: string[]; list: LabelView[] | null; onChange: ((labels: string[]) => Promise<string | null>) | null } | null;
-  /** Change folder: the chat's folder and the agent's recent ones, and the move; null while the daemon cannot take it. */
   folder?: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null> } | null;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always") => void;
-  /** Stop this conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
   onSend: (rt: Runtime, text: string, images: Attachment[], desk: string | null) => void;
-  /** Done: the Inbox's clear (seen_mark). */
   onSeen: (rt: Runtime) => void;
-  /** Not done: the Inbox's undo (seen_unmark); left out, the sheet does not offer it. */
   onNotDone?: (item: AttentionItem) => void;
-  /** A look, not done (viewed_mark): sent on open and for each new message while the screen is up. */
   onViewed?: (agentId: string, conversationId: string) => void;
-  /** The suggestions made in this chat for other chats (plan 049), over the box; null or absent, none. */
   suggestions?: Omit<SuggestionsProps, "rt"> | null;
-  /** Close one of the chat's links (plan 067); left out, the strip has no close buttons. */
   onCloseLink?: (rt: Runtime, linkId: string) => void;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
@@ -173,14 +133,13 @@ export function ConversationScreen({
     setArchiving({ busy: false, error: err });
     if (err) return;
     setActionsOpen(false);
-    if (!archive.archived) onBack(); // archived: done with it, back to where you came from
+    if (!archive.archived) onBack();
   };
 
   const load = useEffectEvent(() => onLoad(rt));
   useEffect(() => load(), [thread.agentId, thread.conversationId]);
 
   const agentName = thread.agentName ?? "the agent";
-  // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
@@ -206,7 +165,6 @@ export function ConversationScreen({
           <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
         </div>
       ) : null}
-      {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
           <ScreenThread
@@ -314,11 +272,6 @@ export function ConversationScreen({
   );
 }
 
-/**
- * The page's thread and box: the one part of the page that reads the chat's rows (plan 032), so a streamed piece
- * redraws it and not the header, the sheets or the page around it. The New line and the widget rows come from the
- * rows, so they are worked out here.
- */
 function ScreenThread({
   chats,
   thread,
@@ -349,11 +302,6 @@ function ScreenThread({
   );
 }
 
-/**
- * The header, Slack's DM bar: a back circle, the identity pill (the agent's face with its working dot, its
- * name, "working · <desk>" under it and the chat's purpose under that; a tap opens the agent's profile), and a circle for the actions sheet.
- * The heading wraps the pill so focus lands on the conversation's name when the page opens.
- */
 function ThreadHeader({
   thread,
   view,

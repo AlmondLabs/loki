@@ -17,30 +17,23 @@ import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type 
 import { MenuIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
 export interface TitleMenuEntry {
   id: string;
   label: string;
   keys: string | null;
 }
-/** One ☰ menu: its title and its lines, with separators between groups. */
 export interface TitleMenuGroup {
   title: string;
   items: Array<TitleMenuEntry | { separator: true }>;
 }
 
 const HIDE = "window.hide";
-/** Hide's line in the keymap, which every build has. */
 const HIDE_BINDING: Binding = (() => {
   const b = KEYMAP.find((x) => x.id === HIDE);
   if (!b) throw new Error(`the keymap has no ${HIDE}`);
   return b;
 })();
 
-/**
- * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
- * in Ctrl words. An item without an accelerator on the Mac shows none here either.
- */
 export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP, labels: Record<string, string> = {}): TitleMenuGroup[] {
   return menuSpec(map, os, labels).map((m) => ({
     title: m.title,
@@ -53,25 +46,17 @@ export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP, lab
   }));
 }
 
-/** A ☰ pick: the action the Mac's menu click runs (useShellKeys, loki:menu), straight through the registry. */
 export function runMenuItem(id: string): void {
   if (!runAction(id)) console.warn("loki: menu item without an action", id);
 }
 
-/** The id of the item before a menu's separator, which keys the separator: it never leads and never follows another. */
 const keyBefore = (items: TitleMenuGroup["items"], i: number): string => {
   const before = i > 0 ? items[i - 1] : undefined;
   return before && !("separator" in before) ? before.id : "start";
 };
 
-/** An item's look in the ☰ menu and its submenus: the label at the left, the key at the right. */
 const ITEM = "justify-between gap-3";
 
-/**
- * The menu's items, without its root (plan 2026-11-15-1930, KTD1): each title a submenu of Base UI's, holding that
- * menu's items and separators with their keys, then Hide loki (Minimise loki there, labelOf). Base UI opens a title on
- * hover, →, Return or Space, closes it on ← or Esc, and moves with ↑↓ Home End and type-ahead.
- */
 export function TitleMenuItems({ groups, onPick, os = keyboard }: { groups: TitleMenuGroup[]; onPick: (id: string) => void; os?: Platform }) {
   return (
     <>
@@ -81,7 +66,6 @@ export function TitleMenuItems({ groups, onPick, os = keyboard }: { groups: Titl
           <DropdownMenuSubContent aria-label={g.title} className="loki-popover" style={{ minWidth: 260 }}>
             {g.items.map((it, i) =>
               "separator" in it ? (
-                // menuSpec puts a separator only between two groups, so the item before it keys it.
                 <DropdownMenuSeparator key={`sep-after-${keyBefore(g.items, i)}`} />
               ) : (
                 <DropdownMenuItem key={it.id} data-menu-id={it.id} className={ITEM} onClick={() => onPick(it.id)}>
@@ -102,12 +86,6 @@ export function TitleMenuItems({ groups, onPick, os = keyboard }: { groups: Titl
   );
 }
 
-/**
- * ☰ and its menu, at the strip's left end on Windows and Linux and beside the sidebar toggle in a browser tab, its
- * items named by `labels` where their words change (the update item). It is shadcn's DropdownMenu on Base UI, as every
- * other menu loki draws (plan 2026-11-15-1930, KTD1): Esc, Tab, a press outside or a pick close it, and focus goes back
- * to ☰ unless the pick took it elsewhere. Opened by a click it grows from ☰; opened by a key it is simply there.
- */
 export function TitleMenu({ os = keyboard, labels = {}, className }: { os?: Platform; labels?: Record<string, string>; className?: string }) {
   const [open, setOpen] = useState(false);
   const popup = useRef<HTMLDivElement>(null);

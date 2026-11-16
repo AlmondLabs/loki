@@ -10,24 +10,11 @@ import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStat
 import type { CameraTarget } from "./use-desk";
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widget-rows";
 
-/**
- * What the mod's pushes leave in a tab (plan 058): every desk's geometry and widgets, the chat list and each chat's
- * title, status, agent, model and mode, the seen, viewed, focus and rest marks, the phone listener and paired Macs,
- * and the counters a page refetches on. `applyPush` folds one push into it, purely: the socket hook (use-desk-socket.ts)
- * keeps the socket and the effects a push asks for (a reply to its waiter, a chat's events to their listeners, a
- * gesture held until the desk came), and hands this module the rest.
- *
- * Each part keeps its object when a push changes nothing in it, and the whole state does when nothing changed at all,
- * so a repeated push redraws nothing.
- */
-
-/** Everything the pushes leave in a tab. */
 export interface DeskSocketState {
   desks: Partial<Record<Scope, DeskState>>;
   widgets: Partial<Record<Scope, WidgetManifestEntry[]>>;
   cameraTarget: CameraTarget | null;
   deskList: DeskSummary[];
-  /** A desks frame has arrived: an empty list is then "no desks", not "not asked yet" (the phone's Home says which). */
   desksLoaded: boolean;
   titles: Partial<Record<Scope, string>>;
   statuses: Partial<Record<Scope, DeskStatus>>;
@@ -37,44 +24,25 @@ export interface DeskSocketState {
   reasoningEfforts: Partial<Record<Scope, ReasoningEffort>>;
   modes: Partial<Record<Scope, string>>;
   seenMap: Record<string, string>;
-  /** When each conversation was last looked at: apart from seen, which is "done". */
   viewedMap: Record<string, string>;
   focusMap: Record<string, FocusEntry>;
   restMap: Record<string, Rest>;
-  /**
-   * How long ⌘] and ⌘[ rest each kind of card (plan 070): undefined until the mod says, or from a mod from before them;
-   * null while the person has set none.
-   */
   returnTimes: ReturnTimes | null | undefined;
-  /** The lanes the person made (plan 087), shared by every Mac and the phone: null until a push carries them. */
   lanes: Lane[] | null;
-  /** Bumped when the mod says the cards changed: the Learn view refetches. */
   recallVersion: number;
-  /** Bumped when the mod says the usage ledger counted more: an open usage page refetches. */
   usageVersion: number;
-  /** The LAN listener (Preferences › Phone): its status, the paired phones, and the last pairing code minted here. */
   lanStatus: PhoneLanStatus | null;
   devices: PairedDevice[] | null;
   pairCode: PairCode | null;
-  /** Preferences › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
   macs: Pushes["peers"] | null;
   macCode: Pushes["peer_pair_code"] | null;
-  /**
-   * A daemon restart due after a checkout's code changed (plan 024): the file, and which push said so, so that each
-   * change shows the notice again even when it names the same file. A restarted daemon owes none.
-   */
   restartDue: { file: string; n: number } | null;
-  /** The canvas build the mod is serving now (`app_build`); the phone reloads on it. */
   servedBuild: string | null;
-  /** The models used lately, latest first (mod/models.ts). */
   recentModels: string[];
-  /** Each agent's usual models, most used first (mod/usual-models.ts): the model switcher leads with them. */
   usualModels: Pushes["models_usual"]["usual"];
-  /** Each desk's widget change log (desk/widget-rows.ts): from history replies and live `widget_change` frames. */
   widgetLogs: WidgetLogs;
 }
 
-/** A tab before its first push. */
 export const EMPTY_DESK_SOCKET: DeskSocketState = {
   desks: {},
   widgets: {},
@@ -108,10 +76,6 @@ export const EMPTY_DESK_SOCKET: DeskSocketState = {
   widgetLogs: {},
 };
 
-/**
- * The pushes `applyPush` folds in. The socket hook calls it for these only: a push that leaves the state alone (a
- * chat's streamed events above all) then costs no update and no redraw at all.
- */
 export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["type"]>([
   "desk",
   "state",
@@ -135,18 +99,14 @@ export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["t
   "desk_title",
 ]);
 
-/** What a push is read against: the clock, and when the person last touched the canvas (a camera move waits for them). */
 export interface PushContext {
   now: number;
   lastInteraction: number;
-  /** Dev only: Preferences › Phone reads as if Tailscale were running (PHONE_DEMO). */
   phoneDemo?: boolean;
 }
 
-/** After the person touches the canvas, the agent's camera moves wait this long. */
 export const NO_YANK_MS = 2000;
 
-/** The state with one push folded in; the same object when the push changes nothing. */
 export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushContext): DeskSocketState {
   switch (msg.type) {
     case "desk": {
@@ -176,7 +136,6 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
     case "lan_status": {
       const read = lanStatusFromFrame({ ...msg });
       const lanStatus = ctx.phoneDemo ? phoneDemo({ ...read, via: "tailscale" }) : read;
-      // A code is only redeemable while the listener is up.
       return withParts(state, { lanStatus, pairCode: lanStatus.enabled ? state.pairCode : null });
     }
     case "pair_code":
@@ -212,27 +171,21 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
       return withParts(state, { usualModels: keepSame(state.usualModels, next) });
     }
     case "widget_change": {
-      // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
       const entry = parseWidgetEntry(msg.entry);
       return entry ? withParts(state, { widgetLogs: withEntry(state.widgetLogs, entry) }) : state;
     }
     case "seen": {
-      // Every chat's marks, on connect and after marks from a paired Mac: a map it repeats keeps its object. A mod from
-      // before viewed, focus or rests sends none of that map: what is here stays rather than every mark forgotten.
       const { seen, viewed, focus, rests, return_times: times, lanes } = msg;
       return withParts(state, {
         seenMap: keepSame(state.seenMap, seen),
         viewedMap: viewed && typeof viewed === "object" ? keepSame(state.viewedMap, viewed) : state.viewedMap,
         focusMap: focus && typeof focus === "object" ? keepSame(state.focusMap, focus) : state.focusMap,
         restMap: rests && typeof rests === "object" ? keepSame(state.restMap, rests) : state.restMap,
-        // Null is the mod keeping none; a value it does not know reads as none too, and a mod from before says nothing.
         returnTimes: times === undefined ? state.returnTimes : isReturnTimes(times) ? keepSame(state.returnTimes ?? null, times) : null,
-        // A mod from before lanes says nothing, and the lanes here stay; a malformed lane is dropped, the rest kept.
         lanes: lanes === undefined ? state.lanes : keepSame(state.lanes ?? [], parseLanes(lanes)),
       });
     }
     case "seen_chat": {
-      // One chat's marks after a change to it alone (plan 055): that key set or cleared, every other map kept.
       const { key, seen, viewed, focus, rest } = msg;
       return withParts(state, {
         seenMap: withMark(state.seenMap, key, seen),
@@ -242,21 +195,17 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
       });
     }
     case "desk_title":
-      // Sent again on every title refresh: a repeat keeps each map as it is.
       return withParts(state, chatHeader(state, msg.scope, msg));
     default:
       return state;
   }
 }
 
-/** A socket that opened: a daemon just started owes no restart, and one still owing says so in its welcome. */
 export function opened(state: DeskSocketState): DeskSocketState {
   return withParts(state, { restartDue: null });
 }
 
-/** The header parts of a chat a `desk` or `desk_title` push carries; each map the same when its value is. */
 function chatHeader(state: DeskSocketState, s: Scope, msg: Pushes["desk_title"]): Partial<DeskSocketState> {
-  // Pushes arrive from the mod unchecked: each part is taken only when it is what it says.
   const { title, status, agent_name: agentName, model, mode } = msg;
   return {
     titles: typeof title === "string" && title ? withScope(state.titles, s, title) : state.titles,
@@ -268,33 +217,25 @@ function chatHeader(state: DeskSocketState, s: Scope, msg: Pushes["desk_title"])
   };
 }
 
-/** The state with `parts` in it; the same object when every part already is. */
 export function withParts(state: DeskSocketState, parts: Partial<DeskSocketState>): DeskSocketState {
   const keys = Object.keys(parts) as Array<keyof DeskSocketState>;
   return keys.every((k) => state[k] === parts[k]) ? state : { ...state, ...parts };
 }
 
-/** The map with one scope set; the same object when it already holds that value. */
 export function withScope<T>(current: Partial<Record<Scope, T>>, scope: Scope, value: T): Partial<Record<Scope, T>> {
   return current[scope] === value ? current : { ...current, [scope]: value };
 }
 
-/**
- * A marks map with one chat's value set, or removed when it has none; the same map when that changes nothing, so a
- * repeat redraws nothing.
- */
 export function withMark<T>(current: Record<string, T>, key: string, value: T | null): Record<string, T> {
   if (value === null) return key in current ? Object.fromEntries(Object.entries(current).filter(([k]) => k !== key)) : current;
   const kept = keepSame(current[key], value);
   return kept === current[key] && key in current ? current : { ...current, [key]: kept };
 }
 
-/** Preferences › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
 export function macsFromFrame(msg: Pushes["peers"]): Pushes["peers"] {
   return { me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [], tailnet: Array.isArray(msg.tailnet) ? msg.tailnet : [] };
 }
 
-/** The efforts map with one scope set, or cleared when the value is not a level. */
 export function withReasoningEffort(current: Partial<Record<Scope, ReasoningEffort>>, scope: Scope, value: unknown): Partial<Record<Scope, ReasoningEffort>> {
   if (isReasoningEffort(value)) return current[scope] === value ? current : { ...current, [scope]: value };
   if (!(scope in current)) return current;
@@ -302,18 +243,8 @@ export function withReasoningEffort(current: Partial<Record<Scope, ReasoningEffo
   return next;
 }
 
-/**
- * Dev only: `?phoneDemo=tailscale` on the Vite tab makes Preferences › Phone read as if Tailscale were
- * running on this Mac, so the route chooser and the https switch can be seen without a tailnet. The
- * flag is compiled out of production builds; `setVia` / `setServe` then change local state instead of
- * asking the mod. Remove once the mod's `tailscale.ts` is in and a real tailnet is at hand.
- */
 export const PHONE_DEMO = import.meta.env.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).get("phoneDemo") === "tailscale";
 
-/**
- * The LAN status as it would read with Tailscale running on this Mac (fixed made-up names and address), for the
- * dev-only `PHONE_DEMO`; `serve` overrides whether Tailscale serve is on.
- */
 export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
   const name = "my-macbook-pro.tail1234.ts.net";
   const on = serve ?? !!s.tailscale?.serve_url;

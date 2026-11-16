@@ -2,34 +2,12 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, type RefObject } fr
 import { draftKey } from "../shared/drafts";
 import { createRecents } from "../shared/recents";
 
-/**
- * The phone's session: what a person was in the middle of, kept across tabs and pages so navigation
- * never costs them their place. Four small stores, one mechanism each, no domain data:
- *   drafts   a reply's text and images, keyed by agent and conversation (memory; Inbox and the desk share it; shared/drafts.ts)
- *   recents  recent searches and destinations, bounded, on the device (localStorage, sanitized on read; shared/recents.ts)
- *   scroll   each destination's list offset (memory)
- *   focus    the control a page was opened from, handed back when you return (memory)
- * The factories are pure enough for a test without a DOM (test/phone-session.test.ts); the hooks wire them to React.
- */
-
-// ---- Drafts ---------------------------------------------------------------------------------------
-
-// Drafts live in shared/drafts.ts, one store and one mechanism with the desktop; the phone imports them from there.
-
-// ---- Prefill --------------------------------------------------------------------------------------
-
-/** A `?prefill=` held for the one conversation it was addressed to. */
 export interface Prefill {
   key: string;
   text: string;
   tick: number;
 }
 
-/**
- * The held prefill after the route changes: a new `?prefill=` replaces it (with a fresh tick); the same
- * conversation, its address tidied, keeps it; anywhere else drops it, so no other conversation — nor this
- * one opened again later — gets it written over its draft.
- */
 export function nextPrefill(
   held: Prefill | null,
   conv: { agentId: string; conversationId: string; prefill: string | null } | null,
@@ -41,19 +19,11 @@ export function nextPrefill(
   return held?.key === key ? held : null;
 }
 
-// ---- Recents --------------------------------------------------------------------------------------
-
-// Shared with the desktop (shared/recents.ts); the phone's histories keep their own storage keys below.
 export { createRecents, pushRecent, sanitizeRecents, type RecentEntry } from "../shared/recents";
 
-/** What Search offers before you type: the last few searches, and the last few places opened (as route hashes). */
 export const recentSearches = createRecents({ key: "loki.phone.recentSearches", max: 8 });
-/** The places opened lately, as route hashes, newest first. */
 export const recentPlaces = createRecents({ key: "loki.phone.recentPlaces", max: 8 });
 
-// ---- Scroll ---------------------------------------------------------------------------------------
-
-/** Scroll offsets by key, kept in memory for the session; `get` is null for a key never saved. */
 export function createScrollMemory() {
   const offsets = new Map<string, number>();
   return {
@@ -61,7 +31,6 @@ export function createScrollMemory() {
     get: (key: string): number | null => offsets.get(key) ?? null,
   };
 }
-/** The phone's one scroll memory, which `useScrollMemory` uses unless handed another. */
 export const scrollMemory = createScrollMemory();
 
 /**
@@ -99,12 +68,6 @@ export function useScrollMemory(ref: RefObject<HTMLElement | null>, key: string 
   }, [ref, key, memory]);
 }
 
-// ---- Focus ----------------------------------------------------------------------------------------
-
-/**
- * The control each destination was left from, by route hash. A remounted screen has new elements, so
- * an `id` or `data-launch` attribute is kept too and looked up again when the element itself is gone.
- */
 export function createFocusMemory() {
   const launchers = new Map<string, { el: Element; id: string | null; launch: string | null }>();
   return {
@@ -118,7 +81,6 @@ export function createFocusMemory() {
       if (!hit) return null;
       if (hit.el.isConnected) return hit.el;
       if (typeof document === "undefined") return null;
-      // the id first; a remounted screen may give it a new id, so data-launch is the fallback, not an alternative
       const byId = hit.id ? document.getElementById(hit.id) : null;
       if (byId || !hit.launch) return byId;
       const launch = typeof CSS !== "undefined" ? CSS.escape(hit.launch) : hit.launch.replace(/["\\]/g, "\\$&");
@@ -126,7 +88,6 @@ export function createFocusMemory() {
     },
   };
 }
-/** The phone's one focus memory: the control each page was left from. */
 export const focusMemory = createFocusMemory();
 
 /** The element that has focus now, when it is a real control (iOS leaves focus on the body after a tap). */
@@ -136,15 +97,9 @@ export function activeControl(): Element | null {
   return a && a !== document.body && a !== document.documentElement ? a : null;
 }
 
-/** On screen: it has a box, and is not in a screen kept mounted but away (the Inbox hides with visibility, which keeps its box). */
 const visible = (el: Element) => el.getClientRects().length > 0 && !el.closest("[data-away], [hidden]");
 
-/**
- * After a route change: back at a destination, focus the control it was left from; arriving anywhere
- * else (or when that control is gone), the visible screen's heading. `root` bounds the search.
- */
 export function restoreFocus(root: Element, hash: string, returning: boolean, memory = focusMemory) {
-  // A screen that put focus in its own field (Search's autofocus) keeps it: the keyboard is already up.
   const active = activeControl();
   if (!returning && active && root.contains(active) && active.matches("input, textarea") && visible(active)) return;
   const launcher = returning ? memory.take(hash) : null;
@@ -156,7 +111,6 @@ export function restoreFocus(root: Element, hash: string, returning: boolean, me
   heading?.focus({ preventScroll: true });
 }
 
-/** Runs restoreFocus when `routeKey` changes, after the new screen has rendered; not on first load. */
 export function useFocusOnRoute(root: RefObject<HTMLElement | null>, routeKey: string, returning: boolean) {
   const first = useRef(true);
   const restore = useEffectEvent((key: string) => {

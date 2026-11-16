@@ -2,18 +2,10 @@ import type { Scope, WidgetChange, WidgetLogEntry } from "../../../core/desk-cor
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import type { WidgetMark } from "../chat/transcript";
 
-/**
- * Widget rows in the thread (plan 013 U8), pure (test/widget-rows.test.ts): the per-desk store of the
- * mod's widget change log (mod/widget-log.ts), fed by history replies and live `widget_change` frames,
- * and where each entry sits among a thread's messages.
- */
-
-/** The widget change log per chat, by scope, oldest entry first. */
 export type WidgetLogs = Record<Scope, WidgetLogEntry[]>;
 
 const CHANGES: readonly WidgetChange[] = ["added", "changed", "removed"];
 
-/** A `widget_change` frame's entry (or one row of a history reply's `widget_log`), or null when it is not one. */
 export function parseWidgetEntry(v: unknown): WidgetLogEntry | null {
   if (typeof v !== "object" || v === null) return null;
   const e = v as Record<string, unknown>;
@@ -30,13 +22,8 @@ export function parseWidgetEntry(v: unknown): WidgetLogEntry | null {
   return ok ? (e as unknown as WidgetLogEntry) : null;
 }
 
-/** Oldest first; a sort that keeps log order among equal times. */
 const byTime = (list: WidgetLogEntry[]) => [...list].sort((a, b) => a.at - b.at);
 
-/**
- * The store with one entry in, under its own desk. A collapsed repeat edit keeps its row's id with a
- * later `at`: it replaces that row and moves to its new time. The same entry again changes nothing.
- */
 export function withEntry(store: WidgetLogs, entry: WidgetLogEntry): WidgetLogs {
   const list = store[entry.scope] ?? [];
   const i = list.findIndex((e) => e.id === entry.id);
@@ -45,10 +32,6 @@ export function withEntry(store: WidgetLogs, entry: WidgetLogEntry): WidgetLogs 
   return { ...store, [entry.scope]: byTime(next) };
 }
 
-/**
- * A history reply's log for one desk, merged with what arrived live while it was on the way: by id, the
- * later time wins. Other desks are left as they are.
- */
 export function withHistoryLog(store: WidgetLogs, scope: Scope, entries: unknown): WidgetLogs {
   const got = (Array.isArray(entries) ? entries : []).map(parseWidgetEntry).filter((e): e is WidgetLogEntry => !!e);
   const merged = new Map<string, WidgetLogEntry>();
@@ -59,20 +42,10 @@ export function withHistoryLog(store: WidgetLogs, scope: Scope, entries: unknown
   return { ...store, [scope]: byTime([...merged.values()]) };
 }
 
-/** When this app session began: a widget change logged since then arrived live, one before it is history. */
 export const SESSION_START = Date.now();
 
-/** Who the row names: you, loki, or the desk's agent (rows logged before `by` existed are the agent's). */
 const whoOf = (e: WidgetLogEntry, agentName: string | null) => (e.by === "you" ? "You" : e.by === "loki" ? "loki" : (agentName ?? "the agent"));
 
-/**
- * The thread's widget rows: each log entry placed before the first message timed after it (after the
- * latest one when none is), so it reads among the messages by time. Rows without a time keep their
- * arrival order and place nothing. A thread with messages but no times at all (a history that kept none) cannot
- * place the log, so it does not dump it after the newest message: the changes logged since `liveSince` (this
- * session's) follow the last row in arrival order, after one quiet summary row counting the older ones
- * (`earlier`). A row is `gone` when it removed the widget or a later entry did: choosing it frames nothing.
- */
 export function widgetMarks(
   rows: TranscriptRow[] | undefined,
   log: WidgetLogEntry[] | undefined,

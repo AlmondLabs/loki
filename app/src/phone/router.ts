@@ -2,32 +2,9 @@ import { useEffect, useState } from "react";
 import { activeControl, focusMemory } from "./session";
 import { expectPop, transition } from "./transitions";
 
-/**
- * The phone's routes live in the hash, so a home-screen icon has history and swipe-back:
- *   #/home  #/inbox  #/agents  #/more                 the four tabs
- *   #/search[?q=…]                                    Search, from the round button beside the tabs; `q` is its query
- *   #/learn  #/archive                                Learn and the archived desks (Home's shortcuts, More's rows)
- *   #/learn/<review|leads|lessons|deleted>          one of Learn's lists, opened from Learn
- *   #/preferences  #/connection  #/about            appearance, the paired Mac and pairing, About — under More
- *   #/usage                                          what the agents spent — under More
- *   #/agents/<agentId>                             an agent's page
- *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
- *   #/c/<agentId>/<conversationId>[?prefill=…]     a conversation; `prefill` starts the reply box
- * Legacy addresses still land: #/you is More, #/settings is preferences (useRouteState swaps the address).
- *
- * Every route has an owning tab (ownerOf) and a direct-link parent (parentOf). A page opened from inside
- * the app also carries where it was opened from, in its history entry: navigate() stamps the entry with
- * the origin's hash and the depth of in-app pushes, so Back can use history (iOS swipe-back included)
- * while a page opened cold — a saved link, a home-screen launch — falls back to its parent instead of
- * leaving the app. parse/format and the entry helpers are pure (test/phone-router.test.ts).
- */
-
-/** The phone's four tabs. */
 export type Tab = "home" | "inbox" | "agents" | "more";
-/** The tabs in the order the tab bar shows them. */
 export const TABS: readonly Tab[] = ["home", "inbox", "agents", "more"];
 
-/** A screen of the phone, as its hash address names it (see the list above). */
 export type Route =
   | { kind: "tab"; tab: Tab }
   | { kind: "learn"; view?: LearnPage }
@@ -41,21 +18,16 @@ export type Route =
   | { kind: "file"; agentId: string; path: string }
   | { kind: "conversation"; agentId: string; conversationId: string; prefill: string | null };
 
-/** The Home tab: where the phone opens and where a page with nowhere else to go comes back to. */
 export const HOME: Route = { kind: "tab", tab: "home" };
 
-/** Learn's lists, as the desktop's Learn column lists them: the deck, the leads, the lessons begun, what was deleted. */
 export type LearnPage = "review" | "leads" | "lessons" | "deleted";
-/** Learn's lists, in the order Learn lists them. */
 export const LEARN_PAGES: readonly LearnPage[] = ["review", "leads", "lessons", "deleted"];
 const isLearnPage = (s: string): s is LearnPage => (LEARN_PAGES as readonly string[]).includes(s);
 
 const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
-/** Single-segment pages that are not tabs. */
 const CHILDREN = ["learn", "archive", "preferences", "usage", "connection", "about"] as const;
 type Child = (typeof CHILDREN)[number];
 const isChild = (s: string): s is Child => (CHILDREN as readonly string[]).includes(s);
-/** Old addresses, from saved links and installed clients, to where they live now. */
 const LEGACY: Record<string, Route> = { you: { kind: "tab", tab: "more" }, settings: { kind: "preferences" } };
 
 const dec = (s: string): string => {
@@ -66,7 +38,6 @@ const dec = (s: string): string => {
   }
 };
 
-/** A hash (with or without the leading `#`) to a route; anything unknown is home. */
 export function parseRoute(hash: string): Route {
   let h = hash.startsWith("#") ? hash.slice(1) : hash;
   let query = "";
@@ -99,7 +70,6 @@ export function parseRoute(hash: string): Route {
   return HOME;
 }
 
-/** A route to its hash, `#` included. */
 export function formatRoute(r: Route): string {
   switch (r.kind) {
     case "tab":
@@ -125,7 +95,6 @@ export function formatRoute(r: Route): string {
   }
 }
 
-/** The tab a route lives under. Learn, Archive and Search hang off Home; preferences, usage, connection and About off More; a conversation is Home's. */
 export function ownerOf(r: Route): Tab {
   switch (r.kind) {
     case "tab":
@@ -143,42 +112,33 @@ export function ownerOf(r: Route): Tab {
   }
 }
 
-/** Where Back goes when the page was opened cold: a file to its agent, one of Learn's lists to Learn, everything else to its owning tab. */
 export function parentOf(r: Route): Route {
   if (r.kind === "file") return { kind: "agent", agentId: r.agentId };
   if (r.kind === "learn" && r.view) return { kind: "learn" };
   return { kind: "tab", tab: ownerOf(r) };
 }
 
-/** Back's destination: where the page was opened from, else its parent. */
 export function backTarget(r: Route, from: Route | null): Route {
   return from && formatRoute(from) !== formatRoute(r) ? from : parentOf(r);
 }
 
-/** The floating navigation shows on the four tabs; pages take the whole screen. */
 export function showsNav(r: Route): boolean {
   return r.kind === "tab";
 }
 
-/** Routes that cover the whole screen and hide the navigation. */
 export function isOverlay(r: Route): boolean {
   return !showsNav(r);
 }
 
-/** The route's name for analytics (`view`, `$screen`): a tab or a page kind, never which desk, agent or file. */
 export function screenOf(r: Route): string {
   return r.kind === "tab" ? r.tab : r.kind;
 }
 
-/** How a Back control names where it goes: "back to flow". The inbox tab is called Flow on screen (plan 087). */
 export function labelOf(r: Route): string {
   const screen = screenOf(r);
   return screen === "inbox" ? "flow" : screen;
 }
 
-// ---- History entries ------------------------------------------------------------------------------
-
-/** What navigate() stamps on the entry it pushes, beside whatever state was there. */
 interface Stamp {
   lokiFrom: string;
   lokiDepth: number;
@@ -190,35 +150,27 @@ const stampOf = (state: unknown): Stamp | null => {
   return typeof lokiFrom === "string" && typeof lokiDepth === "number" && lokiDepth > 0 ? { lokiFrom, lokiDepth } : null;
 };
 
-/** The state for an entry pushed from `fromHash`, one deeper than the entry it leaves. */
 export function entryState(prev: unknown, fromHash: string): Record<string, unknown> {
   const base = prev && typeof prev === "object" ? (prev as Record<string, unknown>) : {};
   return { ...base, lokiFrom: fromHash, lokiDepth: depthOf(prev) + 1 };
 }
 
-/** The route this entry was opened from, or null for an entry the app did not push. */
 export function originOf(state: unknown): Route | null {
   const s = stampOf(state);
   return s ? parseRoute(s.lokiFrom) : null;
 }
 
-/** In-app pushes behind this entry: above zero, history.back() stays in the app. */
 export function depthOf(state: unknown): number {
   return stampOf(state)?.lokiDepth ?? 0;
 }
 
-// ---- Effects --------------------------------------------------------------------------------------
-
-/** How the route on screen was reached: a push, a pop (Back, swipe-back, a Back fallback), a swap, or the load. */
 export type Arrival = "push" | "pop" | "replace" | "load";
 let pending: Arrival | null = null;
 
 const url = (hash: string) => `${location.pathname}${location.search}${hash}`;
 
-/** Open a chat's page, with nothing to put in its box. */
 export const openConversation = (agentId: string, conversationId: string): void => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
-/** Go somewhere: a new history entry that remembers where it came from and the control that launched it. */
 export function navigate(r: Route): void {
   const hash = formatRoute(r);
   if (location.hash === hash) return;
@@ -228,31 +180,23 @@ export function navigate(r: Route): void {
   window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
 
-/** Swap the current entry, keeping its origin. */
 export function replace(r: Route, arrival: Arrival = "replace"): void {
   history.replaceState(history.state, "", url(formatRoute(r)));
   pending = arrival;
   window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
 
-/**
- * Rewrite the current entry's address without telling the app: Search writes its query into its own
- * entry just before it opens a result, so Back (history) lands on the same query. No hashchange, so
- * nothing re-renders; the next navigate() reads the new address as its origin.
- */
 export function rewrite(r: Route): void {
   const hash = formatRoute(r);
   if (location.hash !== hash) history.replaceState(history.state, "", url(hash));
 }
 
-/** Back to where this page was opened from; to its parent when the app was opened on it. */
 export function back(r: Route): void {
-  expectPop(); // this Back is the app's: it slides (transitions.ts)
+  expectPop();
   if (depthOf(history.state) > 0) history.back();
   else replace(backTarget(r, null), "pop");
 }
 
-/** What the phone shows: the route, the route it was opened from (null when opened cold, from a link or a launch), and how it arrived. */
 export interface RouteState {
   route: Route;
   from: Route | null;
@@ -261,11 +205,9 @@ export interface RouteState {
 
 const read = (arrival: Arrival): RouteState => ({ route: parseRoute(location.hash), from: originOf(history.state), arrival });
 
-/** The current route, where it was opened from, and how it arrived, following hashchange. */
 export function useRouteState(): RouteState {
   const [state, setState] = useState<RouteState>(() => read("load"));
   useEffect(() => {
-    // An empty, legacy or unknown address is swapped for the canonical one, without an entry.
     const canonicalize = () => {
       const canonical = formatRoute(parseRoute(location.hash));
       if (location.hash !== canonical) history.replaceState(history.state, "", url(canonical));
@@ -273,13 +215,12 @@ export function useRouteState(): RouteState {
     canonicalize();
     let shown = parseRoute(location.hash);
     const on = () => {
-      const arrival = pending ?? "pop"; // nothing pending: history moved by itself (Back, swipe-back, a typed address)
+      const arrival = pending ?? "pop";
       pending = null;
       canonicalize();
       const next = read(arrival);
       const from = shown;
       shown = next.route;
-      // The screen change moves the way iOS's do (transitions.ts); the state lands either way.
       transition(from, next.route, arrival, () => setState(next));
     };
     window.addEventListener("hashchange", on);

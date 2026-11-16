@@ -7,12 +7,6 @@ import { prefersReducedMotion } from "../kit/motion";
 import { CrosshairIcon, MinusIcon, Trash2Icon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/**
- * Standard widget chrome: drag by the title bar, close, focus-to-front, an
- * error dot when the file is broken. Pointer events stop here so the surface
- * never mistakes them for panning. The frame itself takes focus: arrows nudge
- * it, Alt+arrows resize it, Enter frames it in the camera, Escape lets go.
- */
 export function WidgetFrame({
   entry,
   layout,
@@ -27,16 +21,11 @@ export function WidgetFrame({
 }: {
   entry: WidgetManifestEntry;
   layout: WidgetLayout;
-  /** The camera is pointing here: a glow that fades when it moves on. */
   highlighted?: boolean;
-  /** Position in the desk's render order; staggers the settle-in animation. */
   order?: number;
   gesture: (g: Gesture) => void;
-  /** Rendered size, so the mod can place new widgets around this one. */
   onMeasure?: (id: string, size: Size) => void;
-  /** Bring this widget front, centre and large. */
   onFocus?: (id: string) => void;
-  /** Delete the widget's file. */
   onTrash?: (id: string) => void;
   getScale?: () => number;
   children: ReactNode;
@@ -47,8 +36,6 @@ export function WidgetFrame({
   const lastSent = useRef(0);
   const pinnedSize = layout.sized === true ? layout.size : undefined;
   const sized = !!pinnedSize;
-  // The measurement observer reads these live, so a resize in progress (or just committed) never lets a
-  // trailing content measurement overwrite the width the human just pinned.
   const sizedRef = useRef(sized);
   useEffect(() => {
     sizedRef.current = sized;
@@ -56,7 +43,6 @@ export function WidgetFrame({
 
   const { onKeyDown, announcement } = useFrameKeyboard({ entry, layout, sized, gesture, onFocus, frameRef, lastSentRef: lastSent });
 
-  // The agent rewrote the widget: it glows once, so the eye finds what changed. Not on the desk's first load.
   const glowRef = useRef<HTMLSpanElement>(null);
   const shownHash = useRef(entry.hash);
   useEffect(() => {
@@ -67,13 +53,12 @@ export function WidgetFrame({
     el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1200, easing: "ease-out" });
   }, [entry.hash]);
 
-  // Report the rendered size (canvas units: offsetWidth/Height ignore the viewport transform).
   useEffect(() => {
     const el = frameRef.current;
-    if (!el || !onMeasure || sized) return; // a user-sized frame reports nothing: its size is the human's, not the content's
+    if (!el || !onMeasure || sized) return;
     let last = { w: 0, h: 0 };
     const report = () => {
-      if (sizedRef.current || resizeRef.current) return; // a resize is in flight or done: don't fight the human
+      if (sizedRef.current || resizeRef.current) return;
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       if (Math.abs(w - last.w) < 2 && Math.abs(h - last.h) < 2) return;
@@ -95,8 +80,6 @@ export function WidgetFrame({
     return { x: d.origX + (e.clientX - d.startX) / scale, y: d.origY + (e.clientY - d.startY) / scale };
   };
 
-  // While dragging, move the frame directly (every pointer event, no React re-render) and
-  // send throttled moves for other tabs; the final position is committed on release.
   const onDragStart = (e: React.PointerEvent) => {
     e.preventDefault();
     try {
@@ -105,7 +88,7 @@ export function WidgetFrame({
       // synthetic or already-released pointer; dragging still works within the element
     }
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: layout.position.x, origY: layout.position.y };
-    if (frameRef.current) frameRef.current.style.willChange = "transform"; // only while dragging
+    if (frameRef.current) frameRef.current.style.willChange = "transform";
   };
   const onDragMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
@@ -130,15 +113,12 @@ export function WidgetFrame({
     gesture({ kind: "move", id: entry.id, position: dragPosition(d, e) });
   };
 
-  // The resize handle at the bottom-right: drag to pin a width and height; the content then scrolls inside.
   const onResizeStart = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     try {
       (e.target as Element).setPointerCapture(e.pointerId);
-    } catch {
-      // fine without capture
-    }
+    } catch {}
     const w = frameRef.current?.offsetWidth ?? layout.size?.w ?? 280;
     const h = frameRef.current?.offsetHeight ?? layout.size?.h ?? 160;
     resizeRef.current = { startX: e.clientX, startY: e.clientY, origW: w, origH: h };
@@ -183,8 +163,6 @@ export function WidgetFrame({
         left: layout.position.x,
         top: layout.position.y,
         zIndex: layout.z,
-        // A human-sized frame keeps its width and height. Otherwise it sizes to its content up to a
-        // reading width, then the content scrolls — never clipped, never a fixed measurement of itself.
         ...(pinnedSize ? { width: pinnedSize.w, height: pinnedSize.h } : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
         background: "var(--loki-panel)",
         border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
@@ -210,18 +188,15 @@ export function WidgetFrame({
       <div className="loki-frame-body" style={{ padding: 12, minHeight: 0, ...(sized ? { flex: 1, overflow: "auto" } : { overflowX: "auto" }) }}>
         {children}
       </div>
-      {/* Where a keyboard nudge left the frame, for screen readers; sr-only keeps it out of sight and out of the layout. */}
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}
       </span>
       <ResizeGrip onResizeStart={onResizeStart} onResizeMove={onResizeMove} onResizeEnd={onResizeEnd} />
-      {/* The glow: where the camera points (held), or what the agent just changed (once). Opacity only (tokens.css). */}
       <span ref={glowRef} aria-hidden className="loki-frame-glow" data-on={highlighted || undefined} />
     </div>
   );
 }
 
-/** The drag handle: the title with its error dot on the left, the widget's file name and the three controls on the right. */
 function FrameTitleBar({
   entry,
   gesture,
@@ -263,7 +238,6 @@ function FrameTitleBar({
           {entry.name}
         </span>
         <FrameButton label={`Focus ${entry.title}`} title="Focus" onClick={() => onFocus?.(entry.id)}>
-          {/* target */}
           <Glyph icon={CrosshairIcon} size={13} />
         </FrameButton>
         <FrameButton label={`Minimise ${entry.title}`} title="Minimise to tray" onClick={() => gesture({ kind: "close", id: entry.id })}>
@@ -277,7 +251,6 @@ function FrameTitleBar({
   );
 }
 
-/** The corner handle that pins a width and height. */
 function ResizeGrip({
   onResizeStart,
   onResizeMove,

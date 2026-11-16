@@ -19,10 +19,6 @@ import { Button } from "../components";
 import { BackButton, Scroll, TopBar } from "./ui";
 import type { DeskSummary, MemoryCommit } from "../../../core/frame-types.ts";
 
-/**
- * The last ten memory commits and the diff of the one opened. Diffs are fetched once per sha and kept;
- * tapping the open commit closes it.
- */
 function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
   const [commits, setCommits] = useState<MemoryCommit[] | null>(null);
   const [openSha, setOpenSha] = useState<string | null>(null);
@@ -43,18 +39,10 @@ function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
   return { commits, openSha, diffs, showDiff };
 }
 
-/** Which memory folders are folded, per agent, for the session: a file opened and Back finds the tree as it was left. */
 const foldedByAgent = new Map<string, Record<string, boolean>>();
 
-/** Opens the agent's main chat, with `prefill` started in the reply box when given. */
 const mainChat = (agentId: string, prefill: string | null = null) => navigate({ kind: "conversation", agentId, conversationId: "default", prefill });
 
-/**
- * One agent, Slack's profile page: the big face, the name, what it is and runs on, a Message button for
- * its main chat; then its sections — the live conversations (each opens its desk), its memory as folders
- * that fold, its skills (its own, then installed ones), and what it learned recently (the last ten memory
- * commits, each opening its diff). A file or skill row opens the file on its own page. Read-only, as before.
- */
 export function AgentPage({
   agentId,
   name,
@@ -104,7 +92,6 @@ export function AgentPage({
         {d && (
           <>
             <MemoryTree folders={folders} folded={folded} onFold={setFolded} onOpen={openFile} />
-            {/* Two lists, as on the desktop: the agent's own skills, then the ones installed from elsewhere. Read-only here; refresh is a desktop action. */}
             {(["self", "other"] as const).map((origin) => (
               <Skills key={origin} origin={origin} skills={d.skills} onOpen={openFile} />
             ))}
@@ -116,7 +103,6 @@ export function AgentPage({
   );
 }
 
-/** The top of the profile: face with presence, name, description, the model line, live desks and the main chat's mode. */
 function Hero({
   agentId,
   name,
@@ -154,7 +140,6 @@ function Hero({
   );
 }
 
-/** The agent's live desks, the way Home draws them, each opening its conversation. */
 function Conversations({ agentId, desks, items }: { agentId: string; desks: DeskSummary[]; items: AttentionItem[] }) {
   const mine = desks.filter((x) => x.agent_id === agentId && x.status === "live" && x.conversation_id);
   const marks = new Map(items.filter((i) => i.agent_id === agentId).map((i) => [i.id, i]));
@@ -170,7 +155,6 @@ function Conversations({ agentId, desks, items }: { agentId: string; desks: Desk
   );
 }
 
-/** The memory files by folder: a folder's head folds its files; the root's files come last, with no head. */
 function MemoryTree({
   folders,
   folded,
@@ -222,7 +206,6 @@ function MemoryTree({
   );
 }
 
-/** One skills list: the agent's own ("self"), or the ones installed from elsewhere — that section is left out when empty. */
 function Skills({ origin, skills, onOpen }: { origin: "self" | "other"; skills: AgentDetails["skills"]; onOpen: (path: string) => void }) {
   const list = skills.filter((s) => (s.origin ?? "self") === origin);
   if (origin === "other" && list.length === 0) return null;
@@ -245,7 +228,6 @@ function Skills({ origin, skills, onOpen }: { origin: "self" | "other"; skills: 
   );
 }
 
-/** The last memory commits, each a row that opens onto its diff. */
 function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
   const { commits, openSha, diffs, showDiff } = log;
   return (
@@ -281,13 +263,8 @@ function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
   );
 }
 
-/** The file's own headings sit under the page's one h1 (the file name): a "# Persona" becomes an h2. */
 const SHIFTED_HEADINGS = { ...MARKDOWN_COMPONENTS, h1: "h2", h2: "h3", h3: "h4", h4: "h5", h5: "h6" } as const;
 
-/**
- * One memory file. Markdown renders the way the desktop viewer draws it; anything else is shown as code.
- * The only action is to hand the change to the agent: the button opens its main chat with the request started.
- */
 export function FilePage({
   agentId,
   path,
@@ -305,7 +282,6 @@ export function FilePage({
 }) {
   const d = useAgentDetails(api, agentId);
   const [content, setContent] = useState<string | null | undefined>(undefined);
-  // Another file is unread from the render that names it.
   const [shownFile, setShownFile] = useState({ agentId, path });
   if (shownFile.agentId !== agentId || shownFile.path !== path) {
     setShownFile({ agentId, path });

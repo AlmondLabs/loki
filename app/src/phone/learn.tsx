@@ -19,15 +19,8 @@ import { Avatar, MenuRow, RowGroup, SkeletonCard, SkeletonRows } from "./rows";
 import { navigate, type LearnPage } from "./router";
 import { BackButton, Scroll, TopBar } from "./ui";
 
-/** One sitting with the deck (recall/useDeckPass). phone.tsx holds it above the routes, so leaving Learn and coming back keeps the card and the pass. */
 export type DeckPass = ReturnType<typeof useDeckPass>;
 
-/**
- * Learn on the phone, as the desktop's Learn column lists it: Learn opens on its lists — Review (the deck),
- * Leads (things worth learning properly, each a lesson away), Lessons under way, and Deleted — and each
- * opens as its own page (#/learn/<page>), so the deck and the leads never share a screen. The pass is held
- * by phone.tsx, so leaving Review and coming back resumes it; Back returns to where each was opened from.
- */
 export function Learn({
   view,
   recall,
@@ -44,13 +37,8 @@ export function Learn({
   banner: ReactNode;
   backLabel?: string;
   onBack: () => void;
-  /** A lesson begins: its conversation opens and the brief goes out as the person's first message. */ onBegin: (
-    agentId: string,
-    conversationId: string,
-    brief: string,
-    title: string,
-  ) => void;
-  /** A conversation opens (where a lead came up, a lesson under way). */ onOpen: (agentId: string, conversationId: string) => void;
+  onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
+  onOpen: (agentId: string, conversationId: string) => void;
 }) {
   const back = <BackButton onClick={onBack} label={backLabel} />;
   if (view === "review") return <Review recall={recall} pass={pass} banner={banner} back={back} />;
@@ -62,7 +50,6 @@ export function Learn({
 
 const openLearn = (view: LearnPage) => navigate({ kind: "learn", view });
 
-/** Learn's lists, each with what it holds. Before the Mac answers, their shapes; with the writer off and nothing written, why. */
 function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: ReactNode; back: ReactNode }) {
   const snap = recall.snap;
   const deleted = snap ? snap.rejected.length + snap.dismissed_leads.length : 0;
@@ -103,15 +90,6 @@ function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: Reac
   );
 }
 
-/**
- * Review: the deck, thumb-sized, in the phone's grammar. The card names its source the way a message names
- * its author — the agent's face and name, the conversation, when — then the front, one button for the
- * answer, then Again or Got it side by side, each with its next gap; Delete and Undo delete underneath.
- *
- * The card moves as a card: Show the answer turns it over, a grade throws it off the way the Inbox throws
- * its cards (Got it to the right, Again to the left), a delete lets it fall away, and the next rises into
- * its place. Nothing moves for a key: a pass run from the keyboard is instant.
- */
 function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: DeckPass; banner: ReactNode; back: ReactNode }) {
   const cards = recall.snap?.cards ?? [];
   const { current } = pass;
@@ -159,11 +137,6 @@ function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: Dec
 
 const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting", course: "A course · several sittings" };
 
-/**
- * The leads, newest first: what went by in a conversation without being understood, quoted where it came
- * up. Start the lesson makes a [Learn] conversation with the agent who was there and opens it with the
- * brief as your first message; Not this sets it aside (the writer reads that, and Deleted brings it back).
- */
 function Leads({
   recall,
   banner,
@@ -246,7 +219,6 @@ function Leads({
   );
 }
 
-/** Lessons begun from a lead, each its [Learn] conversation; one whose brief never arrived offers to send it. */
 function Lessons({
   recall,
   banner,
@@ -307,7 +279,6 @@ function Lessons({
   );
 }
 
-/** What was deleted: cards (the writer reads them as "not wanted") and leads set aside, each with Restore. */
 function Deleted({ recall, banner, back }: { recall: RecallModel; banner: ReactNode; back: ReactNode }) {
   const snap = recall.snap;
   const cards = snap?.rejected ?? [];
@@ -365,10 +336,6 @@ function DeletedRow({ title, line, onRestore }: { title: string; line: string; o
   );
 }
 
-/**
- * Learn is off and nothing is written: the Mac's welcome at the phone's sizes (plan 2026-11-14-0852, 2), the same three
- * rows, and where it is switched on (the Mac).
- */
 function Off({ dailyCap }: { dailyCap: number }) {
   return (
     <div className="loki-phone-empty">
@@ -390,10 +357,8 @@ function Off({ dailyCap }: { dailyCap: number }) {
   );
 }
 
-/** The welcome's symbols, as the Mac's: chats, the spaced repeat, the budget's gauge. */
 const WELCOME_ICON: Record<WelcomeRow["icon"], LucideIcon> = { chats: MessagesSquareIcon, spaced: RepeatIcon, budget: GaugeIcon };
 
-/** No card to show: none written yet, none due, or the sitting is done. */
 function Rest({ cards, passed, nextDue }: { cards: number; passed: number; nextDue: number | undefined }) {
   const now = useNow();
   if (cards === 0)
@@ -411,10 +376,6 @@ function Rest({ cards, passed, nextDue }: { cards: number; passed: number; nextD
   );
 }
 
-/**
- * Where a lead or a card came from, as a message header: the agent's face and name, the conversation and when, and
- * for a card what is new about it (`fresh`) and its tags.
- */
 function Source({ source, at, fresh = null, tags = [] }: { source: CardSource; at: string | null; fresh?: string | null; tags?: string[] }) {
   return (
     <div className="loki-phone-learn-source">
@@ -434,17 +395,14 @@ function Source({ source, at, fresh = null, tags = [] }: { source: CardSource; a
   );
 }
 
-/** How a graded card leaves: thrown right for a pass, left for a miss, the Inbox's directions and tilt. */
 const THROW = (dir: 1 | -1): Keyframe[] => [
   { transform: "none", opacity: 1 },
   { transform: `translateX(${dir * 115}%) rotate(${dir * 8}deg)`, opacity: 0.6 },
 ];
-/** A deleted card sinks and fades where it was. */
 const DROP: Keyframe[] = [
   { transform: "none", opacity: 1 },
   { transform: "translateY(24px) scale(0.94)", opacity: 0 },
 ];
-/** The half of a turn the card makes with its front up; the other half brings the answer round. */
 const TURN_MS = 140;
 const moves = () => lastInput() !== "key" && !prefersReducedMotion();
 
@@ -469,16 +427,13 @@ function PhoneCard({
 }) {
   const gaps = previews(c.schedule);
   const ref = useRef<HTMLElement>(null);
-  // How this card will leave, set by what sends it (a grade, a delete); read by useLeave as it unmounts.
   const exit = useRef<LeaveFrames>(null);
   useLeave(ref, () => exit.current, 280);
-  // The card after one that left rises into its place; the first of a pass, or one reached by a key, is just there.
   const [rises] = useState(() => position > 1 && moves());
   const leave = (frames: LeaveFrames, then: () => void) => {
     exit.current = moves() ? frames : null;
     then();
   };
-  // Turn the card over: the front turns away edge-on, the answer is put in, and the card comes round showing it.
   const reveal = () => {
     const el = ref.current;
     if (!el || typeof el.animate !== "function" || !moves()) return onReveal();

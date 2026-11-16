@@ -16,22 +16,13 @@ const EDGE = 24;
 const SLOP = 10;
 const COMMIT_FRACTION = 0.33;
 
-/**
- * Whether an edge swipe let go goes Back: once past twice the slop, its speed projected forward carries it past a third
- * of the screen's width (dx and width in px, velocity in px/s).
- */
 export const edgeCommits = (dx: number, width: number, velocity: number): boolean => releaseCommits(dx, velocity, width * COMMIT_FRACTION, SLOP * 2);
 
-/** Opened from the home screen (standalone), not in a browser tab. */
 export const standalone = (): boolean =>
   typeof window !== "undefined" &&
   ((typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
-/**
- * Back by a swipe from the left edge, on the shell in `shellRef` while `on`; only in the
- * home-screen app (`standalone`). `onBack` may change every render.
- */
 export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolean, onBack: () => void): void {
   const backRef = useRef(onBack);
   useLayoutEffect(() => {
@@ -42,7 +33,6 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
     const main = shell?.querySelector<HTMLElement>(":scope > .loki-phone-main");
     if (!on || !shell || !main || !standalone()) return;
     let g: { id: number; x: number; y: number; on: boolean; samples: Sample[] } | null = null;
-    // A gesture's follow-ups (the fallback settle, the transition reset), cleared with the effect.
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const later = (f: () => void, ms: number) => {
       const t = setTimeout(() => (timers.delete(t), f()), ms);
@@ -61,10 +51,10 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
       const dx = e.clientX - g.x;
       const dy = e.clientY - g.y;
       if (!g.on) {
-        if (Math.abs(dy) > SLOP && Math.abs(dy) > dx) g = null; // a scroll, not a Back
+        if (Math.abs(dy) > SLOP && Math.abs(dy) > dx) g = null;
         if (!g || dx < SLOP) return;
         g.on = true;
-        g.x = e.clientX; // no jump by the slop
+        g.x = e.clientX;
         try {
           shell.setPointerCapture(e.pointerId);
         } catch {
@@ -91,7 +81,6 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
           requestAnimationFrame(() => (main.style.transition = ""));
         });
         backRef.current();
-        // If Back never lands (nothing to go back to), the page must not stay across.
         later(() => {
           if (shell.hasAttribute("data-edge-drag")) {
             main.style.transition = "";

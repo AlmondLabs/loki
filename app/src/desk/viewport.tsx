@@ -2,25 +2,12 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, type R
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import { stopGlide } from "./camera-glide";
 
-/**
- * Pannable/zoomable surface with Figma's input model:
- *   - two-finger scroll / mouse wheel → pan (no easing, no inertia)
- *   - pinch, or ⌘/Ctrl + scroll        → zoom about the cursor
- *   - drag on empty canvas             → pan
- * The library's own wheel handling is off; we apply transforms directly,
- * coalescing all input that arrives within one animation frame. Widgets carry
- * `.loki-no-pan` so dragging one never pans the canvas.
- * Camera glides to widgets are springs (camera-glide.ts); a wheel, pinch or drag stops one where it is.
- */
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;
-/** Dot grid: spacing in canvas units; doubled while dots would sit closer than MIN_GRID_PX on screen. */
 const GRID_STEP = 24;
 const MIN_GRID_PX = 18;
-/** Per-event zoom factor clamp: a mouse-wheel notch must not jump more than ~18%. */
 const MAX_STEP = 1.18;
 
-/** The canvas's pan-and-zoom surface, with its dot grid; the ref is the pan-zoom library's handle, and `onScale` hears every change of zoom. */
 export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: ReactNode; onScale?: (scale: number) => void }>(function Viewport(
   { children, onScale },
   ref,
@@ -30,13 +17,11 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
   const host = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
 
-  // The wheel listeners below are attached once; they reach the latest onScale through this ref.
   const onScaleRef = useRef(onScale);
   useEffect(() => {
     onScaleRef.current = onScale;
   });
 
-  /** Keep the dot grid locked to the canvas: same translation, spacing scaled, thinned when zoomed out. */
   const paintGrid = useCallback((x: number, y: number, scale: number) => {
     onScaleRef.current?.(scale);
     const el = grid.current;
@@ -57,7 +42,6 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
     const el = host.current;
     if (!el) return;
 
-    // Pending deltas for the current frame; applied once in rAF.
     let dx = 0;
     let dy = 0;
     let zoom = 1;
@@ -76,7 +60,6 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
       if (zoom !== 1) {
         s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * zoom));
         const k = s / scale;
-        // keep the canvas point under the cursor fixed
         x = zx - (zx - x) * k;
         y = zy - (zy - y) * k;
       }
@@ -91,9 +74,9 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      stopGlide(); // the person's hand takes the camera from a glide under way
+      stopGlide();
       const rect = el.getBoundingClientRect();
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rect.height : 1; // lines / pages → px
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rect.height : 1;
       if (e.ctrlKey || e.metaKey) {
         // Pinch (Chrome reports it as ctrl+wheel) or explicit zoom modifier.
         const raw = Math.exp(-e.deltaY * unit * 0.0035);

@@ -3,15 +3,8 @@ import { Button, Chip, Sheet } from "../components";
 import { folderName, shownFolders } from "./new-chat-folders";
 import { messageOf } from "../../../core/errors.ts";
 
-/** Home shortened to ~, for reading. */
 const shortPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");
 
-/**
- * The phone's Change folder: the folders this chat's agent has worked in on the Mac, as chips (New chat's), the
- * chat's own folder lit; Move waits for another one. loki's daemon moves the chat, and its tools run in the new
- * folder from its next turn. A refusal shows under the chips and the sheet stays. Browsing any
- * folder on the Mac is the desktop's (the phone is not given the Mac's disk).
- */
 export function FolderSheet({
   load,
   onMove,
@@ -37,7 +30,6 @@ export function FolderSheet({
     };
   }, []);
 
-  // The chat's own folder is always a chip, first when the agent's list does not have it.
   const folders = state ? (state.current && !state.choices.includes(state.current) ? [state.current, ...state.choices] : state.choices) : [];
   const lit = picked ?? state?.current ?? null;
   const shown = shownFolders(folders, lit, all);

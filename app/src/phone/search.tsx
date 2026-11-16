@@ -8,19 +8,9 @@ import { cleanQuery } from "../shared/search";
 import { buildIndex, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./search-index";
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
 
-/** What Search covers, said plainly wherever it would otherwise look like message search. */
 const COVERAGE = "Searches chat titles, agents, waiting items and pages on this phone — not message text.";
 const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "more" } as const satisfies Record<GroupId, string>;
 
-/**
- * Search, opened from the round button beside the navigation, Slack's grammar: the field at the top takes
- * focus at once and stays above the keyboard (the shell fits the visible viewport, viewport.ts); what
- * scrolls beneath it is the one scroll owner. Before typing: recent searches and recently visited places
- * (search-index.ts drops ones that no longer resolve). While typing: Desks, Agents, Inbox and Pages, from what the
- * phone already holds — no Mac calls. A result opens its usual page with Search as the origin; the query
- * is written into this entry first, so Back comes back to the same query and scroll. Clearing the field
- * keeps focus there and never leaves — Back does.
- */
 export function Search({
   q,
   fresh,
@@ -31,32 +21,27 @@ export function Search({
   backLabel,
 }: {
   q: string;
-  /** Opened anew (not come back to): start at the top. */ fresh: boolean;
+  fresh: boolean;
   sources: SearchSources;
   link: LinkState;
-  /** The agent list has arrived from the Mac. */ loaded: boolean;
+  loaded: boolean;
   onBack: () => void;
   backLabel: string;
 }) {
   const [query, setQuery] = useState(q);
   const [recent, setRecent] = useState(() => recentSearches.read());
-  // The stored places, read once and again only after a Clear; what still resolves is checked against sources below.
   const [placeHashes, setPlaceHashes] = useState(() => recentPlaces.read());
   const input = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  // A fresh Search starts at the top; one come back to keeps its place (scroll memory "search").
   useState(() => fresh && scrollMemory.save("search", 0));
   useScrollMemory(scroller, "search");
 
   const typed = cleanQuery(query);
-  // Fields are folded once per sources, not per keystroke.
   const index = useMemo(() => buildIndex(sources), [sources]);
   const groups = useMemo(() => search(index, typed), [index, typed]);
-  // Only shown before typing; recentPlaceHits drops what no longer resolves.
   const places = useMemo(() => (typed ? [] : recentPlaceHits(placeHashes, sources)), [typed, placeHashes, sources]);
   const found = groups.reduce((n, g) => n + g.total, 0);
 
-  // A new query starts its results at the top.
   const lastTyped = useRef(typed);
   useEffect(() => {
     if (lastTyped.current === typed) return;
@@ -69,7 +54,6 @@ export function Search({
     recentSearches.add(typed);
     setRecent(recentSearches.read());
   };
-  // Opening anything: the query goes on the recent list and into this entry, then the page opens from here.
   const open = (hit: Hit) => {
     remember();
     rewrite(typed ? { kind: "search", q: typed } : { kind: "search" });
@@ -103,7 +87,7 @@ export function Search({
             e.preventDefault();
             remember();
             if (typed) rewrite({ kind: "search", q: typed });
-            input.current?.blur(); // Search on the keyboard: put it away so the results show
+            input.current?.blur();
           }}
         >
           <Icon name="search" size={18} className="loki-phone-search-glass" />
@@ -235,7 +219,6 @@ export function Search({
   );
 }
 
-/** A recents list: a quiet heading with Clear on the right, then its rows. */
 function Recents({ title, onClear, children }: { title: string; onClear: () => void; children: ReactNode }) {
   return (
     <section className="loki-phone-search-recents" aria-label={title}>
@@ -252,7 +235,6 @@ function Recents({ title, onClear, children }: { title: string; onClear: () => v
   );
 }
 
-/** One result: the same row as the list it came from — an agent's face, or the desk's # or the page's icon. */
 function HitRow({ hit, onOpen }: { hit: Hit; onOpen: () => void }) {
   const lead = "agent" in hit.lead ? <Avatar name={hit.lead.agent.name} src={avatarUrl(hit.lead.agent.id)} /> : <RowIcon name={hit.lead.icon} />;
   return <PhoneRow lead={lead} title={hit.title} preview={hit.preview} dim={hit.dim} label={`${hit.title}, ${hit.preview}`} launch={hit.key} onOpen={onOpen} />;

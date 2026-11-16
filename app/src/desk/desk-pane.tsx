@@ -46,27 +46,21 @@ const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "desk", label: "Canvas" },
 ];
 const panelId = (t: DeskTab) => `loki-desk-panel-${t}`;
-/** No rows yet: what the unread mark and the inline widgets read while the first page loads. */
 const NO_ROWS: TranscriptRow[] = [];
 
-/** The props of the chat pane (`DeskPane`): the chat and Inbox models, whether the pane is on screen, its tab, and the inset chat's layout. */
 export interface DeskPaneProps extends DeskConversationHandlers {
   desk: ReturnType<typeof useDesk>;
   catchUp: ReturnType<typeof useAttention>;
-  /** The Desk section is on screen (the pane is kept mounted, hidden, behind the other sections). */
   active: boolean;
   tab: DeskTab;
   onTab: (t: DeskTab) => void;
-  /** The inset chat on the Desk tab: open or closed, its width and place (the shell's useChatLayout). */
   chatOpen: boolean;
   onChatOpen: (open: boolean) => void;
   chatWidth: ChatWidth;
   onChatWidth: (w: ChatWidth) => void;
   chatPlacement: ChatPlacement;
-  /** The shell's counters (⌘L focus, ⌘F find, ⌘⇧M model, ⌘⇧P mode, ⌘⇧S suggestions) and a prefill; each reaches the view that shows. */
   focusChat: number;
   findChat: number;
-  /** Allow Step or Deny Step from the Chat menu (U5): each new count answers the approval this chat waits on, if any. */
   decideChat: { n: number; behavior: "allow" | "deny" };
   modelPickerTick: number;
   modeMenuTick: number;
@@ -74,18 +68,11 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   chatPrefill: { text: string; tick: number } | null;
   models: ModelEntry[] | null;
   frameRequest: FrameRequest | null;
-  /** A widget row chosen in the thread: open the Desk tab framed on that widget (useDeskPane's frame). */
   onFrameWidget?: (widgetId: string) => void;
-  /** A header chip clicked: the sidebar filtered to that label's chats (plan 022, R4). */
   onShowLabel?: (name: string) => void;
-  /**
-   * A chat named in this one (a chip on a suggestion's message) opened: the window's openDesk, so the list moves to a
-   * source that holds the chat and selects its row, as every way into a chat from outside the list does (KTD8, R7).
-   */
   onOpenChat: (agentId: string, conversationId: string) => void;
 }
 
-/** A host counter routed to the view that showed when it was bumped (desk/pane.ts), as React state derived during render. */
 function useRouted(value: number, visible: PaneView | null): TickRoute {
   const [route, setRoute] = useState<TickRoute>(() => ({ ...EMPTY_ROUTE, value }));
   const next = routeTick(route, value, visible);
@@ -93,14 +80,6 @@ function useRouted(value: number, visible: PaneView | null): TickRoute {
   return next;
 }
 
-/**
- * A desk as a Slack channel (plan 013 U5): the header (the desk's name, the agent with its live state, pin,
- * archive and a menu for the rest), the Messages | Desk tab row, then the tab. Messages is the conversation
- * in Slack's message layout with the composer; Desk is today's sheet with the inset chat. One useDeskChat and
- * one draft feed both. The Messages thread stays mounted under the Desk tab and the other sections, so its
- * scroll survives the round trip, but only the view on screen draws the box, the switchers and the open
- * question or approval.
- */
 export function DeskPane(props: DeskPaneProps) {
   const { desk, catchUp, active, tab, onTab, chatOpen, models } = props;
   const { scope, title, agentName, agentId, conversationId, attention } = desk;
@@ -108,7 +87,6 @@ export function DeskPane(props: DeskPaneProps) {
   const onMessages = visible === "messages";
 
   const chat = useDeskChat({ agentId, conversationId, showing: active || chatOpen, catchUp });
-  // One draft for both views, keyed by the conversation; before the desk knows its conversation each box keeps its own.
   const key = agentId && conversationId ? draftKey(agentId, conversationId) : null;
   const [draftValue, setDraft] = useDraft(key);
   const draft = useMemo(() => (key ? { value: draftValue, onChange: setDraft } : undefined), [key, draftValue, setDraft]);
@@ -121,16 +99,12 @@ export function DeskPane(props: DeskPaneProps) {
   const prefill = useRouted(props.chatPrefill?.tick ?? 0, visible);
   const prefillFor = (v: PaneView) => (props.chatPrefill && tickFor(prefill, v) ? props.chatPrefill : null);
 
-  // The chat's labels (plan 022): chips in the header, and the labels… picker from "+ label" or `/label`.
   const [labeling, setLabeling] = useState(false);
   const row = desk.desks.list.find((d) => d.scope === scope);
   const chatLabels = row?.labels ?? [];
-  // The person's one line on what the chat is for (plan 049, R11), under its name.
   const purpose = row?.purpose ?? null;
   const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
-  // No rows here: DeskMessages and the inset chat read them, so a streamed piece redraws the thread, not this pane.
   const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined }, undefined);
-  // A menu answer reaches the step this chat is paused on; the count it was mounted with is old news, never replayed.
   const decided = useRef(props.decideChat.n);
   const approve = useEffectEvent((behavior: "allow" | "deny") => {
     if (view.approval) actions.onApprove?.(behavior);
@@ -145,23 +119,18 @@ export function DeskPane(props: DeskPaneProps) {
     () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),
     [agentName, agentId],
   );
-  // Viewed, not done: the thread on screen (Messages, or the Desk tab's open chat) looks at each new message once;
-  // the New line goes before what came since the look held from before this open.
   const looking = visible === "messages" || (visible === "inset" && chatOpen);
   const heldLook = useViewed(agentId && conversationId ? keyOf(agentId, conversationId) : null, item, looking, attention.markViewed);
   useDoneKey(active, item, catchUp);
   const { onFrameWidget } = props;
   const frameWidget = onFrameWidget
     ? (widgetId: string) => {
-        // A minimised widget comes back to the canvas first, so there is something to frame.
         if (desk.closed.some((w) => w.id === widgetId)) desk.gesture({ kind: "open", id: widgetId });
         onFrameWidget(widgetId);
       }
     : undefined;
 
-  // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
-  // The header floats over the thread, which pads itself by its height (shared/use-height-var.ts).
   const header = useCallback(() => paneRef.current?.querySelector<HTMLElement>(":scope > .loki-pane-header") ?? null, []);
   useHeightVar(header, "--loki-header-height");
   const threadFocus = useRef<HTMLElement | null>(null);
@@ -172,9 +141,6 @@ export function DeskPane(props: DeskPaneProps) {
   const links = view.links?.length ? (
     <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
   ) : null;
-  // Once the chat is in the list its header is a Mac toolbar (plan 097, U8; plan 2026-11-12-1505, U13): the title over a
-  // grey line of the chat's facts, no face and no Unread chip (the sidebar shows unread); its moves are toolbar
-  // symbols, not a row under the box.
   const itemView = item ? chatItem({ item, live: null, turns: [] }) : null;
   const toolbar = itemView && item;
   const itemLine = toolbar ? <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" /> : undefined;
@@ -224,7 +190,6 @@ export function DeskPane(props: DeskPaneProps) {
                 </button>
               </span>
             )}
-            {/* The chat's links to other chats (plan 067): which way each goes, the time left, and close. */}
             {links}
           </span>
         }
@@ -237,8 +202,6 @@ export function DeskPane(props: DeskPaneProps) {
         tabsLabel={`${name} views`}
         panelId={panelId}
       />
-      {/* The showing panel inherits its visibility, never sets "visible": the shell hides the whole pane behind other sections, and a child marked visible would show through them. */}
-      {/* A chip naming another chat (a message sent from a suggestion) switches the pane to that chat. */}
       <OpenChat.Provider value={props.onOpenChat}>
         <div className="loki-desk-pane-body">
           <div
@@ -310,11 +273,6 @@ export function DeskPane(props: DeskPaneProps) {
   );
 }
 
-/**
- * The Messages tab's thread: the one part of the pane that reads the chat's rows (plan 032), so a streamed piece
- * redraws it and leaves the header, the tabs and the Canvas behind it alone. The New line and the desk's widget
- * changes among the messages (R15) come from the rows, so they are worked out here too.
- */
 function DeskMessages({
   desk,
   catchUp,
@@ -335,11 +293,9 @@ function DeskMessages({
   onShowDesk: () => void;
 }) {
   const { agentId, conversationId, agentName } = desk;
-  // Undefined until the first page came, so the thread can say it is loading (plan 041); the marks read an empty list.
   const rows = useThreadRows(catchUp, agentId, conversationId);
   const list = rows ?? NO_ROWS;
   const dividerAt = unreadBoundary(list, item?.unread ?? false, item?.seenAt, heldLook);
-  // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on Canvas" frames them there.
   const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowDesk };
   return (
@@ -353,11 +309,6 @@ function DeskMessages({
   );
 }
 
-/**
- * Focus across the tab switch. Hiding a panel drops the focus it held to the page, so leaving Messages for the
- * Desk tab from a widget row puts it on the selected tab, and coming back with Esc returns it to what it last
- * held in the thread (the widget row, the box). Focus on a tab of the tab row stays where it is.
- */
 function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | null>, last: RefObject<HTMLElement | null>) {
   const prev = useRef(visible);
   useEffect(() => {
@@ -377,12 +328,10 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
 
 const DONE = "desk.done";
 
-/** Read by hand, the Inbox's own path: Mark as read clears what is new (seen_mark). A chat is done only when archived. */
 function markDone(catchUp: ReturnType<typeof useAttention>, item: AttentionItem | null) {
   if (item && doneAction(item) === "done") catchUp.seen(item);
 }
 
-/** ⌘⇧↵ (desk.done) marks the open desk done while the Desk section shows. Registered once per showing; the item is read through a ref. */
 function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: ReturnType<typeof useAttention>) {
   const ref = useRef({ item, catchUp });
   useEffect(() => {
@@ -394,11 +343,6 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
   }, [active]);
 }
 
-/**
- * The header's menu, on the Canvas tab only: the sheet's own actions, each through its keymap action so the key
- * and the menu agree. Model and mode are under the message box, find is ⌘F, and what works on the chat as a
- * whole (read, rename, folder, pin, archive) is the sidebar row's menu.
- */
 function DeskActions() {
   const [menuOpen, setMenuOpen] = useState(false);
   const native = NATIVE_MENUS;
@@ -409,7 +353,6 @@ function DeskActions() {
     { type: "separator" },
     action("chat.toggle", "Show / Hide Chat", PanelRightIcon),
   ];
-  // In the Mac app the system's menu hangs from the button (U19); elsewhere loki draws it.
   if (native)
     return (
       <span className="loki-desk-pane-menu-anchor">
@@ -440,10 +383,6 @@ function DeskActions() {
   );
 }
 
-/**
- * Another desk opened by a click (the sidebar, a search hit): the pane fades in on it, quickly, so the eye
- * reads a switch and not a flicker. Opened by a key (⌘K, a shortcut) it is just there, as a key's action is.
- */
 function useSwitchFade(paneRef: RefObject<HTMLDivElement | null>, scope: string) {
   const shown = useRef(scope);
   useLayoutEffect(() => {

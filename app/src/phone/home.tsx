@@ -26,30 +26,16 @@ import { canRename } from "../shell/sidebar-model";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import { messageOf } from "../../../core/errors.ts";
 
-/** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
   if (d.agent_id && d.conversation_id) openConversation(d.agent_id, d.conversation_id);
 }
 
-/** Archive or restore a desk's conversation through the daemon; resolves to an error, or null when done. */
 export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
-/** Rename a desk's conversation through the daemon; resolves to an error, or null when done. */
 export type RenameDeskName = (d: DeskSummary, name: string) => Promise<string | null>;
-/** Give a desk's chat its purpose line (plan 049, R11), an empty one clearing it; resolves to an error, or null when done. */
 export type SetDeskPurpose = (d: DeskSummary, purpose: string) => Promise<string | null>;
 
-/** What the presence dot and its name say about the paired Mac. */
 const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecting: "connecting to the Mac", offline: "Mac unreachable" };
 
-/**
- * Home, Slack's orientation screen with loki's content: the workspace header (loki, the menu, the
- * profile with the Mac's presence), a rail of shortcuts with their counts, then "Needs your attention"
- * — the head of the Inbox queue in the phone's lane — and the live desks grouped as the desktop sidebar groups them
- * (Pinned, then one folding section per agent, every chat whatever the lane), each conversation in one place, never
- * two (model.ts homeLists). The filter and refresh live in the menu, New desk in the compose button; while a
- * filter is on it shows as a pill that clears it. A long press on a desk (or its actions button) pins or
- * archives it. Home stays mounted under other pages, so all of this — and the scroll — survives a round trip.
- */
 export function Home({
   me,
   link,
@@ -75,37 +61,25 @@ export function Home({
   me: Me;
   link: LinkState;
   desks: DeskSummary[];
-  /** The mod has answered with the list: an empty one then means no desks yet. */
   desksLoaded: boolean;
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
-  /** The phone's active lane's items (plan 087), which "Needs your attention" and Flow's count read; left out, every item. */
   laneItems?: AttentionItem[];
   due: number;
-  /** Keep Home mounted under child pages so the filter, the folds and the scroll survive the round trip. */
   hidden?: boolean;
   banner?: ReactNode;
-  /** Ask the mod for the list again (on mount, from the menu, and when the socket reopens). */
   onRefresh: () => void;
-  /** Where each agent lives, once Macs are paired (the Mac's homesOf): its section names the Mac, and a chat away from it is marked. */
   homes?: Homes;
-  /** Every label with its colour (plan 022), for Home's filter: the menu's chips and the pills. */
   labelList?: LabelView[] | null;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
-  /** Null while the daemon cannot take it (not reachable, or not on this Mac). */
   onArchive: ArchiveDesk | null;
   onRename: RenameDeskName | null;
-  /** Null while the daemon cannot take it; the Rename sheet then has no purpose field. */
   onPurpose?: SetDeskPurpose | null;
-  /** `folders_get`: the folders each agent worked in, most recent first. */
   recentFolders: () => Promise<Partial<Record<string, string[]>>>;
-  /** A new conversation through the daemon; resolves to its runtime. */
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>;
-  /** Put a card on top of the Inbox's pass, so the Inbox opens at it (an email or Slack thread has no chat to open). */
   onTopCard: (item: AttentionItem) => void;
 }) {
   const [query, setQuery] = useState("");
-  // Sections folded shut, kept on this device across launches (the desktop keeps its own).
   const [folded, setFolded] = useState<string[]>(loadFolds);
   const toggleFold = (id: string) => {
     const next = folded.includes(id) ? folded.filter((x) => x !== id) : [...folded, id];
@@ -134,7 +108,6 @@ export function Home({
     <div className="loki-phone-page" hidden={hidden}>
       <HomeHeader me={me} link={link} filtered={filtered} onMenu={() => setSheet("menu")} />
       {banner}
-      {/* Rows glide when the arrangement changes under you; not while a filter is typed (nothing moves for the keyboard). */}
       <Scroll memory="home" flush flip={filtered ? undefined : homeOrder(attention, more, groups, folded)}>
         <ShortcutRail counts={counts} />
         <FilterPills query={query} labelList={labelList} onQuery={setQuery} />
@@ -155,7 +128,6 @@ export function Home({
           onClearFilters={() => setQuery("")}
         />
       </Scroll>
-      {/* Slack's compose button: New chat, always in the same place under the thumb, above the tab bar. */}
       <button type="button" className="loki-phone-compose" aria-label="New chat" onClick={() => setSheet("new")}>
         <Icon name="compose" size={24} />
       </button>
@@ -169,11 +141,9 @@ export function Home({
   );
 }
 
-/** Home's arrangement, for its rows' glide (kit/use-flip.ts): what is in each section, in order, and which are folded. */
 const homeOrder = (attention: HomeAttention[], more: number, groups: SidebarSection[], folded: string[]): string =>
   `${attention.map((a) => `${a.item.agent_id}/${a.item.id}`).join(",")}|${more > 0}|${groups.map((g) => (folded.includes(g.id) ? `${g.id}:-` : `${g.id}:${g.rows.map((r) => r.desk.scope).join(",")}`)).join(";")}`;
 
-/** Where Home keeps its folds on this device. */
 const FOLDS_KEY = "loki.phone.home.folded.v1";
 function loadFolds(): string[] {
   try {
@@ -186,12 +156,9 @@ function loadFolds(): string[] {
 function saveFolds(folded: string[]): void {
   try {
     localStorage.setItem(FOLDS_KEY, JSON.stringify(folded));
-  } catch {
-    // a blocked store only costs the folds across launches
-  }
+  } catch {}
 }
 
-/** The filter in force: a pill per label (in its colour) and one for the words, each clearing only itself; nothing while none is on. */
 function FilterPills({ query, labelList, onQuery }: { query: string; labelList: LabelView[] | null; onQuery: (q: string) => void }) {
   const { labels, text } = labelQuery(query);
   if (!labels.length && !text) return null;
@@ -205,7 +172,6 @@ function FilterPills({ query, labelList, onQuery }: { query: string; labelList: 
   );
 }
 
-/** A desk's actions sheet from Home: pin only for a live desk with a conversation, archive while the daemon takes it. */
 function ActingDesk({
   desk,
   onPin,
@@ -235,7 +201,6 @@ function ActingDesk({
   );
 }
 
-/** "Needs your attention": the first of the ready queue, then "n more in Flow"; absent when nothing waits. */
 function AttentionSection({
   attention,
   more,
@@ -277,11 +242,6 @@ function AttentionSection({
   );
 }
 
-/**
- * The desks, grouped as the desktop sidebar groups them: Pinned, then one folding section per agent (its face
- * and name, what waits on you counted beside it), New desk at the end, and what to say when there are none (yet)
- * or none match. A filter opens every fold, so a match is never hidden behind one.
- */
 function DeskSections({
   groups,
   marks,
@@ -363,12 +323,10 @@ function DeskSections({
   );
 }
 
-/** loki's mark, the name as the large title, and on the right the menu and the profile with the Mac's presence. */
 function HomeHeader({ me, link, filtered, onMenu }: { me: Me; link: LinkState; filtered: boolean; onMenu: () => void }) {
   return (
     <header className="loki-phone-topbar loki-phone-home-top">
       <div className="loki-phone-home-bar">
-        {/* loki's mark, the L (app/public/mark.png): the app's icon at the size of a small one. */}
         <img src="/mark.png" alt="" aria-hidden className="loki-phone-workspace" width={44} height={44} />
         <h1 className="loki-phone-large-title loki-phone-home-title" data-phone-heading tabIndex={-1}>
           loki
@@ -409,7 +367,6 @@ const SHORTCUTS: Array<{ kind: Shortcut; label: string; icon: IconName; to: Rout
   { kind: "archive", label: "Archive", icon: "archive", to: { kind: "archive" } },
 ];
 
-/** The rail: one tile per shortcut, scrolling sideways, a red dot on the icon when there is something to do there. */
 function ShortcutRail({ counts }: { counts: HomeCounts }) {
   return (
     <nav className="loki-phone-rail" aria-label="Shortcuts">
@@ -439,8 +396,7 @@ function ShortcutRail({ counts }: { counts: HomeCounts }) {
   );
 }
 
-/** An active filter, said out loud, with the × that clears it. */
-function FilterPill({ label, tone, onClear }: { label: string; /** A label's colour, for its dot. */ tone?: string; onClear: () => void }) {
+function FilterPill({ label, tone, onClear }: { label: string; tone?: string; onClear: () => void }) {
   return (
     <button type="button" className="loki-phone-pill" aria-label={`Clear Filter ${label}`} onClick={onClear}>
       <span className="loki-phone-pill-face">
@@ -452,10 +408,6 @@ function FilterPill({ label, tone, onClear }: { label: string; /** A label's col
   );
 }
 
-/**
- * A waiting conversation, one line as every chat row is (plan 028): the desk's name (else the item's), its agent after
- * it since the section mixes agents, and on the right the count while it waits on you, else the time.
- */
 function AttentionRow({ entry: { item, desk, opens }, onTopCard }: { entry: HomeAttention; onTopCard: (item: AttentionItem) => void }) {
   const title = desk?.title ?? item.title ?? "New chat";
   const word = BADGE[item.status].label;
@@ -482,12 +434,6 @@ function AttentionRow({ entry: { item, desk, opens }, onTopCard }: { entry: Home
   );
 }
 
-/**
- * One chat, as the Mac's sidebar draws it (plan 027): its name (bold while something in it is new), the mark of where
- * it lives when that is away from its agent's Mac, and on the right the count while it waits on you, the pulsing dot
- * while it runs, else when it last spoke. No lead and no preview: its section says whose it is, and the Inbox is where
- * a reply is read. The same row draws an archived chat, quieter. `onActions` opens DeskActions.
- */
 export function DeskRow({
   desk: d,
   mark,
@@ -499,7 +445,7 @@ export function DeskRow({
   mark: AttentionItem | undefined;
   onActions: (() => void) | null;
   homes?: Homes;
-  /** Under Pinned, where the pin would say it twice. */ inPinned?: boolean;
+  inPinned?: boolean;
 }) {
   const row = deskRowState(mark, d);
   const name = deskName(d);
@@ -528,14 +474,8 @@ export function DeskRow({
   );
 }
 
-/** A main chat cannot be archived, nor a deleted conversation (DeskTree's canArchiveDesk). */
 const canArchive = (d: DeskSummary) => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
 
-/**
- * A desk's actions, as a bottom sheet: open it, pin or unpin (live desks), rename, archive or restore. Archive
- * waits for the daemon and stays open with its error when it fails; `onArchive` null means the
- * daemon cannot take it now, and the row says so instead of vanishing.
- */
 export function DeskActions({
   desk: d,
   onClose,
@@ -549,7 +489,6 @@ export function DeskActions({
   onPin: ((pinned: boolean) => void) | null;
   onArchive: ((archived: boolean) => Promise<string | null>) | null;
   onRename: ((name: string) => Promise<string | null>) | null;
-  /** Save the chat's purpose line; null or left out, the Rename sheet has no purpose field. */
   onPurpose?: ((purpose: string) => Promise<string | null>) | null;
 }) {
   const [busy, setBusy] = useState(false);
@@ -612,7 +551,6 @@ export function DeskActions({
   );
 }
 
-/** One row of a sheet's list, the More row's shape without the chevron (the conversation's actions sheet uses it too). */
 export function SheetRow({
   icon,
   label,
@@ -637,10 +575,6 @@ export function SheetRow({
   );
 }
 
-/**
- * Home's menu: the filter that used to sit over the list (desks group by agent below, as on the desktop, so
- * there is no agent scope), then a refresh and the archive (New desk is the compose button over the list). The filter applies as you type, so closing the sheet shows the narrowed list at once.
- */
 function HomeMenu({
   query,
   labelList,
@@ -674,7 +608,6 @@ function HomeMenu({
         data-1p-ignore
         data-form-type="other"
       />
-      {/* Every label, in its colour: a tap adds it to the filter (label:name, as on the Mac), a second takes it out. */}
       {!!labelList?.length && (
         <div className="loki-phone-pills" role="group" aria-label="Labels">
           {labelList.map((l) => (
@@ -704,7 +637,6 @@ function HomeMenu({
   );
 }
 
-/** `folders_get`, once: the folders each agent worked in, most recent first; null until the Mac answers. */
 function useRecentFolders(recentFolders: () => Promise<Partial<Record<string, string[]>>>) {
   const [recent, setRecent] = useState<Partial<Record<string, string[]>> | null>(null);
   useEffect(() => {
@@ -717,10 +649,6 @@ function useRecentFolders(recentFolders: () => Promise<Partial<Record<string, st
   return recent;
 }
 
-/**
- * The sheet's draft: the agent picked, the optional name, the folder that follows the agent, the busy
- * flag and the error from the last try. `start` creates the conversation, closes the sheet and opens it.
- */
 function useNewDesk(
   agents: Array<{ id: string; name: string | null }>,
   defaultAgentId: string | null,
@@ -734,7 +662,6 @@ function useNewDesk(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-  // The folder: the one you picked if this agent has worked there, else the agent's most recent.
   const [picked, setPicked] = useState<string | null>(null);
   const folders = foldersOf(recent, agentId);
   const folder = chosenFolder(folders, picked);
@@ -749,18 +676,12 @@ function useNewDesk(
       openConversation(rt.agent_id, rt.conversation_id);
     } catch (err) {
       setError(messageOf(err));
-      // A failure frees the button here; on success the sheet closes and the chat opens, so busy stays set: a finally would let a second tap start a second chat.
-      // react-doctor-disable-next-line react-doctor/no-loading-flag-reset-outside-finally
       setBusy(false);
     }
   };
   return { agentId, setAgentId, name, setName, recent, agentName, folders, folder, setFolder: setPicked, busy, error, canStart, start };
 }
 
-/**
- * The plus: pick an agent, name it if you like, pick one of the folders it has worked in on the Mac (the most
- * recent to begin with), start. An agent with no folder yet says so and start stays off: a first folder is the Mac's job.
- */
 function NewSheet({
   agents,
   defaultAgentId,
@@ -820,7 +741,6 @@ function NewSheet({
   );
 }
 
-/** The agent chips, one lit; a line instead when the daemon has no agents yet. */
 function AgentPicker({
   agents,
   agentId,
@@ -843,10 +763,6 @@ function AgentPicker({
   );
 }
 
-/**
- * The agent's folders as chips, one lit, when it has more than one: named by their last part (the line under them
- * gives the whole path of the lit one). The most recent FOLDER_CHOICES show; More lists the rest.
- */
 function FolderPicker({ folders, folder, onPick }: { folders: string[]; folder: string | null; onPick: (folder: string) => void }) {
   const [all, setAll] = useState(false);
   if (folders.length < 2) return null;
@@ -868,7 +784,6 @@ function FolderPicker({ folders, folder, onPick }: { folders: string[]; folder: 
   );
 }
 
-/** Where the desk will start: waiting on the Mac, the folder (home shortened to ~), or why there is none. */
 function FolderLine({ recent, folder, agentName }: { recent: Partial<Record<string, string[]>> | null; folder: string | null; agentName: string | null }) {
   const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
   return (

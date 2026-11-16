@@ -6,10 +6,8 @@ import { registerActions } from "../shell/keymap";
 import { glide } from "../kit/motion";
 import { glideTo, stopGlide } from "./camera-glide";
 
-/** The mounted frames for these widget ids (a frame's element id is `widget-<desk>--<name>`). */
 const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);
 
-/** Bounds of a set of widget elements in canvas units (offset* are untransformed content coordinates). */
 function boundsOf(els: HTMLElement[]) {
   const left = Math.min(...els.map((e) => e.offsetLeft));
   const top = Math.min(...els.map((e) => e.offsetTop));
@@ -18,12 +16,6 @@ function boundsOf(els: HTMLElement[]) {
   return { left, top, right, bottom, w: right - left, h: bottom - top, cx: (left + right) / 2, cy: (top + bottom) / 2 };
 }
 
-/**
- * The camera over the sheet: fit all (⌘0), zoom (⌘= / ⌘-), back to 1:1 (⌘⇧0), focus on one widget,
- * and the glide when a widget lands or canvas_focus asks. Every framing move centres in the stage, the
- * part of the viewport the chat does not cover. Registers the sheet's keymap actions once, and keeps
- * the set of widgets the camera is pointing at, which glow for a few seconds so the eye finds them.
- */
 export function useCamera({
   viewportRef,
   insetRef,
@@ -40,12 +32,9 @@ export function useCamera({
   gesture: (g: Gesture) => void;
   cameraTarget: CameraTarget | null;
   arrange: () => void;
-  /** The sheet's undo; false when there is nothing to undo. */
   undo: () => boolean;
-  /** The sheet is on screen (the desk's Desk tab); its keys are registered only then, so ⌘Z on Messages never moves a hidden widget. */
   active?: boolean;
 }) {
-  /** The visible part of the viewport: everything the chat does not cover. */
   const stage = () => {
     const api = viewportRef.current;
     const wrapper = api?.instance.wrapperComponent;
@@ -54,7 +43,6 @@ export function useCamera({
     const { left, right } = insetRef.current;
     return { left, w: Math.max(200, vw - left - right), h: vh };
   };
-  /** Glide the camera, on the smooth spring, until `els` sit centred in the stage at scale `s`. */
   const frameAt = (els: HTMLElement[], s: number) => {
     const api = viewportRef.current;
     if (!api) return;
@@ -62,10 +50,8 @@ export function useCamera({
     const b = boundsOf(els);
     glideTo(api, st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s);
   };
-  // Widgets the camera is pointing at glow for a few seconds, so the eye finds them.
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
 
-  /** Fit every visible widget into the stage (⌘0). */
   const fitAll = () => {
     const els = widgetEls(visible.map((w) => w.entry.id));
     if (!els.length) return;
@@ -74,7 +60,6 @@ export function useCamera({
     const pad = 80;
     frameAt(els, Math.min(1.5, Math.max(0.1, Math.min((st.w - pad * 2) / b.w, (st.h - pad * 2) / b.h))));
   };
-  /** Zoom about the stage centre by a factor (⌘= / ⌘-). */
   const zoomBy = (factor: number) => {
     const api = viewportRef.current;
     if (!api) return;
@@ -87,7 +72,6 @@ export function useCamera({
     const cy = st.h / 2;
     void api.setTransform(cx - (cx - positionX) * k, cy - (cy - positionY) * k, next, glide(180), "easeOut");
   };
-  /** Back to 1:1 around the stage centre (⌘⇧0). */
   const resetZoom = () => {
     const api = viewportRef.current;
     if (!api) return;
@@ -96,10 +80,8 @@ export function useCamera({
     const st = stage();
     const cx = st.left + st.w / 2;
     const cy = st.h / 2;
-    // keep the canvas point under the centre where it is
     void api.setTransform(cx - (cx - positionX) / s, cy - (cy - positionY) / s, 1, glide(500), "easeOut");
   };
-  // The keymap actions above were registered once; they call through these to the latest closures.
   const fitAllRef = useRef(fitAll);
   const resetZoomRef = useRef(resetZoom);
   const zoomByRef = useRef(zoomBy);
@@ -109,7 +91,6 @@ export function useCamera({
     zoomByRef.current = zoomBy;
   });
 
-  /** Focus: bring the widget to the front and zoom so it fills a good part of the stage. */
   const focusWidget = (id: string) => {
     gesture({ kind: "focus", id });
     const els = widgetEls([id]);
@@ -121,9 +102,6 @@ export function useCamera({
     setTimeout(() => setHighlighted((h) => (h.has(id) && h.size === 1 ? new Set() : h)), 2500);
   };
 
-  // Camera glide when a widget lands or canvas_focus asks. One id: zoom to it. Several: fit them all.
-  // Elements may mount a beat after the frame arrives, so retry briefly.
-  /** Frame the target's widgets when all of them are on the sheet; false while some have yet to mount. */
   const frameTarget = useEffectEvent((ids: string[]) => {
     const els = widgetEls(ids);
     if (els.length !== ids.length) return false;
@@ -154,9 +132,6 @@ export function useCamera({
     };
   }, [cameraTarget]);
 
-  // The sheet's actions, by keymap id: the shell's one key handler (and the menu bar) dispatch to these. Registered
-  // while the sheet shows, after every closure they call through is declared (the refs above and the effect events
-  // here carry the latest ones).
   const arrangeSheet = useEffectEvent(() => arrange());
   const undoSheet = useEffectEvent(() => {
     if (!undo()) console.info("loki: nothing to undo on the sheet");
