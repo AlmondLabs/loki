@@ -1,4 +1,3 @@
-/** An image attached to an outgoing message: base64 payload plus a data URL for showing it. */
 export interface ImageAttachment {
   id: string;
   mediaType: string;
@@ -6,11 +5,6 @@ export interface ImageAttachment {
   url: string;
 }
 
-/**
- * A file attached to a message that is not an image: already uploaded to the Mac (mod/uploads.ts), so the
- * message carries only where it is, in an attachment tag, and the agent reads it
- * with its own tools.
- */
 export interface FileAttachment {
   id: string;
   kind: "file";
@@ -20,35 +14,24 @@ export interface FileAttachment {
   mime: string;
 }
 
-/** What the message box holds: images (sent inside the message) and files (sent as their path). */
 export type Attachment = ImageAttachment | FileAttachment;
 
-/** Whether an attachment is a file sent by its path rather than an image sent inside the message. */
 export const isFileAttachment = (a: Attachment): a is FileAttachment => "kind" in a;
 
 const xmlAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** A file as the attachment tag a message carries it in: `<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`. */
 export function attachmentTag(f: { path: string; name: string; size: number; mime: string }): string {
   return `<attachment kind="file" local_path="${xmlAttr(f.path)}" name="${xmlAttr(f.name)}" mime_type="${xmlAttr(f.mime)}" size_bytes="${f.size}" />`;
 }
 
-/** The text a message goes out with: what was typed, then one tag per file. */
 export function withAttachments(text: string, files: Array<{ path: string; name: string; size: number; mime: string }>): string {
   if (!files.length) return text;
   const tags = files.map(attachmentTag).join("\n");
   return text.trim() ? `${text}\n\n${tags}` : tags;
 }
 
-/** A user message's content as buildUserContent makes it: a plain string, or text and base64 image parts. */
 export type UserContent = string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
 
-/**
- * A user message's `content`: a plain string when there are
- * no images, otherwise text and image parts
- * (`{ type: "image", source: { type: "base64", media_type, data } }`). The chat client sends images apart
- * (chat_send), so the tests are its only callers.
- */
 export function buildUserContent(text: string, images: ImageAttachment[] = [], context?: string): UserContent {
   if (!images.length && !context) return text;
   const parts: Exclude<UserContent, string> = [];
@@ -58,12 +41,6 @@ export function buildUserContent(text: string, images: ImageAttachment[] = [], c
   return parts;
 }
 
-/**
- * The environment note, so an agent talked to from loki keeps its sense of time
- * (it has no clock, and chats run for days) and knows which chat you are on. The folder is not in it: the chat's
- * folder is its working directory on the daemon, where its tools run. Rendered transcripts strip system reminders,
- * so you never see it. This is the full note, a chat's first; `environmentNote` decides when a chat needs one again.
- */
 export function environmentReminder(opts: { now?: Date; desk?: string | null; labels?: readonly string[] | null; locale?: string } = {}): string {
   const now = opts.now ?? new Date();
   const when = localTime(now, opts.locale);
@@ -79,39 +56,24 @@ export function environmentReminder(opts: { now?: Date; desk?: string | null; la
   return lines.join("\n");
 }
 
-/** The chat's labels as the note says them (plan 022): the person's topics for it, which the agent reads but never sets. */
 function labelsLine(labels: readonly string[]): string {
   return `The user has labelled this chat: ${labels.join(", ")}.`;
 }
 
-/**
- * The time, for a message loki starts itself (a schedule's prompt, a background task's notice, a pass): those carry no
- * environment note, which the app adds to what the person sends, so a chat woken after days would not know the day.
- * The daemon runs on the person's Mac, so its clock is theirs. Sent with every such message and placed after its text.
- */
 export function daemonTimeReminder(now: Date = new Date(), locale?: string): string {
   return ["<system-reminder>", `Local time on the user's Mac, as loki sends this: ${localTime(now, locale)}`, "</system-reminder>"].join("\n");
 }
 
-/** A chat's note is sent again once this long has passed since its last one. */
 export const ENV_NOTE_EVERY_MS = 30 * 60_000;
 
-/** What a chat was last told: when, on which local day, in which time zone, the chat's name, and its labels. */
 export interface EnvNoteTold {
   at: number;
   day: string;
   zone: string;
   desk: string | null;
-  /** Joined with commas; absent from a note told before labels, or when they were not known. */
   labels?: string;
 }
 
-/**
- * The note this message should carry, if any. A chat's first message gets the full note. After that it comes
- * again only when the agent's picture would be wrong: 30 minutes on, a new local day, another time zone, or the
- * chat renamed. Then it is the short form (the time, and the name when that changed). `told` is what to remember
- * once the message goes out.
- */
 export function environmentNote(
   last: EnvNoteTold | undefined,
   opts: { now?: Date; desk?: string | null; labels?: readonly string[] | null; locale?: string; zone?: string } = {},
@@ -128,7 +90,6 @@ export function environmentNote(
   };
   if (!last) return { text: environmentReminder({ now, desk, labels: opts.labels, locale: opts.locale }), told };
   const renamed = desk !== null && desk !== last.desk;
-  // Labels unknown to the sender say nothing; known ones that differ from what was told are news (cleared ones too).
   const relabelled = labels !== undefined && labels !== (last.labels ?? "");
   const due = told.at - last.at >= ENV_NOTE_EVERY_MS || told.day !== last.day || told.zone !== last.zone;
   if (!due && !renamed && !relabelled) return { text: null, told: { ...last, desk: desk ?? last.desk } };
@@ -152,7 +113,6 @@ function localTime(now: Date, locale?: string): string {
   });
 }
 
-/** One question from the user_ask tool (daemon/ask.ts), as the question card reads it. */
 export interface AskQuestion {
   question: string;
   header?: string;
@@ -160,10 +120,6 @@ export interface AskQuestion {
   multiSelect: boolean;
 }
 
-/**
- * Read the tool's input defensively: only questions with text and at least one option count, and `multi_select` lets
- * a question take more than one.
- */
 export function askQuestions(input: unknown): AskQuestion[] {
   const qs = (input as { questions?: unknown } | null)?.questions;
   if (!Array.isArray(qs)) return [];

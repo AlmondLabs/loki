@@ -1,44 +1,26 @@
-/**
- * The harness injects machinery into transcripts as ordinary messages:
- * background-task notifications, skill bodies, loki's own desk-activity block,
- * and system reminders.
- * Both halves of loki need to recognise them: the mod for the chat mirror, the
- * browser for the Catch Up thread.
- */
-
 import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
 
-/** A message's text with the harness's injected blocks taken out (reminders, desk activity, attachment tags, skill bodies, notifications): what the person or agent actually wrote. */
 export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
-    .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
-    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 049): old history only
-    .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
-    .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 049): a link back
-    .replace(/<loki-chat-message\b[^>]*>[\s\S]*?<\/loki-chat-message>/g, "") // another chat's agent wrote it (plan 067): a row of its own
-    .replace(REPLIES_BLOCK, "") // the agent's quick replies (plan 066): buttons, not words
-    .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
+    .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "")
+    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "")
+    .replace(/<loki-moved\b[^>]*\/>/g, "")
+    .replace(/<loki-suggested\b[^>]*\/>/g, "")
+    .replace(/<loki-chat-message\b[^>]*>[\s\S]*?<\/loki-chat-message>/g, "")
+    .replace(REPLIES_BLOCK, "")
+    .replace(/<attachment\b[^>]*\/>/g, "")
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
-    .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
+    .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "")
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "");
 }
 
-/** The agent's quick replies at the end of a reply (plan 066): a `<loki-replies>` block of "- " lines. */
 const REPLIES_BLOCK = /<loki-replies>[\s\S]*?<\/loki-replies>/g;
 const OPEN_TAG = "<loki-replies>";
-/** The fewest options a reply may offer: one is not a choice. */
 const REPLIES_MIN = 2;
-/** The most quick replies a reply may offer; the Mac's keys 1 to 4 pick them. */
 export const REPLIES_MAX = 4;
-/** The longest an option may be: a button, not a paragraph. */
 const REPLY_CHARS = 80;
 
-/**
- * The quick replies a reply ends on (plan 066), each the exact words sent as the person's message; null when it offers
- * none. A block that is not the reply's last thing, has fewer than two or more than four options, repeats one, or has
- * a line that is not a "- " item or is over 80 characters offers none: the reply shows without it.
- */
 export function repliesOf(text: string): string[] | null {
   const m = /<loki-replies>([\s\S]*?)<\/loki-replies>\s*$/.exec(text);
   if (!m) return null;
@@ -52,10 +34,6 @@ export function repliesOf(text: string): string[] | null {
   return new Set(options).size === options.length ? options : null;
 }
 
-/**
- * A reply's text without its quick replies, as the thread draws it. While the reply streams the block is cut from its
- * opening tag, and so is a tag still arriving at the end ("<loki-rep"), so the raw block never flashes on screen.
- */
 export function withoutReplies(text: string): string {
   const cut = text.replace(REPLIES_BLOCK, "");
   const open = cut.indexOf(OPEN_TAG);
@@ -65,7 +43,6 @@ export function withoutReplies(text: string): string {
   return tail.length >= 2 && OPEN_TAG.startsWith(tail) ? cut.slice(0, lt).trimEnd() : cut;
 }
 
-/** Undo the HTML escaping inside task-notification results (daemon/background.ts escapes them). */
 export function decodeEntities(text: string): string {
   return text
     .replace(/&lt;/g, "<")
@@ -75,23 +52,13 @@ export function decodeEntities(text: string): string {
     .replace(/&amp;/g, "&");
 }
 
-/** One injected block as the quiet event row it becomes in a thread: a line, a summary, and the decoded detail for its disclosure. */
 export interface HarnessEvent {
-  /** e.g. "background task bash_24 completed" */
   text: string;
-  /** e.g. the task's summary line */
   summary: string | null;
-  /** the raw result, decoded, for a disclosure */
   detail: string | null;
-  /** The chat a message sent from a suggestion came from (plan 049), for the transcript's link back; absent on every other event. */
   link?: { agent_id: string; conversation_id: string };
 }
 
-/**
- * Pull the harness-injected events out of a user message: task notifications, compaction notes, the
- * desk-activity block the mod appends, and skill bodies the harness loads. Each becomes a quiet event
- * row instead of words in the user's bubble.
- */
 export function extractHarnessEvents(text: string): HarnessEvent[] {
   const out: HarnessEvent[] = [];
   for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
@@ -153,7 +120,6 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   return out;
 }
 
-/** The files a message carried: its attachment tags that name a local path. */
 export function messageFiles(text: string): FileRef[] {
   const out: FileRef[] = [];
   for (const m of text.matchAll(/<attachment\b([^>]*?)\/?>/g)) {
@@ -171,7 +137,6 @@ export function messageFiles(text: string): FileRef[] {
   return out;
 }
 
-/** The pictures in a message's content, as the model got them: base64 data and its type (plan 029). */
 export function contentImages(content: unknown): Array<{ data: string; mimeType: string }> {
   if (!Array.isArray(content)) return [];
   return content.flatMap((p) => {
@@ -180,10 +145,6 @@ export function contentImages(content: unknown): Array<{ data: string; mimeType:
   });
 }
 
-/**
- * A message's text as a thread shows it, the same from every source: its text parts a line each, and an "[image]"
- * line where it carried a picture (the local log's own rendering; the bubble shows the picture when it has it).
- */
 export function contentText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -197,17 +158,14 @@ export function contentText(content: unknown): string {
   return lines.join("\n");
 }
 
-/** A scheduled task's prompt arrives with this opening (daemon/schedule.ts): not a person's message. */
 export const isScheduledPrompt = (text: string): boolean => /^\s*Scheduled task\b/.test(text);
 
-/** Heuristic: does this assistant message end by asking the user something? */
 export function looksLikeQuestion(text: string | null): boolean {
   if (!text) return false;
   const tail = text.trim().split("\n").filter(Boolean).slice(-3).join(" ");
   return /\?\s*$/.test(tail) || /\b(should I|do you want|which (one|of)|let me know|your call|confirm)\b/i.test(tail);
 }
 
-/** The most of a tool's input or output a step keeps: enough to read, not a whole log on every frame. */
 export const TOOL_TEXT_MAX = 4000;
 
 /**
@@ -219,13 +177,8 @@ export function ownText(s: string): string {
   return JSON.parse(JSON.stringify(s)) as string;
 }
 
-/** The line `cap` ends a cut text with. */
 const MORE = /\n… \d+ more characters$/;
 
-/**
- * A text cut to TOOL_TEXT_MAX, with a line saying how much more there was. A text already cut is left as it is: the
- * daemon caps a tool's output before it sends it (plan 035), and the app caps what it is given again.
- */
 const cap = (s: string): string => {
   if (s.length <= TOOL_TEXT_MAX) return s;
   const more = MORE.exec(s);
@@ -240,11 +193,6 @@ const shrink = (v: unknown): unknown => {
   return v;
 };
 
-/**
- * A tool's arguments as a thread needs them (plan 035): every string in them, however deep, cut to TOOL_TEXT_MAX, so
- * a `write` does not carry its whole file to every client. Its label and shown input read the same, since neither
- * shows more than that. Arguments still arriving as text are left whole: cut, they might not parse.
- */
 export function toolArgsShown(args: unknown): unknown {
   return typeof args === "string" ? args : shrink(args);
 }
@@ -256,27 +204,18 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
     const parsed = JSON.parse(input) as unknown;
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
   } catch {
-    return null; // partial or non-JSON arguments
+    return null;
   }
 };
 
-/**
- * The part of a tool's input a reader recognises, trimmed: the shell command, the path, the pattern, … in this order;
- * the step's input and its label both use it.
- */
 const ARG_KEYS = ["command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
 const argOf = (args: Record<string, unknown>): string | undefined => {
   const key = ARG_KEYS.find((k) => typeof args[k] === "string" && args[k].trim());
   return key ? (args[key] as string).trim() : undefined;
 };
 
-/** The question card's tool, `user_ask`. Saved chats are renamed to it once (daemon/store-migration.ts, plan 044). */
 const isQuestionTool = (name: string): boolean => name === "user_ask";
 
-/**
- * What a step shows as the tool's input: the part a reader recognises in full (the shell command, the path, the
- * pattern), else the whole input as JSON; nothing when it has none, or it has not finished arriving.
- */
 export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
@@ -286,7 +225,6 @@ export function toolInput(name: string, input: unknown): string | undefined {
   return json === "{}" ? undefined : cap(json);
 }
 
-/** A tool result's whole text: its text parts joined, or the value as JSON; undefined when it has none. */
 function toolText(raw: unknown): string | undefined {
   let text: string;
   if (typeof raw === "string") text = raw;
@@ -301,16 +239,13 @@ function toolText(raw: unknown): string | undefined {
   return text || undefined;
 }
 
-/** What came back from a tool, as text: a string, the text of content parts, or JSON for anything else., cut to TOOL_TEXT_MAX. */
 export function toolOutput(raw: unknown): string | undefined {
   const text = toolText(raw);
   return text ? cap(text) : undefined;
 }
 
-/** The longest description a step keeps: it is one line of the thread, not an essay. */
 const DESCRIPTION_MAX = 200;
 
-/** A call as a step: its name, its id, its input when it has one, and what it is for when the agent said. */
 export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
   const step: ToolStep = { name };
   if (id) step.id = id;
@@ -321,7 +256,6 @@ export function toolStep(name: string, input: unknown, id?: string | null): Tool
   return step;
 }
 
-/** An error's last line that says something: where a shell or a tool says how it ended. */
 const lastLine = (text: string) =>
   text
     .split("\n")
@@ -341,10 +275,6 @@ export function errorOf(output: string): string {
   return [said, /exited with code \d+/.test(why) ? "" : why].filter(Boolean).join(" — ");
 }
 
-/**
- * The step once its result came back (a new object: rows that changed are new). A failed one keeps what went wrong
- * (`error`), read from the whole result before it is cut to TOOL_TEXT_MAX: the error is at the end, which the cut drops.
- */
 export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolStep {
   const output = toolOutput(raw);
   const error = failed ? errorOf(toolText(raw) ?? "") : "";
@@ -358,16 +288,10 @@ export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolS
   };
 }
 
-/** The step an ACP agent's plan is written as (daemon/acp/chats.ts): a call named "plan" whose result lists the entries. */
 export const PLAN_TOOL = "plan";
 
-/** A plan entry's mark in the plan step's text, as the daemon writes it: done, under way, not started. */
 const PLAN_MARK: Partial<Record<string, PlanItem["status"]>> = { "[x]": "completed", "[~]": "in_progress", "[ ]": "pending" };
 
-/**
- * A plan step's entries from its text, one "[x] what" line each; null when any line is not one, so a tool that only
- * happens to be named "plan" keeps its output as written.
- */
 export function planItems(text: string): PlanItem[] | null {
   const lines = text.split("\n").filter((l) => l.trim());
   if (!lines.length) return null;
@@ -380,10 +304,6 @@ export function planItems(text: string): PlanItem[] | null {
   return items;
 }
 
-/**
- * A one-line label for a tool call: the tool name plus the part of its input
- * a reader recognises (the shell command, the file path, the pattern).
- */
 export function toolLabel(name: string, input: unknown): string {
   const args = argsOf(input);
   if (!args) return name;
@@ -393,29 +313,22 @@ export function toolLabel(name: string, input: unknown): string {
   return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;
 }
 
-/** The mark a chat's thread keeps where it moved to another Mac (plan 023, addendum A5); drawn as a quiet row. */
 export function movedMark(from: string, to: string): string {
   const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<loki-moved from="${attr(from)}" to="${attr(to)}"/>`;
 }
 
-/** Where a sent suggestion came from (plan 049, KTD6): the agent and the chat it was made in, and its title. */
 export interface SuggestedFrom {
   from_agent: string;
   from_chat: string;
   title: string;
 }
 
-/**
- * The mark a suggestion carries into the chat it is sent to, in `chat_send`'s context: the transcript strips it and
- * links back to the chat it came from.
- */
 export function suggestedMark(from: SuggestedFrom): string {
   const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<loki-suggested from_agent="${attr(from.from_agent)}" from_chat="${attr(from.from_chat)}" title="${attr(from.title)}"/>`;
 }
 
-/** The suggestion a message was sent from, read from its mark, for the transcript's link back; null when it has none. */
 export function suggestedOf(text: string): SuggestedFrom | null {
   const m = /<loki-suggested\b([^>]*)\/>/.exec(text);
   if (!m) return null;
@@ -424,18 +337,12 @@ export function suggestedOf(text: string): SuggestedFrom | null {
   return fromChat ? { from_agent: field("from_agent"), from_chat: fromChat, title: field("title") } : null;
 }
 
-/**
- * A message another chat's agent sent (plan 067), as the receiving chat's input holds it: the text inside a mark naming
- * the chat it came from. The transcript draws it as a row of its own with a link back, never as the person's words.
- */
 export function chatMessageBlock(from: SuggestedFrom, text: string): string {
   const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  // Only a closing tag inside the text is escaped, so it cannot end the block early; the rest reads as written.
   const body = text.replace(/<\/loki-chat-message/g, "&lt;/loki-chat-message");
   return `<loki-chat-message from_agent="${attr(from.from_agent)}" from_chat="${attr(from.from_chat)}" title="${attr(from.title)}">\n${body}\n</loki-chat-message>`;
 }
 
-/** The chat message an input holds, read from its block; null when it holds none. */
 export function chatMessageOf(text: string): (SuggestedFrom & { text: string }) | null {
   const m = /<loki-chat-message\b([^>]*)>([\s\S]*?)<\/loki-chat-message>/.exec(text);
   if (!m) return null;

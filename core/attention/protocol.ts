@@ -1,13 +1,7 @@
-/**
- * The shapes a chat's live half speaks in (core/attention/chat-client.ts): which chat, the background passes' settings,
- * and the model providers. Their casing and names are the ones loki's app
- * grew up with, kept so the screens did not change when the daemon took over (plan 017).
- */
 export interface Runtime {
   agent_id: string;
   conversation_id: string;
 }
-/** An event the chat client hands back, loosely typed: its `type` and, for one about a chat, that chat's runtime. runtimeStart answers with one. */
 export type ServerEvent = Record<string, unknown> & { type: string; runtime?: Runtime };
 
 /**
@@ -27,7 +21,6 @@ export interface PassSettingsChange {
   acp?: { enabled: boolean };
 }
 
-/** One credential the harness asks for when connecting a provider. */
 export interface ProviderField {
   key: string;
   label: string;
@@ -35,14 +28,12 @@ export interface ProviderField {
   secret?: boolean;
   required?: boolean;
 }
-/** One way of signing in to a provider (an API key, OAuth), with the credentials it asks for. */
 export interface ProviderAuthMethod {
   id: string;
   label: string;
   description?: string;
   fields: ProviderField[];
 }
-/** An entry of list_connect_providers. */
 export interface ConnectProvider {
   id: string;
   display_name: string;

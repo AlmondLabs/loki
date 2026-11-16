@@ -1,4 +1,3 @@
-/** Render a tool call's input for a human: shell commands as-is, everything else as JSON. */
 export function formatInput(input: unknown): string {
   if (typeof input === "string") return input;
   if (input && typeof input === "object") {

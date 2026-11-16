@@ -1,47 +1,29 @@
-/**
- * The replies the person sent alone from an outside card (plan 086), kept by account and thread so the card's thread
- * shows them at once: the card reads its thread again only when one went, and Slack or Gmail is slower to say so.
- */
-
-/** One reply as the card shows it before its thread is read again. */
 export interface SentReply {
-  /** This store's own id, never the service's. */
   id: string;
   text: string;
-  /** When it was sent, ISO. */
   at: string;
-  /** It went: the next read of the thread holds it. */
   gone: boolean;
-  /** The store's count of replies gone in this thread when this one went; a read made after it shows it. */
   seq: number;
 }
 
-/** What a thread's replies read as: those still shown, and how many went, which a card reads again on. */
 export interface SentSnapshot {
   replies: readonly SentReply[];
   went: number;
 }
 
-/** A thread's key in the store: its account and thread, and the post's thread opened on the card that the reply went into. */
 export const sentKey = (accountId: string, threadId: string, opened: string | null = null): string => `${accountId}\u0000${threadId}\u0000${opened ?? ""}`;
 
 const EMPTY: SentSnapshot = Object.freeze({ replies: [], went: 0 });
 
-/** A store of sent replies (`SentSnapshot` by `sentKey`), with a subscription for each thread. */
 export interface SentReplies {
-  /** A reply starts on its way; returns its id. */
   add: (key: string, text: string, at: string) => string;
-  /** The reply went. */
   went: (id: string) => void;
-  /** The reply was undone or failed: it goes. */
   drop: (id: string) => void;
-  /** A read of the thread came back that was made once `went` replies had gone: those are in it now. */
   settle: (key: string, went: number) => void;
   get: (key: string) => SentSnapshot;
   subscribe: (key: string, fn: () => void) => () => void;
 }
 
-/** A new, empty store. */
 export function createSentReplies(): SentReplies {
   const snaps = new Map<string, SentSnapshot>();
   const keyOf = new Map<string, string>();
@@ -53,7 +35,6 @@ export function createSentReplies(): SentReplies {
     subs.get(key)?.forEach((fn) => fn());
   };
   const get = (key: string) => snaps.get(key) ?? EMPTY;
-  /** Change one reply by id, or take it out with null. */
   const change = (id: string, to: (r: SentReply, snap: SentSnapshot) => SentReply | null, went = 0) => {
     const key = keyOf.get(id);
     if (key === undefined) return;

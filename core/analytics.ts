@@ -10,10 +10,6 @@ import { scopeFor } from "./desk-core.ts";
  * the file into a report. A turn's `turn_id` (the daemon's) joins the client events made while it ran or after it.
  */
 
-/**
- * Where an Inbox card comes from and who it is about, for its events: a chat by its desk and agent; an outside card
- * (plan 067) by its provider and owning agent, with no desk, and never its account, sender, subject or text.
- */
 export function inboxCardSource(item: { agent_id: string; id: string; outside?: { provider: "gmail" | "slack" | "jira"; owner_agent_id: string } }): {
   source: "chat" | "gmail" | "slack" | "jira";
   desk: string | null;
@@ -26,7 +22,6 @@ export function inboxCardSource(item: { agent_id: string; id: string; outside?: 
 
 /** Where it happened: the desktop window (on a Mac, Windows or Linux), a paired phone, or the mod itself (turns and tools, whichever client began them). */
 export type DeviceType = "mac" | "windows" | "linux" | "phone" | "mod";
-/** Every device type, for checking a value read from a client or the file. */
 export const DEVICE_TYPES: readonly DeviceType[] = ["mac", "windows", "linux", "phone", "mod"];
 
 /** The properties every event carries, PostHog's `$` names for the system's own, beside the event's ids and counts. */
@@ -51,14 +46,10 @@ export interface AnalyticsEvent {
   properties: EventProperties;
 }
 
-/** How long a device may go without an event before its next one starts a new session: 30 minutes, in milliseconds. */
 export const SESSION_GAP_MS = 30 * 60 * 1000;
-/** Event names are snake_case words, object then verb: view_opened, message_sent. Anything else from a client is refused. */
 export const EVENT_NAME_RE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
-/** The longest event name accepted, in characters. */
 export const EVENT_NAME_MAX = 48;
 
-/** Every event captured, with the properties it carries. The report lists the ones that never fired in the period. */
 export const EVENTS: Record<string, string> = {
   view_opened: "a view came on screen { view, from } — the Mac's segments, the phone's tabs and pages",
   desk_switched: "the chat on screen changed { desk }",
@@ -101,7 +92,6 @@ export const EVENTS: Record<string, string> = {
   tool_used: "the agent called a desk tool { tool }",
 };
 
-/** For each event, the property the report breaks it down by. */
 export const BREAKDOWN: Record<string, string> = {
   view_opened: "view",
   desk_switched: "desk",
@@ -125,22 +115,18 @@ export const BREAKDOWN: Record<string, string> = {
   mcp_call: "server",
 };
 
-/** Whether a value is one of the device types an event may come from. */
 export function isDeviceType(value: unknown): value is DeviceType {
   return typeof value === "string" && (DEVICE_TYPES as readonly string[]).includes(value);
 }
 
-/** Whether a value is an acceptable event name: snake_case and no longer than EVENT_NAME_MAX. */
 export function isEventName(value: unknown): value is string {
   return typeof value === "string" && value.length <= EVENT_NAME_MAX && EVENT_NAME_RE.test(value);
 }
 
-/** One event line as the mod appends it, stamped with the time given (now by default). */
 export function makeEvent(event: string, distinctId: string, properties: EventProperties, now: Date = new Date()): AnalyticsEvent {
   return { event, timestamp: now.toISOString(), distinct_id: distinctId, properties };
 }
 
-/** Tasks was the Board until 2026-10-13: a view_opened from then reads as Tasks, so the counts stay one row. */
 function renamedViews(p: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (p.view === "board") out.view = "tasks";
@@ -148,7 +134,6 @@ function renamedViews(p: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
-/** Parse the file's text; a line that is not an event (cut short, hand-edited) is skipped, not fatal. */
 export function parseEvents(text: string): AnalyticsEvent[] {
   const out: AnalyticsEvent[] = [];
   for (const raw of text.split("\n")) {
@@ -164,18 +149,14 @@ export function parseEvents(text: string): AnalyticsEvent[] {
         distinct_id: v.distinct_id,
         properties: { ...p, ...renamedViews(p), $device_type: p.$device_type, $lib: "loki" },
       });
-    } catch {
-      // not ours
-    }
+    } catch {}
   }
   return out;
 }
 
-/** One event's row in the report: how often it fired, in how many sessions, and on which devices. */
 export interface EventRow {
   event: string;
   count: number;
-  /** Distinct sessions the event fired in. */
   sessions: number;
   mac: number;
   windows: number;
@@ -184,36 +165,19 @@ export interface EventRow {
   mod: number;
 }
 
-/** What `npm run analytics` makes of the events file over a period: counts, sessions, the inbox's engagement, the daemon's turns and the background passes. */
 export interface AnalyticsReport {
   window: { from: string | null; to: string | null; days: number; events: number; activeDays: number };
   sessions: { count: number; byDevice: Record<DeviceType, number>; medianMinutes: number | null; perActiveDay: number | null };
-  /** Every event that fired, most often first. */
   events: EventRow[];
-  /** The BREAKDOWN property's values for each event that fired, top eight. */
   breakdowns: Array<{ event: string; property: string; values: Array<[string, number]> }>;
   inbox: { passes: number; decided: number; perPass: number | null; next: number; archive: number; approve: number; deny: number; replies: number };
-  /**
-   * Finished work, the metric the Inbox is tuned for (plan 065): how many chats you finish, how much it took, and how
-   * often you came back to a chat after messaging others in between. Engagement, below, counts every reply as a win
-   * and rose the more you hopped between chats; it stays for comparison.
-   */
   finished: {
-    /** Chats archived in the period, and a day you were active. */
     archived: number;
     perActiveDay: number | null;
-    /** Your messages into each chat archived in the period (median), among those you messaged in it: clearing out old chats is not finishing work. */
     messagesPerChat: number | null;
-    /** Your messages into a chat you had messaged within RETURN_WINDOW_MS, by how many other chats you messaged in between (0, 1, 2, 3+). */
     returns: number;
     between: Array<[string, number]>;
   };
-  /**
-   * How much you engage, what the Inbox was tuned for before plan 065. `actions` are your messages, answers and
-   * decisions; of the Inbox cards you decided, `engaged` are the ones you replied to, answered or decided rather
-   * than cleared or put off, with where they stood in the queue (rank 1 is the card on top): a ranking that
-   * reads you well puts what you engage with first.
-   */
   engagement: {
     actions: number;
     perActiveDay: number | null;
@@ -222,71 +186,50 @@ export interface AnalyticsReport {
     top: number;
     medianRank: number | null;
     byReason: Array<[string, { cards: number; engaged: number }]>;
-    /** Distinct chats among the engaged cards (repeat replies to one chat count once); null before cards carried `desk`. */
     chats: number | null;
-    /** Cards shown at the top, and by the rank each stood at when shown (1, 2, 3, 4+), how many of those showings you engaged with (once each). */
     shown: number;
     byRank: Array<[string, { shown: number; engaged: number }]>;
-    /** Nexts and Archives taken back. */
     undone: number;
-    /** Nexts straight after you acted on the same card (a reply leaves the card in place and → moves on): not skips, left out of the cards above. */
     movedOn: number;
-    /** Cards back from a rest that ended with nothing new (core/attention/rest.ts), by the rung it left them on, and how many you engaged with. */
     rested: Array<[string, { cards: number; engaged: number }]>;
-    /** Minutes from an agent's turn ending to your next reply, answer, decision or open in that chat (median). */
     respondMinutes: number | null;
-    /** Minutes an approval or question waited for you (median). */
     decideMinutes: number | null;
   };
-  /** The daemon's turns (turn_finished with its measurements), by model and by harness version, most turns first. */
   harness: { turns: number; byModel: HarnessRow[]; byVersion: HarnessRow[] };
-  /** The background passes (pass_finished), by job: how runs ended, what they wrote, and what a run cost. */
   passes: PassRow[];
-  /** Events by local hour of day (24) and weekday (7, Sunday first). */
   hours: number[];
   weekdays: number[];
   neverFired: string[];
 }
 
-/** One group of turns: the spread of where their time went, what they cost, and how often they failed. */
 export interface HarnessRow {
   key: string;
   turns: number;
   ttftMs: Spread;
   overheadMs: Spread;
   totalMs: Spread;
-  /** Mean cost of a turn, in the provider's currency (dollars). */
   costPerTurn: number | null;
-  /** Of every prompt token sent, the share read from the cache. */
   cacheShare: number | null;
-  /** Turns that ended in an error. */
   errorRate: number | null;
-  /** Tool calls that failed, of all tool calls. */
   toolFailureRate: number | null;
 }
-/** The median and 90th percentile of a set of durations, in milliseconds; null when there were none. */
 export interface Spread {
   p50: number | null;
   p90: number | null;
 }
 
-/** One background job's runs in the report: how they ended, what they wrote, and what a run cost. */
 export interface PassRow {
   job: string;
   runs: number;
   outcomes: Record<string, number>;
-  /** What the runs wrote, summed by kind (memory changes; cards, revisions, leads). */
   items: Record<string, number>;
-  /** Mean cost of a run, from its turn_finished joined by request id; null when none was measured. */
   costPerRun: number | null;
 }
 
-/** A turn as the harness section reads it from a turn_finished line; null for a line from before the daemon measured turns. */
 interface MeasuredTurn {
   model: string;
   version: string;
   ttft: number | null;
-  /** Null for an ACP agent's turn, whose model and tool times loki does not see. */
   overhead: number | null;
   total: number;
   cost: number;
@@ -313,7 +256,6 @@ function measuredTurn(p: Record<string, unknown>): MeasuredTurn | null {
   };
 }
 
-/** The value at or below which `q` of the values fall (nearest rank); null for none. */
 export function percentile(values: readonly number[], q: number): number | null {
   if (!values.length) return null;
   const s = [...values].sort((a, b) => a - b);
@@ -372,23 +314,18 @@ function passRows(
     .sort((a, b) => a.job.localeCompare(b.job));
 }
 
-/** Turns nobody waits on: a helper's, Learn's writer's, reflection's and a memory review's. They are measured, but no one answers them. */
 const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection", "doctor"]);
 
 const DAY_MS = 86_400_000;
-/** How soon a message into a chat counts as coming back to it, for `finished.between`. */
 export const RETURN_WINDOW_MS = 3 * 60 * 60_000;
 const BETWEEN_BUCKETS = ["0", "1", "2", "3+"];
-/** What counts as engaging with an Inbox card: acting on it or opening it, rather than moving past or archiving it. */
 export const ENGAGED_ACTIONS: ReadonlySet<string> = new Set(["reply", "answer", "approve", "deny", "open"]);
 const RANK_BUCKETS = ["1", "2", "3", "4+"];
 const rankBucket = (rank: number): string => (rank >= 4 ? "4+" : String(Math.max(1, Math.round(rank))));
 const tally = (m: Map<string, number>, key: string, n = 1) => m.set(key, (m.get(key) ?? 0) + n);
 const ranked = (m: Map<string, number>, limit = Infinity): Array<[string, number]> =>
   [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit);
-/** A property's value as a breakdown key: a string as it is, anything else as JSON. */
 const label = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
-/** The map's value for `key`, made and set first when it has none. */
 function entry<K, V>(map: Map<K, V>, key: K, make: () => V): V {
   let v = map.get(key);
   if (v === undefined) map.set(key, (v = make()));
@@ -402,7 +339,6 @@ function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** Everything in the last `days` days up to `now`, counted the way product analytics counts. */
 export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: number; days: number }): AnalyticsReport {
   const since = now - days * DAY_MS;
   const events = all.filter((e) => {
@@ -440,18 +376,14 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const byRung = new Map<string, { cards: number; engaged: number }>();
   const engagedChats = new Set<string>();
   const byRank = new Map<string, { shown: number; engaged: number }>(RANK_BUCKETS.map((b) => [b, { shown: 0, engaged: 0 }]));
-  /** Each chat's latest showing at the top: its rank bucket, and whether it has been engaged with yet. */
   const showing = new Map<string, { bucket: string; engaged: boolean }>();
-  /** Each session's last card decision: the chat, and whether you acted on it. */
   const lastCard = new Map<string, { desk: string | null; engaged: boolean }>();
-  /** Chats whose agent finished a turn and has not heard from you since: desk → when. */
   const waiting = new Map<string, number>();
   const respond: number[] = [];
   const decide: number[] = [];
   const measured: MeasuredTurn[] = [];
   const passRuns: Array<{ job: string; outcome: string; items: Record<string, unknown>; requestId: string | null }> = [];
   const passCost = new Map<string, number>();
-  /** Your messages in the order they went out, by chat (a turn_finished from a message, dated when it started). */
   const sent: Array<{ desk: string; t: number }> = [];
   const archived = new Set<string>();
 
@@ -609,7 +541,6 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   };
 }
 
-/** The finished-work numbers from your messages in order and the chats archived. */
 function finishedWork(sent: Array<{ desk: string; t: number }>, archived: ReadonlySet<string>, activeDays: number): AnalyticsReport["finished"] {
   const ordered = [...sent].sort((a, b) => a.t - b.t);
   const perChat = new Map<string, number>();
@@ -637,14 +568,12 @@ function finishedWork(sent: Array<{ desk: string; t: number }>, archived: Readon
 const WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "–");
 const cell = (n: number, width = 6) => (n ? String(n) : "–").padStart(width);
-/** A histogram as one line: each bucket's share as a bar glyph, so the shape reads at a glance. */
 function bars(values: number[], labels: (i: number) => string): string {
   const max = Math.max(1, ...values);
   const glyphs = " ▁▂▃▄▅▆▇█";
   return values.map((v, i) => `${labels(i)}${glyphs[Math.round((v / max) * (glyphs.length - 1))]}`).join(" ");
 }
 
-/** The report as text, for the terminal. */
 export function formatAnalyticsReport(r: AnalyticsReport): string {
   const w = r.window;
   const out: string[] = [];
@@ -653,7 +582,6 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
   );
   if (!w.events) return out.join("\n");
   const s = r.sessions;
-  // Windows and Linux get their words and columns once they have events; a Mac-only log reads as it always has.
   const devices = DEVICE_TYPES.filter((d) => (d !== "windows" && d !== "linux") || r.events.some((e) => e[d] > 0));
   out.push(
     `  sessions ${s.count} (${devices.map((d) => `${d} ${s.byDevice[d]}`).join(" · ")}) · median ${s.medianMinutes === null ? "–" : `${Math.round(s.medianMinutes)} min`} · ${s.perActiveDay ?? "–"} an active day`,

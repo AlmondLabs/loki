@@ -1,51 +1,21 @@
 import type { AttentionItem } from "./model.ts";
 
-/**
- * The inbox as a scheduler's ready queue: one number per card, one ordered list, no bands.
- *
- *   score = blocked ? 100 : 0          an approval or a question: an agent is stopped until you answer
- *         + new     ?  10 : 0          the agent said something since you last looked
- *         + 15 · focus                 the chat's share of what you have been engaging with lately (focus.ts)
- *         + blocked ? +0.1 · hours waiting     the agent that has waited longest comes first
- *                   : −0.1 · hours old         everything else drifts down, never up
- *
- * Every chat you have not archived is in the Inbox (queue.ts), so the score is what separates the ones with
- * something for you from the ones resting: a stopped agent dwarfs everything else, since that is the agent's
- * state, which nothing you did can tell; something new from the agent comes next. Then the
- * chats you are working in, learned from you: the task you are on rises while you work it, a task you have
- * moved on from gives way as soon as you engage elsewhere, and fades in a day or two with no park button.
- * Age settles ties and lets old cards drift down, except for a stopped agent, the one case where waiting makes
- * a card more urgent. A failed turn is not blocked: nothing waits on you, so it ranks by its chat's focus.
- * The score is stamped on every item once per rebuild (buildItems, on each event and the half-minute clock),
- * so the deck, the phone and the card's label all read the same instant.
- */
 export const BLOCKED_POINTS = 100;
-/** Points for something new from the agent since you last looked. */
 export const NEW_POINTS = 10;
-/** Points for a chat with all of your recent engagement; a chat scores this times its focus share. */
 export const FOCUS_POINTS = 15;
-/** Points a card loses for each hour since its last message, when no agent is stopped on it. */
 export const AGE_POINTS_PER_HOUR = 0.1;
-/** Points a stopped agent's card gains for each hour it has waited on you. */
 export const WAITING_POINTS_PER_HOUR = 0.1;
-/** A card whose focus is worth at least this many points says so ("in focus"). */
 export const IN_FOCUS_POINTS = 3;
 
-/** Who sent the last message into a conversation: a person, or the daemon's scheduler firing a cron (daemon/schedule.ts). */
 export type AskedBy = "person" | "schedule";
 
-/** The largest term of a card's score: the one word that explains its place in the list. */
 export type Reason = "blocked" | "new" | "focus" | "other";
-/** The label a card shows for its reason after its time; empty for every reason but focus. */
 export const REASON_LABEL: Record<Reason, string> = { blocked: "", new: "", focus: "in focus", other: "" };
 
-/** An item before its score and reason are stamped. */
 export type Unscored = Omit<AttentionItem, "score" | "reason" | "focus">;
 
-/** Whether an agent is stopped until you answer: an approval or a question. */
 export const isBlocked = (i: Unscored): boolean => i.status === "approval" || i.status === "question";
 
-/** A card's score at `now` given its chat's focus share, by the formula above. */
 export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
   const hours = i.last_message_at ? Math.max(0, now - new Date(i.last_message_at).getTime()) / 3_600_000 : 0;
   const blocked = isBlocked(i);
@@ -57,7 +27,6 @@ export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
   );
 }
 
-/** The term that explains a card's score; a new card whose focus outweighs its newness says focus. */
 export function reasonOf(i: Unscored, focus = 0): Reason {
   if (isBlocked(i)) return "blocked";
   if (i.unread && NEW_POINTS >= FOCUS_POINTS * focus) return "new";
@@ -65,7 +34,6 @@ export function reasonOf(i: Unscored, focus = 0): Reason {
   return "other";
 }
 
-/** Highest stamped score first; a stable sort, so equal scores keep the order they came in. */
 export function byScore<T extends { score: number }>(items: readonly T[]): T[] {
   return items
     .map((item, index) => ({ item, index }))
@@ -73,7 +41,6 @@ export function byScore<T extends { score: number }>(items: readonly T[]): T[] {
     .map((x) => x.item);
 }
 
-/** Stamp every item's score, reason and focus at one instant, then order them; `focus` is each chat's share by "agentId/conversationId". */
 export function scored(items: readonly Unscored[], now = Date.now(), focus: Record<string, number> = {}): AttentionItem[] {
   return byScore(
     items.map((i) => {

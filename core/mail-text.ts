@@ -1,13 +1,5 @@
-/**
- * Email bodies as plain text a card can show (plan 068): pure, so the daemon, hand-offs and tests share it. Mail is
- * written for an HTML renderer, so its source spacing (the indentation and line breaks of layout tables) means nothing;
- * a browser collapses it, and so does this.
- */
-
-/** Elements that end a line where they open or close. */
 const BLOCK = "p|div|table|tbody|thead|tfoot|h[1-6]|ul|ol|blockquote|section|article|header|footer|center|hr|pre";
 
-/** The named entities mail uses most; any other `&name;` is left as written. */
 const ENTITIES: Record<string, string> = {
   nbsp: " ",
   amp: "&",
@@ -31,7 +23,6 @@ const ENTITIES: Record<string, string> = {
   zwj: "",
 };
 
-/** `&…;` entities decoded: named ones from the table, and decimal and hex character references. */
 function decodeEntities(text: string): string {
   return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name: string) => {
     if (name.startsWith("#")) {
@@ -42,10 +33,6 @@ function decodeEntities(text: string): string {
   });
 }
 
-/**
- * Plain text tidied for reading: no invisible characters, each line's spacing collapsed and trimmed, and at most one
- * blank line between paragraphs. Mail's own plain parts are often generated from its HTML and carry the same spacing.
- */
 export function tidyMail(text: string): string {
   return text
     .replace(/\r\n?/g, "\n")
@@ -58,23 +45,12 @@ export function tidyMail(text: string): string {
     .trim();
 }
 
-/** Elements whose whole content is no part of the text. */
 const UNSEEN = /^<(head|style|script|title|noscript)\b/i;
-/** Preheaders: a line of text hidden from the reader, written for the inbox list's preview. */
 const HIDDEN = /^<(span|div|p|td)\b[^>]*style\s*=\s*["'][^"']*display\s*:\s*none[^"']*["']/i;
-/** The longest opening tag read for a hidden style; a longer one is some generator's data, and is kept as a tag. */
 const HIDDEN_TAG_MAX = 2000;
 
-/**
- * Mail's HTML without what a browser never shows: comments, the content of `<head>`, `<style>`, `<script>` and the
- * like, and hidden preheaders. One pass from the start, so its time grows with the mail's length and no faster: mail
- * comes from strangers, and a pattern that looks ahead for each closing tag takes minutes on a few hundred kilobytes
- * of openers that never close. As in a browser, a comment or a tag that never ends hides the rest; an element that
- * never closes hides nothing.
- */
 function shownHtml(html: string): string {
   const out: string[] = [];
-  /** Elements with no closing tag from here on, so the search for one is made once. */
   const unclosed = new Set<string>();
   let at = 0;
   while (at < html.length) {
@@ -111,18 +87,12 @@ function shownHtml(html: string): string {
   return out.join("");
 }
 
-/**
- * HTML mail as plain text, the way a browser lays it out: source whitespace collapsed, a line break at each block and
- * `<br>`, list items as bullets, table cells side by side, hidden preheader text and comments dropped, and entities
- * decoded; then tidied. Links keep their text only, as a mail client shows them.
- */
 export function htmlToText(html: string): string {
   const text = shownHtml(html)
     .replace(/\s+/g, " ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<li\b[^>]*>/gi, "\n• ")
     .replace(new RegExp(`</?(?:${BLOCK})\\b[^>]*>`, "gi"), "\n")
-    // A table row ends one line; its cells sit side by side on it.
     .replace(/<\/tr\s*>/gi, "\n")
     .replace(/<\/(td|th)\s*>/gi, " ")
     .replace(/<[^>]*>/g, "");
