@@ -4,7 +4,7 @@ import Testing
 
 @Suite struct TranscriptTests {
   let utc = TimeZone(identifier: "UTC")!
-  let start = Date(timeIntervalSince1970: 1_790_000_000) // 2026-09-21 14:13:20 UTC
+  let start = Date(timeIntervalSince1970: 1_790_000_000)
 
   @Test func linesFallInTimeOrderWhicheverSideFinishesFirst() {
     var t = Transcript(started: start, apps: ["com.google.Chrome"])
@@ -56,9 +56,9 @@ import Testing
   @Test func yourLinesThatRepeatTheirsNearbyCountAsEchoes() {
     var t = Transcript(started: start, apps: [])
     t.add(Line(speaker: .them, at: 10, text: "They want a twenty percent discount by Friday."))
-    t.add(Line(speaker: .you, at: 10.6, text: "they want twenty percent discount friday")) // heard back through the speakers
-    t.add(Line(speaker: .you, at: 30, text: "They want a twenty percent discount by Friday.")) // said again much later: yours
-    t.add(Line(speaker: .you, at: 11, text: "Okay, let me check with finance.")) // yours
+    t.add(Line(speaker: .you, at: 10.6, text: "they want twenty percent discount friday"))
+    t.add(Line(speaker: .you, at: 30, text: "They want a twenty percent discount by Friday."))
+    t.add(Line(speaker: .you, at: 11, text: "Okay, let me check with finance."))
     t.add(Line(speaker: .them, at: 40, text: "Yes."))
     t.add(Line(speaker: .you, at: 40.2, text: "Yes."))
     t.add(Line(speaker: .you, at: 41, text: "Yes, sure."))

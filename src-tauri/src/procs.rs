@@ -1,33 +1,23 @@
-//! The process list, for the one thing the shell needs from it: loki's daemon left from an earlier run (loki crashed
-//! or was force-quit), found by its command line and stopped by pid and start time before a new one starts.
-
-/// One process as sysinfo sees it: its pid, its name (`node`, `loki.exe`), its arguments and when it started
-/// (seconds since the epoch), so a pid found now is known to be the same process when it is stopped later.
 #[derive(Clone, Debug, Default)]
 pub struct Proc {
     pub pid: u32,
     pub name: String,
     pub cmd: Vec<String>,
     pub started: u64,
-    /// The process that started it, when it is still known.
     pub parent: Option<u32>,
 }
 
-/// The machine's processes at one moment.
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     pub procs: Vec<Proc>,
 }
 
-/// loki's own daemon left from an earlier run: its pid and when it started.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Leftover {
     pub pid: u32,
     pub started: u64,
 }
 
-/// The arguments of a command line, however the process list gave it: already split (sysinfo), or one Windows
-/// string with quoted paths. Quotes around an argument are dropped.
 pub fn command_words(cmd: &[String]) -> Vec<String> {
     let words = match cmd {
         [one] if one.contains(char::is_whitespace) => split_windows(one),
@@ -86,16 +76,12 @@ fn split_windows(line: &str) -> Vec<String> {
     out
 }
 
-/// Whether a command line is loki's daemon for this token file (harness::daemon_command): `--loki-daemon` with
-/// `--token-file <token_file>`.
 pub fn is_own_daemon(words: &[String], token_file: &std::path::Path) -> bool {
     let after = |flag: &str| words.iter().position(|w| w == flag).and_then(|i| words.get(i + 1));
     words.iter().any(|w| w == "--loki-daemon")
         && after("--token-file").is_some_and(|f| same_path(f, &token_file.to_string_lossy()))
 }
 
-/// loki's daemon left from an earlier run: its loki is gone (a running loki's daemon is that loki's, and is never
-/// stopped). The daemon's own lock keeps a second one from serving; this lets a new loki replace an orphan.
 pub fn daemon_leftover(snap: &Snapshot, token_file: &std::path::Path) -> Option<Leftover> {
     snap.procs
         .iter()
@@ -103,7 +89,6 @@ pub fn daemon_leftover(snap: &Snapshot, token_file: &std::path::Path) -> Option<
         .map(|p| Leftover { pid: p.pid, started: p.started })
 }
 
-/// Windows paths match whatever their slashes and case; other systems compare them as written.
 fn same_path(a: &str, b: &str) -> bool {
     if cfg!(windows) {
         let norm = |p: &str| p.replace('/', "\\").to_lowercase();
@@ -113,26 +98,20 @@ fn same_path(a: &str, b: &str) -> bool {
     }
 }
 
-/// Whether a loki that is still running started this process: then it is that loki's live daemon (a dev build
-/// beside the installed app, say), not a leftover, and must never be stopped. A leftover's loki is gone: its
-/// parent is launchd, init or a subreaper, or on Windows a pid no process has any more.
 fn has_live_loki_parent(snap: &Snapshot, p: &Proc) -> bool {
     let Some(parent) = p.parent else { return false };
     snap.procs.iter().any(|q| q.pid == parent && is_loki_shell(&q.name))
 }
 
-/// loki's own binary, as the process list names it: `loki` on the Mac and Linux, `loki.exe` on Windows.
 fn is_loki_shell(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     n == "loki" || n == "loki.exe"
 }
 
-/// The process source (sysinfo), the same on every system.
 pub mod os {
     use super::{Proc, Snapshot};
     use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, Signal, System, UpdateKind};
 
-    /// Every process with its command line.
     pub fn snapshot() -> Snapshot {
         let mut sys = System::new();
         sys.refresh_processes_specifics(
@@ -154,8 +133,6 @@ pub mod os {
         Snapshot { procs }
     }
 
-    /// When `pid` started (seconds since the epoch), to know it is still the same process later. None once it
-    /// has exited, a zombie included.
     pub fn start_time(pid: u32) -> Option<u64> {
         let mut sys = System::new();
         let pid = Pid::from_u32(pid);
@@ -165,10 +142,6 @@ pub mod os {
             .map(|p| p.start_time())
     }
 
-    /// End `pid` if it is still the process that started at `started`, so the daemon started next finds its folder's
-    /// lock free: SIGTERM first and up to `grace` for it to go on its own, closing its stores and stopping its
-    /// background tasks as a daemon loki stops itself does (harness.rs `terminate`), then SIGKILL and up to 3 s more.
-    /// Windows has no SIGTERM to send, and is killed at once. False when it was already gone or is another process now.
     pub fn kill(pid: u32, started: Option<u64>) -> bool {
         kill_within(pid, started, crate::harness::STOP_GRACE)
     }
@@ -244,7 +217,6 @@ mod tests {
             }],
         };
         assert_eq!(daemon_leftover(&not_daemon, &tf), None, "no --loki-daemon marker");
-        // Its loki gone: reparented to launchd or init, a subreaper, or (Windows) a pid no process has.
         for (parent, procs) in [
             (Some(1), vec![Proc { pid: 1, name: "launchd".into(), cmd: vec![], started: 0, parent: None }]),
             (Some(900), vec![Proc { pid: 900, name: "systemd".into(), cmd: vec![], started: 0, parent: Some(1) }]),
@@ -272,11 +244,9 @@ mod tests {
 
     #[test]
     fn a_windows_command_line_is_split_the_way_programs_read_it() {
-        // sysinfo hands the arguments over already split; quoted paths keep their spaces and backslashes.
         let split =
             s(&[r"C:\Program Files\nodejs\node.exe", r"C:\Users\someone\.loki\daemon\daemon.mjs", "--loki-daemon"]);
         assert_eq!(command_words(&split), split);
-        // …or as one string, the way Windows stores a command line.
         let one = s(&[
             r#""C:\Program Files\nodejs\node.exe" "C:\Users\some one\.loki\daemon\daemon.mjs" --loki-daemon --token-file "C:\Users\some one\.loki\token""#,
         ]);
@@ -285,9 +255,7 @@ mod tests {
         assert_eq!(words[1], r"C:\Users\some one\.loki\daemon\daemon.mjs");
         assert_eq!(words.last().unwrap(), r"C:\Users\some one\.loki\token");
         assert!(is_own_daemon(&words, std::path::Path::new(r"C:\Users\some one\.loki\token")));
-        // Windows spells paths either way and ignores case.
         assert!(is_own_daemon(&words, std::path::Path::new("c:/users/some one/.loki/token")) == cfg!(windows));
-        // A quoted argument that is itself quoted by sysinfo loses its quotes too.
         assert_eq!(command_words(&s(&["node.exe", "\"C:\\x\\token\""])), s(&["node.exe", "C:\\x\\token"]));
         assert_eq!(split_windows(r#"a\\\"b "c\\" d"#), s(&[r#"a\"b"#, r"c\", "d"]));
         assert_eq!(command_words(&[]), Vec::<String>::new());
@@ -306,7 +274,6 @@ mod tests {
         }
     }
 
-    /// The real OS: the reader lists this process with its command line and start time.
     #[test]
     fn the_os_reader_lists_this_process() {
         let me = std::process::id();
@@ -330,7 +297,6 @@ mod tests {
         assert!(!os::kill(pid, started), "already gone");
     }
 
-    /// A leftover daemon is asked to stop first, so it can close its stores; one that does not stop is killed.
     #[cfg(unix)]
     #[test]
     fn a_leftover_gets_sigterm_and_time_to_close_and_one_that_ignores_it_is_killed() {

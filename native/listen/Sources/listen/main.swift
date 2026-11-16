@@ -3,7 +3,6 @@ import Foundation
 import ListenCore
 import Speech
 
-/// Progress and warnings go to stderr, so stdout carries only the transcript's lines.
 func log(_ message: String) {
   FileHandle.standardError.write(Data("listen: \(message)\n".utf8))
 }
@@ -25,7 +24,6 @@ let usage = """
   and at the end listen counts the lines of yours that still look like theirs.
   """
 
-/// Names for the apps a call runs in, with the helper processes that actually play their audio.
 let knownApps: [String: [String]] = [
   "chrome": ["com.google.Chrome", "com.google.Chrome.helper", "com.google.Chrome.helper.renderer"],
   "slack": ["com.tinyspeck.slackmacgap", "com.tinyspeck.slackmacgap.helper"],
@@ -72,7 +70,6 @@ while let arg = args.next() {
 }
 let bundleIDs = tapAll ? [] : apps.flatMap { knownApps[$0.lowercased()] ?? [$0] }
 
-/// The transcript on disk, rewritten whole after each line so a crash loses at most the line being spoken.
 actor Store {
   private var transcript: Transcript
   let file: URL
@@ -91,7 +88,6 @@ actor Store {
     write()
   }
   var lineCount: Int { transcript.lines.count }
-  /// How many of your lines still look like their words heard back, of how many of yours.
   var echoes: (echoes: Int, yours: Int, sample: [Line]) {
     let echoes = transcript.likelyEchoes()
     return (echoes.count, transcript.lines.filter { $0.speaker == .you }.count, Array(echoes.prefix(3)))
@@ -158,7 +154,6 @@ do {
     case micInGraph = "mic in graph"
   }
 
-  /// The microphone as "You": echo cancelled in the given setup, or as it is (nil).
   func startMic(_ setup: EchoSetup?) throws -> AVAudioEngine {
     let engine = AVAudioEngine()
     let mic = engine.inputNode
@@ -187,14 +182,12 @@ do {
     }
     return engine
   }
-  // Ctrl-C (or a kill) ends the call; a second Ctrl-C gives up on finishing the last words.
   signal(SIGINT, SIG_IGN)
   signal(SIGTERM, SIG_IGN)
   let (stopped, stop) = AsyncStream<Void>.makeStream()
   var interrupts = 0
   let signalQueue = DispatchQueue(label: "loki.listen.signals")
   let sources = [SIGINT, SIGTERM].map { sig in
-    // Not the main queue: the top-level awaits below never hand it a turn, so a handler there would never run.
     let source = DispatchSource.makeSignalSource(signal: sig, queue: signalQueue)
     source.setEventHandler {
       interrupts += 1
@@ -206,7 +199,6 @@ do {
   }
   _ = sources
 
-  // The microphone first: echo cancelling opens the speakers too, and may not start once the tap's device holds them.
   var engine: AVAudioEngine?
   if micAllowed {
     if echoCancel {
@@ -240,7 +232,6 @@ do {
     group.addTask {
       for await _ in stopped { break }
       log("finishing the last words…")
-      // If the transcriber never finishes, the call still ends: what was said is on disk, closed after 8 seconds.
       DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
         Task {
           await store.finish(at: Date())
@@ -256,7 +247,6 @@ do {
     }
     try await group.waitForAll()
   }
-  // The last lines' store.add tasks: let them land before the file is closed.
   try? await Task.sleep(for: .milliseconds(200))
   await store.finish(at: Date())
   if !themHeard.any { log("no sound came from \(tapAll ? "any app" : apps.joined(separator: ", ")). If a call was playing, allow audio recording for the app you ran this from (System Settings › Privacy & Security › Screen & System Audio Recording › System Audio Recording Only)") }

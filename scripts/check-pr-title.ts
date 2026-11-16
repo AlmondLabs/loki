@@ -1,13 +1,5 @@
-/**
- * A pull request's title, held to Conventional Commits as docs/style.md §9 has it, since the title becomes the merge
- * commit's message: `type(scope): what changed`. Run by .github/workflows/pr-title.yml with the title in PR_TITLE:
- *   PR_TITLE="feat(chat): suggest work for another chat" node --experimental-strip-types scripts/check-pr-title.ts
- */
-
-/** The kinds of change, as Conventional Commits names them. */
 export const TYPES = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"] as const;
 
-/** loki's areas, as a scope may name them. */
 export const SCOPES = [
   "chat",
   "history",
@@ -32,12 +24,10 @@ export const SCOPES = [
   "style",
 ] as const;
 
-/** The longest title, as a commit subject is kept. */
 export const MAX_TITLE = 72;
 
 const SHAPE = /^(?<type>[a-z]+)(?:\((?<scope>[a-z-]+)\))?(?<breaking>!)?: (?<subject>.+)$/;
 
-/** What is wrong with a title, or null when it follows the guide. */
 export function titleProblem(title: string): string | null {
   const t = title.trim();
   // GitHub's own revert button titles the PR `Revert "<the original title>"`.
@@ -53,7 +43,6 @@ export function titleProblem(title: string): string | null {
   return null;
 }
 
-// Run as a script (not imported by its test): check PR_TITLE.
 if (process.argv[1]?.endsWith("check-pr-title.ts")) {
   const title = process.env.PR_TITLE ?? "";
   const problem = titleProblem(title);

@@ -4,14 +4,7 @@ import { describeGesture, formatDeskContext } from "../../mod/gestures.ts";
 import { WidgetFrame } from "../../app/src/desk/widget-frame";
 import { KIT_COMPONENTS } from "../../app/src/kit";
 
-/**
- * The hero's canvas: loki's own widget frames and kit widgets over a made-up chat's widgets, which the visitor can
- * drag, tick and slide. Under it, the block loki attaches to the person's next message, written by the same code
- * the mod uses (mod/gestures.ts), so the visitor reads exactly what the agent would be told.
- */
-
 const SCOPE = "saturday";
-/** The canvas's own size: a desktop window's worth; narrower screens draw it scaled down. */
 const CANVAS = { w: 760, h: 470 };
 
 const widget = (name: string, title: string, type: string, data: Record<string, unknown>): WidgetManifestEntry => ({
@@ -63,10 +56,8 @@ const START: DeskState = {
   },
 };
 
-/** The canvas and the note it leaves for the agent. */
 export function HeroCanvas() {
   const [desk, setDesk] = useState(START);
-  /** What the agent will be told, by gesture key: a later move of the same widget replaces the earlier one, as the mod does. */
   const [said, setSaid] = useState<ReadonlyMap<string, string>>(new Map());
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);

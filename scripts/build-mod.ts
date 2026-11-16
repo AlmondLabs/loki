@@ -1,7 +1,3 @@
-// Bundle loki's daemon and the mod it hosts into the files the loki app installs: src-tauri/resources/daemon/daemon.mjs
-// and src-tauri/resources/mod/loki-mod.mjs (plus the agent's skill, and the built canvas for phones when app/dist exists).
-// `npm run build:mod`; tauri runs it before dev and build.
-// node_modules are bundled in (ws), except esbuild, which the mod treats as optional.
 import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -49,7 +45,6 @@ const agentSlackNotice = `/*!
 
 await build({
   entryPoints: [here("../mod/index.ts")],
-  // The bundle knows its version (analytics stamps it on every event); a checkout reads package.json instead.
   define: { "process.env.LOKI_VERSION": JSON.stringify(version) },
   outfile: `${out}/mod/loki-mod.mjs`,
   bundle: true,
@@ -65,8 +60,6 @@ await build({
   legalComments: "none",
   logLevel: "warning",
 });
-// loki's daemon (plan 017), which the shell starts and keeps running: the same banner, and pi-durable's SQLite
-// backend is Node's own `node:sqlite`, which stays a builtin.
 await build({
   entryPoints: [here("../daemon/main.ts")],
   define: { "process.env.LOKI_VERSION": JSON.stringify(version) },
@@ -81,9 +74,6 @@ await build({
   legalComments: "none",
   logLevel: "warning",
 });
-// The keychain binding and this system's prebuilt binary (@napi-rs/keyring-<platform>, the one optional dependency
-// the install fetched), where Node finds them from daemon.mjs: <data>/daemon/node_modules. Each release runner builds
-// its own system's; on Linux only the build for this C library, as linuxdeploy cannot read the other (native-binaries.ts).
 const keyring = packageDir("@napi-rs/keyring", root);
 const { optionalDependencies = {} } = JSON.parse(readFileSync(join(keyring, "package.json"), "utf8")) as {
   optionalDependencies?: Record<string, string>;
@@ -113,7 +103,6 @@ const quickjs = packageDir("quickjs-wasi", codemode);
 for (const file of ["package.json", "quickjs.wasm"]) cpSync(join(quickjs, file), `${out}/daemon/node_modules/quickjs-wasi/${file}`);
 cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
 
-// The canvas the LAN listener serves to phones (mod/static.ts); install.rs puts it at <data>/app beside the mod.
 const appDist = here("../app/dist");
 if (existsSync(`${appDist}/index.html`)) {
   cpSync(appDist, `${out}/app`, { recursive: true });

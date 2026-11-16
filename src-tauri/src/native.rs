@@ -1,11 +1,3 @@
-//! The parts a browser tab cannot have: a menu-bar item and dock badge that
-//! carry the waiting count, and a global shortcut (⌥Space) that brings Catch Up
-//! up from anywhere.
-//!
-//! All of it is the Mac's (plan 014 KTD3): the tray and the global-shortcut plugin are macOS-only dependencies,
-//! so a Linux build needs no appindicator library. Elsewhere the page's commands are there and do nothing, and the
-//! page hides the switches (R3).
-
 #[cfg(target_os = "macos")]
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 #[cfg(target_os = "macos")]
@@ -28,8 +20,6 @@ fn show_main(app: &AppHandle) {
 #[cfg(target_os = "macos")]
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID).tooltip("loki").title("").show_menu_on_left_click(false);
-    // The L in one colour, black on clear: macOS tints a template for a light or a dark menu bar. The app icon itself
-    // would show as a solid square there.
     if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png")) {
         builder = builder.icon(icon).icon_as_template(true);
     }
@@ -45,14 +35,11 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// The one global shortcut: ⌥Space brings the inbox up from anywhere on the Mac.
 #[cfg(target_os = "macos")]
 fn catch_up_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::ALT), Code::Space)
 }
 
-/// Install the plugin and register ⌥Space. The page can release it or take it again (`set_global_shortcut`),
-/// since ⌥Space is also Raycast's, Alfred's and the input-source switcher's on many Macs.
 #[cfg(target_os = "macos")]
 pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
     let catch_up = catch_up_shortcut();
@@ -70,8 +57,6 @@ pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Preferences › Keyboard shortcuts: hold or release ⌥Space. Registering again after a release is how the user reclaims it
-/// from another app; the error names what went wrong so Settings can show it.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn set_global_shortcut(app: AppHandle, enabled: bool) -> Result<(), String> {
@@ -86,7 +71,6 @@ pub fn set_global_shortcut(app: AppHandle, enabled: bool) -> Result<(), String> 
     Ok(())
 }
 
-/// The page tells us how many conversations are waiting; the tray title and dock badge follow.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn set_waiting(app: AppHandle, count: u32) {
@@ -99,7 +83,6 @@ pub fn set_waiting(app: AppHandle, count: u32) {
     }
 }
 
-/// Windows and Linux: no system-wide key yet, and Settings shows no switch for it (R3).
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn set_global_shortcut(enabled: bool) -> Result<(), String> {
@@ -107,18 +90,12 @@ pub fn set_global_shortcut(enabled: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Windows and Linux: no tray item or dock badge to carry the count yet.
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn set_waiting(count: u32) {
     let _ = count;
 }
 
-/// Give the window an empty unified toolbar, as Mail's and Notes' windows have, so AppKit itself lays the traffic
-/// lights out low in a 52 pt title bar, on every pass. Moving them after AppKit has laid them out (Tauri's
-/// `traffic_light_position`) put them back in the corner for a frame on every focus, resize, title or appearance
-/// change. The toolbar has no items, its title bar is transparent over the page (TitleBarStyle::Overlay), and it
-/// draws no separator; the page lays its own title row out on the lights' (app sidebar.tsx GLASS_LIGHTS).
 #[cfg(target_os = "macos")]
 pub fn add_unified_toolbar(window: &tauri::WebviewWindow) {
     let w = window.clone();
@@ -128,7 +105,6 @@ pub fn add_unified_toolbar(window: &tauri::WebviewWindow) {
         use objc2_foundation::NSString;
         let Some(mtm) = MainThreadMarker::new() else { return };
         let Ok(ptr) = w.ns_window() else { return };
-        // SAFETY: Tauri hands back the window's live NSWindow, and this runs on the main thread, where AppKit wants it.
         let ns_window: &NSWindow = unsafe { &*ptr.cast::<NSWindow>() };
         let toolbar = NSToolbar::initWithIdentifier(mtm.alloc(), &NSString::from_str("loki"));
         ns_window.setToolbar(Some(&toolbar));
@@ -157,11 +133,8 @@ pub fn traffic_lights(window: tauri::WebviewWindow) -> Option<TrafficLights> {
     use objc2_app_kit::{NSWindow, NSWindowButton};
     MainThreadMarker::new()?;
     let ptr = window.ns_window().ok()?;
-    // SAFETY: Tauri hands back the window's live NSWindow, and this runs on the main thread, where AppKit wants it.
     let ns_window: &NSWindow = unsafe { &*ptr.cast::<NSWindow>() };
-    // The toolbar was added in a task queued after the window was built; lay the frame out so its buttons are placed.
     if let Some(content) = ns_window.contentView() {
-        // SAFETY: the content view's superview is the window's frame view, alive as long as the window.
         if let Some(frame) = unsafe { content.superview() } {
             frame.layoutSubtreeIfNeeded();
         }
@@ -181,7 +154,6 @@ pub fn traffic_lights(window: tauri::WebviewWindow) -> Option<TrafficLights> {
     })
 }
 
-/// Windows and Linux: loki draws its own window buttons, so there are no lights to report.
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn traffic_lights() -> Option<()> {

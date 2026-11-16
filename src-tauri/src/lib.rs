@@ -1,15 +1,3 @@
-//! loki desktop shell (Tauri).
-//!
-//! A native window around the React canvas. The Rust side:
-//!  - moves loki's root to ~/.loki once (root.rs) and hands the page the token and the mod's port before any script runs
-//!  - installs what a release build ships (install.rs): the mod and daemon bundles, the phone canvas, the agent's skill
-//!  - runs loki's daemon on the Node a release fetches for itself (runtime.rs; a development build, the machine's:
-//!    node.rs) once git is in place, off the main thread so the window shows the download; restarts it when it dies
-//!    (harness.rs), and stops it on quit;
-//!    the page talks to the daemon itself, over the mod's port
-//!  - replaces itself with a newer signed release (update.rs): checked and downloaded in the background, installed when
-//!    loki quits or on Restart to Update
-
 mod harness;
 mod install;
 mod menu;
@@ -24,7 +12,6 @@ mod widgets;
 use std::path::PathBuf;
 use tauri::{Manager, State};
 
-/// loki's root, where the daemon, the mod and the shell keep everything: ~/.loki.
 fn loki_dir() -> PathBuf {
     home_dir().join(".loki")
 }
@@ -33,18 +20,12 @@ fn read_token() -> Option<String> {
     std::fs::read_to_string(loki_dir().join("token")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
-/// 16 bytes from the system's random source as 32 lowercase hex chars — the shape the mod makes
-/// (`randomBytes(16).toString("hex")`). The OS source, not /dev/urandom: Windows has no such file, and
-/// reading it there silently produced no token, so the daemon started pointing at a missing token file.
 fn new_token() -> Option<String> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).ok()?;
     Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// The capability token the daemon, the mod and this shell share. The mod creates it on first
-/// activate, but a first launch starts the daemon *before* any mod ran, so the shell writes it
-/// when it is missing (`new_token`, mode 0600 where the system has modes — the same shape the mod makes).
 fn ensure_token() -> Option<String> {
     if let Some(t) = read_token() {
         return Some(t);
@@ -55,7 +36,6 @@ fn ensure_token() -> Option<String> {
             eprintln!("loki: wrote a new capability token");
             Some(token)
         }
-        // The mod wrote one between the read above and this write: that one is the token.
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => read_token(),
         Err(e) => {
             eprintln!("loki: could not write the capability token: {e}");
@@ -64,9 +44,6 @@ fn ensure_token() -> Option<String> {
     }
 }
 
-/// Write a new token file in `dir`, readable by this user only from the moment it exists: made with mode 0600 (and
-/// `dir`, when it has to be made, 0700) where the system has modes, never written first and narrowed after, when
-/// another user could read it in between. Never replaces a file already there (AlreadyExists).
 fn write_token_file(dir: &std::path::Path, token: &str) -> std::io::Result<()> {
     use std::io::Write;
     let mut folder = std::fs::DirBuilder::new();
@@ -83,8 +60,6 @@ fn write_token_file(dir: &std::path::Path, token: &str) -> std::io::Result<()> {
     file.open(dir.join("token"))?.write_all(token.as_bytes())
 }
 
-/// The system as the page names it (`__LOKI__.os`, read by `platform` in app/src/desk/env.ts): macos, windows or linux.
-/// Any other unix desktop reads as linux, the nearest in keys and chrome.
 fn page_os(os: &str) -> &'static str {
     match os {
         "macos" => "macos",
@@ -109,15 +84,12 @@ fn init_script() -> String {
     )
 }
 
-/// The Settings window's label (plan 2026-11-12-1505, U18): one at most, brought forward when it is already open.
 const SETTINGS_WINDOW: &str = "settings";
 
-/// A Preferences page id as the page names them (settings/pages.ts): lowercase words, nothing that could leave a string.
 fn settings_page(page: Option<&str>) -> Option<&str> {
     page.filter(|p| !p.is_empty() && p.len() <= 32 && p.chars().all(|c| c.is_ascii_lowercase() || c == '-'))
 }
 
-/// The Settings window's start-up script: the main window's, then which window this is and the page to open on.
 fn settings_script(page: Option<&str>) -> String {
     format!(
         "{} if (window.top === window && window.__LOKI__) {{ window.__LOKI__.window = \"settings\"; window.__LOKI__.page = {}; }}",
@@ -144,7 +116,6 @@ async fn open_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>, page: Option
         .inner_size(820.0, 600.0)
         .min_inner_size(680.0, 460.0)
         .initialization_script(settings_script(page.as_deref()));
-    // As the main window: the lights over the page, the system's sidebar material behind the section list.
     #[cfg(target_os = "macos")]
     let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true).transparent(true).effects(
         tauri::window::EffectsBuilder::new()
@@ -157,13 +128,11 @@ async fn open_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>, page: Option
     window.build().map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// The page's console, mirrored to the shell's stderr (there is no devtools in a packaged app).
 #[tauri::command]
 fn client_log(level: String, message: String) {
     eprintln!("loki[{level}]: {message}");
 }
 
-/// What launch did about the mod, the skill and the phone canvas (Settings shows it).
 #[tauri::command]
 fn install_status(report: State<'_, install::Report>) -> install::Report {
     report.inner().clone()
@@ -192,17 +161,10 @@ pub struct Preparing {
     pub total: Option<u64>,
 }
 
-/// The event every change of DaemonStatus goes out as, carrying the whole status. The page also asks daemon_status
-/// every few seconds until the daemon runs, so an event it missed (sent before it listened) costs it nothing.
 const RUNTIME_EVENT: &str = "loki:runtime";
 
-/// How often a download's progress goes out between its first and last byte: often enough for a bar that moves, not
-/// an event for every 64 KiB read.
 const PROGRESS_EVERY: std::time::Duration = std::time::Duration::from_millis(250);
 
-/// DaemonStatus, kept current by start_daemon and the supervisor; `supervising` while a supervisor thread watches
-/// the daemon, so a retry never starts a second one beside it; `starting` while start_daemon runs, so a retry during
-/// the first download never runs a second start whose download would delete the first one's files.
 #[derive(Default)]
 struct DaemonState {
     status: std::sync::Mutex<DaemonStatus>,
@@ -210,7 +172,6 @@ struct DaemonState {
     starting: std::sync::atomic::AtomicBool,
 }
 
-/// Clears DaemonState::starting when a start ends, however it ends.
 struct Starting<'a>(&'a std::sync::atomic::AtomicBool);
 
 impl Drop for Starting<'_> {
@@ -219,7 +180,6 @@ impl Drop for Starting<'_> {
     }
 }
 
-/// Claim the one start; None while another start holds it.
 fn begin_start(flag: &std::sync::atomic::AtomicBool) -> Option<Starting<'_>> {
     (!flag.swap(true, std::sync::atomic::Ordering::SeqCst)).then_some(Starting(flag))
 }
@@ -235,7 +195,6 @@ impl DaemonState {
     }
 }
 
-/// Change the daemon's status and tell every window (RUNTIME_EVENT).
 fn publish(app: &tauri::AppHandle, f: impl FnOnce(&mut DaemonStatus)) {
     use tauri::Emitter;
     let state = app.state::<DaemonState>();
@@ -250,8 +209,6 @@ fn daemon_status(state: State<'_, DaemonState>) -> DaemonStatus {
     state.get()
 }
 
-/// Welcome's Try Again and Check Again: run the start sequence again (the runtime, git, the daemon), unless a
-/// supervisor already watches a daemon (it restarts the daemon itself). Off the main thread: it may download.
 #[tauri::command]
 async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -267,8 +224,6 @@ async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
     .map_err(|e| e.to_string())
 }
 
-/// Welcome's Install Command Line Tools on the Mac: `xcode-select --install`, which has macOS show its own installer
-/// and returns. Check Again looks for git once that has finished. Other systems have no such command.
 #[tauri::command]
 async fn install_tools() -> Result<(), String> {
     if !cfg!(target_os = "macos") {
@@ -290,19 +245,13 @@ async fn install_tools() -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Start loki's daemon and keep it running, once what it needs is in place (`prepare`): a daemon left by a crashed
-/// loki is stopped first, and one that dies is restarted (supervise_daemon). A development build runs the checkout's
-/// sources; a release build the installed bundle. What happened lands in DaemonState for daemon_status, and goes out
-/// as RUNTIME_EVENT.
 fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     let (home, data) = (home_dir(), loki_dir());
     let state = app.state::<DaemonState>();
-    // One start at a time: a second one waits for nothing and changes nothing; the running one publishes what happens.
     let Some(_starting) = begin_start(&state.starting) else { return Ok(()) };
     let failed = |node: Option<String>, e: &str| {
         publish(app, |s| *s = DaemonStatus { node, error: Some(e.to_string()), ..DaemonStatus::default() })
     };
-    // A release build runs only the Node its runtime.json names, fetched into ~/.loki/runtime when it is not there yet.
     let host = if runtime_wanted() {
         match runtime::Host::this(&data, &home) {
             Ok(h) => Some(h),
@@ -350,7 +299,6 @@ fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
         return Err(e);
     }
     eprintln!("loki: daemon on {node_shown}");
-    // The daemon runs on this runtime now, so the versions before it can go.
     if let (Some(host), Some(_)) = (&host, &prepared) {
         runtime::prune(host);
     }
@@ -361,16 +309,10 @@ fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Release builds run the daemon on the runtime they fetch (runtime.rs); `tauri dev` keeps finding the machine's Node.
 fn runtime_wanted() -> bool {
     !cfg!(debug_assertions)
 }
 
-/// What comes before the daemon starts (KTD7), in order: the runtime (a release build's `runtime`; None in a
-/// development build), fetched where it is missing, then git (`tools_missing`, the system whose git is missing). Each
-/// change of state goes to `publish`: the download's progress as it comes (at most every PROGRESS_EVERY by `now`), a
-/// failed download with what was being fetched, the tools step. A step that stops the start returns why, its status
-/// already published. Blocks while it downloads.
 fn prepare(
     runtime: Option<&runtime::Host>,
     tools_missing: impl FnOnce() -> Option<node::Os>,
@@ -410,17 +352,10 @@ fn prepare(
     Ok(fetched)
 }
 
-/// Whether a download's progress goes out now: the first word, a download's start and its last byte always; anything
-/// between once PROGRESS_EVERY has passed since the last that went out.
 fn progress_due(last: Option<std::time::Instant>, now: std::time::Instant, p: &runtime::Progress) -> bool {
     p.done == 0 || p.total == Some(p.done) || last.is_none_or(|t| now.duration_since(t) >= PROGRESS_EVERY)
 }
 
-/// Watch the daemon once a second. One that exits on its own is started again after harness::restart_delay; one loki
-/// stopped is left down — and then the supervisor ends, so retry_daemon may start it again. One that found another
-/// daemon already serving (harness::EXIT_HELD) is tried again every HELD_RETRY: that one may be a leftover that dies
-/// later, and then this loki's takes over.
-/// How often a daemon that found another one serving tries again.
 const HELD_RETRY: std::time::Duration = std::time::Duration::from_secs(30);
 
 fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) -> Result<(), String> + Send + 'static) {
@@ -429,7 +364,6 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
         .spawn(move || {
             let mut exits: Vec<std::time::Instant> = vec![];
             let mut held = false;
-            // Whether the window was told the daemon keeps stopping; taken back once it has run a minute.
             let mut looping = false;
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
@@ -459,8 +393,6 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
                 if h.was_stopped() { break; }
                 let result = launch(&app);
                 if let Err(e) = &result { eprintln!("loki: daemon restart failed: {e}"); }
-                // A start that works says nothing of a daemon that dies again a moment later: one that keeps
-                // stopping is reported until it has run a minute.
                 let note = harness::crash_loop_note(exits.len(), &loki_dir().join("logs").join("daemon.log"));
                 looping = note.is_some();
                 publish(&app, |s| s.error = result.err().or(note));
@@ -470,9 +402,6 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
         .expect("the daemon supervisor thread");
 }
 
-/// SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the daemon ourselves. Windows has no such
-/// signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there (a GUI build has no console, and
-/// its quit paths all go through the exit events).
 fn stop_on_signals(handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         #[cfg(unix)]
@@ -514,7 +443,6 @@ fn home_dir() -> PathBuf {
     platform_home().unwrap_or_else(|| panic!("{HOME_VAR} is not set (checked at launch)"))
 }
 
-/// Release builds install on every launch; `tauri dev` runs the checkout instead, unless asked (LOKI_INSTALL=1).
 fn install_wanted() -> bool {
     if std::env::var_os("LOKI_NO_INSTALL").is_some() {
         return false;
@@ -522,9 +450,6 @@ fn install_wanted() -> bool {
     !cfg!(debug_assertions) || std::env::var_os("LOKI_INSTALL").is_some()
 }
 
-/// The checkout a development build was compiled from: its daemon runs the checkout's daemon/main.ts with
-/// `--mod mod/boot.ts`, and the skill is linked there where nothing is yet (install.rs `link_checkout`). Release
-/// builds: never (the path is not even in the binary). LOKI_NO_INSTALL: no, the installed bundles run.
 fn dev_checkout() -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     {
@@ -533,12 +458,9 @@ fn dev_checkout() -> Option<PathBuf> {
         }
         return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(std::path::Path::to_path_buf);
     }
-    #[allow(unreachable_code)]
     None
 }
 
-/// Linux runs loki through XWayland (plan 014 KTD8): GDK_BACKEND=x11 unless the user chose a backend, since an
-/// undecorated window on native Wayland still has open resize and unresponsive-button bugs. The value to set, if any.
 #[cfg(any(target_os = "linux", test))]
 fn gdk_backend(current: Option<&std::ffi::OsStr>) -> Option<&'static str> {
     if current.is_some() {
@@ -576,11 +498,8 @@ pub fn run() {
         }
     }));
     builder
-        // Links leave the app through the system browser (window.open is blocked in the webview).
         .plugin(tauri_plugin_opener::init())
-        // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
         .plugin(tauri_plugin_dialog::init())
-        // Updates (update.rs): the shell drives the plugin's Rust API; no capability grants the page its commands.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             client_log,
@@ -599,12 +518,10 @@ pub fn run() {
             update::set_update_channel,
             update::restart_to_update
         ])
-        // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
         .setup(move |app| {
             use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-            // What this build ships goes in place first, so the daemon started below runs this build's bundles.
             let (home, data) = (home_dir(), loki_dir());
             let mut report = install::Report::skipped(&home);
             if install_wanted() {
@@ -636,8 +553,6 @@ pub fn run() {
             }
             app.manage(report);
 
-            // loki's daemon runs the agents and serves the page. Its start may first download the runtime, so it runs
-            // beside the window, which opens at once and shows Welcome's progress; retry_daemon runs it again.
             app.manage(harness::Harness::default());
             app.manage(DaemonState::default());
             let handle = app.handle().clone();
@@ -647,7 +562,6 @@ pub fn run() {
                 }
             }));
             stop_on_signals(app.handle().clone());
-            // Checks for a newer loki at launch and every six hours, in a release build (update.rs).
             update::start(app.handle(), &data);
 
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
@@ -655,9 +569,6 @@ pub fn run() {
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(900.0, 600.0)
                 .initialization_script(&script)
-                // No page opens a second loki window. A link that asks for one (a mail drawn in its frame, whose
-                // clicks the Mac's webview keeps from loki's own listener) goes to the system browser when it is a
-                // web or mail address, and nowhere otherwise.
                 .on_new_window({
                     let app = app.handle().clone();
                     move |url, _features| {
@@ -670,14 +581,8 @@ pub fn run() {
                         tauri::webview::NewWindowResponse::Deny
                     }
                 });
-            // No native title bar: the lights float over loki's own top edge, on the panes' title bars' row (app
-            // sidebar.tsx paneTop); the title stays set for the Window menu, Mission Control and screen readers, just
-            // not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
-            // The Mac's own sidebar material behind a transparent window (plan 2026-11-12-1505, U13): Liquid Glass lets
-            // it through the sidebar and paints everything else; today's look paints the whole window, so it never
-            // shows there. It dims with the window, as Mail's does, and macOS draws it solid under Reduce Transparency.
             #[cfg(target_os = "macos")]
             let window = window.transparent(true).effects(
                 tauri::window::EffectsBuilder::new()
@@ -685,20 +590,15 @@ pub fn run() {
                     .state(tauri::window::EffectState::FollowsWindowActiveState)
                     .build(),
             );
-            // Elsewhere it starts on loki's dark ground; the page applies the saved light/dark preference after it loads.
             #[cfg(not(target_os = "macos"))]
             let window = window.background_color(tauri::window::Color(0x1c, 0x1c, 0x1e, 0xff));
-            // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
-            // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
             #[cfg(not(target_os = "macos"))]
             let window = window.decorations(false);
             let window = window.build()?;
-            // AppKit lays the lights out in the toolbar's taller title bar, beside the sidebar's toggle (native.rs).
             #[cfg(target_os = "macos")]
             native::add_unified_toolbar(&window);
             #[cfg(not(target_os = "macos"))]
             let _ = window;
-            // The menu bar, the tray and ⌥Space are the Mac's (plan 014 KTD3); elsewhere their commands are no-ops.
             #[cfg(target_os = "macos")]
             {
                 menu::listen(app.handle());
@@ -719,8 +619,6 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building loki")
         .run(|app, event| {
-            // Quit from the menu, the dock, or the last window closing: take the daemon down first, then install an
-            // update that is ready (update.rs; on Windows the installer then ends loki).
             if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
                 let stop = &mut || {
                     if let Some(h) = app.try_state::<harness::Harness>() {
@@ -817,7 +715,6 @@ mod tests {
         let script = settings_script(Some("keys"));
         assert!(script.contains("window.__LOKI__.window = \"settings\"; window.__LOKI__.page = \"keys\";"));
         assert!(settings_script(None).ends_with("window.__LOKI__.page = null; }"));
-        // the main window's script first, so the token and the system arrive as they do there
         assert!(script.starts_with("if (window.top === window) { window.__LOKI__ = "));
     }
 
@@ -839,19 +736,15 @@ mod tests {
             script.ends_with(&format!(", os: \"{expected}\" }}; }}")),
             "the script ends with the os (not printed: it carries the token)"
         );
-        // Only the top-level page: a widget's sandboxed frame, which Windows also runs it in, gets nothing.
         assert!(
             script.starts_with("if (window.top === window) { window.__LOKI__ = "),
             "the token is set in the top-level window only"
         );
     }
 
-    // ── The start sequence (plan 2026-11-15-2319, KTD7): the runtime, then git, then the daemon. ──
-
     use crate::runtime::tests::{host as runtime_host, names, temp_root, Server};
     use std::time::{Duration, Instant};
 
-    /// A clock that moves on a second at every look, so every byte of progress is due and none is throttled away.
     fn ticking() -> impl Fn() -> Instant {
         let start = Instant::now();
         let n = std::cell::Cell::new(0u64);
@@ -881,7 +774,6 @@ mod tests {
             Some(&DaemonStatus { tools_missing: Some(node::Os::Macos), ..DaemonStatus::default() }),
             "then the tools step, and nothing else"
         );
-        // Check Again once macOS installed them: Node is there, so nothing is fetched, and the start goes on.
         let mut again: Vec<DaemonStatus> = vec![];
         let rt = prepare(Some(&h), || None, &ticking(), &mut |s| again.push(s)).unwrap();
         assert!(again.is_empty(), "a present runtime and git: nothing to show {again:?}");
@@ -904,7 +796,6 @@ mod tests {
         let failed = last.preparing.as_ref().expect("what was being fetched stays beside the error");
         assert_eq!((failed.name.as_str(), failed.version.as_str()), ("node", "22.23.5"));
         assert_eq!(last.tools_missing, None);
-        // Try Again: the download starts over and the error goes with its first progress.
         h.fetch = server.fetch();
         let mut again: Vec<DaemonStatus> = vec![];
         let rt = prepare(Some(&h), || None, &ticking(), &mut |s| again.push(s)).unwrap();
@@ -936,7 +827,6 @@ mod tests {
         let root = temp_root();
         let server = Server::new();
         let h = runtime_host(&root, "darwin-arm64", &server);
-        // What an earlier release fetched: another version, so the one this release names is missing.
         std::fs::create_dir_all(root.join("node-22.19.0-darwin-arm64").join("bin")).unwrap();
         std::fs::write(root.join("node-22.19.0-darwin-arm64").join("bin").join("node"), b"v22.19.0").unwrap();
         let mut seen: Vec<DaemonStatus> = vec![];
@@ -949,7 +839,6 @@ mod tests {
                 && s.tools_missing.is_none()),
             "only the download, never another step: {seen:?}"
         );
-        // A development build runs the machine's Node: nothing to fetch, only the git check.
         let mut dev: Vec<DaemonStatus> = vec![];
         assert_eq!(prepare(None, || None, &ticking(), &mut |s| dev.push(s)), Ok(None));
         assert!(dev.is_empty());

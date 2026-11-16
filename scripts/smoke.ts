@@ -1,14 +1,3 @@
-// The release smoke test: `npm run build:mod && npm run smoke`. CI tests the sources; people run the bundle
-// (src-tauri/resources/daemon/daemon.mjs and mod/loki-mod.mjs). Two bugs reached people that way on 2026-10-11:
-// every sign-in failed in the bundle (a module pi-ai loads by a variable path was not in it), and agents went missing
-// after an upgrade. This starts the bundled daemon the way the shell does (src-tauri/src/harness.rs), in a scratch
-// home, and asks it over its socket what the app would:
-//   - it starts, serves /health and takes the token
-//   - an agent made now is still there after a restart
-//   - every provider that signs in names its page (a provider unreachable from here only warns; a missing module or
-//     any other error in loki's own code fails)
-//   - a script runs in the sandbox, which needs the worker and the QuickJS wasm the bundle carries beside daemon.mjs
-// Nothing outside the scratch folder is touched: HOME, USERPROFILE and LOKI_DIR point into it, analytics are off.
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
@@ -85,9 +74,7 @@ async function start(home: string): Promise<Daemon> {
     try {
       const r = await fetch(`http://127.0.0.1:${port}/health`);
       if (r.ok && existsSync(tokenFile)) return { child, port, log: () => output, stop };
-    } catch {
-      // not listening yet
-    }
+    } catch {}
     await sleep(250);
   }
   await stop();
@@ -96,7 +83,6 @@ async function start(home: string): Promise<Daemon> {
 
 type Reply = { type: string; request_id?: string; message?: string } & Record<string, unknown>;
 
-/** A socket to the daemon, as the app holds one: requests carry a request_id, answered by their reply or an `error`. */
 async function connect(home: string, port: number) {
   const token = readFileSync(join(home, ".loki", "token"), "utf8").trim();
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?t=${encodeURIComponent(token)}`);
@@ -131,7 +117,6 @@ async function connect(home: string, port: number) {
   return { request, close: () => ws.close() };
 }
 
-/** Errors in loki's own code, as opposed to a provider this runner cannot reach. */
 const OURS = /Cannot find module|ERR_MODULE_NOT_FOUND|is not a function|is not defined|Cannot read properties|is not supported/;
 
 async function agents(sock: Awaited<ReturnType<typeof connect>>) {

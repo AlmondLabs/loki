@@ -4,18 +4,15 @@ import { LearnDemo } from "./learn-demo";
 import { PhoneDemo } from "./phone-demo";
 import { SuggestionsDemo } from "./suggestions-demo";
 
-/** Where people get loki: the newest release, the source, and the README's other ways in (the .dmg and Homebrew). */
 const RELEASES = "https://github.com/AlmondLabs/loki/releases/latest";
 const SOURCE = "https://github.com/AlmondLabs/loki";
 const OTHER_WAYS = `${SOURCE}#other-ways-in`;
 
-/** The one-line install per system, from the scripts in site/public/ that GitHub Pages serves beside this page. */
 const INSTALL_LINES = [
   { system: "macOS and Linux", line: "curl -fsSL https://almondlabs.github.io/loki/install.sh | sh" },
   { system: "Windows PowerShell", line: "irm https://almondlabs.github.io/loki/install.ps1 | iex" },
 ];
 
-/** What loki is besides its demos, each in a line or two. */
 const FACTS = [
   {
     title: "Any model provider",
@@ -35,7 +32,6 @@ const FACTS = [
   },
 ];
 
-/** loki's website: the hero with a live canvas, then a live demo per part of the app, then what it is built on (plan 066). */
 export function Site() {
   return (
     <div className="site">
@@ -196,7 +192,6 @@ export function Site() {
   );
 }
 
-/** The install line for each system, each with a copy button, then a quiet line to the other ways in. */
 function Install() {
   return (
     <div className="site-install-block">

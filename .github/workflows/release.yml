@@ -1,17 +1,3 @@
-# Releases, two channels, each shipped only when someone runs this workflow by hand on main and picks which
-# (docs/releasing.md; scripts/release.ts does the deciding). Every release is built for the Mac, Windows and Linux in
-# one run, and carries the signed update files loki installs from, latest.json, and the unversioned files the install
-# scripts fetch (plan 2026-11-15-2319, U6):
-#   nightly  (the default) builds all three and replaces the rolling `nightly` prerelease and the loki-nightly cask
-#   stable   publishes vYYYY.MMDD.N and pushes the loki cask, as often as it is run
-# Run workflow in the Actions tab, or `gh workflow run release.yml --ref main -f kind=stable` (plan 2026-11-16-1226). A
-# merge starts nothing. plan says what the run does (nothing, when nothing has merged since the last stable); the
-# version job decides the number once, in a one-at-a-time queue, drafts a stable at it at once, and writes the notes to
-# the run's summary; a build per system makes and signs its files; publish writes latest.json, puts everything on the
-# release, renders the cask and prunes the nightly. Only main publishes: a run from a branch builds all three and keeps
-# the files as the run's artifacts. Nothing is written down before the run, so nothing goes stale and nothing runs on a
-# schedule. Apple signing is optional (the Apple secrets); the update key (TAURI_SIGNING_PRIVATE_KEY) is not, and the
-# builds refuse to make update files without it; TAP_TOKEN pushes the casks.
 name: release
 on:
   workflow_dispatch:
@@ -22,8 +8,6 @@ on:
         options: [nightly, stable]
         default: nightly
 
-# Nothing by default: each job asks for what it needs, so the builds (third-party actions, the signing secrets) cannot
-# write, and the plan cannot write at all.
 permissions: {}
 
 jobs:
@@ -42,19 +26,12 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # the published releases say which stables have shipped (a draft, or a bare tag, has not)
       - id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REQUESTED_KIND: ${{ inputs.kind }}
         run: npm run release -- plan
 
-  # The number, decided once from the date, the tags and the drafts, in a queue that runs one at a time. A stable is
-  # drafted at its number straight away (no tag until it is published), so a stable queued behind it sees the draft and
-  # takes the next number; a stable run again for the same commit takes its own draft's number back. Only the newest
-  # run matters for a nightly. GitHub keeps one waiting run per queue: of three stables started in a few minutes the
-  # middle one may be dropped, and the third, built from a later main, carries its changes. A run from a branch gets a
-  # queue of its own, so it never cancels main's nightly.
   version:
     name: the version (${{ needs.plan.outputs.kind }})
     needs: plan
@@ -76,7 +53,6 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # A nightly is numbered by this run, so nightlies rise run by run; its commit goes in the release's title instead.
       - name: decide the version
         id: version
         env:
@@ -91,26 +67,18 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "this run is $KIND $VERSION"
-      # Only a stable of main takes its number: a branch's stable is a trial build and drafts nothing.
       - name: draft the stable
         if: needs.plan.outputs.kind == 'stable' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: npm run release -- draft "$VERSION"
-      # What this run ships, in the run's summary while the builds take their few minutes: cancel the run before
-      # publish if it is not what you meant to ship.
       - name: the notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: npm run --silent release -- notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
-  # The builds, one per system, for a stable and a nightly alike, each stamping the queued number on the runner only
-  # (main takes changes through PRs alone). Each makes its bundles and its signed update file and hands them to publish
-  # as an artifact. A newer nightly of main cancels an older one's builds and publish (cancel-in-progress below), so an
-  # older nightly never lands over a newer one; a stable's and a branch run's jobs queue behind nothing.
-  # macOS, for Apple silicon only: loki_<version>_aarch64.dmg, and loki.app.tar.gz, its update file.
   macos:
     name: build macOS (${{ needs.version.outputs.version }})
     needs: [plan, version]
@@ -143,8 +111,6 @@ jobs:
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
-      # The bundle this build ships, started and asked what the app asks (scripts/smoke.ts): a broken one stops here,
-      # before anything is published.
       - name: smoke-test the bundle
         run: npm run build:mod && npm run smoke
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
@@ -165,8 +131,6 @@ jobs:
             [ -n "${!v}" ] && echo "$v=${!v}" >> "$GITHUB_ENV"
           done
           echo "signing with $APPLE_SIGNING_IDENTITY"
-      # The update key signs the updater archive every loki installs from (plan 2026-11-15-2319, U4); the bundler
-      # refuses to build it without the key. This step's env alone, so no later step sees it.
       - name: build the Apple silicon dmg and update archive
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
@@ -174,7 +138,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: --target aarch64-apple-darwin
-      # The build was the last step that signs: the steps after it get no Apple secret.
       - name: drop the signing secrets
         run: |
           for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
@@ -193,7 +156,6 @@ jobs:
             src-tauri/target/aarch64-apple-darwin/release/bundle/macos/loki.app.tar.gz.sig
           if-no-files-found: error
 
-  # Windows: the NSIS installer, loki_<version>_x64-setup.exe, which is also its update file.
   windows:
     name: build Windows (${{ needs.version.outputs.version }})
     needs: [plan, version]
@@ -227,13 +189,10 @@ jobs:
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
-      # The bundle this build ships, started and asked what the app asks (scripts/smoke.ts): a broken one stops here,
-      # before anything is published.
       - name: smoke-test the bundle
         run: npm run build:mod && npm run smoke
       - name: build the installer
         run: npm run tauri -- build --bundles nsis
-        # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -249,9 +208,6 @@ jobs:
             src-tauri/target/release/bundle/nsis/loki_*_x64-setup.exe.sig
           if-no-files-found: error
 
-  # Linux: loki_<version>_amd64.AppImage, which is also its update file, and loki_<version>_amd64.deb, built on the
-  # oldest supported Ubuntu so they run on newer glibc too. The apt list is shell.yml's: the 22.04 names, no
-  # appindicator (the tray is Mac-only).
   linux:
     name: build Linux (${{ needs.version.outputs.version }})
     needs: [plan, version]
@@ -288,13 +244,10 @@ jobs:
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
-      # The bundle this build ships, started and asked what the app asks (scripts/smoke.ts): a broken one stops here,
-      # before anything is published.
       - name: smoke-test the bundle
         run: npm run build:mod && npm run smoke
       - name: build the AppImage and .deb
         run: npm run tauri -- build --bundles appimage,deb --verbose
-        # createUpdaterArtifacts is on, so the bundler signs the update file and refuses to build without the key.
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -311,9 +264,6 @@ jobs:
             src-tauri/target/release/bundle/deb/loki_*_amd64.deb
           if-no-files-found: error
 
-  # Everything goes out together or not at all: publish runs only when all three builds did, and only on main, so a run
-  # from a branch never touches a release or the `nightly` tag. Each step is safe to run again: a re-run finishes what
-  # the last run left (plan 096).
   publish:
     name: publish (${{ needs.version.outputs.version }})
     needs: [plan, version, macos, windows, linux]
@@ -341,10 +291,6 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      # latest.json from the builds' .sig files, the versioned files, then latest.json and the install scripts'
-      # unversioned copies (scripts/release.ts publish). A missing signature fails here, naming the platform, before
-      # anything is uploaded. It answers the .dmg the cask is made from: this build's, or the one a stable already went
-      # out with, since a rebuild is not the same file.
       - name: publish the release
         id: publish
         env:
@@ -358,10 +304,8 @@ jobs:
           SHA="$(sha256sum "${{ steps.publish.outputs.dmg }}" | cut -d' ' -f1)"
           npm run --silent cask -- "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
           cat cask.rb
-          # The cask rides along on the release too, so anyone can check what the tap carries.
           TAG="$([ "$KIND" = stable ] && echo "v$VERSION" || echo nightly)"
           gh release upload "$TAG" cask.rb --repo "$GITHUB_REPOSITORY" --clobber
-      # The nightly cask is deprecated but still pushed: one last brew upgrade brings its people a self-updating loki.
       - name: push the cask to the tap
         env:
           TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
@@ -383,8 +327,6 @@ jobs:
           if git diff --cached --quiet; then echo "tap already at $VERSION"; exit 0; fi
           git commit --quiet -m "loki ${KIND} ${VERSION}"
           git push --quiet origin main
-      # Only now that latest.json and the tap name this nightly's files are the earlier ones taken off the release:
-      # every file carrying another version, never latest.json or the unversioned copies.
       - name: remove the earlier nightlies' files
         if: env.KIND == 'nightly'
         env:

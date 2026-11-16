@@ -1,16 +1,4 @@
 #!/bin/sh
-# Installs the latest loki on a Mac with Apple silicon or on Linux, or updates it in place, then opens it. GitHub
-# Pages serves this file from site/public/ (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, KTD9):
-#
-#   curl -fsSL https://almondlabs.github.io/loki/install.sh | sh
-#   curl -fsSL https://almondlabs.github.io/loki/install.sh | sh -s -- --nightly
-#
-# It downloads the unversioned files every release carries, so it never asks GitHub's API anything. It touches only
-# the app: agents, chats and settings live in ~/.loki and are kept. loki then updates itself, and fetches its own
-# Node and git at Welcome, so this script installs neither.
-#
-# For tests: LOKI_DOWNLOAD_URL replaces https://github.com/AlmondLabs/loki/releases (a file:// URL works),
-# LOKI_APPLICATIONS_DIR replaces /Applications, and LOKI_NO_OPEN=1 leaves loki closed.
 set -eu
 
 releases_url="${LOKI_DOWNLOAD_URL:-https://github.com/AlmondLabs/loki/releases}"
@@ -20,7 +8,6 @@ say() {
   printf '%s\n' "$1"
 }
 
-# Every failure is what went wrong, then one line on what to do next.
 fail() {
   printf '%s\n%s\n' "$1" "$2" >&2
   exit 1
@@ -30,8 +17,6 @@ cleanup() {
   if [ -n "$tmp" ]; then rm -rf "$tmp"; fi
 }
 
-# True when a loki started from $1 is running. pgrep -f matches the path, so another program called loki (Grafana
-# Loki, say) doesn't count.
 running() {
   pgrep -f "$1" >/dev/null 2>&1
 }
@@ -111,7 +96,6 @@ fuse_command() {
   fi
 }
 
-# Puts the AppImage at ~/.local/share/loki/loki.AppImage, the path it updates itself at, with a menu entry and icon.
 install_linux() {
   data="${XDG_DATA_HOME:-$HOME/.local/share}"
   app="$data/loki/loki.AppImage"
@@ -127,7 +111,6 @@ install_linux() {
   if ! mv "$tmp/loki.AppImage" "$app"; then
     fail "Couldn't put loki in $data/loki." "Check that you can write to $data/loki, then run the line again."
   fi
-  # The icon is the AppImage's own, taken out without FUSE; without it the menu entry shows a generic one.
   icon_line=""
   mkdir "$tmp/icon"
   if (cd "$tmp/icon" && "$app" --appimage-extract .DirIcon </dev/null >/dev/null 2>&1); then

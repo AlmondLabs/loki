@@ -13,10 +13,8 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** The Tauri config the release builds from. */
 export const CONFIG = fileURLToPath(new URL("../src-tauri/tauri.conf.json", import.meta.url));
 
-/** What a check found: a problem for each file that fails, and a line for each that passes. */
 export interface KeyCheck {
   problems: string[];
   signed: string[];
@@ -40,17 +38,14 @@ function keyIdIn(file: string, what: string, length: number, algorithms: string[
   return Buffer.from(line.subarray(2, 10)).reverse().toString("hex").toUpperCase();
 }
 
-/** The key id of a public key as tauri.conf.json holds it. Throws when it is no minisign public key. */
 export function publicKeyId(pubkey: string): string {
   return keyIdIn(pubkey, "the public key", 42, ["Ed"]);
 }
 
-/** The id of the key that made a `.sig` file as the bundler writes it. Throws when it is no minisign signature. */
 export function signatureKeyId(sig: string): string {
   return keyIdIn(sig, "the signature", 74, ["Ed", "ED"]);
 }
 
-/** The pubkey in a Tauri config's text, or why there is none. */
 function pubkeyIn(configText: string): string {
   const config: unknown = JSON.parse(configText);
   const plugins = typeof config === "object" && config !== null && "plugins" in config ? config.plugins : undefined;
@@ -60,7 +55,6 @@ function pubkeyIn(configText: string): string {
   return pubkey;
 }
 
-/** Check each of `sigs` against the pubkey in the config at `configPath`, reading files through `read`. */
 export function checkUpdateKey(configPath: string, sigs: string[], read: (path: string) => string): KeyCheck {
   let expected: string;
   try {
@@ -91,7 +85,6 @@ export function checkUpdateKey(configPath: string, sigs: string[], read: (path: 
   return result;
 }
 
-// Run as a script (not imported by its test): check the files named on the command line.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { problems, signed } = checkUpdateKey(CONFIG, process.argv.slice(2), (path) => readFileSync(path, "utf8"));
   for (const line of signed) console.log(line);

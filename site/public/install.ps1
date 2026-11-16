@@ -1,16 +1,3 @@
-# Installs the latest loki on Windows, or updates it in place, then opens it. GitHub Pages serves this file from
-# site/public/ (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, KTD9):
-#
-#   irm https://almondlabs.github.io/loki/install.ps1 | iex
-#   $env:LOKI_CHANNEL = "nightly"; irm https://almondlabs.github.io/loki/install.ps1 | iex
-#
-# iex can't pass options, so Nightly is chosen with LOKI_CHANNEL; run as a file, the script also takes -Nightly. It
-# downloads the unversioned setup every release carries and runs it per user, with no administrator prompt. It
-# touches only the app: agents, chats and settings live in ~/.loki and are kept. loki then updates itself, and
-# fetches its own Node and git at Welcome, so this script installs neither.
-#
-# For tests: LOKI_DOWNLOAD_URL replaces https://github.com/AlmondLabs/loki/releases, and LOKI_NO_OPEN=1 leaves loki
-# closed.
 param([switch]$Nightly)
 
 # Run through iex, `exit` would close the person's PowerShell window, so failures return $false and the end of the
@@ -79,7 +66,6 @@ function Install-Loki {
     }
 
     Write-Host "Installing loki."
-    # /S runs the setup silently; it installs for this user only, so it needs no administrator.
     try {
       $process = Start-Process -FilePath $setup -ArgumentList "/S" -Wait -PassThru
     } catch {
@@ -91,7 +77,6 @@ function Install-Loki {
       return $false
     }
 
-    # The setup records where it put loki; a first install goes to %LOCALAPPDATA%\loki.
     $folder = Join-Path $env:LOCALAPPDATA "loki"
     $binary = "loki.exe"
     $key = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\loki" -ErrorAction SilentlyContinue

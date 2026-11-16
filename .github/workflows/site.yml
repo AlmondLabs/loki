@@ -1,7 +1,4 @@
 name: site
-# loki's website (plan 066), built from site/ and published to GitHub Pages on every merge to main that could change
-# it: the site itself, or the app's components and tokens it imports. Pages is switched on once in the repository's
-# settings (Pages › Source: GitHub Actions); until then the deploy step fails and nothing else does.
 on:
   push:
     branches: [main]
@@ -20,7 +17,6 @@ permissions:
   pages: write
   id-token: write
 
-# One publish at a time; a newer merge waits rather than cancelling one half way.
 concurrency:
   group: pages
   cancel-in-progress: false

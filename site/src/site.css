@@ -1,14 +1,8 @@
 @import "tailwindcss";
-/* The app's components use Tailwind utilities: scan them as well as the site. */
 @source "../../app/src";
 @source ".";
 @import "../../app/src/kit/tokens.css";
 @import "../../app/src/components/components.css";
-
-/*
- * loki's website (plan 066). It wears the app's own tokens, so it reads as the app does in light and dark, and
- * spends its emphasis on the two live demos. Layout only here; colours, radii and shadows are the app's.
- */
 
 html,
 body {
@@ -29,7 +23,6 @@ body {
   color: inherit;
 }
 
-/* The bar at the top: name, sections, download. */
 .site-nav {
   position: sticky;
   top: 0;
@@ -65,7 +58,6 @@ body {
   color: var(--loki-fg);
 }
 
-/* Buttons and links that lead somewhere. */
 .site-button {
   display: inline-flex;
   align-items: center;
@@ -93,7 +85,6 @@ body {
   color: var(--loki-accent) !important;
 }
 
-/* The hero: the words on the left, the live canvas on the right; stacked on a narrow screen. */
 .site-hero {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 8fr);
@@ -133,8 +124,6 @@ body {
   gap: 20px;
   margin-bottom: 20px;
 }
-/* The install lines: one per system in one box, the system's name above its line and copy button, so the line keeps
-   the box's whole width in the hero's narrow column. */
 .site-install-block {
   max-width: 100%;
   text-align: left;
@@ -197,7 +186,6 @@ body {
   color: var(--loki-muted);
 }
 
-/* A window around a live demo: the app's panel with the three dots of a title bar. */
 .site-window {
   position: relative;
   border: 1px solid var(--loki-border);
@@ -232,7 +220,6 @@ body {
   color: var(--loki-muted);
 }
 
-/* The hero's canvas: the app's dot grid under a fixed-size plane, scaled down to fit a narrow screen. */
 .site-canvas {
   position: relative;
   overflow: hidden;
@@ -271,7 +258,6 @@ body {
   color: var(--loki-fg);
 }
 
-/* A section: its words beside its demo. */
 .site-section {
   display: grid;
   grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
@@ -327,8 +313,6 @@ body {
   color: var(--loki-fg);
 }
 
-/* The Inbox demo: the app's Flow in a window of a fixed height, its list beside the selected card, as the app's columns
-   hold them. */
 .site-inbox-deck {
   position: relative;
   height: 620px;
@@ -397,7 +381,6 @@ body {
   }
 }
 
-/* The suggestions demo: the chat the suggestions were made in, and the chat the last one went to. */
 .site-suggest {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -478,7 +461,6 @@ body {
   justify-content: center;
 }
 .site-phone {
-  /* Always its real size (phone-demo.tsx PHONE); the demo scales it down as a whole, from the top. */
   --site-bezel: 11px;
   flex: none;
   width: calc(393px + 2 * var(--site-bezel));
@@ -502,10 +484,8 @@ body {
   background: var(--loki-bg);
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  /* The status bar below is the phone's top inset; the home indicator its bottom one. */
   --phone-safe-top: 0px;
 }
-/* The status bar: the time, the Dynamic Island, and the signal and battery. */
 .site-phone-status {
   flex: none;
   display: grid;
@@ -554,7 +534,6 @@ body {
   background: var(--loki-fg);
 }
 
-/* The Learn demo: the app's Learn views as its sidebar lists them, the view's list, and the deck or the item chosen. */
 .site-learn {
   display: flex;
   height: 560px;
@@ -590,7 +569,6 @@ body {
   color: var(--loki-muted);
 }
 
-/* What loki is built on: four short facts in a row. */
 .site-facts-section {
   max-width: var(--site-max);
   margin: 0 auto;
@@ -641,7 +619,6 @@ body {
   color: var(--loki-muted);
 }
 
-/* The closing call: the download again, for whoever read to the end. */
 .site-cta {
   max-width: var(--site-max);
   margin: 0 auto;
@@ -667,7 +644,6 @@ body {
     border-top: 1px solid var(--loki-border);
     min-height: 220px;
   }
-  /* A phone's width holds only the deck: the views and their list are the app's. */
   .site-learn-column,
   .site-learn-list {
     display: none;

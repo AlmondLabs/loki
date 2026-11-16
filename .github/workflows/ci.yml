@@ -1,9 +1,4 @@
 name: ci
-# The checks a PR must pass, on the PR only: GitHub tests its merge with main (refs/pull/N/merge), so the merge itself
-# is not tested again. A newer push to the PR cancels the run before it. Docs change nothing these check, so a PR
-# touching only them starts nothing (skills/loki/SKILL.md ships in the app and is not skipped). The Rust shell's tests are shell.yml, run when it changes.
-# Once a week it runs on main as well, with no PR: a runner GitHub retires or a main that went red between PRs shows
-# there within days (macos-14 was refused from 2026-11-06 and no one saw it for four days).
 on:
   pull_request:
     paths-ignore:
@@ -19,54 +14,42 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# bash on every system, Windows included (Git Bash on the hosted runner), so a step reads the same on all three.
 defaults:
   run:
     shell: bash
 
 jobs:
-  # What does not depend on the system, once: types, lint, the whole suite, the Node runner's tests, both builds.
   checks:
     name: types, lint, tests and bundles
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      # Everything runs on Node: the tests, the scripts and loki's daemon (22.19 or newer: node:sqlite, type stripping).
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
       - id: install
         run: npm ci
-      # Each check runs once the install did, whatever the one before it said: a lint error must not hide a failing
-      # test (it did, from 2026-10-09: Windows' tests went unrun behind lint).
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
-      # Prettier's layout, unarguable (docs/style.md §1): `npm run format` fixes what this reports.
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run format:check
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run lint
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
-      # Node's own test runner, for the tests that need it: a crash and resume, the mod folder's reloads (test-node/).
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:node
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:app
-      # The website imports the app's components (plan 066): a change that breaks it fails here, not after a merge.
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:site
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:mod
-      # The bundle people run, started in a scratch home: sign-in and agents across a restart
-      # (scripts/smoke.ts). Source tests passed while the bundle's sign-in was broken (2026.1011.1).
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         run: npm run smoke
 
-  # The suite on the Mac and Windows: paths, shells, processes and signals differ there (plan 014). fail-fast off: one
-  # system's failure must not hide the other's.
   tests:
     name: tests (${{ matrix.os }})
     strategy:
@@ -86,7 +69,6 @@ jobs:
         run: npm test
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:node
-      # The bundle on this system too: the keychain's native module, paths and process handling differ here.
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:mod

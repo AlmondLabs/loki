@@ -6,28 +6,18 @@ import { resolve, runAction } from "../../app/src/shell/keymap";
 import type { SuggestionSource } from "../../app/src/chat/suggestion-card";
 import { DEMO_AGENTS, DemoChats } from "./demo-chats";
 
-/** A demo move always goes: there is no account out there to refuse it. */
 const MOVED = { error: null, ask: false, rest: null };
 
-/**
- * The Inbox section's live deck: loki's own Flow (`FlowPlace`), its list beside the selected card, over the made-up
- * chats of demo-chats.ts. Keys work
- * while the deck has focus, through the app's own keymap, so arrows and letters do not steal the page's scrolling.
- */
 export function InboxDemo() {
   const [chats] = useState(() => new DemoChats());
   useEffect(() => () => chats.dispose(), [chats]);
   const items = useSyncExternalStore(chats.subscribe, chats.items);
   const all = useSyncExternalStore(chats.subscribe, chats.chats);
-  /** Each card's last move, so undo takes back exactly it. */
   const [lastMove] = useState(() => new Map<string, "read" | "later" | "archive">());
-  /** Bumped by "start over", so the deck opens a fresh visit over the reset chats. */
   const [visit, setVisit] = useState(0);
-  /** The demo's lane, kept for the page's life: its agent lanes switch the deck as the app's do. */
   const [lane, setLane] = useState<ResolvedLane | null>(null);
   const source = useMemo((): Parameters<typeof FlowPlace>[0]["chats"] => {
     const suggestions: Omit<SuggestionSource, "conversation"> = {
-      // Every chat, not only the Inbox's: a suggestion's chat may be mid-answer.
       items: all,
       agents: DEMO_AGENTS,
       listed: true,
@@ -38,12 +28,10 @@ export function InboxDemo() {
   }, [chats, all]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    // The keymap leaves plain letters and arrows to a focused reply box, as in the app.
     const binding = resolve(e.nativeEvent, "inbox");
     if (binding && runAction(binding.id)) e.preventDefault();
   };
 
-  // Flow draws its list and its detail into two slots, as the app's shell gives them (shell/place-columns.tsx).
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
   const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
 
