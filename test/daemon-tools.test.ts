@@ -18,7 +18,6 @@ import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
-/** A chat in `cwd` on a store with the given extensions; returns what each request sent and each tool result. */
 async function chatWith(cwd: string, extensions: Array<ReturnType<typeof fileToolsExtension>>, agent?: { id: string; name: string }) {
   const faux = fauxProvider();
   const models = createModels();
@@ -91,7 +90,6 @@ describe("grep when ripgrep cannot search all of the folder", () => {
       const out = JSON.stringify(await tool.execute({ pattern: "answer" }, api, ctx));
       expect(out).toContain("a.ts:1:export const answer = 42;");
       expect(out).toContain("some of it could not be searched");
-      // A pattern that is not a regular expression still fails, with ripgrep's reason.
       await expect(tool.execute({ pattern: "(" }, api, ctx)).rejects.toThrow();
     } finally {
       chmodSync(locked, 0o700);
@@ -124,7 +122,6 @@ describe("skills and project instructions", () => {
       const t = await chatWith(project, [skillsExtension(dir, globalDir)], { id: agentId, name: "Ada" });
       t.faux.setResponses([t.reply(fauxAssistantMessage("ok"))]);
       await (await t.chat.submit({ type: "input", content: "tea please" }, ctx)).wait(ctx);
-      // The section names each group's folder once (plan 094, KTD4); the file there is the skill, for `read`.
       const sent = (text: string) => JSON.stringify(text).slice(1, -1);
       expect(t.sent[0]).toContain(sent(`Your own, each at ${join(memoryRoot(dir, agentId), "skills", "<name>", "SKILL.md")}:\n- tea: brew tea properly`));
       expect(t.sent[0]).toContain(sent(`Global, each at ${join(globalDir, "<name>", "SKILL.md")}:\n- unslop: write plainly`));
@@ -144,12 +141,11 @@ describe("subagents", () => {
       const t = await chatWith(dir, [subagentExtension()]);
       t.faux.setResponses([
         t.reply(fauxAssistantMessage(fauxToolCall("subagent", { description: "count", prompt: "Count to three." }), { stopReason: "toolUse" })),
-        t.reply(fauxAssistantMessage("one, two, three")), // the helper
+        t.reply(fauxAssistantMessage("one, two, three")),
         t.reply(fauxAssistantMessage("The helper counted.")),
       ]);
       await (await t.chat.submit({ type: "input", content: "delegate" }, ctx)).wait(ctx);
       expect((await t.results())[0]).toContain("one, two, three");
-      // The helper's request offered no Agent tool.
       expect(t.sent[0]).toContain('"name":"subagent"');
       expect(t.sent[1]).toContain("Count to three.");
       expect(t.sent[1]).not.toContain('"name":"subagent"');

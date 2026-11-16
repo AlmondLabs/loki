@@ -25,9 +25,9 @@ describe("homebrew cask", () => {
     expect(rb).toContain('url "https://github.com/example/loki/releases/download/nightly/loki_#{version}_aarch64.dmg"');
     expect(rb).toContain('name "loki nightly"');
     expect(rb).toContain('conflicts_with cask: "example/loki/loki"');
-    expect(rb).toContain("skip"); // no livecheck against a rolling tag
+    expect(rb).toContain("skip");
     expect(rb).not.toContain("github_latest");
-    expect(rb).toContain('app "loki.app"'); // the same app, so the same zap list and caveat
+    expect(rb).toContain('app "loki.app"');
     expect(rb).not.toContain("depends_on formula");
     expect(() => renderCask({ owner: "example", version: "2026.9.28", sha256: sha, channel: "nightly" })).toThrow(/nightly version/);
     expect(() => renderCask({ owner: "example", version: "2026.1011.1-nightly.4821", sha256: sha })).toThrow(/version/);
@@ -35,10 +35,9 @@ describe("homebrew cask", () => {
 
   test("matches the app's floor and knows what loki leaves behind", () => {
     const rb = renderCask({ owner: "example", version: "2026.9.28", sha256: sha });
-    expect(rb).toContain("depends_on arch: :arm64"); // Apple silicon only: brew refuses an Intel Mac with its own message
+    expect(rb).toContain("depends_on arch: :arm64");
     expect(rb).toContain("depends_on macos: :ventura"); // tauri.conf.json: minimumSystemVersion 13.0; Homebrew 7 deprecates the ">= :ventura" string form
-    expect(rb).not.toContain("depends_on formula"); // the app fetches the Node its daemon runs on
-    // Everything loki keeps, and nothing of Letta's.
+    expect(rb).not.toContain("depends_on formula");
     for (const p of ["~/.loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
     expect(rb).not.toContain(".letta");
     expect(rb).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
@@ -49,7 +48,7 @@ describe("homebrew cask", () => {
     for (const channel of ["stable", "nightly"] as const) {
       const rb = renderCask({ owner: "example", version: channel === "stable" ? "2026.1116.0" : "2026.1116.0-nightly.4900", sha256: sha, channel });
       expect(rb, channel).toContain("  auto_updates true\n");
-      expect(rb, channel).toContain("xattr -dr com.apple.quarantine /Applications/loki.app"); // the first open still needs it
+      expect(rb, channel).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
       expect(rb.indexOf("auto_updates"), channel).toBeLessThan(rb.indexOf("conflicts_with")); // Homebrew's stanza order
     }
   });

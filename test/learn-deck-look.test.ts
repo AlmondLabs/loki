@@ -2,9 +2,6 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Plan 2026-11-15-1035, U8 (R13, R14): Learn's deck shows no key legend, Show Answer is the default button, and Delete is
-// the destructive one, apart from Edit and Open the Chat. Each key stays in its button's tooltip (Button `kbd`).
-
 const RECALL = join(import.meta.dirname, "..", "app", "src", "recall");
 const deck = readFileSync(join(RECALL, "recall.tsx"), "utf8");
 const parts = readFileSync(join(RECALL, "recall-parts.tsx"), "utf8");

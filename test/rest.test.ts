@@ -32,12 +32,9 @@ import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 import { moveRestFirst } from "../app/src/shared/rest-first.ts";
 
-/** Rest (core/attention/rest.ts, plans 026 and 065): Next on a card hides it, a stale one longer each time, until something new comes. */
-
 const MIN = 60_000;
 const H = 60 * MIN;
 const T0 = Date.parse("2026-10-20T09:00:00Z");
-/** A card with nothing new, its chat quiet for `quiet` ms at T0. */
 const stale = (id = "c1", quiet = 0) => attentionItem(id, { unread: false, status: "idle", last_message_at: new Date(T0 - quiet).toISOString() });
 const gap = (r: Rest | null, at = T0) => Date.parse(must(r, "a rest").until) - at;
 const DAY = 24 * H;
@@ -173,7 +170,6 @@ describe("later (plan 070, U4)", () => {
     const times = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, email: "2d" as const } };
     expect(laterMs(times, "email")).toBe(REST_LATER_CHOICES["2d"]);
     expect(laterMs(times, "chat")).toBe(DAY);
-    // The stored rest is an absolute time: it ends a day after the press, whatever the setting says now.
     expect(isResting(mail, before, T0 + DAY + MIN)).toBe(false);
     const next = must(
       restAfterLater({ ...mail, outside: { ...must(mail.outside, "facts"), newest_message_id: "m2" } }, before, T0, laterMs(times, "email")),
@@ -188,7 +184,6 @@ describe("later (plan 070, U4)", () => {
     const { kind: _, ...old } = rest;
     expect(isRest(old)).toBe(true);
     expect(isRest({ ...rest, kind: "snooze" })).toBe(false);
-    // What an older Mac checks: n, until, stamp and at, each of its own type.
     expect([typeof rest.n, typeof rest.until, typeof rest.stamp, typeof rest.at]).toEqual(["number", "string", "string", "string"]);
   });
 });
@@ -209,7 +204,6 @@ describe("read rests on an outside card (KTD10)", () => {
 });
 
 describe("the first rest moves to the daemon", () => {
-  /** A storage holding what the test puts in it. */
   const storage = (init: Record<string, string>) => {
     const data = new Map(Object.entries(init));
     return {
@@ -236,7 +230,6 @@ describe("the first rest moves to the daemon", () => {
     expect(local.data.has("loki.restFirst")).toBe(true);
     expect(moveRestFirst(null, (t) => sent.push(t) > 0, storage({}))).toBe(false);
     expect(sent).toEqual([]);
-    // A send that did not go keeps the choice here for the next push.
     expect(moveRestFirst(null, () => false, local)).toBe(false);
     expect(local.data.has("loki.restFirst")).toBe(true);
   });
@@ -247,11 +240,9 @@ describe("what ends a rest", () => {
     const card = stale();
     const rest = must(restAfterNext(card, undefined, false, T0), "a rest");
     expect(isResting(card, rest, T0 + 50 * MIN)).toBe(true);
-    // Opened and read: the card is the same card.
     expect(isResting({ ...card, viewedAt: new Date(T0 + MIN).toISOString() }, rest, T0 + 50 * MIN)).toBe(true);
     expect(isResting(card, rest, T0 + 61 * MIN)).toBe(false);
     expect(restState(card, rest, T0 + 61 * MIN)).toEqual({ resting: false, rung: 1, rested: true });
-    // The agent says something new (or the person sent something, which starts a turn): the rest is over, the rung 0.
     const moved = { ...card, lastAssistantText: "done" };
     expect(isResting(moved, rest, T0 + 5 * MIN)).toBe(false);
     expect(restState(moved, rest, T0 + 5 * MIN)).toEqual({ resting: false, rung: 0, rested: false });
@@ -313,7 +304,7 @@ describe("the mod keeps the rests", () => {
       const store = new SeenStore(join(dir, "attention.json"), { debounceMs: 0, now: () => now });
       const far: Rest = { n: 2, until: "2026-11-05T09:00:00.000Z", stamp: "s", at: now, kind: "later" };
       expect(store.rest("a1", "far", far)).toBe(true);
-      now = "2026-11-02T09:00:00.000Z"; // over a month since it was set, three days before it ends
+      now = "2026-11-02T09:00:00.000Z";
       expect(store.rest("a1", "c1", { n: 1, until: "2026-11-02T10:00:00.000Z", stamp: "s", at: now })).toBe(true);
       expect(store.restsAll()["a1/far"]).toEqual(far);
       store.flush();

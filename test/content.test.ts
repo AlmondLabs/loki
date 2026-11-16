@@ -35,7 +35,7 @@ describe("the question card's input (user_ask)", () => {
   test("buildQuestionAnswer fills answers keyed by question text, joining multi-select with commas", () => {
     const out = buildQuestionAnswer(input, { "Which db?": "Postgres", "Regions?": ["eu", "us"] });
     expect(out.answers).toEqual({ "Which db?": "Postgres", "Regions?": "eu, us" });
-    expect((out.questions as unknown[]).length).toBe(3); // the rest of the input rides along
+    expect((out.questions as unknown[]).length).toBe(3);
   });
 });
 
@@ -61,7 +61,7 @@ describe("environment note: only when the agent's picture would be wrong", () =>
     expect(first.text).toContain("via loki, on their Mac or a paired phone");
     const soon = environmentNote(first.told, { now: at(10, 29), desk: "Ledger", zone });
     expect(soon.text).toBeNull();
-    expect(soon.told.at).toBe(first.told.at); // the clock runs from the last note sent, not the last message
+    expect(soon.told.at).toBe(first.told.at);
   });
   test("30 minutes on, it comes back short: the time only", () => {
     const first = environmentNote(undefined, { now: at(10, 0), desk: "Ledger", zone, locale: "en-GB" });

@@ -1,14 +1,6 @@
 import type { Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai";
 import { keyedQueue } from "../core/serial.ts";
 
-/**
- * Model provider credentials in the system keychain (plan 017, U8, KTD10): one entry per provider under the service
- * "loki", holding pi-ai's credential (an API key, or a sign-in's tokens) as JSON, and an index entry naming the
- * providers that have one, since a keychain cannot be listed. pi-ai refreshes a sign-in's tokens through `modify`,
- * which runs one change at a time per provider, so a refresh and a new sign-in never overwrite each other.
- */
-
-/** Where secrets are kept: the keychain, or a map in tests. */
 export interface SecretBackend {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
@@ -18,7 +10,6 @@ export interface SecretBackend {
 const SERVICE = "loki";
 const INDEX = "providers";
 
-/** The system keychain (macOS Keychain, Windows Credential Manager, the Secret Service on Linux). */
 export async function keychain(): Promise<SecretBackend> {
   const { Entry } = await import("@napi-rs/keyring");
   return {
@@ -31,13 +22,8 @@ export async function keychain(): Promise<SecretBackend> {
   };
 }
 
-/**
- * pi-ai's credential store on a SecretBackend, the keychain in the daemon: a credential per provider plus the index
- * of providers, with changes queued one at a time per provider. Without a keychain, the daemon uses it over memorySecrets.
- */
 export class KeychainCredentials implements CredentialStore {
   private readonly backend: SecretBackend;
-  /** One change at a time per provider; the index has a queue of its own, which every provider's change joins. */
   private readonly serial = keyedQueue();
 
   constructor(backend: SecretBackend) {
@@ -102,7 +88,6 @@ export class KeychainCredentials implements CredentialStore {
   }
 }
 
-/** A map standing in for the keychain, for tests. */
 export function memorySecrets(): SecretBackend & { entries: Map<string, string> } {
   const entries = new Map<string, string>();
   return {

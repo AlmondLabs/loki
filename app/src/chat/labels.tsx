@@ -5,7 +5,6 @@ import { Icon } from "../shared/icons";
 import { LABELS_PER_CHAT, LABEL_COLORS, LABEL_MAX, chatLabels, labelName, type LabelView } from "../../../core/labels.ts";
 import { messageOf } from "../../../core/errors.ts";
 
-/** The palette, in core/labels.ts's order: a label's colour index picks one (tokens.css, `--loki-label-*`). */
 const LABEL_COLOR_VARS = [
   "var(--loki-label-0)",
   "var(--loki-label-1)",
@@ -17,13 +16,8 @@ const LABEL_COLOR_VARS = [
   "var(--loki-label-7)",
 ] as const;
 
-/** One colour of the palette by its index, for Preferences › Labels' swatches. */
 export const paletteColor = (index: number): string => LABEL_COLOR_VARS[index % LABEL_COLORS];
 
-/**
- * A label's colour: the one the daemon gave it (Preferences › Labels can change it), else one picked from its name
- * until the list arrives, so a chip never shows uncoloured.
- */
 export function labelColor(name: string, list: readonly LabelView[] | null): string {
   const known = list?.find((l) => l.name === name)?.color;
   if (known !== undefined) return LABEL_COLOR_VARS[known % LABEL_COLORS];
@@ -32,11 +26,6 @@ export function labelColor(name: string, list: readonly LabelView[] | null): str
   return LABEL_COLOR_VARS[hash % LABEL_COLORS];
 }
 
-/**
- * A chat's labels as chips: each its colour's dot and its name, on a faint tint of the colour. `max` shows that
- * many and then "+N"; `onPick` makes each a button (the header, where a click filters the sidebar). `dots` draws
- * only the colours, names in the tooltip (a sidebar row, where the title needs the room).
- */
 export function LabelChips({
   labels,
   list,
@@ -98,11 +87,6 @@ export function LabelChips({
   );
 }
 
-/**
- * The labels… picker's body (plan 022, R1), the same in the desktop's dialog and the phone's sheet: a field that
- * finds a label or names a new one, then the labels as a checklist (the chat's own first) and a row to create the
- * typed one. Enter takes the first match, or creates the label when none matches; each tick saves at once. A chat holds at most LABELS_PER_CHAT.
- */
 export function LabelEditor({
   current,
   list,
@@ -112,7 +96,6 @@ export function LabelEditor({
   current: readonly string[];
   list: readonly LabelView[] | null;
   touch?: boolean;
-  /** Save the chat's labels (the whole list); resolves to the daemon's error, or null when it took. */
   onChange: (labels: string[]) => Promise<string | null>;
 }) {
   const [query, setQuery] = useState("");
@@ -149,7 +132,6 @@ export function LabelEditor({
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
     e.preventDefault();
-    // A label that matches wins; a new one is made only when nothing does (its row still makes one on a click).
     const first = matches.at(0) ?? (canCreate ? typed : undefined);
     if (!first) return;
     if (!labels.includes(first)) toggle(first);
@@ -217,10 +199,6 @@ export function LabelEditor({
   );
 }
 
-/**
- * The desktop's labels… dialog for one chat, over the window (as Rename chat is): the editor, and Done. Mounted only
- * while open; the Sheet puts focus back where it was.
- */
 export function LabelsDialog({
   title,
   current,
@@ -251,10 +229,6 @@ export function LabelsDialog({
   return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
-/**
- * `/label` typed in a chat's box (plan 022, R1): `/label Client X` adds `client-x` to the chat's labels, creating it
- * if it is new; `/label` alone opens the picker, where there is one. Resolves to the daemon's error, or null.
- */
 export function labelCommand(
   args: string,
   current: readonly string[],

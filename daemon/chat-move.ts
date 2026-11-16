@@ -5,15 +5,6 @@ import type { SavedDraft, Suggestion } from "../core/frame-types.ts";
 import { BRANCH_KIND, type AgentStore, type ImportedEntry } from "./kernel/index.ts";
 import type { ScheduledTask } from "./schedule.ts";
 
-/**
- * Moving one chat to the Mac it now belongs on (plan 023, U9, KTD11): the Mac it lived on copies it out, the Mac it
- * moves to writes it into its own store under the same loki id, and only once that is done does the first Mac hide its
- * copy and stop its schedules. The chat's whole log goes, as pi-durable's entries (re-minted, compactions relinked),
- * with its title, folder, model, mode, labels, purpose line, saved draft and suggestions, its schedules and its passes'
- * cursors. Usage totals stay on the Mac they were spent on.
- */
-
-/** A chat as it travels between Macs. */
 export interface MovedChat {
   agent_id: string;
   conversation_id: string;
@@ -38,7 +29,6 @@ export interface MovedChat {
   cursors: Record<string, number>;
 }
 
-/** A chat's log, its info and what it runs with, out of the store it lives in; null when there is no such chat. */
 export async function exportChat(
   store: AgentStore,
   agentId: string,
@@ -83,17 +73,11 @@ export async function exportChat(
   };
 }
 
-/** The Macs a chat moved between, by name, for its mark and the agent's note (addendum A5). */
 export interface MoveNames {
   from: string;
   to: string;
 }
 
-/**
- * Write a moved chat into this Mac's store under its own id; false when a chat of that id is already here (a move tried
- * again). The hidden copy left by an earlier move away is set aside first, so a chat can come back (addendum A4). With
- * `names`, the thread is marked where it moved and the agent is told with the next message (addendum A5).
- */
 export async function importChat(store: AgentStore, moved: MovedChat, context: Context, names?: MoveNames, now = Date.now()): Promise<boolean> {
   const here = await store.chat(moved.conversation_id, context);
   if (here) {
@@ -105,8 +89,6 @@ export async function importChat(store: AgentStore, moved: MovedChat, context: C
     { title: moved.info.title, createdAt: moved.info.created_at, ...(Object.keys(moved.agent).length ? { agent: moved.agent } : {}) },
     context,
   );
-  // A chat written in part is set aside, hidden, as a chat that moved away is: left under its id, a retry of the move
-  // would find it "already here" and the other Mac would let go of the only whole copy.
   try {
     await store.importEntries(conversation, moved.entries, context);
     await store.updateChat(
@@ -136,7 +118,6 @@ export async function importChat(store: AgentStore, moved: MovedChat, context: C
   return true;
 }
 
-/** How many files the chat's messages carried that are not on this Mac: they stayed where they were attached. */
 function filesLeft(moved: MovedChat): number {
   const paths = new Set<string>();
   for (const e of moved.entries) for (const m of e.model ?? []) if (m.role === "user") for (const f of messageFiles(contentText(m.content))) paths.add(f.path);

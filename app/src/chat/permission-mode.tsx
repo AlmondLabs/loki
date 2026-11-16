@@ -4,13 +4,8 @@ import type { ChatEngineView } from "../../../core/models.ts";
 import type { ModelAndMode } from "./use-model-and-mode";
 import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 
-/**
- * The four permission modes loki's daemon knows, per conversation (daemon/approvals.ts). Set with chat_open { mode }
- * and kept on the chat by the daemon; read back from the chat's device event (live) or its desk info (the mod).
- */
 export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
 
-/** One mode the chip and menu offer: loki's own, or an ACP agent's (plan 020, KD10). `fill` is how full its shield is. */
 export interface ModeChoice {
   id: string;
   label: string;
@@ -19,7 +14,6 @@ export interface ModeChoice {
   fill: number;
 }
 
-/** The permission modes, from most asking to none, with the labels the mode menu and chip show. */
 export const MODES: Array<ModeChoice & { id: PermissionMode }> = [
   { id: "strict", label: "Strict", short: "strict", description: "asks before every tool, reads included", fill: 1 },
   { id: "standard", label: "Standard", short: "standard", description: "asks before edits and commands; reads run freely", fill: 0.6 },
@@ -27,13 +21,8 @@ export const MODES: Array<ModeChoice & { id: PermissionMode }> = [
   { id: "unrestricted", label: "Unrestricted", short: "no asking", description: "nothing asks — every tool runs", fill: 0 },
 ];
 
-/** A mode that lets everything run, which the chip shows in red so an open door is never quiet. */
 const isOpenDoor = (id: string) => id === "unrestricted" || /bypass/i.test(id);
 
-/**
- * An ACP agent's own modes as the chip and menu show them, in the agent's order and words (Claude Code's default,
- * acceptEdits, plan, bypassPermissions); a mode that lets everything run has an empty shield.
- */
 export function agentModes(engine: ChatEngineView): ModeChoice[] {
   return engine.modes.map((m) => ({
     id: m.id,
@@ -44,21 +33,17 @@ export function agentModes(engine: ChatEngineView): ModeChoice[] {
   }));
 }
 
-/** Whether a value names a permission mode. */
 export function isPermissionMode(v: unknown): v is PermissionMode {
   return v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted";
 }
 
-/** The mode's labels; an unknown or unset mode reads as unrestricted, the daemon's default (daemon/approvals.ts). */
 export const modeInfo = (m: PermissionMode | null | undefined) => MODES.find((x) => x.id === m) ?? MODES[3];
 
-/** The mode's labels among `modes` (an agent's); among loki's own when there are none. */
 function choiceOf(mode: string | null, modes: ModeChoice[] | undefined): ModeChoice {
   if (!modes) return modeInfo(isPermissionMode(mode) ? mode : null);
   return modes.find((m) => m.id === mode) ?? { id: mode ?? "", label: mode ?? "mode", short: mode ?? "mode", description: "", fill: 0.5 };
 }
 
-/** The chip: the mode's short name; red ink when nothing will ask, so an open door is never quiet. */
 export function ModeChip({
   mode,
   modes,
@@ -66,7 +51,6 @@ export function ModeChip({
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   mode: string | null;
-  /** An ACP agent's modes (agentModes); absent, loki's own four. */
   modes?: ModeChoice[];
   busy?: boolean;
 }) {
@@ -77,7 +61,6 @@ export function ModeChip({
       {...rest}
       style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined}
       title={`Permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
-      // The words on the chip come first, so the name holds what is seen (WCAG 2.5.3) and says the mode.
       aria-label={`${busy ? "changing…" : info.short}, permission mode${loud ? ", nothing asks" : ""}`}
       aria-busy={busy || undefined}
     >
@@ -90,7 +73,6 @@ export function ModeChip({
   );
 }
 
-/** The same shield, filled more the more the mode asks. */
 function Shield({ fill }: { fill: number }) {
   return (
     <svg width="10" height="11" viewBox="0 0 10 11" aria-hidden>
@@ -99,10 +81,6 @@ function Shield({ fill }: { fill: number }) {
   );
 }
 
-/**
- * The menu hung from the mode chip: a row with a line for each mode (loki's four, or the agent's own); ↑↓ / Enter / Esc,
- * or click. Only the phone draws the chip (the desktop picks the mode in ⌘K), so it is the phone's popover.
- */
 export function ModeMenu({
   trigger,
   open,
@@ -123,7 +101,6 @@ export function ModeMenu({
   side?: "below" | "above";
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  // loki's chats default to unrestricted (daemon/approvals.ts); an agent's to its first mode.
   const selected = current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
   const at = Math.max(
     0,
@@ -181,24 +158,17 @@ export function ModeMenu({
   );
 }
 
-/** A mode's name as a menu item says it, in title case ("Accept Edits"). */
 export const titleCase = (label: string) => label.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
 
-/** The mode a chat runs in: its own, else loki's default (unrestricted, daemon/approvals.ts) or its agent's first. */
 export function selectedMode(current: string | null, modes: ModeChoice[]): string | null {
   return current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
 }
 
-/**
- * The mode menu as data (plan 2026-11-12-1505, U19): each mode, the current one checked, for the system's menu in the
- * Mac app. The chip's tooltip says what the current one lets through.
- */
 export function modeMenuEntries(current: string | null, modes: ModeChoice[], onPick: (m: string) => void): MenuEntry[] {
   const selected = selectedMode(current, modes);
   return modes.map((m): MenuEntry => ({ type: "item", id: `mode-${m.id}`, label: titleCase(m.label), checked: m.id === selected, run: () => onPick(m.id) }));
 }
 
-/** The chip under the message box with its menu above it: the conversation's mode, loki's or its agent's. */
 export function ModeSwitch({ mode, modes, controls }: { mode: string | null; modes?: ModeChoice[]; controls: ModelAndMode }) {
   const native = NATIVE_MENUS;
   const chip = useRef<HTMLSpanElement>(null);
@@ -206,7 +176,6 @@ export function ModeSwitch({ mode, modes, controls }: { mode: string | null; mod
   useEffect(() => {
     latest.current = { mode, modes, controls };
   });
-  // In the Mac app the menu is the system's, from the chip, opened by a click or ⌘⇧P (U19).
   const open = native && controls.modeOpen;
   useEffect(() => {
     const el = chip.current;

@@ -1,14 +1,7 @@
 import { flag, list, rec, str, textArg, textList, type GoogleCall, type GoogleToolDef } from "./core.ts";
 
-/**
- * Sheets for scripts (plan 2026-11-11 scripts, U9): read ranges as values and formulas, and write ranges, answered
- * with what Sheets stored (R21), read back as both, so a script checks a formula and what it computes in one call.
- * Formatting and structure (`batchUpdate`) go through google_api.
- */
-
 const API = "https://sheets.googleapis.com/v4/spreadsheets";
 
-/** Ranges as Sheets holds them: each with its values as shown and, with formulas, what was typed in each cell. */
 async function readRanges(call: GoogleCall, spreadsheet: string, ranges: string[], formulas: boolean): Promise<Array<Record<string, unknown>>> {
   const fetchRender = async (render: "FORMATTED_VALUE" | "FORMULA") => {
     const params = new URLSearchParams({ valueRenderOption: render });
@@ -80,5 +73,4 @@ const write: GoogleToolDef = {
   },
 };
 
-/** The Sheets tools. */
 export const sheetsTools: GoogleToolDef[] = [read, write];

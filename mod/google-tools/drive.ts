@@ -2,32 +2,20 @@ import { basename } from "node:path";
 import type { GoogleAuth } from "../google-auth.ts";
 import { count, fileTypeOf, flag, listing, md5, optText, readInChat, rec, str, textArg, writeInChat, type GoogleCall, type GoogleToolDef } from "./core.ts";
 
-/**
- * Drive for scripts (plan 2026-11-11 scripts, U7): list, download or export to the chat's folder, upload from it, and
- * change files (folders, names, moves, copies, trash, delete). Every write answers with the file as Drive stored it,
- * and every transfer with its MD5 against Drive's own (R21).
- */
-
-/** Drive's API. */
 export const DRIVE = "https://www.googleapis.com/drive/v3";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
-/** The fields a file is answered with. */
 const FILE_FIELDS = "id,name,mimeType,parents,modifiedTime,size,md5Checksum,webViewLink,trashed";
 /** Above this a file goes up in a resumable upload, in one PUT after its session; below it, in one multipart POST. */
 const MULTIPART_MAX = 5 * 1024 * 1024;
-/** How long one transfer may take. */
 export const TRANSFER_MS = 5 * 60_000;
-/** What a Google-native file is exported as when the script names no type. */
 const EXPORTS: Record<string, string> = {
   "application/vnd.google-apps.document": "application/pdf",
   "application/vnd.google-apps.spreadsheet": "text/csv",
   "application/vnd.google-apps.presentation": "application/pdf",
   "application/vnd.google-apps.drawing": "image/png",
 };
-/** Every Drive call reaches shared drives too. */
 const ALL_DRIVES = { supportsAllDrives: "true" };
 
-/** A file as Drive answers it, trimmed to what a script uses. */
 export function fileOf(v: unknown): Record<string, unknown> {
   const f = rec(v);
   return {
@@ -43,17 +31,12 @@ export function fileOf(v: unknown): Record<string, unknown> {
   };
 }
 
-/** A file's metadata. */
 async function metadata(auth: GoogleAuth, id: string): Promise<Record<string, unknown>> {
   return rec(
     await auth.json({ service: "drive", method: "GET", url: `${DRIVE}/files/${encodeURIComponent(id)}`, query: { fields: FILE_FIELDS, ...ALL_DRIVES } }),
   );
 }
 
-/**
- * Put bytes in Drive as a new file, in `folder` when given, converted to a Google type when `convertTo` names one.
- * Answers with the stored file and whether its MD5 matches what was sent (a converted file has none to match).
- */
 export async function uploadToDrive(
   auth: GoogleAuth,
   input: { data: Uint8Array<ArrayBuffer>; name: string; mimeType: string; folder?: string; convertTo?: string },
@@ -152,7 +135,6 @@ const download: GoogleToolDef = {
   run: async (call) => saveDriveFile(call, textArg(call.args, "file"), textArg(call.args, "path"), optText(call.args, "export_as")),
 };
 
-/** A Drive file's bytes saved in the chat's folder, exported when it is a Google one, with its checksum against Drive's. */
 async function saveDriveFile(call: GoogleCall, id: string, path: string, exportAs: string | undefined): Promise<Record<string, unknown>> {
   const meta = await metadata(call.auth, id);
   const type = str(meta.mimeType);
@@ -252,7 +234,6 @@ const change: GoogleToolDef = {
             json: {},
           }),
         );
-        // A move keeps the file's bytes: its checksum is the one it had.
         return { ...moved, ...(typeof before.md5Checksum === "string" ? { md5_matches: moved.md5 === before.md5Checksum } : {}) };
       }
       case "copy": {
@@ -290,5 +271,4 @@ const change: GoogleToolDef = {
   },
 };
 
-/** The Drive tools. */
 export const driveTools: GoogleToolDef[] = [list, download, upload, change];

@@ -31,16 +31,8 @@ const RUNTIME_EVENT = "loki:runtime";
 /** How often the status is asked again until the daemon runs: the fallback for an event sent before the page listened. */
 const RECHECK_MS = 4000;
 
-/** Whether the daemon is running with nothing wrong, so the status needs no more asking. */
 const settled = (s: DaemonStatus | null) => !!s?.node && !s.error;
 
-/**
- * loki's daemon as the shell sees it: the Node it runs on, the download or the tools step before it, or why it could
- * not start. Outside the shell (a browser tab) there is nothing to report and `status` stays null. The shell's
- * `loki:runtime` events keep it current; until the daemon runs it is also asked every few seconds. `retry` (Welcome's
- * Try Again and Check Again) runs the shell's start sequence again; `installTools` asks macOS to install its command
- * line tools, and says what went wrong if it could not.
- */
 export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => Promise<void>; installTools: () => Promise<string | null> } {
   const [status, setStatus] = useState<DaemonStatus | null>(null);
   const waiting = inTauri && !settled(status);
@@ -97,10 +89,8 @@ export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => P
   return { status, retry, installTools };
 }
 
-/** Which Welcome step shows: `prepare` while the machine is readied, then the provider and the first agent. */
 export type WelcomeStep = "prepare" | "provider" | "agent";
 
-/** What `welcomeFor` reads of the link to the daemon (the attention model's fields of the same names). */
 export interface DaemonLink {
   status: string;
   agentsLoaded: boolean;
@@ -108,13 +98,6 @@ export interface DaemonLink {
   providers: ConnectProvider[] | null;
 }
 
-/**
- * The Welcome step to show, if any. While nothing answers and the shell is fetching the runtime, waiting for git or
- * could not start the daemon: `prepare`, and only that, so someone who finished Welcome before sees the download after
- * an update and then the app. Once the daemon answers, the provider and agent steps come from its state, and a machine
- * with agents gets none. Before the start sequence has said anything there is nothing to show, so a launch whose
- * runtime is in place goes straight in.
- */
 export function welcomeFor(daemon: DaemonStatus | null, link: DaemonLink): WelcomeStep | null {
   if (link.status !== "open") return daemon && (daemon.error ?? daemon.preparing ?? daemon.toolsMissing) ? "prepare" : null;
   return link.agentsLoaded ? welcomeStep({ agents: link.agents.length, providers: link.providers }) : null;

@@ -9,28 +9,16 @@ import { transform } from "esbuild";
 import { buildFrameHtml } from "./src/frame/build.ts";
 import { rewriteSharedImports } from "./src/frame/rewrite.ts";
 
-/**
- * The canvas dev server. The loki mod adopts or spawns it and passes its own
- * port as LOKI_PORT; the app reaches the mod through the /loki proxy so the
- * page has a single origin.
- */
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const modPort = process.env.LOKI_PORT ?? "41414";
 const { version, repository } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string; repository?: string };
-/** "owner/name": what the app asks GitHub about for newer releases (Preferences › About). */
 const repo = (repository ?? "")
   .replace(/^github:/, "")
   .replace(/^https?:\/\/github\.com\//, "")
   .replace(/\.git$/, "");
-/** The agent's widget files: user data outside the repo (the mod passes the same path). */
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
 
-/**
- * `/@loki-widget/<desk>/<name>.js` in the dev server: the Vite tab's twin of src-tauri/src/widgets.rs. The
- * widget's .tsx/.jsx, transpiled and with its shared imports pointed at the widget frame's copies. Same-origin
- * only (no CORS header): the page fetches it and hands the code to the widget's sandboxed frame.
- */
 async function widgetModule(rel: string): Promise<string | null> {
   if (rel.includes("..") || rel.startsWith("/") || rel.includes("\\") || rel.includes(":") || !rel.endsWith(".js")) return null;
   const stem = rel.slice(0, -3);
@@ -41,7 +29,6 @@ async function widgetModule(rel: string): Promise<string | null> {
       const out = await transform(readFileSync(file, "utf8"), { loader: ext, jsx: "automatic", format: "esm", target: "es2022", sourcefile: file });
       return rewriteSharedImports(out.code);
     } catch (err) {
-      // A compile error becomes a module that throws, so the frame shows it like a runtime error (as widgets.rs does).
       return `throw new Error(${JSON.stringify(`${file}: ${err instanceof Error ? err.message : String(err)}`)});`;
     }
   }
@@ -81,14 +68,12 @@ function compilerOptions() {
 
 export default defineConfig({
   root: here("."),
-  // The Tauri shell loads the built app from here (frontendDist in src-tauri/tauri.conf.json).
   build: {
     outDir: here("dist"),
     emptyOutDir: true,
   },
   plugins: [
     {
-      // Tailwind must scan the widgets dir for utilities, and Vite must hear about new files there.
       name: "loki:desks",
       enforce: "pre",
       transform(code, id) {
@@ -103,7 +88,6 @@ export default defineConfig({
       },
     },
     {
-      // The widget frame (app/src/frame/build.ts) and the widget modules it runs: served in dev, emitted in a build.
       name: "loki:widget-frame",
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
@@ -140,9 +124,6 @@ export default defineConfig({
         this.emitFile({ type: "asset", fileName: "widget-frame.html", source: await buildFrameHtml(true) });
       },
     },
-    // React Compiler: callbacks, JSX and derived values are memoised at build time, so a prop that is a fresh
-    // closure on every render no longer defeats a memo further down (the transcript once re-parsed a whole
-    // thread's markdown per keystroke that way). LOKI_COMPILER_LOG=1 lists what it declined to compile and why.
     react({ babel: { plugins: [["babel-plugin-react-compiler", compilerOptions()]] } }),
     tailwindcss(),
   ],
@@ -153,13 +134,10 @@ export default defineConfig({
     alias: { "@loki/kit": here("./src/kit/index.tsx"), "@": here("./src") },
   },
   server: {
-    // Not the widgets folder: widget code reaches the page only through /@loki-widget/, into a sandboxed frame.
     fs: { allow: [here("..")] },
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
-    // A broken widget file must not take the whole desk down: errors show inside
-    // the widget's frame and reach the agent; Vite's full-page overlay stays off.
     hmr: { overlay: false },
     proxy: {
       "/loki": {

@@ -1,10 +1,3 @@
-/**
- * A Gmail mailbox that changes, behind an injected fetch (plan 067, U5): messages with labels and dates, a history
- * that records each delivery and label change, a search that understands the parts of Gmail's query the watcher sends
- * (`is:unread`, `in:inbox`, `after:` and `before:` in seconds), threads, label changes by message both ways, and the account's labels. A thread named in `state.unreadable` answers 400, and every label change answers 403 with `state.refuseModify` while it is set. Any bearer token is taken:
- * test/fixtures/gmail.ts covers the tokens; this covers what the mailbox holds. Every request is recorded.
- */
-
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const PAGE = 100;
 
@@ -24,7 +17,6 @@ interface HistoryEntry {
   labelsRemoved?: Array<{ message: { id: string; threadId: string; labelIds: string[] }; labelIds: string[] }>;
 }
 
-/** The labels every mailbox answers with: Gmail's own and two the person made. */
 const LABELS = [
   { id: "INBOX", name: "INBOX", type: "system" },
   { id: "UNREAD", name: "UNREAD", type: "system" },
@@ -33,7 +25,6 @@ const LABELS = [
   { id: "Label_2", name: "Travel", type: "user" },
 ];
 
-/** A mail to deliver: its thread, when it came, and its headers; INBOX and UNREAD unless `labels` says otherwise. */
 export interface Delivery {
   thread: string;
   at: Date;
@@ -46,7 +37,6 @@ export interface Delivery {
   labels?: string[];
 }
 
-/** A mailbox for `email`, with its send-as aliases. */
 export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
   const email = opts.email ?? "ada@acme.com";
   const messages = new Map<string, Stored>();
@@ -135,7 +125,6 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       return json(200, { messages: found.slice(from, from + PAGE).map((m) => ({ id: m.id, threadId: m.threadId })), ...(next ? { nextPageToken: next } : {}) });
     }
     if (path === "/threads" && q.get("labelIds") === "INBOX") {
-      // The inbox's threads, newest first by their newest message, as Gmail lists them (plan 088).
       const newest = new Map<string, number>();
       for (const m of messages.values()) newest.set(m.threadId, Math.max(newest.get(m.threadId) ?? 0, m.at));
       const inbox = [...new Set([...messages.values()].filter((m) => m.labels.has("INBOX")).map((m) => m.threadId))].sort(
@@ -177,7 +166,6 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
     fetch: fetchFn,
     requests,
     state,
-    /** A mail arrives; returns its id. */
     deliver(d: Delivery): string {
       const id = `m${String(++state.seq).padStart(5, "0")}`;
       const headers: Record<string, string> = { From: d.from, Subject: d.subject ?? "hello", ...d.headers };
@@ -195,28 +183,22 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       history.push({ id: ++state.historyId, messagesAdded: [{ message: view(m) }] });
       return id;
     },
-    /** The person reads (or archives, with INBOX) a thread in Gmail itself. */
     removeLabels: (thread: string, labels: string[]) =>
       removeLabels(
         [...messages.values()].filter((m) => m.threadId === thread).map((m) => m.id),
         labels,
       ),
-    /** The person moves a thread's mail back into the inbox, or labels it, in Gmail itself. */
     addLabels: (thread: string, labels: string[]) =>
       addLabels(
         [...messages.values()].filter((m) => m.threadId === thread).map((m) => m.id),
         labels,
       ),
-    /** Gmail forgets the history so far: a history call from before now answers 404. */
     expireHistory: () => {
       state.oldestHistoryId = ++state.historyId;
       history.length = 0;
     },
-    /** The mailbox's newest history id, as its profile says it. */
     historyId: () => String(state.historyId),
-    /** How many inbox listings loki asked for (plan 088), so a test can tell a tick that listed from one that did not. */
     inboxListings: () => state.inboxListings,
-    /** One message's labels, sorted. */
     labelsOfMessage: (id: string) => [...(messages.get(id)?.labels ?? [])].sort(),
     labelsOf: (thread: string) => [...new Set([...messages.values()].filter((m) => m.threadId === thread).flatMap((m) => [...m.labels]))].sort(),
   };

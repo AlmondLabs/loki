@@ -37,32 +37,21 @@ function WidgetBody({
   return <Kit data={data} onSet={onSet} />;
 }
 
-/** How long the Desk tab's layout takes to settle (the sidebar hides, the canvas widens) before a frame request is framed. */
 const FRAME_SETTLE_MS = 120;
 
 interface SurfaceProps extends DeskConversationHandlers {
   desk: ReturnType<typeof useDesk>;
   catchUp: ReturnType<typeof useAttention>;
-  /** The desk's conversation (useDeskChat), shared with the Messages tab. */
   chat: DeskChatModel;
-  /**
-   * The Desk tab is on screen. While it is not, the sheet stays mounted but its chat panel is not drawn
-   * (the Messages tab has the box), an empty desk does not open its chat, and the sheet's keys stand down.
-   */
   active?: boolean;
-  /** The desk's draft, the same one the Messages tab edits. */
   draft?: ControlledDraft;
-  /** Frame one widget once the tab has settled (a widget row in the thread asks; see desk/pane.ts). */
   frameRequest?: FrameRequest | null;
   chatOpen: boolean;
   onChatOpen: (open: boolean) => void;
   chatWidth: ChatWidth;
   onChatWidth: (w: ChatWidth) => void;
-  /** Where the panel sits; the shell owns it (⌘← / ⌘→) and centres it on an empty desk. */
   chatPlacement: ChatPlacement;
-  /** Bumped by the shell to put the caret in the message box. */
   focusChat: number;
-  /** Bumped by the shell (⌘F) to open the chat's find bar. */
   findChat?: number;
   chatPrefill?: { text: string; tick: number } | null;
   models?: ModelEntry[] | null;
@@ -71,18 +60,10 @@ interface SurfaceProps extends DeskConversationHandlers {
   suggestionsTick?: number;
 }
 
-/**
- * The desk view: the sheet edge to edge, the chat stacked on the left over it. The chat's
- * rectangle is a viewport inset — every framing move (fit all, focus, camera glides) centres
- * in the uncovered part, and opening, closing or widening the chat slides the sheet by the
- * difference so what you were looking at stays in view.
- */
 export function Surface(props: SurfaceProps) {
   const { desk, chat, chatOpen, onChatOpen, chatWidth, onChatWidth, chatPlacement, active = true, frameRequest = null } = props;
   const { scope, agentName, connection, visible, closed, ownCount, loaded, gesture, measure, arrange, trash, reportWidgetError, cameraTarget } = desk;
 
-  // An empty desk on its Desk tab is a conversation, not a canvas: the chat opens by itself (the shell
-  // centres it). Not while the Messages tab shows: a hidden chat is neither opened nor centred.
   const autoOpened = useRef(new Set<string>());
   const emptyDesk = loaded && connection === "open" && ownCount === 0;
   const openChat = useEffectEvent(() => onChatOpen(true));
@@ -99,8 +80,6 @@ export function Surface(props: SurfaceProps) {
   const { insetRef, bubbleSide, trayLeft } = useChatInset({ chatOpen, chatPlacement, chatWidth, viewportRef, loaded, scope });
   const { highlighted, focusWidget } = useCamera({ viewportRef, insetRef, visible, gesture, cameraTarget, arrange, undo: desk.undo, active });
 
-  // A frame request (a widget row chosen in the thread): once the Desk tab shows and its layout has settled
-  // (the sidebar hides, so the canvas is wider than it was), frame the widget; it may mount a beat later.
   const framed = useRef(0);
   const frameNonce = frameRequest?.nonce;
   const frameWidgetId = frameRequest?.widgetId;
@@ -109,7 +88,6 @@ export function Surface(props: SurfaceProps) {
     if (!active || frameNonce === undefined || frameWidgetId === undefined || frameNonce === framed.current) return;
     const widgetId = frameWidgetId;
     const nonce = frameNonce;
-    // One timer, cleared on the way out: the first look after the settle, then every 100ms for two seconds.
     const started = Date.now();
     const timer = setInterval(() => {
       const waited = Date.now() - started;
@@ -163,7 +141,6 @@ export function Surface(props: SurfaceProps) {
       <ConnectionLabel connection={connection} left={trayLeft} />
       <MinimisedTray closed={closed} connection={connection} left={trayLeft} gesture={gesture} />
 
-      {/* Keyed by chat, as the Messages tab's thread is: another chat opens with its own scroll and find, not this one's. */}
       {chatOpen && active && <DeskChat key={props.desk.scope} {...props} chat={chat} onToggleWidth={toggleChatWidth} />}
       {!chatOpen && <ChatBubble side={bubbleSide} open={chatOpen} alert={!!pendingApproval || !!pendingQuestion} onToggle={() => onChatOpen(!chatOpen)} />}
 
@@ -172,7 +149,6 @@ export function Surface(props: SurfaceProps) {
   );
 }
 
-/** While the socket is not open: a small label where the tray would be. */
 function ConnectionLabel({ connection, left }: { connection: ReturnType<typeof useDesk>["connection"]; left: number }) {
   if (connection === "open") return null;
   return (
@@ -182,7 +158,6 @@ function ConnectionLabel({ connection, left }: { connection: ReturnType<typeof u
   );
 }
 
-/** Minimised widgets as chips along the bottom; a click restores one. */
 function MinimisedTray({
   closed,
   connection,
@@ -199,7 +174,6 @@ function MinimisedTray({
     <div
       onPointerDown={(e) => e.stopPropagation()}
       className="flex flex-wrap items-center gap-2"
-      // Moved by transform as the chat opens or closes beside it, so the move never lays the sheet out again.
       style={{
         position: "absolute",
         bottom: 16,
@@ -222,7 +196,6 @@ function MinimisedTray({
   );
 }
 
-/** The first-run hint over a desk with nothing on it and the chat closed. */
 function EmptyDesk({ show, agentName, scope }: { show: boolean; agentName: string | null; scope: string }) {
   if (!show) return null;
   return (
@@ -237,7 +210,6 @@ function EmptyDesk({ show, agentName, scope }: { show: boolean; agentName: strin
   );
 }
 
-/** The desk's chat window, wired to the conversation model and the shell's model and mode switchers. */
 function DeskChat({
   chat,
   onToggleWidth,

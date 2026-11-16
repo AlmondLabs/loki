@@ -14,22 +14,13 @@ interface Rt {
   conversation_id: string;
 }
 
-/** What the shell does for a chat's conversation that the pane cannot: load the models, and switch the chat's model or permission mode through the daemon. */
 export interface DeskConversationHandlers {
   onLoadModels?: () => void;
-  /** Open the chat's labels… picker (`/label` with no name); left out, `/label` alone says to name one. */
   onOpenLabels?: () => void;
-  /** Switch this desk's conversation to a model; the shell talks to the daemon. */
   onPickModel?: (scope: string, rt: Rt, selection: ModelSelection) => Promise<void>;
-  /** Set this desk's conversation permission mode; the shell talks to the daemon. */
   onPickMode?: (scope: string, rt: Rt, mode: string) => Promise<void>;
 }
 
-/**
- * The desk's conversation as the shared Conversation takes it: what it looks like and what can be done to
- * it. One builder for both views of a desk (the Messages tab and the Desk tab's inset), so they never drift.
- * `rows` come from the view that draws them (useThreadRows), so a streamed piece redraws only that view.
- */
 export function deskConversation(
   desk: ReturnType<typeof useDesk>,
   catchUp: ReturnType<typeof useAttention>,
@@ -41,7 +32,6 @@ export function deskConversation(
   const { deskRuntime, deskChat, pendingApproval, pendingQuestion } = chat;
   const row = desk.desks.list.find((d) => d.scope === scope);
   const view: ConversationView = {
-    // Undefined until the first page came: the thread says it is loading, or that it could not (plan 041).
     rows,
     status: deskChat?.status ?? "idle",
     error: !attention.available ? "chat needs loki's daemon — is it running?" : (deskChat?.error ?? null),
@@ -69,7 +59,6 @@ export function deskConversation(
     },
     commands: catchUp.commands,
     onCommand: (id, args) => {
-      // loki's own commands are keymap actions; everything else is the daemon's, run for this conversation.
       const local = LOKI_COMMANDS.find((c) => c.id === id);
       if (id === "label" && deskRuntime) {
         const current = desk.desks.list.find((d) => d.scope === scope)?.labels ?? [];
@@ -88,7 +77,6 @@ export function deskConversation(
   return { view, actions };
 }
 
-/** A chat's labels saved through loki's daemon, then the desks list asked for again so every chip shows them. */
 export async function saveLabels(desk: ReturnType<typeof useDesk>, catchUp: ReturnType<typeof useAttention>, rt: Rt, labels: string[]): Promise<string | null> {
   const err = await catchUp.labels.set(rt, labels);
   if (!err) desk.desks.request();

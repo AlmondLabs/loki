@@ -17,43 +17,20 @@ import { createHash } from "node:crypto";
 import type { JobName, PassSettings, PassState } from "./passes-state.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * Background passes (plan 018): reflection and Learn are two jobs on one runner, the same process with different
- * objectives. Once a minute the runner looks over the person's chats; a chat that has been quiet for half an hour,
- * and holds new material past a job's cursor, is due for that job (reflection also takes a chat whose context was
- * just compacted, without the wait). A run takes every due chat of one agent at once, each chat's new stretch as its
- * own labelled part, so a job sees what recurs or conflicts across conversations rather than one at a time. An agent
- * gets at most one batch per BATCH_EVERY_MS for a job, so more chats gather into each, unless a chat was compacted or
- * the last batch left chats for later. Runs go one at a time across all agents, each as the agent itself in that
- * job's hidden chat for the agent, cleared first. Cursors stay per chat and move only when the run succeeds. A job
- * brings only its instructions, its tools, what it asks, and what it does with the answer. Each run is one
- * `pass_finished` event; its turn is a `turn_finished` like any other. The memory review (/doctor, daemon/doctor.ts)
- * reads memory rather than chats, but goes through the same queue and the same hidden-chat run.
- */
-
-/** A memory review's result: how it ended, what it changed, and its report for the person. */
 export interface DoctorResult {
   outcome: RunOutcome;
   changes: number;
   report: string;
 }
 
-/** How long a chat must be quiet before a job reads it. */
 export const QUIET_MS = 30 * 60_000;
-/** How often the runner looks for chats to read. */
 export const SWEEP_MS = 60_000;
-/** New transcript text shorter than this is not worth a model call: a thanks, an acknowledgement. The cursor moves on. */
 export const MIN_NEW_CHARS = 300;
-/** The most of one chat's stretch a run reads: its oldest part, up to an entry's end; the rest is the next run's. */
 export const MAX_MATERIAL_CHARS = 24_000;
-/** The most a batch reads across its chats; a chat whose stretch does not fit whole waits for the next batch. */
 export const MAX_BATCH_CHARS = 80_000;
-/** An agent's batches for a job are at least this far apart, so chats gather into each (not after a compaction). */
 export const BATCH_EVERY_MS = 2 * 60 * 60_000;
-/** The longest a run may take before its pass chat is stopped and the run counted as failed. */
 export const RUN_TIMEOUT_MS = 10 * 60_000;
 
-/** One chat's new stretch in a run: its transcript from the job's cursor up to `lines`. */
 export interface PassPart {
   chatId: string;
   title: string | null;
@@ -62,47 +39,36 @@ export interface PassPart {
   from: number;
   lines: number;
 }
-/** A run's material: one agent's due chats, each a part, and all of them as one labelled text (batchText). */
 export interface PassInput {
   agentId: string;
   agentName: string | null;
-  /** The agent's memory repo, for a job that reads it directly (reflection's clashes between Macs, plan 023). */
   memoryRoot?: string;
   parts: PassPart[];
   material: string;
   now: Date;
 }
 
-/** The parts as one text: each chat in its own tag, named and numbered, so the job can tell them apart and cite them. */
 export function batchText(parts: readonly PassPart[]): string {
   return parts.map((p, i) => `<conversation n="${i + 1}"${p.title ? ` title=${JSON.stringify(p.title)}` : ""}>\n${p.material}\n</conversation>`).join("\n\n");
 }
-/** What the agent did in a run's hidden chat: the text of its last message that had any, and the names of the tools it called, in order. */
 export interface PassAnswer {
   text: string;
   toolCalls: string[];
 }
-/** What a run did: `items` counts what it wrote by kind; `capped` keeps the cursor for another day. */
 export interface PassResult {
   items: Record<string, number>;
   capped?: boolean;
 }
 
-/** One background job (reflection, Learn) as the runner sees it: its hidden chat, what the agent runs with there, what it asks of a batch and what it does with the answer. The runner does the rest. */
 export interface PassJob {
   name: JobName;
-  /** The job's hidden chat for an agent; its prefix is how the rest of loki knows it (memory.ts, telemetry, the mod). */
   chatId(agentId: string): string;
   title: string;
   instructions: string;
   tools(registry: Registry): ReadonlyArray<{ name: string }>;
-  /** Reflection reads a just-compacted chat without waiting for it to go quiet. */
   onCompaction?: boolean;
-  /** Reflection reads the calls that failed, and the one that fixed each (plan 036); Learn reads words only. */
   failedCalls?: boolean;
-  /** Whether the job can run today at all (Learn: room left under the day's cap). */
   open?(settings: PassSettings, now: Date): boolean;
-  /** What to ask, or null when the material holds nothing this job wants (the cursor moves on). */
   prompt(input: PassInput): Promise<string | null> | string | null;
   apply(input: PassInput, answer: PassAnswer): Promise<PassResult> | PassResult;
 }
@@ -115,22 +81,10 @@ interface Deps {
   backendDir: string;
   context: Context;
   jobs: readonly PassJob[];
-  /** Whether a chat has a turn running (its LiveDoc, daemon/chat-backend.ts). */
   busy(agentId: string, chatId: string): Promise<boolean>;
-  /**
-   * Whether the agent's model can be reached, so a pass can run on it. An agent whose chats all run on an ACP agent,
-   * for someone with no provider set up, has none (plan 020, KD6): its passes wait quietly rather than failing.
-   * Absent, every model is taken as reachable.
-   */
   canRun?(model: string): Promise<boolean>;
-  /**
-   * Where a pass runs when the agent's model cannot be reached (plan 061): on the agent's ACP agent (Claude Code,
-   * Cursor), when it has one and the person has not turned this off. Absent, such an agent's passes are skipped.
-   */
   acp?: {
-    /** The engine of the agent's newest chat on an ACP agent, or null when it has none loki can run. */
     engineFor(agentId: string): Promise<ChatEngine | null>;
-    /** One pass turn there: the agent's last words, and the loki tools it ran. */
     ask(agentId: string, engine: ChatEngine, spec: PassSpec & { timeoutMs: number }): Promise<PassAnswer>;
   };
   capture?(event: string, properties: Record<string, unknown>): void;
@@ -142,7 +96,6 @@ interface Deps {
   batchEveryMs?: number;
 }
 
-/** What a pass asks in its hidden chat: the chat, its instructions and tools, and the prompt. */
 export interface PassSpec {
   chatId: string;
   title: string;
@@ -152,22 +105,15 @@ export interface PassSpec {
   requestId: string;
 }
 
-/** Where a pass runs: loki's engine on the agent's model, or the agent's ACP agent when that model is out of reach. */
 type PassEngine = { kind: "loki" } | { kind: "acp"; engine: ChatEngine };
 
-/** How a run ended: it wrote something, wrote nothing, hit Learn's cap (cursors stay), failed (tried again after a quiet spell), or was skipped (already queued, or its chats busy). */
 export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped";
 
-/** The background passes' runner: sweeps for due chats, queues one run at a time, and keeps the cursors in PassState; the memory review goes through it too (`runDoctor`). */
 export class PassRunner {
   private readonly deps: Deps;
-  /** Runs waiting their turn, each under the keys it holds while queued or running (a job's chats, a review's agent). */
   private readonly queue: Array<{ keys: string[]; work: () => Promise<void> }> = [];
-  /** Queued or running, by job and chat: a sweep during a run does not queue it again. */
   private readonly queued = new Set<string>();
-  /** A run that failed waits a quiet spell before it is tried again, so a broken model is not asked every minute. */
   private readonly failedAt = new Map<string, number>();
-  /** When each agent's last batch for a job started, and which left chats for later (those go without the wait). */
   private readonly lastBatch = new Map<string, number>();
   private readonly backlog = new Set<string>();
   private draining: Promise<void> | null = null;
@@ -201,18 +147,15 @@ export class PassRunner {
     this.timer = null;
   }
 
-  /** The person's chats: not hidden (a pass's own chats among them), not a helper's. */
   private chats() {
     return this.deps.chats
       .list()
       .filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isDoctorChat(row.conversationId) && !isWriterChat(row.conversationId));
   }
 
-  /** One look over every chat: queue a batch for each agent with chats due, then work the queue. */
   async sweep(): Promise<void> {
     const settings = this.deps.state.settings();
     const now = this.now();
-    // Oldest first: the chat that has waited longest is read first, and is first in its batch.
     const rows = this.chats().sort((a, b) => (a.lastMessageAt ?? "").localeCompare(b.lastMessageAt ?? ""));
     for (const job of this.deps.jobs) {
       if (!settings[job.name].enabled) continue;
@@ -250,10 +193,6 @@ export class PassRunner {
     return compacted ? "compacted" : "quiet";
   }
 
-  /**
-   * Queue a batch; resolves with its outcome, or "skipped" when every chat in it is already queued or running: a chat
-   * is in one batch at a time, and a batch takes only the chats not already in another.
-   */
   private enqueue(job: PassJob, agentId: string, chatIds: string[], force: boolean): Promise<RunOutcome> {
     const fresh = chatIds.filter((c) => !this.queued.has(`${job.name}\u0000${agentId}\u0000${c}`));
     if (!fresh.length) return Promise.resolve("skipped");
@@ -263,16 +202,14 @@ export class PassRunner {
     );
   }
 
-  /** Put a run in the queue under its keys; it resolves with the run's own result once its turn has come and gone. */
   private schedule<T>(keys: string[], work: () => Promise<T>): Promise<T> {
     for (const k of keys) this.queued.add(k);
     return new Promise<T>((resolve, reject) => this.queue.push({ keys, work: () => work().then(resolve, reject) }));
   }
 
-  /** Work the queue, one run at a time; a second caller waits on the same pass through it. */
   private drain(): Promise<void> {
     this.draining ??= (async () => {
-      await Promise.resolve(); // `draining` is set before the loop can end and clear it
+      await Promise.resolve();
       try {
         for (let next = this.queue.shift(); next; next = this.queue.shift()) {
           try {
@@ -282,27 +219,18 @@ export class PassRunner {
           }
         }
       } finally {
-        // Cleared in the same step the loop ends, so a run queued after it starts a new pass rather than waiting.
         this.draining = null;
       }
     })();
     return this.draining;
   }
 
-  /**
-   * Run a job on a chat now (`/reflect`, Learn's "Run now"): whether the job is on or not, and without the quiet
-   * wait, but never while the chat is busy, and in the same queue as every other run.
-   */
   async runNow(name: JobName, agentId: string, chatId: string): Promise<RunOutcome> {
     const outcome = this.enqueue(this.job(name), agentId, [chatId], true);
     await this.drain();
     return outcome;
   }
 
-  /**
-   * "Run now" over every chat a job has new material in: Learn's button, which names no chat. Each agent's chats go
-   * in batches, round after round until none has anything new left (a busy chat is left for the sweep).
-   */
   async runAllNow(name: JobName): Promise<void> {
     const job = this.job(name);
     for (let round = 0; round < 20; round++) {
@@ -320,7 +248,6 @@ export class PassRunner {
     }
   }
 
-  /** What a batch reads: each chat's stretch in order, within MAX_BATCH_CHARS; a busy chat, or one that does not fit, waits. */
   private async gather(job: PassJob, agentId: string, chatIds: string[], agentName: string | null, force: boolean) {
     const { state } = this.deps;
     const parts: PassPart[] = [];
@@ -328,7 +255,6 @@ export class PassRunner {
     let busy = false;
     let leftover = false;
     for (const chatId of chatIds) {
-      // The chat may have woken while the run waited its turn: it waits for the next sweep, its cursor where it was.
       if (await this.deps.busy(agentId, chatId)) {
         busy = true;
         continue;
@@ -340,12 +266,11 @@ export class PassRunner {
         state.setCursor(job.name, agentId, chatId, stretch.lines);
         continue;
       }
-      // Whole or not at all: a stretch cut to fit what is left of the batch would move its cursor past unread text.
       if (stretch.transcript.length > room && parts.length) {
         leftover = true;
         continue;
       }
-      if (stretch.lines < this.deps.chats.answers(chatId, agentId, 0).entries) leftover = true; // more than one run reads
+      if (stretch.lines < this.deps.chats.answers(chatId, agentId, 0).entries) leftover = true;
       room -= stretch.transcript.length;
       parts.push({
         chatId,
@@ -384,7 +309,6 @@ export class PassRunner {
     };
     try {
       const record = readLocalAgent(agentId, this.deps.backendDir);
-      // Nothing to run on: nothing to report or retry, and nothing read (the cursors stay for when there is one).
       const on = await this.engineFor(agentId, record?.model ?? "");
       if (!on) return "skipped";
       const agentName = record?.name ?? null;
@@ -401,7 +325,6 @@ export class PassRunner {
         return finish("nothing");
       }
       // The pass chat is reset, not recreated, and pi-durable answers a repeated request id with the old submission:
-      // each attempt gets its own id, so a retry (or Learn's capped stretch the next day) is really asked again.
       const which = createHash("sha256")
         .update(parts.map((p) => `${p.chatId}@${p.lines}`).join("\n"))
         .digest("hex")
@@ -424,17 +347,12 @@ export class PassRunner {
       const wrote = Object.values(result.items).reduce((n, v) => n + v, 0);
       return finish(result.capped ? "capped" : wrote ? "changed" : "nothing", { items: result.items, engine: engineName(on) });
     } catch (error) {
-      // Each chat waits a quiet spell before it is tried again (due); not the batch gap too, or a failure costs hours.
       for (const c of parts.length ? parts.map((p) => p.chatId) : chatIds) this.failedAt.set(keyOf(c), this.now().getTime());
       this.deps.report?.(`${job.name} on ${(parts.length ? parts.map((p) => p.chatId) : chatIds).join(", ")} failed: ${String(error)}`);
       return finish("failed");
     }
   }
 
-  /**
-   * Where a pass for this agent runs: loki's engine when its model can be reached; else its ACP agent, while the
-   * person lets passes run there (plan 061); else nowhere, and the pass is skipped.
-   */
   private async engineFor(agentId: string, model: string): Promise<PassEngine | null> {
     if (!this.deps.canRun || (await this.deps.canRun(model))) return { kind: "loki" };
     if (!this.deps.acp || !this.deps.state.settings().acp.enabled) return null;
@@ -442,15 +360,9 @@ export class PassRunner {
     return engine ? { kind: "acp", engine } : null;
   }
 
-  /**
-   * Ask the agent something in a pass's hidden chat, cleared first and set up with the pass's instructions and tools,
-   * and read back what it said and which tools it called. A run past the time limit is stopped and fails.
-   */
   private async ask(agentId: string, agentModel: string, on: PassEngine, spec: PassSpec): Promise<PassAnswer> {
     const timeoutMs = this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS;
-    // The time after the prompt (plan 057): what the pass writes is dated by it, and nothing else in its chat says it.
     const content = `${spec.prompt}\n\n${daemonTimeReminder(this.now())}`;
-    // On an ACP agent the pass has a chat of its own: an engine is fixed at a chat's first message (plan 020, KD4).
     if (on.kind === "acp" && this.deps.acp)
       return this.deps.acp.ask(agentId, on.engine, { ...spec, prompt: content, chatId: `${spec.chatId}${ACP_PASS_SUFFIX}`, timeoutMs });
     const { context } = this.deps;
@@ -473,12 +385,9 @@ export class PassRunner {
       await chat.reset(undefined, context);
     }
     // Only what this run adds is read back (plan 047): a reset keeps the pass chat's old entries, which grew to
-    // thousands, and reading them whole twice a run parsed tens of megabytes. The newest entry is read before the
-    // submission, never alongside it: the run's own entries must all come after it, or some would be skipped.
     const before = await store.newestEntryId(chat, context);
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const submission = await chat.submit({ type: "input", content, requestId: spec.requestId }, context);
-    // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
     const limited = withCancel(context);
     const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS);
     let settled: Awaited<ReturnType<typeof submission.wait>>;
@@ -509,10 +418,6 @@ export class PassRunner {
     return answer;
   }
 
-  /**
-   * The memory review (/doctor): the agent reads all of its memory and cleans it up (daemon/doctor.ts), in the same
-   * queue as every pass. A second review of the same agent while one is queued or running is not started.
-   */
   async runDoctor(agentId: string): Promise<DoctorResult> {
     const key = `doctor\u0000${agentId}`;
     if (this.queued.has(key)) return { outcome: "skipped", changes: 0, report: "a memory review of this agent is already running" };
@@ -566,11 +471,6 @@ export class PassRunner {
     }
   }
 
-  /**
-   * The stretch a run reads: from the cursor, as many whole entries as fit in MAX_MATERIAL_CHARS, the oldest first,
-   * so a long stretch is read over several runs and none of it is skipped. A single entry longer than that is read
-   * from its start.
-   */
   private stretch(
     job: PassJob,
     chatId: string,
@@ -585,7 +485,6 @@ export class PassRunner {
     };
     const all = read();
     if (all.transcript.length <= MAX_MATERIAL_CHARS) return all;
-    // The furthest end whose stretch still fits; the length only grows with the end.
     let lo = from + 1;
     let hi = all.lines;
     while (lo < hi) {
@@ -598,5 +497,4 @@ export class PassRunner {
   }
 }
 
-/** The engine a run went to, as its telemetry names it: `loki`, or `acp:<agent>`. */
 const engineName = (on: PassEngine): string => (on.kind === "loki" ? "loki" : `acp:${on.engine.agent}`);

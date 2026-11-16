@@ -3,46 +3,23 @@ import { spring } from "../kit/spring";
 import { prefersReducedMotion } from "../kit/motion";
 import { onScreenOffset, releaseCommits, releaseVelocity, type Sample } from "../kit/let-go";
 
-/**
- * A bottom sheet that moves the way an iOS sheet does (the phone's; placement="bottom"):
- *   - it rises on the smooth spring (CSS, phone.css), and the screen behind recedes while it is up;
- *   - it follows a finger down, 1:1, and stretches a little if pulled up past its top;
- *   - let go where its speed would carry it past the line and it leaves at that speed; otherwise it springs
- *     back (a pull that turns up before letting go stays: kit/let-go.ts);
- *   - caught while it is still rising, it is held where it is, not where the rise was headed;
- *   - however it closes (the veil, Escape, a row that closes it, its caller unmounting it) it leaves the way
- *     it came: the node is cloned as it was and the clone slides away, so no caller has to wait for it.
- * The drag starts anywhere in the sheet but the fields, and only downward; a list that scrolls keeps its
- * own vertical pans (touch-action, phone.css). A drag never counts as a tap on the row it started on.
- *
- * The veil's parent is the phone shell (Sheet portals there). The receded screen (.loki-phone-main) follows
- * the drag on its own inline transform, never through a custom property on the shell: a variable set there is
- * inherited by the whole tree, so every pointermove would restyle every element on screen.
- */
-
 const SLOP = 8;
-/** Let go where its speed would carry it past this share of its height, the sheet goes. */
 const DISMISS_FRACTION = 0.3;
 const FIELDS = "input, textarea, select, [contenteditable='true']";
 
-/** Past its resting place a pull meets resistance, as iOS rubber-bands: a third of the distance, easing off. */
 export const rubberBand = (d: number, limit = 120): number => (d <= 0 ? 0 : limit * (1 - 1 / ((d * 0.55) / limit + 1)));
 
-/** Leave now: whether a released drag closes the sheet (dy and height in px, velocity in px/s, down positive). */
 export const dismisses = (dy: number, height: number, velocity: number): boolean => releaseCommits(dy, velocity, height * DISMISS_FRACTION, SLOP);
 
-/** Something inside that scrolls and is not at its top: a downward pull is that list's, not the sheet's. */
 function scrolledAbove(target: Element | null, card: HTMLElement): boolean {
   for (let el = target; el && el !== card.parentElement; el = el.parentElement) if (el instanceof HTMLElement && el.scrollTop > 0) return true;
   return false;
 }
 
-/** How far the screen behind recedes while a sheet is up; must match phone.css (the sheet's :has rule). */
 const RECEDE_DROP = "(var(--phone-safe-top) + 10px)";
 const RECEDE_SCALE = 0.06;
 const RECEDE_RADIUS = 12;
 
-/** The clone that plays the exit, marked so the receded screen comes back while it goes. */
 function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   if (typeof veil.animate !== "function" || prefersReducedMotion()) return;
   const ghost = veil.cloneNode(true) as HTMLElement;
@@ -52,7 +29,6 @@ function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   ghost.style.pointerEvents = "none";
   ghost.style.animation = "none";
   const card = ghost.querySelector<HTMLElement>(".loki-sheet-card");
-  // Closed while still rising (a tap on the veil, Escape): leave from where it is on screen, not from the top.
   const live = veil.querySelector(".loki-sheet-card");
   if (!from && live) from = onScreenOffset(live, "y");
   parent.appendChild(ghost);
@@ -74,18 +50,12 @@ function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   if (!card) setTimeout(done, ms);
 }
 
-/**
- * Gives a bottom sheet the iOS sheet's motion: the finger drag, the dismiss on release, and the cloned
- * exit however it closes. Does nothing unless `on` (the sheet is in the phone shell); `onClose` may change every
- * render.
- */
 export function useSheetMotion(
   veilRef: RefObject<HTMLDivElement | null>,
   cardRef: RefObject<HTMLDivElement | null>,
   onClose: (() => void) | undefined,
   on: boolean,
 ): void {
-  // Callers pass a fresh closure each render; the sheet's life is its mount, not that closure's.
   const closeRef = useRef(onClose);
   useLayoutEffect(() => {
     closeRef.current = onClose;
@@ -97,8 +67,7 @@ export function useSheetMotion(
     if (!on || !veil || !card || !parent) return;
     const behind = parent.querySelector<HTMLElement>(":scope > .loki-phone-main");
     const opened = performance.now();
-    let gone = false; // a drag already played the exit
-    // The click a drag would otherwise let through, swallowed once; dropped with the sheet if it goes first.
+    let gone = false;
     let swallowing: ((c: Event) => void) | null = null;
     let unswallow: ReturnType<typeof setTimeout> | undefined;
     const stopSwallowing = () => {
@@ -107,7 +76,6 @@ export function useSheetMotion(
       swallowing = null;
     };
 
-    // Whether the whole sheet can take a vertical drag: yes while it fits, else only its grip and head.
     const fit = () => card.toggleAttribute("data-fits", card.scrollHeight <= card.clientHeight + 1);
     fit();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
@@ -115,15 +83,12 @@ export function useSheetMotion(
 
     let drag: { id: number; x: number; y: number; on: boolean; base: number; samples: Sample[] } | null = null;
     let dy = 0;
-    // Measured once as a drag starts: reading layout on every move, right after writing a transform, forces a layout per frame.
     let height = 1;
-    // 1 while the sheet is up, toward 0 as it is pulled down: the screen behind comes back as the sheet goes.
     const lift = (v: number) => {
       if (!behind) return;
       behind.style.transform = `translateY(calc(${RECEDE_DROP} * ${v})) scale(${1 - RECEDE_SCALE * v})`;
       behind.style.borderRadius = `${RECEDE_RADIUS * v}px`;
     };
-    // Hands the screen behind back to phone.css.
     const unlift = () => {
       behind?.style.removeProperty("transform");
       behind?.style.removeProperty("border-radius");
@@ -145,14 +110,11 @@ export function useSheetMotion(
       if (!drag.on) {
         if (ddy < SLOP || Math.abs(ddy) < Math.abs(e.clientX - drag.x) || scrolledAbove(e.target as Element, card)) return;
         drag.on = true;
-        drag.y = e.clientY; // no jump by the slop
+        drag.y = e.clientY;
         height = card.offsetHeight || 1;
         try {
           card.setPointerCapture(e.pointerId);
-        } catch {
-          /* a pointer that already left */
-        }
-        // Caught mid-rise: hold it where it is on screen, then the finger has it from there.
+        } catch {}
         drag.base = onScreenOffset(card, "y");
         card.getAnimations().forEach((a) => a.cancel());
         card.style.transition = "none";
@@ -168,7 +130,6 @@ export function useSheetMotion(
       if (d?.id !== e.pointerId) return;
       drag = null;
       if (!d.on) return;
-      // The tap this drag started on is not a tap.
       stopSwallowing();
       swallowing = (c: Event) => (c.stopPropagation(), c.preventDefault(), stopSwallowing());
       window.addEventListener("click", swallowing, { capture: true });
@@ -183,7 +144,6 @@ export function useSheetMotion(
         closeRef.current?.();
         return;
       }
-      // Back up, carrying the finger's speed (toward the top is toward the target).
       const s = spring("snappy", dy > 1 ? -v / dy : 0);
       card.style.transition = `transform ${s.ms}ms ${s.easing}`;
       veil.style.transition = `opacity ${s.ms}ms ease-out`;

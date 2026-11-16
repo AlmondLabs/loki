@@ -5,10 +5,6 @@ const A = "aaaaaaaa-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-2222-4222-8222-222222222222";
 const C = "cccccccc-3333-4333-8333-333333333333";
 
-/**
- * Three Macs in memory: who is paired with whom, who forgot whom, and each one's PeerGroup; a link is a call into the
- * other Mac's frame answers, and joining pairs the two Macs at once (as POST /peer/pair would).
- */
 function macs(pairs: Array<[string, string]>) {
   const paired = new Map<string, Set<string>>([A, B, C].map((m) => [m, new Set<string>()]));
   const pair = (x: string, y: string) => (paired.get(x)?.add(y), paired.get(y)?.add(x));
@@ -18,7 +14,6 @@ function macs(pairs: Array<[string, string]>) {
   const groups = new Map<string, PeerGroup>();
   const joins: Array<[string, string]> = [];
   const isPaired = (x: string, y: string) => paired.get(x)?.has(y) ?? false;
-  /** What Mac `to` answers when Mac `from` asks it over their link. */
   const answer = async (to: string, from: string, f: Record<string, unknown>): Promise<Record<string, unknown>> => {
     if (f.type === "peer_group_get") return { macs: [...(paired.get(to) ?? [])].map((m) => ({ mac_id: m, name: m.slice(0, 4), host: `${m}.ts.net` })) };
     if (f.type === "peer_introduce") return groups.get(to)?.introduce(from, String(f.mac_id)) ?? {};
@@ -62,7 +57,6 @@ describe("every Mac paired with every other (plan 023, addendum D)", () => {
       [B, C],
       [A, B],
     ]);
-    // A has the lower id, so it is the one to join C.
     expect(await m.group(A).meshWith(B)).toEqual([C]);
     expect(m.isPaired(A, C)).toBe(true);
     expect(m.joins).toEqual([[A, C]]);
@@ -77,7 +71,6 @@ describe("every Mac paired with every other (plan 023, addendum D)", () => {
     expect(m.isPaired(A, C)).toBe(false);
     await m.group(A).meshWith(B);
     expect(m.joins).toEqual([[A, C]]);
-    // Asking again changes nothing.
     expect(await m.group(A).meshWith(B)).toEqual([]);
   });
 

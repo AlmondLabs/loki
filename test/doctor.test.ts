@@ -82,7 +82,6 @@ describe("the memory review (/doctor)", () => {
       ]);
       const r = await s.runner.runDoctor(s.agentId);
       expect(r).toEqual({ outcome: "changed", changes: 2, report: "- merged the two deploy notes\n- the launch has happened" });
-      // It saw every file, with today's date, under the doctor's own instructions.
       const first = JSON.stringify(s.asked[0]);
       expect(first).toContain("reference/deploy-day.md");
       expect(first).toContain("We deploy every Friday.");
@@ -92,7 +91,6 @@ describe("the memory review (/doctor)", () => {
       expect(readFileSync(join(s.root, "reference/launch.md"), "utf8")).toBe("Launched on 30 Sept 2026.\n");
       expect(log(s.root).slice(0, 2)).toEqual(["Doctor|The launch date has passed", "Doctor|Merge the two deploy notes"]);
       expect(s.events.at(-1)).toMatchObject({ job: "doctor", agent: s.agentId, outcome: "changed", items: { memory_changes: 2 }, files: 4 });
-      // Its chat is hidden: never one of the person's chats.
       expect((await s.store.chats(ctx)).find((c) => c.id === `doctor-${s.agentId}`)?.hidden).toBe(true);
     } finally {
       await s.cleanup();

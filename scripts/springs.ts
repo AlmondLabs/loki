@@ -1,18 +1,9 @@
-/**
- * Writes loki's springs (app/src/kit/spring.ts) into kit/tokens.css, between the spring markers, as the
- * `--spring-<name>` easings and their `--spring-<name>-ms` durations. Run after changing a preset:
- *   node --experimental-strip-types scripts/springs.ts
- * test/spring.test.ts fails while the stylesheet and the presets disagree. The file is run through Prettier after,
- * so it passes `npm run format:check` as written.
- */
 import { readFileSync, writeFileSync } from "node:fs";
 import { format, resolveConfig } from "prettier";
 import { join } from "node:path";
 import { springTokens } from "../app/src/kit/spring.ts";
 
-/** The marker the springs follow in kit/tokens.css; everything up to END is replaced. */
 export const START = "  /* springs: written by scripts/springs.ts from kit/spring.ts — do not edit by hand */";
-/** The marker that ends the springs in kit/tokens.css. */
 export const END = "  /* end springs */";
 
 const path = join(import.meta.dirname, "..", "app", "src", "kit", "tokens.css");

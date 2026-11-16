@@ -1,8 +1,3 @@
-/**
- * Shrink the pictures already in the chat stores (plan 032): `npm run shrink-images` reports what it would save,
- * `npm run shrink-images -- --apply` does it, each store copied whole into stores/backup-<date>/ first. Quit loki
- * first: this takes the daemon's lock, and stops when loki holds it. `--dir` names a loki folder other than ~/.loki.
- */
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";

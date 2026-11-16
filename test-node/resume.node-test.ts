@@ -1,7 +1,3 @@
-/**
- * Plan 017, R5: a turn cut off by a crash continues after a restart. Runs under Node (pi-durable's SQLite backend is
- * `node:sqlite`): npm run test:node
- */
 import { strict as assert } from "node:assert";
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -19,7 +15,6 @@ import { trialRegistry } from "./trial-registry.ts";
 const ctx = BACKGROUND_CONTEXT;
 const here = import.meta.dirname;
 
-/** Run the crash child until it says the turn is under way, then SIGKILL it. */
 function crashMidTurn(file: string, phase: "generation" | "tool"): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", join(here, "crash-child.ts"), file, phase], {
@@ -39,7 +34,6 @@ function crashMidTurn(file: string, phase: "generation" | "tool"): Promise<void>
   });
 }
 
-/** Reopen the store as a restarted daemon would, with the model answering this time. */
 async function reopen(file: string, answer: string) {
   const faux = fauxProvider();
   const models = createModels();
@@ -62,7 +56,6 @@ void test("a turn killed while the model streams finishes after the store is reo
     const assistants = (await store.entries(chat, ctx))
       .filter((e) => e.kind === "pi.assistant")
       .map((e) => e.model?.[0] as { stopReason?: string; content?: Array<{ text?: string }> });
-    // What streamed before the crash stays, as an aborted answer; the retried answer follows it.
     assert.equal(assistants.length, 2);
     assert.equal(assistants[0].stopReason, "aborted");
     assert.match(assistants[0].content?.[0]?.text ?? "", /^a long answer/);

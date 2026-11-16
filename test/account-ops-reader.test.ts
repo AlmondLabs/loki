@@ -9,7 +9,6 @@ import { GoogleError } from "../mod/google-auth.ts";
 import type { GmailMessage } from "../mod/gmail.ts";
 import { SlackError, type SlackConversation, type SlackMessage } from "../mod/slack.ts";
 
-/** An account as the readers see it; only its id, provider and address matter to them. */
 function account(provider: AccountRecord["provider"], accountId: string, address: string): AccountRecord {
   return {
     account_id: accountId,
@@ -26,7 +25,6 @@ const SITE = account("jira", "jira:acme.atlassian.net:me-1", "acme.atlassian.net
 const WORKSPACE = account("slack", "slack:T1:U1", "Acme");
 const MAIL = account("gmail", "gmail:ada@acme.com", "ada@acme.com");
 
-/** Flow's records, by account and thread id. */
 function flowOf(records: Record<string, { sender: string; subject_or_first_line: string }> = {}): FlowRecord {
   return (accountId, threadId) => records[`${accountId}|${threadId}`] ?? null;
 }
@@ -41,7 +39,6 @@ const TICKET: JiraTicketFacts = {
   service_desk: false,
 };
 
-/** A Jira site that has one ticket, by its key in upper case or its id, and asks are kept. */
 function fakeJira(facts: JiraTicketFacts = TICKET, linkHost: string | null = "jira.acme.example") {
   const asked: string[] = [];
   const client: ReplyJiraReads = {
@@ -113,15 +110,10 @@ describe("a Jira comment's ticket", () => {
   });
 });
 
-/** A message as Slack gives it. */
 function message(ts: string, text: string, threadTs: string | null = null, user = "U7"): SlackMessage {
   return { ts, user, bot_id: null, text, thread_ts: threadTs, subtype: null, reply_count: 0, raw: { text } };
 }
 
-/**
- * A workspace with #ops (which the person is in), #secret (which they are not), a DM with Vivek, a Slack Connect
- * channel and one thread in #ops with a reply.
- */
 function fakeSlack() {
   const conversations: Partial<Record<string, SlackConversation>> = {
     C9: { id: "C9", name: "ops", is_im: false, is_mpim: false, is_channel: true, is_private: false, user: null, last_read: null, is_member: true },

@@ -22,11 +22,8 @@ const HOUR = 60 * MIN;
 const START = Date.parse("2026-11-10T09:00:00.000Z");
 const ID = `jira:acme.atlassian.net:${JIRA_ME.account_id}`;
 
-/** A time, in minutes from the first tick. */
 const at = (minutes: number) => new Date(START + minutes * MIN);
-/** The id the thread record keeps for a comment (`c`) or a history entry (`h`) made at a time (KTD8). */
 const eid = (when: Date, kind: "c" | "h", jiraId: string) => `${when.toISOString()}:${kind}${jiraId.padStart(12, "0")}`;
-/** A comment that mentions the person. */
 const mentioning = (text: string) => ({
   version: 1,
   type: "doc",
@@ -41,11 +38,6 @@ const mentioning = (text: string) => ({
   ],
 });
 
-/**
- * One connected Jira site over the fake, on the test's clock. `faults` makes the client answer as Jira would in the
- * cases the fake site has no switch for: a failed search, a ticket whose calls fail or are refused as not found, a page
- * token Jira no longer takes, and a ticket whose update time moved with no new event (a comment edit).
- */
 async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "loki-jira-sync-"));
   dirs.push(dir);
@@ -68,7 +60,6 @@ async function setup() {
     failing: new Set<string>(),
     gone: new Set<string>(),
     staleTokens: new Set<string>(),
-    /** Tickets by id with the update time an edit gave them. */
     edited: new Map<string, JiraTicket>(),
   };
   const guard = (ticket: string) => {
@@ -102,13 +93,11 @@ async function setup() {
       .filter((r) => r.state === "open")
       .map((r) => r.thread_id)
       .sort();
-  /** Requests that read one ticket's comments or history. */
   const ticketReads = () => jira.requests.filter((r) => r.url.pathname.includes("/issue/")).length;
   const cursor = () => must(accounts.get(ID), "the account").backfill;
   return { accounts, threads, jira, faults, sync, record, open, ticketReads, cursor, advance: (ms: number) => (now += ms) };
 }
 
-/** A site whose first tick has run with nothing watched, so what a test adds afterwards arrives as new. */
 async function connected() {
   const s = await setup();
   const sync = s.sync();
@@ -143,7 +132,6 @@ describe("an event on a watched ticket becomes a card (F2, R6, R7, R10)", () => 
     const ticket = jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", at: at(0.5) });
     const c1 = jira.comment("OPS-1", { at: at(0.5), author: JIRA_ADA, text: "Can you look at this?" });
     await tick();
-    // A quiet tick moves the watermark on, so the next one no longer reads the first comment: the card remembers it.
     advance(15 * MIN);
     await tick();
     advance(15 * MIN);
@@ -283,7 +271,6 @@ describe("the person's own events and comment edits bring nothing (R8, R27, KTD9
 
   test("an edit to an old comment moves the ticket's update time and records nothing (AE10)", async () => {
     const { jira, faults, tick, record, threads, advance } = await connected();
-    // A ticket with no card, one with an open card and one whose card the person ended.
     const bare = jira.addTicket({ key: "OPS-1", summary: "Never a card", at: at(-24 * 60) });
     jira.comment("OPS-1", { at: at(-24 * 60), author: JIRA_ADA, text: "Yesterday's news." });
     const openCard = jira.addTicket({ key: "OPS-2", summary: "Open card", at: at(0.5) });
@@ -327,14 +314,12 @@ describe("the tag says why the card is there (R13, KTD16)", () => {
     jira.change("OPS-1", { at: at(0.6), author: JIRA_BOB, items: [{ field: "labels", from: null, to: "infra" }] });
     await tick();
     expect(record(ticket)).toMatchObject({ reach: "mention", sender: "Bob Stone" });
-    // A quiet tick moves the watermark on, so the next one reads only the edit: the mention that brought the card still counts.
     advance(15 * MIN);
     await tick();
     jira.change("OPS-1", { at: at(30.5), author: JIRA_BOB, items: [{ field: "priority", from: "Low", to: "High" }] });
     advance(15 * MIN);
     await tick();
     expect(record(ticket)).toMatchObject({ reach: "mention", lines: ["priority: Low → High"] });
-    // Once read, the mention is dealt with: the next plain event is only a watched ticket's.
     await threads.markRead(ID, ticket);
     jira.comment("OPS-1", { at: at(31.5), author: JIRA_BOB, text: "Fixed." });
     advance(MIN);
@@ -356,14 +341,12 @@ describe("the watermark, the overlap and the memo (KTD6)", () => {
     await tick();
     expect(ticketReads()).toBe(reads);
     expect(record(ticket)).toEqual(before);
-    // A tick that read all the search returned stands the watermark at its own start.
     expect(cursor().watermark).toBe(at(2).toISOString());
     expect(cursor().seen).toEqual({ [ticket]: at(0.5).toISOString() });
   });
 
   test("a ticket the whole-minute search returns from just before the overlap is not read", async () => {
     const { jira, tick, record, ticketReads, advance } = await connected();
-    // The watermark stands at the first tick; half a minute more makes the search reach 30 s before the overlap.
     advance(30 * SEC);
     const ticket = jira.addTicket({ key: "OPS-1", summary: "Just too old", at: at(-10.25) });
     jira.comment("OPS-1", { at: at(-10.25), author: JIRA_ADA, text: "From before." });
@@ -439,7 +422,6 @@ describe("when Jira refuses, limits or fails (KTD5, R3)", () => {
       advance(MIN);
       await tick();
     }
-    // Held by the limit: nothing more was asked, no tick threw, and the account never showed as failing.
     expect(jira.requests).toHaveLength(asked);
     expect(accounts.get(ID)?.status).toBe("connected");
     expect(record(ticket)).toBeNull();
@@ -487,7 +469,6 @@ describe("when Jira refuses, limits or fails (KTD5, R3)", () => {
     expect(jira.requests).toHaveLength(asked);
     expect(threads.rows().map((r) => r.outside?.disconnected)).toEqual(["sign_in_again"]);
 
-    // A new token: the account is connected again and the events since come.
     jira.state.unauthorized = false;
     const c2 = jira.comment("OPS-1", { at: at(2.5), author: JIRA_BOB, text: "Still waiting." });
     accounts.setStatus(ID, "connected");
@@ -506,7 +487,6 @@ describe("when Jira refuses, limits or fails (KTD5, R3)", () => {
     await tick();
     expect(record(hidden)).toBeNull();
     expect(record(seen)?.state).toBe("open");
-    // It is passed, not tried again each tick.
     const reads = ticketReads();
     faults.gone.clear();
     advance(MIN);
@@ -516,7 +496,6 @@ describe("when Jira refuses, limits or fails (KTD5, R3)", () => {
 });
 
 describe("the past fill (R11, KTD19)", () => {
-  /** Watched tickets from before the connection, the first the most recently changed; `own` names those only the person wrote on. */
   const past = (jira: ReturnType<typeof fakeJira>, count: number, own: (i: number) => boolean = () => false) => {
     const tickets: string[] = [];
     const comments: string[] = [];
@@ -587,7 +566,6 @@ describe("the past fill (R11, KTD19)", () => {
 
   test("a page position Jira no longer takes starts the past fill again from the top", async () => {
     const { jira, faults, sync, open, cursor, advance } = await setup();
-    // The first page holds ten cards and thirty tickets of the person's own; the five after it are the next page.
     const { tickets } = past(jira, 45, (i) => i >= 10 && i < 40);
     const s = sync();
     await s.tick();

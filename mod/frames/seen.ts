@@ -2,12 +2,10 @@ import type { Pushes } from "../../core/frames.ts";
 import type { SeenStore } from "../seen.ts";
 import type { FrameHandlers } from "./context.ts";
 
-/** What the marks' frame handler needs from its host: the marks store, absent when the mod keeps none. */
 export interface SeenDeps {
   seen?: SeenStore;
 }
 
-/** The done and viewed marks, the focus weights, the rests, the return times and the lanes, as one push: the one place it is built (the turn-start mark too). */
 export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
   const { seen } = deps;
   return {
@@ -21,13 +19,10 @@ export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
   };
 }
 
-/** One chat's marks, after a change to that chat alone (plan 055): a few hundred bytes, not every chat's. */
 export function seenChatFrame(seen: SeenStore, agentId: string | null, conversationId: string): { type: "seen_chat" } & Pushes["seen_chat"] {
   return { type: "seen_chat", ...seen.chat(agentId, conversationId) };
 }
 
-/** The marks the Inbox and the sidebar read: done, not done, a look, and engagements the mod cannot see. A mark that moves nothing is not broadcast, and one
- * that does sends only its chat's marks. */
 export function seenFrames(deps: SeenDeps): FrameHandlers {
   const { seen } = deps;
   return {
@@ -42,25 +37,20 @@ export function seenFrames(deps: SeenDeps): FrameHandlers {
       ctx.track("conversation_kept_unread");
       if (moved && seen) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
-    // Not tracked: a look happens on every open, it is not a decision.
     viewed_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const looked = seen?.view(agentId, conversationId);
-      const engaged = seen?.engage(agentId, conversationId, "open"); // opening and reading is engagement too
+      const engaged = seen?.engage(agentId, conversationId, "open");
       if (seen && (looked || engaged)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
-    // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
     focus_add: ({ agent_id: agentId, conversation_id: conversationId, action }, ctx) => {
       if (seen?.engage(agentId, conversationId, action)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
-    // Tracked as part of the decision (inbox_card_decided), which says the rung.
     card_rest: ({ agent_id: agentId, conversation_id: conversationId, rest }, ctx) => {
       if (seen?.rest(agentId, conversationId, rest)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
-    // A setting, changed now and then: the whole push carries it, and it reaches paired Macs as every seen push does.
     return_times_set: ({ return_times: times }, ctx) => {
       if (seen?.setReturnTimes(times)) ctx.broadcast(seenFrame(deps));
     },
-    // Lanes are made on a Mac (the phone cannot send this); the whole push carries them to every client and paired Mac.
     lanes_set: ({ lanes }, ctx) => {
       if (seen?.setLanes(lanes)) ctx.broadcast(seenFrame(deps));
     },

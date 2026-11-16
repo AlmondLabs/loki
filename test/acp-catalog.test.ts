@@ -8,7 +8,6 @@ import { AcpCatalog } from "../daemon/acp/catalog.ts";
 const FAKE: AcpAgentConfig = { id: "fake", name: "Fake", command: process.execPath, args: [] };
 const MISSING: AcpAgentConfig = { id: "gone", name: "Gone", command: "loki-no-such-command", args: [] };
 
-/** A catalog over its own folder, its agents read from the agents file as the daemon reads them. */
 function catalog(agents: AcpAgentConfig[] = [FAKE]) {
   const dir = mkdtempSync(join(tmpdir(), "loki-catalog-"));
   const configFile = join(dir, "acp.json");
@@ -28,7 +27,7 @@ describe("the ACP agents loki knows (plan 060)", () => {
         commands: [],
         efforts: { sonnet: ["low", "high", "default"] },
       });
-      const again = c.make(); // a new daemon reads the cache
+      const again = c.make();
       expect(again.offeredBy("fake")?.models.map((m) => m.value)).toEqual(["sonnet"]);
       expect(again.models().map((m) => [m.id, m.is_featured ?? false])).toEqual([
         ["acp:fake/default", true],

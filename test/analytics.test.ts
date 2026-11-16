@@ -95,7 +95,7 @@ describe("analytics: the report", () => {
     ev(1, "conversation_marked_seen", {}, "phone", "p1", 4),
     ev(1, "conversation_kept_unread", {}, "phone", "p1", 6),
     ev(1, "conversation_marked_seen", {}, "mac", "s2"),
-    ev(40, "view_opened", { view: "agents", from: "desk" }, "mac", "old"), // outside a 30-day window
+    ev(40, "view_opened", { view: "agents", from: "desk" }, "mac", "old"),
   ];
   const r = analyticsReport(events, { now: NOW, days: 30 });
 
@@ -104,7 +104,7 @@ describe("analytics: the report", () => {
     expect(r.window.activeDays).toBe(3);
     expect(r.sessions.count).toBe(6);
     expect(r.sessions.byDevice).toEqual({ mac: 3, windows: 0, linux: 0, phone: 1, mod: 2 });
-    expect(r.sessions.medianMinutes).toBe(4.5); // spans: s1 30 · s2 12 · s3 0 · p1 6 · m1 3 · m2 0 → 3 and 6 in the middle
+    expect(r.sessions.medianMinutes).toBe(4.5);
     expect(r.sessions.perActiveDay).toBe(2);
   });
 
@@ -209,27 +209,25 @@ describe("analytics: the report", () => {
 });
 
 describe("analytics: finished work (plan 065)", () => {
-  /** Your message into `desk` at `minute` past 10:00 today: a turn from a message, dated when it ended. */
   const msg = (desk: string, minute: number) => ev(0, "turn_finished", { desk, origin: "message", total_ms: 60_000 }, "mod", "m1", minute + 1);
   const events = [
     msg("a", 0),
     msg("b", 5),
-    msg("a", 10), // back to a after b
-    msg("a", 15), // straight back to a
+    msg("a", 10),
+    msg("a", 15),
     msg("c", 20),
     msg("d", 25),
     msg("e", 30),
-    msg("a", 35), // back to a after c, d and e
-    ev(0, "turn_finished", { desk: "b", origin: "schedule", total_ms: 0 }, "mod", "m1", 36), // not yours
+    msg("a", 35),
+    ev(0, "turn_finished", { desk: "b", origin: "schedule", total_ms: 0 }, "mod", "m1", 36),
     ev(0, "chat_archived", { desk: "a", origin: "inbox" }, "mac", "s1", 40),
     ev(0, "chat_archived", { desk: "c", origin: "inbox" }, "mac", "s1", 41),
-    ev(0, "chat_archived", { desk: "old", origin: "sidebar" }, "mac", "s1", 42), // cleared out, never messaged
+    ev(0, "chat_archived", { desk: "old", origin: "sidebar" }, "mac", "s1", 42),
   ];
   const r = analyticsReport(events, { now: NOW, days: 30 });
 
   test("archives a day, and messages a finished chat counting only chats you messaged", () => {
     expect([r.finished.archived, r.finished.perActiveDay]).toEqual([3, 3]);
-    // a took 4 messages, c took 1: the median of the two.
     expect(r.finished.messagesPerChat).toBe(2.5);
   });
 
@@ -306,7 +304,7 @@ describe("analytics: the harness, from the daemon's turns", () => {
       "m1",
       3,
     ),
-    ev(0, "turn_finished", { desk: "a", duration_ms: 4000 }, "mod", "m1", 4), // the mod's, from before the daemon measured turns
+    ev(0, "turn_finished", { desk: "a", duration_ms: 4000 }, "mod", "m1", 4),
   ];
   const r = analyticsReport(events, { now: NOW, days: 30 });
 
@@ -420,12 +418,12 @@ describe("analytics: the writer", () => {
     const statePath = join(dir, "state", "analytics.json");
     let t = Date.parse("2026-09-22T12:00:00Z");
     const a = createAnalytics({ path, statePath, appVersion: "2026.9.22", maxBytes: 600, checkEvery: 3, sessionGapMs: 60_000, now: () => new Date(t) });
-    expect(a.capture("mac", "view_opened", { view: "inbox", $screen: "desk", $device_type: "phone" })).toBe(true); // a client cannot claim a device
+    expect(a.capture("mac", "view_opened", { view: "inbox", $screen: "desk", $device_type: "phone" })).toBe(true);
     t += 30_000;
     expect(a.capture("mac", "chat_opened")).toBe(true);
-    t += 120_000; // past the gap: a new session
+    t += 120_000;
     expect(a.capture("mac", "chat_closed")).toBe(true);
-    expect(a.capture("phone", "conversation_marked_seen")).toBe(true); // phones have their own session
+    expect(a.capture("phone", "conversation_marked_seen")).toBe(true);
     expect(a.capture("mac", "Bad Name")).toBe(false);
     const lines = parseEvents(readFileSync(path, "utf8"));
     expect(lines.map((e) => e.event)).toEqual(["view_opened", "chat_opened", "chat_closed", "conversation_marked_seen"]);
@@ -442,10 +440,9 @@ describe("analytics: the writer", () => {
     expect(lines[3].properties.$session_id).not.toBe(lines[2].properties.$session_id);
     expect(new Set(lines.map((e) => e.distinct_id)).size).toBe(1);
     expect(lines[0].distinct_id).toBe(a.distinctId);
-    // the id is the install's: a second writer over the same state reads it back
     expect(createAnalytics({ path, statePath }).distinctId).toBe(a.distinctId);
     expect(JSON.parse(readFileSync(statePath, "utf8"))).toEqual({ distinct_id: a.distinctId });
-    writeFileSync(path, "x".repeat(1200)); // past the cap: the next size check renames it
+    writeFileSync(path, "x".repeat(1200));
     a.capture("mac", "chat_opened");
     a.capture("mac", "chat_closed");
     a.capture("mac", "chat_opened");
@@ -506,13 +503,12 @@ describe("analytics: through the bridge", () => {
     const c = client("c1", "dev-1");
     bridge.onMessage(c, { type: "seen_mark", agent_id: "a", conversation_id: "x" });
     bridge.onMessage(c, { type: "seen_unmark", agent_id: "a", conversation_id: "x" });
-    bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" }); // a look is not a decision: no event
+    bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
     expect(recorded).toEqual(["conversation_marked_seen", "conversation_kept_unread"]);
   });
 });
 
 describe("analytics: the phone's screen names", () => {
-  // `view` and `$screen` carry these: a word per destination, never which desk, agent or file
   const routes: Array<[Route, string]> = [
     ...TABS.map((tab) => [{ kind: "tab", tab }, tab] as [Route, string]),
     [{ kind: "learn" }, "learn"],
@@ -559,17 +555,16 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
 
   test("opens count as engaged; distinct chats, the engaged share by rank shown, undos, and the waits", () => {
     const now = Date.parse("2026-09-27T12:00:00Z");
-    // Oldest first, as the log is written.
     const e = (minutesAgo: number, event: string, properties: Record<string, unknown> = {}, device: DeviceType = "mac") =>
       makeEvent(event, "u", { $device_type: device, $lib: "loki", $session_id: "s", ...properties }, new Date(now - minutesAgo * 60_000));
     const log = [
       e(60, "turn_finished", { desk: "a", duration_ms: 5000 }, "mod"),
       e(58, "turn_finished", { desk: "b", duration_ms: 9000 }, "mod"),
       e(50, "inbox_card_shown", { desk: "a", rank: 1 }),
-      e(49, "inbox_card_decided", { action: "reply", desk: "a", rank: 1, reason: "new" }), // a answered 11 min after its turn
-      e(48, "inbox_card_decided", { action: "reply", desk: "a", rank: 1, reason: "focus" }), // the same chat again: one chat
+      e(49, "inbox_card_decided", { action: "reply", desk: "a", rank: 1, reason: "new" }),
+      e(48, "inbox_card_decided", { action: "reply", desk: "a", rank: 1, reason: "focus" }),
       e(47, "inbox_card_shown", { desk: "b", rank: 2 }),
-      e(46, "inbox_card_decided", { action: "open", desk: "b", rank: 2, reason: "new" }), // b opened 12 min after its turn
+      e(46, "inbox_card_decided", { action: "open", desk: "b", rank: 2, reason: "new" }),
       e(45, "inbox_card_shown", { desk: "c", rank: 5 }),
       e(44, "inbox_card_decided", { action: "next", desk: "c", rank: 5, reason: "other" }),
       e(43, "inbox_card_undone", { action: "next", desk: "c" }),
@@ -602,11 +597,11 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
       makeEvent("inbox_card_decided", "u", { $device_type: "mac", $lib: "loki", $session_id: session, ...properties }, new Date(now - minutesAgo * 60_000));
     const log = [
       e(50, { action: "reply", desk: "a", rank: 1, reason: "new" }),
-      e(49, { action: "next", desk: "a", rank: 1, reason: "focus" }), // replied, then → : moved on
-      e(48, { action: "next", desk: "b", rank: 1, reason: "other" }), // a real skip
-      e(47, { action: "next", desk: "b", rank: 1, reason: "other" }), // b again after a skip: still a skip
+      e(49, { action: "next", desk: "a", rank: 1, reason: "focus" }),
+      e(48, { action: "next", desk: "b", rank: 1, reason: "other" }),
+      e(47, { action: "next", desk: "b", rank: 1, reason: "other" }),
       e(46, { action: "open", desk: "c", rank: 1, reason: "new" }),
-      e(45, { action: "next", desk: "c", rank: 1, reason: "new" }, "other"), // another window's next on c: a skip
+      e(45, { action: "next", desk: "c", rank: 1, reason: "new" }, "other"),
     ];
     const g = analyticsReport(log, { now, days: 7 }).engagement;
     expect(g).toMatchObject({ cards: 5, engaged: 2, movedOn: 1 });

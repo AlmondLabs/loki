@@ -10,7 +10,6 @@ import { TOOL_TEXT_MAX, withResult } from "../core/harness.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const said = (role: "user" | "assistant", text: string): TranscriptRow => ({ role, text });
-/** A tool row as the thread folds it: the step's result through withResult, as a live chat and history both do. */
 const call = (name: string, input: string, output: string, failed = false): TranscriptRow => ({
   role: "tool",
   text: name,
@@ -76,7 +75,6 @@ describe("reflection reads the calls that failed, and the one that fixed each (p
 
   test("only reflection asks for them", () => {
     expect(reflectionJob.failedCalls).toBe(true);
-    // Learn builds its job from its stores; it only reads them when it runs.
     expect(learnJob({ store: {}, state: {}, chats: {} } as never).failedCalls).toBeUndefined();
   });
 

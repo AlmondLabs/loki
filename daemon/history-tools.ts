@@ -6,37 +6,22 @@ import { SCRIPT_TOOL } from "./scripts.ts";
 import type { ChatProjection } from "./chats.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 
-/**
- * The agent's own chat history, searchable after a compaction (plan 062). A compaction replaces older turns in the
- * agent's context with a summary; every turn stays stored and the daemon's projection holds them all. These tools read
- * that copy, so a search is a scan of memory, not of the database. Rows are numbered as the person's thread numbers
- * them, so a row the agent cites is one the person can find.
- */
-
-/** What the tools read: the daemon's projection of every chat (daemon/chats.ts). */
 export type ChatHistory = Pick<ChatProjection, "thread" | "compactedSince">;
 
-/** Only scripts call the history tools (plan 099): the model reaches them with one. */
 const SCRIPTS_ONLY = ["tools"] as const;
 
-/** The most hits a search returns, newest first: what costs is context, not time. */
 const HITS = 10;
-/** How much of a row a hit shows around its match. */
 const EXCERPT = 300;
-/** How much text one history_read returns before it stops and says where. */
 const READ_CHARS = 8000;
 
-/** The words the agent is shown once its chat has been compacted. */
 const SECTION =
   "Earlier turns of this conversation were summarized; every one is stored. Find them with history_search and read them with history_read, in a script, before you guess.";
 
-/** The agent and the chat a call or a prompt is for. */
 async function chatOf(read: DocumentReader, conversationId: ConversationId, context: Context): Promise<{ agentId: string; chatId: string } | null> {
   const [agent, chat] = await Promise.all([read.snapshot(AgentInfoDoc, context), read.snapshot(ChatDoc, conversationId, context)]);
   return agent?.id && chat?.id ? { agentId: agent.id, chatId: chat.id } : null;
 }
 
-/** Who a row is, as the agent reads it: it wrote the assistant's rows. */
 function speaker(row: TranscriptRow): string {
   if (row.role === "user") return "person";
   if (row.role === "assistant") return "you";
@@ -44,7 +29,6 @@ function speaker(row: TranscriptRow): string {
   return "event";
 }
 
-/** A row's words: a tool row's input and what came back, the rest as written. */
 function body(row: TranscriptRow): string {
   if (row.role !== "tool" || !row.tool) return row.text.trim();
   const { input, output, failed, error } = row.tool;
@@ -55,25 +39,20 @@ function body(row: TranscriptRow): string {
   return parts.length ? parts.join("\n") : row.text.trim();
 }
 
-/** One row as a line of text: its number, who, when, and its words (`words`, or all of them). */
 function rowLine(row: TranscriptRow, n: number, words = body(row)): string {
   const at = row.at ? ` ${row.at.slice(0, 16).replace("T", " ")}` : "";
   return `#${n} ${speaker(row)}${at}: ${words}`;
 }
 
-/** About EXCERPT characters of `text` around `at`, on one line. */
 function excerpt(text: string, at: number, length: number): string {
   const start = Math.max(0, at - Math.floor((EXCERPT - length) / 2));
   const end = Math.min(text.length, start + EXCERPT);
   return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
 }
 
-/** The rows of `rows` whose words contain `query`, newest first, at most HITS, as text for the model. */
 export function searchRows(rows: readonly TranscriptRow[], query: string): string {
   const needle = query.trim().replace(/\s+/g, " ").toLowerCase();
   if (!needle) throw new Error("history_search needs words to look for");
-  // Most rows hold none of the words: the needle's longest word, which spacing cannot change, rules them out before
-  // the row's whitespace is evened out, the slow part of a search over a long chat.
   const word = needle.split(" ").reduce((a, b) => (b.length > a.length ? b : a));
   const hits: string[] = [];
   let found = 0;
@@ -92,7 +71,6 @@ export function searchRows(rows: readonly TranscriptRow[], query: string): strin
   return `${found} ${found === 1 ? "row contains" : "rows contain"} "${query.trim()}"${more}:\n${hits.join("\n")}`;
 }
 
-/** Rows `from` to `to` of `rows` (both included), stopping near READ_CHARS and saying where, as text for the model. */
 export function readRows(rows: readonly TranscriptRow[], from: number, to?: number): string {
   const last = rows.length - 1;
   const start = Math.max(0, Math.floor(from));
@@ -112,7 +90,6 @@ export function readRows(rows: readonly TranscriptRow[], from: number, to?: numb
   return lines.join("\n");
 }
 
-/** history_search and history_read over the calling chat's history. */
 export function historyTools(history: ChatHistory): ChatTool[] {
   const rowsOf = async (read: DocumentReader, conversationId: ConversationId, context: Context): Promise<readonly TranscriptRow[]> => {
     const chat = await chatOf(read, conversationId, context);
@@ -155,11 +132,6 @@ export function historyTools(history: ChatHistory): ChatTool[] {
   ];
 }
 
-/**
- * The history tools and the `history` section, as an extension. The section shows only in a chat that offers scripts,
- * through which the history tools are called (plan 099), and has been compacted: it appears at a compaction, when the
- * prompt cache is rebuilt anyway, and stays the same after it.
- */
 export function historyExtension(history: ChatHistory): Extension {
   return defineExtension({
     name: "loki.history",

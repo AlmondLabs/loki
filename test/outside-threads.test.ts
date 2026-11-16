@@ -38,8 +38,6 @@ import { JIRA_ADA, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
-/** Outside cards for the person (plan 068): the whole thread on the card, and their own reply sent in it. */
-
 const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
@@ -48,7 +46,6 @@ afterEach(() => {
 const MAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";
 const JIRA = "jira:acme.atlassian.net:557058:acc-me";
-/** The window a fake card view answers with. */
 const WINDOW: OutsideWindow = { view: "thread", thread_ts: "1", more_before: 3, more_after: false };
 
 const account = (accountId: string, over: Partial<AccountRecord> = {}): AccountRecord => ({
@@ -78,7 +75,6 @@ const message = (id: string, at: number, headers: Record<string, string>, labelI
   },
 });
 
-/** OutsideThreads with fake clients and readers, recording what was sent and archived. */
 function threads(
   opts: {
     accounts?: AccountRecord[];
@@ -87,33 +83,25 @@ function threads(
     record?: { dealt_message_id?: string | null; brought_ids?: string[] };
     gmail?: GmailMessage[];
     sendFails?: string;
-    /** Why a Jira comment fails to post, after any attach went (KTD8). */
     commentFails?: string;
     thenFails?: string;
     sendAs?: GmailSendAs[];
     extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
-    /** The person's most-used emoji as Slack keeps them, and whether reading them fails (plan 084). */
     frequent?: string[];
     frequentFails?: boolean;
   } = {},
 ) {
-  /** What each card-view read was given: the record's facts and the ask. */
   const viewed: Array<{ facts: CardFacts; ask: OutsideWindowAsk }> = [];
   const sentMail: GmailDraftInput[] = [];
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
   const frequentReads = { n: 0 };
   const posted: Array<SlackPostInput & { mentions?: SlackStoredMentions }> = [];
-  /** Each Jira comment posted, as `[ticket, text]`. */
   const commented: Array<[string, string]> = [];
-  /** Each Slack message posted with files: where, the text, and each file's name and bytes as text. */
   const postedFiles: Array<{ channel: string; thread_ts?: string; text: string; files: Array<[string, string]> }> = [];
-  /** Each Jira attach, as `[ticket, [name, bytes as text][]]`. */
   const attachedFiles: Array<[string, Array<[string, string]>]> = [];
-  /** Every send call of any service, in order, as `<call> <where>`. */
   const calls: string[] = [];
   const archived: string[] = [];
-  /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
   const moves: string[] = [];
   const accounts = opts.accounts ?? [account(MAIL), account(SLACK)];
   const write =
@@ -294,10 +282,6 @@ describe("reading a card's whole thread", () => {
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });
-  /**
-   * What a Jira comment carries for the card to draw it as Slack's (plan 091): a picture, its blocks, and that it
-   * mentions the person; and its files as chips (plan 093).
-   */
   const DRAWN = {
     avatar: "https://avatar-management.example/ada/48",
     body: [{ kind: "text" as const, spans: [{ kind: "mention" as const, text: "@Mina Example" }] }],
@@ -362,7 +346,6 @@ describe("reading a card's whole thread", () => {
     await expect(threads({ accounts: [] }).t.read(MAIL, "t1")).rejects.toThrow("not connected on this Mac");
   });
 
-  /** A Slack thread that Slack refuses once with the given wait, then reads; and every wait the reader sat out. */
   const limitedOnce = (waitMs: number) => {
     const waits: number[] = [];
     let calls = 0;
@@ -442,7 +425,6 @@ describe("the person's reply", () => {
         threadId: "t1",
         inReplyTo: "<m3@acme.com>",
         references: ["<m1@acme.com>"],
-        // The mail came to the person's work address, so the answer goes from it (plan 076).
         from: '"Ada" <ada@work.example>',
         to: ["Cy <cy@acme.com>", "bob@acme.com"],
         cc: [],
@@ -566,7 +548,6 @@ describe("a comment from the card reaches the ticket and leaves the card as it w
   const ID = `jira:acme.atlassian.net:${JIRA_ME.account_id}`;
   const START = Date.parse("2026-11-10T09:00:00.000Z");
 
-  /** A site connected on a temporary folder: its records, the card's real reader, the sync and the reply, all over the fake site. */
   async function site(fetchOver?: typeof fetch) {
     const dir = mkdtempSync(join(tmpdir(), "loki-jira-comment-"));
     dirs.push(dir);
@@ -607,7 +588,6 @@ describe("a comment from the card reaches the ticket and leaves the card as it w
 
     s.advance(60_000);
     expect(await s.t.reply(ID, ticket, "On it.\nRotating tonight.\n\nWill confirm here.", "stay")).toEqual({ sent: true, then_error: null, change: null });
-    // Two paragraphs, the first with a line break, as Jira's own editor writes them (KTD15).
     expect(s.jira.posted.map(({ key, body }) => ({ key, body }))).toEqual([
       {
         key: "OPS-7",
@@ -661,8 +641,6 @@ describe("a comment from the card reaches the ticket and leaves the card as it w
   });
 });
 
-/** The mail parts of the reply frames' fake, for tests about something else. */
-/** What a fake reader that is about neither mail nor reactions answers. */
 describe("the person's reactions on a Slack card (plan 079)", () => {
   test("a reaction goes to the message in the card's channel, and moves nothing on the card", async () => {
     const { t, reacted, moves } = threads();
@@ -757,7 +735,6 @@ describe("mentioning people in a Slack reply (plan 082)", () => {
 });
 
 describe("the reply frames", () => {
-  /** The account frames on a bridge, with a fake reader; each frame's last answer. */
   function ask(outside?: Parameters<typeof accountFrames>[0]["outside"]) {
     const bridge = bridgeOf({ modules: [accountFrames(outside ? { outside } : {})] });
     return async (frame: Record<string, unknown>) => {
@@ -871,7 +848,6 @@ describe("the reply frames", () => {
     });
     const answer = await send({ type: "account_thread_read", account_id: JIRA, thread_id: "10001", ticket: true });
     expect(answer).toMatchObject({ type: "account_thread", messages: JIRA_COMMENTS, ticket });
-    // Anything but true is not an ask: an older app sends nothing, and a stray value changes nothing.
     await send({ type: "account_thread_read", account_id: JIRA, thread_id: "10001", ticket: "yes" });
     expect(asked).toEqual([{ ticket: true }, {}]);
 
@@ -892,7 +868,6 @@ describe("the reply frames", () => {
   });
 });
 
-/** A timer the test fires itself. */
 function timers() {
   const due: Array<{ fn: () => void; ms: number; live: boolean }> = [];
   return {
@@ -908,7 +883,6 @@ function timers() {
   };
 }
 
-/** Wait for a condition, yielding to the event loop between looks, for at most a second. */
 async function until(check: () => boolean): Promise<void> {
   const deadline = Date.now() + 1000;
   while (!check()) {
@@ -919,7 +893,6 @@ async function until(check: () => boolean): Promise<void> {
 
 describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U5)", () => {
   const PROPOSAL: HeldProposal = { agent_id: "agent-work", conversation_id: "conv-1", proposal_id: "reply-1" };
-  /** Grace's mail to Ada and Alan, copied to Bob: the thread an agent's Gmail reply answers. */
   const grace = (): GmailMessage => ({
     ...message("m1", 1, {
       From: "Grace Hopper <grace@acme.com>",
@@ -932,19 +905,12 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
   });
   const CARD = { to: ["Grace Hopper <grace@acme.com>", "Alan Turing <alan@acme.com>"], cc: ["Bob <bob@acme.com>"] };
 
-  /**
-   * OutsideThreads with an outbox on a temporary file and a timer the test fires, reporting to a stand-in for the
-   * proposals that records each report and acknowledges as the proposals do once they have saved it.
-   */
   function held(opts: Parameters<typeof threads>[0] & { file?: string; now?: () => Date } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "loki-agent-reply-"));
     dirs.push(dir);
     const tm = timers();
     const file = opts.file ?? join(dir, "outbox.json");
-    // The options are filled in place rather than copied, so a test may change what a fake does between two sends.
     opts.sendAs ??= [{ address: "ada@acme.com", name: "Ada Lovelace", signature: "<div>Ada<br>Acme</div>", isDefault: true }];
-    // The outbox's clock is always the test's: with the real one, a millisecond passing between holding a reply and
-    // setting its timer made the hold read 9999 ms on a slow CI runner.
     const fixed = new Date("2026-11-14T10:00:00.000Z");
     opts.extra = { outbox: { file, key: Promise.resolve("the daemon's key"), after: tm.after, now: opts.now ?? (() => fixed) }, ...opts.extra };
     const made = threads(opts);
@@ -962,7 +928,6 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
       },
       attached: (p, names) => attached.push([p.proposal_id, names]),
     });
-    /** A file in the chat's folder, as a proposal keeps it. */
     const put = (name: string, text: string): HeldFile => {
       const path = join(dir, name);
       writeFileSync(path, text);
@@ -1004,7 +969,6 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
     expect(m).toMatchObject({ from: '"Ada Lovelace" <ada@acme.com>', ...CARD, bcc: [], subject: "Re: The plan", inReplyTo: "<m1@acme.com>" });
     expect(m.body).toMatch(/^Friday works\.\n\n-- \nAda\nAcme\n\nOn .* Grace Hopper <grace@acme\.com> wrote:\n> Can we meet Friday\?$/);
     expect(m.attachments?.map((a) => [a.filename, a.mimeType, a.data.toString()])).toEqual([["invoice.pdf", "application/pdf", "%PDF-1.4 invoice"]]);
-    // Sent alone (R15): no move, no dealt mark, and the outbox lets the entry go once the proposal acknowledged it.
     expect(h.moves).toEqual([]);
     expect(h.sent.map((x) => x.proposal)).toEqual([PROPOSAL]);
     expect(h.notSent).toEqual([]);
@@ -1094,7 +1058,6 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
     const first = held({ gmail: thread, now: () => now });
     first.t.holdAgentReply(first.reply({ people: CARD }));
     await until(() => first.outbox().length === 1);
-    // loki stops three seconds in: nothing went, and the entry waits in the file.
     now = new Date("2026-11-14T12:00:03Z");
     const second = held({ gmail: thread, now: () => now, file: first.file });
     second.t.resume();
@@ -1103,7 +1066,6 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
     await until(() => second.sent.length === 1);
     expect([first.sentMail.length, second.sentMail.length]).toEqual([0, 1]);
     expect(second.sent.map((x) => [x.outbox_id, x.proposal])).toEqual([["o-agent-1", PROPOSAL]]);
-    // Acknowledged, it is gone: a third start sends and reports nothing.
     const third = held({ gmail: thread, now: () => now, file: first.file });
     third.t.resume();
     await new Promise((resolve) => setImmediate(resolve));
@@ -1133,7 +1095,6 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
     h.tm.fire();
     await until(() => h.notSent.length === 1);
     expect(h.attached).toEqual([["reply-1", ["a.pdf"]]]);
-    // The second Send carries the file as already attached (KTD8), so only the comment goes.
     o.commentFails = undefined;
     h.t.holdAgentReply(h.reply({ outbox_id: "o-agent-2", account_id: JIRA, thread_id: "10001", text: "Rotated.", attached: ["a.pdf"] }));
     await until(() => h.tm.pending().length === 1);
@@ -1182,7 +1143,6 @@ describe("only the person's reply, their Send on an agent's reply, and a script'
       .map((f) => f.split("\\").join("/"))
       .sort();
     expect(callers).toEqual(["google-tools/gmail.ts", "outside-threads.ts"]);
-    // The scripts' tool sends Gmail only: Slack and Jira still post nothing an agent wrote.
     expect(readFileSync(join(dir, "google-tools", "gmail.ts"), "utf8")).not.toMatch(/\.(postReply|postWithFiles|postComment|attachFiles)\(/);
   });
   test("an agent's reply reaches a send only through the outbox: its hold calls no send, and the proposals only hold and undo", () => {
@@ -1190,7 +1150,6 @@ describe("only the person's reply, their Send on an agent's reply, and a script'
     const hold = src.slice(src.indexOf("  holdAgentReply("), src.indexOf("  holds(outboxId"));
     expect(hold).toMatch(/this\.outbox\.hold\(/);
     expect(hold).not.toMatch(/\.(sendReply|postReply|postWithFiles|postComment|attachFiles|sendNow|sendMail)\(/);
-    // The outbox is the one caller of the send itself, after its hold.
     expect([...src.matchAll(/this\.sendNow\(/g)].length).toBe(2);
     expect(src).toMatch(/send: \(held\) => this\.sendNow\(held\)/);
     const proposals = readFileSync(join(import.meta.dirname, "..", "mod", "reply-proposals.ts"), "utf8");
@@ -1236,7 +1195,6 @@ describe("the card", () => {
       "Reply in the thread",
       "Reply to all",
     ]);
-    // A thread opened on a DM card is where the reply goes (plan 085).
     expect(replyPlace(FACTS, true)).toBe("Reply in the thread");
   });
   test("the thread draws each message with its sender, and the person's own as you; while it loads, the last lines stand in", () => {
@@ -1283,10 +1241,8 @@ const JIRA_FACTS: OutsideFacts = {
   only_account: false,
 };
 
-/** An outside card's header, as the deck draws it over what the read gave. */
 const itemHeader = (facts: OutsideFacts, thread: ThreadState) =>
   renderToStaticMarkup(createElement(OutsideItemHeader, { facts, unread: false, flash: null, went: null, cameBack: false, thread }));
-/** An outside card's moves, as the deck draws them in the reply box's row. */
 const itemActions = (facts: OutsideFacts, thread: ThreadState) =>
   renderToStaticMarkup(
     createElement(OutsideItemActions, {
@@ -1366,7 +1322,6 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
   });
   test("the fields show what the ticket has, the changed status marked new with what it was and who changed it", () => {
     const html = thread();
-    // Labels are in sentence case on the desktop and the phone (docs/style.md).
     expect(html).toContain(">Status<");
     expect(html).toContain(">In review<");
     expect(html).toContain(">Assignee<");
@@ -1416,7 +1371,6 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     );
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Field changes are no longer lines in the list.
     expect(html).not.toContain("status: ");
   });
   test("a ticket with no comments yet still draws the ticket", () => {
@@ -1442,7 +1396,6 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
   });
   test("a Jira card's opening read asks for the ticket, and so does a load while it shows one; Gmail and Slack ask nothing new", () => {
     expect(ticketAsk(JIRA_FACTS, true)).toEqual({ ticket: true });
-    // A card the Mac answered with the older log loads more of that log.
     expect(ticketAsk(JIRA_FACTS, false)).toEqual({});
     const mail = must(outsideItem("Lunch").outside, "mail facts");
     for (const facts of [mail, FACTS, undefined]) expect(ticketAsk(facts, true)).toEqual({});
@@ -1497,7 +1450,6 @@ describe("a Jira card's comments look like a Slack card's messages (plan 091)", 
       ],
       mentions_me: true,
     },
-    // Reactions and replies a Jira comment never has, so the card is seen to leave them out.
     {
       id: "c3",
       sender: "Bob Stone",
@@ -1510,7 +1462,6 @@ describe("a Jira card's comments look like a Slack card's messages (plan 091)", 
     { id: "c4", sender: "Ada Lovelace", at: at(10, 9, 0), text: "Next day", mine: false, avatar: ADA_FACE, unread: true, brought: true },
   ];
   const window: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };
-  // The card's controls can react and open threads, as a Slack card's do; a Jira card uses neither.
   const controls = { load: () => {}, openThread: () => {}, busy: null, react: () => {} };
   const draw = (state: Partial<Extract<ThreadState, { kind: "read" }>> = {}, facts: OutsideFacts = JIRA_FACTS, touch = false) =>
     renderToStaticMarkup(
@@ -1524,7 +1475,6 @@ describe("a Jira card's comments look like a Slack card's messages (plan 091)", 
   test("faces on the first comment of each run, one name per run, clock times, day pills and the New line", () => {
     const html = draw();
     expect(html).toContain("loki-slack-thread");
-    // Ada's two comments a minute apart are one run; Bob's, and Ada's on the next day, start their own.
     expect(html.match(/data-first="true"/g)).toHaveLength(3);
     expect(html.match(/<img[^>]*src="https:\/\/avatar-management\.example\/ada\/48"/g)).toHaveLength(2);
     expect(html.match(/class="loki-msg-name">Ada Lovelace/g)).toHaveLength(2);
@@ -1539,7 +1489,6 @@ describe("a Jira card's comments look like a Slack card's messages (plan 091)", 
     const html = draw();
     expect(html).toContain("<strong>bold</strong>");
     expect(html).toContain('<span class="loki-mention">@Mina Example</span>');
-    // The wash marks the mention, not the comment that only brought the card.
     expect(html.match(/loki-slack-brought/g)).toHaveLength(1);
     expect(html.indexOf("loki-slack-brought")).toBeGreaterThan(html.indexOf("Plan is"));
     expect(html.indexOf("loki-slack-brought")).toBeLessThan(html.indexOf("can you?"));
@@ -1603,7 +1552,6 @@ describe("the moves a Jira card offers (plan 2026-11-10-1451, U6)", () => {
     expect(html).not.toContain('aria-label="Archive"');
     expect(html).not.toContain('aria-label="Label"');
     expect(html).toContain("Give the whole ticket to friday in one of its chats; the card stays until you read it");
-    // A Slack card keeps its archive and its hand-off words.
     const slack = card(FACTS);
     expect(slack).toContain('aria-label="Archive"');
     expect(slack).toContain("the card leaves until someone writes again");
@@ -1624,7 +1572,6 @@ describe("a Jira card's comment box (plan 2026-11-10-1451, U7)", () => {
   test("on the desktop it comments on the ticket, sends on Enter, and says the card stays unread", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts: JIRA_FACTS, box }));
     expect(html).toContain('placeholder="Comment on the ticket"');
-    // Enter sends: its key is in the send button's tooltip.
     expect(html).toContain(`title="Post it on the ticket as you; the card stays, unread, for your next move (${keyFor("chat.send")})"`);
     expect(html).not.toContain("loki-mail-compose");
   });
@@ -1670,7 +1617,6 @@ describe("a Jira card's files say jira where Slack's say Slack (plan 093, U5)", 
     expect(html).not.toContain("Slack");
   });
   test("a picture draws as itself with its name, and pressing it opens it in jira", () => {
-    // The picture's address is the mod's, as a browser tab finds it.
     vi.stubGlobal("window", {});
     vi.stubGlobal("location", { origin: "http://127.0.0.1:5173" });
     vi.stubGlobal("localStorage", { getItem: () => null });

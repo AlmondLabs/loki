@@ -8,10 +8,6 @@ const THIRD = "cccccccc-3333-4333-8333-333333333333";
 const CHAT: ChatRef = { agent_id: "agent-ira", conversation_id: "conv-1" };
 const SCOPE = scopeFor("conv-1", "agent-ira");
 
-/**
- * Paired Macs joined in memory: each one's store (the scopes it holds), its directory, and what it was told. `down`
- * names Macs out of reach. `restart` gives a Mac a fresh directory over the same store, as after a reboot.
- */
 function macs(ids: string[]) {
   const stores = new Map(ids.map((id) => [id, new Set<string>()]));
   const down = new Set<string>();
@@ -39,7 +35,6 @@ function macs(ids: string[]) {
     if (!d) throw new Error(id);
     return d;
   };
-  /** A chat moves from one store to another, and the Mac it left tells the others. */
   const move = (from: string, to: string) => {
     stores.get(from)?.delete(SCOPE);
     stores.get(to)?.add(SCOPE);
@@ -55,7 +50,6 @@ describe("the chat directory (plan 023, addendum B)", () => {
     expect(m.dir(BOOK).peek(CHAT)).toEqual({ at: "here" });
     m.dir(MINI).heard(BOOK, { kind: "holds", scopes: [SCOPE] });
     expect(m.dir(MINI).peek(CHAT)).toEqual({ at: "mac", mac: BOOK, reachable: true });
-    // A newer list replaces the old one: a chat no longer listed is no longer claimed.
     m.dir(MINI).heard(BOOK, { kind: "holds", scopes: [] });
     expect(m.dir(MINI).peek(CHAT)).toBeNull();
   });
@@ -74,11 +68,10 @@ describe("the chat directory (plan 023, addendum B)", () => {
     const m = macs([BOOK, MINI, THIRD]);
     m.stores.get(BOOK)?.add(SCOPE);
     m.dir(THIRD).heard(BOOK, { kind: "holds", scopes: [SCOPE] });
-    m.down.add(THIRD); // asleep while the chat moves
+    m.down.add(THIRD);
     m.move(BOOK, MINI);
     m.down.delete(THIRD);
     expect(m.dir(THIRD).peek(CHAT)).toEqual({ at: "mac", mac: BOOK, reachable: true });
-    // Its frame reaches the MacBook, which answers with where the chat went.
     const redirect = m.dir(BOOK).answer(CHAT);
     expect(redirect).toEqual({ held: false, moved_to: MINI });
     m.dir(THIRD).heard(BOOK, { kind: "answer", scope: SCOPE, ...redirect });
@@ -87,7 +80,7 @@ describe("the chat directory (plan 023, addendum B)", () => {
 
   test("a chat no Mac claimed is asked for, and the answer is kept; one no Mac holds is nowhere", async () => {
     const m = macs([BOOK, MINI]);
-    m.stores.get(MINI)?.add(SCOPE); // made on the mini a moment ago, before its list reached the MacBook
+    m.stores.get(MINI)?.add(SCOPE);
     expect(m.dir(BOOK).peek(CHAT)).toBeNull();
     expect(await m.dir(BOOK).locate(CHAT)).toEqual({ at: "mac", mac: MINI, reachable: true });
     expect(m.dir(BOOK).peek(CHAT)).toEqual({ at: "mac", mac: MINI, reachable: true });
@@ -100,9 +93,8 @@ describe("the chat directory (plan 023, addendum B)", () => {
     m.dir(THIRD).heard(BOOK, { kind: "holds", scopes: [SCOPE] });
     m.down.add(THIRD);
     m.move(BOOK, MINI);
-    m.restart(BOOK); // the MacBook's forwarding note is gone
+    m.restart(BOOK);
     m.down.delete(THIRD);
-    // The MacBook now answers "not here, no note": the third Mac drops its claim and asks around.
     m.dir(THIRD).heard(BOOK, { kind: "answer", scope: SCOPE, ...m.dir(BOOK).answer(CHAT) });
     expect(m.dir(THIRD).peek(CHAT)).toBeNull();
     expect(await m.dir(THIRD).locate(CHAT)).toEqual({ at: "mac", mac: MINI, reachable: true });

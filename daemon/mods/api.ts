@@ -1,12 +1,3 @@
-/**
- * loki's mod API, version 1 (plan 017, KTD17). A mod adds tools, prompt sections, a say before a tool runs, a
- * transform of the person's message before it is sent, and listens to turn events. The daemon turns each mod into one
- * pi-durable extension (daemon/mods/registry.ts), so its hooks reach every chat of every agent, and so do its tools unless
- * a tool names the agents it is for (`ModTool.forAgent`). Editing a mod reloads it in place.
- *
- * `tools.register`, `events.on`, `diagnostics.report` and `signal` are its parts. Parameters are JSON Schema.
- */
-
 /** The API's major version. A mod built for a newer one is refused (registry.ts). */
 export const MOD_API_VERSION = 1;
 

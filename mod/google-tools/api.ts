@@ -1,13 +1,6 @@
 import type { GoogleService } from "../../core/frame-types.ts";
 import { accountFor, rec, textArg, type GoogleToolDef } from "./core.ts";
 
-/**
- * Any other call on the five services (plan 2026-11-11 scripts, KTD11): a method, a path on the service's own API
- * host, a query and a JSON body, answered with Google's JSON. The host is loki's, never the script's, so the token goes
- * only to Google, and only for a service the account granted.
- */
-
-/** Each service's API host, and the paths on it that are that service's. */
 const HOSTS: Record<GoogleService, { origin: string; paths: RegExp }> = {
   gmail: { origin: "https://gmail.googleapis.com", paths: /^\/gmail\/v1\// },
   drive: { origin: "https://www.googleapis.com", paths: /^\/(upload\/)?drive\/v3\// },
@@ -33,7 +26,6 @@ const api: GoogleToolDef = {
     body: { type: "object" },
   },
   required: ["service", "method", "path"],
-  // Checked against the service named, below.
   service: null,
   reads: false,
   answersContent: true,
@@ -60,5 +52,4 @@ const api: GoogleToolDef = {
   },
 };
 
-/** The request tool. */
 export const apiTools: GoogleToolDef[] = [api];

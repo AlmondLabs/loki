@@ -58,7 +58,7 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
   test("the filter narrows by desk name or agent name", () => {
     expect(homeDeskSections(desks, [], [], "kai", agents).map((g) => g.id)).toEqual(["pinned", "agent:kai"]);
     expect(homeDeskSections(desks, [], [], "a1", agents).flatMap((g) => g.rows.map((r) => r.desk.scope))).toEqual(["a1"]);
-    expect(homeSections(desks, [], null, "").desks.length).toBeGreaterThan(0); // the attention half still comes from homeSections
+    expect(homeSections(desks, [], null, "").desks.length).toBeGreaterThan(0);
   });
 });
 

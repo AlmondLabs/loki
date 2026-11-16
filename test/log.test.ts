@@ -11,7 +11,7 @@ test("a log past the cap is renamed to .1 and a fresh one starts", () => {
   expect(rotateIfLarge(path, 1024)).toBe(true);
   expect(existsSync(`${path}.1`)).toBe(true);
   expect(existsSync(path)).toBe(false);
-  expect(rotateIfLarge(path, 1024)).toBe(false); // nothing there yet: not an error
+  expect(rotateIfLarge(path, 1024)).toBe(false);
 });
 
 test("log() checks the size every LOG_CHECK_EVERY lines and keeps writing", () => {

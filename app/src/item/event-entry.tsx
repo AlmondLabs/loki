@@ -9,7 +9,6 @@ import { clockLabel } from "../shared/thread";
 import { EventDetail } from "../chat/tool-steps";
 import { OpenChat, SUGGESTED, suggestedSource } from "../chat/transcript";
 
-/** A calendar day opening in the thread: "Today", "Yesterday", a date, between two hairlines. */
 export function DayMarker({ label }: { label: string }) {
   return (
     <Marker variant="separator" role="separator" aria-label={label} className="text-xs font-semibold">
@@ -18,7 +17,6 @@ export function DayMarker({ label }: { label: string }) {
   );
 }
 
-/** The first thing you have not seen: "New" on a hairline in the attention colour, with the day where rows carry no times. */
 export function NewMarker({ day }: { day: string | null }) {
   return (
     <Marker
@@ -32,10 +30,6 @@ export function NewMarker({ day }: { day: string | null }) {
   );
 }
 
-/**
- * Something that changed in an outside item (plan 097, EventEntry): a Jira field set, a status moved, as one quiet line
- * with who did it and when.
- */
 export function ChangeEntry({ who, text, at }: { who: string | null; text: string; at: string }) {
   const time = clockLabel(at);
   return (
@@ -52,12 +46,6 @@ export function ChangeEntry({ who, text, at }: { who: string | null; text: strin
   );
 }
 
-/**
- * A harness event as one quiet line (plan 097, EventEntry: a background task finishing, a skill loaded); with a detail,
- * it opens to it, a lean one's fetched only then. A message sent from a suggestion is a line that opens the chat it came
- * from. A finished compaction is a Checkpoint, a point in the chat marked across the column, whose summary opens under
- * it; it offers no restore, since loki cannot go back to one yet (plan 097, KTD8).
- */
 export function EventEntry({ row: m, arrived }: { row: TranscriptRow; arrived: boolean }) {
   const openChat = useContext(OpenChat);
   const [open, setOpen] = useState(false);

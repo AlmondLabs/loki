@@ -2,7 +2,6 @@ import { expect, test } from "vitest";
 import { compareVersions, parseVersion } from "../core/version.ts";
 import { byVersion, nightlyVersion, stableVersion } from "../scripts/release.ts";
 
-/** Whether `candidate` comes after `current` by semver precedence, the updater's order. */
 function newer(current: string, candidate: string): boolean {
   const order = compareVersions(current, candidate);
   if (order === null) throw new Error(`not versions: ${current}, ${candidate}`);
@@ -24,9 +23,8 @@ test("newer means strictly after, per component", () => {
 });
 
 test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through months, years and same-day releases", () => {
-  // the last stables of the old scheme, then the first of the new
   expect(newer("2026.10.11", "2026.1011.0")).toBe(true);
-  expect(newer("2026.12.31", "2026.1011.0")).toBe(true); // any old-scheme day: a month never reaches 101
+  expect(newer("2026.12.31", "2026.1011.0")).toBe(true);
   expect(newer("2026.1011.0", "2026.10.31")).toBe(false);
   const inOrder = [
     "2026.1011.0",
@@ -46,10 +44,6 @@ test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through mo
   }
 });
 
-/**
- * Semver precedence (plan 2026-11-15-2319 KTD2), the order the updater uses: a release ranks above its prereleases,
- * and a nightly's run number compares as a number. So switching from Nightly to Stable never installs an older build.
- */
 test("a stable is newer than the nightlies that led up to it, and no older stable is (AE4)", () => {
   expect(newer("2026.1120.0-nightly.4821", "2026.1120.0")).toBe(true);
   expect(newer("2026.1120.0-nightly.4821", "2026.1119.2")).toBe(false);
@@ -65,7 +59,6 @@ test("nightlies of one stable order by run number, as numbers", () => {
 
 test("prerelease ties break by semver: words above numbers, longer above shorter, build metadata ignored", () => {
   // A nightly installed before run numbers sorts above a run-numbered one of the same stable: semver ranks words above
-  // numbers. Those nightlies are replaced by the cask's one last upgrade, not by this comparison.
   expect(compareVersions("2026.1011.1-nightly.a96ee85", "2026.1011.1-nightly.4821")).toBeGreaterThan(0);
   expect(compareVersions("1.0.0-nightly", "1.0.0-nightly.1")).toBeLessThan(0);
   expect(compareVersions("1.0.0+a", "1.0.0+b")).toBe(0);
@@ -115,6 +108,6 @@ test("stable and nightly versions build an NSIS installer as is: semver, no buil
       expect(nightlyVersion(stableVersion(d, 0), run)).not.toContain("+");
     }
   }
-  expect(productVersion("2026.1231.65535")).toBe("2026.1231.65535.0"); // the widest the scheme gets, inside 16 bits
-  expect(productVersion("2026.9.24-nightly.abc1234")).toBe("2026.9.24.0"); // old-scheme nightlies still parse
+  expect(productVersion("2026.1231.65535")).toBe("2026.1231.65535.0");
+  expect(productVersion("2026.9.24-nightly.abc1234")).toBe("2026.9.24.0");
 });

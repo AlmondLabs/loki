@@ -8,13 +8,6 @@ import { currentBuild } from "./update-bar";
 import { useTheme } from "../theme";
 import { Scroll, TopBar } from "./ui";
 
-/**
- * More, Slack's You sheet with loki's content: this phone's profile and the paired Mac's presence first,
- * then named rows for the places (Agents, Learn, the archive, Preferences) and the utilities (Updates,
- * About, the connection) — model.ts moreSections decides the rows and their asides. Every row opens a page,
- * except Updates, whose reload is confirmed in a sheet here. Rows carry `data-launch`, so focus comes back
- * to the one you left from, and the scroll comes back from the scroll memory.
- */
 export function More({
   me,
   link,

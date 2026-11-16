@@ -7,7 +7,7 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 
 - Read [docs/style.md](docs/style.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
   code lives. Use the words in [glossary.md](glossary.md).
-- Match the code around you: its comment density, naming and idiom. Leave layout to Prettier (`npm run format`).
+- Match the code around you: its naming and idiom. Leave layout to Prettier (`npm run format`).
 - Work in this repository goes through the `ce-*` skills:
   - `ce-brainstorm` to scope an idea
   - `ce-plan` for the plan
@@ -29,8 +29,10 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
   tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
-- **Every export outside `test/` has a `/** … */` doc comment** (shadcn's upstream files in `app/src/ui/` excepted).
-  Comments say why, in full sentences and plain words; no commented-out code, no bare `TODO`.
+- **Comments are the exception**: a licence header, a gotcha forced by something outside loki, `prettier-ignore` or a
+  style-only lint suppression, a doc comment stating a contract across a process or disk boundary (frames, `~/.loki`
+  files, the mod API, tool arguments, Tauri commands), or an issue or RFC link. A surprise in loki's own code is fixed
+  by renaming, extracting or typing it, not explained. No commented-out code, no `TODO`, no plan tags.
 - **Words on screen**: Apple's (the Human Interface Guidelines): controls in title case (`Mark as Read`), everything else
   a sentence, keys in tooltips and the menu bar rather than on buttons, plain words, no exclamation marks.
 - **Styles** stay on the scales in [docs/design.md](docs/design.md) (`test/tokens.test.ts` checks).

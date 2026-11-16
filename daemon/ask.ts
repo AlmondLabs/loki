@@ -4,11 +4,6 @@ import type { Approvals } from "./approvals.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";
 
-/**
- * user_ask (plan 017, U7; `ask_user` until plan 044): the agent asks the person a few questions with options, shown as a question card on
- * every client following the chat; the first client to answer settles it, and the answers come back as the tool's
- * result. The input and the answers have the shape the question card reads (core/attention/content.ts).
- */
 export function askTool(approvals: Approvals): ChatTool {
   return {
     kind: "read",
@@ -54,7 +49,6 @@ export function askTool(approvals: Approvals): ChatTool {
   };
 }
 
-/** user_ask as an extension, for loki's own engine. */
 export function askExtension(approvals: Approvals): Extension {
   return defineExtension({ name: "loki.ask", tools: [piTool(askTool(approvals))] });
 }

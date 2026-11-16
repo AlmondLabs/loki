@@ -1,23 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button, Field, Meta, Row } from "../components";
 
-/** The furthest a card put off twice can be sent: about a month, so nothing is put off out of mind (plan 070, R7). */
 export const LATER_MAX_DAYS = 31;
 
-/** The hour a card picked for a later day comes back at: the start of a working morning, local time. */
 const MORNING = 9;
 
-/** One return time the picker offers: its id, its words, and when the card comes back. */
 export interface ReturnChoice {
   id: "today" | "tomorrow" | "days" | "week";
   label: string;
   at: Date;
 }
 
-/** `now`'s day plus `days`, at the morning hour, local time. */
 const morning = (now: Date, days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, MORNING, 0);
 
-/** The return times the second ⌘[ offers, from `now`: in 3 hours, tomorrow morning, in 3 days, and a week on. */
 export function returnChoices(now: Date): ReturnChoice[] {
   return [
     { id: "today", label: "Later Today", at: new Date(now.getTime() + 3 * 3_600_000) },
@@ -27,7 +22,6 @@ export function returnChoices(now: Date): ReturnChoice[] {
   ];
 }
 
-/** A date typed or picked ("2026-11-20") as that morning, local time; null when empty, not after today, or past the bound. */
 export function dateChoice(value: string, now: Date): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!m) return null;
@@ -36,32 +30,23 @@ export function dateChoice(value: string, now: Date): Date | null {
   return at;
 }
 
-/** A local date as the date input takes it ("2026-11-20"). */
 const dateValue = (d: Date) => `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** When a choice comes back, in the meta's short words: "17:30", "Fri 9:00". */
 const whenText = (at: Date, now: Date) =>
   at.toDateString() === now.toDateString()
     ? at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : at.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
-/**
- * When a card put off twice should come back (plan 070, R7): the second ⌘[ on the same card asks here. Arrows move,
- * Enter or a click picks, a date goes up to about a month on, and Esc closes with nothing scheduled. Drawn in the card
- * above its moves, as the hand-off picker is.
- */
 export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void; onCancel: () => void }) {
   const [now] = useState(() => new Date());
   const choices = returnChoices(now);
   const [hi, setHi] = useState(0);
   const [date, setDate] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
-  // The list takes focus as it opens, so Enter picks at once.
   useEffect(() => listRef.current?.focus({ preventScroll: true }), []);
   const picked = dateChoice(date, now);
 
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    // The deck's own keys wait while the picker is open.
     e.stopPropagation();
     const inDate = e.target instanceof HTMLInputElement;
     if (e.key === "Escape") onCancel();

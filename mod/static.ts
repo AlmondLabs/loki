@@ -4,14 +4,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { appDistCandidates } from "./paths.ts";
 
-/**
- * The built canvas (app/dist), served to phones by the LAN listener as a single-page app:
- * files under the dist as they are, every extension-less path as index.html with a boot
- * script that tells main.tsx it is in LAN mode. Without a dist there is nothing to serve
- * and `/` says so.
- */
-
-/** The host in the page's words (`__LOKI__.os`, read as `platform` in app/src/desk/env.ts), as the shell names it too. */
 export function hostOs(p: string = process.platform): "macos" | "windows" | "linux" {
   return p === "darwin" ? "macos" : p === "win32" ? "windows" : "linux";
 }
@@ -42,10 +34,6 @@ export function jsonForScript(value: unknown): string {
   return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
-/**
- * The boot script: LAN mode, the build stamped in, and the system loki runs on, so a page opened from a phone or
- * another computer names this machine rather than its own (its keys stay its own: env.ts `keyboard`).
- */
 export function bootScript(build: string | null, os: string = hostOs()): string {
   return `<script>window.__LOKI__={lan:true,${build ? `build:${jsonForScript(build)},` : ""}os:${jsonForScript(os)}}</script>`;
 }
@@ -66,26 +54,18 @@ const TYPES: Record<string, string> = {
   ".map": "application/json; charset=utf-8",
 };
 
-/** The first candidate directory that holds a build (an index.html and assets/), or null. */
 export function resolveAppDist(candidates: string[] = appDistCandidates): string | null {
   for (const dir of candidates) {
     try {
       // A Vite build has index.html and assets/; the source app/ has only index.html and must be skipped.
       if (existsSync(join(dir, "index.html")) && existsSync(join(dir, "assets"))) return resolve(dir);
-    } catch {
-      // unreadable: next
-    }
+    } catch {}
   }
   return null;
 }
 
-/** Answers one request for the canvas; it always answers, so it is the listener's last route. */
 export type StaticHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 
-/**
- * The canvas handler over a dist: GET and HEAD only, routes and /index.html as the page with its boot script, other
- * files from inside the dist. With no dist, every request gets a 503 page saying the canvas is not built.
- */
 export function createStaticApp(dist: string | null): StaticHandler {
   if (!dist) return serveMissing;
   const root = resolve(dist);
@@ -98,9 +78,7 @@ export function createStaticApp(dist: string | null): StaticHandler {
       return notFound(res);
     }
     const ext = extname(pathname);
-    // Routes have no extension; an explicit /index.html is the same page and must carry the boot script too.
     if (!ext || pathname === "/index.html") return serveIndex(root, res);
-    // Resolve inside the dist and refuse anything that escapes it (".." in any encoding).
     const file = resolve(root, `.${pathname}`);
     const rel = relative(root, file);
     if (!rel || rel.startsWith("..") || rel.split(sep).includes("..") || resolve(root, rel) !== file) return notFound(res);
@@ -139,11 +117,6 @@ function serveIndex(root: string, res: ServerResponse): void {
   res.end(html);
 }
 
-/**
- * What a stale hashed script gets instead of a 404: JavaScript that reloads the page once. The guard in
- * sessionStorage stops a loop if the reloaded page is stale too (the Mac mid-rebuild); a later stale hit,
- * ten seconds or more on, may reload again. Never cached: the name it answers for belongs to a dead build.
- */
 export const STALE_RELOAD_SCRIPT = `// loki: this asset belongs to an earlier build; the page reloads to pick up the current one.
 (function(){try{var k="loki.staleReload",t=Number(sessionStorage.getItem(k)||0);if(Date.now()-t<10000)return;sessionStorage.setItem(k,String(Date.now()))}catch(e){}location.reload()})();
 `;

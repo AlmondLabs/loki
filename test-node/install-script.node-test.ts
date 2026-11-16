@@ -1,10 +1,3 @@
-/**
- * The one-line install (docs/plans/2026-11-15-2319-feat-self-updating-install-plan.md, U7): site/public/install.sh run
- * with `sh` against a fake release on disk, in a scratch home, with uname, sysctl, pgrep and ldconfig faked on PATH so
- * both the macOS and the Linux path run on either system. A missing file and a dropped connection come from a local HTTP
- * server, as only HTTP has a 404. Nothing is opened and the real /Applications is never touched. install.ps1 is only
- * parsed, where PowerShell is installed. Runs under Node: npm run test:node
- */
 import { strict as assert } from "node:assert";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
@@ -30,7 +23,6 @@ interface Scratch {
   bin: string;
 }
 
-/** A scratch dir with a home, a temp dir, an Applications folder, an empty release tree and the fake tools. */
 function scratch(): Scratch {
   const dir = mkdtempSync(join(tmpdir(), "loki-install-"));
   const s: Scratch = {
@@ -60,14 +52,12 @@ function tool(s: Scratch, name: string, body: string): void {
   chmodSync(file, 0o755);
 }
 
-/** The folder a channel's files come from, as the script builds it from LOKI_DOWNLOAD_URL. */
 function channelDir(s: Scratch, channel: "stable" | "nightly"): string {
   const dir = channel === "stable" ? join(s.releases, "latest", "download") : join(s.releases, "download", "nightly");
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-/** A release's macOS archive: loki.app with an Info.plist carrying `version`, as the updater's own archive is laid out. */
 function macRelease(s: Scratch, channel: "stable" | "nightly", version: string, app = "loki.app"): void {
   const stage = mkdtempSync(join(s.dir, "stage-"));
   mkdirSync(join(stage, app, "Contents"), { recursive: true });
@@ -77,10 +67,6 @@ function macRelease(s: Scratch, channel: "stable" | "nightly", version: string, 
   assert.equal(tar.status, 0, tar.stderr);
 }
 
-/**
- * A release's AppImage: a script that, like the real runtime, takes out its icon on `--appimage-extract`. `fuse2`
- * names libfuse.so.2 inside it, as the older AppImage runtime does.
- */
 function linuxRelease(s: Scratch, channel: "stable" | "nightly", version: string, fuse2 = true): void {
   const lines = [
     "#!/bin/sh",
@@ -97,10 +83,6 @@ interface Run {
   stderr: string;
 }
 
-/**
- * A local HTTP server for the files under `root`, answering as GitHub's download URLs do: a missing file is a 404. A
- * path under /drop/ closes the connection without a reply, as a network failure would.
- */
 async function serve(root: string): Promise<{ url: string; close: () => void }> {
   const code = `
     const { createServer } = require("node:http");
@@ -120,7 +102,6 @@ async function serve(root: string): Promise<{ url: string; close: () => void }> 
   return { url: `http://127.0.0.1:${port.toString().trim()}`, close: () => void server.kill() };
 }
 
-/** install.sh as `sh install.sh …`, or, with `piped`, as `curl … | sh -s -- …` reads it. */
 function install(s: Scratch, opts: { system?: string; arch?: string; args?: string[]; env?: Record<string, string>; piped?: boolean } = {}): Run {
   const env: Record<string, string> = {
     PATH: `${s.bin}${delimiter}${process.env.PATH ?? ""}`,
@@ -141,7 +122,6 @@ function install(s: Scratch, opts: { system?: string; arch?: string; args?: stri
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-/** Every path under `dir` with its contents, to show a run changed nothing. */
 function snapshot(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
   const walk = (d: string): void => {
@@ -157,7 +137,6 @@ function snapshot(dir: string): Record<string, string> {
   return out;
 }
 
-/** `text` as a regular expression that matches it literally, for paths inside patterns. */
 const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const plistOf = (app: string): string => readFileSync(join(app, "Contents", "Info.plist"), "utf8");
 

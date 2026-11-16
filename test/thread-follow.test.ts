@@ -49,8 +49,8 @@ describe("a queued message waits in the composer, not in the thread", () => {
   });
 
   test("a message queued while a reply streams goes in before that reply and adds nothing to the count", () => {
-    const left = drawnRows([user("go"), reply("streaming…")]).length; // where the reader scrolled away
-    const now = drawnRows([user("go"), user("and this", true), reply("streaming… more")]); // the queue sits before the live reply
+    const left = drawnRows([user("go"), reply("streaming…")]).length;
+    const now = drawnRows([user("go"), user("and this", true), reply("streaming… more")]);
     expect(newSince(now, left)).toBe(0);
   });
 

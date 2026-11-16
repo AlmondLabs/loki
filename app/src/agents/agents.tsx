@@ -27,10 +27,8 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
 
-/** One line of words as a toolbar's grey line, or none. */
 const said = (line: string | null | undefined): ItemProperty[] => (line ? [{ key: "status", label: line, editable: false }] : []);
 
-/** The props of the Agents place: the agents, the reads and writes through loki's daemon, and where its links go. */
 export interface AgentsProps {
   agents: Array<{ id: string; name: string }>;
   api: AgentsApi;
@@ -38,50 +36,31 @@ export interface AgentsProps {
   desks: DeskSummary[];
   initialAgentId: string | null;
   onOpenDesk: (agentId: string, conversationId: string) => void;
-  /** Open the agent's main chat with a prefilled request to change a memory file. */
   onAskToUpdate: (agentId: string, text: string) => void;
-  /** Through loki's daemon; resolves to an error message or null. */
   onUpdateAgent: (agentId: string, body: AgentEdit) => Promise<string | null>;
   write: AgentsWrite;
-  /** Reflection's settings and a pass by hand, through loki's daemon. */
   reflect: ReflectionControls;
   listModels: () => Promise<Array<{ handle: string }>>;
   onShowDesks: () => void;
-  /** The MCP servers, to switch on and off for the agent (Profile). */
   mcp?: Pick<McpApi, "get" | "agent">;
-  /** The Inbox accounts, so deleting an agent that owns some offers to move or disconnect each (plan 067, R4). */
   accounts?: AccountsApi;
-  /** This Mac first, then the Macs paired with it (plan 023): where an agent may live. */
   macs?: MacIdentity[];
-  /** The chosen agent, page and new-agent form, shared with the sidebar's Agents sources; the window's one by default. */
   selection?: AgentsSelection;
 }
 
-/**
- * The Agents place (plan 2026-11-14-1330, KTD9): its owner, drawing the list column and the detail from one state. The
- * agents are the sidebar's sources (agents-column.tsx); the list holds the chosen page's items, and the detail the item
- * chosen in it under a toolbar whose centred tabs are the pages. Profile has no items, so its form spans both columns.
- */
 export function Agents(props: AgentsProps) {
   const { list, detail } = useAgentsPlace(props);
   return <PlaceColumns list={list} detail={detail} />;
 }
 
-/** A page's items as the list shows them: the rows, the one chosen, how to choose another, and what an empty page says. */
 interface PageList {
   rows: ContentRow[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   empty: string;
-  /** The item's name in "No … Selected". */
   noun: string;
 }
 
-/**
- * The Agents place's two columns from one state (KTD1, KTD9): the file path, the commit, the run and the skill chosen
- * are held here, above the pages, so the list and the detail read the same choice. The list is null where the page
- * has no items (Profile, the new-agent form, the invitation), which the shell reads as `agentsHasList` to span them.
- */
 export function useAgentsPlace({
   agents,
   api,
@@ -101,20 +80,17 @@ export function useAgentsPlace({
   selection = agentsSelection,
 }: AgentsProps): { list: ReactNode; detail: ReactNode } {
   const sel = useAgentsSelection(selection);
-  /** The agent the sidebar picked; with nothing picked the desk's agent, and after a delete the first agent. */
   const selected = shownAgent(sel.agent, initialAgentId, agents);
   const { page, creating } = sel;
   const pick = selection.pickPage;
   const setSelected = selection.pickAgent;
   const setCreating = selection.setCreating;
-  /** What each page has picked; the memory, changes, reflection and skills pages start over for another agent. */
   const [filePath, setFilePath] = useState("system/persona.md");
   const [sha, setSha] = useState<string | null>(null);
   const [runSha, setRunSha] = useState<string | null>(null);
   const [skillName, setSkillName] = useState<string | null>(null);
   const [pickedFor, setPickedFor] = useState(selected);
   if (pickedFor !== selected) {
-    // state derived from the selection, reset during render (the React pattern), so the new agent's first paint is clean
     setPickedFor(selected);
     setFilePath("system/persona.md");
     setSha(null);
@@ -123,7 +99,6 @@ export function useAgentsPlace({
   }
   const [models, setModels] = useState<string[] | null>(null);
   const loadModels = () => void listModels().then((m) => setModels([...new Set(m.map((e) => e.handle))]));
-  /** The skills page's add form (write here, or install from a source). */
   const [adding, setAdding] = useState<Adding>(null);
 
   const store = useAgentDetails({
@@ -147,20 +122,17 @@ export function useAgentsPlace({
   const created = async (opts: NewAgentOptions) => {
     const r = await write.createAgent(opts);
     if ("error" in r) return r.error;
-    setSelected(r.id); // closes the form too
+    setSelected(r.id);
     flash(`${opts.name} is here`);
     return null;
   };
 
-  // ⌘[ and ⌘] step the list's rows (R16; agents.prev / agents.next in the keymap); a page with no list has none to step.
   const list = useRef<ContentListHandle>(null);
   useEffect(() => registerActions({ "agents.prev": () => list.current?.step(-1), "agents.next": () => list.current?.step(1) }), []);
-  /** Return or Tab on a row: focus goes into the detail's reading pane. */
   const detailRef = useRef<HTMLDivElement>(null);
 
   const name = d?.agent.name ?? agents.find((a) => a.id === selected)?.name ?? "agent";
   const pageList: PageList | null =
-    // The shell's rule for whether the list column shows (agentsHasList), so the two never disagree.
     !selected || !agentsHasList(sel, agents.length)
       ? null
       : !d
@@ -173,7 +145,6 @@ export function useAgentsPlace({
               ? { rows: changeRows(runs), selectedId: shownRun, onSelect: setRunSha, empty: `Reflection has not changed ${name}'s memory lately.`, noun: "Run" }
               : { rows: skillRows(d.skills), selectedId: shownSkill?.name ?? null, onSelect: setSkillName, empty: `${name} has no skills yet.`, noun: "Skill" };
   const listColumn = pageList && (
-    // Keyed by agent and page, so a highlight or a held row never carries over to another agent's or page's rows.
     <ContentList
       key={`${selected}:${page}`}
       ref={list}
@@ -191,8 +162,6 @@ export function useAgentsPlace({
   );
 
   const header = (tabs: boolean) => (
-    // The chat's toolbar anatomy (plan 2026-11-14-1300, 3): the agent's name over a grey line saying what the page
-    // shows, or what just happened, and the pages as tab views centred in the toolbar (plan 2026-11-14-1330, KTD11).
     <PaneHeader
       title={name}
       line={<ToolbarTitle title={name} facts={said(notice ?? (tabs ? AGENT_PAGE_HINT[page] : null))} titleAs="h1" />}
@@ -204,7 +173,6 @@ export function useAgentsPlace({
     />
   );
 
-  /** The detail for the page showing: Profile's form, or the item chosen in the list, or "No … Selected". */
   const item = (): ReactNode => {
     if (!d || !selected) return null;
     if (page === "profile") {
@@ -229,14 +197,12 @@ export function useAgentsPlace({
       );
     }
     const revert = (sha: string) => void store.revertCommit(sha);
-    // Reflection's settings are for every agent, so they show with or without a run to read.
     if (page === "reflection") {
       const run = runs.find((c) => c.sha === shownRun) ?? null;
       return (
         <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} api={api} reflect={reflect} run={run} reading={reading} onRevert={revert} />
       );
     }
-    // Skills' Write and Install show with no skill chosen too, since they are how the first one comes.
     if (page === "skills") return <SkillsPage d={d} store={store} viewSkill={shownSkill} adding={adding} setAdding={setAdding} reading={reading} />;
     const chosen = pageList?.rows.some((r) => r.id === pageList.selectedId) ? pageList.selectedId : null;
     if (!chosen) return <NothingSelected noun={pageList?.noun ?? "Item"} />;
@@ -277,7 +243,6 @@ export function useAgentsPlace({
     return (
       <>
         {header(true)}
-        {/* The page under the agent's toolbar, its item or its form; the page is remembered for the window. */}
         <div ref={detailRef} tabIndex={-1} id={`loki-agent-page-${page}`} role="tabpanel" aria-label={AGENT_PAGE_LABEL[page]} className="loki-agents-page">
           {item()}
         </div>
@@ -287,7 +252,6 @@ export function useAgentsPlace({
 
   return {
     list: listColumn,
-    // The detail's own presses stay in it (the desk's canvas under it listens for them on the window).
     detail: (
       <div className="loki-agents-detail" onPointerDown={(e) => e.stopPropagation()}>
         {detailBody}
@@ -296,10 +260,8 @@ export function useAgentsPlace({
   };
 }
 
-/** The pages as the toolbar's tab views. */
 const PAGE_TABS: ReadonlyArray<Tab<AgentPage>> = AGENT_PAGES.map((p) => ({ id: p, label: AGENT_PAGE_LABEL[p] }));
 
-/** Before the first agent: an invitation, as the pane's empty state. */
 function NoAgents({ onNew }: { onNew: () => void }) {
   return (
     <EmptyPane title="No agents yet">

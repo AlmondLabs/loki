@@ -8,7 +8,7 @@ describe("active clock", () => {
     t += 30_000;
     expect(clock.now()).toBe(30_000);
     clock.set(false);
-    t += 3 * 3_600_000; // three hours away
+    t += 3 * 3_600_000;
     expect(clock.now()).toBe(30_000);
     expect(clock.running()).toBe(false);
     clock.set(true);

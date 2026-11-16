@@ -1,8 +1,3 @@
-//! `loki://localhost/widgets/<desk>/<name>.js` — an agent-written `.tsx`/`.jsx`
-//! widget, transpiled on request (oxc: TypeScript stripped, JSX → React automatic
-//! runtime) with its bare imports rewritten to the app's shared modules, so a
-//! widget uses the same React instance as the canvas. No bundler, no Vite.
-
 use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
@@ -12,7 +7,6 @@ use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use oxc_transformer::{JsxOptions, JsxRuntime, TransformOptions, Transformer};
 
-/// Bare specifiers a widget may import; anything else stays as written.
 const SHARED: &[&str] = &["react", "react/jsx-runtime", "react-dom", "recharts", "@loki/kit"];
 
 pub fn widgets_dir() -> PathBuf {
@@ -22,7 +16,6 @@ pub fn widgets_dir() -> PathBuf {
     crate::loki_dir().join("widgets")
 }
 
-/// Map a request path like `/widgets/<desk>/<name>.js` to the source file on disk.
 pub fn source_for(request_path: &str, root: &Path) -> Option<PathBuf> {
     let rel = request_path.strip_prefix("/widgets/")?;
     let rel = percent_encoding::percent_decode_str(rel).decode_utf8().ok()?;
@@ -41,7 +34,6 @@ pub fn source_for(request_path: &str, root: &Path) -> Option<PathBuf> {
     None
 }
 
-/// TSX/JSX → plain ESM with the React automatic runtime.
 pub fn transpile(source: &str, path: &Path) -> Result<String, String> {
     let allocator = Allocator::default();
     let source_type = SourceType::from_path(path).map_err(|e| e.to_string())?;
@@ -64,8 +56,6 @@ pub fn transpile(source: &str, path: &Path) -> Result<String, String> {
     Ok(Codegen::new().build(&program).code)
 }
 
-/// Rewrite `import … from "<shared>"` into reads from `window.__lokiShared[...]`.
-/// Handles default, named (with aliases) and namespace imports, one statement per line as codegen emits them.
 pub fn rewrite_shared_imports(code: &str) -> String {
     let mut out = String::with_capacity(code.len());
     for line in code.lines() {
@@ -119,7 +109,6 @@ fn rewrite_import_line(line: &str) -> Option<String> {
     Some(stmts.join(" "))
 }
 
-/// Serve one request under the `loki` scheme.
 pub fn respond(uri_path: &str) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::{header, Response, StatusCode};
     let cors = |b: tauri::http::response::Builder| {
@@ -139,7 +128,6 @@ pub fn respond(uri_path: &str) -> tauri::http::Response<Vec<u8>> {
         .body(rewrite_shared_imports(&js).into_bytes())
         .unwrap(),
         Err(err) => {
-            // Surface the compile error as a module that throws, so the frame shows it like a runtime error.
             let js = format!(
                 "throw new Error({});",
                 serde_json::to_string(&format!("{}: {err}", src.display())).unwrap_or_default()

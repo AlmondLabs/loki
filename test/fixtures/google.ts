@@ -1,17 +1,8 @@
 import { createHash } from "node:crypto";
 
-/**
- * A stand-in for the Google APIs the Google tools call (plan 2026-11-11 scripts, U7), driven through an injected
- * fetch: a few Gmail threads with attachments, a Drive of files, one spreadsheet, one document and a calendar. Any
- * bearer token is taken (GoogleAuth's own tests cover tokens). Every request is recorded, with its body, so a test says
- * what reached Google; nothing here reaches a network.
- */
-
-/** A request the fake received. */
 export interface ApiRequest {
   method: string;
   url: URL;
-  /** The body as text, or its bytes for an upload. */
   body: string;
   bytes?: Uint8Array;
 }
@@ -21,14 +12,11 @@ const md5 = (b: Uint8Array | string) => createHash("md5").update(b).digest("hex"
 export function fakeWorkspace() {
   const requests: ApiRequest[] = [];
   const state = {
-    /** Gmail threads found by any search, served 50 to a page. */
     threads: Array.from({ length: 120 }, (_, i) => ({ id: `t${i + 1}`, snippet: `invoice ${i + 1}` })),
-    /** Drive's files, by id. */
     files: new Map<string, { id: string; name: string; mimeType: string; parents: string[]; data?: Uint8Array; trashed?: boolean }>([
       ["f1", { id: "f1", name: "budget.pdf", mimeType: "application/pdf", parents: ["root"], data: new Uint8Array([1, 2, 3]) }],
       ["d1", { id: "d1", name: "Notes", mimeType: "application/vnd.google-apps.document", parents: ["root"] }],
     ]),
-    /** The spreadsheet's cells, as typed. */
     cells: new Map<string, string>([
       ["A1", "1"],
       ["A2", "2"],
@@ -51,7 +39,6 @@ export function fakeWorkspace() {
     ...(f.data ? { size: String(f.data.byteLength), md5Checksum: md5(f.data) } : {}),
     ...(f.trashed ? { trashed: true } : {}),
   });
-  /** A cell's shown value: a formula computed (only SUM of a column range), anything else as typed. */
   const shown = (typed: string): string => {
     const sum = /^=SUM\(A(\d+):A(\d+)\)$/.exec(typed);
     if (!sum) return typed;
@@ -59,7 +46,6 @@ export function fakeWorkspace() {
     for (let r = Number(sum[1]); r <= Number(sum[2]); r++) total += Number(state.cells.get(`A${r}`) ?? 0);
     return String(total);
   };
-  /** The cells of a range like "Sheet1!A1:B3" or "A4". */
   const cellsOf = (range: string): string[][] => {
     const [from = "A1", to = from] = range.replace(/^.*!/, "").split(":");
     const col = (c: string) => c.charCodeAt(0) - 64;
@@ -132,8 +118,6 @@ export function fakeWorkspace() {
         return json(200, { id: `s${state.sent.length}`, threadId: m.threadId ?? `new${state.sent.length}` });
       }
     }
-    // A message with files comes through Gmail's upload route (plan 2026-11-14-1134, KTD6): a JSON part with its
-    // thread, then the message itself. It is kept as the JSON route keeps one, so a test reads both alike.
     if (url.host === "gmail.googleapis.com" && p === "/upload/gmail/v1/users/me/messages/send") {
       const text = req.bytes ? Buffer.from(req.bytes).toString("utf8") : req.body;
       const meta = JSON.parse(/\{.*\}/.exec(text)?.[0] ?? "{}") as { threadId?: string };

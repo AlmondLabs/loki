@@ -5,17 +5,11 @@ import { Pane } from "./bits";
 import type { ReadingState } from "./use-reading";
 import type { MemoryCommit } from "../../../core/frame-types.ts";
 
-/** Who made a commit, when it was a pass rather than the agent or you: Reflection, or the Doctor (/doctor). */
 export const passAuthor = (author: string | null | undefined): string | null =>
   /reflection/i.test(author ?? "") ? "reflection" : /doctor/i.test(author ?? "") ? "doctor" : null;
 
-/** A commit's files in a few words: one by its path, more by their number; a merge has none of its own. */
 const filesSaid = (files: readonly string[]): string => (files.length === 0 ? "Merge" : files.length === 1 ? files[0] : `${files.length} files`);
 
-/**
- * The Changes page's items, the list's rows (plan 2026-11-14-1330, KTD9): the memory's commits, newest first, each its
- * message over the files it touched, with when; a commit by a pass (reflection, the Doctor) says so after its message.
- */
 export function changeRows(log: readonly MemoryCommit[]): ContentRow[] {
   return log.map((c) => {
     const pass = passAuthor(c.author);
@@ -29,7 +23,6 @@ export function changeRows(log: readonly MemoryCommit[]): ContentRow[] {
   });
 }
 
-/** The Changes page's detail: the commit chosen in the list, its diff, with Revert. */
 export function ChangesPage({ commit, reading, onRevert }: { commit: MemoryCommit; reading: ReadingState; onRevert: (sha: string) => void }) {
   return (
     <Pane>
@@ -38,11 +31,6 @@ export function ChangesPage({ commit, reading, onRevert }: { commit: MemoryCommi
   );
 }
 
-/**
- * A commit, read: its short sha and Revert above, the diff below; a line when there is nothing to show. Revert undoes
- * the commit with a new one (it can be reverted in turn); a merge has no single change to undo. Reflection's runs are
- * read the same way.
- */
 export function CommitView({ commit, reading, onRevert }: { commit: MemoryCommit; reading: ReadingState; onRevert: (sha: string) => void }) {
   const { content, loadingView } = reading;
   return (
@@ -65,7 +53,6 @@ export function CommitView({ commit, reading, onRevert }: { commit: MemoryCommit
   );
 }
 
-/** A unified diff, coloured by line; the header lines (message, date, stat) stay muted. */
 export function Diff({ text }: { text: string }) {
   return (
     <pre

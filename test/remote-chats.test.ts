@@ -5,7 +5,6 @@ import { RemoteChats, peerChatsReply } from "../mod/remote-chats.ts";
 
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-/** A desk as a Mac lists its own. */
 const desk = (conversationId: string, title: string, agentId = "agent-ira"): DeskSummary => ({
   scope: conversationId,
   title,
@@ -32,13 +31,11 @@ const row = (id: string): InboxRow => ({
   last_ask: null,
 });
 
-/** The mini as its link answers `peer_chats_get`: whatever `lists` holds now, or out of reach. */
 function fixture() {
   const state = {
     lists: { desks: [desk("conv-1", "plan the week"), desk(SHARED_SCOPE, "shared")], inbox: [row("conv-1")] },
     reachable: true,
     changes: 0,
-    /** What each fetch handed the chat directory, as scopes. */
     listed: [] as string[][],
   };
   const link = {
@@ -117,11 +114,9 @@ describe("another Mac's chats in this Mac's lists", () => {
     };
     const retrying = new RemoteChats({ link: () => link as never, name: () => "Mac mini", onChange: () => state.changes++, debounceMs: 5, retryMs: 5 });
     try {
-      // The first fetch fails before anything was listed: the next one, a moment later, lists the chats.
       retrying.setReachable(MINI, true);
       await until(() => retrying.desks().length === 1);
       expect(retrying.desks()[0].reachable).toBe(true);
-      // A later failure keeps what was listed, still in reach.
       link.fails = 1;
       state.lists.desks = [desk("conv-1", "plan the month")];
       await retrying.refresh(MINI);
@@ -148,7 +143,6 @@ describe("another Mac's chats in this Mac's lists", () => {
       remote.setReachable(MINI, true);
       await vi.advanceTimersByTimeAsync(0);
       expect(calls).toBe(1);
-      // Each wait in turn: the call it ends with lands at the wait, not a moment before.
       for (const wait of [1000, 2000, 4000, 8000, 16000, 30_000, 30_000]) {
         const before = calls;
         await vi.advanceTimersByTimeAsync(wait - 1);
@@ -156,7 +150,6 @@ describe("another Mac's chats in this Mac's lists", () => {
         await vi.advanceTimersByTimeAsync(1);
         expect(calls).toBe(before + 1);
       }
-      // Out of reach, unpaired or stopped: no fetch is waiting.
       for (const going of [() => remote.setReachable(MINI, false), () => remote.sync([]), () => remote.stop()]) {
         remote.setReachable(MINI, true);
         await vi.advanceTimersByTimeAsync(0);
@@ -185,7 +178,6 @@ describe("another Mac's chats in this Mac's lists", () => {
     await remote.refresh(MINI);
     state.lists.desks = [desk("conv-1", "renamed")];
     remote.heard(MINI, { type: "peers" });
-    // A piece of a reply as it streams changes nothing listed.
     remote.heard(MINI, { type: "chat_event", events: [{ kind: "step", step: { kind: "assistant", text: "hel" } }] });
     await new Promise((r) => setTimeout(r, 20));
     expect(remote.desks()[0].title).toBe("plan the week");
@@ -210,7 +202,7 @@ describe("another Mac's chats in this Mac's lists", () => {
   test("an agent's chats on a Mac out of reach block its delete; a Mac out of reach without them does not", async () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);
-    expect(remote.awayWith("agent-ira")).toBeNull(); // in reach
+    expect(remote.awayWith("agent-ira")).toBeNull();
     remote.setReachable(MINI, false);
     expect(remote.awayWith("agent-ira")).toBe(MINI);
     expect(remote.awayWith("agent-friday")).toBeNull();

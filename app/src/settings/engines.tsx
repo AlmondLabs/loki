@@ -3,7 +3,6 @@ import { Button, Dot, Field, TextArea, sentence } from "../components";
 import { Block, Setting } from "./layout";
 import type { EnginesView, EngineView } from "../../../core/frame-types.ts";
 
-/** What Preferences › Engines asks of the daemon; each call resolves to the agents as they now stand, or an error message. */
 export interface EnginesApi {
   get: () => Promise<EnginesView | string>;
   set: (engine: { id: string; name: string; command: string; args: string[] }) => Promise<EnginesView | string>;
@@ -20,7 +19,6 @@ const TONE: Record<EngineView["status"], string> = {
   failed: "var(--loki-negative)",
 };
 
-/** A status as the list says it. */
 const WORDS: Record<EngineView["status"], string> = {
   ready: "ready",
   started: "starts",
@@ -30,17 +28,12 @@ const WORDS: Record<EngineView["status"], string> = {
   failed: "failed",
 };
 
-/** A name as an agent id: lowercase letters, digits and dashes ("Gemini CLI" → "gemini-cli"). */
 export const engineId = (name: string): string =>
   name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-/**
- * Preferences › Engines (plan 020, R10): the ACP agents a chat can run on, the built-in ones first, each with how it stands
- * (its command found, signed in, its last failure). Try starts one now; add and edit write ~/.loki/state/acp.json.
- */
 export function Engines({ api }: { api: EnginesApi }) {
   const [view, setView] = useState<EnginesView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +102,6 @@ export function Engines({ api }: { api: EnginesApi }) {
   );
 }
 
-/** One engine: its name and how it stands, the command that starts it behind "details", and try, edit and remove. */
 function EngineRow({
   e,
   trying,
@@ -168,7 +160,6 @@ function EngineRow({
   );
 }
 
-/** Add an ACP agent, or change how one starts: its name, its command and its arguments, one per line. */
 function EngineForm({
   engine,
   configPath,

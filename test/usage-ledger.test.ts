@@ -14,7 +14,6 @@ const ctx = BACKGROUND_CONTEXT;
 const NOW = Date.parse("2026-10-17T14:25:00Z");
 const MODEL = "anthropic/claude-sonnet-5-5";
 
-/** A `pi.usage` entry with these counters, cost a cent per thousand tokens of each kind. */
 const usage = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => ({
   input,
   output,
@@ -30,10 +29,6 @@ const usage = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => 
   },
 });
 
-/**
- * A store that holds chats `chats` (conversation id → chat id, undefined for a helper's child conversation) with
- * totals `totals`, and lets a test publish `pi.usage` changes as pi-durable would.
- */
 function fakeStore(chats: Record<number, string | undefined>, totals: Partial<Record<number, Record<string, ReturnType<typeof usage>>>> = {}) {
   let listener: ((p: CommitPublication) => void) | null = null;
   const store = {
@@ -47,7 +42,6 @@ function fakeStore(chats: Record<number, string | undefined>, totals: Partial<Re
     usage: (id: number) => Promise.resolve(totals[id] ? { models: totals[id], tools: {} } : undefined),
     chatInfo: (id: number) => Promise.resolve(chats[id] === undefined ? undefined : { id: chats[id] }),
   } as unknown as AgentStore;
-  /** pi-durable's commit of conversation `id`'s new totals; `created` for the commit that made the document. */
   const publish = (id: number, models: Record<string, ReturnType<typeof usage>>, created = false) => {
     listener?.({
       seq: 1,
@@ -82,7 +76,6 @@ function setup() {
   };
 }
 
-/** The usage ledger (daemon/usage.ts): what each call cost, by hour, agent, model and origin. */
 describe("the usage ledger", () => {
   test("a chat's totals from before the ledger are history; only what grows after counts, in the hour it grows", async () => {
     const s = setup();
@@ -99,7 +92,6 @@ describe("the usage ledger", () => {
       expect(row).toMatchObject({ input_tokens: 500, output_tokens: 60, cache_read_tokens: 4000, cache_write_tokens: 0 });
       expect(row.cost.total).toBeCloseTo(4560 / 1e5);
       expect(row.cost.cache_read).toBeCloseTo(4000 / 1e5);
-      // 4,000 cache reads at the model's $3 a million input price.
       expect(row.cache_read_as_input).toBeCloseTo(0.012);
     } finally {
       s.cleanup();
@@ -117,7 +109,6 @@ describe("the usage ledger", () => {
       publish(9, { [MODEL]: usage(200, 20) });
       s.setNow(NOW + 3_600_000);
       publish(9, { [MODEL]: usage(300, 50) });
-      // Conversation 12 was never seen and this is not its creation: what it holds so far is history.
       publish(12, { [MODEL]: usage(9999, 999) });
       await ledger.settled();
       expect(ledger.rows().map((r) => [r.hour, r.input_tokens, r.output_tokens])).toEqual([
@@ -137,13 +128,12 @@ describe("the usage ledger", () => {
       ledger.attach("a1", store);
       await ledger.settled();
       for (const id of [1, 2, 3, 4, 6]) publish(id, { [MODEL]: usage(10, 1) });
-      publish(7, {}, true); // a helper's child conversation: no chat of loki's
+      publish(7, {}, true);
       publish(7, { [MODEL]: usage(10, 1) });
       await ledger.settled();
       const byOrigin = Object.fromEntries(ledger.rows().map((r) => [r.origin, r.input_tokens]));
       expect(byOrigin).toEqual({ chats: 20, reflection: 10, learn: 10, doctor: 10, helpers: 10 });
       expect(originOfChat("reflection-a2", "a1")).toBe("chats");
-      // A pass run on an ACP agent (plan 061) is its job's too.
       expect(originOfChat("reflection-a1-acp", "a1")).toBe("reflection");
       expect(originOfChat("doctor-a1-acp", "a1")).toBe("doctor");
       expect(originOfChat("recall-a1-acp", "a1")).toBe("learn");
@@ -156,7 +146,7 @@ describe("the usage ledger", () => {
     const s = setup();
     try {
       const ledger = s.make();
-      await ledger.settled(); // the seed, which tells listeners too
+      await ledger.settled();
       let heard = 0;
       const off = ledger.onChange(() => heard++);
       const { store, publish } = fakeStore({ 5: "local-conv-1" }, { 5: { [MODEL]: usage(10, 1) } });
@@ -255,7 +245,6 @@ describe("the usage ledger", () => {
           line("2026-10-01T09:50:00.000Z", { ...turn, origin: "schedule" }),
           line("2026-10-02T03:00:00.000Z", { ...turn, origin: "reflection" }),
           JSON.stringify({ event: "view_opened", timestamp: "2026-10-02T03:00:00.000Z", properties: { view: "chats" } }),
-          // After the ledger began: the ledger counts it itself.
           line("2026-10-17T14:30:00.000Z", { ...turn, origin: "message" }),
         ].join("\n"),
       );
@@ -270,7 +259,6 @@ describe("the usage ledger", () => {
       expect(rows[0].cost).toEqual({ input: 0, cache_read: 0, cache_write: 0, output: 0, other: 0.04, total: 0.04 });
       expect(rows[0].cache_read_as_input).toBeCloseTo(0.006);
       ledger.close();
-      // Seeded once: the next start reads the file and seeds nothing more.
       const again = new UsageLedger({ file: s.file, context: ctx, inputRate: () => 3, now: () => NOW, saveDelayMs: 0, eventsFiles: [older, newer] });
       await again.settled();
       expect(again.rows()).toEqual(rows);
@@ -323,7 +311,6 @@ describe("the usage ledger", () => {
   });
 });
 
-/** A row of agent a1's calls to MODEL from the person's chats in `hour`, with nothing in it yet. */
 function emptyRowFor(hour: string) {
   return {
     hour,

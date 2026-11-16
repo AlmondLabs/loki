@@ -40,7 +40,6 @@ async function setup(opts: { cap?: number } = {}) {
   const state = new PassState(join(dir, "state"));
   state.setSettings({ reflection: { enabled: false }, learn: { enabled: true, daily_cap: opts.cap ?? 5 } });
   const recall = new RecallStore(join(dir, "recall"));
-  // A minute ahead of the messages, so every chat counts as quiet.
   let now = new Date(Date.now() + 60_000);
   const reports: string[] = [];
   const prompts: string[] = [];
@@ -64,7 +63,6 @@ async function setup(opts: { cap?: number } = {}) {
     const chat = (await store.chat(chatId, ctx)) ?? (await store.createChat(chatId, { title: `chat ${chatId}`, agent: { model } }, ctx));
     await (await chat.submit({ type: "input", content: text }, ctx)).wait(ctx);
   };
-  // The person's chats get "ok"; Learn's ask gets the next scripted answer, and the prompt is kept.
   const answers: Array<ReturnType<typeof json>> = [];
   faux.setResponses(
     Array.from({ length: 40 }, () => (c: { messages: unknown }) => {
@@ -188,7 +186,6 @@ describe("Learn on the background passes", () => {
       await s.say("c1", LONG);
       s.answers.push(json({ cards: [card("How does a river delta build land?"), card("Where does sediment drop?")], revisions: [] }));
       await s.runner.sweep();
-      // One fit; the other waits, so the stretch is read again tomorrow.
       expect(s.recall.cards()).toHaveLength(1);
       expect(s.state.cursor("learn", s.agentId, "c1")).toBeUndefined();
       await s.say("c2", LONG);
@@ -198,7 +195,6 @@ describe("Learn on the background passes", () => {
       s.setNow(tomorrow);
       s.answers.push(json({ cards: [card("How does a river delta build land?"), card("Where does sediment drop?")], revisions: [] }));
       await s.runner.sweep();
-      // The first card is not written twice; the second lands today.
       expect(s.recall.cards().map((c) => c.card.front)).toEqual(["How does a river delta build land?", "Where does sediment drop?"]);
       expect(s.state.writtenOn(isoDay(tomorrow.getTime()))).toBe(1);
     } finally {
@@ -245,7 +241,6 @@ describe("Learn on the background passes", () => {
         updated_by: "recall",
         previous: [],
       });
-      // Missed again and again since it was last written.
       for (const day of [2, 3, 4, 5]) s.recall.grade("k1", 1, new Date(`2026-10-0${day}T00:00:00Z`).getTime());
       await s.say("c1", LONG);
       s.answers.push(json({ cards: [], revisions: [{ id: "k1", slice: "s2", back: "sediment drops where the current slows", reason: "sharper" }] }));

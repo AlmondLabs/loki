@@ -17,18 +17,8 @@ import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
-/** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
 
-/**
- * Rows are memoised: parsing markdown for a long thread on every keystroke in
- * the message box made typing lag. A row re-renders only when its own text,
- * its last-ness, or (on the last row alone) the streaming cursor changes. The take-back handler reaches only queued rows,
- * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
- * `from` is the first row drawn (the Thread's window, transcript-window.ts); rows keep their thread-wide indexes.
- * Rows are keyed by index less `above`, the rows an older page put in front since the thread opened, so a row keeps
- * its key, and its memo and its own state (a tool run left open), when a page arrives above it.
- */
 export const Transcript = memo(function Transcript({
   rows,
   streaming = false,
@@ -51,24 +41,19 @@ export const Transcript = memo(function Transcript({
   dim?: boolean;
   onCancelQueued?: (row: TranscriptRow) => void;
   from?: number;
-  /** Rows loaded above since the thread opened (useTranscriptScroll): row keys count past them. */ above?: number;
-  /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number;
-  /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean;
+  above?: number;
+  arrivedFrom?: number;
+  busy?: boolean;
 } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
-  // Widget rows, by the row they sit before (rows.length: after the last); only where the host passes them, only in the window.
   const marks = new Map<number, WidgetMark[]>();
   for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
-  // Each widget is drawn live once, under its latest row; its earlier rows stay one line each.
   const latest = new Map<string, string>();
   for (const w of widgets ?? []) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
   const shown = first ? rows.slice(first) : rows;
-  // Day pills only in the message layout, and only where the messages carry times; then the pills name the day and the New line does not.
   const timed = !!people && shown.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
-  // The thread as it reads, messages and widget rows together, so each widget row falls in its own day.
   const items = timed ? timeline(rows, marks, first) : null;
   const itemPills = items ? dayPills(items.map((it) => it.row ?? it.mark)) : null;
-  // A day that opens on a widget row breaks the run too; the widget row already does.
   let pills: Array<string | null> | null = null;
   if (items && itemPills) {
     const dayOf: Array<string | null> = rows.map(() => null);
@@ -78,8 +63,6 @@ export const Transcript = memo(function Transcript({
     pills = dayOf;
   }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
-  // A stretch of work (tool calls, background tasks, skills loaded) reads as one line (chat/tool-steps.tsx); a widget
-  // row, a day or the New line ends it.
   const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
   const widgetRow = (w: WidgetMark) => (
     <Fragment key={`w-${w.id}`}>
@@ -92,10 +75,9 @@ export const Transcript = memo(function Transcript({
     const last = i === rows.length - 1;
     if (isWorkRow(m)) {
       const end = tools.get(i);
-      if (end === undefined) return null; // inside a run, drawn with its first row
+      if (end === undefined) return null;
       const run = rows.slice(i, end);
       const tail = run[run.length - 1];
-      // A lean row from a page (plan 041) finished; its output stayed on the Mac the chat lives on.
       const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output && tail.tool?.row === undefined;
       return (
         <Fragment key={i - above}>
@@ -107,7 +89,6 @@ export const Transcript = memo(function Transcript({
     return (
       <Fragment key={i - above}>
         {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
-        {/* Only the last row can carry the cursor; told every row, a turn's start and end re-rendered the whole thread. */}
         <Row
           row={m}
           last={last}
@@ -137,14 +118,12 @@ export const Transcript = memo(function Transcript({
         {!rows.length && marksAt(0)}
       </>
     );
-  // Each day is its own block, so its sticky pill is pushed off by the next day's rather than stacking under it.
   const days: Array<{ label: string | null; start: number; end: number }> = [];
   itemPills.forEach((label, k) => {
     if (label || !days.length) days.push({ label, start: k, end: k + 1 });
     else days[days.length - 1].end = k + 1;
   });
   const draw = (d: { start: number; end: number }) => items.slice(d.start, d.end).map((it) => (it.row ? message(it.row, it.i) : widgetRow(it.mark)));
-  // Keyed by the day, not its place: revealing older rows adds to the top day, and must not remount it.
   return (
     <>
       {days.map((d) =>
@@ -165,7 +144,6 @@ export const Transcript = memo(function Transcript({
 
 type TimelineItem = { i: number; row: TranscriptRow; mark?: undefined } | { i: number; row?: undefined; mark: WidgetMark };
 
-/** The thread in reading order from row `from`: each row's widget marks, then the row; the marks after the last row at the end. */
 function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]>, from = 0): TimelineItem[] {
   const out: TimelineItem[] = [];
   for (let i = from; i <= rows.length; i++) {
@@ -175,11 +153,6 @@ function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]
   return out;
 }
 
-/**
- * Which rows start a run: a message whose author differs from the last message's, or the first after the
- * divider, a day pill (`pills`, from dayPills) or a widget row (`breaks`, keyed by the row it sits before). Tool and event rows neither start nor break one.
- * From row `from` on (the first drawn starts one); the rows before it are false.
- */
 export function runStarts(
   rows: TranscriptRow[],
   dividerAt: number | null = null,
@@ -199,58 +172,34 @@ export function runStarts(
   return out;
 }
 
-/** Who wrote a message, for the message layout: the name over it, and the face beside it (drawn from `face`, or the name). */
 export interface Person {
   name: string;
   face?: string | null;
   avatar?: string | null;
 }
 
-/**
- * The optional message layout (the phone's, Slack's): with `people`, messages are avatar-led rows — face,
- * bold name, then the body at full width — instead of bubbles. `dividerAt` draws the "New" line before that
- * row, with `dividerDay` ("Today") on its left. When rows carry times (`TranscriptRow.at`), author rows show
- * theirs and a sticky day pill opens each calendar day; the pills then name the day and `dividerDay` is not
- * drawn. Without `people` the transcript is the desktop's, unchanged.
- * The host keeps `people` stable (memo), as with the take-back handler.
- */
 export interface MessageLayout {
   people?: { user: Person; assistant: Person };
   dividerAt?: number | null;
   dividerDay?: string | null;
-  /** The desk's widget changes among the messages (desk/widget-rows.ts widgetMarks); the host keeps the array stable. */
   widgets?: WidgetMark[];
-  /** Choosing a widget row that is still on the desk: open the Desk tab framed on it. */
   onFrameWidget?: (widgetId: string) => void;
-  /** Choosing the "N earlier widget changes" summary row: open the Desk tab. */
   onShowDesk?: () => void;
-  /** The live widget, drawn under its latest row (chat/use-inline-widgets.tsx); null while it is not known. */
   inline?: (widgetId: string) => ReactNode;
 }
 
-/** A widget change in the thread: "atlas added Revenue chart" (or "You removed …", "loki added …"), placed before row `before`. */
 export interface WidgetMark {
   id: string;
-  /** The transcript row it sits before; rows.length puts it after the last. */
   before: number;
-  /** ISO 8601, like TranscriptRow.at. */
   at: string;
-  /** Who made the change, as the row names them: the agent's name, "You" or "loki". */
   who: string;
   change: "added" | "changed" | "removed";
   title: string;
   widgetId: string;
-  /** The widget is no longer on the desk (this row removed it, or a later one did): the row frames nothing. */
   gone: boolean;
-  /** Set on the one summary row that stands for this many older changes a thread without times cannot place. */
   earlier?: number;
 }
 
-/**
- * A widget row: who, what changed and the widget, with its time. While the widget is on the desk the
- * line is a button that opens the Desk tab framed on it; once it is gone the line says so and does nothing.
- * The summary row (`earlier`) only counts, and opens the Desk tab.
- */
 function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame?: (widgetId: string) => void; onShowDesk?: () => void }) {
   if (w.earlier !== undefined) {
     const words = `${w.earlier} earlier widget change${w.earlier === 1 ? "" : "s"}`;
@@ -299,7 +248,6 @@ function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame
   );
 }
 
-/** The unread boundary: the day on the left, "New" on the right, a hairline between. */
 function Divider({ day }: { day: string | null }) {
   return (
     <div className="loki-msg-divider" role="separator" aria-label={day ? `New since you last looked, ${day}` : "New since you last looked"}>
@@ -310,19 +258,11 @@ function Divider({ day }: { day: string | null }) {
   );
 }
 
-/** One row, by role. This is the memo boundary; the shapes below are plain functions rendered inside it. */
-/**
- * A long press on a message, where the host wants one (the phone): the host's handler gets the row and opens
- * the message's actions. Without a provider nothing is attached, and the browser keeps its own selection.
- */
 export const MessageHold = createContext<((row: TranscriptRow) => void) | null>(null);
 
-/** How long a finger rests on a message before its actions open, as on iOS. */
 const HOLD_MS = 500;
-/** A finger that moves this far is scrolling or swiping (an Inbox card), not holding. */
 const HOLD_SLOP = 8;
 
-/** The long press's handlers for a message's row: a finger resting there opens its actions; a move, a scroll or a lift cancels. */
 function useMessageHold(row: TranscriptRow) {
   const onHold = useContext(MessageHold);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -375,22 +315,14 @@ const Row = memo(function Row({
   onCancelQueued?: (row: TranscriptRow) => void;
   person?: Person;
   first?: boolean;
-  /** Came in while the thread was open. */ arrived?: boolean;
+  arrived?: boolean;
 }) {
-  // A row that came in while the thread was open carries data-arrived, and rises in (the phone's chat CSS).
   const a = arrived || undefined;
   if (m.role === "event") return <EventRow row={m} arrived={a} />;
   if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} arrived={a} />;
   return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} arrived={a} />;
 });
 
-/**
- * A message in the avatar-led layout: the face and bold name at the start of a run. Under every message,
- * yours and the agent's, a quiet row: its copy button (as markdown; faint on the desktop until the row is
- * hovered, always there on the phone), then its time. A message still streaming shows its time and gets
- * the button when it is done; one with no known time shows none. Where a host provides MessageHold (the phone), a long press
- * on the message opens its actions instead of the browser's text selection.
- */
 function Message({
   row: m,
   last,
@@ -410,7 +342,6 @@ function Message({
 }) {
   const time = clockLabel(m.at);
   const hold = useMessageHold(m);
-  // Copy waits for a streaming reply to finish; its time is there from the start.
   const copyable = !!shownText(m) && !(last && streaming);
   return (
     <div
@@ -448,25 +379,15 @@ function Message({
   );
 }
 
-/**
- * How a chip that names another chat opens it: the host's (the desk switches to it, the phone goes to its page).
- * Absent, the chip only names the chat.
- */
 export const OpenChat = createContext<((agentId: string, conversationId: string) => void) | null>(null);
 
-/** The row a message sent from a suggestion leaves (core/harness.ts extractHarnessEvents). */
 export const SUGGESTED = "suggested in another chat";
 
-/**
- * The chat a "suggested in another chat" row came from (plan 049, KTD6), when the row carries it as `link`; null when
- * it does not, or when either id is empty, since an empty id would open no chat.
- */
 export function suggestedSource(m: TranscriptRow): { agent_id: string; conversation_id: string } | null {
   const link = m.link;
   return link?.agent_id && link.conversation_id ? link : null;
 }
 
-/** A message sent from a suggestion: a chip naming the suggestion, which opens the chat it was made in. */
 function SuggestedRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   const open = useContext(OpenChat);
   const from = suggestedSource(m);
@@ -490,13 +411,11 @@ function SuggestedRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true 
   );
 }
 
-/** A harness event as one quiet line; its detail, a lean one's (plan 043) fetched, only once it is opened. */
 function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   if (m.text === SUGGESTED) return <SuggestedRow row={m} arrived={arrived} />;
   return <DetailEventRow row={m} arrived={arrived} />;
 }
 
-/** An event with its disclosure. */
 function DetailEventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   const [open, setOpen] = useState(false);
   const more = !!m.detail || m.row !== undefined;
@@ -511,7 +430,6 @@ function DetailEventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: tru
   );
 }
 
-/** A user or assistant message: the bubble, and under a queued one the take-back button. */
 function Bubble({
   row: m,
   last,
@@ -544,7 +462,6 @@ function Bubble({
             padding: "8px 12px",
             borderRadius: "var(--radius-xl)",
             background: m.role === "user" ? "var(--loki-user-bubble)" : "var(--loki-bubble)",
-            // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.
             border: m.queued ? "1px dashed var(--loki-accent)" : undefined,
             opacity: m.queued ? 0.7 : !dim || last || m.role === "user" ? 1 : 0.85,
             color: "var(--loki-fg)",
@@ -563,7 +480,6 @@ function Bubble({
   );
 }
 
-/** The bubble's text as it was written — markdown, not the rendering — onto the clipboard. Says "copied" for a beat. */
 function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -575,9 +491,7 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-    } catch {
-      // the clipboard refused (no permission in this context): the label stays, nothing else to say
-    }
+    } catch {}
   };
   return (
     <IconButton
@@ -592,11 +506,6 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
   );
 }
 
-/**
- * Where the rows that came in while you watched begin: the count there was when this thread was first drawn
- * with its rows. The history, and older rows revealed by scrolling up, sit before it; a new first row is a new
- * thread, which starts again. Until the rows load, nothing has arrived.
- */
 export function useArrivedFrom(rows: TranscriptRow[] | undefined): number {
   const id = rows ? threadId(rows) : null;
   const [opened, setOpened] = useState<{ id: string | null; count: number }>({ id, count: rows?.length ?? Infinity });
@@ -604,7 +513,6 @@ export function useArrivedFrom(rows: TranscriptRow[] | undefined): number {
   return opened.id === id ? opened.count : Infinity;
 }
 
-/** A node of the rendered markdown (hast), as much of it as wrapping words needs. */
 interface HastNode {
   type: string;
   tagName?: string;
@@ -613,11 +521,6 @@ interface HastNode {
   children?: HastNode[];
 }
 
-/**
- * While a reply streams, each word is its own span, so a word that arrives mounts and fades in (the phone's
- * chat CSS) while the words before it stay put: spans keep their place, so only the new ones are new. Code
- * keeps its text whole. Once the turn ends the reply renders as plain text again.
- */
 export function rehypeWords() {
   const wrap = (node: HastNode, inCode: boolean) => {
     if (!node.children) return;
@@ -640,11 +543,6 @@ export function rehypeWords() {
 const LIVE_PLUGINS = [rehypeWords];
 const REMARK_PLUGINS = [remarkGfm];
 
-/**
- * One block of a reply still being written (plan 039): parsed again only when its own text changes, so the blocks
- * before the last are drawn once and left alone while the last one grows. The same component draws every block, so
- * the last one, once finished, keeps its element and its words do not fade in twice.
- */
 const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
   return (
     <Markdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={LIVE_PLUGINS} components={MARKDOWN_COMPONENTS}>
@@ -653,18 +551,15 @@ const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
   );
 });
 
-/** A message's words as the thread shows and copies them: an agent's quick replies (plan 066) are buttons, not words. */
 export function shownText(m: TranscriptRow): string {
   return m.role === "assistant" ? withoutReplies(m.text) : m.text;
 }
 
-/** An agent's reply as markdown; while it streams, block by block with its words fading in, and the cursor after it. */
 export function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   const text = withoutReplies(m.text);
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
       {cursor ? (
-        // A block is named by where it starts in the reply: words added after it leave it as it is.
         streamBlocks(text).map((block) => <LiveBlock key={block.at} text={block.text} />)
       ) : (
         <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
@@ -676,7 +571,6 @@ export function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: 
   );
 }
 
-/** A file the message carried: its name and size; in the desktop app a click shows it in its folder. */
 function FileChip({ file }: { file: FileRef }) {
   const body = (
     <>
@@ -730,7 +624,6 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
           ))}
         </div>
       )}
-      {/* Your own words get the same markdown as the agent's: pasted prompts and skill text are full of it. */}
       {m.text && (
         <div className="loki-md">
           <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>

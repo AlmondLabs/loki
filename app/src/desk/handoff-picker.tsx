@@ -4,12 +4,6 @@ import type { HandoffSource } from "../../../core/attention/use-attention.ts";
 import type { HandoffProposal } from "../../../core/frame-types.ts";
 import { Meta, Row, sentence } from "../components";
 
-/**
- * Where an outside card's thread goes when it is handed off (plan 067, R15): loki's proposal first (the chat the
- * thread went to before, or a new chat with the account's agent), then that agent's other open chats. Arrows move,
- * Enter or a click hands off, Esc closes. The desktop draws it in the card above its moves; the phone in its card
- * body, with `touch` rows and sentence case.
- */
 export function HandoffPicker({
   item,
   source,
@@ -20,7 +14,6 @@ export function HandoffPicker({
   item: AttentionItem;
   source: HandoffSource;
   touch?: boolean;
-  /** The thread went: the card leaves. */
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -30,7 +23,6 @@ export function HandoffPicker({
   const [hi, setHi] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // The proposal is the account's Mac's to make: asked once per card when the picker opens, dropped if it closes first.
   const ask = useEffectEvent(() => source.handoffPropose(item));
   const card = `${item.agent_id}/${item.id}`;
   useEffect(() => {
@@ -44,7 +36,6 @@ export function HandoffPicker({
       gone = true;
     };
   }, [card]);
-  // The list takes focus once it is there, so Enter confirms the proposal at once.
   const ready = proposal !== null;
   useEffect(() => {
     if (ready) listRef.current?.focus({ preventScroll: true });
@@ -70,7 +61,6 @@ export function HandoffPicker({
     });
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    // The deck's own keys (next, archive) wait while the picker is open.
     e.stopPropagation();
     if (e.key === "Escape") onCancel();
     else if (e.key === "ArrowDown") setHi((i) => Math.min(i + 1, options.length - 1));

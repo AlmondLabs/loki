@@ -17,12 +17,6 @@ import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-/**
- * The desktop's ⌘K search (app/src/shell/search-model.ts, plan 013 U9): desks by title and agent, agents,
- * waiting Inbox items and the app's pages, from what the window already holds — never message text.
- * Enter opens the top result; before typing, the recent places, stale ones dropped at read.
- */
-
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
   scope,
   title: scope,
@@ -77,7 +71,6 @@ describe("desktop search: what it finds (AE5)", () => {
     expect(search(buildIndex(src), "quarterly")).toEqual([]);
   });
   test("agents, waiting items and pages; the shared scope and not-waiting items are left out", () => {
-    // "ira" is also part of "jira", one of the words the Accounts page is found by.
     expect(titles("ira")).toEqual([
       ["agents", ["ira"]],
       ["pages", ["Accounts"]],
@@ -93,7 +86,7 @@ describe("desktop search: what it finds (AE5)", () => {
   });
   test("an agent's name finds its desks too, by the secondary field; the main chat reads as Main chat", () => {
     const g = search(buildIndex(src), "friday");
-    expect(g[0].id).toBe("agents"); // the name is the agent's title, a desk's secondary field
+    expect(g[0].id).toBe("agents");
     expect(
       must(
         g.find((x) => x.id === "desks"),
@@ -105,11 +98,9 @@ describe("desktop search: what it finds (AE5)", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];
     expect(old.dim).toBe(true);
     expect(topHit(search(buildIndex(src), "learn"))?.target).toEqual({ kind: "section", segment: "learn" });
-    // Flow was the Inbox (plan 087): both words open it.
     expect(topHit(search(buildIndex(src), "flow"))?.target).toEqual({ kind: "section", segment: "inbox" });
     expect(topHit(search(buildIndex(src), "inbox"))?.target).toEqual({ kind: "section", segment: "inbox" });
     expect(topHit(search(buildIndex(src), "inbox"))?.title).toBe("Flow");
-    // Tasks was retired (plan 049, U6): it is no page to open any more.
     expect(flatHits(search(buildIndex(src), "tasks")).some((h) => h.title === "Tasks")).toBe(false);
     expect(topHit(search(buildIndex(src), "providers"))?.target).toEqual({ kind: "preferences", page: "providers" });
     expect(topHit(search(buildIndex(src), "preferences"))?.target).toEqual({ kind: "preferences", page: null });
@@ -118,7 +109,7 @@ describe("desktop search: what it finds (AE5)", () => {
   });
   test("Enter's top result is the first row drawn: groups come in the order of their best hit", () => {
     const groups = search(buildIndex(src), "ops");
-    expect(groups[0].id).toBe("desks"); // "Ops review" is a prefix; the waiting item only a word start
+    expect(groups[0].id).toBe("desks");
     expect(topHit(groups)).toBe(flatHits(groups)[0]);
     expect(topHit(search(buildIndex(src), "   "))).toBeNull();
   });

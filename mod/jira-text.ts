@@ -1,31 +1,20 @@
 import type { SlackBlock, SlackSpan } from "../core/frame-types.ts";
 import { writeMentions } from "../core/mentions.ts";
 
-/**
- * Jira's text, both ways (plan 2026-11-10-1451, KTD15). Jira keeps a comment as a document of nested nodes (the
- * Atlassian Document Format) and a history entry as a list of changed fields; a card shows plain lines, and the
- * person's comment is typed as plain text. Every conversion lives here, as pure functions, so the card, the hand-off
- * and the tools read a ticket the same way.
- */
-
-/** One changed field of a history entry, by the values Jira shows; null where the field was or became empty. */
 export interface JiraHistoryItem {
   field: string;
   from: string | null;
   to: string | null;
 }
 
-/** A piece of a paragraph in a document loki writes: text, or a line break. */
 export type JiraDocInline = { type: "text"; text: string } | { type: "hardBreak" } | { type: "mention"; attrs: { id: string; text: string } };
 
-/** A document as loki writes one: paragraphs of text and line breaks, the plainest form Jira accepts. */
 export interface JiraDoc {
   version: 1;
   type: "doc";
   content: Array<{ type: "paragraph"; content: JiraDocInline[] }>;
 }
 
-/** A Jira document read as plain lines, and the account ids of the people it mentions. */
 export interface JiraDocText {
   lines: string[];
   mentions: string[];
@@ -35,13 +24,6 @@ const rec = (v: unknown): Record<string, unknown> => (typeof v === "object" && v
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
 
-/**
- * A file a Jira document shares, as the document names it (plan 093, KTD6). The card matches `name`, the file's
- * `alt`, to the ticket's attachment list, and opens `url` for an `external` file, so only an https address is kept.
- * `type` is Jira's kind of media (`file`, `link` or `external`); any of the three is null when the document leaves it
- * out. `width` and `height` are a picture's size in pixels as Jira's editor records it, which the card fits its preview
- * to; null when the document leaves them out.
- */
 export interface JiraFileRef {
   name: string | null;
   type: string | null;
@@ -50,19 +32,13 @@ export interface JiraFileRef {
   height: number | null;
 }
 
-/** A positive pixel size from a node's attributes, or null. */
 const pixels = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null);
 
 /** Jira's nodes that stand for a file: one in a picture or a group of files, and one inside a line of text. */
 const isFile = (node: Record<string, unknown>) => node.type === "media" || node.type === "mediaInline";
 
-/** A file node's line of plain text, as a Slack file's (`filePlain`), so the phone and a hand-off name it. */
 const fileLine = (node: Record<string, unknown>) => `file: ${str(rec(node.attrs).alt) || "attachment"}`;
 
-/**
- * The files a Jira document shares, in the order it shows them, wherever they sit: in a picture, a group of files or
- * a line of text. The card draws them under the comment, since its blocks leave them out.
- */
 export function adfFiles(doc: unknown): JiraFileRef[] {
   const out: JiraFileRef[] = [];
   const walk = (value: unknown): void => {
@@ -85,19 +61,11 @@ export function adfFiles(doc: unknown): JiraFileRef[] {
   return out;
 }
 
-/** The address a text node links to, when it carries a link mark. */
 function linkOf(node: Record<string, unknown>): string {
   for (const mark of list(node.marks)) if (rec(mark).type === "link") return str(rec(rec(mark).attrs).href);
   return "";
 }
 
-/**
- * A Jira document as plain lines, top to bottom: a line for each paragraph and each line break in it, list items with
- * their mark, code as written, a link as its text and address, a mention as the person's name, and each file on a line
- * of its own as `file: <name>`, or `file: attachment` when it has none (plan 093). A node type this does not know is
- * read for the text inside it, so a new kind of block never empties a comment. `mentions` lists each mentioned account
- * id once, so a caller can tell whether the person was mentioned.
- */
 export function adfText(doc: unknown): JiraDocText {
   const lines: string[] = [];
   const mentions: string[] = [];
@@ -125,7 +93,6 @@ export function adfText(doc: unknown): JiraDocText {
         return str(attrs.url);
       case "media":
       case "mediaInline":
-        // Each file on a line of its own, even one inside a line of text, as a Slack message's files read.
         return `\n${fileLine(node)}\n`;
       default:
         return list(node.content).map(inline).join("");
@@ -142,7 +109,6 @@ export function adfText(doc: unknown): JiraDocText {
         const mark = node.type === "orderedList" ? `${first + i}. ` : "- ";
         const inner: string[] = [];
         block(item, inner);
-        // Lines after an item's first, a nested list among them, sit under its text.
         inner.forEach((line, j) => out.push((j === 0 ? mark : " ".repeat(mark.length)) + line));
       });
       return;
@@ -151,7 +117,6 @@ export function adfText(doc: unknown): JiraDocText {
       out.push(...inline(node).split("\n"));
       return;
     }
-    // A node holding other blocks is read block by block; one holding only text and marks is one block of lines.
     if (children.some((child) => Array.isArray(rec(child).content))) {
       for (const child of children) block(child, out);
       return;
@@ -163,25 +128,20 @@ export function adfText(doc: unknown): JiraDocText {
   return { lines, mentions };
 }
 
-/** The styles a text node's marks give it that a Slack span can draw; underline, colour and the like are left plain. */
 type SpanStyle = Partial<Record<"bold" | "italic" | "strike", true>>;
 
-/** One line of a list or a quote, as spans, before the lines are joined with newlines. */
 type SpanLine = SlackSpan[];
 
-/** Jira's marks that a Slack span has a style for, by the style's name. */
 const MARK_STYLE = new Map<string, keyof SpanStyle>([
   ["strong", "bold"],
   ["em", "italic"],
   ["strike", "strike"],
 ]);
 
-/** Two plain text spans with the same styles draw as one, so a converted comment holds no needless splits. */
 function sameStyle(a: SlackSpan, b: SlackSpan): boolean {
   return a.kind === "text" && b.kind === "text" && !a.code && !b.code && a.bold === b.bold && a.italic === b.italic && a.strike === b.strike;
 }
 
-/** Spans with neighbouring plain text of one style joined, and empty text left out. */
 function joined(spans: readonly SlackSpan[]): SlackSpan[] {
   const out: SlackSpan[] = [];
   for (const span of spans) {
@@ -193,18 +153,8 @@ function joined(spans: readonly SlackSpan[]): SlackSpan[] {
   return out;
 }
 
-/** Whether spans hold anything to see: a mention, a link, an emoji, or text that is not only blank. */
 const visible = (spans: readonly SlackSpan[]) => spans.some((s) => s.kind !== "text" || s.text.trim() !== "");
 
-/**
- * A Jira document as the blocks and spans the Slack card draws (plan 091, Decision 1): a paragraph is a block of
- * lines, a heading a bold one, a quote and a code block Slack's own, and a list a block of lines, each item after its
- * bullet or number and a list inside an item indented under it, since Slack's shape has no list. Bold, italics,
- * strikethrough and code marks style their text; a link is drawn by its label and keeps its address; a mention is
- * Slack's mention pill with the name Jira wrote; an emoji is its character. Anything the shape has no place for keeps
- * its words as `adfText` reads them. A file draws nothing here, since the card shows it under the comment (plan 093),
- * but a picture's caption keeps its words as a block.
- */
 export function adfBlocks(doc: unknown): SlackBlock[] {
   const inline = (value: unknown, style: SpanStyle): SlackSpan[] => {
     const node = rec(value);
@@ -237,14 +187,12 @@ export function adfBlocks(doc: unknown): SlackBlock[] {
       }
       case "media":
       case "mediaInline":
-        // The card draws a file under the comment, from `adfFiles`, so it has no place among the words.
         return [];
       default:
         return list(node.content).flatMap((child) => inline(child, style));
     }
   };
 
-  /** A node's spans cut at its line breaks, each line kept only when it shows something. */
   const lines = (spans: readonly SlackSpan[]): SpanLine[] => {
     const out: SpanLine[] = [[]];
     for (const span of spans) {
@@ -260,11 +208,8 @@ export function adfBlocks(doc: unknown): SlackBlock[] {
     return out.filter(visible);
   };
 
-  // A paragraph holds only text and marks, even a kind of inline node this does not know; another node holding nodes
-  // that hold more (the document, a list item, a panel, a table) is read block by block.
   const holdsBlocks = (node: Record<string, unknown>) => node.type !== "paragraph" && list(node.content).some((child) => Array.isArray(rec(child).content));
 
-  /** The lines of what sits in a list item or a quote. */
   const linesOf = (value: unknown): SpanLine[] => {
     const node = rec(value);
     if (node.type === "bulletList" || node.type === "orderedList") return listLines(node);
@@ -277,7 +222,6 @@ export function adfBlocks(doc: unknown): SlackBlock[] {
     return lines(inline(node, {}));
   };
 
-  /** A list as lines: each item's first line after its mark, the rest of it, a nested list among them, under its text. */
   const listLines = (node: Record<string, unknown>): SpanLine[] => {
     const order = rec(node.attrs).order;
     const first = typeof order === "number" ? order : 1;
@@ -311,17 +255,10 @@ export function adfBlocks(doc: unknown): SlackBlock[] {
 /** A value on one line: Jira gives a description's whole text as the old and new value. */
 const oneLine = (value: string | null): string => value?.replace(/\s+/g, " ").trim() || "none";
 
-/** A history entry as lines, one for each changed field: the field, then its old and new values. */
 export function historyLines(items: readonly JiraHistoryItem[]): string[] {
   return items.map((item) => `${item.field}: ${oneLine(item.from)} → ${oneLine(item.to)}`);
 }
 
-/**
- * The person's plain text as a Jira document: a paragraph for each run of lines, parted by blank lines, with a line
- * break for each single newline. Jira refuses an empty text node, so empty lines write nothing. Each stored mention
- * still in the text as `@display` becomes Jira's own mention of that account (plan 2026-11-14-1530, R11), which
- * notifies them; nothing else does, whatever `@` the text holds.
- */
 export function textToAdf(text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> = []): JiraDoc {
   const people = mentions.filter((m): m is { display: string; id: string } => m.id !== null);
   const content: JiraDoc["content"] = [];

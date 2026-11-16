@@ -13,7 +13,6 @@ import { must } from "./fixtures/must.ts";
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-/** A marks store whose clock the test sets. */
 function marks(dir: string, name: string) {
   const clock = { at: "2026-10-18T10:00:00.000Z" };
   return { clock, store: new SeenStore(join(dir, `${name}.json`), { debounceMs: 0, now: () => clock.at }) };
@@ -33,7 +32,6 @@ describe("Inbox marks on two Macs", () => {
       expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(true);
       expect(mini.store.all()).not.toHaveProperty("agent-ira/c1");
       expect(book.store.all()).not.toHaveProperty("agent-ira/c1");
-      // Done again later anywhere wins over that.
       mini.clock.at = "2026-10-18T10:02:00.000Z";
       mini.store.mark("agent-ira", "c1");
       book.store.applyRemote(MINI, mini.store.snapshot());
@@ -63,7 +61,6 @@ describe("Inbox marks on two Macs", () => {
       expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(false);
       expect(book.store.restsAll()["agent-ira/c1"]).toEqual(second);
       expect(mini.store.restsAll()["agent-ira/c1"]).toEqual(second);
-      // An earlier rest arriving late changes nothing; a Mac from before rests sends none.
       expect(book.store.rest("agent-ira", "c1", first)).toBe(false);
       const { rests: _, ...old } = mini.store.snapshot();
       expect(book.store.applyRemote(MINI, old)).toBe(false);
@@ -82,7 +79,7 @@ describe("later rests and return times on two Macs (plan 070, U4)", () => {
       const far = { n: 2, until: "2026-12-08T10:00:00.000Z", stamp: "s", at: mini.clock.at, kind: "later" as const };
       mini.store.rest("agent-ira", "c1", far);
       expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(true);
-      book.clock.at = "2026-11-18T10:00:00.000Z"; // a month on; the rest ends in three weeks
+      book.clock.at = "2026-11-18T10:00:00.000Z";
       book.store.rest("agent-ira", "c2", { n: 1, until: "2026-11-18T11:00:00.000Z", stamp: "s", at: book.clock.at });
       expect(book.store.restsAll()["agent-ira/c1"]).toEqual(far);
 
@@ -90,11 +87,10 @@ describe("later rests and return times on two Macs (plan 070, U4)", () => {
       book.store.setReturnTimes(times);
       expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(true);
       expect(mini.store.returnTimes()).toEqual(times);
-      mini.clock.at = "2026-11-18T09:00:00.000Z"; // set earlier than the MacBook's: it loses there
+      mini.clock.at = "2026-11-18T09:00:00.000Z";
       mini.store.setReturnTimes(RETURN_TIMES_DEFAULT);
       expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(false);
       expect(book.store.returnTimes()).toEqual(times);
-      // A Mac from before return times sends none, and nothing moves.
       const { return_times: _, ...old } = mini.store.snapshot();
       expect(book.store.applyRemote(MINI, old)).toBe(false);
     } finally {
@@ -126,10 +122,10 @@ describe("lanes on two Macs (plan 087, U3)", () => {
     try {
       const mini = marks(dir, "mini");
       const book = marks(dir, "book");
-      book.store.setLanes([work, home]); // t1
+      book.store.setLanes([work, home]);
       mini.store.applyRemote(BOOK, book.store.snapshot());
       const older = book.store.snapshot();
-      mini.clock.at = "2026-10-18T10:05:00.000Z"; // t2 > t1
+      mini.clock.at = "2026-10-18T10:05:00.000Z";
       mini.store.setLanes([home]);
       expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(true);
       expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(false);
@@ -137,7 +133,6 @@ describe("lanes on two Macs (plan 087, U3)", () => {
       expect(mini.store.lanes()).toEqual([home]);
       expect(mini.store.applyRemote(BOOK, older)).toBe(false);
       expect(mini.store.lanes()).toEqual([home]);
-      // A Mac from before lanes sends none, and nothing moves.
       const { lanes: _, ...old } = mini.store.snapshot();
       expect(book.store.applyRemote(MINI, old)).toBe(false);
     } finally {
@@ -188,7 +183,7 @@ describe("label colours on two Macs", () => {
     mini.set("infra", 5);
     expect(book.apply(mini.snapshot())).toBe(true);
     expect(book.colorOf("infra")).toBe(5);
-    book.set("infra", 2); // chosen at 10:00, before the mini's 11:00
+    book.set("infra", 2);
     expect(mini.apply(book.snapshot())).toBe(false);
     expect(mini.colorOf("infra")).toBe(5);
   });

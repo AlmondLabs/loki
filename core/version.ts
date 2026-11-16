@@ -1,25 +1,16 @@
-/**
- * The three numbers of a version string as loki uses them: a stable "2026.1011.0" (the UTC day, then that day's
- * count; "2026.9.28" before October 2026), a release tag "v2026.1011.0", a nightly "2026.1011.1-nightly.4821".
- * Compared part by part as numbers, so every YYYY.MMDD.N stable is newer than every YYYY.M.D one.
- */
 export function parseVersion(v: string): [number, number, number] | null {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v.trim().replace(/^v/, ""));
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 
-/** Which channel a build is on, read off its version: a nightly carries the run that built it. */
 export type Channel = "stable" | "nightly";
-/** The channel a version string is on: nightly when it carries a `-nightly.` part, stable otherwise. */
 export const channelOf = (version: string): Channel => (version.includes("-nightly.") ? "nightly" : "stable");
 
-/** The dot-separated identifiers after the `-` of a version, `[]` for a release; build metadata after `+` is ignored. */
 const prereleaseOf = (v: string): string[] => {
   const tail = /^\d+\.\d+\.\d+-([^+\s]+)/.exec(v.trim().replace(/^v/, ""))?.[1];
   return tail ? tail.split(".") : [];
 };
 
-/** Semver's order of two prerelease identifiers: numbers as numbers, below any word; words in ASCII order. */
 const compareIdentifiers = (a: string, b: string): number => {
   const [x, y] = [/^\d+$/.test(a), /^\d+$/.test(b)];
   if (x && y) return Number(a) - Number(b);

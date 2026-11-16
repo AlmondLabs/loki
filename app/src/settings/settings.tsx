@@ -27,7 +27,6 @@ import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attentio
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
 import { REST_GROWTH, laterOf, type CardKind, type RestFirst, type RestLater, type ReturnTimes } from "../../../core/attention/rest.ts";
 
-/** Preferences › Inbox's return times, kept by the mod (plan 070): what they are now, and new ones. */
 export interface ReturnTimesApi {
   times: ReturnTimes;
   set: (times: ReturnTimes) => void;
@@ -42,31 +41,21 @@ import { XIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 import { cn } from "@/lib/utils";
 
-/** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
 
 const HOME = "~/.loki";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
 
-/** The window's toolbar height: the nav's top padding clears the traffic lights by it, as the pane header's 52px line does. */
 const TOOLBAR_HEIGHT = 52;
 
-/** The pane's left edge for its title, tab track and cards: the detail panes' 20px inset (plan 2026-11-14-2224, R1, R8). */
 export const PANE_INSET = 20;
 
-/** The daemon's chat link (useAttention's status, "off" shown as connecting). */
 type ChatLink = "connecting" | "open" | "closed";
 type ModConnection = "connecting" | "open" | "closed";
 
-/** Everything Settings takes: what the shell or the Settings window hands it. */
 export type SettingsProps = Parameters<typeof Settings>[0];
 
-/**
- * Preferences, Slack style: Settings in a large sheet over the section you were in (KTD11). It is marked
- * data-preferences so the shell's keys still reach ⌘, ⌘1-6 and the page steps while it is up; Esc, the
- * veil and the close button shut it.
- */
 export function Preferences({ onClose, ...rest }: Omit<SettingsProps, "onClose"> & { onClose: () => void }) {
   return (
     <Sheet
@@ -82,11 +71,6 @@ export function Preferences({ onClose, ...rest }: Omit<SettingsProps, "onClose">
   );
 }
 
-/**
- * Settings: the facts that had no home — what loki runs on, how it reaches
- * the mod, where the files are — a couple of preferences, and the keymap. Laid out as Preferences' body:
- * the section list on the left, the page on the right, filling whatever holds it.
- */
 export function Settings({
   chatLink,
   modConnection,
@@ -133,48 +117,25 @@ export function Settings({
   onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
   onDisconnectProvider: (providerId: string) => Promise<string | null>;
   onModelsChanged: () => void;
-  /** loki's daemon as the shell sees it: the Node it runs on, or why it could not start (null in a browser tab). */
   daemon: DaemonStatus | null;
-  /** The LAN listener and paired phones (useDesk().phone). */
   phone: PhoneApi;
-  /** This Mac and the Macs paired with it (useDesk().macs, plan 023). */
   macs: MacsApi;
-  /** ~/.agents/skills, which every agent reads (Preferences › Skills). */
   globalSkills: GlobalSkillsApi;
-  /** Preferences › MCP servers, and Preferences › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
-  /** Preferences › Accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067); every Mac's for lanes. */
   accounts: AccountsApi & LaneAccountsApi;
-  /** Every agent by name, to choose an account's owner from. */
   agents: readonly AgentName[];
-  /** Preferences › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
   engines: EnginesApi;
-  /** Preferences › Chat › Chat links (plan 067); left out, the block says the daemon is not linked. */
   links?: ChatLinksApi;
-  /** Preferences › Labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
   labels: LabelsApi;
-  /** loki's own update, as the shell reports it (Preferences › About). */
   update: LokiUpdate;
-  /** Whether a chat is mid-turn, so About's Restart to Update says that turn will stop before it restarts. */
   working: boolean;
-  /** ⌥Space, held or released (Preferences › Keyboard shortcuts). */
   shortcut: GlobalShortcut;
-  /** The card writer's switch and knobs (Preferences › Learn). */
   recall: RecallModel;
-  /** What the agents spent, and their names (Preferences › Usage). */
   usage: UsageApi;
-  /** How long ⌘] and ⌘[ rest each kind of card (Preferences › Inbox). */
   returnTimes: ReturnTimesApi;
-  /** The lanes the person made (Preferences › Flow, plan 087), kept by the mod and shared with every device. */
   lanes: LanesApi;
-  /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
-  /**
-   * Settings is its own window (plan 2026-11-12-1505, U18): the section list sits on the window's sidebar material,
-   * clear of the traffic lights, with no heading, and the page's title row drags the window.
-   */
   windowed?: boolean;
-  /** The page to open on, set by whoever opened the window; otherwise the one this window last showed. */
   initialPage?: string | null;
 }) {
   const harness = useHarnessFacts();
@@ -183,13 +144,11 @@ export function Settings({
     setPage(p);
     sessionStorage.setItem(PAGE_KEY, p);
   };
-  // ⌘[ and ⌘] step the pages (settings.prevPage / settings.nextPage in the keymap), wrapping at the ends.
   useEffect(() => {
     const step = (d: 1 | -1) => pick(PAGES[(PAGES.findIndex((p) => p.id === page) + d + PAGES.length) % PAGES.length].id);
     return registerActions({ "settings.prevPage": () => step(-1), "settings.nextPage": () => step(1) });
   });
 
-  // Each page's body, by page: a table rather than a chain of conditions, so adding a page adds no branch here.
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} working={working} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
@@ -229,14 +188,12 @@ export function Settings({
 
   return (
     <div className="grid grid-cols-[200px_1fr] flex-1" style={{ minHeight: 0 }}>
-      {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
       <nav
         aria-label="Preferences"
         className={cn(windowed && "loki-settings-nav", "flex flex-col")}
         data-tauri-drag-region={windowed ? "deep" : undefined}
         style={{
           minHeight: 0,
-          // In the sheet the title sits on the pane title's line, centred in the 52px bar beside it.
           padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "8px 8px 0",
           borderRight: windowed ? undefined : "1px solid var(--loki-border)",
         }}
@@ -257,8 +214,6 @@ export function Settings({
         />
       </nav>
       <div className="flex flex-col min-w-0" style={{ minHeight: 0, background: "var(--loki-bg)" }}>
-        {/* The detail panes' title line (KTD4): 52 high and 20 in. Its one-line title stays centred with the close
-            button, on the same line as the nav's "Preferences". */}
         <div
           data-tauri-drag-region={windowed ? "deep" : undefined}
           className="loki-pane-header-line flex-none"
@@ -273,7 +228,6 @@ export function Settings({
             </IconButton>
           )}
         </div>
-        {/* Keyed by page so a new page starts at its top. */}
         <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: `24px ${PANE_INSET}px 48px` }}>
           {pageBody[page]()}
         </div>
@@ -282,10 +236,8 @@ export function Settings({
   );
 }
 
-/** Appearance's values in Apple's words (plan 2026-11-12-1505, U8). */
 const THEME_LABEL: Record<(typeof THEME_PREFERENCES)[number], string> = { system: "System", light: "Light", dark: "Dark" };
 
-/** Preferences › Appearance: light or dark, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
   return (
@@ -302,7 +254,6 @@ function AppearancePage() {
   );
 }
 
-/** Preferences › About: this app, the mod, what loki needs on this machine, and what launch installed. */
 function LokiPage({
   update,
   working,
@@ -340,13 +291,11 @@ function LokiPage({
   );
 }
 
-/** The Node the daemon runs on, or why the daemon could not start. */
 function NodeFact({ daemon }: { daemon: DaemonStatus | null }) {
   const value = !daemon ? "—" : daemon.error ? <Note tone="warn">{daemon.error}</Note> : (daemon.node ?? "Starting…");
   return <Fact label="Node" value={value} mono={!!daemon?.node && !daemon.error} />;
 }
 
-/** Where loki runs, said plainly (in a browser tab, that the tab is only a view of it), over what that system needs. */
 export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
   return (
     <Fact
@@ -361,15 +310,12 @@ export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; 
   );
 }
 
-/** About's channel choice in Apple's words. */
 const CHANNEL_LABEL: Record<Channel, string> = { stable: "Stable", nightly: "Nightly" };
 
 const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
 
-/** A Linux `.deb` never updates itself; the whole line links the releases page when the build names one. */
 const DEB_WORDS = "This install updates from the releases page";
 
-/** What failed, in one clause before "this version is still running" (R12). */
 const FAILED: Record<Extract<UpdateState, { kind: "failed" }>["stage"], string> = {
   check: "Could not check for updates",
   download: "The update did not download",
@@ -377,10 +323,6 @@ const FAILED: Record<Extract<UpdateState, { kind: "failed" }>["stage"], string> 
   install: "The update did not install",
 };
 
-/**
- * The update's state after the version (plan 2026-11-15-2319, U5): a quiet line, with the one button the state needs.
- * Called as a function, not drawn as a component, so the tests find its buttons in About's tree.
- */
 function updateLine(update: LokiUpdate, state: UpdateState, working: boolean): React.ReactNode {
   const button = (label: string, onClick: () => void) => (
     <span className="block" style={{ marginTop: 8 }}>
@@ -404,7 +346,6 @@ function updateLine(update: LokiUpdate, state: UpdateState, working: boolean): R
       );
     }
     case "failed":
-      // The shell's own words go in the tooltip: the line stays one quiet sentence.
       return (
         <>
           <span title={state.message}>
@@ -422,12 +363,6 @@ function updateLine(update: LokiUpdate, state: UpdateState, working: boolean): R
   }
 }
 
-/**
- * The app's own version and its update (plan 2026-11-15-2319, U5): the shell checks on launch and every six hours,
- * downloads in the background and installs when loki quits. Stable or Nightly takes effect at the next check; Stable
- * never installs an older build, so a nightly stays until a newer stable ships (R16). Outside the shell, where nothing
- * updates, the version alone.
- */
 export function LokiVersionFact({ update, working }: { update: LokiUpdate; working: boolean }) {
   const status = update.status;
   if (!status) return <Fact label="Version" value={__LOKI_VERSION__} />;
@@ -460,7 +395,6 @@ export function LokiVersionFact({ update, working }: { update: LokiUpdate; worki
   );
 }
 
-/** In the shell only: what launch did about the mod and the skill, folded shut. */
 function InstallFold({ install }: { install: InstallReport | null }) {
   return (
     <Fold title="What launch installed">
@@ -491,7 +425,6 @@ function InstallFold({ install }: { install: InstallReport | null }) {
   );
 }
 
-/** The word after the mod's state: what launch found in its place. */
 function modNote(install: InstallReport): React.ReactNode {
   if (install.mod === "custom") return <Note>Your own copy is in place; the app leaves it alone</Note>;
   if (install.mod === "linked") return <Note>Development build — the daemon runs this checkout's mod/boot.ts</Note>;
@@ -554,7 +487,6 @@ function SkillsPage({ globalSkills }: { globalSkills: GlobalSkillsApi }) {
 
 function RecallPage({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
-  // Settings may open before Learn ever did: ask for the snapshot once.
   useEffect(() => {
     if (!snap) void recall.refresh();
   }, [snap, recall]);
@@ -629,12 +561,6 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
   return chatLink === "open" ? <Mcp api={mcp} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
-/**
- * Preferences › Inbox (Flow on screen): the lane editor when given its lanes (plan 087), then what read, later,
- * archive, label and a reply do, how long read and later set each kind of card aside, and how the deck orders its cards
- * behind a fold. The accounts whose mail and messages become cards have their
- * own page, Preferences › Accounts (plan 068). Exported for its test.
- */
 export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi; lanes?: LanesProps }) {
   const { times, set } = returnTimes;
   return (
@@ -711,24 +637,15 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
   );
 }
 
-/** Per-kind choices on a row: each kind's name beside its control, the controls lined up on the right. */
 const KIND_GRID = "grid grid-cols-[auto_auto] items-center justify-items-end gap-2";
-/** The kinds of card read rests; a Slack message or a Jira card is done once read, so it has no rest. */
 const READ_KINDS = ["chat", "email"] as const;
-/** The kinds of card later brings back. */
 const LATER_KINDS = ["chat", "email", "slack", "jira"] as const;
-/** Each kind of card as the Inbox page names it. */
 const KIND_NAME: Record<CardKind, string> = { chat: "chats", email: "email", slack: "Slack", jira: "Jira" };
-/** The first rests on offer, shortest first. */
 const REST_FIRST_KEYS: readonly RestFirst[] = ["10m", "30m", "1h", "3h"];
-/** Each first rest as the setting says it. */
 const REST_FIRST_LABELS: Record<RestFirst, string> = { "10m": "10 Min", "30m": "30 Min", "1h": "1 Hour", "3h": "3 Hours" };
-/** The later returns on offer, soonest first. */
 const REST_LATER_KEYS: readonly RestLater[] = ["3h", "1d", "2d", "1w"];
-/** Each later return as the setting says it. */
 const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 Hours", "1d": "1 Day", "2d": "2 Days", "1w": "1 Week" };
 
-/** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {
   return (
     <span className="loki-mono" style={{ fontSize: "var(--text-xs)", color: "var(--loki-fg)" }}>
@@ -737,7 +654,6 @@ function Score({ children }: { children: string }) {
   );
 }
 
-/** Preferences › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
 function FilesFold() {
   return (
     <Fold title="Where loki keeps things">
@@ -753,10 +669,8 @@ function FilesFold() {
   );
 }
 
-/** The system-wide key as its row names it; it exists on the Mac only (global.inbox has no key elsewhere). */
 const GLOBAL_KEY = `${formatKeys("alt", "macos")}Space`;
 
-/** Preferences › Keyboard shortcuts: ⌥Space held or released on the Mac; a browser tab cannot hold it, and Windows and Linux have none yet (R3). */
 export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShortcut; os?: Platform }) {
   if (os !== "macos") return <Fact label="System-wide" value={notYetOn("The system-wide key", os)} />;
   return (
@@ -780,7 +694,6 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
   );
 }
 
-/** Preferences › Keyboard shortcuts shortcuts: ⌥Space, then every key loki has, found by what it does, its keys or where it works. */
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -850,8 +763,6 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
     </>
   );
 }
-
-/** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
 
 function Note({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "warn" }) {
   return <span style={{ marginLeft: 8, fontSize: "var(--text-xs)", color: tone === "warn" ? "var(--loki-negative)" : "var(--loki-muted)" }}>{children}</span>;

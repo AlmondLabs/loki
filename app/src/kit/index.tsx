@@ -1,22 +1,15 @@
 import type { ComponentType } from "react";
 import { lazy, Suspense, useRef, useState } from "react";
 
-/**
- * loki widget kit v1. Every component takes the widget's `data` and an
- * `onSet(path, value)` writer that patches the shared desk store (tier 0).
- * Display components ignore onSet. See skills/loki/SKILL.md for the authoring API.
- */
 export interface KitProps {
   data: Record<string, unknown>;
   onSet: (path: string, value: unknown) => void;
 }
 
-/** A value from the widget's data as text: an object or array in its JSON form, anything else as JavaScript writes it. */
 function asText(v: unknown): string {
   return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
 }
 
-/** The kit's text card: `data.lines`, one line each. */
 export function InfoCard({ data }: KitProps) {
   const lines = (data.lines as string[] | undefined) ?? [];
   return (
@@ -28,7 +21,6 @@ export function InfoCard({ data }: KitProps) {
   );
 }
 
-/** The kit's big number: `data.value` with its `unit`, a green or red `delta`, and a `label` under it. */
 export function Stat({ data }: KitProps) {
   const delta = typeof data.delta === "number" ? data.delta : null;
   return (
@@ -58,7 +50,6 @@ export function Stat({ data }: KitProps) {
   );
 }
 
-/** The kit's slider over `data.value` (with `min`, `max`, `step`, `label` and `unit`); it writes `value` once, when the drag ends, not on every step. */
 export function SliderControl({ data, onSet }: KitProps) {
   const value = Number(data.value ?? 0);
   const [live, setLive] = useState<number | null>(null);
@@ -114,7 +105,6 @@ export function SliderControl({ data, onSet }: KitProps) {
   );
 }
 
-/** The kit's checklist over `data.items`; ticking one writes `items.<i>.done`. */
 export function ListCard({ data, onSet }: KitProps) {
   const items = (data.items as Array<{ text: string; done?: boolean }> | undefined) ?? [];
   return (
@@ -142,15 +132,10 @@ export function ListCard({ data, onSet }: KitProps) {
   );
 }
 
-/** A chart card's height: the chart's, and its placeholder's while the chart loads, so the card does not jump. */
 export const CHART_HEIGHT = 180;
 
 const ChartView = lazy(() => import("./chart-view").then((m) => ({ default: m.ChartView })));
 
-/**
- * The kit's chart of `data.points` (x, y), drawn as a line, a bar or an area chart by `data.kind` (line when unset).
- * `chart-view.tsx` draws it, loaded the first time a chart shows (plan 038).
- */
 export function ChartCard(props: KitProps) {
   return (
     <Suspense fallback={<div className="loki-widget-body" style={{ height: CHART_HEIGHT }} />}>
@@ -159,7 +144,6 @@ export function ChartCard(props: KitProps) {
   );
 }
 
-/** type → component registry; Surface renders from this. */
 export const KIT_COMPONENTS: Record<string, ComponentType<KitProps>> = {
   "info-card": InfoCard,
   stat: Stat,

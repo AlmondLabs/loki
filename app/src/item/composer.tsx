@@ -10,29 +10,17 @@ import { dictateTitle } from "../chat/use-dictation";
 import { fileSize } from "../chat/attachments";
 import { sentence } from "../components";
 
-/** What the Composer adds to a message box: the messages queued while the agent works, and the way to take one back. */
 export interface ComposerProps extends MessageBoxProps {
   queued?: readonly TranscriptRow[];
   onCancelQueued?: (text: string) => void;
-  /** Above the box, at its trailing edge: what shows only now and then (the suggestions chip). */
   extras?: ReactNode;
 }
 
-/**
- * The chat's message box (plan 097, Composer): the same behaviour as the phone's ChatInput (useMessageBox: dictation,
- * files, paste and drop, Enter to send, ⌘D, the grow to six lines), drawn with AI Elements' PromptInput parts without
- * its form, whose own submit and attachments would fight loki's (KTD5). It is drawn as Messages draws its box (plan
- * 2026-11-12-1505, U21): above it the Queue, what was sent mid-turn, each with Take Back; then "+" outside a one-line
- * capsule that grows with the text; inside it, at the trailing edge, the microphone while the box is empty and the
- * accent up-arrow once there is something to send, which becomes stop while the agent works and nothing is typed. "+"
- * attaches files; the model and the permission mode are ⌘K's (⌘⇧M, ⌘⇧P), their one home, since they change rarely.
- */
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer(props, ref) {
   const box = useMessageBox(props, ref);
   return <MessagesBox {...props} box={box} />;
 });
 
-/** The box as Messages draws it: the queue, then "+" beside a capsule holding what is attached, the text, and one button. */
 function MessagesBox({
   box,
   queued = [],
@@ -152,7 +140,6 @@ function MessagesBox({
   );
 }
 
-/** What was sent mid-turn and waits for the turn to end, each with take back; nothing while none waits. */
 function QueuedList({ queued, onCancelQueued }: { queued: readonly TranscriptRow[]; onCancelQueued?: (text: string) => void }) {
   if (queued.length === 0) return null;
   return (
@@ -182,7 +169,6 @@ function QueuedList({ queued, onCancelQueued }: { queued: readonly TranscriptRow
   );
 }
 
-/** The box's images and files, the uploads still going or failed, and why the last one failed; nothing while none. */
 function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
   const { images, uploads, failedUpload, remove } = box;
   return (

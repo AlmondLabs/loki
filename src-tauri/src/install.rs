@@ -1,20 +1,3 @@
-//! Every launch of a release build: what the daemon and the agent need go where they look for them.
-//!
-//! The app ships the mod as one bundled file (src-tauri/resources/mod/loki-mod.mjs, built by scripts/build-mod.ts)
-//! and the daemon as another (resources/daemon/daemon.mjs, with the keychain's native binding beside it). Both are
-//! copied to ~/.loki (loki's home, `data` below), where the daemon runs from and loads the mod (harness.rs). The
-//! agent's skill goes to ~/.agents/skills/loki; a skill folder the app did not write (a developer's symlink) is
-//! left alone.
-//!
-//! The built canvas (src-tauri/resources/app, a copy of app/dist) lands at <data>/app beside the
-//! mod: the mod's LAN listener serves it to phones (mod/static.ts). Optional: a build without it
-//! still installs the mod.
-//!
-//! Development builds (`tauri dev`) install none of that: their daemon runs the checkout's daemon/main.ts with its
-//! mod/boot.ts, which re-bundles the mod's files on every reload. A fresh clone has no skill in place, though, so a
-//! dev build links the checkout's skills/loki where nothing is yet (`link_checkout`) — the manual's by-hand recipe.
-//! Whatever is already there stays.
-
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -70,9 +53,6 @@ pub fn skill_dir(home: &Path) -> PathBuf {
     home.join(".agents").join("skills").join("loki")
 }
 
-/// A development build: its daemon runs `checkout`'s mod/boot.ts (mod: Linked, or Error when the checkout has
-/// none), and the skill is linked to the checkout's where nothing is in place yet. skill: Linked for a symlink into
-/// this checkout, Skipped for the app's copy, Custom otherwise. Never overwrites.
 pub fn link_checkout(checkout: &Path, home: &Path) -> Report {
     let mut report = Report::skipped(home);
     let boot = checkout.join("mod").join("boot.ts");
@@ -143,8 +123,6 @@ fn same_dir(a: &Path, b: &Path) -> bool {
     std::fs::canonicalize(a).ok().is_some_and(|a| std::fs::canonicalize(b).ok() == Some(a))
 }
 
-/// Where the bundled resources are, given Tauri's resource directory (the layout differs between
-/// `tauri dev`, which copies them next to the binary, and a bundle).
 pub fn find_resources(resource_dir: &Path) -> Option<PathBuf> {
     [resource_dir.join("resources"), resource_dir.to_path_buf()]
         .into_iter()
@@ -168,7 +146,6 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> std::io::Result<State> {
     }
 }
 
-/// The mod bundle: <resources>/mod/loki-mod.mjs → <data>/mod, where the daemon loads it from.
 fn install_mod(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), String> {
     let bundle = std::fs::read(resources.join("mod").join("loki-mod.mjs"))
         .map_err(|e| format!("bundled mod unreadable: {e}"))?;
@@ -178,8 +155,6 @@ fn install_mod(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), St
     Ok((state, mod_path))
 }
 
-/// loki's daemon: <resources>/daemon → <data>/daemon, daemon.mjs and the keychain's native binding beside it
-/// (node_modules). A build without it installs nothing.
 fn install_daemon(resources: &Path, data_dir: &Path) -> Result<State, String> {
     let src = resources.join("daemon");
     if !src.join("daemon.mjs").is_file() {
@@ -228,7 +203,6 @@ fn install_skill(resources: &Path, home: &Path) -> Result<(State, PathBuf), Stri
     Ok((state, dst))
 }
 
-/// Files under `dir`, relative to it, recursively. Symlinks are skipped: the bundle has none.
 fn walk(dir: &Path, prefix: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
@@ -243,9 +217,6 @@ fn walk(dir: &Path, prefix: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()
     Ok(())
 }
 
-/// The canvas for phones: <resources>/app → <data>/app, every file write-if-changed, stale files
-/// (an older build's hashed assets) removed. A directory we did not write is left alone.
-/// `Skipped` when the build shipped without app/dist.
 fn install_app(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), String> {
     let src = resources.join("app");
     let dst = data_dir.join("app");
@@ -263,8 +234,6 @@ fn install_app(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), St
     let mut files = Vec::new();
     walk(&src, Path::new(""), &mut files).map_err(|e| format!("bundled app unreadable: {e}"))?;
     if fresh {
-        // The marker goes down first: a copy that fails halfway must still read as ours next launch,
-        // so it is repaired rather than treated as a directory somebody else wrote.
         std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
         std::fs::write(dst.join(APP_MARKER), APP_MARKER_TEXT).map_err(|e| e.to_string())?;
     }
@@ -290,7 +259,6 @@ fn install_app(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), St
     Ok((state, dst))
 }
 
-/// Install all four. Never panics; failures land in `error` with whatever did succeed.
 pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
     let mut report = Report::skipped(home);
     match install_app(resources, data_dir) {
@@ -404,7 +372,7 @@ mod tests {
         let (_root, resources, data, home) = fixture();
         let skills = skill_dir(&home);
         std::fs::create_dir_all(skills.parent().unwrap()).unwrap();
-        link_dir(&resources, &skills).unwrap(); // a symlink, or on Windows a junction when symlinks are refused
+        link_dir(&resources, &skills).unwrap();
         let r = run(&resources, &data, &home);
         assert_eq!(r.r#mod, State::Installed, "the mod is the daemon's own copy, whatever the skill is");
         assert_eq!(r.skill, State::Custom);
@@ -420,7 +388,6 @@ mod tests {
     #[test]
     fn app_is_optional_and_installs_beside_the_mod() {
         let (_root, resources, data, home) = fixture();
-        // no app/ in the bundle: skipped, no error, the mod still lands
         let r = run(&resources, &data, &home);
         assert_eq!(r.app, State::Skipped);
         assert_eq!(r.r#mod, State::Installed);
@@ -434,13 +401,11 @@ mod tests {
         assert!(data.join("app").join("index.html").is_file());
         assert!(data.join("app").join("assets").join("index-abc.js").is_file());
         assert!(data.join("app").join(APP_MARKER).is_file());
-        // the layout mod/static.ts resolves: <data>/mod/loki-mod.mjs and <data>/app/index.html
         assert!(data.join("mod").join("loki-mod.mjs").is_file());
 
         let r = run(&resources, &data, &home);
         assert_eq!(r.app, State::Current);
 
-        // a new build: new hashed asset, the old one goes
         std::fs::remove_file(resources.join("app").join("assets").join("index-abc.js")).unwrap();
         std::fs::write(resources.join("app").join("assets").join("index-def.js"), b"2").unwrap();
         let r = run(&resources, &data, &home);
@@ -492,10 +457,8 @@ mod tests {
             assert_eq!(link, c.join("skills").join("loki"))
         }
         assert!(skill_dir(&home).join("SKILL.md").is_file());
-        // The same again: still linked, nothing rewritten.
         let r = link_checkout(&c, &home);
         assert_eq!((r.r#mod, r.skill), (State::Linked, State::Linked));
-        // A release install then leaves the linked skill alone.
         let r = run(&resources, &data, &home);
         assert_eq!(r.skill, State::Custom);
         assert!(std::fs::symlink_metadata(skill_dir(&home)).unwrap().file_type().is_symlink());
@@ -505,15 +468,12 @@ mod tests {
     fn a_dev_build_leaves_the_apps_skill_and_a_strangers_alone() {
         let (root, resources, data, home) = fixture();
         let c = checkout(root.path());
-        // The app's own copy in place: skipped, as before.
         run(&resources, &data, &home);
         let r = link_checkout(&c, &home);
         assert_eq!((r.r#mod, r.skill), (State::Linked, State::Skipped));
-        // Someone else's skill: custom.
         std::fs::remove_file(skill_dir(&home).join(SKILL_MARKER)).unwrap();
         let r = link_checkout(&c, &home);
         assert_eq!(r.skill, State::Custom);
-        // Not a checkout: an error, nothing written.
         let (_root2, _r2, _d2, home2) = fixture();
         let r = link_checkout(&root.path().join("nowhere"), &home2);
         assert_eq!(r.r#mod, State::Error);
@@ -544,12 +504,9 @@ mod tests {
         assert_eq!(find_resources(&nested), Some(nested.join("resources")));
     }
 
-    /// A tiny temp dir without a crate: unique per test, removed on drop.
     mod tempdir {
         use std::path::{Path, PathBuf};
         use std::sync::atomic::{AtomicUsize, Ordering};
-        /// Counts the folders made, so two tests starting within one tick of the clock (a microsecond on macOS) never
-        /// share one: the first to finish removed the other's files under it.
         static MADE: AtomicUsize = AtomicUsize::new(0);
         pub struct Dir(PathBuf);
         impl Dir {

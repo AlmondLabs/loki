@@ -11,7 +11,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** A backend with Friday on an OpenAI model, and a Mac whose providers and MCP servers are as given. */
 function mac(opts: { signedIn: boolean; mcp?: Array<{ name: string; state: "connected" | "signin" | "down"; error?: string; off_for?: string[] }> }) {
   const dir = mkdtempSync(join(tmpdir(), "loki-requirements-"));
   dirs.push(dir);

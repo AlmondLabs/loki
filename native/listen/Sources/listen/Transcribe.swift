@@ -3,8 +3,6 @@ import Foundation
 import ListenCore
 import Speech
 
-/// One side of the call, transcribed on this Mac: buffers in (any format), finished utterances out, each at its
-/// offset from the start of this side's audio.
 final class Side: @unchecked Sendable {
   let speaker: Speaker
   private let input: AsyncStream<AVAudioPCMBuffer>
@@ -18,7 +16,6 @@ final class Side: @unchecked Sendable {
   func push(_ buffer: AVAudioPCMBuffer) { feed.yield(buffer) }
   func end() { feed.finish() }
 
-  /// Runs until end() and the analyzer has finished what it was given.
   func run(locale: Locale, onLine: @escaping @Sendable (Line) -> Void) async throws {
     let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [], attributeOptions: [.audioTimeRange])
     let analyzer = SpeechAnalyzer(modules: [transcriber])
@@ -78,8 +75,6 @@ private func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverte
   return status == .error || out.frameLength == 0 ? nil : out
 }
 
-/// The locale to transcribe in: the one asked for, or this Mac's, as SpeechTranscriber supports it; its model is
-/// downloaded the first time (a one-off, from Apple).
 func transcriptionLocale(_ asked: String?) async throws -> Locale {
   let wanted = asked.map(Locale.init(identifier:)) ?? Locale.current
   guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: wanted) else {

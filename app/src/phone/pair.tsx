@@ -3,26 +3,18 @@ import { modBase } from "../desk/env";
 import { CODE_LENGTH, codeFromUrl, deviceName, normalizeCode } from "./model";
 import { Button, Field } from "../components";
 
-/** This phone as the mod knows it once paired (`GET /me`): its device id and name. */
 export interface Me {
   device_id: string;
   name: string;
 }
 
-/**
- * Not paired yet. A `?code=` in the address (the QR) is redeemed at once; otherwise, or when it has
- * expired, the six letters shown in Preferences › Phone go in the field — a home-screen icon launches
- * from "/" with no query, so the field is always there. Six characters typed is the tap.
- */
 export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
-  /** The field starts with the code the QR put in the address; the mount effect below redeems it, busy from the start. */
   const [fromUrl] = useState(() => codeFromUrl(location.href));
   const [code, setCode] = useState(fromUrl ?? "");
   const [busy, setBusy] = useState(fromUrl?.length === CODE_LENGTH);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  /** Ask the Mac to pair this phone with the code; the caller has set `busy`. */
   const redeem = (c: string) =>
     fetch(`${modBase()}/pair`, {
       method: "POST",
@@ -32,7 +24,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
     })
       .then(async (r) => {
         if (r.ok) {
-          history.replaceState(null, "", location.pathname); // the code is spent; a reload must not redeem it again
+          history.replaceState(null, "", location.pathname);
           onPaired((await r.json()) as Me);
           return;
         }
@@ -57,7 +49,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
     const next = normalizeCode(raw);
     setCode(next);
     setError(null);
-    if (next.length === CODE_LENGTH) void submit(next); // auto-advance: the sixth character pairs
+    if (next.length === CODE_LENGTH) void submit(next);
   };
 
   return (

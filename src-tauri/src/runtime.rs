@@ -1,13 +1,3 @@
-//! The runtime a release build's daemon runs on (plan 2026-11-15-2319, KTD4): the Node the release names in
-//! `runtime.json`, and on Windows PortableGit when the machine has no git or no Git Bash. Each is downloaded once into
-//! `~/.loki/runtime/<name>-<version>-<target>/`: hashed while it streams in, checked against the manifest's SHA-256,
-//! unpacked into a temporary folder beside its final one and renamed into place, so a half-unpacked runtime is never
-//! at the final path. A launch that finds that folder missing (the first, or one after a release named another
-//! version) fetches it again; once the daemon has started on it, other versions are removed (`prune`).
-//!
-//! Development builds never come here: they keep finding the machine's Node (node.rs). The fetcher, the folder and
-//! the target are the caller's (`Host`), so tests never touch the network or the real home.
-
 use crate::node;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -16,24 +6,20 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The release's runtime, compiled into the shell so a build always fetches the Node it was tested with.
 const MANIFEST: &str = include_str!("../runtime.json");
 
-/// What `runtime.json` names: the Node every system runs, and the PortableGit Windows falls back to.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Manifest {
     pub node: Tool,
     pub git: Tool,
 }
 
-/// One program of the runtime: its version, and the archive per target (`darwin-arm64`, `win-x64` and so on).
 #[derive(Clone, Debug, Deserialize)]
 pub struct Tool {
     pub version: String,
     pub targets: BTreeMap<String, Archive>,
 }
 
-/// Where one archive is published and the SHA-256 it must have.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Archive {
     pub url: String,
@@ -41,15 +27,11 @@ pub struct Archive {
 }
 
 impl Manifest {
-    /// The manifest this build was compiled with.
     pub fn compiled() -> Result<Manifest, String> {
         serde_json::from_str(MANIFEST).map_err(|e| format!("runtime.json: {e}"))
     }
 }
 
-/// The manifest's name for a system and architecture, as Rust names them (`std::env::consts`). loki ships for Apple
-/// silicon Macs only, so an Intel Mac is an error like any other unsupported machine, rather than a guess: a Node built
-/// for another machine would not run.
 pub fn target(os: &str, arch: &str) -> Result<&'static str, String> {
     match (os, arch) {
         ("macos", "aarch64") => Ok("darwin-arm64"),
@@ -59,27 +41,19 @@ pub fn target(os: &str, arch: &str) -> Result<&'static str, String> {
     }
 }
 
-/// Opens a download: the body, and its length when the server says.
 pub type FetchFn = Box<dyn Fn(&str) -> Result<(Box<dyn Read>, Option<u64>), String>>;
-/// Runs a self-extracting archive (PortableGit's `.7z.exe`) into a folder.
 pub type ExtractFn = Box<dyn Fn(&Path, &Path) -> Result<(), String>>;
 
-/// Where the runtime goes and how it gets there. `Host::this` is the machine loki runs on; tests bring their own
-/// folder, target, manifest and fetcher.
 pub struct Host {
-    /// `~/.loki/runtime`.
     pub root: PathBuf,
     pub target: String,
     pub manifest: Manifest,
-    /// Whether PortableGit is wanted: on Windows, when git or Git Bash is missing (`git_missing`).
     pub git: bool,
     pub fetch: FetchFn,
     pub extract: ExtractFn,
 }
 
 impl Host {
-    /// This machine: the runtime under loki's folder `data`, this build's target and manifest, downloads over HTTPS,
-    /// and PortableGit only when the home's PATH and Program Files lack git or Git Bash.
     pub fn this(data: &Path, home: &Path) -> Result<Host, String> {
         Ok(Host {
             root: data.join("runtime"),
@@ -92,26 +66,20 @@ impl Host {
     }
 }
 
-/// How far a download has come, for whoever shows it: bytes done, and the total when the server said.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Progress<'a> {
-    /// `node` or `git`.
     pub name: &'a str,
     pub version: &'a str,
     pub done: u64,
     pub total: Option<u64>,
 }
 
-/// A runtime ready to run: the `node` program, and the folders the daemon's PATH starts with (Node's, which also
-/// holds npm and npx; then PortableGit's `cmd` and `bin` when it was wanted).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Runtime {
     pub node: PathBuf,
     pub path: Vec<PathBuf>,
 }
 
-/// Make sure the manifest's Node (and PortableGit, when `h.git`) is unpacked under `h.root`, fetching what is
-/// missing, and say where it is. `progress` hears every download from before its server answers to its last byte.
 pub fn ensure(h: &Host, progress: &mut dyn FnMut(&Progress)) -> Result<Runtime, String> {
     let node_dir = present_or_fetch(h, "node", &h.manifest.node, progress)?;
     let bin = if windows(&h.target) { node_dir } else { node_dir.join("bin") };
@@ -123,9 +91,6 @@ pub fn ensure(h: &Host, progress: &mut dyn FnMut(&Progress)) -> Result<Runtime, 
     Ok(Runtime { node: bin.join(if windows(&h.target) { "node.exe" } else { "node" }), path })
 }
 
-/// Remove every runtime folder the manifest no longer names for this target, once the daemon has started on the one it
-/// does: an older Node, a Node for another architecture, an older PortableGit. A folder that cannot go stays until the
-/// next start.
 pub fn prune(h: &Host) {
     let keep = [folder("node", &h.manifest.node.version, &h.target), folder("git", &h.manifest.git.version, &h.target)];
     let Ok(entries) = std::fs::read_dir(&h.root) else { return };
@@ -140,9 +105,6 @@ pub fn prune(h: &Host) {
     }
 }
 
-/// Windows only: whether git or Git Bash is missing, so PortableGit is wanted. Git Bash is looked for where the daemon
-/// looks for its shell (daemon/background.ts `shell`): `Git\bin\bash.exe` under Program Files, else `bash.exe` on
-/// PATH. Other systems: never; their git is Welcome's step (KTD6).
 pub fn git_missing(h: &node::Host) -> bool {
     if h.os != node::Os::Windows {
         return false;
@@ -179,8 +141,6 @@ pub fn tools_missing(h: &node::Host, developer_dir: &dyn Fn() -> Option<PathBuf>
     }
 }
 
-/// The Mac's active developer folder, as `xcode-select -p` prints it (the command line tools' or Xcode's); None when
-/// there is none, and on other systems.
 pub fn developer_dir() -> Option<PathBuf> {
     if !cfg!(target_os = "macos") {
         return None;
@@ -195,12 +155,10 @@ fn windows(target: &str) -> bool {
     target.starts_with("win-")
 }
 
-/// `node-22.23.5-darwin-arm64`: the folder a runtime lives in, so another version or target never counts as present.
 fn folder(name: &str, version: &str, target: &str) -> String {
     format!("{name}-{version}-{target}")
 }
 
-/// The file that says a runtime folder is complete: the program the daemon or its PATH needs from it.
 fn program(name: &str, target: &str) -> PathBuf {
     match (name, windows(target)) {
         ("git", _) => Path::new("cmd").join("git.exe"),
@@ -209,7 +167,6 @@ fn program(name: &str, target: &str) -> PathBuf {
     }
 }
 
-/// How an archive is unpacked, read from its file name.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Kind {
     TarGz,
@@ -236,7 +193,6 @@ impl Kind {
     }
 }
 
-/// The runtime folder for `name`, fetched first when it is not there complete.
 fn present_or_fetch(h: &Host, name: &str, tool: &Tool, progress: &mut dyn FnMut(&Progress)) -> Result<PathBuf, String> {
     let base = folder(name, &tool.version, &h.target);
     let dir = h.root.join(&base);
@@ -251,8 +207,6 @@ fn present_or_fetch(h: &Host, name: &str, tool: &Tool, progress: &mut dyn FnMut(
     std::fs::create_dir_all(&h.root).map_err(|e| format!("could not make {}: {e}", h.root.display()))?;
     let download = h.root.join(format!(".{base}.{}", kind.ext()));
     let unpack = h.root.join(format!(".{base}.unpack"));
-    // An attempt cut short (loki quit mid-download) may have left either temporary; a folder at the final path without
-    // its program (emptied by hand) would make the rename fail on every launch after.
     let _ = std::fs::remove_file(&download);
     let _ = std::fs::remove_dir_all(&unpack);
     let _ = std::fs::remove_dir_all(&dir);
@@ -269,8 +223,6 @@ fn present_or_fetch(h: &Host, name: &str, tool: &Tool, progress: &mut dyn FnMut(
     done.map(|()| dir)
 }
 
-/// Download `archive` to `to`, hashing it as it streams in. A cut-off download or a hash that does not match leaves
-/// an error naming the archive; the caller removes the file.
 fn fetch_checked(
     h: &Host,
     name: &str,
@@ -281,7 +233,6 @@ fn fetch_checked(
     progress: &mut dyn FnMut(&Progress),
 ) -> Result<(), String> {
     let failed = |e: &dyn std::fmt::Display| format!("could not download {file_name}: {e}");
-    // Said before the server answers, so whoever shows progress names the download while it connects (or stalls).
     progress(&Progress { name, version, done: 0, total: None });
     let (mut body, total) = (h.fetch)(&archive.url).map_err(|e| failed(&e))?;
     let mut out = std::fs::File::create(to).map_err(|e| failed(&e))?;
@@ -309,8 +260,6 @@ fn fetch_checked(
     Ok(())
 }
 
-/// Unpack `file` into the folder `into` and return the runtime's top folder in it: the archive's one folder when it
-/// has one (Node's `node-v22.23.5-darwin-arm64/`), else `into` itself (PortableGit unpacks loose).
 fn unpack_archive(h: &Host, kind: Kind, file_name: &str, file: &Path, into: &Path) -> Result<PathBuf, String> {
     let failed = |e: &dyn std::fmt::Display| format!("could not unpack {file_name}: {e}");
     std::fs::create_dir_all(into).map_err(|e| failed(&e))?;
@@ -347,7 +296,6 @@ fn http_get(url: &str) -> Result<(Box<dyn Read>, Option<u64>), String> {
     Ok((Box::new(response), total))
 }
 
-/// PortableGit's 7-Zip self-extractor: `-y` answers its questions, `-o<folder>` is where it unpacks.
 fn run_self_extracting(archive: &Path, into: &Path) -> Result<(), String> {
     let shown = archive.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let mut out = std::ffi::OsString::from("-o");
@@ -365,8 +313,6 @@ fn run_self_extracting(archive: &Path, into: &Path) -> Result<(), String> {
     }
 }
 
-/// The runtime's test doubles (a served manifest, a fetcher, PortableGit's extractor) are the crate's, so lib.rs's
-/// tests of the start sequence fetch through them too.
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -374,7 +320,6 @@ pub(crate) mod tests {
     use std::collections::HashMap;
     use std::rc::Rc;
 
-    /// A fresh folder per call; the counter keeps parallel tests apart (as node.rs's `fake_home`).
     pub(crate) fn temp_root() -> PathBuf {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -388,7 +333,6 @@ pub(crate) mod tests {
         Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
     }
 
-    /// Node's Mac and Linux archive, in small: one top folder, `bin/node` holding the version it would print.
     fn node_tar_gz(top: &str, version: &str) -> Vec<u8> {
         let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(vec![], flate2::Compression::fast()));
         let mut header = tar::Header::new_gnu();
@@ -399,7 +343,6 @@ pub(crate) mod tests {
         tar.into_inner().unwrap().finish().unwrap()
     }
 
-    /// Node's Windows archive, in small: one top folder with `node.exe` in it.
     fn node_zip(top: &str, version: &str) -> Vec<u8> {
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(vec![]));
         let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -417,7 +360,6 @@ pub(crate) mod tests {
     }
     const GIT_URL: &str = "https://example.test/PortableGit-2.56.1-64-bit.7z.exe";
 
-    /// The published files a test serves, by URL, and how many downloads it was asked for.
     pub(crate) struct Server {
         pub(crate) files: HashMap<String, Vec<u8>>,
         pub(crate) fetches: Rc<Cell<u32>>,
@@ -434,7 +376,6 @@ pub(crate) mod tests {
             Server { files, fetches: Rc::new(Cell::new(0)) }
         }
 
-        /// A manifest whose checksums are the served files' own.
         fn manifest(&self) -> Manifest {
             let archive = |url: &str| Archive { url: url.into(), sha256: sha256(&self.files[url]) };
             Manifest {
@@ -449,7 +390,6 @@ pub(crate) mod tests {
             }
         }
 
-        /// A fetcher serving these files whole.
         pub(crate) fn fetch(&self) -> FetchFn {
             let (files, fetches) = (self.files.clone(), self.fetches.clone());
             Box::new(move |url| {
@@ -461,7 +401,6 @@ pub(crate) mod tests {
         }
     }
 
-    /// PortableGit's extractor stand-in: what the real one leaves, loose in the folder (`cmd\git.exe`, `bin\bash.exe`).
     fn fake_extract(ran: Rc<Cell<u32>>) -> ExtractFn {
         Box::new(move |_archive, into| {
             ran.set(ran.get() + 1);
@@ -532,7 +471,6 @@ pub(crate) mod tests {
     fn a_present_runtime_is_used_without_a_download_and_another_targets_counts_as_missing() {
         let root = temp_root();
         let server = Server::new();
-        // An Intel Mac's Node, moved with the home to Apple Silicon.
         let intel = ensure(&host(&root, "darwin-x64", &server), &mut |_| {}).unwrap();
         assert_eq!(server.fetches.get(), 1);
         let h = host(&root, "darwin-arm64", &server);
@@ -541,7 +479,6 @@ pub(crate) mod tests {
         assert_ne!(arm.node, intel.node);
         assert_eq!(ensure(&h, &mut |_| {}).unwrap(), arm);
         assert_eq!(server.fetches.get(), 2, "present and complete: no download");
-        // A folder at the final path without its node (emptied by hand) is not complete: fetched again, not an error.
         std::fs::remove_file(&arm.node).unwrap();
         assert_eq!(ensure(&h, &mut |_| {}).unwrap(), arm);
         assert_eq!(server.fetches.get(), 3);
@@ -561,7 +498,6 @@ pub(crate) mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A body that gives `n` bytes of `bytes` and then fails, as a connection dropped mid-download does.
     struct CutOff(std::io::Cursor<Vec<u8>>);
     impl Read for CutOff {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
@@ -585,13 +521,11 @@ pub(crate) mod tests {
         let err = ensure(&h, &mut |_| {}).unwrap_err();
         assert!(err.contains("could not download node-v22.23.5-darwin-arm64.tar.gz"), "{err}");
         assert!(names(&root).is_empty(), "nothing kept: {:?}", names(&root));
-        // A server that never answers: what was being fetched was still said, before the error.
         h.fetch = Box::new(|_| Err("connection refused".into()));
         let mut seen = vec![];
         let err = ensure(&h, &mut |p| seen.push((p.name.to_string(), p.done, p.total))).unwrap_err();
         assert!(err.contains("connection refused"), "{err}");
         assert_eq!(seen, [("node".to_string(), 0, None)]);
-        // A launch that died mid-unpack left a temporary folder with junk in it: the next attempt clears it.
         let stale = root.join(".node-22.23.5-darwin-arm64.unpack");
         std::fs::create_dir_all(stale.join("junk")).unwrap();
         h.fetch = server.fetch();
@@ -609,11 +543,9 @@ pub(crate) mod tests {
         assert_eq!(target("linux", "x86_64"), Ok("linux-x64"));
         let err = target("linux", "aarch64").unwrap_err();
         assert!(err.contains("linux") && err.contains("aarch64"), "{err}");
-        // loki ships for Apple silicon Macs only, so an Intel Mac has no Node to fetch.
         let err = target("macos", "x86_64").unwrap_err();
         assert!(err.contains("macos") && err.contains("x86_64"), "{err}");
         assert!(target("freebsd", "x86_64").is_err());
-        // Each target unpacks its own archive.
         let server = Server::new();
         for t in ["darwin-arm64", "linux-x64", "win-x64"] {
             let root = temp_root();
@@ -732,15 +664,12 @@ pub(crate) mod tests {
                 dir.clone()
             }
         };
-        // The Mac: `xcode-select -p` failing means no tools at all.
         assert!(tools_missing(&on(node::Os::Macos), &developer_dir(None)));
-        // A developer folder chosen but without its git (tools removed by hand) is still missing.
         std::fs::create_dir_all(&clt).unwrap();
         assert!(tools_missing(&on(node::Os::Macos), &developer_dir(Some(clt.clone()))));
         std::fs::create_dir_all(clt.join("usr").join("bin")).unwrap();
         std::fs::write(clt.join("usr").join("bin").join("git"), b"").unwrap();
         assert!(!tools_missing(&on(node::Os::Macos), &developer_dir(Some(clt.clone()))));
-        // A git on PATH does not stand in for the tools: /usr/bin/git, the one agents run, needs them.
         std::fs::create_dir_all(&bin).unwrap();
         std::fs::write(bin.join("git"), b"").unwrap();
         assert!(tools_missing(&on(node::Os::Macos), &developer_dir(None)));
@@ -752,7 +681,6 @@ pub(crate) mod tests {
             std::fs::remove_file(bin.join("git")).unwrap();
             assert!(tools_missing(&on(node::Os::Linux), &developer_dir(None)));
         }
-        // Windows: never a tools step; PortableGit is fetched instead (`git_missing`).
         assert!(!tools_missing(&on(node::Os::Windows), &developer_dir(None)));
         assert_eq!(asked.get(), 4, "only the Mac asks xcode-select");
         let _ = std::fs::remove_dir_all(&home);

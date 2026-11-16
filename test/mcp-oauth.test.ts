@@ -16,11 +16,6 @@ const until = async (check: () => boolean, ms = 8000) => {
   while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 20));
 };
 
-/**
- * An MCP server behind OAuth, as MCP's authorization spec has it: a request without a good bearer is 401 naming its
- * protected-resource metadata, which names the authorization server, which registers clients, authorizes with PKCE
- * (S256) and issues tokens. JSON-RPC itself is the stand-in server's (fixtures/fake-mcp.mjs).
- */
 async function oauthServer() {
   const codes = new Map<string, { challenge: string; redirect: string }>();
   const issued = new Set<string>();
@@ -52,7 +47,6 @@ async function oauthServer() {
       return json(201, { ...JSON.parse(body), client_id: "loki-test-client" });
     }
     if (url.pathname === "/authorize") {
-      // The person approves at once: back to loki's callback with a code bound to the PKCE challenge.
       const code = `code-${codes.size + 1}`;
       codes.set(code, { challenge: url.searchParams.get("code_challenge") ?? "", redirect: url.searchParams.get("redirect_uri") ?? "" });
       const back = new URL(must(url.searchParams.get("redirect_uri"), "a redirect_uri"));
@@ -119,14 +113,13 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       await until(() => mcp.view().servers[0]?.sign_in?.url != null);
       const waiting = mcp.view().servers[0];
       expect(waiting).toMatchObject({ state: "signin", sign_in: { signed_in: false } });
-      expect(fake.seen.registrations).toBe(1); // loki registered itself, with its callback address
+      expect(fake.seen.registrations).toBe(1);
       expect(mcp.sectionText()).toContain("- issues: needs the person to sign in");
       const page = new URL(must(waiting.sign_in?.url, "the sign-in page"));
       expect(page.origin + page.pathname).toBe(`${fake.base}/authorize`);
       expect(page.searchParams.get("code_challenge_method")).toBe("S256");
       expect(page.searchParams.get("redirect_uri")).toBe("http://127.0.0.1:41414/mcp/oauth/callback");
 
-      // The person signs in; the server sends the browser back with a code, which loki redeems.
       const back = new URL(must((await fetch(page, { redirect: "manual" })).headers.get("location"), "a redirect"));
       const params = Object.fromEntries(back.searchParams);
       expect(await mcp.finishAuth({ state: "not-ours", code: "x" })).toMatchObject({ ok: false, server: null });
@@ -137,13 +130,10 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       expect(mcp.view().servers[0].tools).toHaveLength(TOOLS.length);
       expect((await mcp.servers.call("mcp__issues__list_issues", { repo: "loki" })).content).toEqual([{ type: "text", text: 'list_issues {"repo":"loki"}' }]);
       expect(fake.seen.mcpWithToken).toBeGreaterThan(0);
-      // The tokens are in the keychain, never in mcp.json; a used state does not work twice.
       const tokens = `mcp-oauth.${oauthKey("issues", `${fake.base}/mcp`)}.tokens`;
       expect(JSON.parse(must(keychain.get(tokens), "the stored tokens"))).toMatchObject({ access_token: "token-1" });
       expect(await mcp.finishAuth(params)).toMatchObject({ ok: false, server: null });
 
-      // Signing out forgets the tokens and loki's registration, and asks for a sign-in again, which registers anew:
-      // a registration the server has forgotten fails in the browser, where loki never hears of it.
       const client = `mcp-oauth.${oauthKey("issues", `${fake.base}/mcp`)}.client`;
       expect(keychain.has(client)).toBe(true);
       await mcp.signOut("issues");
@@ -152,7 +142,6 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       expect(fake.seen.registrations).toBe(2);
       expect(keychain.has(client)).toBe(true);
 
-      // Removing the server forgets its sign-in: nothing of it is left in the keychain for a later one of that name.
       mcp.setServer("issues", null);
       await until(() => ![...keychain.keys()].some((k) => k.startsWith("mcp-oauth.issues.")));
       expect([...keychain.keys()].filter((k) => k.startsWith("mcp-oauth.issues."))).toEqual([]);
@@ -186,7 +175,6 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       const back = new URL(must((await fetch(page, { redirect: "manual" })).headers.get("location"), "a redirect"));
       expect(await mcp.finishAuth(Object.fromEntries(back.searchParams))).toMatchObject({ ok: true });
       await until(() => mcp.view().servers[0]?.state === "connected");
-      // The same name, now somewhere else: it asks for a sign-in there, and never carries the first server's token.
       mcp.setServer("issues", { url: `${second.base}/mcp`, headers: {} });
       await until(() => mcp.view().servers[0]?.state === "signin" && mcp.view().servers[0]?.sign_in?.url != null);
       expect(second.seen.bearers).not.toContain("token-1");
@@ -203,8 +191,6 @@ describe("signing in to a remote MCP server (OAuth)", () => {
     const fake = await oauthServer();
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-oauth-"));
     const redirect = "http://127.0.0.1:41414/mcp/oauth/callback";
-    // An earlier daemon registered and was sent to the server's page, but no tokens came back; the server has since
-    // forgotten that client, which it says only on its own page in the browser.
     const keychain = new Map<string, string>([
       [`mcp-oauth.${oauthKey("issues", `${fake.base}/mcp`)}.client`, JSON.stringify({ client_id: "forgotten", redirect_uris: [redirect] })],
     ]);
@@ -225,7 +211,6 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       const page = new URL(must(mcp.view().servers[0].sign_in?.url, "the sign-in page"));
       expect(fake.seen.registrations).toBe(1);
       expect(page.searchParams.get("client_id")).toBe("loki-test-client");
-      // The registration made for this sign-in redeems its code.
       const back = new URL(must((await fetch(page, { redirect: "manual" })).headers.get("location"), "a redirect"));
       expect(await mcp.finishAuth(Object.fromEntries(back.searchParams))).toMatchObject({ ok: true });
       await until(() => mcp.view().servers[0]?.state === "connected");

@@ -87,22 +87,11 @@ import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * loki — a memory palace your agent builds.
- *
- * The desk is a directory the agent writes into (<widgets>/<desk>/), compiled into the open tab. This mod is loki's
- * own, hosted by loki's daemon (daemon/main.ts) through the mod API (daemon/mods/api.ts): it owns geometry and gesture
- * state, serves the app and the phone over its sockets, tells the agent what the person did on the canvas, and gives
- * the agent its canvas and suggestion tools. The daemon hands it the chats (`chats`, read; `chat`, run).
- */
-
 function loadOrCreateToken(): string {
   try {
     const existing = readFileSync(paths.token, "utf8").trim();
     if (/^[a-f0-9]{32}$/.test(existing)) return existing;
-  } catch {
-    // create below
-  }
+  } catch {}
   const token = randomBytes(16).toString("hex");
   mkdirSync(paths.data, { recursive: true });
   writeFileSync(paths.token, token, { mode: 0o600 });
@@ -114,32 +103,13 @@ export interface Host {
   chats: ChatSource;
   chat: ChatBackend;
   analytics?: Analytics;
-  /** The daemon's usage ledger (daemon/usage.ts), for the usage page; `onChange` returns its unsubscribe. */
   usage?: NonNullable<UsageDeps["usage"]> & { onChange: (listener: () => void) => () => void };
-  /** This Mac's install id (state/device-id), its name to other Macs (plan 023). */
   macId: string;
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
-  /**
-   * The suggestions kept on this Mac's chat records (plan 049, KTD1): reading and writing a chat's list. Absent from a
-   * daemon that predates them, and the suggestion frames say so.
-   */
   suggestions?: SuggestionRecords;
-  /**
-   * Show the link card in a chat whose agent messages a chat it has no link to (plan 067), and wait for the person's
-   * answer or the turn's stop. Absent from a daemon that predates links, which then has no chat_message.
-   */
   askLink?: (agentId: string, conversationId: string, link: LinkAsk, signal: AbortSignal) => Promise<LinkAnswer>;
-  /**
-   * The memory repos and their queue (daemon/memory-sync.ts). The mod is bundled apart from the daemon, so it takes
-   * them from here: its own copy of the queue would race the daemon's commits and never hear them (plan 046).
-   */
   memory: MemoryRepos;
-  /**
-   * Updating a checkout's loki (plans 024 and 041): the file whose change made an update due (null when none, always in
-   * the installed app), hearing when one becomes due, and updating now (a page build, a restart): null once done or
-   * under way, else why not.
-   */
   daemon?: {
     restartDue: () => string | null;
     onRestartDue: (fn: (file: string) => void) => () => void;
@@ -147,14 +117,8 @@ export interface Host {
   };
 }
 
-/**
- * Starts the mod inside the daemon: the desk server on loopback, the widget watcher, the desks and their state, the
- * frame router behind /ws, the phone listener (off until switched on in Settings), and the chat event handlers.
- * Returns the function that stops all of it.
- */
 export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
-  // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
   const analytics =
     host.analytics ??
     createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
@@ -163,23 +127,18 @@ export default function activate(api: ModApi, host: Host): () => void {
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
   const token = loadOrCreateToken();
 
-  // --- state -----------------------------------------------------------
   const store = new DeskStore();
   loadDesks(store, paths.state);
   const stopPersist = persistDesks(store, paths.state);
   const gestures = new GestureLog();
-  // Learn's cards (daemon/learn.ts writes them; mod/recall.ts reads them), and which chats are the passes' own.
   const recallStore = new RecallStore();
   const passChat = isPassChat;
 
   let activeScope: Scope = SHARED_SCOPE;
 
-  /** Both listeners, and who each push is for (mod/sockets.ts). */
   const sockets = new Sockets<LanListener>();
   const phones = (): LanListener => sockets.phones();
-  /** The paired Macs (mod/peering.ts), told of every push here; built once the chats they read are. */
   let peering: Peering | null = null;
-  // Every frame goes to the desktop's tabs and to paired phones alike.
   const broadcast = (msg: object, scope?: Scope) => {
     sockets.push(msg, { scope });
     peering?.pushed((msg as { type?: string }).type ?? "");
@@ -187,12 +146,10 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   store.subscribe((scope, state) => broadcast({ type: "state", scope, state }, scope === SHARED_SCOPE ? undefined : scope));
 
-  // --- the agent's half: files ------------------------------------------
   mkdirSync(paths.widgets, { recursive: true });
   const widgetLog = new WidgetLog(join(paths.state, "widget-log"));
   const widgets = watchWidgets(paths.widgets, (diff) => {
     log("widgets:diff", { added: diff.added.map((e) => e.id), changed: diff.changed.map((e) => e.id), removed: diff.removed });
-    // Shared widgets first: they appear on every desk, so they claim space before desk widgets flow around them.
     for (const e of [...diff.added].sort((a, b) => Number(b.scope === SHARED_SCOPE) - Number(a.scope === SHARED_SCOPE))) store.seen(e.scope, e.id);
     for (const e of diff.changed) store.fileChanged(e.scope, e.id);
     const scopes = new Set<Scope>([...diff.added.map((e) => e.scope), ...diff.changed.map((e) => e.scope), ...diff.removed.map(scopeOfId)]);
@@ -206,20 +163,13 @@ export default function activate(api: ModApi, host: Host): () => void {
     broadcastWidgetChanges(widgetLog, diff, broadcast);
   });
 
-  // --- chats -------------------------------------------------------------
-  // Read from the daemon's stores (`chats`), and run by it (`chat`: sending, streaming, models, agents) through the
-  // mod's frames; what happens in a chat goes to every client.
   const { chats, chat: chatBackend } = host;
   chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
-  // The folder a chat works in, from the daemon's folder index; the task move falls back to it (plan 049, U7).
   const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
     conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
 
-  // --- transport -------------------------------------------------------
-  // Each account's threads (plan 067, U3, KTD11): the memory that keeps a card from coming back, and the outside cards
-  // the inbox lists. The accounts are made below, once the paired Macs are, and read only when the list is.
   const threads = new AccountThreads({
     dir: join(paths.state, "account-threads"),
     accounts: { get: (id) => accounts.get(id), list: () => accounts.list() },
@@ -228,7 +178,6 @@ export default function activate(api: ModApi, host: Host): () => void {
       return agent && agent.name !== agent.id ? agent.name : null;
     },
   });
-  // Which chats show in the chat list and the inbox, and what each row says (mod/chat-listing.ts).
   const listing = new ChatListing({
     chats,
     desks,
@@ -248,7 +197,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     if (!entry) return null;
     const abs = join(paths.widgets, entry.file);
     try {
-      widgetLog.expect(id, "removed", "you"); // the person's trash, not the agent's removal
+      widgetLog.expect(id, "removed", "you");
       unlinkSync(abs);
       log("widget:trashed", { id, file: abs });
       void widgets.rescan();
@@ -258,12 +207,9 @@ export default function activate(api: ModApi, host: Host): () => void {
       return null;
     }
   };
-  // Paired phones and the codes that pair them (mod/devices.ts, mod/pairing.ts); the listener itself follows the bridge.
   const devices = new DeviceStore(paths.devices);
   const codes = new PairingCodes();
-  /** Tailscale's view of this Mac and its tailnet, shared by the phone listener and Preferences › Macs. */
   const tailscale = new Tailscale({ port: Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT) });
-  // Paired Macs (plan 023, mod/peering.ts): pairing, the links and syncers, and where each chat lives.
   const macs: Peering = startPeering({
     macId: host.macId,
     build: appVersion(paths.root),
@@ -281,30 +227,19 @@ export default function activate(api: ModApi, host: Host): () => void {
     moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
-  // Inbox accounts (plan 067, U2): each Gmail mailbox, Slack workspace or Jira site here and the one agent that owns
-  // it. Its secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a
-  // change.
   const accounts = new Accounts({
     file: join(paths.state, "accounts.json"),
     secrets: host.secrets,
     agentExists: (id) => readLocalAgent(id) !== null,
     heldElsewhere: (id) => macs.accountHeldBy(id),
   });
-  // A move or a disconnect changes what the account's outside cards say, so the lists are read again too.
   accounts.onChange(() => {
     broadcast({ type: "accounts_changed" });
     broadcast({ type: "chat_changed" });
   });
-  // The watchers (U5, U7) feed the threads and register their write-back; a change makes every list read again.
   threads.onChange(() => broadcast({ type: "chat_changed" }));
-  // Connecting (U5): Gmail by a sign-in that comes back to the loopback server, Slack from the desktop app's sessions,
-  // read from this person's home and kept in memory only (KTD2, KTD7). A Jira site is connected by the account frames
-  // themselves, with the address, email and API token the person types.
   const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
   const slackSessions = new SlackSessions({ home: homedir() });
-  // One sign-in per Google account (plan 2026-11-11 scripts, KTD8), shared by its Gmail client and the Google tools so
-  // one refresh serves them all; and one Gmail client per account, shared by its watcher and its archive. An account
-  // that changed (signed in again, moved, disconnected) gets new ones, which read its sign-in from the keychain again.
   const googleAuths = new Map<string, GoogleAuth>();
   const googleAuth = (accountId: string): GoogleAuth => {
     let auth = googleAuths.get(accountId);
@@ -323,12 +258,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return client;
   };
-  // One Slack client per workspace too, shared by its watcher and the hand-off's reading of a thread.
   const slackClients = new Map<string, SlackClient>();
   const slackClient = (accountId: string): SlackClient => {
     let client = slackClients.get(accountId);
     if (!client) {
-      // A Slack account's id is `slack:<team_id>:<user_id>` (accountIdOf).
       const teamId = accountId.split(":")[1] ?? "";
       client = new SlackClient({
         session: (fresh) => slackSessions.get(teamId, fresh),
@@ -338,8 +271,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return client;
   };
-  // One Jira client per site, reading its token from the keychain for each call (plan 2026-11-10-1451, U3), and kept
-  // so the wait Jira asks for after a rate limit holds for everything that calls the site.
   const jiraClients = {
     made: new Map<string, JiraClient>(),
     of: (accountId: string): JiraClient => {
@@ -358,32 +289,24 @@ export default function activate(api: ModApi, host: Host): () => void {
     jiraClients.made.delete(change.account_id);
   });
   threads.register("gmail", gmailOutsideSource(gmailClient));
-  // Jira's write-back writes nothing to Jira (plan 2026-11-10-1451, KTD10), so it is registered once here rather than
-  // by a live sync: read and undo still work on a site whose token Jira has stopped taking.
   threads.register("jira", jiraOutsideSource());
-  // The people each mailbox has mail with (plan 076), from the headers the watcher reads, for the recipients line.
   const mailPeople = new MailPeople({ file: join(paths.state, "mail-people.json") });
   accounts.onChange((change) => {
     if (change.kind === "disconnected") mailPeople.forget(change.account_id);
   });
-  // A card resting in the Inbox, by the rest every device sets here: the past's cap of 20 leaves it out (plan 078).
   const restingIn = (accountId: string) => (r: ThreadRecord) =>
     outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now(), r.seeds);
-  // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
   const watcher = new AccountWatcher({
     accounts,
     factories: {
       gmail: (account) =>
         new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople, resting: restingIn(account.account_id) }),
       slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id), resting: restingIn(account.account_id) }),
-      // The site's one client, so a rate limit's wait outlives a sync rebuilt when the account changes.
       jira: (account) => new JiraSync({ accounts, threads, account, client: jiraClients.of(account.account_id), resting: restingIn(account.account_id) }),
     },
     report: log,
   });
   watcher.start();
-  // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
-  // target lives on and waiting for its answer (mod/suggestions.ts).
   const suggestions = host.suggestions
     ? new Suggestions({
         records: host.suggestions,
@@ -398,10 +321,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
-  // A Jira ticket read whole with its site's one client (plan 2026-11-10-1451, U5), for the hand-off and the card.
   const jiraText = jiraThreadText(jiraClients.of);
-  // Hand-off (plan 067, U8): a card's whole thread, read with the clients above, sent to its owner's chat through the
-  // same chat caller suggestions use, so a new chat is made on the owner's Mac.
   const handoff = new Handoff({
     file: join(paths.state, "handoffs.json"),
     accounts,
@@ -411,17 +331,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraText },
   });
-  // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
-  // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
-  // Thumbnails of pictures shared in Slack and Jira, saved beside a message's pictures so windows and paired Macs load
-  // them (plans 080, 093).
   const previews = new OutsidePreviews({ dir: paths.chatImages });
-  // The people in each Slack workspace, read when a reply first asks, for @ suggestions and mentions (plan 082).
   const slackPeople = new SlackPeople({ client: slackClient });
   const channelMembers = new ChannelMembers({ client: slackClient });
-  // The people in each account by name (plan 2026-11-14-1530, KTD4): an agent's mentions, the card's picker and
-  // people_find all search through this one, so they never disagree. A Gmail account's People API client is kept, since
-  // each warms its searches once.
   const googlePeople = new Map<string, GooglePeople>();
   accounts.onChange((change) => googlePeople.delete(change.account_id));
   const people = new People({
@@ -449,15 +361,12 @@ export default function activate(api: ModApi, host: Host): () => void {
         slackClient,
         slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),
       ),
-      // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
-      // A picture in a comment is fetched once and saved beside Slack's, keyed by its account and attachment (plan 093).
       jira: jiraCardView(
         jiraClients.of,
         async (accountId) => parseJiraSecret(await accounts.getSecret(accountId)),
         (accountId, attachmentId) => previews.preview(`jira:${accountId}:${attachmentId}`, () => jiraClients.of(accountId).thumbnail(attachmentId)),
       ),
     },
-    // A Jira comment goes through the site's one client, so a wait Jira asked for holds for it too.
     clientFor: (account): SendClient => {
       switch (account.provider) {
         case "gmail":
@@ -469,21 +378,14 @@ export default function activate(api: ModApi, host: Host): () => void {
       }
     },
   });
-  // The person's moves on outside cards (plan 069), with what each thread was: the data loki learns their preferences from.
   const ledger = new InboxLedger({ path: join(paths.state, "inbox-ledger.jsonl"), accounts, threads });
-  // Reply proposals (plan 067, U10; plan 2026-11-14-1134): an owner's reply waits on the person's Send, then goes
-  // through the outbox the person's own replies use; a move of the account withdraws the old owner's.
   const replies = new ReplyProposals({
     file: join(paths.state, "reply-proposals.json"),
     accounts,
     threads,
     outside,
     people,
-    // Who is in a Slack conversation, read when a reply mentions someone (R22) and kept a few minutes, since the
-    // card's picker asks on every search.
     members: (accountId, channel) => channelMembers.of(accountId, channel),
-    // The clients read where a reply goes for its card, from the service itself (plan 2026-11-14-1530, KTD2); a Jira
-    // link may name the site's own domain, which the keychain entry keeps beside the token.
     clientFor: (account): ReplyReads => {
       switch (account.provider) {
         case "gmail":
@@ -505,12 +407,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
     changed: () => broadcast({ type: "chat_changed" }),
   });
-  // A held reply reports to its proposal, so the proposals are bound before the outbox resumes: one a restart finds
-  // sent or failed then reaches them (KTD9). A reply held when the daemon last stopped goes now, or when its time comes.
   outside.reportAgentRepliesTo(replies);
   outside.resume();
-  // Chat links (plan 067): kept in this Mac's state folder for its chats, checked here before a message is delivered,
-  // and sent to the Mac the other chat lives on (mod/chat-links.ts).
   const askLink = host.askLink;
   const messages = askLink
     ? new ChatMessages({
@@ -539,9 +437,6 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
-  // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
-  // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
-  // at a time, so two runs never add the same task twice; start does not wait for it.
   const taskMoves = serialQueue();
   const moveOpenTasks = (): Promise<unknown> => {
     if (!suggestions) return Promise.resolve();
@@ -560,16 +455,11 @@ export default function activate(api: ModApi, host: Host): () => void {
     ).catch((err: unknown) => log("tasks:move-failed", messageOf(err)));
   };
   void moveOpenTasks();
-  // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({
     sourcesFile: join(paths.state, "skill-sources.json"),
     stagingDir: join(paths.state, "upstream"),
     serial: host.memory.serial,
   });
-  // --- recall -----------------------------------------------------------
-  // Cards written in the background by the daemon's Learn pass (daemon/learn.ts) from chats that have gone quiet;
-  // the person meets them only in the Learn section. Its settings and last run are the daemon's (daemon/passes-state.ts).
-  // recallStore and passChat: above, with the state (the desk listing needs them from the start).
   const learnStatus = () => {
     const passes = new PassState(paths.state);
     const s = passes.settings().learn;
@@ -582,12 +472,9 @@ export default function activate(api: ModApi, host: Host): () => void {
       written_today: passes.writtenOn(isoDay(Date.now())),
     };
   };
-  // A lesson's chat is made by the daemon, in process.
   const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
-  // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
   const usagePush = coalesce(() => broadcast({ type: "usage_changed" }), 2000);
-  // An update due after a checkout's code changed (plans 024 and 041): every window offers it.
   const stopRestartDue = host.daemon?.onRestartDue((file) => sockets.push({ type: "restart_due", file }, { to: "desktop" }));
   const stopUsage = host.usage?.onChange(() => usagePush.schedule());
 
@@ -602,7 +489,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     otherMacs: () => macs.accountsElsewhere(),
     widgets,
     gestures,
-    // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
     listDesks: () => macs.desks(),
     listInbox: () => macs.inbox(),
     recall: {
@@ -628,7 +514,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     usualModels: { read: () => readUsualModels(), record: (agentId, handle, effort) => recordUsualModel(agentId, handle, effort, new Date()) },
-    // A chat opens with the suggestions waiting in it (plan 049), its links and its waiting replies (plan 067).
     chat: withRepliesOnOpen(withLinksOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, messages), replies),
     suggestions,
     messages,
@@ -653,8 +538,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     peers: macs.frames,
     chatBlocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId),
     titleFrame: (agentId, conversationId) => listing.titleFrame(scopeFor(conversationId, agentId)),
-    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5); one that
-    // owns accounts, here or on a paired Mac, would leave them without an owner (plan 067, R4).
     agentDeleteBlocked: (agentId) => accounts.deleteBlocked(agentId) ?? macs.agentDeleteBlocked(agentId),
     agents: {
       get: (id) => readLocalAgent(id),
@@ -678,7 +561,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
     route: macs.router,
   });
-  /** A picture not here, from whichever paired Mac in reach holds it (plan 029): the chat it is in lives there. */
   const chatImageFromPeers = (name: string) => macs.chatImage(name);
   const serve = async (): Promise<LokiServer> => {
     const start = () =>
@@ -687,13 +569,11 @@ export default function activate(api: ModApi, host: Host): () => void {
         token,
         profile: (agentId) => profilePath(agentId),
         uploads: paths.uploads,
-        // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
         routes: [
           oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params)),
           chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
         ],
         health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: sockets.tabs() }),
-        // Back from a Gmail sign-in (plan 067, U4): only on this loopback server, like MCP's.
         googleSignIn: (params) => googleSignIn.finish(params),
       });
     try {
@@ -709,13 +589,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       throw err;
     }
   };
-  // The desk server is always up while the mod is: the loki app (or a browser tab) connects whenever it likes.
   void serve().catch((err: unknown) => log("server:error", messageOf(err)));
 
-  // --- phones ----------------------------------------------------------
-  // A second listener on the LAN, off by default; state/lan.json remembers the switch across /reload.
-  // Tailscale, when installed, is the way off the Wi‑Fi (Addendum 3): the QR prefers the tailnet name or
-  // the https front `tailscale serve` puts on this port; the CLI is only read, never installed.
   const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
   const lan: LanListener = new LanListener({
     port: lanPort,
@@ -730,8 +605,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     chatImages: { dir: paths.chatImages, fetchRemote: chatImageFromPeers },
     peers: macs.peers,
     health: () => ({ phones: lan.clientCount() }),
-    // The listener's status (addresses, the Tailscale name) and the paired devices are the desktop's settings: they
-    // go to its tabs, not to the phones themselves, which never read them.
     onChange: (what, status) => {
       if (what === "status") {
         log("lan:status", status);
@@ -745,10 +618,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   if (lan.enabled()) void lan.start();
   macs.start();
 
-  // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
   const titleRefreshes = new ScopeDebouncer(1200);
-  /** The background passes' own chats get no desk, and the tab does not follow them. */
   const ignored = (e: ChatRef) => passChat(e.chatId);
 
   eventDisposers.push(
@@ -758,22 +629,19 @@ export default function activate(api: ModApi, host: Host): () => void {
       const next = desks.remember(e.chatId, e.agentId);
       if (next !== activeScope) {
         activeScope = next;
-        broadcast({ type: "switch_desk", scope: activeScope }); // the tab follows the conversation
+        broadcast({ type: "switch_desk", scope: activeScope });
       }
     }),
   );
 
-  // The person's message, about to be sent: what they did on the canvas rides along with it.
   eventDisposers.push(
     api.message.transform((m) => {
-      // A background pass's turn is the pass's: no desk, nothing rides along, the tab does not follow it.
       if (passChat(m.chatId)) return undefined;
       const scope = desks.remember(m.chatId, m.agentId);
       activeScope = scope;
       const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
       log("event:message", { desk: scope, attached: lines.length });
-      seen.mark(m.agentId, m.chatId); // you just spoke in this conversation
-      // Your message is engagement; a turn with nothing typed (an image alone) is still yours, but not typed words.
+      seen.mark(m.agentId, m.chatId);
       if (m.typed) seen.engage(m.agentId, m.chatId, "message");
       broadcast(seenChatFrame(seen, m.agentId, m.chatId));
       if (!lines.length) return undefined;
@@ -798,17 +666,14 @@ export default function activate(api: ModApi, host: Host): () => void {
   eventDisposers.push(
     api.events.on("turn_end", (e) => {
       if (ignored(e)) return;
-      // The turn itself is measured by the daemon (daemon/telemetry.ts, turn_finished).
       const scope = desks.remember(e.chatId, e.agentId);
       titleRefreshes.schedule(scope, () => {
-        // A chat's title can come after its first turn; tell tabs when the title or status changes.
         const frame = listing.titleFrame(scope);
         if (frame) broadcast(frame, scope === SHARED_SCOPE ? undefined : scope);
       });
     }),
   );
 
-  // --- tools -----------------------------------------------------------
   const toolDisposers = registerTools(api, {
     store,
     widgets,
@@ -817,7 +682,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     activeScope: () => activeScope,
     remember: (conversationId, agentId) => desks.remember(conversationId, agentId ?? null),
     broadcast,
-    // chat_list and the suggestion tools (plan 049, U3): every list's chats, and each agent with the Mac it lives on.
     chats: suggestions
       ? {
           suggestions,
@@ -832,13 +696,9 @@ export default function activate(api: ModApi, host: Host): () => void {
         }
       : undefined,
   });
-  // The owning agent's account reads, for scripts (plan 097): offered only to agents that own an account, re-checked every call.
   toolDisposers.push(
-    // The same reads for scripts (plan 097, U2): Slack threads, Jira tickets and Flow's list, script-only.
     ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of, people }),
     ...registerReplyTools(api, { accounts, replies }),
-    // The Google tools scripts call (plan 2026-11-11 scripts): the owner's Google accounts on this Mac, through the
-    // account's shared sign-in; full listings go where every chat's too-big results go (daemon/tool-results.ts).
     ...registerGoogleTools(api, {
       accounts,
       auth: googleAuth,
@@ -848,16 +708,15 @@ export default function activate(api: ModApi, host: Host): () => void {
     }),
   );
 
-  // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
-    watcher.stop(); // the accounts are watched again when the mod comes back
+    watcher.stop();
     replies.stop();
-    sockets.stop(); // the sockets only; the phone listener's setting stays so it returns with the mod
-    macs.stop(); // the links to other Macs reopen with the mod
+    sockets.stop();
+    macs.stop();
     widgets.close();
     titleRefreshes.clear();
-    seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
+    seen.flush();
   };
   api.signal.addEventListener("abort", shutdown, { once: true });
 

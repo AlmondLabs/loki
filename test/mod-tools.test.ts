@@ -16,7 +16,6 @@ const tool = (name: string, forAgent?: (agentId: string) => boolean): ModTool =>
   ...(forAgent ? { forAgent } : {}),
 });
 
-/** A mod with one tool for everyone and one for the agents in `allowed`, and a chat of each of two agents on loki's engine. */
 async function setup(allowed: Set<string>) {
   const mods = new ModRegistry(() => {});
   await mods.load({
@@ -36,7 +35,6 @@ async function setup(allowed: Set<string>) {
   };
   const a = await open("agent-local-ada", "Ada");
   const b = await open("agent-local-bo", "Bo");
-  /** The mod tools a chat's next turn offers, after loki's engine readies it. */
   const offered = async (c: typeof a) => {
     await mods.prepare(c.store, c.chat, ctx);
     return (await c.chat.agent(ctx)).tools.map((t) => t.name).filter((n) => n === "everyone" || n === "account_read");
@@ -78,8 +76,6 @@ describe("per-agent mod tools on loki's engine (plan 067, U1)", () => {
     try {
       await s.b.chat.configure({ tools: { remove: [{ name: "mcp__fake__list_issues" } as never] } }, ctx);
       await s.offered(s.b);
-      // The script tool is every chat's (plan 099), so it is not hidden here, though none of this agent's mod tools is
-      // script-only.
       expect(await s.b.store.agentSettings(s.b.chat.id, ctx)).toMatchObject({ tools: { remove: ["mcp__fake__list_issues", "account_read"] } });
     } finally {
       await s.close();

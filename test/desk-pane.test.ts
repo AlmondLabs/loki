@@ -17,12 +17,6 @@ import {
 import { createDrafts, draftKey } from "../app/src/shared/drafts.ts";
 import { draftWriter } from "../app/src/chat/use-draft.ts";
 
-/**
- * The desk pane (plan 013 U5): a desk opens as a Slack channel on its Messages tab; the Desk tab is today's
- * canvas with the inset chat. The tab is kept per desk, every open lands on Messages, Esc on the Desk tab
- * comes back, and the chat keys and the host's ticks reach only the view that shows.
- */
-
 describe("desk pane: which tab", () => {
   test("a desk never visited shows Messages", () => {
     expect(tabOf(EMPTY_PANE, "ira/abc")).toBe("messages");
@@ -38,7 +32,6 @@ describe("desk pane: which tab", () => {
   });
   test("a switch that is not an open (⌘[ ⌘], the mod's switch_desk) reads the desk's own tab", () => {
     const s = chooseTab(EMPTY_PANE, "ira/abc", "desk");
-    // nothing to call: the pane shows tabOf(state, the new scope)
     expect(tabOf(s, "ira/abc")).toBe("desk");
     expect(tabOf(s, "friday/xyz")).toBe("messages");
   });
@@ -106,7 +99,7 @@ describe("desk pane: ticks reach only the view that showed when they were bumped
     expect(tickFor(r, "messages")).toBe(0);
   });
   test("opening from the Inbox: the segment and the bump change together, and Messages gets it", () => {
-    let r = routeTick(EMPTY_ROUTE, 2, null); // in the Inbox: nothing visible
+    let r = routeTick(EMPTY_ROUTE, 2, null);
     r = routeTick(r, 3, "messages");
     expect(tickFor(r, "messages")).toBe(3);
   });
@@ -129,10 +122,8 @@ describe("desk pane: one draft for both views (AE3)", () => {
   test("a draft typed on Messages is the inset's draft, and back", () => {
     const store = createDrafts();
     const key = draftKey("agent-1", "conv-1");
-    // Messages writes through the box's writer, the way Conversation does
     const messages = { current: store.get(key) };
     draftWriter(messages, (d) => store.set(key, d)).setText("half a reply");
-    // the Desk tab's inset reads the same key
     expect(store.get(key).text).toBe("half a reply");
     const inset = { current: store.get(key) };
     draftWriter(inset, (d) => store.set(key, d)).setText("half a reply, finished");
@@ -190,8 +181,6 @@ describe("messages: copy under every message", () => {
 });
 
 describe("desk pane: hidden behind other sections", () => {
-  // The shell hides the whole pane with visibility while the Inbox or Agents shows; a panel that set itself
-  // "visible" overrode that, and the thread's day pills showed through the Inbox (U13).
   test("the tab panels inherit visibility, never force it on", () => {
     const src = readFileSync(new URL("../app/src/desk/desk-pane.tsx", import.meta.url), "utf8");
     const panels = src.match(/visibility: tab === "(messages|desk)" \? "[a-z]+"/g) ?? [];
@@ -205,7 +194,6 @@ describe("desk pane: the hidden tab hides all of it", () => {
     const dir = new URL("../app/src/desk/", import.meta.url);
     const marked = readdirSync(dir)
       .filter((f) => /\.(tsx?|css)$/.test(f))
-      // A visibility whose value can be visible: a style's "visible" (a ternary's too), or CSS's visibility: visible.
       .filter((f) => /visibility:[^,;}\n]*(["'])visible\1|visibility:\s*visible\s*[;}]/.test(readFileSync(new URL(f, dir), "utf8")));
     expect(marked).toEqual([]);
   });

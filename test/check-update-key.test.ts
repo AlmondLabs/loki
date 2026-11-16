@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import { checkUpdateKey, publicKeyId, signatureKeyId } from "../scripts/check-update-key.ts";
 
 // Minisign files built here from known bytes, as `tauri signer generate` and the bundler write them: each is base64 of
-// the file's text, and the file's second line is base64 of the algorithm, the 8-byte key id and the key or signature.
 const b64 = (bytes: Uint8Array | string) => Buffer.from(bytes).toString("base64");
 const id = (n: number) => Uint8Array.from({ length: 8 }, (_, i) => n + i);
 const bytes = (length: number, fill: number) => new Uint8Array(length).fill(fill);
@@ -20,7 +19,6 @@ const signature = (keyId: Uint8Array) =>
   );
 const config = (pubkey: string) => JSON.stringify({ plugins: { updater: { pubkey, endpoints: [] } } });
 
-/** A read over these files only; anything else is missing, as on disk. */
 const files = (all: Record<string, string>) => (path: string) => {
   if (!Object.hasOwn(all, path)) throw new Error(`ENOENT: ${path}`);
   return all[path];

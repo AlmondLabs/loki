@@ -34,7 +34,6 @@ const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({
 const email = (over: Partial<AttentionItem> = {}): AttentionItem =>
   attentionItem("t1#1", { agent_id: "account:gmail:ada@acme.com", kind: "outside", outside: facts(), ...over });
 
-/** A fake host: the rests, seen marks, write-backs and reports a move makes, with the daemon's answers as set. */
 function host() {
   const rests: Record<string, Rest> = {};
   const marks: string[] = [];
@@ -106,7 +105,6 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
     expect(t.marks.at(-1)).toBe("unseen account:gmail:ada@acme.com/t1#1");
     expect(restOf(t.rests, item).until).toBe(new Date(NOW).toISOString());
     expect(t.reported.at(-1)).toBe("undone next");
-    // Taken back once, there is nothing left to take back.
     expect(await t.moves.undo(item)).toBeNull();
     expect(t.calls).toHaveLength(2);
   });
@@ -221,7 +219,6 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
     const t = host();
     const chat = attentionItem("c1", { unread: false });
     await t.moves.later(chat, "key");
-    // The rest has ended and the card is back, unchanged.
     const back = { ...chat, unread: true };
     expect(t.moves.laterAsks(back)).toBe(true);
     const before = restOf(t.rests, chat);
@@ -229,7 +226,6 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
     expect(restOf(t.rests, chat)).toBe(before);
     const pick = new Date(NOW + 3 * DAY).toISOString();
     expect(await t.moves.later(back, "key", pick)).toMatchObject({ error: null, ask: false, rest: { n: 2, until: pick, kind: "later" } });
-    // Something new starts the count over.
     expect(t.moves.laterAsks({ ...back, lastAssistantText: "something new" })).toBe(false);
     expect(stampOf(back)).toBe(restOf(t.rests, chat).stamp);
   });

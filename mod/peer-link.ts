@@ -3,29 +3,15 @@ import { log } from "./log.ts";
 import { peerBase } from "./peers.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * The peer link (plan 023, U2, KTD1): one socket from this Mac to each paired Mac's /ws, opened with the token that
- * Mac minted for this one. Over it this Mac asks (a request answered by its `request_id`) and hears (the other Mac's
- * pushes). It reconnects with the shell's backoff, one second doubling to thirty, and says at every change whether
- * the other Mac is reachable, out of reach, or on another peer protocol (paired, but nothing is asked of it).
- */
-
-/** Where a link stands: opening, open and speaking this Mac's protocol, closed, or open but on another protocol. */
 export type LinkStatus = "connecting" | "reachable" | "unreachable" | "outdated";
 
-/** What a link is built from; the backoff and timeouts are shortened in tests. */
 export interface PeerLinkOptions {
   macId: string;
-  /** The other Mac's /ws URL, or null when its address is unknown. */
   url: () => string | null;
-  /** The token the other Mac minted for this one, from the keychain. */
   token: () => Promise<string | null>;
-  /** This Mac's peer protocol: the other Mac's answer to `peer_ping` must match it. */
   protocol: number;
   onStatus?: (status: LinkStatus) => void;
-  /** A push from the other Mac. */
   onPush?: (frame: Record<string, unknown>) => void;
-  /** The other Mac refused this one's token: it may have forgotten this Mac. */
   onRefused?: () => void;
   minBackoffMs?: number;
   maxBackoffMs?: number;
@@ -38,7 +24,6 @@ interface Waiting {
   timer: ReturnType<typeof setTimeout>;
 }
 
-/** One paired Mac's link. `start` opens it and keeps it open; `stop` closes it for good. */
 export class PeerLink {
   private readonly opts: PeerLinkOptions;
   private ws: WebSocket | null = null;
@@ -48,7 +33,6 @@ export class PeerLink {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private nextId = 0;
   private readonly waiting = new Map<string, Waiting>();
-  /** Why the link last failed, as logged: the same reason on every retry is logged once (plan 2026-11-15-2110, R4). */
   private lastFailure: string | null = null;
 
   constructor(opts: PeerLinkOptions) {
@@ -75,15 +59,10 @@ export class PeerLink {
     this.failAll("the link to that Mac was closed");
   }
 
-  /**
-   * Ask the other Mac: resolves with its reply frame, or rejects with a message for the person when it is out of
-   * reach, on another protocol, slow, or answers `error`.
-   */
   request(frame: { type: string } & Record<string, unknown>, timeoutMs = this.opts.requestTimeoutMs ?? 15_000): Promise<Record<string, unknown>> {
     return this.ask(frame, timeoutMs, this.current === "reachable");
   }
 
-  /** Tell the other Mac something that has no reply (a send); false when it cannot be told now. */
   send(frame: { type: string } & Record<string, unknown>): boolean {
     const ws = this.ws;
     if (this.current !== "reachable" || ws?.readyState !== WebSocket.OPEN) return false;
@@ -109,10 +88,6 @@ export class PeerLink {
     });
   }
 
-  /**
-   * Open the socket. Anything that throws on the way (the keychain, an address the socket refuses) counts as out of
-   * reach and is retried with the backoff: it runs unawaited, so a throw left here would end the daemon.
-   */
   private async open(): Promise<void> {
     try {
       await this.connect();
@@ -130,8 +105,6 @@ export class PeerLink {
       this.failed(!url ? "no address for that Mac" : "no token for that Mac in the keychain: pair the two Macs again");
       return this.closed();
     }
-    // A retry of a Mac out of reach stays "unreachable" until it answers (plan 048): flipping to "connecting" and back
-    // every backoff step broadcast the paired Macs to every client and logged two lines, forever, for a Mac turned off.
     if (this.current !== "unreachable") this.setStatus("connecting");
     const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` }, handshakeTimeout: 8000 });
     this.ws = ws;
@@ -222,7 +195,6 @@ export class PeerLink {
   }
 
   private setStatus(status: LinkStatus): void {
-    // Once it worked, the next failure is news again, whatever it is.
     if (status === "reachable") this.lastFailure = null;
     if (status === this.current) return;
     this.current = status;
@@ -231,19 +203,16 @@ export class PeerLink {
   }
 }
 
-/** What a refused link's status means, for its log line. */
 const REFUSALS = new Map<number, string>([
   [401, ": it does not know this Mac's token"],
   [403, ": it took this Mac for a caller off the tailnet"],
 ]);
 
-/** What PeerLinks needs to know about each paired Mac. */
 export interface LinkTarget {
   mac_id: string;
   host: string;
 }
 
-/** A paired Mac's error answer to a request, with the frame it sent: a redirect carries `moved_to` (addendum B3). */
 export class PeerRefusal extends Error {
   readonly frame: Record<string, unknown>;
   constructor(frame: Record<string, unknown>) {
@@ -252,13 +221,8 @@ export class PeerRefusal extends Error {
   }
 }
 
-/** What PeerLinks builds each link with, beyond the Mac it links to. */
 export type LinkDefaults = Omit<PeerLinkOptions, "macId" | "url" | "token" | "onStatus" | "onPush" | "onRefused">;
 
-/**
- * Every paired Mac's link, kept in step with the paired Macs: a link opens for a Mac paired, and closes for one
- * forgotten. Pushes and status changes come out tagged with the Mac they came from.
- */
 export class PeerLinks {
   private readonly links = new Map<string, { link: PeerLink; host: string }>();
   private readonly opts: {
@@ -273,7 +237,6 @@ export class PeerLinks {
     this.opts = opts;
   }
 
-  /** Open links to Macs newly paired (or moved to a new address), close links to Macs forgotten. */
   sync(targets: LinkTarget[]): void {
     const wanted = new Map(targets.map((t) => [t.mac_id, t.host]));
     for (const [macId, entry] of this.links) {
@@ -286,7 +249,6 @@ export class PeerLinks {
       const link = new PeerLink({
         ...this.opts.defaults,
         macId,
-        // Null for an address that cannot be one (peers.json written before hosts were checked): never connected.
         url: () => {
           const base = peerBase(host);
           return base ? `${base.replace(/^http:/, "ws:")}/ws` : null;
@@ -305,7 +267,6 @@ export class PeerLinks {
     return this.links.get(macId)?.link ?? null;
   }
 
-  /** Whether the link to a Mac is open and speaking this Mac's protocol. */
   reachable(macId: string): boolean {
     return this.get(macId)?.status === "reachable";
   }

@@ -6,15 +6,9 @@ import { notify } from "../app/src/components/index.tsx";
 import { LokiVersionFact } from "../app/src/settings/settings.tsx";
 import type { LokiUpdate, UpdateState, UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
-/**
- * Preferences › About's update part (plan 2026-11-15-2319, U5; R10, R12, R15): the version, Stable or Nightly, and where
- * the shell's update stands, each from a status as the shell sends it.
- */
-
 const RELEASES = "https://github.com/owner/loki/releases";
 const status = (state: UpdateState, s: Partial<UpdateStatus> = {}): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state, ...s });
 
-/** An update model with the calls counted, so a test can see which command a control asked for. */
 function fakeUpdate(s: UpdateStatus | null) {
   const calls = { check: 0, channels: [] as string[], restart: 0 };
   const update: LokiUpdate = {
@@ -36,7 +30,6 @@ function fakeUpdate(s: UpdateStatus | null) {
 
 const html = (s: UpdateStatus | null) => renderToStaticMarkup(createElement(LokiVersionFact, { update: fakeUpdate(s).update, working: false }));
 
-/** Every element in a rendered-to-elements tree, following children and any prop holding elements (a Fact's value). */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
@@ -45,7 +38,6 @@ function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>>
   return [el, ...inner];
 }
 
-/** The buttons in a tree, by label. */
 const buttons = (node: ReactNode) =>
   elements(node)
     .filter((e) => typeof e.props.onClick === "function" && typeof e.props.children === "string")

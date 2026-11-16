@@ -4,15 +4,8 @@ import { agentRows } from "../phone/model";
 import type { PlaceSources } from "../shell/sidebar";
 import { agentsSelection, shownAgent, type AgentsSelection, type AgentsSelectionState } from "./selection";
 
-/** No agent chosen: the new-agent form is open, so no source in the sidebar is filled. */
 const NO_AGENT = "";
 
-/**
- * The agents as the Agents place's sources in the sidebar (plan 2026-11-14-1330, KTD9), in the daemon's order: each
- * one's face, its name, a green dot while a turn runs, and the count of what waits on you in Flow. The agent shown is
- * the selected source, none while the new-agent form is open. Choosing one selects it through the selection store and
- * leaves the page as it was, so the list and the detail move to the same page of another agent.
- */
 export function agentSources({
   agents,
   desks,
@@ -26,7 +19,6 @@ export function agentSources({
   desks: Array<{ agent_id: string | null; status: string }>;
   items: AttentionItem[];
   initialAgentId: string | null;
-  /** The selection's state as the caller last read it, so the sidebar re-renders with it. */
   state: AgentsSelectionState;
   face: (agentId: string, name: string) => ReactNode;
   selection?: AgentsSelection;

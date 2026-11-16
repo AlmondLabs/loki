@@ -1,31 +1,17 @@
 import type { Platform } from "./env";
 
-/**
- * The wire between the page and an agent-written (module) widget, which runs in a sandboxed iframe
- * (module-widget.tsx, app/src/frame/). `allow-scripts` and nothing else: the frame's origin is opaque, so it
- * cannot read the page's globals, its storage or the daemon token, and the page hears from it only through
- * postMessage, checked here. What a widget may ask for is what it could always do to its own widget: write
- * its data (`set`), come to the front (`focus`), open a web link in the browser (`open`), and say how big it
- * is and whether it broke. Everything else is dropped.
- */
-
 /** The iframe's sandbox flags. Never add allow-same-origin: with it the frame shares the page's origin. */
 export const WIDGET_SANDBOX = "allow-scripts";
 
-/** The frame document, served next to the app (Vite in dev, app/dist in a build; see app/src/frame/build.ts). */
 export const FRAME_PATH = "/widget-frame.html";
 
-/** Tag on every message both ways, so stray messages (extensions, Vite) are never read as ours. */
 export const BRIDGE = "loki-widget";
 
-/** Longest dot-path a widget may write, and the deepest / largest value. */
 const MAX_PATH = 256;
 const MAX_DEPTH = 32;
 const MAX_NODES = 20_000;
-/** A frame larger than this is lying; it is drawn no larger. */
 const MAX_SIDE = 20_000;
 
-/** Page → frame. */
 export type ToFrame =
   | { bridge: typeof BRIDGE; type: "load"; hash: string; url: string }
   | { bridge: typeof BRIDGE; type: "load"; hash: string; code: string }
@@ -33,7 +19,6 @@ export type ToFrame =
   | { bridge: typeof BRIDGE; type: "style"; css: string; theme: string }
   | { bridge: typeof BRIDGE; type: "layout"; fill: boolean; maxWidth: number };
 
-/** Frame → page, as read by readFrameMessage. */
 export type FromFrame =
   | { type: "ready" }
   | { type: "loaded"; hash: string; data: Record<string, unknown> }
@@ -45,7 +30,6 @@ export type FromFrame =
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Plain JSON data, no deeper or larger than a widget's data has any reason to be. */
 export function isJsonValue(value: unknown): boolean {
   let nodes = 0;
   const walk = (v: unknown, depth: number): boolean => {
@@ -63,7 +47,6 @@ export function isJsonValue(value: unknown): boolean {
   return walk(value, 0);
 }
 
-/** A dot-path into the widget's own data; none of the keys that reach an object's prototype. */
 export function isDataPath(path: unknown): path is string {
   if (typeof path !== "string" || path.length === 0 || path.length > MAX_PATH) return false;
   return path.split(".").every((k) => k.length > 0 && k !== "__proto__" && k !== "prototype" && k !== "constructor");
@@ -72,11 +55,6 @@ export function isDataPath(path: unknown): path is string {
 const isHash = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 128;
 const side = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.ceil(v), MAX_SIDE) : null);
 
-/**
- * One message from a widget frame, or null when it is not one we take: from any window but this frame's, not
- * tagged as ours, of an unknown type, or carrying the wrong shape. The frame's own word is all it says; the
- * page decides what a `set` means (which widget, what was there before).
- */
 export function readFrameMessage(event: { source: unknown; data: unknown }, frame: Window | null | undefined): FromFrame | null {
   if (!frame || event.source !== frame) return null;
   const m = event.data;
@@ -123,7 +101,6 @@ export function readFrameMessage(event: { source: unknown; data: unknown }, fram
  * frame could not read a dev-server file itself without the server opening its files to every origin.
  */
 export function widgetSource(file: string, hash: string, host: { tauri: boolean; os: Platform; dev: boolean }): { url: string } | { fetch: string } | null {
-  // Both servers serve the transpiled module under the source's name with .js (widgets.rs; app/vite.config.ts, widgetModule).
   const path = file
     .replace(/\.(tsx|jsx)$/, ".js")
     .split("/")

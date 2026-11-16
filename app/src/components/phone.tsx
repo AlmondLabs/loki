@@ -7,12 +7,6 @@ import { capitalChildren } from "../kit/words";
 import { FOCUSABLE, assignRef, cx, firstControl } from "./parts";
 import type { ButtonProps, ChipProps, IconButtonProps, PopoverProps, SheetProps, Size, Tone } from "./index";
 
-/**
- * The phone's own markup for the primitives (plan 2026-11-15-2330, KTD1): coloured text on a hairline, phone.css's
- * restyle of it, the bottom sheet that moves as an iOS sheet does. index.tsx draws shadcn's controls on the desktop and
- * hands the phone, or a touch-sized control anywhere, to these.
- */
-
 const BTN_SIZE: Record<Size, string> = { sm: "loki-btn--sm", md: "loki-btn--md", touch: "loki-btn--touch" };
 const BTN_TONE: Record<Tone, string | null> = {
   quiet: null,
@@ -22,7 +16,6 @@ const BTN_TONE: Record<Tone, string | null> = {
   negative: "loki-btn--negative",
 };
 
-/** The phone's button: coloured text on a hairline, its key in the tooltip and `aria-keyshortcuts` as the desktop's. */
 export function PhoneButton({
   tone = "quiet",
   size = "sm",
@@ -40,7 +33,6 @@ export function PhoneButton({
   );
 }
 
-/** The phone's glyph button: bare unless `hairline`, red on press when it destroys something. */
 export function PhoneIconButton({
   label,
   size = 28,
@@ -65,7 +57,6 @@ export function PhoneIconButton({
   );
 }
 
-/** The phone's pill, and a touch-sized one anywhere: a button, or a span when it only reads. */
 export function PhoneChip({
   active,
   brass,
@@ -111,7 +102,6 @@ export function PhoneChip({
   );
 }
 
-/** The phone's on/off switch with its label: a small track and thumb drawn inline. */
 export function PhoneSwitch({
   on,
   onToggle,
@@ -175,10 +165,6 @@ export function PhoneSwitch({
   );
 }
 
-/**
- * The phone's popover (plan 2026-11-15-2130, KTD2): its control, then, when open, a panel placed beside it in the
- * control's wrapper. `grows` says whether a click opened it, so it grows out of the corner it hangs from.
- */
 export function PhonePopover({
   trigger,
   open,
@@ -219,10 +205,6 @@ export function PhonePopover({
   );
 }
 
-/**
- * The phone popover's panel: absolutely placed in the control's wrapper. A press outside the wrapper or Esc closes it,
- * and focus goes back to the control unless what was picked took it elsewhere.
- */
 function PopoverPanel({
   panelRef,
   onClose,
@@ -239,7 +221,6 @@ function PopoverPanel({
     const node = ref.current;
     const wrapper = node?.parentElement ?? null;
     latest.current.initialFocus?.()?.focus({ preventScroll: true });
-    // Capture phase: panes and other popovers stop pointerdown from bubbling, and a press there must still close it.
     const away = (e: PointerEvent) => {
       if (e.target instanceof Node && !wrapper?.contains(e.target)) latest.current.onClose();
     };
@@ -269,11 +250,6 @@ function PopoverPanel({
   );
 }
 
-/**
- * The phone's bottom sheet over a veil: aria-modal, Escape and a click on the veil close it, focus stays inside and
- * returns to where it was when the sheet closes, and it moves as an iOS sheet does (sheet-motion.ts). It is drawn at
- * the phone shell's root, above the screen it covers, so that screen can recede under it.
- */
 export function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
   const opener = useRef<Element | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -282,7 +258,6 @@ export function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!o
   useSheetMotion(veilRef, cardRef, onClose, !!shell);
   useEffect(() => {
     opener.current = document.activeElement;
-    // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
     const card = cardRef.current;
     // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
     // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
@@ -297,7 +272,6 @@ export function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!o
       ref={veilRef}
       className="loki-veil loki-veil--bottom"
       data-sheet
-      // On the phone the finger is what opened it: a bottom sheet always rises.
       data-grow
       style={{ zIndex }}
       onPointerDown={(e) => {
@@ -310,7 +284,6 @@ export function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!o
           e.stopPropagation();
           onClose();
         } else if (e.key === "Tab" && !e.defaultPrevented) {
-          // Focus stays inside the sheet: from the last control Tab wraps to the first, and back.
           const card = cardRef.current;
           if (!card) return;
           const stops = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(

@@ -29,9 +29,8 @@ describe("tailscale serve status parsing", () => {
 
   test("a / handler proxying 443 to the listener's port is the https front", () => {
     expect(parseServeStatus(SERVE_41415, name, 41415)).toBe("https://my-macbook-pro.tail1234.ts.net");
-    expect(parseServeStatus(SERVE_41415, name)).toBe("https://my-macbook-pro.tail1234.ts.net"); // any port when none given
+    expect(parseServeStatus(SERVE_41415, name)).toBe("https://my-macbook-pro.tail1234.ts.net");
     expect(parseServeStatus(SERVE_41415, "My-MacBook-Pro.tail1234.ts.net", 41415)).toBe("https://my-macbook-pro.tail1234.ts.net");
-    // the Web entry alone is proof; TCP is not required
     expect(parseServeStatus(JSON.stringify({ Web: { [`${name}:443`]: { Handlers: { "/": { Proxy: "http://localhost:41415" } } } } }), name, 41415)).toBe(
       `https://${name}`,
     );

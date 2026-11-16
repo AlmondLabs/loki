@@ -6,7 +6,6 @@ import { EventDetail, StepDetail, StepsLoad } from "../app/src/chat/tool-steps.t
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { MOVE_OUT_OF_REACH } from "../core/frames.ts";
 
-/** The thread's words for a chat whose first page has not come, did not come, or came empty (plan 041). */
 describe("a thread before its first page", () => {
   const html = (props: Parameters<typeof Thread>[0]) => renderToStaticMarkup(createElement(Thread, props));
 

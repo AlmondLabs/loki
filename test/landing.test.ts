@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { landing, landingKey } from "../app/src/shell/landing.ts";
 
-// Plan 2026-11-14-1300, 1: a window with no chat lands somewhere real, as Mail opens on the Inbox, never an empty room.
-
 const desk = (scope: string, lastActive: string | null, status: DeskSummary["status"] = "live") =>
   ({
     scope,

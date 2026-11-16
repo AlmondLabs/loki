@@ -4,8 +4,6 @@ import type { FrameContext } from "../mod/frames/context.ts";
 import type { DeskTitleFrame } from "../mod/chat-listing.ts";
 import { must } from "./fixtures/must.ts";
 
-/** A chat renamed, archived, hidden or relabelled: every client hears it (chat_changed), not only the one that changed it. */
-
 const ctx = () => {
   const broadcasts: Array<{ frame: { type: string }; scope?: string }> = [];
   const c = {

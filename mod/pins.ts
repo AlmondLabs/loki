@@ -3,12 +3,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { writeJsonAtomic } from "./json-file.ts";
 
-/**
- * Pinned conversations, in <loki>/state/pins.json:
- *   { version: 1, agents: { [agentId]: [conversationId, …] }, changed?: { "agentId/conversationId": {pinned, at} } }
- * `changed` says when each pin was last set or cleared (plan 023, U8), so paired Macs keep the later; a pin from
- * before it reads as set long ago, which any change made since beats.
- */
 export const pinsFile = (): string => process.env.LOKI_PINS_FILE ?? join(lokiDir(), "state", "pins.json");
 
 interface PinsDoc {
@@ -17,13 +11,11 @@ interface PinsDoc {
   changed: Record<string, PinChange>;
 }
 
-/** When a pin was last set or cleared, and which. */
 export interface PinChange {
   pinned: boolean;
   at: string;
 }
 
-/** The time a pin from before pins had times is taken to have been set at. */
 const LONG_AGO = "1970-01-01T00:00:00.000Z";
 
 function readDoc(file: string): PinsDoc {
@@ -42,7 +34,6 @@ function readDoc(file: string): PinsDoc {
 
 const writeDoc = (doc: PinsDoc, file: string) => writeJsonAtomic(file, doc, { pretty: true, newline: true, pidTemp: true });
 
-/** Put one pin in or take it out of the agents map; the map keeps no empty lists. */
 function place(doc: PinsDoc, agentId: string, conversationId: string, pinned: boolean): void {
   const list = doc.agents[agentId] ?? [];
   const has = list.includes(conversationId);
@@ -54,7 +45,6 @@ function place(doc: PinsDoc, agentId: string, conversationId: string, pinned: bo
   }
 }
 
-/** Every pin's last change, for a paired Mac: pins from before times count as set long ago. */
 export function pinChanges(file = pinsFile()): Record<string, PinChange> {
   const doc = readDoc(file);
   const out: Record<string, PinChange> = {};
@@ -62,7 +52,6 @@ export function pinChanges(file = pinsFile()): Record<string, PinChange> {
   return { ...out, ...doc.changed };
 }
 
-/** Take a paired Mac's pin changes: each later one is applied here with its own time. True when a pin moved. */
 export function applyPinChanges(theirs: Record<string, PinChange>, file = pinsFile()): boolean {
   const doc = readDoc(file);
   const mine: Partial<Record<string, PinChange>> = pinChanges(file);
@@ -80,7 +69,6 @@ export function applyPinChanges(theirs: Record<string, PinChange>, file = pinsFi
   return moved;
 }
 
-/** "agentId/conversationId" for every pin. */
 export function readPins(file = pinsFile()): Set<string> {
   const doc = readDoc(file);
   const out = new Set<string>();
@@ -88,7 +76,6 @@ export function readPins(file = pinsFile()): Set<string> {
   return out;
 }
 
-/** Pin or unpin; writes atomically and keeps the rest of the file as Desktop left it. Returns the new state. */
 export function setPin(agentId: string, conversationId: string, pinned: boolean, file = pinsFile(), now = () => new Date().toISOString()): boolean {
   const doc = readDoc(file);
   place(doc, agentId, conversationId, pinned);

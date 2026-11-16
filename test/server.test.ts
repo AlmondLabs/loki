@@ -33,7 +33,7 @@ describe("the token in the subprotocol header, not the URL", () => {
   });
 
   test("reading it back, and comparing in constant time", () => {
-    expect(tokenProtocols("")).toEqual([]); // a phone: its cookie is the credential
+    expect(tokenProtocols("")).toEqual([]);
     expect(tokenFromProtocols("loki, loki.t.abc")).toBe("abc");
     expect(tokenFromProtocols(["loki", "loki.t.abc"])).toBe("abc");
     expect(tokenFromProtocols("loki")).toBeNull();
@@ -79,7 +79,6 @@ describe("the limits of a socket", () => {
       ws.once("error", reject);
     });
   const closed = (ws: WsClient) => new Promise<number>((resolve) => ws.once("close", (code) => resolve(code)));
-  /** Wait for the server's side to catch up with a close the client already saw. */
   const until = async (ok: () => boolean) => {
     const deadline = Date.now() + 2000;
     while (!ok() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
@@ -115,7 +114,6 @@ describe("the limits of a socket", () => {
     const s = await startServer({ port: 0 });
     const bridge = attachWs(s.server, token, { onConnect: (c) => c.send({ type: "hello" }), onMessage: () => {} }, { heartbeatMs: 40 });
     try {
-      // A device that left the network: its socket is open here and nothing on it answers.
       const gone = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token), { autoPong: false });
       const here = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
       for (const ws of [gone, here]) ws.on("error", () => {});
@@ -139,7 +137,6 @@ describe("the limits of a socket", () => {
       {
         onConnect: (c) => c.send({ type: "hello" }),
         // Far more than any system keeps for a socket nobody reads: once its buffers are full the rest waits in the
-        // daemon's memory, and the frame after the limit is passed ends the socket.
         onMessage: (c) => {
           const fill = "x".repeat(1024 * 1024);
           for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill });
@@ -152,7 +149,6 @@ describe("the limits of a socket", () => {
       ws.on("error", () => {});
       await hello(ws);
       // A device that stopped reading, as a phone gone from the Wi-Fi has: how much its system buffers is not the
-      // test's to guess, so it reads nothing at all.
       ws.pause();
       ws.send(JSON.stringify({ type: "go" }));
       await until(() => bridge.clientCount() === 0);
@@ -212,7 +208,6 @@ describe("loki server", () => {
       expect((await fetch(`http://127.0.0.1:${s.port}/anything`)).status).toBe(404);
       expect((await fetch(`http://127.0.0.1:${s.port}/assets/%zz`)).status).toBe(404);
 
-      // bad token: no connection
       const bad = new WebSocket(`ws://127.0.0.1:${s.port}/ws?t=wrong&desk=c1`);
       await new Promise<void>((resolve) => {
         bad.onerror = () => resolve();
@@ -233,7 +228,6 @@ describe("loki server", () => {
       expect(err).toEqual({ type: "error", message: "invalid json" });
       expect(received[0]).toEqual(["conv_1", { type: "gesture", gesture: { kind: "focus", id: "conv_1/a" } }]);
 
-      // scoped broadcast
       const other = new WebSocket(`ws://127.0.0.1:${s.port}/ws?t=tok&desk=other`);
       await new Promise<void>((resolve) => {
         other.onmessage = () => resolve();
@@ -255,7 +249,6 @@ describe("loki server", () => {
 
   test("a push for the paired Macs reaches a Mac's socket, and no tab or phone (plan 052)", async () => {
     const s = await startServer({ port: 0 });
-    // Who each socket is, from its URL: what the LAN listener reads from a cookie or a Mac's key.
     const bridge = attachWs(
       s.server,
       (_req, url) => ({ ok: true, peerId: url.searchParams.get("peer") ?? undefined, deviceId: url.searchParams.get("device") ?? undefined }),

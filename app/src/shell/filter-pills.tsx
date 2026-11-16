@@ -2,18 +2,12 @@ import type { LucideIcon } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
-/** One pill: the value it picks, its name and its symbol. */
 export interface FilterPill<V extends string> {
   value: V;
   label: string;
   icon: LucideIcon;
 }
 
-/**
- * A list's filter pills (plans 2026-11-15-1523 and 2026-11-15-1740), in Mail's shape: the chosen one a filled capsule
- * with its symbol and name, the others grey circles with their symbol alone, each named for a screen reader and in its
- * tooltip. shadcn's ToggleGroup on Base UI, one pressed at a time. Chats' states and Flow's kinds both draw it.
- */
 export function FilterPills<V extends string>({ pills, value, onValue }: { pills: ReadonlyArray<FilterPill<V>>; value: V; onValue: (value: V) => void }) {
   return (
     <ToggleGroup

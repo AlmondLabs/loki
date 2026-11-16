@@ -15,7 +15,6 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 const ACCOUNT = "slack:T0ACME:U0ME";
 const THUMB = { url: "https://files.slack.com/files-tmb/T0ACME-F1-abc/photo_360.png", width: 360, height: 200 };
 
-/** A preview store over the test's folder, its fetch counted and answered by `answer`. */
 function store(answer: () => Promise<{ data: Buffer; type: string } | null> = () => Promise.resolve({ data: Buffer.from("png bytes"), type: "image/png" })) {
   const asked: string[] = [];
   const preview = slackPreviews(new OutsidePreviews({ dir }), (accountId, url) => {
@@ -66,7 +65,6 @@ describe("the thumbnails of pictures shared in Slack (plan 080)", () => {
   });
 
   test("a thumbnail keeps the name it was given before the store served Jira too, so one saved then is found", async () => {
-    // The name the plan 080 store gave, worked out by hand here so a change to the key or the extension shows.
     const old = `${createHash("sha256").update(`slack:${ACCOUNT}:${THUMB.url}`).digest("hex").slice(0, 32)}.png`;
     expect((await store().previews.preview(ACCOUNT, THUMB))?.name).toBe(old);
     const later = store();
@@ -78,7 +76,6 @@ describe("the thumbnails of pictures shared in Slack (plan 080)", () => {
 describe("the thumbnails of pictures in Jira comments (plan 093)", () => {
   const KEY = "jira:jira:acme:u1:10001";
 
-  /** The store over the test's folder, with a fetch that counts its calls and gives `answer`. */
   function jira(answer: { data: Buffer; type: string } | null = { data: Buffer.from("jpeg bytes"), type: "image/jpeg" }) {
     const previews = new OutsidePreviews({ dir });
     let asked = 0;

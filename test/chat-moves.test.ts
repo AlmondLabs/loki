@@ -20,11 +20,6 @@ const moved = (id: string): MovedChat => ({
   cursors: {},
 });
 
-/**
- * The MacBook (old home of Ira's chats) and the mini (her home), with ChatMoves on each, joined by an in-memory link
- * that answers each frame as mod/frames/peers.ts does, by the other Mac's moves. `busy` names chats whose turn is
- * running on the MacBook; `miniUp` whether the MacBook can reach the mini.
- */
 function macs(busy = new Set<string>(), miniUp = true) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-moves-"));
   const bookWidgets = join(dir, "book-widgets");
@@ -42,7 +37,6 @@ function macs(busy = new Set<string>(), miniUp = true) {
     finishMove: (_a: string, c: string) => (chats.delete(c), finished.push(c), Promise.resolve()),
     importChat: (m: MovedChat) => (chats.add(m.conversation_id), imported.push(m), Promise.resolve(true)),
   });
-  /** The link from `from` to the Mac whose moves are `to` and whose chats are `toChats`. */
   const link = (from: string, to: () => ChatMoves, toChats: Set<string>) => ({
     request: async (f: Record<string, unknown>) => {
       const [a, c] = [String(f.agent_id), String(f.conversation_id)];
@@ -55,7 +49,6 @@ function macs(busy = new Set<string>(), miniUp = true) {
     },
   });
   const names: Record<string, string> = { [BOOK]: "MacBook", [MINI]: "Mac mini" };
-  /** Whether the MacBook can reach the mini now; a test turns it off and on. */
   const reach = { mini: miniUp };
   const mac = (here: string, chats: Set<string>, widgetsDir: string, other: () => ChatMoves, otherChats: Set<string>, up: () => boolean, file?: string) =>
     new ChatMoves({
@@ -103,7 +96,6 @@ function macs(busy = new Set<string>(), miniUp = true) {
     },
     mini,
     reach,
-    /** The MacBook's daemon starting again over the same holds file. */
     restartBook: () =>
       (book = mac(
         BOOK,
@@ -146,7 +138,6 @@ describe("taking an agent's chats over on first pairing", () => {
       expect(readFileSync(join(m.miniWidgets, scope, "chart.tsx"), "utf8")).toBe("export default 1");
       expect(existsSync(join(m.bookWidgets, scope))).toBe(false);
       expect(m.done.has(BOOK)).toBe(true);
-      // Done once: a later contact asks nothing.
       m.onBook.add("conv-3");
       await m.mini.takeOver(BOOK);
       expect(m.onMini.has("conv-3")).toBe(false);
@@ -190,7 +181,6 @@ describe("a message that arrives while a chat's log is being copied out", () => 
     const busy = new Set<string>();
     const m = macs(busy);
     try {
-      // Read before the copy's answer comes: the hold is already on.
       const copying = m.book.export(MINI, "agent-ira", "conv-1");
       expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/this chat is moving to Mac mini/);
       await copying;
@@ -232,7 +222,6 @@ describe("moving one chat by hand", () => {
       expect(m.finished).toEqual(["conv-1"]);
       expect(await m.mini.take(BOOK, "agent-ira", "conv-2")).toEqual({ moved: false, busy: true });
       expect(m.onBook.has("conv-2")).toBe(true);
-      // The hand-over is not marked done by a move by hand.
       expect(m.done.has(BOOK)).toBe(false);
     } finally {
       m.cleanup();
@@ -279,7 +268,7 @@ describe("a move that never finishes (plan 096)", () => {
     const m = macs();
     try {
       await m.book.export(MINI, "agent-ira", "conv-1");
-      m.reach.mini = false; // the mini went away before it said the chat arrived
+      m.reach.mini = false;
       const said = m.book.blocked("agent-ira", "conv-1");
       expect(said).toBe(`this chat is moving to Mac mini, ${MOVE_OUT_OF_REACH} to use it on this Mac`);
       m.restartBook();
@@ -296,8 +285,8 @@ describe("a move that never finishes (plan 096)", () => {
     const m = macs();
     try {
       await m.book.export(MINI, "agent-ira", "conv-1");
-      m.onMini.add("conv-1"); // the import landed, but its "moved" never came back
-      await m.book.export(MINI, "agent-ira", "conv-2"); // this one's import failed there
+      m.onMini.add("conv-1");
+      await m.book.export(MINI, "agent-ira", "conv-2");
       m.restartBook();
       await m.book.settle(MINI);
       expect(m.onBook.has("conv-1")).toBe(false);
@@ -316,7 +305,7 @@ describe("a move that never finishes (plan 096)", () => {
       m.onMini.add("conv-1");
       m.reach.mini = false;
       m.book.keepHere("agent-ira", "conv-1");
-      await m.book.settle(MINI); // out of reach: nothing yet
+      await m.book.settle(MINI);
       expect(m.onMini.has("conv-1")).toBe(true);
       m.reach.mini = true;
       await m.book.settle(MINI);

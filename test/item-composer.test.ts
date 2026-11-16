@@ -6,9 +6,6 @@ import { useMessageBox, type MessageBoxProps } from "../app/src/chat/chat-input.
 import { Composer } from "../app/src/item/composer.tsx";
 import { Conversation, Thread } from "../app/src/chat/conversation.tsx";
 
-// Plan 097, U6: the Composer draws today's message box behaviour (useMessageBox) with AI Elements' PromptInput parts,
-// and shows what waits to send in a Queue above the field. Typing and pasting for real is checked in the app.
-
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const props = (over: Partial<MessageBoxProps> = {}): MessageBoxProps => ({
   value: "",
@@ -34,7 +31,6 @@ const key = (k: string, mods: { shift?: boolean; composing?: boolean; meta?: boo
   return { e, prevented: () => prevented };
 };
 
-/** Renders a box once and hands back its behaviour, so its handlers can be called as the field would call them. */
 function boxOf(p: MessageBoxProps) {
   const got: { box?: ReturnType<typeof useMessageBox> } = {};
   function Probe() {

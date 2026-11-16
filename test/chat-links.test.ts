@@ -67,11 +67,10 @@ describe("the link rules", () => {
     expect(stricterMode("unrestricted", "standard")).toBe("standard");
     expect(stricterMode("strict", "unrestricted")).toBe("strict");
     expect(stricterMode("acceptEdits", null)).toBe("strict");
-    expect(lokiModeOf(undefined, false)).toBe("unrestricted"); // loki's engine with no mode set runs unrestricted
+    expect(lokiModeOf(undefined, false)).toBe("unrestricted");
     expect(lokiModeOf("bypassPermissions", true)).toBe("unrestricted");
     expect(lokiModeOf("default", true)).toBe("standard");
     expect(lokiModeOf("something-new", true)).toBeNull();
-    // A chat on an ACP agent is refused when its mode has more power, or is one loki does not know.
     expect(looserThan("unrestricted", "standard")).toBe(true);
     expect(looserThan("standard", "standard")).toBe(false);
     expect(looserThan(null, "unrestricted")).toBe(true);
@@ -126,7 +125,6 @@ describe("a chat message in the thread", () => {
   });
 });
 
-/** A folder for a store's file, removed after the test. */
 function folder() {
   const dir = mkdtempSync(join(tmpdir(), "loki-links-"));
   return { file: join(dir, "chat-links.json"), done: () => rmSync(dir, { recursive: true, force: true }) };
@@ -156,7 +154,6 @@ describe("the links file", () => {
   });
 });
 
-/** Chat messages over fakes: a store in a folder, a clock, chats in lists, the card's answers, and what was delivered. */
 function setup(opts: { remote?: ChatKey[]; power?: LokiMode | null; answers?: LinkAnswer[]; refuse?: string; forwardFails?: boolean } = {}) {
   const f = folder();
   const clock = { now: T0 };
@@ -238,7 +235,6 @@ describe("an agent messages another chat", () => {
       expect(chatMessageOf(s.delivered[0].text)?.text).toBe("is the cert renewed?");
       expect(s.delivered[0].context).toContain("not from the person");
       expect(s.delivered[0].context).toContain("one way");
-      // Both chats' screens hear of the link.
       expect(s.pushed.map((p) => p.conversationId).sort()).toEqual(["conv-a", "conv-b"]);
     } finally {
       s.done();
@@ -298,7 +294,6 @@ describe("an agent messages another chat", () => {
       const over = await s.send(A, B, "one more");
       expect(over.ok).toBe(false);
       expect(over.message).toContain(`${String(CHAT_LINK_MESSAGES_PER_HOUR)} messages`);
-      // The other way has its own count.
       expect((await s.send(B, A, "answer")).ok).toBe(true);
       s.clock.now = later(HOUR + 1000);
       expect((await s.send(A, B, "next hour")).ok).toBe(true);
@@ -337,7 +332,6 @@ describe("a link to a chat on another Mac", () => {
       expect((await s.send(A, B)).ok).toBe(true);
       expect(s.forwarded.map((f) => f.type)).toEqual(["chat_link_put", "chat_message"]);
       expect(s.forwarded[1]).toMatchObject({ type: "chat_message", ...B, from: { ...A, title: "repo" }, cap: "standard" });
-      // Only the chat here is told on this Mac.
       expect(s.pushed.map((p) => p.conversationId)).toEqual(["conv-a"]);
     } finally {
       s.done();
@@ -396,7 +390,6 @@ describe("the link card and the header", () => {
     expect(html).toContain("infra (Bo on studio)");
     expect(html).toContain("Is the cert renewed?");
     for (const words of ["one way", "both ways", "1 hour", "1 day", "until I close it", ">Allow</button>", ">Deny</button>"]) expect(html).toContain(words);
-    // It starts on one way and on the default duration Preferences set.
     expect(html).toMatch(/aria-checked="true"[^>]*aria-label="direction: one way"/);
     expect(html).toMatch(/aria-checked="true"[^>]*aria-label="for: 1 day"/);
     const phone = renderToStaticMarkup(createElement(LinkCard, { requestId: "q1", ask, onAnswer: () => {}, touch: true }));
@@ -429,7 +422,6 @@ describe("the link card and the header", () => {
     const html = renderToStaticMarkup(createElement(LinkHeader, { links: seen, onClose: () => {} }));
     expect(html).toContain("4 links");
     expect(html).toContain('aria-haspopup="dialog"');
-    // The list opens on a click; closed, no other chat's name crowds the header.
     for (const title of ["infra", "release", "secrets", "router"]) expect(html).not.toContain(title);
     const phone = renderToStaticMarkup(createElement(LinkHeader, { links: seen, touch: true }));
     expect(phone).toContain("4 links");

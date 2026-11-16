@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { scrollWithin } from "../app/src/shared/scroll-within.ts";
 
-/** A scrolling box 400 high at y 100 with a 1-pixel border, and a row 40 high at `rowTop` in its content. */
 function boxAndRow(rowTop: number, scrollTop = 0) {
   const box = { scrollTop, clientHeight: 400, clientTop: 1, getBoundingClientRect: () => ({ top: 100 }) as DOMRect };
   const row = { getBoundingClientRect: () => ({ top: 100 + 1 + rowTop - box.scrollTop, height: 40 }) as DOMRect };

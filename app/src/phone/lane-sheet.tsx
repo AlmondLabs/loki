@@ -5,10 +5,6 @@ import { Button, Sheet, sentence } from "../components";
 import { Icon } from "./icons";
 import { laneChoices } from "./deck";
 
-/**
- * Flow's title on the phone (plan 087, R11): the active lane's name, "Flow" in Everything, as a button that opens the
- * lane sheet.
- */
 export function LaneTitle({ lane, onOpen }: { lane: ResolvedLane | null; onOpen: () => void }) {
   const name = lane ? sentence(lane.name) : "Flow";
   return (
@@ -19,11 +15,6 @@ export function LaneTitle({ lane, onOpen }: { lane: ResolvedLane | null; onOpen:
   );
 }
 
-/**
- * The phone's lane sheet (plan 087, U7), opened from Flow's title: Everything, the person's lanes, then a built-in lane
- * for each agent with cards, in sentence case. A pick switches this phone's lane only (R10); lanes are made on a Mac,
- * so there is no entry for a new one (R8). Mounted only while open.
- */
 export function LaneSheet({ flow, items, onClose }: { flow: FlowLane; items: AttentionItem[]; onClose: () => void }) {
   return (
     <Sheet label="Choose a lane" onClose={onClose} placement="bottom" className="loki-phone-sheet">

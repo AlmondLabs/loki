@@ -46,7 +46,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** Wait for a condition, yielding to the event loop between looks, for at most a second. */
 async function until(check: () => boolean): Promise<void> {
   const deadline = Date.now() + 1000;
   while (!check()) {
@@ -55,12 +54,10 @@ async function until(check: () => boolean): Promise<void> {
   }
 }
 
-/** Let what is under way settle: a few turns of the event loop, for checks that nothing more happens. */
 async function settled(): Promise<void> {
   for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
 }
 
-/** The outbox's timer, which the test fires itself: the 10 seconds of a hold pass when it says so. */
 function timers() {
   const due: Array<{ fn: () => void; ms: number; live: boolean }> = [];
   return {
@@ -76,7 +73,6 @@ function timers() {
   };
 }
 
-/** A mail as Gmail received it: its headers, its plain text, and the names of its files. */
 function mailOf(raw: string): { headers: Partial<Record<string, string>>; text: string; files: string[] } {
   const headers: Partial<Record<string, string>> = {};
   for (const line of (raw.split("\r\n\r\n")[0] ?? "").split("\r\n")) {
@@ -88,14 +84,9 @@ function mailOf(raw: string): { headers: Partial<Record<string, string>>; text: 
   return { headers, text: Buffer.from(plain.replace(/\r\n/g, ""), "base64").toString("utf8"), files };
 }
 
-/**
- * A Slack workspace as a fake client keeps what is posted in it. While `answers.timesOut` says so, a post lands but its
- * answer is lost to the timeout, as a slow Slack's can be.
- */
 function fakeSlack() {
   const posted: Array<{ channel: string; thread_ts?: string; text: string; files: string[] }> = [];
   const answers = { timesOut: false };
-  /** The Slack ids each post mentions, in order. */
   const mentioned: string[][] = [];
   const client: SendSlack & ReplySlackReads = {
     postReply: (r) => {
@@ -136,11 +127,6 @@ function fakeSlack() {
   return { client, posted, answers, mentioned };
 }
 
-/**
- * The people in the fixture's accounts, as mod/people.ts resolves names (its own tests check the matching): Grace Lee
- * in Slack, in the conversation, and Ravi, who is not; two Viveks on the Jira site, one of whom cannot see OPS-7; Ana
- * Ruiz in the mailbox's contacts.
- */
 function resolvePerson(accountId: string, name: string, opts?: PeopleOptions): PersonResolution {
   const n = name.toLowerCase();
   if (accountId === SLACK) {
@@ -159,7 +145,6 @@ function resolvePerson(accountId: string, name: string, opts?: PeopleOptions): P
   return { ok: false, why: `nobody matched "${name}"` };
 }
 
-/** The people the fixture's picker finds: Slack's workspace by any part of a name. */
 function findPeople(accountId: string, query: string): PeopleFound {
   const slack: FoundPerson[] = [
     { provider: "slack", display: "Grace Lee", id: "U5", token: "grace", detail: null },
@@ -169,13 +154,11 @@ function findPeople(accountId: string, query: string): PeopleFound {
   return { people: accountId === SLACK ? slack.filter((p) => p.display.toLowerCase().includes(q)) : [], notice: null };
 }
 
-/** The reply tools loaded as a mod, so a test calls them as a chat would, with the notices and prompt line they add. */
 async function loadTools(accounts: Accounts, replies: () => ReplyProposals, folder: string | null) {
   const tools = new Map<string, ModTool>();
   const transforms: Array<(m: OutgoingMessage) => OutgoingMessage["content"] | undefined> = [];
   const sections = new Map<string, (input: SectionInput) => string | undefined | Promise<string | undefined>>();
   const mods = new ModRegistry(() => {});
-  // The tools reach the proposals as they are now, so a test that restarts them keeps calling the same tools.
   const live = new Proxy({} as ReplyProposals, { get: (_t, prop) => Reflect.get(replies(), prop, replies()) as unknown });
   await mods.load({
     name: "replies",
@@ -191,7 +174,6 @@ async function loadTools(accounts: Accounts, replies: () => ReplyProposals, fold
         { accounts, replies: live },
       ),
   });
-  /** Call a tool as a chat of `agentId`, in the chat's folder unless `cwd` is null; a refusal comes back as its message. */
   const call = async (name: string, args: Record<string, unknown>, opts: { agentId?: string; chatId?: string; cwd?: string | null } = {}): Promise<string> => {
     const tool = must(tools.get(name), name);
     const agentId = opts.agentId ?? WORK;
@@ -210,7 +192,6 @@ async function loadTools(accounts: Accounts, replies: () => ReplyProposals, fold
       return `refused: ${err instanceof Error ? err.message : String(err)}`;
     }
   };
-  /** What the agent is told with the person's next message in a chat. */
   const nextMessage = (chatId = CHAT, agentId = WORK): string => {
     let content: OutgoingMessage["content"] = "hello";
     for (const t of transforms) content = t({ chatId, agentId, agentName: agentId, content, typed: true }) ?? content;
@@ -219,17 +200,11 @@ async function loadTools(accounts: Accounts, replies: () => ReplyProposals, fold
   return { tools, call, nextMessage, sections };
 }
 
-/**
- * The work agent owns a Gmail mailbox, a Slack workspace and a Jira site; one Gmail thread and two Slack threads were
- * handed to its chat CHAT, and two tickets had cards. The proposals send through a real OutsideThreads and its outbox,
- * on fake services that keep what reaches them, and the outbox's 10 seconds pass when the test fires its timer.
- */
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-replies-"));
   dirs.push(dir);
   const now = () => new Date("2026-11-04T12:00:00.000Z");
   const jira = fakeJira({ now });
-  // Who is in the Slack conversation: Grace, until a test has Slack refuse the read.
   let readMembers = (): Promise<Set<string>> => Promise.resolve(new Set(["U5"]));
   const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), agentExists: () => true, now });
   await accounts.add({ account_id: MAIL, provider: "gmail", address: "ada@acme.com", owner_agent_id: WORK }, SECRET);
@@ -250,9 +225,6 @@ async function fixture() {
     snippet: INJECTION,
   });
 
-  // Gmail's own API, with the two send routes the mailbox fake leaves out. A sent mail lands in its thread with its
-  // outbox header, as Gmail keeps it; `gmailAnswers` makes a send that went answer with an error, as one that timed out,
-  // or never answer, as one loki stopped in the middle of, and makes reading a thread fail.
   const requests: Array<{ method: string; path: string }> = [];
   const sentMail: Array<{ threadId: string; raw: string }> = [];
   const gmailAnswers = { status: 200, hangs: false, threadReadFails: false };
@@ -297,8 +269,6 @@ async function fixture() {
   const gmail = new GmailClient({ accounts, account_id: MAIL, fetch: fetchFn, now });
   const slack = fakeSlack();
 
-  // Jira's attach call, which the site fake leaves out, and a comment post that fails while `jiraAnswers` says so, or
-  // that lands on the ticket with its answer lost to the timeout.
   const attached: Array<{ ticket: string; names: string[] }> = [];
   const jiraAnswers = { commentFails: false, commentTimesOut: false };
   const jiraFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -346,10 +316,6 @@ async function fixture() {
 
   const pushed: Array<{ chat: string; events: ChatEvent[] }> = [];
   const outboxFile = join(dir, "outbox.json");
-  /**
-   * loki starting: the outbox over its file, then the proposals over theirs, bound to it before it resumes, as the
-   * daemon does (mod/index.ts). Each start has its own timer.
-   */
   const start = () => {
     const tm = timers();
     const outside = new OutsideThreads({
@@ -388,7 +354,6 @@ async function fixture() {
     return { outside, replies, tm };
   };
   let live = start();
-  /** loki stops and starts again over the same files. */
   const restart = () => {
     live.replies.stop();
     live = start();
@@ -400,28 +365,24 @@ async function fixture() {
   const { tools, call, nextMessage, sections } = await loadTools(accounts, () => live.replies, folder);
   const chat = { agent_id: WORK, conversation_id: CHAT };
   const only = () => must(live.replies.list(chat).at(-1), "a proposal");
-  /** Every request that would send or change something on any service. */
   const sends = () => [
     ...requests.filter((r) => r.method === "POST").map((r) => `gmail ${r.path}`),
     ...slack.posted.map((p) => `slack ${p.channel}`),
     ...jira.writes().map((r) => `jira ${r.method} ${r.url.pathname}`),
     ...attached.map((a) => `jira attach ${a.ticket}`),
   ];
-  /** The person's Send, then the hold's 10 seconds passing, until the reply has gone or come back. */
   const sendAndWait = async (id: string, opts: ReplyDecideOptions = {}, by = "desktop") => {
     const out = await live.replies.decide(chat, id, "approve", by, opts);
     if (!out.done) return out;
     await until(() => live.tm.pending().length > 0);
     live.tm.fire();
     await until(() => only().status !== "sending");
-    // The outbox lets the entry go once the proposal saved the outcome.
     await until(() => !live.outside.holds(out.proposal.outbox_id ?? ""));
     return out;
   };
   return {
     dir,
     folder,
-    /** Slack refuses every read of who is in a conversation, as when it rate-limits the method. */
     refuseMembers: () => {
       readMembers = () => Promise.reject(new Error("ratelimited"));
     },
@@ -461,7 +422,6 @@ async function fixture() {
   };
 }
 
-/** The open proposals the last push told the chat's clients of. */
 const lastPush = (f: { pushed: Array<{ events: ChatEvent[] }> }) => f.pushed.at(-1)?.events;
 
 describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
@@ -472,12 +432,10 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     expect(out).toMatch(/waits for the person to review and send it/);
     const p = f.only();
     expect(p.status).toBe("pending");
-    // Nothing goes before the person's Send: no send of any kind, and nothing held.
     expect(f.sends()).toEqual([]);
     expect(f.tm.pending()).toEqual([]);
     expect(f.outside.holds(p.outbox_id ?? "")).toBe(false);
     expect(lastPush(f)).toEqual([{ kind: "reply_proposals", proposals: [p] }]);
-    // The chat's row carries it, so its Inbox card is an approval, first in the list, on a client that never opened it.
     const row = (id: string, extra: Partial<ConversationInfo> = {}): ConversationInfo => ({
       id,
       agent_id: WORK,
@@ -520,7 +478,6 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     const out = await f.replies.decide(f.chat, p.id, "approve", "desktop");
     expect(out).toMatchObject({ done: true, message: null, proposal: { status: "sending", decided_by: "desktop" } });
     expect(lastPush(f)).toEqual([{ kind: "reply_proposals", proposals: [out.proposal] }]);
-    // Held: nothing has gone, and the agent has heard nothing.
     await until(() => f.tm.pending().length === 1);
     expect(f.tm.pending()).toEqual([10_000]);
     expect(f.sends()).toEqual([]);
@@ -537,13 +494,10 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     expect(headers.Subject).toBe("Re: The plan");
     expect(headers["In-Reply-To"]).toBe("<m1@acme.com>");
     expect(headers["X-Loki-Outbox"]).toBe(out.proposal.outbox_id);
-    // As the person's own replies go: from their address, with the message quoted under it (R3).
     expect(headers.From).toBe("ada@acme.com");
     expect(text.replace(/\r\n/g, "\n")).toMatch(/^Friday works\.\n\nOn .*Grace Hopper <grace@acme\.com> wrote:\n> Hi Ada/);
     expect(f.sends()).toEqual(["gmail /messages/send"]);
-    // Sent alone: the thread's card is not read, put off or archived (R15), and Gmail got no label change.
     expect(f.threads.get(MAIL, "t-plan")?.state).toBe(stateBefore);
-    // The agent hears where, to whom and that the person sent it, once; the outbox let the entry go.
     const told = f.nextMessage();
     expect(told).toMatch(
       /The person sent your reply in ada@acme.com, thread t-plan, to grace@acme.com, alan@acme.com, bob@acme.com\. It says:\nFriday works\./,
@@ -570,7 +524,6 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     expect(f.only()).toMatchObject({ status: "pending", text: "Deploying at 10." });
     expect(f.nextMessage()).toBe("hello");
     expect(await f.replies.decide(f.chat, p.id, "undo", "phone")).toMatchObject({ done: false, message: "that reply is not being sent" });
-    // Sent after all, it goes as edited.
     await f.sendAndWait(p.id);
     expect(f.slack.posted).toEqual([{ channel: "C9", thread_ts: "1700.1", text: "Deploying at 10.", files: [] }]);
   });
@@ -581,7 +534,6 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     const p = f.only();
     await f.replies.decide(f.chat, p.id, "approve", "desktop");
     await until(() => f.tm.pending().length === 1);
-    // Carol writes in the thread during the hold.
     f.box.deliver({
       thread: "t-plan",
       at: new Date("2026-11-04T11:00:00.000Z"),
@@ -611,7 +563,6 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
       "Bob <bob@acme.com>",
       "<m2@acme.com>",
     ]);
-    // Sent, the marks of who joined are gone from it.
     expect(f.only().people_added).toBeUndefined();
   });
 
@@ -698,7 +649,6 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     const f = await fixture();
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Hi." });
     const id = f.only().id;
-    // The move happened while nothing was listening, as when the daemon was down.
     f.replies.stop();
     f.accounts.moveOwner(MAIL, HOME);
     expect(f.only().status).toBe("pending");
@@ -713,7 +663,6 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
     const f = await fixture();
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Hi." });
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Done before." });
-    // Written by a loki from before replies were sent: one was being drafted, the other drafted.
     const file = join(f.dir, "reply-proposals.json");
     writeFileSync(
       file,
@@ -819,12 +768,9 @@ describe("reply proposals (plan 067, U10; plan 2026-11-14-1134)", () => {
 
   test("a handed-off email asking to send invoices to x@y.com yields at most a reply to the thread's own people", async () => {
     const f = await fixture();
-    // The tool names no recipient; its files come only from the chat's own folder. A Gmail mention adds cc, which the
-    // card's cc line names address by address before Send (plan 2026-11-14-1530, KTD1).
     const schema = must(f.tools.get("reply_propose"), "reply_propose").parameters as { properties: Record<string, unknown>; additionalProperties: boolean };
     expect(Object.keys(schema.properties).sort()).toEqual(["account", "attachments", "mentions", "text", "thread"]);
     expect(schema.additionalProperties).toBe(false);
-    // An agent that took the mail's bait and tried anyway: the extra arguments go nowhere.
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Here are the invoices.", to: "x@y.com", cc: ["x@y.com"], bcc: "x@y.com" });
     const p = f.only();
     expect([...p.to, ...p.cc].join(" ")).not.toContain("x@y.com");
@@ -844,7 +790,6 @@ describe("a Send that loki stops in the middle of, or that failed (plan 2026-11-
     const id = f.only().id;
     await f.replies.decide(f.chat, id, "approve", "phone");
     await until(() => f.tm.pending().length === 1 && readFileSync(f.outboxFile, "utf8").includes(id));
-    // loki quits three seconds in, and starts again: the reply is still sending, and goes when its time comes.
     const again = f.restart();
     expect(f.only().status).toBe("sending");
     await until(() => again.tm.pending().length === 1);
@@ -853,7 +798,6 @@ describe("a Send that loki stops in the middle of, or that failed (plan 2026-11-
     expect(f.slack.posted).toEqual([{ channel: "D1", text: "See you at 1.", files: [] }]);
     expect(f.nextMessage()).toMatch(/The person sent your reply/);
     await until(() => !again.outside.holds(f.only().outbox_id ?? ""));
-    // A third start finds nothing left to send or tell.
     const third = f.restart();
     await settled();
     expect([third.tm.pending(), f.slack.posted.length, f.nextMessage()]).toEqual([[], 1, "hello"]);
@@ -864,7 +808,6 @@ describe("a Send that loki stops in the middle of, or that failed (plan 2026-11-
     await f.call("reply_propose", { account: SLACK, thread: "D1", text: "See you at 1." });
     await f.replies.decide(f.chat, f.only().id, "approve", "phone");
     await until(() => f.tm.pending().length === 1);
-    // The outbox's file lost the entry (say the seal did not hold), and nothing saved how the send went.
     writeFileSync(f.outboxFile, JSON.stringify({ version: 1, held: [] }));
     f.restart();
     expect(f.only()).toMatchObject({ status: "pending", reason: MAY_HAVE_GONE });
@@ -880,7 +823,6 @@ describe("a Send that loki stops in the middle of, or that failed (plan 2026-11-
     await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
     await until(() => f.tm.pending().length === 1);
     f.tm.fire();
-    // The mail reached Gmail, and loki stops before the answer comes.
     await until(() => f.sentMail.length === 1);
     f.gmailAnswers.hangs = false;
     const again = f.restart();
@@ -979,7 +921,6 @@ describe("a comment on a Jira ticket (plan 2026-11-10-1451, U8; plan 2026-11-14-
     const body = JSON.stringify(f.jira.posted[0]?.body);
     expect(body).toContain("Attached: notes.txt");
     expect(body).not.toContain("shot.png");
-    // The agent hears only the file that went.
     const told = f.nextMessage();
     expect(told).toContain("with notes.txt (5 B)");
     expect(told).not.toContain("shot.png");
@@ -996,7 +937,6 @@ describe("a comment on a Jira ticket (plan 2026-11-10-1451, U8; plan 2026-11-14-
     expect(failed).toMatchObject({ status: "pending", attached: ["shot.png"] });
     expect(failed.reason).toMatch(/Jira is down for maintenance\.; shot\.png already on the ticket/);
     expect(f.jira.posted).toEqual([]);
-    // Nothing posts by itself, not after a restart either.
     f.restart();
     await settled();
     expect([f.jira.posted, f.attached.length, f.only().status]).toEqual([[], 1, "pending"]);
@@ -1017,7 +957,6 @@ describe("a comment on a Jira ticket (plan 2026-11-10-1451, U8; plan 2026-11-14-
     await f.sendAndWait(f.only().id);
     expect(f.only().status).toBe("sent");
     expect(f.jira.posted.map((c) => c.key)).toEqual(["FMOS-13190"]);
-    // Proposing and sending leave Flow as it was (R20).
     expect(f.threads.get(SITE, ops13)).toBeNull();
   });
 
@@ -1070,7 +1009,6 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     expect(sent.headers.Cc).toContain("ana@example.com");
     expect(sent.text).toContain("@Ana Ruiz");
 
-    // Another thread, since Ana is on this one now.
     f.box.deliver({ thread: "t-new", at: new Date("2026-11-04T13:00:00.000Z"), from: "Bo <bo@acme.com>", to: "ada@acme.com", subject: "Lunch" });
     await f.call("reply_propose", { account: MAIL, thread: "t-new", text: "Again." });
     const second = must(f.replies.list(f.chat).at(-1), "the second reply");
@@ -1099,7 +1037,6 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     );
     expect(f.replies.list(f.chat)).toEqual([]);
     await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "@acc-vr can you look?", mentions: ["acc-vr"] });
-    // A mention given as a token is shown and kept as the person's full name.
     expect(f.only()).toMatchObject({ text: "@Vivek Rao can you look?", mentions: [{ display: "Vivek Rao", id: "acc-vr", address: null }] });
     await f.sendAndWait(f.only().id);
     expect(JSON.stringify(f.jira.posted[0]?.body)).toContain('{"type":"mention","attrs":{"id":"acc-vr","text":"@Vivek Rao"}}');
@@ -1126,7 +1063,6 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
 
   test("a Slack mention of someone outside the conversation is marked and still sends (R22)", async () => {
     const f = await fixture();
-    // The agent is told at once whom its mentions reach.
     expect(
       await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "@grace and @ravi, deploying at 9.", mentions: ["grace", "ravi"] }),
     ).toContain("Mentions: Grace Lee (notified); Ravi Kumar (not in this conversation: will not be notified)");
@@ -1152,7 +1088,6 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
       ],
       notice: null,
     });
-    // A pick arrives through the decide options and goes as the agent's mentions do.
     await f.sendAndWait(f.only().id, { text: "@Grace Lee deploying at 9.", mentions: [{ display: "Grace Lee", id: "U5", address: null }] });
     expect(f.slack.mentioned.at(-1)).toEqual(["U5"]);
   });
@@ -1197,7 +1132,6 @@ describe("mentions on a reply (plan 2026-11-14-1530, KTD3-KTD8)", () => {
     f.restart();
     expect(f.only()).toMatchObject({ status: "pending", text: "Hi @Vivek Rao.", mentions: [vivek], in_flow: true });
 
-    // Written by a loki from before mentions: none of the fields this plan adds.
     const file = join(f.dir, "reply-proposals.json");
     const before = (v: unknown): unknown =>
       Array.isArray(v)
@@ -1239,12 +1173,10 @@ describe("files on a reply (plan 2026-11-14-1134, R8-R11)", () => {
       ["invoice.pdf", join(f.folder, "invoice.pdf"), 16],
       ["hours.csv", join(f.folder, "out", "hours.csv"), 14],
     ]);
-    // The proposal keeps where the files are, never their bytes, and survives a restart with them.
     expect(readFileSync(join(f.dir, "reply-proposals.json"), "utf8")).not.toContain('invoice"');
     f.restart();
     expect(f.only().attachments).toEqual(p.attachments);
     await f.sendAndWait(p.id);
-    // With files, the mail goes through Gmail's upload route (KTD6).
     expect(f.requests.filter((r) => r.method === "POST").map((r) => r.path)).toEqual(["/messages/send"]);
     const sent = mailOf(must(f.sentMail[0], "the mail").raw);
     expect(sent.files).toEqual(["invoice.pdf", "hours.csv"]);
@@ -1313,7 +1245,6 @@ describe("files on a reply (plan 2026-11-14-1134, R8-R11)", () => {
     expect(await propose(["."])).toMatch(/is outside this chat's folder|there is no file/);
     writeFileSync(join(f.folder, "a.txt"), "a");
     expect(await propose(Array.from({ length: MAX_REPLY_FILES + 1 }, () => "a.txt"))).toBe(`refused: a reply carries ${String(MAX_REPLY_FILES)} files at most`);
-    // 17 MB together at most (R8), a little over is refused.
     expect(MAX_REPLY_BYTES).toBe(17 * 1024 * 1024);
     writeFileSync(join(f.folder, "big.bin"), "");
     truncateSync(join(f.folder, "big.bin"), MAX_REPLY_BYTES);
@@ -1343,7 +1274,6 @@ describe("the reply frame (plan 2026-11-14-1134, KTD3)", () => {
       mentions: null,
     });
     expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "undo" })).toMatchObject({ action: "undo", files: null });
-    // A person picked on the card comes resolved, with a name and a service id or an address (plan 2026-11-14-1530, KTD6).
     expect(
       parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "approve", mentions: [{ display: "Ana Ruiz", address: "ana@example.com" }] }),
     ).toMatchObject({ mentions: [{ display: "Ana Ruiz", id: null, address: "ana@example.com" }] });
@@ -1352,7 +1282,6 @@ describe("the reply frame (plan 2026-11-14-1134, KTD3)", () => {
     );
     expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "send" })).toBe("action must be approve, undo or reject");
     expect(parse({ agent_id: WORK, conversation_id: CHAT, proposal_id: id, action: "approve", files: "a.txt" })).toBe("files must be a list of file names");
-    // Through the bridge, as a client's frame arrives: Send, then Undo, each answered at once.
     const bridge = bridgeOf({ modules: [replyFrames({ replies: f.replies })] });
     const ask = async (frame: Record<string, unknown>) => {
       const c = client("d1");
@@ -1435,7 +1364,6 @@ describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
     expect(out).toContain('aria-label="Remove invoice.pdf"');
     expect(out).toContain("Sends from your account with your signature");
     expect(out).not.toContain("draft");
-    // The other look, on the desktop with the opener, draws the same controls.
     const cards = html({ source: source([{ ...proposal, attachments: files }]), rt, reveal: () => {} });
     expect(actions(cards)).toEqual(["reveal", "remove-file", "reveal", "remove-file", "approve", "reject"]);
   });
@@ -1500,12 +1428,10 @@ describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
       html({ source: source([{ ...proposal, status: "sending" }]), rt, blocked: away, touch: true }),
       desktop({ ...proposal, status: "sending" }, away),
     ]) {
-      // "these wait" would contradict a reply that goes anyway, so only the line that is true shows.
       expect(out).not.toContain(away);
       expect(out).toMatch(/disabled=""[^>]*data-action="undo"|data-action="undo"[^>]*disabled=""/);
       expect(out).toContain("Undo needs your Mac: the reply still goes when its 10 seconds are up.");
     }
-    // Waiting, it says only why nothing can be pressed.
     const pending = html({ source: source([proposal]), rt, blocked: away });
     expect(pending).toContain(away);
     expect(pending).toMatch(/disabled=""[^>]*data-action="approve"|data-action="approve"[^>]*disabled=""/);
@@ -1517,9 +1443,7 @@ describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
     const went = justSent([sending], []);
     expect(went.map((p) => p.status)).toEqual(["sent"]);
     expect(sentText(must(went[0], "the sent reply"))).toBe("Sent to Grace Hopper <grace@acme.com> · cc Bob <bob@acme.com>");
-    // Undo, or a send that did not go, brings it back pending: nothing says sent.
     expect(justSent([sending], [{ ...proposal }])).toEqual([]);
-    // A pending one that leaves was rejected or withdrawn, never sent.
     expect(justSent([proposal], [])).toEqual([]);
     expect(SENT_MS).toBe(3000);
   });
@@ -1534,10 +1458,8 @@ describe("the reply card (plan 067, U10; plan 2026-11-14-1134, U7)", () => {
   test("a late Undo's refusal shows until the send it could not stop fails, then the card says why the send failed", () => {
     const sending = { ...proposal, status: "sending" as const, reason: null };
     const tooLate = failedAction("it is already going, too late to undo", sending);
-    // While it still sends the card says nothing is wrong; the refusal answered that state alone.
     expect(cardReason(sending, tooLate)).toBeNull();
     expect(cardReason({ ...proposal, status: "pending", reason: "Slack did not answer in time" }, tooLate)).toBe("Slack did not answer in time");
-    // A refusal the proposal has not moved on from still shows, and a card with no failed action shows the reason.
     const pending = { ...proposal, status: "pending" as const, reason: null };
     expect(cardReason(pending, failedAction("that reply is not being sent", pending))).toBe("that reply is not being sent");
     expect(cardReason({ ...pending, reason: "the thread could not be read" }, null)).toBe("the thread could not be read");

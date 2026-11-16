@@ -1,82 +1,49 @@
-//! loki's daemon (plan 017): `node <daemon> --loki-daemon …` on the Node node.rs picks, hosting the mod and
-//! serving the app, with loki's token file as its capability token. Started at launch, restarted when it dies
-//! (supervise_daemon in lib.rs), stopped when the app quits: SIGTERM first, so the daemon closes its stores and ends
-//! the agents' background tasks (daemon/main.ts `stop`), then SIGKILL if it has not gone within STOP_GRACE.
-//!
-//! On Windows it runs with no console window, inside a Job Object that kills the whole tree when loki's handle
-//! closes — quitting, or loki dying, never leaves a node holding the daemon's folder. On Linux it is started with
-//! PR_SET_PDEATHSIG, so the kernel kills it when loki dies (`die_with_loki`). A daemon left from an earlier run
-//! anyway (the Mac, or a Linux crash before that took hold) is stopped at the next launch (procs::daemon_leftover).
-
 use crate::node;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
-/// The daemon, once started. Managed from launch so it can start later (after Node is installed: retry_daemon).
 #[derive(Default)]
 pub struct Harness {
     slot: Mutex<Option<Running>>,
-    /// Set by `stop`: the supervisor (supervise_daemon in lib.rs) does not restart a child loki stopped itself.
     stopped: std::sync::atomic::AtomicBool,
-    /// Counts `stop`s: a start that a stop overtook (loki quitting while a daemon was being spawned) ends the child it
-    /// made instead of keeping it.
     stops: std::sync::atomic::AtomicU64,
 }
 
-/// How long a daemon asked to stop has to close its stores before it is killed. Windows has no SIGTERM to ask with,
-/// so there a daemon is killed at once and the grace is never waited out.
 pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// The daemon loki started: the child, and on Windows the Job Object that owns its process tree.
 pub struct Running {
     child: Child,
     #[cfg(windows)]
     _job: Option<job::Job>,
 }
 
-/// Everything a start needs besides the daemon itself: where the token and the logs are.
 pub struct Launch<'a> {
     pub token_file: &'a Path,
     pub log_dir: &'a Path,
 }
 
-/// Where loki's daemon is and what it hosts.
 pub struct Daemon<'a> {
     pub node: &'a Path,
-    /// daemon.mjs as installed, or a checkout's daemon/main.ts.
     pub entry: &'a Path,
-    /// The mod the daemon hosts: the installed loki-mod.mjs, or a checkout's mod/boot.ts.
     pub mod_entry: &'a Path,
-    /// The folder the daemon locks and keeps its state in.
     pub dir: &'a Path,
-    /// The runtime's folders (runtime.rs `Runtime::path`), put first on the daemon's PATH so it and everything it
-    /// starts find the runtime's node, npm, npx and PortableGit's git and bash. Empty in a development build, whose
-    /// daemon keeps loki's own PATH.
     pub path: &'a [PathBuf],
 }
 
-/// The daemon's PATH: the runtime's folders, then the PATH loki was given. Joined the system's way (`;` on Windows).
 pub fn daemon_path(front: &[PathBuf], inherited: Option<&OsStr>) -> OsString {
     let rest: Vec<PathBuf> = inherited.map(|p| std::env::split_paths(p).collect()).unwrap_or_default();
     std::env::join_paths(front.iter().chain(&rest)).unwrap_or_else(|e| {
-        // A folder whose name holds the separator cannot go on PATH; the daemon still runs node by its full path.
         eprintln!("loki: the daemon's PATH: {e}");
         inherited.map(OsStr::to_os_string).unwrap_or_default()
     })
 }
 
-/// The daemon's exit code when another daemon already holds its folder (daemon/main.ts EXIT_HELD): that one keeps
-/// serving, so this one is not restarted.
 pub const EXIT_HELD: i32 = 3;
 
-/// `node <entry> --loki-daemon …`: TypeScript sources run with Node's type stripping, the bundle as it is. The marker
-/// and the token file make the command line recognisably loki's, for a leftover from a crash (procs.rs).
 pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
     let mut cmd = Command::new(d.node);
-    // Node calls its own SQLite (pi-durable's store) and type stripping experimental and says so on every start; the
-    // daemon's log keeps every other warning.
     cmd.arg("--disable-warning=ExperimentalWarning");
     if d.entry.extension().is_some_and(|e| e == "ts") {
         cmd.arg("--experimental-strip-types");
@@ -95,29 +62,20 @@ pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
     cmd
 }
 
-/// How long to wait before restarting a daemon that died, given how many times it died in the last minute: one
-/// second, doubling, never more than thirty — a daemon that crashes at start does not spin.
 pub fn restart_delay(recent_exits: usize) -> std::time::Duration {
     std::time::Duration::from_secs(1u64.checked_shl(recent_exits.min(5) as u32).unwrap_or(32).min(30))
 }
 
-/// How many exits in a minute make a daemon one that keeps stopping, which the window should say.
 pub const CRASH_LOOP_EXITS: usize = 3;
 
-/// What the window says of a daemon that keeps stopping: a start that succeeds each time is no sign it is well. None
-/// below CRASH_LOOP_EXITS exits in the last minute.
 pub fn crash_loop_note(recent_exits: usize, log: &Path) -> Option<String> {
     (recent_exits >= CRASH_LOOP_EXITS).then(|| {
         format!("loki's daemon keeps stopping ({recent_exits} times in the last minute): its log is {}", log.display())
     })
 }
 
-/// The size past which the daemon's log is set aside before the next start.
 pub const LOG_MAX_BYTES: u64 = 10 * 1024 * 1024;
 
-/// Set a log past `max` aside as `<name>.1`, replacing the one set aside before, so the daemon's log is at most two
-/// files of that size: a daemon that crashes at every start writes a stack trace each time, for as long as loki runs.
-/// A failure leaves the log where it is; it is then appended to as before.
 pub fn rotate_log(log: &Path, max: u64) {
     let Ok(meta) = std::fs::metadata(log) else { return };
     if meta.len() <= max {
@@ -133,21 +91,16 @@ pub fn rotate_log(log: &Path, max: u64) {
 }
 
 impl Harness {
-    /// Start loki's daemon; replaces a child started earlier.
     pub fn start_daemon(&self, d: &Daemon, launch: &Launch) -> Result<(), String> {
-        // Appended, so a restarted daemon's log follows the one that died rather than replacing it; set aside first
-        // once it is past LOG_MAX_BYTES.
         let log = launch.log_dir.join("daemon.log");
         rotate_log(&log, LOG_MAX_BYTES);
         self.spawn(daemon_command(d, launch), &log)
     }
 
-    /// Whether the child has exited, and how: None while it runs or when there is none.
     pub fn exited(&self) -> Option<std::process::ExitStatus> {
         self.slot.lock().ok()?.as_mut()?.child.try_wait().ok()?
     }
 
-    /// Whether loki itself stopped the child (quit, or a replacement started).
     pub fn was_stopped(&self) -> bool {
         self.stopped.load(std::sync::atomic::Ordering::SeqCst)
     }
@@ -181,9 +134,6 @@ impl Harness {
         self.install(running, stops, &name)
     }
 
-    /// Put a just-spawned child in the slot, unless a `stop` came after the start read the stop count (`stops`). The
-    /// slot and the count are checked together, so a `stop` lands either before (this child is ended here) or after
-    /// (it finds this child in the slot) — never in between, leaving it running with no owner.
     fn install(&self, running: Running, stops: u64, name: &str) -> Result<(), String> {
         use std::sync::atomic::Ordering::SeqCst;
         let previous = {
@@ -202,7 +152,6 @@ impl Harness {
         Ok(())
     }
 
-    /// Stop the daemon and wait for it; on Windows closing the job then takes the rest of its tree.
     pub fn stop(&self) {
         use std::sync::atomic::Ordering::SeqCst;
         let running = self.slot.lock().ok().and_then(|mut g| {
@@ -216,14 +165,11 @@ impl Harness {
     }
 }
 
-/// End a daemon: SIGTERM and up to STOP_GRACE for it to go on its own (closing its stores, stopping its background
-/// tasks), then SIGKILL. Windows has no SIGTERM to send; there the kill and the job take the tree at once.
 fn terminate(mut running: Running) {
     let child = &mut running.child;
     #[cfg(unix)]
     {
         if let Ok(pid) = libc::pid_t::try_from(child.id()) {
-            // Safety: a plain kill(2) on the child we own and have not yet waited on, so the pid is still ours.
             if unsafe { libc::kill(pid, libc::SIGTERM) } == 0 {
                 let until = std::time::Instant::now() + STOP_GRACE;
                 while std::time::Instant::now() < until {
@@ -239,12 +185,10 @@ fn terminate(mut running: Running) {
     let _ = child.wait();
 }
 
-/// The program a command runs, for an error message.
 fn cmd_name(cmd: &Command) -> String {
     Path::new(cmd.get_program()).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-/// Whatever ends the app — window closed, quit, or a signal unwinding main — the daemon goes with it.
 impl Drop for Harness {
     fn drop(&mut self) {
         self.stop();
@@ -264,7 +208,6 @@ mod death {
 
     type Request = (Command, mpsc::Sender<io::Result<Child>>);
 
-    /// Ask the kernel to kill the child when its parent goes; if loki is already gone by then, fail the start.
     fn die_with_loki(cmd: &mut Command) {
         let parent = std::process::id() as libc::pid_t;
         // Safety: between fork and exec only async-signal-safe calls — prctl, getppid — and no allocation.
@@ -282,7 +225,6 @@ mod death {
         }
     }
 
-    /// Spawn `cmd`, set to die with loki, from the one long-lived spawner thread.
     pub fn spawn(mut cmd: Command) -> io::Result<Child> {
         static SPAWNER: OnceLock<Mutex<mpsc::Sender<Request>>> = OnceLock::new();
         die_with_loki(&mut cmd);
@@ -307,8 +249,6 @@ mod death {
     }
 }
 
-/// A Windows Job Object set to kill every process in it when its last handle closes: loki's handle closes when
-/// the daemon is stopped or replaced, and when loki itself exits for any reason.
 #[cfg(windows)]
 mod job {
     use std::os::windows::io::AsRawHandle;
@@ -319,7 +259,6 @@ mod job {
     };
 
     pub struct Job(HANDLE);
-    // The handle is an owned kernel object, usable from any thread.
     unsafe impl Send for Job {}
 
     impl Job {
@@ -395,13 +334,10 @@ mod tests {
         rotate_log(&log, 10);
         assert!(!log.exists());
         assert_eq!(std::fs::read(&aside).unwrap(), b"longer than ten bytes");
-        // No log at all is nothing to do.
         rotate_log(&log, 10);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// Linux: a start through the parent-death setup succeeds, and the harness outlives the thread that asked for it
-    /// (the spawner thread forked it), then stops like any other.
     #[cfg(target_os = "linux")]
     #[test]
     fn on_linux_the_harness_dies_with_loki_but_not_with_the_thread_that_started_it() {
@@ -475,7 +411,6 @@ mod tests {
             runtime,
             "no PATH to inherit"
         );
-        // The command carries it; a development build, with no runtime, leaves the daemon the PATH loki has.
         let (node, entry, dir, token) =
             (PathBuf::from("node"), PathBuf::from("daemon.mjs"), PathBuf::from("/home/x/.loki"), PathBuf::from("t"));
         let env = |path: &[PathBuf]| {
@@ -496,7 +431,6 @@ mod tests {
         assert_eq!(secs, [1, 2, 4, 8, 16, 30, 30, 30]);
     }
 
-    /// A child asked to stop gets SIGTERM and the chance to finish; one that ignores it is killed after the grace.
     #[cfg(unix)]
     #[test]
     fn stopping_asks_the_daemon_to_go_before_it_kills_it() {
@@ -526,7 +460,6 @@ mod tests {
     fn a_start_that_a_stop_overtook_ends_its_child_instead_of_keeping_it() {
         let h = Harness::default();
         let seen = h.stops.load(std::sync::atomic::Ordering::SeqCst);
-        // The stop lands while the child is being spawned: after the start read the count, before it filled the slot.
         h.stop();
         let child = Command::new("sleep").arg("30").spawn().unwrap();
         let pid = child.id() as libc::pid_t;

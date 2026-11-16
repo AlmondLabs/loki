@@ -16,7 +16,6 @@ const mini: PeerHello = {
   protocol: PEER_PROTOCOL,
 };
 
-/** A store in a fresh folder, with a clock the test moves. */
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-peers-"));
   const path = join(dir, "peers.json");

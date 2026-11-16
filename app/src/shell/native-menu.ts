@@ -4,40 +4,24 @@ import { createRoot } from "react-dom/client";
 import type { LucideIcon } from "lucide-react";
 import { inTauri, platform } from "../desk/env";
 
-/**
- * A menu described once (plan 2026-11-12-1505, U19): in the Mac app it pops up as a real macOS menu at the control or the
- * pointer, drawn by AppKit (U22); everywhere else the same entries draw as loki's own menu.
- * Either way an action shows the same Lucide icon it has in the rest of the app.
- */
 export type MenuEntry =
   | {
       type: "item";
-      /** Unique within the menu. */
       id: string;
       label: string;
       run: () => void;
       disabled?: boolean;
-      /** A choice: a checkmark when true, room for one when false; absent for a command. */
       checked?: boolean;
-      /** A quiet count after the label: muted on the right when drawn, in brackets in a native menu. */
       detail?: string;
-      /** The keymap's key spec ("cmd+e"), shown on the right as the Mac shows a shortcut. */
       keys?: string | null;
-      /** Why the item is off, as the drawn menu's tooltip (a native menu has none). */
       hint?: string;
-      /**
-       * The action's icon, the one it has in the toolbar and elsewhere (one icon set, Lucide), as Tahoe's menus put one
-       * on an action; never on a choice in a picker.
-       */
       icon?: LucideIcon;
     }
   | { type: "separator" }
   | { type: "submenu"; id: string; label: string; items: MenuEntry[]; disabled?: boolean };
 
-/** Whether this window pops up native menus: the Mac app only. */
 export const NATIVE_MENUS = inTauri && platform === "macos";
 
-/** Separators only between groups: none leading, trailing or doubled, which an item left out can leave behind. */
 export function tidyEntries(entries: MenuEntry[]): MenuEntry[] {
   const out: MenuEntry[] = [];
   for (const e of entries) {
@@ -53,7 +37,6 @@ export function tidyEntries(entries: MenuEntry[]): MenuEntry[] {
   return out;
 }
 
-/** One entry as the shell takes it (src-tauri popup.rs `PopupEntry`). */
 export type PopupEntry =
   | { type: "item"; label: string; enabled: boolean; checked?: boolean; keys?: string; icon?: number[] }
   | { type: "separator" }
@@ -101,12 +84,10 @@ export async function popUpMenu(entries: MenuEntry[], at: { x: number; y: number
   if (chosen !== null) menu.runs[chosen]?.();
 }
 
-/** Every icon a menu's items carry, submenus included. */
 function iconsOf(entries: MenuEntry[]): LucideIcon[] {
   return entries.flatMap((e) => (e.type === "item" ? (e.icon ? [e.icon] : []) : e.type === "submenu" ? iconsOf(e.items) : []));
 }
 
-/** The icons drawn so far, by icon: a menu opens again and again with the same few. */
 const drawn = new Map<LucideIcon, Promise<number[]>>();
 
 /**
@@ -119,7 +100,6 @@ export function iconImage(icon: LucideIcon): Promise<number[]> {
   if (known) return known;
   const made = drawIcon(icon);
   drawn.set(icon, made);
-  // A drawing that failed is tried again on the next menu, not remembered.
   made.catch(() => drawn.delete(icon));
   return made;
 }
@@ -151,7 +131,6 @@ async function drawIcon(icon: LucideIcon): Promise<number[]> {
   }
 }
 
-/** Where a menu opened from a control hangs: its leading edge, just under it (above it with `above`). */
 export function under(el: Element, above = false): { x: number; y: number } {
   const box = el.getBoundingClientRect();
   return { x: box.left, y: above ? box.top - 4 : box.bottom + 4 };

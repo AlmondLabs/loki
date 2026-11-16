@@ -8,19 +8,13 @@ import type { Pushes } from "../../../core/frames.ts";
 import { GitBranchIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/**
- * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
- * typed path, a check that a path is a usable folder (and its git branch), and the host's folder chooser.
- */
 export interface FolderApi {
-  /** A chat or agent with no folder yet is missing from its map. `home` asks another paired Mac (plan 023). */
   recent: (home?: string) => Promise<{ byAgent: Partial<Record<string, string[]>>; byConversation: Partial<Record<string, string>> }>;
   complete: (prefix: string, home?: string) => Promise<string[]>;
   check: (path: string, home?: string) => Promise<{ ok: boolean; path: string; branch: string | null; reason?: string }>;
   pick: (defaultPath?: string) => Promise<string | null>;
 }
 
-/** An agent a new chat can be for. `home_mac` is the Mac it lives on (plan 023). */
 export interface NewChatAgent {
   id: string;
   name: string;
@@ -30,27 +24,17 @@ export interface NewChatAgent {
 interface NewDeskProps {
   onClose: () => void;
   agents: NewChatAgent[];
-  /** This Mac and the Macs paired with it; with none, every chat starts here and nothing is asked. */
   macs?: Pushes["peers"] | null;
   defaultAgentId: string | null;
-  /** The desk this dialog opened from; its exact folder wins over recency for that same agent. */
   currentAgentId: string | null;
   currentConversationKey: string | null;
   initialName?: string;
   folders: FolderApi;
-  /** `home` is the Mac the chat lives on, when the dialog chose one. */
   onCreate: (agentId: string, folder: string, name: string, home?: string) => Promise<void>;
-  /** What the Mac the chat would live on lacks for the agent (plan 023, U10). */
   requirements?: (agentId: string, home?: string) => Promise<string[]>;
 }
 
-/**
- * Which chooser Browse opens: the system's own folder dialog in the app, on every system (KTD9); in a browser
- * tab the mod's chooser, which is macOS-only and opens on the host, so the host's system decides (env.ts `platform`,
- * not the tab's own); on another host none, so Browse is not shown.
- */
 export type BrowseWith = "dialog" | "mod" | null;
-/** Which chooser Browse opens on this system, in the app or not (see `BrowseWith`). */
 export function browseWith(tauri: boolean, os: Platform): BrowseWith {
   if (tauri) return "dialog";
   return os === "macos" ? "mod" : null;
@@ -58,7 +42,6 @@ export function browseWith(tauri: boolean, os: Platform): BrowseWith {
 
 type OpenDialog = (options: { directory: true; multiple: false; defaultPath?: string; title?: string }) => Promise<string | string[] | null>;
 
-/** The system's folder dialog (tauri-plugin-dialog), opened at the typed folder. Resolves null when cancelled or unavailable. */
 export async function dialogPick(
   defaultPath?: string,
   open: OpenDialog = async (options) => (await import("@tauri-apps/plugin-dialog")).open(options),
@@ -73,7 +56,6 @@ export async function dialogPick(
   }
 }
 
-/** A folder's name for the list: its last segment (Windows paths split on backslashes as well). */
 export function folderLabel(path: string, os: Platform = platform): string {
   return (
     path
@@ -93,7 +75,6 @@ interface FolderSuggestion {
   source: "current" | "recent";
 }
 
-/** The predictable hierarchy for an untouched folder field. */
 export function suggestedFolder(
   recent: Partial<Record<string, string[]>>,
   currentFolder: string | null,
@@ -106,7 +87,6 @@ export function suggestedFolder(
   return latest ? { path: latest, source: "recent" } : null;
 }
 
-/** The folder list's rows: typed completions first; then this agent's recent folders; then everyone else's. */
 function folderOptions(recent: Partial<Record<string, string[]>>, matches: string[], agentId: string | null, folderTouched: boolean): FolderOption[] {
   const mine = agentId ? (recent[agentId] ?? []) : [];
   const others = Object.entries(recent)
@@ -127,11 +107,6 @@ function folderOptions(recent: Partial<Record<string, string[]>>, matches: strin
   return list.slice(0, 14);
 }
 
-/**
- * A folder field's state, shared by New chat and Change folder: the field follows context until you edit it (the
- * chat you are on for its own agent, else the agent's latest folder), is checked and completed as you type, lists
- * recent folders, and Browse opens the system's chooser. Each dialog keeps its own busy state beside `picking`.
- */
 export function useFolderField({
   folders,
   agentId,
@@ -143,23 +118,19 @@ export function useFolderField({
   agentId: string | null;
   currentAgentId: string | null;
   currentConversationKey: string | null;
-  /** Another paired Mac the chat will live on: its folders are offered and checked, and Browse (this Mac's) is off. */
   home?: string;
 }) {
-  /** What you typed or chose; until then the field shows the suggestion. */
   const [ownFolder, setOwnFolder] = useState("");
   const [touched, setTouched] = useState(false);
   const [recent, setRecent] = useState<Partial<Record<string, string[]>>>({});
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [matches, setMatches] = useState<string[]>([]);
-  /** The last folder checked, on which Mac, and what the check said: it speaks only for that folder there (`status`, below). */
   const [checked, setChecked] = useState<{ folder: string; home: string | undefined; status: FolderStatus } | null>(null);
   const [picking, setPicking] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Open: every agent's recent folders, and the folder of the chat this opened from.
   const readRecent = useEffectEvent(() =>
     folders.recent(home).then((r) => ({
       byAgent: r.byAgent,
@@ -174,7 +145,7 @@ export function useFolderField({
         setRecent(r.byAgent);
         setCurrentFolder(r.current);
       })
-      .catch(() => {}) // no recent folders to offer; Browse still works
+      .catch(() => {})
       .finally(() => {
         if (!gone) setReady(true);
       });
@@ -183,15 +154,11 @@ export function useFolderField({
     };
   }, [home]);
 
-  // The folder follows context until you edit it: the current chat first, then this agent's latest.
   const suggestion = touched ? null : suggestedFolder(recent, currentFolder, agentId, currentAgentId);
   const folder = touched ? ownFolder : (suggestion?.path ?? "");
   const source = suggestion?.source ?? null;
 
-  // Validate (and complete) as you type, debounced; an empty field has nothing to check or offer.
   const trimmed = folder.trim();
-  // A check of what was typed a moment ago says nothing of the folder now: Enter inside the debounce, or a slow answer
-  // for an older value, would otherwise start the chat in a folder no one checked.
   const status = checked?.folder === trimmed && checked.home === home ? checked.status : null;
   if (!trimmed && matches.length > 0) setMatches([]);
   const validate = useEffectEvent((f: string) => {
@@ -205,7 +172,6 @@ export function useFolderField({
   }, [trimmed, folder, home]);
 
   const options = useMemo(() => folderOptions(recent, matches, agentId, touched), [recent, matches, agentId, touched]);
-  /** A folder chosen from the list (or the chooser) is yours: it stops following the agent and the list closes. */
   const choose = (path: string) => {
     setOwnFolder(path);
     setTouched(true);
@@ -216,12 +182,9 @@ export function useFolderField({
     setTouched(true);
     setListOpen(true);
   };
-  // The chooser shows this Mac's disk, which a chat living on another Mac cannot use.
   const browser = home ? null : browseWith(inTauri, platform);
   const browse = async () => {
     setPicking(true);
-    // The native picker validates this path itself. Passing it immediately avoids a race where a
-    // quick Browse click beat the debounced status check and macOS opened an unrelated old folder.
     const pick = browser === "dialog" ? dialogPick : folders.pick;
     const picked = await pick(folder.trim() || undefined);
     setPicking(false);
@@ -230,12 +193,6 @@ export function useFolderField({
   return { folder, source, touched, currentFolder, ready, status, options, listOpen, setListOpen, inputRef, picking, choose, type, browse, browser };
 }
 
-/**
- * Where a new chat will live (plan 023, R7): its agent's home Mac while that Mac is in reach, unless you pick this one;
- * and what that Mac lacks for the agent, asked again whenever the agent or the Mac changes (R21). `home` is the Mac to
- * name when starting it: named outright either way, so the chat lives where the dialog said even if that Mac came
- * back meanwhile; undefined when the agent lives here.
- */
 export function useChatHome(agents: NewChatAgent[], agentId: string | null, macs: NewDeskProps["macs"], requirements: NewDeskProps["requirements"]) {
   const [pickHere, setPickHere] = useState(false);
   const agentHome = agentHomeOf(
@@ -258,17 +215,11 @@ export function useChatHome(agents: NewChatAgent[], agentId: string | null, macs
   return { agentHome, remote, pickHere, setPickHere, lacks, home };
 }
 
-/** The Mac an agent lives on, when that is another paired Mac (with whether it is in reach); undefined when it is this one. */
 function agentHomeOf(agent: { home_mac?: string | null } | undefined, macs: Pushes["peers"] | null | undefined): Pushes["peers"]["peers"][number] | undefined {
   if (!agent?.home_mac || !macs || agent.home_mac === macs.me.mac_id) return undefined;
   return macs.peers.find((p) => p.mac_id === agent.home_mac);
 }
 
-/**
- * "Change folder": move a chat to another folder. The field starts on the chat's folder, with the same list,
- * completion and Browse as New chat; Move is off until it names another folder that exists. The daemon tells the
- * agent on its next turn that the working directory changed.
- */
 export function ChangeFolder({
   onClose,
   agentId,
@@ -362,15 +313,9 @@ export function ChangeFolder({
       </div>
     </Sheet>
   );
-  // Opened from the sidebar's row menu, it would be laid out (and clipped) inside that column: on the body the veil
-  // covers the whole window, as Rename's does. The veil scrolls, so the folder list can hang past the card.
   return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
-/**
- * The keys of a sheet with a folder list: Escape closes the list first, then the sheet; Enter acts (start, move) while
- * the list is closed, since the list takes Enter for its own pick.
- */
 function sheetKeys(listOpen: boolean, setListOpen: (open: boolean) => void, onClose: () => void, onEnter: () => void) {
   return (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
@@ -384,7 +329,6 @@ function sheetKeys(listOpen: boolean, setListOpen: (open: boolean) => void, onCl
   };
 }
 
-/** The folder's verdict beside its label: the branch when it is a repo, "folder ok" otherwise, the reason when it is not. */
 function FolderVerdict({ status }: { status: FolderStatus }) {
   return (
     <span style={{ fontWeight: 400, color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
@@ -407,10 +351,6 @@ function FolderVerdict({ status }: { status: FolderStatus }) {
   );
 }
 
-/**
- * The folder field with its Browse button (where there is a chooser) and the completion list under it. The list's highlight
- * lives here; the parent keeps whether the list is open, since the sheet's Escape closes it first.
- */
 export function FolderPicker({
   inputRef,
   folder,
@@ -442,8 +382,6 @@ export function FolderPicker({
   canBrowse: boolean;
   browser: BrowseWith;
 }) {
-  // Nothing is highlighted until you type or use the arrows (plan 2026-11-15-2355, KTD3): opened by focus alone, the
-  // list must not change the folder when Tab goes on or Return is pressed.
   const [hi, setHi] = useState(-1);
   const listId = useId();
   const shown = listOpen && options.length > 0;
@@ -485,7 +423,6 @@ export function FolderPicker({
               e.preventDefault();
               onChoose(options[hi].path);
             } else if (hi >= 0 && hi < options.length && e.key === "Tab") {
-              // Takes the highlighted folder, and Tab still moves on.
               onChoose(options[hi].path);
             }
           }}
@@ -511,7 +448,6 @@ export function FolderPicker({
   );
 }
 
-/** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
 function FolderList({
   id,
   options,
@@ -521,7 +457,6 @@ function FolderList({
   agentName,
   beside,
 }: {
-  /** The list's id; option i is `${id}-${i}`, which the field names as its active descendant. */
   id: string;
   options: FolderOption[];
   hi: number;

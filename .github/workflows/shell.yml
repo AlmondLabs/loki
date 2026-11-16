@@ -1,9 +1,4 @@
 name: shell
-# The Rust shell's tests (src-tauri), on the three systems, for a PR that changes it. It needs nothing of the app's
-# build: tauri::generate_context!() only wants frontendDist (app/dist) and the bundle's resources to exist when it
-# compiles, so a placeholder of each stands in for them (the release builds bundle the real ones). Once a week on main
-# too, as ci.yml is: a shell no PR touched still meets each new runner image. A merge that changes it runs on main as
-# well, so main holds the Rust cache every PR then restores (only main saves one).
 on:
   pull_request:
     paths:
@@ -36,8 +31,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      # Tauri 2's Linux build prerequisites, the Ubuntu 22.04 names (KTD11). No appindicator library: the tray is
-      # Mac-only (KTD3). patchelf is for the AppImage bundler, kept so this list matches the release leg's.
       - name: linux build packages
         if: runner.os == 'Linux'
         run: |
@@ -59,8 +52,6 @@ jobs:
           mkdir -p app/dist src-tauri/resources
           printf '<!doctype html>' > app/dist/index.html
           touch src-tauri/resources/.placeholder
-      # The layout once (it is the same everywhere); clippy on each system, since much of the shell is per-system code.
-      # --locked: Cargo.lock is what ships, and a build must not quietly resolve something else.
       - if: runner.os == 'Linux'
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - if: ${{ !cancelled() }}

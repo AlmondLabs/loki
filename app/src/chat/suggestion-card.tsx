@@ -14,20 +14,10 @@ import { Icon } from "../shared/icons";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
 import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
 
-/**
- * Suggestions in the chat screen (plan 049, U4): messages an agent in this chat suggests for another chat, never a
- * row in the thread. Since plan 052 they wait behind a chip in the message box, which opens them as cards, newest
- * first, one line each until opened; opened, a card shows the message and send now, save as draft, change chat and
- * reject. The Mac the chat lives on carries out every action; the card shows what it answered.
- */
-
-/** What the cards read and call, all of it useAttention's (the shell's and the phone's `catchUp` fit as they are). */
 export interface SuggestionSource {
   conversation: (agentId: string, conversationId: string) => Pick<ChatFace, "suggestions" | "cwd">;
-  /** The chats the Inbox lists: the ones a suggestion can go to, and their names. */
   items: readonly ConversationInfo[];
   agents: ReadonlyArray<{ id: string; name: string }>;
-  /** The chat list and the agent list have come: before that, a target missing from them is not yet known to be gone. */
   listed: boolean;
   agentsLoaded: boolean;
   suggestions: {
@@ -36,54 +26,40 @@ export interface SuggestionSource {
   };
 }
 
-/** A chat screen's suggestions, as a host hands them to Conversation: where they are read, and which chat they were made in. */
 export interface SuggestionsProps {
   source: SuggestionSource;
   rt: Runtime;
-  /** Why nothing can be done now (the phone while its Mac is out of reach): the buttons are disabled and this says why. */
   blocked?: string | null;
 }
 
-/** GitHub's markdown, as the transcript reads a reply: tables, task lists and strikethrough besides the basics. */
 const REMARK_PLUGINS = [remarkGfm];
 
-/** Waiting on the person, or being carried out: the ones the screen shows. */
 const isOpen = (s: Suggestion) => s.status === "pending" || s.status === "sending";
 
-/** How many suggestions made in a chat wait on the person: the count the chip and the Inbox card's mark show. */
 export function waitingCount(source: Pick<SuggestionSource, "conversation">, rt: Runtime): number {
   return source.conversation(rt.agent_id, rt.conversation_id).suggestions.filter(isOpen).length;
 }
 
-/** A host's bump of one chat's suggestions (the Inbox's mark, /suggestions): which chat, and how many times. */
 export type ChatTick = { id: string; n: number } | null;
 
-/** The bump after one more for chat `id`; a bump for another chat starts again, so it never opens a later card. */
 export const bumpTick = (t: ChatTick, id: string): ChatTick => ({ id, n: (t?.id === id ? t.n : 0) + 1 });
 
-/** The tick a chat's Conversation gets: the bumps made for it, 0 for any other chat. */
 export const tickOf = (t: ChatTick, id: string): number => (t?.id === id ? t.n : 0);
 
-/** A folder's last part, as a target line names it. */
 const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 
-/** A chat as the cards name it: its title, else the agent's main chat, else untitled. */
 function chatTitle(c: Pick<ConversationInfo, "id" | "title">, agentName: string): string {
   if (c.title) return c.title;
   return c.id === "default" ? `${agentName}'s main chat` : "untitled chat";
 }
 
-/** Where a suggestion goes, as its card says it, and whether that chat can still take it (R16). */
 export interface TargetView {
   name: string;
-  /** The chat or agent it was for is gone or archived: the card asks for another chat instead of offering send. */
   gone: boolean;
 }
 
-/** The refusals that mean the target cannot take the suggestion at all, whatever is pressed (mod/suggestions.ts unfit). */
 const GONE = /is (gone|archived): pick another chat$/;
 
-/** A suggestion's target as the card shows it: its name, and whether it is gone (the agent, or the chat once the list came). */
 export function targetOf(source: Pick<SuggestionSource, "items" | "agents" | "listed" | "agentsLoaded">, s: Suggestion): TargetView {
   const t = s.target;
   const agent = source.agents.find((a) => a.id === t.agent_id);
@@ -99,25 +75,17 @@ export function targetOf(source: Pick<SuggestionSource, "items" | "agents" | "li
   return { name, gone: agentGone || (source.listed && !chat) || said };
 }
 
-/** One choice in change chat: an existing chat, or a new chat with an agent. */
 export interface ChatChoice {
   key: string;
   title: string;
   line: string;
   agentId: string;
-  /** Absent for a new chat with the agent. */
   conversationId?: string;
 }
 
-/** Rows change chat shows with nothing typed, and at most with a query. */
 const RECENT = 5;
 const MAX_HITS = 8;
 
-/**
- * Change chat's choices (R4): with nothing typed the latest chats and every agent; typed, the chats and agents that
- * match, ranked by the same matching the ⌘K and phone searches use (shared/search.ts). The chat the suggestion is
- * already for is left out.
- */
 export function chatChoices(source: Pick<SuggestionSource, "items" | "agents">, query: string, current: SuggestionTarget | null): ChatChoice[] {
   const agentNames = new Map(source.agents.map((a) => [a.id, a.name]));
   const isCurrent = (c: ConversationInfo) => !!current && "conversation_id" in current && current.agent_id === c.agent_id && current.conversation_id === c.id;
@@ -145,26 +113,17 @@ export function chatChoices(source: Pick<SuggestionSource, "items" | "agents">, 
   return rankHits(buildSearchIndex([...chats, ...agents]), query).slice(0, MAX_HITS);
 }
 
-/** A refusal told after its card has gone: the suggestion's title and what already happened to it. */
 export interface Told {
   title: string;
   message: string;
 }
 
-/**
- * What a refused action leaves (R17): its reason on the card while the suggestion still waits; a line of its own
- * when the suggestion was already settled elsewhere and its card is going (AE6). Nothing for an action that took.
- */
 export function afterAction(s: Suggestion, out: SuggestionOutcome): { note: string } | { told: Told } | null {
   if (out.done || !out.message) return null;
   if (out.suggestion && !isOpen(out.suggestion)) return { told: { title: s.title, message: out.message } };
   return { note: out.message };
 }
 
-/**
- * The suggestions with an action in flight, with one added or taken away. Each card's buttons wait on its own answer
- * only: one card's answer arriving never frees another whose request is still out.
- */
 export function busyWith(busy: ReadonlySet<string>, id: string, on: boolean): ReadonlySet<string> {
   const next = new Set(busy);
   if (on) next.add(id);
@@ -172,11 +131,6 @@ export function busyWith(busy: ReadonlySet<string>, id: string, on: boolean): Re
   return next;
 }
 
-/**
- * A key in one of change chat's fields: Enter chooses, Esc goes back, and neither reaches the Inbox's own keys. While
- * a change is in flight Enter does nothing, as the disabled rows and buttons do, so a second Enter sends no second
- * change; Esc still goes back, as cancel and back stay enabled.
- */
 export function pickerKey(e: Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation">, disabled: boolean, enter: () => void, escape: () => void) {
   e.stopPropagation();
   if (e.key === "Enter") {
@@ -188,32 +142,22 @@ export function pickerKey(e: Pick<KeyboardEvent, "key" | "preventDefault" | "sto
   }
 }
 
-/** The chip's words: "3 suggestions" on the desktop; the phone's narrower row shows the icon and the count alone. */
 export function chipText(count: number, touch: boolean): string {
   if (touch) return count ? String(count) : "";
   return count === 1 ? "1 suggestion" : count ? `${count} suggestions` : "suggestions";
 }
 
-/** The chip's props: a chat screen's suggestions, how it is drawn, and the host's tick that opens it (⌘⇧S, the Inbox's mark). */
 export type SuggestionChipProps = SuggestionsProps & { touch?: boolean; tick?: number };
 
-/**
- * A chat's suggestions behind a chip in the message box (plan 052): the chip shows only while some wait, and opens
- * the cards in a modal over the window on the desktop and a bottom sheet on the phone (plan 056). The
- * chip stays mounted with the chat, so a refused action's reason and a line told after its card has gone (AE6) keep
- * while the panel is closed; the chip stays for that line until it is dismissed. The last card decided closes it.
- */
 export function SuggestionChip({ source, rt, blocked = null, touch = false, tick = 0 }: SuggestionChipProps) {
   const face = source.conversation(rt.agent_id, rt.conversation_id);
   const list = face.suggestions.filter(isOpen).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const [open, setOpen] = useState(false);
-  // Which card is open: undefined until the person picks, and then the newest is, so the modal shows a message at once.
   const [openId, setOpenId] = useState<string | null | undefined>(undefined);
   const shownId = openId === undefined ? (list[0]?.id ?? null) : openId;
   const [notes, setNotes] = useState<Partial<Record<string, string>>>({});
   const [told, setTold] = useState<Partial<Record<string, Told>>>({});
   const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
-  // A bumped tick opens the panel from the render that sees it, as ⌘⇧M opens the model picker.
   const [seenTick, setSeenTick] = useState(0);
   if (tick !== seenTick) {
     setSeenTick(tick);
@@ -308,10 +252,6 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
 
 const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
-/**
- * Where the chip's cards open (plan 056): a modal sheet centred over the window on the desktop, a bottom sheet on the
- * phone. The Sheet owns the veil, Escape, the Tab loop and handing focus back to what opened it. A header names it.
- */
 function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; count: number; onClose: () => void; children: ReactNode }) {
   const head = (
     <div className="loki-suggestion-modal-head">
@@ -334,7 +274,6 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
         </Sheet>
       </div>
     );
-  // Drawn at the body, as the rename dialog is: inside the box it would be clipped to the box.
   const sheet = (
     <Sheet label="Suggestions" onClose={onClose} width={720} top="8vh" className="loki-suggestion-modal">
       {head}
@@ -344,32 +283,24 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
   return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
-/** What a suggestion's card is given: the suggestion, where it goes, its state on screen and what its buttons do. */
 export interface SuggestionCardProps {
   suggestion: Suggestion;
   target: TargetView;
   open: boolean;
   onToggle: () => void;
-  /** Why the last action here was refused; else the suggestion's own reason shows. */
   note: string | null;
   busy: boolean;
   blocked: string | null;
   touch: boolean;
   onDecide: (action: SuggestionAction) => void;
-  /** Change chat's picker, given the way to close it. */
   picker: (close: () => void) => ReactNode;
 }
 
-/** One suggestion's card, with change chat's picker open or closed. */
 export function SuggestionCard(props: SuggestionCardProps) {
   const [picking, setPicking] = useState(false);
   return <SuggestionCardView {...props} picking={picking} onPicking={setPicking} />;
 }
 
-/**
- * One suggestion: a line with its title and where it goes; opened, the message and what can be done with it. One
- * being sent shows that and nothing to press; one whose chat is gone offers change chat and reject, never send (AE7).
- */
 export function SuggestionCardView({
   suggestion: s,
   target,
@@ -385,7 +316,6 @@ export function SuggestionCardView({
   onPicking,
 }: SuggestionCardProps & { picking: boolean; onPicking: (picking: boolean) => void }) {
   const sending = s.status === "sending";
-  // A target found gone before anything was pressed says so too, in the words the Mac uses when it refuses (R16).
   const reason = note ?? s.reason ?? (target.gone ? "The chat this was for is gone or archived: pick another chat" : null);
   const off = busy || sending || !!blocked;
   return (
@@ -397,7 +327,6 @@ export function SuggestionCardView({
       </button>
       {open && (
         <div className="loki-suggestion-body">
-          {/* The message as the transcript draws a reply (plan 056): lists, code and links read as they were written. */}
           <div className="loki-suggestion-text loki-md">
             <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
               {s.text}
@@ -412,7 +341,6 @@ export function SuggestionCardView({
   );
 }
 
-/** What an opened card says above its buttons: that it is being sent, why the last action was refused, what blocks it. */
 function SuggestionNotes({ sending, reason, blocked }: { sending: boolean; reason: string | null; blocked: string | null }) {
   return (
     <>
@@ -431,7 +359,6 @@ function SuggestionNotes({ sending, reason, blocked }: { sending: boolean; reaso
   );
 }
 
-/** An opened card's buttons; a suggestion whose chat is gone can only change chat or be rejected (AE7). */
 function SuggestionActions({
   gone,
   off,
@@ -468,10 +395,6 @@ function SuggestionActions({
   );
 }
 
-/**
- * Change chat (R4): a search over the chats and agents, as ⌘K's; a chat is chosen at once, an agent asks for the
- * folder its new chat works in, the folder of the chat the suggestion was made in to start with.
- */
 function ChatPicker({
   source,
   suggestion,
@@ -498,7 +421,6 @@ function ChatPicker({
     if (c.conversationId) onPick({ agent_id: c.agentId, conversation_id: c.conversationId });
     else setAgent({ id: c.agentId, title: c.title });
   };
-  // The Inbox's single keys and its Esc are the deck's; inside these fields they are the field's.
   const keys = (e: KeyboardEvent, enter: () => void, escape: () => void) => pickerKey(e, disabled, enter, escape);
 
   if (agent)

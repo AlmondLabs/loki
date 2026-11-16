@@ -4,11 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { COMMIT_REST_MS, createListSelection, heldRows, listKeyOf, moveFor, stepRow, type Schedule } from "../app/src/shell/list-keys.ts";
 import { ContentList, NothingSelected, firstControl, leaveList, listStop, onListKeyDown, toolbarControl } from "../app/src/shell/content-list.tsx";
 
-/**
- * One list's keyboard and selection, as Mail's (plan 2026-11-14-1330, KTD3): arrows highlight at once and commit after
- * 150 ms of rest, a click or Return commits at once, and an action on the highlighted row commits it first.
- */
-
 const IDS = ["a", "b", "c"];
 const key = (k: string, mods: Partial<{ alt: boolean; meta: boolean; ctrl: boolean; shift: boolean }> = {}) => ({
   key: k,
@@ -18,7 +13,6 @@ const key = (k: string, mods: Partial<{ alt: boolean; meta: boolean; ctrl: boole
   shiftKey: !!mods.shift,
 });
 
-/** A clock the test moves by hand: `schedule` runs a job once `advance` passes its time, and cancelling drops it. */
 function manualClock() {
   let now = 0;
   const jobs: Array<{ at: number; run: () => void; live: boolean }> = [];
@@ -41,7 +35,6 @@ function manualClock() {
   return { schedule, advance };
 }
 
-/** A selection over IDS starting on `start`, recording what it commits and where it sends focus. */
 function selection(start: string | null = "a") {
   const clock = manualClock();
   const log: string[] = [];
@@ -56,7 +49,6 @@ function selection(start: string | null = "a") {
     onHighlight: () => {},
     schedule: clock.schedule,
   });
-  /** A selection made elsewhere (⌘K, a notification, landing): the place's committed row changes without the list. */
   const selectElsewhere = (id: string) => {
     committed = id;
   };
@@ -155,7 +147,6 @@ describe("a selection over time", () => {
     expect(log).toEqual([]);
     expect(committed()).toBe("c");
     expect(sel.pending()).toBeNull();
-    // the arrows then move from the row selected elsewhere
     sel.press(IDS, "up");
     expect(sel.pending()).toBe("b");
   });
@@ -200,7 +191,6 @@ describe("⌘[ and ⌘] step the rows the list draws (R16)", () => {
   });
   test("⌘] from a selected row held after it left the source goes to its neighbour, not the top", () => {
     const row = (id: string) => ({ id });
-    // c is archived while selected: the source's rows lose it, the list still draws it in place
     const held = heldRows(["a", "b", "d"].map(row), ["a", "b", "c", "d"].map(row), "c").map((r) => r.id);
     expect(held).toEqual(["a", "b", "c", "d"]);
     const { sel, log } = selection("c");
@@ -224,7 +214,6 @@ describe("rows that change under the selection", () => {
     const after = [row("a"), row("c")];
     const held = heldRows(after, before, "b");
     expect(held.map((r) => r.id)).toEqual(["a", "b", "c"]);
-    // the next render keeps it while it is still selected, and drops it once the selection moves on
     expect(heldRows(after, held, "b").map((r) => r.id)).toEqual(["a", "b", "c"]);
     expect(heldRows(after, held, "c").map((r) => r.id)).toEqual(["a", "c"]);
   });
@@ -234,7 +223,6 @@ describe("rows that change under the selection", () => {
 });
 
 describe("the list element's keys", () => {
-  /** A keydown on a row: whether it was stopped, and whether a window listener (bubbling after the list) would see it. */
   const press = (k: string, mods: Parameters<typeof key>[1] = {}, start: string | null = "a") => {
     let stopped = false;
     let prevented = false;
@@ -254,7 +242,7 @@ describe("the list element's keys", () => {
   test("a key the list handles (↓, Return) does not reach a window keydown listener", () => {
     expect(press("ArrowDown")).toEqual({ reachesWindow: false, prevented: true });
     expect(press("Enter")).toEqual({ reachesWindow: false, prevented: true });
-    expect(press("ArrowUp").reachesWindow).toBe(false); // even staying put on the first row, so Learn's ↑ never sees it
+    expect(press("ArrowUp").reachesWindow).toBe(false);
   });
   test("with nothing selected, Return and Tab are left to the row and the browser, so Tab leaves the list", () => {
     expect(press("Tab", {}, null)).toEqual({ reachesWindow: true, prevented: false });
@@ -269,7 +257,6 @@ describe("the list element's keys", () => {
 });
 
 describe("focus between the list and the detail (KTD13, KTD14)", () => {
-  /** A stand-in element: its tab index, whether it is disabled, and the attributes on it or around it. */
   const el = (name: string, over: Partial<{ tabIndex: number; disabled: boolean; hiddenBy: string }> = {}) => ({
     name,
     tabIndex: over.tabIndex ?? 0,
@@ -282,7 +269,6 @@ describe("focus between the list and the detail (KTD13, KTD14)", () => {
     querySelector: (q: string) => (q.includes('tabindex="0"') ? (els.find((e) => e.tabIndex === 0) ?? null) : null),
   });
   test("Tab from the list reaches the detail's toolbar symbols before its content", () => {
-    // the hidden chat's toolbar behind Flow, Flow's card toolbar; the transcript and the message box are not toolbars
     const main = { querySelectorAll: () => [root([el("chat-tab", { hiddenBy: "aria-hidden" })]), root([el("read"), el("later")])] };
     expect(toolbarControl(main as unknown as ParentNode)).toMatchObject({ name: "read" });
   });
@@ -308,7 +294,6 @@ describe("focus between the list and the detail (KTD13, KTD14)", () => {
     expect(listStop(null)).toBeNull();
   });
   describe("Hide List with focus in the list moves it to the detail, so the arrows stop committing rows nobody sees", () => {
-    /** A focusable stand-in that records whether it was focused or let go. */
     const spy = (name: string) => {
       const said: string[] = [];
       return { said, node: { ...el(name), focus: () => said.push(`focus ${name}`), blur: () => said.push(`blur ${name}`) } };

@@ -15,23 +15,16 @@ import {
 
 export type { ModelEntry, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 
-/** One model as the picker lists it: the entries for its handle (one per reasoning effort it offers) folded into one row. */
 export interface ModelGroup {
   handle: string;
   entries: ModelEntry[];
   label: string;
   isDefault: boolean;
   isFeatured: boolean;
-  /** This account can reach it (list_models' available_handles); true when the harness did not say. */
   available: boolean;
-  /** Its place among the models used lately, 0 the latest; undefined when not among them. */
   recent?: number;
 }
 
-/**
- * The entries folded into one group per handle, in the order the handles first appear; a group is the default, featured
- * or recent if any of its entries is, and available only if all are.
- */
 export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
   const groups = new Map<string, ModelGroup>();
   for (const entry of entries) {
@@ -57,7 +50,6 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
   return [...groups.values()];
 }
 
-/** The entry to pick when a model is chosen: the one at `preferredEffort`, else the default, the featured, medium, high, or the first. */
 export function preferredModelEntry(group: ModelGroup, preferredEffort: ReasoningEffort | null): ModelEntry {
   return (
     (preferredEffort ? group.entries.find((entry) => entry.reasoning_effort === preferredEffort) : undefined) ??
@@ -69,7 +61,6 @@ export function preferredModelEntry(group: ModelGroup, preferredEffort: Reasonin
   );
 }
 
-/** The entries for one handle, one per reasoning effort in REASONING_EFFORTS order; empty with no handle. */
 export function effortEntriesFor(entries: ModelEntry[], handle: string | null | undefined): ModelEntry[] {
   if (!handle) return [];
   const byEffort = new Map<ReasoningEffort, ModelEntry>();
@@ -83,58 +74,42 @@ export function effortEntriesFor(entries: ModelEntry[], handle: string | null | 
   });
 }
 
-/** "anthropic/claude-fable-5" → "claude-fable-5"; the provider is shown as the group. */
 export function shortModel(handle: string | null | undefined): string {
   if (!handle) return "model";
   const i = handle.indexOf("/");
   return i > 0 ? handle.slice(i + 1) : handle;
 }
 
-/** A reasoning effort as the picker writes it ("no reasoning", "x-high", else its own name). */
 export function effortLabel(effort: ReasoningEffort): string {
   if (effort === "none") return "no reasoning";
   if (effort === "xhigh") return "x-high";
   return effort;
 }
 
-/** A line in place of the list: loading, nothing found, nothing listed yet. */
 const status = (text: string) => (
   <p role="status" className="loki-model-status">
     {text}
   </p>
 );
 
-/** Keep an event from bubbling further. */
 const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
-/** How many models the quick picks hold (the current model may make one more). */
 const SHORT_MAX = 5;
-/** How many models the short list shows when nothing is recent or featured. */
 const SHORT_FALLBACK = 4;
-/** The long list's cap: a harness can offer a few hundred handles; the filter finds the rest. */
 const MORE_CAP = 160;
-/** A preset's label may carry its effort ("GPT-5 Low"); the group's name is the model's, the effort is shown on its own. */
 const EFFORT_SUFFIX = /\s*[([]?\b(none|no reasoning|minimal|low|medium|high|x-?high|max)\b[)\]]?\s*$/i;
 
-/** A group's name: its presets' label, without the effort word when it offers several. */
 function groupName(group: ModelGroup): string {
   const efforts = group.entries.filter((entry) => entry.reasoning_effort).length;
   return (efforts > 1 && group.label.replace(EFFORT_SUFFIX, "")) || group.label || shortModel(group.handle);
 }
 
-/** What the pill calls the conversation's model: its presets' label, else the handle's short form; "Model" when unknown. */
 export function modelName(entries: ModelEntry[] | null, handle: string | null | undefined): string {
   if (!handle) return "Model";
   const group = groupModelEntries(entries ?? []).find((g) => g.handle === handle);
   return group ? groupName(group) : shortModel(handle);
 }
 
-/**
- * The picker's two lists. The quick picks: the models you used lately, latest first (mod/models.ts), then the
- * harness's featured models in its order to fill up to five, only ones this account can reach; with neither,
- * the first few it can reach; and the current model, so its check is in view. More models: the rest, by handle,
- * unreachable ones included (the filter finds anything).
- */
 export function modelLists(entries: ModelEntry[] | null, current: string | null): { short: ModelGroup[]; more: ModelGroup[] } {
   const groups = groupModelEntries(entries ?? []);
   const reachable = groups.filter((group) => group.available);
@@ -148,19 +123,16 @@ export function modelLists(entries: ModelEntry[] | null, current: string | null)
   return { short, more };
 }
 
-/** A row's muted line: the model's own description, else its handle when the name is not already the handle; no line otherwise. */
 export function modelLine(group: ModelGroup): string | null {
   const described = group.entries.find((entry) => entry.description)?.description;
   if (described) return described;
   return groupName(group) !== group.handle ? group.handle : null;
 }
 
-/** An ACP agent's row's muted line: only what the agent said of the model; its handle would only repeat the tab. */
 function agentLine(group: ModelGroup): string | null {
   return group.entries.find((entry) => entry.description)?.description ?? null;
 }
 
-/** The picker's keys over its items (the filter field counts as one): ↑↓ move, Home and End jump, Esc closes. */
 export function pickerKey(key: string, at: number, count: number): { focus: number } | { close: true } | null {
   if (key === "Escape") return { close: true };
   if (count === 0) return null;
@@ -171,15 +143,10 @@ export function pickerKey(key: string, at: number, count: number): { focus: numb
   return null;
 }
 
-/** On close, focus goes back to the pill when it was inside the picker or dropped with it; a click elsewhere keeps its own. */
 export function returnsFocus(active: unknown, picker: { contains: (node: never) => boolean } | null, body: unknown): boolean {
   return !active || active === body || !!picker?.contains(active as never);
 }
 
-/**
- * The pill in the message box's bottom row: the model in the foreground, the effort after it in the muted colour
- * (only when the model offers a choice), a chevron. It opens Select model.
- */
 export function ModelPill({
   ref,
   name,
@@ -220,10 +187,8 @@ export function ModelPill({
   );
 }
 
-/** Which page of the model picker shows: the chosen harness's models, or more of loki's. */
 export type PickerView = "models" | "more";
 
-/** A model's name inside its harness's tab: an ACP agent's "Claude Code · Sonnet" is "Sonnet" there, its default "Default". */
 export function nameInHarness(group: ModelGroup, harness: Harness): string {
   const name = groupName(group);
   if (harness.id === null) return name;
@@ -231,20 +196,15 @@ export function nameInHarness(group: ModelGroup, harness: Harness): string {
   return name.startsWith(`${harness.name} · `) ? name.slice(harness.name.length + 3) : name;
 }
 
-/** The props of `ModelChoices`, the picker's content shared by the phone's sheet and the desktop's popover. */
 export interface ModelChoicesProps {
   view: PickerView;
   entries: ModelEntry[] | null;
   current: string | null;
   currentEffort: ReasoningEffort | null;
-  /** Something has been said: the chat stays on its harness, and the other tabs are locked (plan 020, KD4). */
   started?: boolean;
-  /** The harness tab showing; undefined shows the chat's own. */
   harness?: string | null;
   loading: boolean;
-  /** More models' filter. */
   query: string;
-  /** The phone's sheet: a grip and a round close; the desktop's popover has neither (Esc and a click away close it). */
   touch?: boolean;
   onView: (view: PickerView) => void;
   onHarness?: (harness: string | null) => void;
@@ -253,12 +213,6 @@ export interface ModelChoicesProps {
   onClose: () => void;
 }
 
-/**
- * What Select model shows, the same in the phone's sheet and the desktop's popover (plan 021): the harnesses as
- * tabs when there is more than one, the chosen one's models with a check on the current one (loki's as its quick
- * picks, then More models ›), and under them the checked model's effort levels when it offers several. Every choice
- * applies to this conversation.
- */
 export function ModelChoices({
   view,
   entries,
@@ -441,7 +395,6 @@ export function ModelChoices({
   );
 }
 
-/** An effort as a menu item says it, in title case ("No Reasoning", "X-High", "Medium"). */
 export function effortTitle(effort: ReasoningEffort): string {
   return effortLabel(effort).replace(/(^|[\s-])([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
 }
@@ -451,21 +404,13 @@ interface ModelPickerProps {
   current: string | null;
   currentEffort: ReasoningEffort | null;
   entries: ModelEntry[] | null;
-  /** Something has been said in the chat: its harness is fixed. */
   started?: boolean;
   loading: boolean;
   onPick: (selection: ModelSelection) => void;
   onClose: () => void;
-  /** The pill: focus goes back to it on close, and a press on it is not a click away. */
   pillRef: RefObject<HTMLButtonElement | null>;
 }
 
-/**
- * Select model, framed for where it opens: a bottom sheet on the phone (the Sheet's veil, Escape and focus return),
- * a popover over the message box on the desktop (↑↓ Home End between the items, Esc, a click away; focus returns
- * to the pill). ⌘⇧M (chat.model) opens it too. Closed, nothing is mounted, so each opening starts on the chat's own
- * harness and its short list.
- */
 export function ModelPicker({ open, ...props }: ModelPickerProps & { open: boolean }) {
   if (!open) return null;
   return <ModelPickerOpen {...props} />;
@@ -477,7 +422,6 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const loaded = entries !== null;
-  // Each view starts on its natural place: the filter in More models, else the checked row, else the first.
   useEffect(() => {
     const node = ref.current;
     const target =
@@ -485,17 +429,14 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
       node?.querySelector<HTMLElement>("[data-model-item]");
     target?.focus({ preventScroll: true });
   }, [view, loaded]);
-  // A tab chosen from the keyboard keeps the focus, so ←→ can go on to the next.
   useEffect(() => {
     const node = ref.current;
     if (!document.activeElement?.closest('[role="tablist"]')) return;
     node?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
   }, [harness]);
-  // Closing hands focus back to the pill (a tap on a phone never focused it, so the sheet's own return may have
-  // nothing to go to).
   useEffect(() => {
     const node = ref.current;
-    const pill = pillRef.current; // the pill stays in the box while the picker opens and closes
+    const pill = pillRef.current;
     return () => {
       if (returnsFocus(document.activeElement, node, document.body)) pill?.focus({ preventScroll: true });
     };
@@ -504,14 +445,12 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const items = [...(ref.current?.querySelectorAll<HTMLElement>("input, [data-model-item]") ?? [])];
     const inField = e.target instanceof HTMLInputElement;
-    // In the filter, Enter takes the first match and Home / End stay the caret's.
     if (inField && e.key === "Enter") {
       e.preventDefault();
       items.find((el) => el.hasAttribute("data-model-item"))?.click();
       return;
     }
     if (inField && (e.key === "Home" || e.key === "End")) return;
-    // ←→ on a harness tab move to the next one the chat can go to, and show it.
     const tab = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('[role="tab"]') : null;
     if (tab && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
       e.preventDefault();
@@ -548,7 +487,6 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
       onClose={onClose}
     />
   );
-  // The picker is the phone's sheet: the desktop picks its model in ⌘K (conversation.tsx, inCommand).
   const sheet = (
     <Sheet label="Select model" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-model-sheet">
       <div ref={ref} onKeyDown={onKeyDown}>

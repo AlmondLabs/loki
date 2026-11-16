@@ -2,19 +2,6 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
 import { spring } from "./spring";
 import { prefersReducedMotion } from "./motion";
 
-/**
- * A list whose order changes under you (live data: a desk pinned, an item that now waits on you) glides
- * instead of jumping, by FLIP: after React has put the rows in their new places, each keyed row that moved is
- * drawn back where it was and springs to where it is (transform only, so the compositor does it). A row
- * that is new fades in; a row that went is left behind as a picture that fades while the rows under it
- * slide up into its space.
- *
- * `order` names the arrangement (the keys in order, the folds); the hook measures only when it changes, so a
- * list that re-renders on every streamed update does no layout work until something actually moves.
- * Keyed elements are the container's `[data-flip]` elements and its `li`s with a `[data-launch]` control.
- * The container must be the scroller, positioned (phone.css), so a leaving row's picture scrolls with the rows.
- */
-
 interface Spot {
   top: number;
   left: number;
@@ -41,7 +28,6 @@ function measure(box: HTMLElement): Map<string, Spot> {
   return out;
 }
 
-/** The row that went, as it was, fading where it stood. */
 function ghost(box: HTMLElement, spot: Spot): void {
   const g = spot.el.cloneNode(true) as HTMLElement;
   g.setAttribute("data-flip-ghost", "");
@@ -62,17 +48,14 @@ function ghost(box: HTMLElement, spot: Spot): void {
   g.animate([{ opacity: 1 }, { opacity: 0, transform: "scale(0.98)" }], { duration: 200, easing: "ease-out", fill: "forwards" }).finished.then(done, done);
 }
 
-/** Makes the keyed rows of the list in `ref` glide to their new places, each time `order` changes; an undefined `order` moves nothing. */
 export function useFlip(ref: RefObject<HTMLElement | null>, order: string | undefined): void {
   const last = useRef<Map<string, Spot> | null>(null);
   useLayoutEffect(() => {
     const box = ref.current;
-    // No order (a filter being typed: nothing moves for the keyboard): start afresh next time.
     if (!box || order === undefined) {
       last.current = null;
       return;
     }
-    // Out of sight (a tab kept mounted under another): nothing to compare against when it comes back.
     if (box.getClientRects().length === 0) {
       last.current = null;
       return;

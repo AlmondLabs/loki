@@ -5,8 +5,6 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Workbench } from "../app/src/dev/workbench.tsx";
 
-// Plan 2026-11-12-1505, U2: the Liquid Glass workbench, where the foundation is approved by looking.
-
 describe("the workbench", () => {
   test("draws every section, with glass only on the floating layer", () => {
     const out = renderToStaticMarkup(createElement(Workbench));
@@ -14,7 +12,6 @@ describe("the workbench", () => {
       expect(out).toContain(`>${section}</h2>`);
     expect(out).toMatch(/class="[^"]*\bglass-strong\b/);
     expect(out).toContain('data-proposal="approval"');
-    // Apple's words, the question, no key chips; Flow's moves are toolbar symbols named for the screen reader.
     expect(out).toContain('aria-label="Mark as Read"');
     expect(out).toContain("Allow the agent to run “Edit notes.txt”?");
   });

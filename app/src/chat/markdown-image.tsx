@@ -1,12 +1,6 @@
 import { useState, type ImgHTMLAttributes } from "react";
 import "./chat.css";
 
-/**
- * Images in markdown: what an agent wrote, a memory file, a pasted prompt. A remote one (another host, not this page's
- * and not the loopback daemon) loads only when the person asks: its address can carry whatever the agent was led to
- * put there (a page it read telling it to "show" an image whose URL holds a secret), and fetching it is the leak.
- * A data: or same-origin image shows at once.
- */
 export function isRemoteImage(src: string, base: string = location.href): boolean {
   try {
     const u = new URL(src, base);
@@ -18,7 +12,6 @@ export function isRemoteImage(src: string, base: string = location.href): boolea
   }
 }
 
-/** An image in markdown: shown at once when it is local, else a button naming its host that loads it only when pressed (see `isRemoteImage`). */
 export function MarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>) {
   const [shown, setShown] = useState(false);
   if (typeof src !== "string" || !src) return null;
@@ -26,9 +19,7 @@ export function MarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>)
   let host = src;
   try {
     host = new URL(src).host;
-  } catch {
-    // shown as written
-  }
+  } catch {}
   return (
     <button type="button" className="loki-md-remote" title={src} onClick={() => setShown(true)}>
       Image from {host}
@@ -37,5 +28,4 @@ export function MarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>)
   );
 }
 
-/** react-markdown's components with images held back; spread other overrides over it. */
 export const MARKDOWN_COMPONENTS = { img: MarkdownImage } as const;

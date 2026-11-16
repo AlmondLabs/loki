@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { snappyUncompress } from "../mod/slack-snappy.ts";
 
-// Hand-built Snappy blocks, byte by byte from the format description, so each branch of the decoder is reached by
-// bytes a real LevelDB table can hold rather than by what the fixtures' own encoder happens to write.
-
 /** A literal tag for 1 to 60 bytes: its length less one in the upper six bits. */
 const literal = (text: string) => [(text.length - 1) << 2, ...Buffer.from(text, "latin1")];
 
@@ -16,7 +13,6 @@ describe("Snappy blocks from the Slack app's Local Storage (plan 067, U6)", () =
 
   test("a kind-1 copy whose offset carries three high bits in its tag reaches past 255 bytes", () => {
     // 300 bytes of literal (tag 61 << 2: two length bytes follow, 299 little-endian), then a copy of 4 from offset 260
-    // (high bits 1 in the tag, low byte 4).
     const text = Array.from({ length: 300 }, (_, i) => String.fromCharCode(97 + (i % 26))).join("");
     const block = Buffer.from([0xb0, 0x02, 61 << 2, 299 & 0xff, 299 >> 8, ...Buffer.from(text, "latin1"), (1 << 5) | 1, 4]);
     expect(snappyUncompress(block).toString("latin1")).toBe(text + text.slice(40, 44));

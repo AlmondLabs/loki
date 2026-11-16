@@ -6,12 +6,6 @@ import { useStorageKey } from "../shared/use-storage-key";
 const CHAT_WIDTH_KEY = "loki.chatWidth";
 const CHAT_PLACEMENT_KEY = "loki.chatPlacement";
 
-/**
- * Where the chat sits and whether it shows: open or closed, narrow or wide (kept in localStorage), and
- * left, centre or right. ⌘← / ⌘→ move it (⌥⌘ inside a text box). An empty desk is a conversation, so its
- * chat is centred until the first widget lands — unless you move it there; `effectivePlacement` is the
- * one to render, `chatPlacement` the preference Settings shows.
- */
 export function useChatLayout(desk: Pick<Desk, "loaded" | "connection" | "ownCount" | "scope">) {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatWidth, setChatWidthRaw] = useState<ChatWidth>(() => (localStorage.getItem(CHAT_WIDTH_KEY) === "wide" ? "wide" : "narrow"));
@@ -27,10 +21,8 @@ export function useChatLayout(desk: Pick<Desk, "loaded" | "connection" | "ownCou
     setChatPlacementRaw(p);
     localStorage.setItem(CHAT_PLACEMENT_KEY, p);
   }, []);
-  // Settings may be another window (plan 2026-11-12-1505, U18): its choice arrives here as a storage event.
   useStorageKey(CHAT_WIDTH_KEY, (v) => setChatWidthRaw(v === "wide" ? "wide" : "narrow"));
   useStorageKey(CHAT_PLACEMENT_KEY, (v) => setChatPlacementRaw(v === "center" || v === "right" ? v : "left"));
-  /** Empty desks whose chat the user moved away from the centre; state, not a ref, because render reads it. */
   const [movedOnEmpty, setMovedOnEmpty] = useState<ReadonlySet<string>>(() => new Set());
   const emptyDesk = desk.loaded && desk.connection === "open" && desk.ownCount === 0;
   const effectivePlacement: ChatPlacement = emptyDesk && !movedOnEmpty.has(desk.scope) ? "center" : chatPlacement;

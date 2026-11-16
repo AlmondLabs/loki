@@ -17,11 +17,6 @@ import {
   type RecentEntry,
 } from "../app/src/phone/session.ts";
 
-/**
- * The phone's session layer (app/src/phone/session.ts): drafts keyed by conversation, bounded recent
- * histories on the device, scroll positions by destination, and the control a route was opened from.
- */
-
 const img = (id: string) => ({ id, mediaType: "image/png", data: "", url: `blob:${id}` });
 
 describe("drafts", () => {
@@ -89,7 +84,6 @@ describe("drafts", () => {
   });
 });
 
-/** A Storage stand-in: a map, or one that throws like a private window's. */
 function memoryStorage() {
   const m = new Map<string, string>();
   return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), raw: m };
@@ -234,9 +228,8 @@ describe("focus on arrival", () => {
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
-    g.HTMLElement ??= function FakeHtmlElement() {
-      // no DOM here; restoreFocus only asks whether a launcher is one
-    };
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    g.HTMLElement ??= function FakeHtmlElement() {};
     try {
       restoreFocus(root, "#/agents", false, createFocusMemory());
     } finally {
@@ -251,7 +244,6 @@ describe("prefill", () => {
   test("a ?prefill= is held for its own conversation only", () => {
     const held = nextPrefill(null, conv("c1", "ask about x"), 5);
     expect(held).toEqual({ key: draftKey("a1", "c1"), text: "ask about x", tick: 5 });
-    // the address drops the prefill; the same conversation keeps it
     expect(nextPrefill(held, conv("c1"), 6)).toBe(held);
   });
   test("leaving its conversation drops it, so another conversation, or this one reopened, keeps its draft", () => {
@@ -265,11 +257,6 @@ describe("prefill", () => {
   });
 });
 
-/**
- * The shared composer's controlled draft (chat/use-draft.ts), wired to the phone's store the way Inbox and
- * the desk page wire it: sending clears the conversation that sent and no other, and deciding a card in
- * the review pass leaves its draft alone.
- */
 describe("drafts through the shared composer", () => {
   const card = (id: string) =>
     ({
@@ -326,7 +313,7 @@ describe("drafts through the shared composer", () => {
     const latest = { current: d.get(k) };
     const w = draftWriter(latest, (next) => d.set(k, next));
     w.setText("hello");
-    w.setImages([img("y")]); // an image decoded after the text changed: it must not bring back stale text
+    w.setImages([img("y")]);
     expect(d.get(k)).toEqual({ text: "hello", images: [img("y")] });
     w.clear();
     expect(d.keys()).toEqual([]);
@@ -345,10 +332,6 @@ describe("drafts through the shared composer", () => {
   });
 });
 
-/**
- * The full conversation page (U5): the same draft as the Inbox card, kept through everything but a send;
- * the header's live line; the notice over the box; and how much of the screen the keyboard takes.
- */
 describe("the conversation page", () => {
   const card = (over: Partial<AttentionItem> = {}) =>
     ({ id: "c:1/x", agent_id: "agent-1", agent_name: "friday", title: "Loki mobile", status: "done", ...over }) as unknown as AttentionItem;
@@ -364,10 +347,10 @@ describe("the conversation page", () => {
     const k = draftKey("agent-1", "survives");
     drafts.set(k, { text: "half a thought", images: [img("p")] });
     const offCard = drafts.subscribe(k, () => {});
-    offCard(); // the Inbox card leaves (a tab change, the page opening over it)
+    offCard();
     const offPage = drafts.subscribe(k, () => {});
     expect(drafts.get(k)).toEqual({ text: "half a thought", images: [img("p")] });
-    offPage(); // back out of the page, or the socket drops and the screen re-renders without it
+    offPage();
     expect(drafts.get(k).text).toBe("half a thought");
     drafts.clear(k);
   });

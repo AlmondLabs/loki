@@ -3,15 +3,6 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { writeJsonAtomic } from "../mod/json-file.ts";
 
-/**
- * loki's own config the same on every paired Mac (plan 023, U10, KTD10, R20): the MCP servers in mcp.json, entry by
- * entry, and the mods folder, file by file (mod/recall-sync.ts filesSnapshot). An entry's last change is noticed by
- * comparing it with what this Mac saw last (a manifest beside the state), so an edit by hand counts like one in
- * Settings, and the later change wins on every Mac; a server removed on one Mac is removed on the others. Secrets stay
- * `${keychain:…}` references, so a server whose secret a Mac lacks is listed as missing there (R21), never copied.
- * The "always allow" list (state/approvals.json) is not here: a command allowed on one Mac's files is not on another's.
- */
-
 /** One server entry as it travels, and when it last changed (ISO). */
 export interface McpEntry {
   value: unknown;
@@ -54,7 +45,6 @@ function readManifest(path: string): Manifest {
   }
 }
 
-/** Look again: an entry new or different since last seen changed now, one gone was removed now. */
 function refresh(configPath: string, manifestPath: string, now: string) {
   const raw = readRaw(configPath);
   const m = readManifest(manifestPath);
@@ -75,7 +65,6 @@ function refresh(configPath: string, manifestPath: string, now: string) {
   return { raw, m };
 }
 
-/** This Mac's MCP servers and removals, for a paired Mac. */
 export function mcpSnapshot(configPath: string, manifestPath: string, now = new Date().toISOString()): McpSnapshot {
   const { raw, m } = refresh(configPath, manifestPath, now);
   const servers: Record<string, McpEntry> = {};
@@ -83,7 +72,6 @@ export function mcpSnapshot(configPath: string, manifestPath: string, now = new 
   return { servers, removed: { ...m.removed } };
 }
 
-/** Take a paired Mac's servers: each entry changed or removed there later is written here. True when mcp.json moved. */
 export function applyMcp(configPath: string, manifestPath: string, theirs: McpSnapshot, now = new Date().toISOString()): boolean {
   const { raw, m } = refresh(configPath, manifestPath, now);
   const mine = (entry: string) =>
@@ -112,7 +100,6 @@ export function applyMcp(configPath: string, manifestPath: string, theirs: McpSn
   return moved;
 }
 
-/** loki's mods folder as files: everything but node_modules and dotfiles, by path under the folder. */
 export function listModFiles(dir: string): Record<string, number> {
   const out: Record<string, number> = {};
   const walk = (d: string) => {
@@ -134,6 +121,5 @@ export function listModFiles(dir: string): Record<string, number> {
   return out;
 }
 
-/** Whether a mod file path may be written: inside the folder, no dotfiles, no node_modules. */
 export const isModPath = (path: string): boolean =>
   !!path && !path.startsWith("/") && path.split("/").every((p) => p !== "" && p !== ".." && !p.startsWith(".") && p !== "node_modules");

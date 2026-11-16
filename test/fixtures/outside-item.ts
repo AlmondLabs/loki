@@ -1,10 +1,6 @@
 import type { AttentionItem } from "../../core/attention/model.ts";
 import { attentionItem } from "./attention.ts";
 
-/**
- * An outside Inbox card (plan 067, U3): one unread Gmail thread, keyed by its account and thread rather than by an
- * agent and a chat, so nothing should open it as a chat.
- */
 export const outsideItem = (title: string, over: Partial<AttentionItem> = {}): AttentionItem =>
   attentionItem("t1#1", {
     kind: "outside",
@@ -32,10 +28,6 @@ export const outsideItem = (title: string, over: Partial<AttentionItem> = {}): A
     ...over,
   });
 
-/**
- * An open Jira card (plan 2026-11-10-1451): ticket OPS-7 of a watched site, its thread the ticket's numeric id and its
- * newest event someone else's comment.
- */
 export const jiraItem = (over: Partial<AttentionItem> = {}): AttentionItem =>
   attentionItem("10001#1", {
     kind: "outside",

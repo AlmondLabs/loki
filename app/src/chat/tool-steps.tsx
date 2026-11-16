@@ -16,38 +16,16 @@ import {
   workSummary,
 } from "../shared/tool-steps";
 
-/**
- * A stretch of the agent's work in the thread (tool calls, background tasks, skills it loaded), as one quiet line:
- * "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed ›", "Working" while it runs. When a step
- * failed, its name sits under the closed line in red, and a click opens the stretch at it. Opened, every step is a
- * line, in order, in one flat list: the named ones (background tasks, commands, agents, anything that failed) in
- * full, the housekeeping (reads, searches, edits, skills) quieter; chips filter a long stretch. A step opens its command and
- * output under it, one at a time, inline on the desktop; on the phone the same list is a bottom sheet and a step
- * opens in it, with a way back. The wording is shared/tool-steps.ts.
- */
-
-/** The conversation is the phone's (Conversation's `touch`): steps open as a bottom sheet rather than in place. */
 export const StepsTouch = createContext(false);
 
-/**
- * Fetches what a history page left out of a lean row: a tool row's whole step (plan 041) or an event's whole detail
- * (plan 043); null where nothing can.
- */
 export const StepsLoad = createContext<((row: number) => Promise<WholeRow | null>) | null>(null);
 
-/** Lean rows already filled, by the row: opening one again does not ask again. */
 const fetched = new WeakMap<TranscriptRow, WholeRow>();
 
-/** What a row is shown with when opened, from the row itself: its step, or an event's detail. */
 const ownWhole = (row: TranscriptRow): WholeRow => ({ step: row.tool ?? null, detail: row.detail ?? null });
 
-/** Whether `whole` has what `row` is opened for: an event's detail, a tool row's step. */
 const fills = (row: TranscriptRow, whole: WholeRow | null): whole is WholeRow => (row.role === "event" ? !!whole?.detail : !!whole?.step);
 
-/**
- * A row as it shows opened: its own step or detail, or for a lean one (plans 041 and 043) what the page left out,
- * asked for from the Mac the chat lives on. "loading" until it comes, "failed" with a retry when it does not.
- */
 export function useWhole(row: TranscriptRow): { whole: WholeRow | undefined; state: "ready" | "loading" | "failed"; retry: () => void } {
   const load = useContext(StepsLoad);
   const lean = row.tool?.row ?? row.row;
@@ -78,7 +56,6 @@ export function useWhole(row: TranscriptRow): { whole: WholeRow | undefined; sta
   };
 }
 
-/** "Could not load this step." with a way to try again, for a lean row whose rest did not come. */
 function NotLoaded({ retry }: { retry: () => void }) {
   return (
     <p className="loki-steps-none">
@@ -90,10 +67,6 @@ function NotLoaded({ retry }: { retry: () => void }) {
   );
 }
 
-/**
- * A stretch of the agent's work as one quiet line in the thread that opens to every step, in place on the desktop and
- * as a bottom sheet on the phone (`StepsTouch`).
- */
 export const ToolSteps = memo(
   function ToolSteps({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived?: true }) {
     const rows = withoutSkillCalls(all);
@@ -132,15 +105,12 @@ export const ToolSteps = memo(
       </div>
     );
   },
-  // The host slices a fresh array each render; the run is the same while its rows are.
   (a, b) => a.running === b.running && a.arrived === b.arrived && a.rows.length === b.rows.length && a.rows.every((r, i) => r === b.rows[i]),
 );
 
-/** One step's two lines: the verb, and what it was done to; a failed step says so. */
 function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: boolean }) {
   const target = stepTarget(row);
   const verb = stepVerb(stepName(row));
-  // The phone reads as Claude's app does (plan 038): what kind of step on top, what it was for under it on one line.
   const [first, second] = verbFirst || !target ? [verb, target] : [target, verb];
   return (
     <span className="loki-steps-text">
@@ -153,12 +123,10 @@ function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: 
   );
 }
 
-/** A step's input and output, as they were recorded; a background task's notice carries its result; older rows kept neither. */
 export function StepDetail({ row }: { row: TranscriptRow }) {
   return row.role === "event" ? <EventResult row={row} /> : <ToolDetail row={row} />;
 }
 
-/** A background task's or skill's notice opened as a step: its detail, a lean one's (plan 043) fetched when it opens. */
 function EventResult({ row }: { row: TranscriptRow }) {
   const { whole, state, retry } = useWhole(row);
   if (state === "loading") return <p className="loki-steps-none">Loading this step…</p>;
@@ -177,10 +145,6 @@ function EventResult({ row }: { row: TranscriptRow }) {
   );
 }
 
-/**
- * An event row's detail under its line, opened (`EventRow` in transcript.tsx): the row's own, or a lean one's (plan
- * 043) fetched now, so a closed row never asks.
- */
 export function EventDetail({ row }: { row: TranscriptRow }) {
   const { whole, state, retry } = useWhole(row);
   if (state === "loading") return <p className="loki-steps-none">Loading…</p>;
@@ -188,7 +152,6 @@ export function EventDetail({ row }: { row: TranscriptRow }) {
   return whole?.detail ? <pre className="loki-event-detail">{whole.detail}</pre> : null;
 }
 
-/** A tool call's description, input and output; a lean one's (plan 041) fetched when it opens. */
 function ToolDetail({ row }: { row: TranscriptRow }) {
   const { whole, state, retry } = useWhole(row);
   const t = whole?.step ?? undefined;
@@ -224,9 +187,7 @@ function ToolDetail({ row }: { row: TranscriptRow }) {
   );
 }
 
-/** Which steps of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";
-/** Past this many steps a stretch offers the filter chips. */
 const FILTER_FROM = 8;
 const CHIPS: ReadonlyArray<[Filter, string]> = [
   ["all", "All"],
@@ -236,10 +197,8 @@ const CHIPS: ReadonlyArray<[Filter, string]> = [
 ];
 const KEEP: Record<Filter, (row: TranscriptRow) => boolean> = { all: () => true, failed: stepFailed, steps: isNamedStep, housekeeping: (r) => !isNamedStep(r) };
 
-/** The steps a filter keeps, by their index in the stretch. */
 const shownSteps = (rows: TranscriptRow[], f: Filter): number[] => rows.flatMap((r, k) => (KEEP[f](r) ? [k] : []));
 
-/** The chips over a long stretch: all of it, what failed, the named steps, the housekeeping; each with its count. */
 function Filters({ rows, value, onChange }: { rows: TranscriptRow[]; value: Filter; onChange: (f: Filter) => void }) {
   if (rows.length <= FILTER_FROM) return null;
   return (
@@ -257,7 +216,6 @@ function Filters({ rows, value, onChange }: { rows: TranscriptRow[]; value: Filt
   );
 }
 
-/** A step's line in the open list: its icon (a cross when it failed) and its two lines; housekeeping reads quieter. */
 function StepLine({ row, size, verbFirst = false }: { row: TranscriptRow; size: number; verbFirst?: boolean }) {
   return (
     <>
@@ -267,7 +225,6 @@ function StepLine({ row, size, verbFirst = false }: { row: TranscriptRow; size: 
   );
 }
 
-/** The desktop's: the stretch in place under its line, one flat list; a step opens its detail under it, one at a time. */
 function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: number | null; onOpen: (at: number | null) => void }) {
   const [filter, setFilter] = useState<Filter>(openAt !== null && stepFailed(rows[openAt]) && rows.length > FILTER_FROM ? "failed" : "all");
   return (
@@ -293,7 +250,6 @@ function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: nu
   );
 }
 
-/** The phone's: a bottom sheet of the stretch on a timeline; a step opens in the same sheet, Back returns to the list. */
 function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; title: string; start: number | null; onClose: () => void }) {
   const [at, setAt] = useState<number | null>(start);
   const step = at === null ? null : rows[at];

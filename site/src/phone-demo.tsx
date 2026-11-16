@@ -5,11 +5,8 @@ import type { SuggestionSource } from "../../app/src/chat/suggestion-card";
 import "../../app/src/phone/phone.css";
 import { DEMO_AGENTS, DemoChats } from "./demo-chats";
 
-/** The phone at full size: a current iPhone's 393 × 852 point screen in its bezel. */
 const PHONE = { w: 393 + 22, h: 852 + 22 };
-/** Room the page keeps above and below the phone: the sticky bar and a margin. */
 const PAGE_ROOM = 120;
-/** Smaller than this the phone's words stop being readable, so a short window scrolls instead. */
 const MIN_SCALE = 0.62;
 
 /**
@@ -31,8 +28,6 @@ export function PhoneDemo() {
     agentsLoaded: true,
     suggestions: { decide: chats.decideSuggestion, retarget: chats.retargetSuggestion },
   };
-  // The made-up chats' moves: Read marks a chat read, Later leaves it for this visit, Archive archives, and Undo takes
-  // back whichever it was. Nothing rests and nothing is out there, so Later never asks and there are no labels.
   const [taken] = useState(() => new Map<string, "read" | "later" | "archive">());
   const moved: MoveResult = { error: null, ask: false, rest: null };
   const moves: InboxMoves = {
@@ -54,8 +49,6 @@ export function PhoneDemo() {
     chats.reset();
     deck.again();
   };
-  // The phone lays out at its real size and is scaled down as a whole to fit the column and the window, so the
-  // app inside always has a phone's width to work with.
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   useEffect(() => {

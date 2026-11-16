@@ -17,7 +17,6 @@ describe("a reply still being written, in blocks (plan 039)", () => {
     const code = "Run this:\n\n```ts\nconst a = 1;\n\nconst b = 2;\n```\n\nThen this.";
     expect(texts(code)).toEqual(["Run this:", "```ts\nconst a = 1;\n\nconst b = 2;\n```", "Then this."]);
     expect(texts("Run this:\n\n~~~~\nfirst\n\nsecond")).toEqual(["Run this:", "~~~~\nfirst\n\nsecond"]);
-    // A shorter or different fence inside does not close it.
     expect(texts("````md\n```\n\nstill code\n````\n\nafter")).toEqual(["````md\n```\n\nstill code\n````", "after"]);
   });
 
@@ -53,7 +52,6 @@ describe("the transcript draws a streaming reply in blocks (plan 039)", () => {
       }),
     );
   // What a reader sees: the words without their spans, the cursor and the live class left out, and without the line
-  // breaks react-markdown puts between blocks when it draws them in one go (whitespace between blocks draws nothing).
   const seen = (html: string) =>
     html
       .replace(/<span class="loki-word">([^<]*)<\/span>/g, "$1")
@@ -61,8 +59,6 @@ describe("the transcript draws a streaming reply in blocks (plan 039)", () => {
       .replace(" loki-md--live", "")
       .replace(/>\n</g, "><");
 
-  // The reply's body alone (the last message's): a finished reply also gets its copy button, which a streaming one
-  // waits for.
   const body = (html: string) => {
     const at = html.lastIndexOf('<div class="loki-md');
     return html.slice(at, html.indexOf("</div></div>", at));

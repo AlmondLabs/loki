@@ -1,80 +1,50 @@
-/**
- * Learn's conversation with the model (daemon/learn.ts), as pure text in and text out: the prompt that asks for
- * cards from a stretch of transcript, and the parser for what comes back. What makes a good card lives here as
- * words — a concept, a principle or lasting domain knowledge, never a one-off detail of the task; a question that
- * stands alone; an answer that fits on a line — and the rejected pile is quoted back so a deleted card never
- * returns reworded.
- */
 export interface Candidate {
   front: string;
   back: string;
   tags: string[];
-  /** Which slice it came from (Slice.id); missing or unknown falls back to the first new slice. */
   slice?: string;
 }
-/** A change the model proposes to an existing card, named by its id: a new front, a new back, or both. */
 export interface Revision {
   id: string;
   front?: string;
   back?: string;
-  /** One line on what changed and why (shown next to "updated"). */
   reason: string;
   slice?: string;
 }
-/** A learning lead the model proposes: a concept worth a lesson, the moment that raised it, and whether one sitting would do (primer) or it takes several (course). */
 export interface LeadCandidate {
   title: string;
   why: string;
   depth: "primer" | "course";
   slice?: string;
 }
-/** Everything parseExtraction read out of the model's answer: new cards, revisions and leads; empty arrays when it gave nothing usable. */
 export interface Extraction {
   cards: Candidate[];
   revisions: Revision[];
   leads: LeadCandidate[];
 }
 
-/**
- * One stretch of one conversation in the call. `new` is unread text the cursors move past once answered;
- * `replay` was read before and is here for a rewrite of a failing card — nothing new is written from it.
- */
 export interface Slice {
-  /** The label the model answers with: s1, s2 … */
   id: string;
   title: string | null;
   mode: "new" | "replay";
-  /** For a replay: the failing card it is here for. */
   forCard?: string;
-  /** "you: …" / "<agent>: …" lines, tool calls dropped (recall-worker.ts formatTranscript). */
   text: string;
 }
 
-/** What buildPrompt needs for one call: the slices to read, the cards already kept, failing and deleted, today's room, and the leads already seen. */
 export interface PromptInput {
-  /** Who was talking, for the model's orientation. */
   agentName: string | null;
-  /** The stretches, most worth reading first; at least one. */
   slices: Slice[];
-  /** Existing cards whose wording overlaps the slices (front + id), so nothing is written twice and revisions can name their target. */
   existing: Array<{ id: string; front: string; back: string }>;
-  /** Recently deleted cards: the strongest signal of what is not wanted. */
   rejected: Array<{ front: string; back: string; reps: number }>;
-  /** How many new cards may still be written today, across every slice. */
   room: number;
-  /** Cards the person keeps failing; the model should rewrite or split them. */
   failing: Array<{ id: string; front: string; back: string }>;
-  /** Learning leads already proposed, started, or dismissed: none of these may be proposed again. */
   leads?: { open: string[]; started: string[]; dismissed: string[]; room: number };
 }
 
-/** Leads per new slice per call; more than this is a list, not a judgement. */
 export const LEADS_PER_CONVERSATION = 2;
 
-/** A slice longer than this is cut to its tail: the end of a stretch is where it got somewhere. */
 export const MAX_TRANSCRIPT_CHARS = 24_000;
 
-/** The prompt for one Learn call: what makes a card worth writing, the slices, the cards to avoid repeating or to rewrite, and the JSON shape to answer in. */
 export function buildPrompt(input: PromptInput): string {
   const who = input.agentName ?? "the agent";
   const fresh = input.slices.filter((s) => s.mode === "new");
@@ -162,10 +132,6 @@ export function buildPrompt(input: PromptInput): string {
   return lines.join("\n");
 }
 
-/**
- * The first message of a lesson, sent on the person's behalf when they start a lead: what to teach, where
- * it came up, and how — the desk first, questions before answers, one idea at a time, a cold quiz to close.
- */
 export function lessonBrief(lead: { title: string; why: string; depth: "primer" | "course"; source: { title: string | null } }): string {
   const sittings = lead.depth === "primer" ? "one sitting" : "three to five sittings";
   const where = lead.source.title ? `It came up in "${lead.source.title}"` : "It came up in one of our conversations";
@@ -178,10 +144,8 @@ export function lessonBrief(lead: { title: string; why: string; depth: "primer" 
 }
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, 240);
-/** A title inside a slice tag's quotes. */
 const attr = (s: string) => oneLine(s).replaceAll('"', "'").slice(0, 80);
 
-/** The model's reply, forgiving of fences and prose around the JSON. Malformed → nothing. */
 export function parseExtraction(text: string, knownIds: Set<string>, opts: { maxLeads?: number } = {}): Extraction {
   const maxLeads = opts.maxLeads ?? LEADS_PER_CONVERSATION;
   const none: Extraction = { cards: [], revisions: [], leads: [] };
@@ -237,7 +201,6 @@ export function parseExtraction(text: string, knownIds: Set<string>, opts: { max
   return { cards, revisions, leads };
 }
 
-/** The slice label on an answer item, when the model gave one. */
 function sliceOf(r: Record<string, unknown>): { slice?: string } {
   const v = str(r.slice);
   return v ? { slice: v } : {};
@@ -254,10 +217,6 @@ function extractJson(text: string): string | null {
   return start >= 0 && end > start ? body.slice(start, end + 1) : null;
 }
 
-/**
- * Near-duplicate check for a candidate against cards and rejections: the same front once question words
- * and punctuation are dropped, or one front contained in the other and making up most of it.
- */
 export function similarFront(a: string, b: string): boolean {
   const na = norm(a);
   const nb = norm(b);

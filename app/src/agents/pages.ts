@@ -1,25 +1,12 @@
-/**
- * The pages of an agent, the tabs under its header (app/src/agents/agents.tsx), in the order they are listed.
- * profile: who it is and where it works. memory: the files, read. changes: what it learned, as a
- * timeline of commits. reflection: the daemon's reflection pass — when it fires, how it merges, each
- * conversation's count, a pass by hand. skills: its own and the installed ones, with refresh. Global
- * skills are not an agent's and live in Preferences › Skills. The phone's Agent screen uses profile,
- * memory, changes and skills as headings in one scroll.
- */
 export type AgentPage = "profile" | "memory" | "changes" | "reflection" | "skills";
-/** Every agent page, in the order the tabs list them. */
 export const AGENT_PAGES: readonly AgentPage[] = ["profile", "memory", "changes", "reflection", "skills"];
-/** The page is remembered for the window, like Settings' (sessionStorage). */
 export const AGENT_PAGE_KEY = "loki.agentsPage";
-/** Where a first visit lands: the reading room. */
 export const DEFAULT_AGENT_PAGE: AgentPage = "memory";
 
-/** Whether a value (a remembered page, say) names an agent page. */
 export function isAgentPage(v: unknown): v is AgentPage {
   return typeof v === "string" && (AGENT_PAGES as readonly string[]).includes(v);
 }
 
-/** One-line hints under each page title. */
 export const AGENT_PAGE_HINT: Record<AgentPage, string> = {
   profile: "Who it is, and where it is working",
   memory: "What it knows, file by file",
@@ -28,7 +15,6 @@ export const AGENT_PAGE_HINT: Record<AgentPage, string> = {
   skills: "Its own, and the ones installed from elsewhere",
 };
 
-/** The tab labels under the agent's header, Slack's "Messages | Canvas | Files" voice. */
 export const AGENT_PAGE_LABEL: Record<AgentPage, string> = {
   profile: "Profile",
   memory: "Memory",

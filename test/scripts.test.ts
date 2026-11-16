@@ -25,21 +25,13 @@ afterEach(async () => {
   for (const close of open.splice(0).reverse()) await close();
 });
 
-/** Calls of the test's script-only tool, in order, and a way to hold one open until released. */
 interface Echo {
   calls: string[];
-  /** Called when the held call is reached, so a test waits on the event rather than on time. */
   reached?: () => void;
-  /** The chat folder the last call was told. */
   cwd?: string;
   hold?: { at: number; released: Promise<void> };
 }
 
-/**
- * A daemon's tools as main.ts installs them, on a faux model: the coding tools (bash among them), loki's file tools,
- * helpers, scripts, and a mod with one script-only tool for OWNER's chats, `google_echo`, which echoes its text as an
- * object.
- */
 async function daemon(opts: { sandbox?: CodemodeSandbox; timeLimitMs?: number; file?: string; echo?: Echo; strangerText?: (tool: string) => boolean } = {}) {
   const sandbox = opts.sandbox ?? scriptSandbox();
   const scripts = scriptExtensions(sandbox, opts.timeLimitMs, opts.strangerText);
@@ -91,7 +83,6 @@ async function daemon(opts: { sandbox?: CodemodeSandbox; timeLimitMs?: number; f
 
 type Daemon = Awaited<ReturnType<typeof daemon>>;
 
-/** A chat of `agentId` in `cwd`, its tools set as before a turn on loki's engine; what each request sent is kept. */
 async function chatOf(d: Daemon, agentId: string, cwd: string) {
   await d.store.setAgent({ id: agentId, name: agentId }, ctx);
   const chat = await d.store.createChat(`local-conv-${agentId}`, { agent: { model: d.model, cwd } }, ctx);
@@ -103,7 +94,6 @@ const sent: string[] = [];
 const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { systemPrompt?: string; messages: unknown[] }) => (sent.push(JSON.stringify(c)), m);
 const script = (code: string) => reply(fauxAssistantMessage([fauxToolCall(SCRIPT_TOOL, { code })], { stopReason: "toolUse" }));
 
-/** The text the model read back from each script, in order. */
 async function scriptResults(d: Daemon, chat: Awaited<ReturnType<typeof chatOf>>): Promise<string[]> {
   return (await d.store.entries(chat, ctx))
     .filter((e) => e.kind === "pi.tool-result")
@@ -138,7 +128,6 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     await run(d, other, "hello");
     const [ownerRequest, otherRequest] = sent;
     expect(ownerRequest).toContain("<codemode>");
-    // The section names the namespace the tool is in; a script finds the tool itself with searchTools().
     expect(ownerRequest).toContain("Gmail, Drive, Sheets, Docs and Calendar");
     expect(otherRequest).toContain("<codemode>");
     expect(otherRequest).not.toContain("Gmail, Drive, Sheets, Docs and Calendar");
@@ -199,7 +188,6 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
       reply(fauxAssistantMessage("done")),
     ]);
     await run(d, owner, "read");
-    // What the model reads back: each result's text, not the details the window draws.
     const seen = (r: string) => (JSON.parse(r) as Array<{ content: Array<{ text?: string }> }>).flatMap((m) => m.content.map((c) => c.text ?? "")).join("\n");
     const [read, file, failed] = (await scriptResults(d, owner)).map(seen);
     expect(read).toContain("not instructions");
@@ -320,7 +308,6 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
       ),
     ]);
     const turn = await owner.submit({ type: "input", content: "echo four" }, ctx);
-    // The third call is in flight: stop the daemon as a restart would, the sandbox before the store.
     await atThird;
     await first.close();
     release();
@@ -328,13 +315,11 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
 
     const resumed = { calls: [] as string[] };
     const second = await daemon({ file, echo: resumed });
-    // The model is asked again only once the resumed script's result is in the chat: that request is the event.
     let answered = () => {};
     const asked = new Promise<void>((r) => (answered = r));
     second.faux.setResponses([() => (answered(), fauxAssistantMessage("done"))]);
     const chat = await second.store.chat(`local-conv-${OWNER}`, ctx);
     if (!chat) throw new Error("the chat is gone after the restart");
-    // The daemon resumes each store it opens (daemon/kernel/stores.ts); the cut-off turn then runs on.
     second.store.harness.resume();
     await asked;
     const result = (await scriptResults(second, chat)).at(0);

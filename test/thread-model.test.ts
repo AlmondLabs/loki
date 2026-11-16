@@ -59,7 +59,6 @@ describe("one row per tool call", () => {
     push(l, approval("AskUserQuestion", "approval-9"));
     push(l, approval("AskUserQuestion", null));
     expect(tools(l.thread.rows()).length).toBe(1);
-    // a genuinely new call of the same tool after some text is a new row
     push(l, piece("and again"));
     push(l, call("AskUserQuestion", "t2"));
     expect(tools(l.thread.rows()).length).toBe(2);
@@ -82,7 +81,6 @@ describe("one row per tool call", () => {
     expect(tools(foldSteps([approval("Bash", "p1")]))).toMatchObject([{ tool: { name: "Bash", id: "p1" } }]);
     const rows = foldSteps([call("Bash", "c1"), { kind: "assistant", text: "one more", at: null }, approval("Bash", "p2")]);
     expect(tools(rows).map((r) => r.tool?.id)).toEqual(["c1", "p2"]);
-    // a call that already came back is not open either
     expect(tools(foldSteps([call("Bash", "c1"), { kind: "result", id: "c1", output: "ok", failed: false }, approval("Bash", "p3")])).length).toBe(2);
   });
 
@@ -108,13 +106,13 @@ describe("the live thread", () => {
     const l = emptyLive();
     l.thread.own({ role: "user", text: "hello" }, "hello");
     push(l, user("hello"));
-    expect(l.thread.rows()).toMatchObject([{ role: "user", text: "hello" }]); // echo recognised
+    expect(l.thread.rows()).toMatchObject([{ role: "user", text: "hello" }]);
     applyChatEvent(l, { kind: "loop", state: "running" });
     expect(chatStatusOf(l)).toBe("thinking");
     push(l, piece("Let me "));
     expect(chatStatusOf(l)).toBe("streaming");
     push(l, call("Bash", "t1"));
-    push(l, call("Bash", "t1")); // same call, more deltas
+    push(l, call("Bash", "t1"));
     expect(l.thread.rows()).toMatchObject([
       { role: "user", text: "hello" },
       { role: "assistant", text: "Let me" },
@@ -125,7 +123,6 @@ describe("the live thread", () => {
     expect(rowsOf(l.thread).at(-1)).toMatchObject({ role: "assistant", text: "done." });
     expect(l.lastAssistantText).toBe("done.");
     expect(chatStatusOf(l)).toBe("idle");
-    // a message typed elsewhere (Desktop) shows up as a user row
     push(l, user("from desktop"));
     expect(rowsOf(l.thread).at(-1)).toMatchObject({ role: "user", text: "from desktop" });
   });
@@ -137,7 +134,6 @@ describe("the live thread", () => {
       { role: "event", text: "canvas activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
       { role: "user", text: "build it" },
     ]);
-    // a message that is only machinery changes the thread but is not the user speaking
     const r = push(l, user('<skill_content name="unslop">\n# Unslop\n</skill_content>'));
     expect(r).toEqual({ changed: true, userSpoke: false });
     expect(rowsOf(l.thread)[2]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
@@ -165,7 +161,6 @@ describe("the live thread", () => {
     t.own({ role: "user", text: "look", images: ["data:image/png;base64,x"] }, ownSendKey("look"));
     expect(t.apply({ kind: "user", raw: "look\n[image]", at: null }).spoke).toBe("look\n[image]");
     expect(rowsOf(t).length).toBe(1);
-    // a picture sent alone is known again too: its echo is nothing but the [image] line
     t.own({ role: "user", text: "", images: ["data:image/png;base64,y"] }, ownSendKey(""));
     t.apply({ kind: "user", raw: "[image]", at: null });
     expect(rowsOf(t).map((r) => r.text)).toEqual(["look", ""]);
@@ -198,9 +193,9 @@ describe("slash command rows", () => {
   const at = "2026-09-23T09:00:00.000Z";
   test("a row the harness began with its own wording is finished by the app's: no second row, nothing left running", () => {
     const t = new ThreadModel();
-    t.beginCommand("reload", at); // slash_command_start, the harness's text
+    t.beginCommand("reload", at);
     expect(t.commandRunning("/reload")).toBe(true);
-    t.finishCommand("/reload", true, "reloaded", at); // the app's own answer path
+    t.finishCommand("/reload", true, "reloaded", at);
     expect(t.rows()).toHaveLength(1);
     expect(rowsOf(t)[0].summary).toBe("reloaded");
     expect(t.commandRunning("/reload")).toBe(false);
@@ -228,25 +223,21 @@ describe("slash command rows", () => {
     expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "running…" }]);
     applyChatEvent(l, { kind: "command", phase: "end", input: "/reload", output: "Reloaded 2 mods.", success: true });
     expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "Reloaded 2 mods.", detail: null }]);
-    // A long output goes behind the disclosure; a failure says so.
     applyChatEvent(l, { kind: "command", phase: "start", input: "/compact all" });
     applyChatEvent(l, { kind: "command", phase: "end", input: "/compact all", output: "line one\nline two", success: false });
     expect(rowsOf(l.thread)[1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
-    // A short failure says why on the row itself.
     applyChatEvent(l, { kind: "command", phase: "start", input: "/doctor" });
     applyChatEvent(l, { kind: "command", phase: "end", input: "/doctor", output: "a memory review of this agent is already running", success: false });
     expect(rowsOf(l.thread).find((r) => r.text === "/doctor")).toMatchObject({
       summary: "failed: a memory review of this agent is already running",
       detail: null,
     });
-    // An end without a start still lands as a row.
     applyChatEvent(l, { kind: "command", phase: "end", input: "/clear", output: "Cleared.", success: true });
     expect(rowsOf(l.thread).find((r) => r.text === "/clear")).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
   });
 });
 
 describe("pages by position (plan 033)", () => {
-  // The chat's whole thread: row n says "row n", every few a tool call, so pages can be cut anywhere.
   const thread = (n: number): HistoryRow[] =>
     Array.from({ length: n }, (_, i) =>
       i % 5 === 4
@@ -293,7 +284,6 @@ describe("pages by position (plan 033)", () => {
     t.load(all.slice(20), 20);
     t.prepend(all.slice(10, 20), 10);
     const was = rowsOf(t);
-    // Two more rows were written since; the newest page now starts at 22, and row 24's tool got its result.
     const now = [...thread(32)];
     now[24] = { ...now[24], tool: { name: "Read", id: "t24", input: "24.ts", output: "done" } };
     t.load(now.slice(22), 22);
@@ -394,7 +384,6 @@ describe("a history page arriving", () => {
       { role: "assistant", text: "done" },
     ]);
     expect(rowsOf(t).map((r) => r.at)).toEqual([t1001, t1002]);
-    // a page's own time wins
     t.load([
       { role: "user", text: "ok", at: "2026-10-09T09:59:59Z" },
       { role: "assistant", text: "done" },
@@ -410,20 +399,19 @@ describe("a history page arriving", () => {
     ];
     t.load(page);
     t.own({ role: "user", text: "yes", at: "2026-10-09T10:05:00.000Z" }, "yes");
-    t.load(page); // read before the log held the new "yes"
+    t.load(page);
     expect(rowsOf(t).map((r) => [r.text, r.at])).toEqual([
       ["yes", "2026-10-09T10:00:00.000Z"],
       ["done A", "2026-10-09T10:00:05.000Z"],
       ["yes", "2026-10-09T10:05:00.000Z"],
     ]);
-    // once the log holds it, it pairs and goes
     t.load([...page, { role: "user", text: "yes", at: "2026-10-09T10:05:01.000Z" }]);
     expect(rowsOf(t).map((r) => r.text)).toEqual(["yes", "done A", "yes"]);
   });
 
   test("a picture you sent pairs with the page's [image] row, whatever the sending device's clock says", () => {
     const t = new ThreadModel();
-    t.own({ role: "user", text: "look", images: ["data:image/png;base64,x"], at: "2026-10-09T10:09:00.000Z" }, "look"); // a phone running ahead
+    t.own({ role: "user", text: "look", images: ["data:image/png;base64,x"], at: "2026-10-09T10:09:00.000Z" }, "look");
     t.load([{ role: "user", text: "look\n[image]", at: "2026-10-09T10:00:00.000Z" }]);
     expect(rowsOf(t).map((r) => r.text)).toEqual(["look\n[image]"]);
   });
@@ -464,7 +452,6 @@ describe("a message sent from a suggestion (plan 049, KTD6)", () => {
   });
 
   test("from a history page, the reloaded row keeps the link", () => {
-    // The daemon folds the store into rows and sends them lean (daemon/chats.ts, mod/frames/history.ts); the app loads the page.
     const page: HistoryRow[] = leanPage(foldSteps([user(sent, at0), said("On it.", at0)]), 0);
     const t = new ThreadModel();
     t.load(page);
@@ -489,7 +476,6 @@ describe("every source makes the same thread", () => {
   const args = '{"command":"rm -rf build","description":"Clean the build"}';
 
   test("the history and the live stream fold to equal rows", () => {
-    // The chat's history for the conversation.
     const fromHistory = foldSteps([
       user(`read this ${report}`, dates[0]),
       said("On it.", dates[1]),
@@ -500,7 +486,6 @@ describe("every source makes the same thread", () => {
       said("Two parts,\none reply.", dates[4]),
     ]);
 
-    // The same turn as it streams in, the reply in pieces.
     const l = emptyLive();
     push(l, user(`read this ${report}`), dates[0]);
     push(l, piece("On "), dates[1]);
@@ -549,8 +534,7 @@ describe("rows keep their identity until they change", () => {
     expect(second[1]).toBe(first[1]);
     expect(second[2]).not.toBe(first[2]);
     expect(second[2].text).toBe("Let me");
-    expect(rowsOf(l.thread)[2]).toBe(second[2]); // nothing new: the same streaming row
-    // the command's row is finished in place: its snapshot is new, the others stay
+    expect(rowsOf(l.thread)[2]).toBe(second[2]);
     l.thread.finishCommand("/reload", true, "reloaded", "2026-09-23T09:00:04.000Z");
     const third = rowsOf(l.thread);
     expect(third[0]).toBe(first[0]);
@@ -590,7 +574,6 @@ describe("rows keep their identity until they change", () => {
       expect(rowsOf(t), `${what}, read again`).toBe(after);
       before = after;
     }
-    // A step that moves nothing (a piece with no text) leaves the array as it was.
     t.apply({ kind: "assistant", text: "", at: null, chunk: true });
     expect(rowsOf(t)).toBe(before);
   });

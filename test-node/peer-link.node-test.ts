@@ -1,7 +1,3 @@
-/**
- * The peer link between two Macs over real sockets (plan 023, U2): `npm run test:node`. The far Mac is a phone
- * listener serving the real frame router; the near Mac is only its link, holding the token the far Mac minted for it.
- */
 import { strict as assert } from "node:assert";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
@@ -22,7 +18,6 @@ import type { DeviceVia } from "../core/frame-types.ts";
 const FAR = "cccccccc-3333-4333-8333-333333333333";
 const NEAR = "dddddddd-4444-4444-8444-444444444444";
 
-/** A port nothing listens on yet, so the far Mac can come back on the same one. */
 const freePort = () =>
   new Promise<number>((resolve) => {
     const s = createServer();
@@ -32,7 +27,6 @@ const freePort = () =>
     });
   });
 
-/** Wait for a condition, or fail after `ms`. */
 async function until(check: () => boolean, ms = 4000): Promise<void> {
   const end = Date.now() + ms;
   while (!check()) {
@@ -41,10 +35,6 @@ async function until(check: () => boolean, ms = 4000): Promise<void> {
   }
 }
 
-/**
- * The far Mac: a listener on `port` with the real router, answering `peer_ping` with `protocol`, that knows the near
- * Mac by `token` and sees every request arrive by `via`.
- */
 async function farMac(port: number, token: string, protocol = PEER_PROTOCOL, via: DeviceVia = "tailscale") {
   const dir = mkdtempSync(join(tmpdir(), "loki-link-"));
   const store = new PeerStore(join(dir, "peers.json"));
@@ -94,11 +84,9 @@ async function farMac(port: number, token: string, protocol = PEER_PROTOCOL, via
   };
 }
 
-/** The near Mac's link to the far Mac at `port`, with the backoff shortened. */
 function nearLink(port: number, token: string) {
   const statuses: LinkStatus[] = [];
   const pushes: Array<Record<string, unknown>> = [];
-  /** How many times the link has tried to open: one more for each retry. */
   const tries = { count: 0 };
   const link = new PeerLink({
     macId: FAR,
@@ -148,7 +136,6 @@ void test("the far Mac going away makes it unreachable within a backoff step, an
     await far.done();
     await until(() => link.status === "unreachable");
     await assert.rejects(() => link.request({ type: "peer_ping" }), /out of reach/);
-    // Retries while it is away say nothing new (plan 048): no "connecting" between each one.
     const down = tries.count;
     await until(() => tries.count >= down + 3);
     assert.deepEqual(statuses, ["reachable", "unreachable"]);
@@ -217,7 +204,6 @@ void test("a token the far Mac does not know is refused, and the near Mac is tol
 void test("a known token that came the wrong way is turned away without telling the near Mac it was forgotten", async () => {
   const port = await freePort();
   const token = mintPeerToken();
-  // The far Mac takes this caller for the Wi‑Fi: a path problem, which must never unpair the two.
   const far = await farMac(port, token, PEER_PROTOCOL, "lan");
   let refused = 0;
   let tries = 0;
@@ -273,7 +259,6 @@ void test("each reason a link fails is logged once when it starts, not once per 
     await until(() => tries >= 3);
     assert.equal(failures().length, 1);
     assert.match(failures()[0], /no token/);
-    // A token turns up, and the far Mac turns it away for the path it came by: one new line, saying so.
     keychain = token;
     const before = tries;
     await until(() => tries >= before + 3);
@@ -301,13 +286,11 @@ void test("the same failure is logged again once the link has worked in between,
   try {
     link.start();
     await until(() => link.status === "reachable");
-    // The far Mac goes away: retries fail the same way, logged once.
     await far.done();
     await until(() => link.status === "unreachable");
     const down = tries.count;
     await until(() => tries.count >= down + 3);
     assert.equal(failures().length, 1);
-    // It comes back, then goes away again: the same reason is news again.
     far = await farMac(port, token);
     await until(() => link.status === "reachable");
     await far.done();
@@ -317,7 +300,6 @@ void test("the same failure is logged again once the link has worked in between,
     link.stop();
     await far.done();
   }
-  // A link stopped mid-handshake (a Mac forgotten, or the mod reloading) did not fail: nothing is logged.
   const held: Socket[] = [];
   const silent = createServer((socket) => held.push(socket));
   await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));

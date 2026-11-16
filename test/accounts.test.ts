@@ -10,7 +10,6 @@ const NOW = new Date("2026-11-04T09:00:00Z");
 const AGENTS = new Set(["agent-work", "agent-home"]);
 const dirs: string[] = [];
 
-/** Accounts over a fresh state folder and an in-memory keychain; `elsewhere` stands in for the paired Macs. */
 function fixture(elsewhere: (accountId: string) => string | null = () => null) {
   const dir = mkdtempSync(join(tmpdir(), "loki-accounts-"));
   dirs.push(dir);
@@ -172,7 +171,7 @@ describe("deleting an agent that owns accounts", () => {
     expect(why).toContain("Mac mini");
     expect(why).toContain("ada@acme.com");
     expect(peers.deleteBlocked("agent-home")).toBeNull();
-    peers.sync([]); // unpaired: its accounts no longer count here
+    peers.sync([]);
     expect(peers.deleteBlocked("agent-work")).toBeNull();
   });
 });

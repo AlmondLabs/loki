@@ -7,8 +7,6 @@ import type { PendingApproval } from "../core/attention/model.ts";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { ApprovalProposal } from "../app/src/item/proposal.tsx";
 
-// Plan 2026-11-12-1505, U4: the chat pane on Liquid Glass, loki's one look.
-
 const noop = () => {};
 const approval: PendingApproval = { requestId: "r1", toolName: "Edit notes.txt", input: { path: "notes.txt" }, at: "2026-11-12T09:00:00Z" };
 
@@ -196,7 +194,6 @@ describe("the thread as a Mac conversation with an agent (U14)", () => {
     const markers = (gaps?: number) => threadEntries({ ...base, gaps }).flatMap((e) => (e.kind === "day" ? [e.label] : []));
     const days = markers();
     expect(days).toHaveLength(1);
-    // the first message carries the day and its time; "two" came 4 minutes after "a", so no marker; "three" came 24 after
     expect(markers(15 * 60_000)).toEqual([`${days[0]} ${clockLabel(at(0))}`, clockLabel(at(30))]);
   });
 });
@@ -238,8 +235,6 @@ describe("a Flow card asks one thing at a time (U16)", () => {
 });
 
 describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
-  // Pane content starts at the title's 20px edge (R1), except the reading columns, which keep their width centred in the
-  // detail (R2, reversed on 2026-11-15: on a wide window the edge-aligned column left most of the pane empty on its right).
   const classOf = (out: string, marker: string) => {
     const tag = new RegExp(`<[^>]*${marker}[^>]*>`).exec(out)?.[0] ?? "";
     return /class="([^"]*)"/.exec(tag)?.[1].split(" ") ?? [];
@@ -253,12 +248,9 @@ describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
     const thread = classOf(out, 'data-slot="message-scroller-content"');
     expect(thread).toContain("max-w-3xl");
     expect(thread).toContain("mx-auto");
-    // The chat viewport's 20px gutter is the transcript's narrowest edge, so the column adds no side padding of its own.
     expect(thread.filter((c) => /^(px|pl|pr|ps|pe)-/.test(c))).toEqual([]);
     const composer = classOf(out, 'data-composer="messages"');
     expect(composer).toContain("max-w-3xl");
-    // Centred in the dock's 20px gutter, so the box is the reading column's width and edges on a narrow pane as on a
-    // wide one, and its own content keeps 20px; scale classes only, no arbitrary widths.
     expect(composer).toEqual(expect.arrayContaining(["mx-auto", "w-full", "max-w-3xl"]));
     expect(composer).not.toContain("px-5");
     expect(classOf(out, 'class="loki-dock')).toContain("px-5");

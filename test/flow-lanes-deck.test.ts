@@ -14,8 +14,6 @@ import { EMPTY_REPLY, createDeckMoves } from "../app/src/desk/deck-moves.ts";
 import { answeredElsewhere, createVisit, endOnPageHide, liveRows } from "../app/src/desk/use-flow-deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** The desktop Flow's lanes (plan 087, U6): the deck's lane, the quiet count and undo across switches; the empty list and the visit's summary; and a visit's end. */
-
 const WORK: Lane = { id: "w", name: "Work", chats: ["ag-work"], accounts: [] };
 const HOME: Lane = { id: "h", name: "Home", chats: ["ag-home"], accounts: [] };
 const of = (id: string, agentId: string, agentName: string, over: Partial<AttentionItem> = {}) =>
@@ -28,12 +26,10 @@ const noop = () => {};
 const DONE: MoveResult = { error: null, ask: false, rest: null };
 const settle = () => new Promise<void>((r) => setImmediate(r));
 
-/** A deck with `queue` up in `lane` and its first row selected, recording every move it makes out there. */
 function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
   const calls: Array<[string, string]> = [];
   const state = { queue, selected: null as string | null, decided: [] as Decision[], lane, flash: [] as string[] };
   const apply = <T>(v: SetStateAction<T>, old: T): T => (typeof v === "function" ? (v as (o: T) => T)(old) : v);
-  /** The selected card: the one picked, else the first row. */
   const selected = () => state.queue.find((i) => idOf(i) === state.selected) ?? state.queue.at(0);
   const moves = () =>
     createDeckMoves({
@@ -63,7 +59,6 @@ function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
         approve: noop,
       },
     });
-  /** Switch the deck to `next`, as the queue hook does on a lane change. */
   const switchTo = (next: ResolvedLane | null, items: AttentionItem[]) => {
     state.lane = next;
     const at = selected();
@@ -79,7 +74,6 @@ describe("the lanes are sources, not a menu in the title (plan 2026-11-14-1330, 
 });
 
 describe("the deck in a lane", () => {
-  // AE3: an approval outside Work stays out of Work's deck and only raises the quiet count.
   test("in Work an approval outside it is not in the deck, and only the counts outside it say so", () => {
     const asks = of("h2", "ag-home", "Bo", { status: "approval" });
     const items = [work, asks];
@@ -146,7 +140,6 @@ describe("the deck in a lane", () => {
     expect(d.state.decided).toEqual([]);
   });
 
-  // AE5: switching writes nothing, so a card resting after read rests on with the same return time.
   test("a resting card stays resting, untouched, after switching to a lane that hides it and back", async () => {
     const resting = of("h3", "ag-home", "Bo", { resting: true, unread: false });
     const items = [resting, work];
@@ -178,7 +171,6 @@ describe("an emptied list (R12)", () => {
     expect(renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [], replies: 0 }))).not.toContain("moved past");
   });
 
-  // AE6: Ada's lane cleared: caught up, the outside count, the way back.
   test("in an emptied lane the summary shows the other lanes' count and a way back to Everything", () => {
     const html = renderToStaticMarkup(createElement(VisitSummary, { items: [], decided: [], replies: 0, others: 2, onEverything: noop }));
     expect(html).toContain("2 waiting in other lanes");

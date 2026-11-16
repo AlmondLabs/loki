@@ -11,7 +11,6 @@ const noop = async () => {};
 const html = (s: DaemonStatus | null) =>
   renderToStaticMarkup(createElement(PrepareStep, { status: s, onRetry: noop, onInstallTools: () => Promise.resolve(null) }));
 
-/** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
@@ -19,7 +18,6 @@ function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>>
   return [el, ...elements(el.props.children as ReactNode)];
 }
 
-/** The buttons in a tree, by their label. */
 const buttons = (node: ReactNode) =>
   elements(node)
     .filter((e) => typeof e.props.onClick === "function")
@@ -89,7 +87,6 @@ describe("Welcome prepares the machine", () => {
     install.click();
     check.click();
     expect([installed, checked]).toEqual([1, 1]);
-    // Once asked, macOS shows its own installer, and Welcome says to check again when it has finished.
     const asked = renderToStaticMarkup(createElement(Tools, { os: "macos", busy: false, asked: true, problem: null, onInstall: () => {}, onCheck: () => {} }));
     expect(asked).toContain("When it has finished");
   });
@@ -132,7 +129,6 @@ describe("when Welcome shows", () => {
 
   test("a returning person after an update naming a new Node: Preparing, then the app, never the provider step", () => {
     expect(welcomeFor(status({ preparing: fetching() }), down)).toBe("prepare");
-    // The daemon is up and answers before its agents are listed: no sheet in between.
     expect(welcomeFor(status({ node: "/n" }), { ...open(2, [anthropic]), agentsLoaded: false })).toBeNull();
     expect(welcomeFor(status({ node: "/n" }), open(2, [anthropic]))).toBeNull();
     expect(welcomeFor(status({ node: "/n" }), open(2, null))).toBeNull();

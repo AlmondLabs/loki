@@ -2,12 +2,6 @@ import { review, newSchedule, type Grade } from "../../core/recall/fsrs.ts";
 import { learnTitle, type Card, type CardSource, type Lead, type RecallSnapshot } from "../../core/recall/model.ts";
 import { lessonBrief } from "../../core/recall/extract.ts";
 
-/**
- * The site's made-up Learn: cards and leads as the background writer would draw them from the demo's chats, and
- * the moves the Learn section makes on them (grade, delete, undo, edit, start or dismiss a lead), all in memory with
- * the real scheduler. Every card is invented; the repository is public.
- */
-
 const DAY = 86_400_000;
 
 const from = (agent: string, conversation: string, title: string, at: string): CardSource => ({
@@ -18,7 +12,6 @@ const from = (agent: string, conversation: string, title: string, at: string): C
   at,
 });
 
-/** The cards and leads Learn opens with: four due, the first two new. */
 export function startingLearn(now: number): RecallSnapshot {
   const at = (daysAgo: number) => new Date(now - daysAgo * DAY).toISOString();
   const card = (id: string, front: string, back: string, source: CardSource, daysAgo: number): Card => ({
@@ -105,15 +98,12 @@ export function startingLearn(now: number): RecallSnapshot {
   };
 }
 
-/** One move on the snapshot: the state after it, given the time. */
 type Move = (snap: RecallSnapshot, now: number) => RecallSnapshot;
 
-/** Answer a card: the real scheduler sets its next sight. */
 export const gradeCard =
   (id: string, g: Grade): Move =>
   (snap, now) => ({ ...snap, cards: snap.cards.map((c) => (c.card.id === id ? { ...c, schedule: review(c.schedule, g, now) } : c)) });
 
-/** Delete a card: it joins the pile the writer reads as "not this". */
 export const removeCard =
   (id: string): Move =>
   (snap, now) => {
@@ -126,7 +116,6 @@ export const removeCard =
     };
   };
 
-/** Bring a deleted card back, due at once. */
 export const restoreCard =
   (id: string): Move =>
   (snap, now) => {
@@ -135,7 +124,6 @@ export const restoreCard =
     return { ...snap, rejected: snap.rejected.filter((r) => r !== back), cards: [...snap.cards, { card: back.card, schedule: newSchedule(now) }] };
   };
 
-/** Change a card's wording, keeping what it said before. */
 export const editCard =
   (id: string, text: { front?: string; back?: string }): Move =>
   (snap, now) => ({
@@ -157,7 +145,6 @@ export const editCard =
     ),
   });
 
-/** Dismiss a lead: it is quoted back to the writer, so it never returns reworded. */
 export const dismissLead =
   (id: string): Move =>
   (snap, now) => {
@@ -165,7 +152,6 @@ export const dismissLead =
     if (!lead) return snap;
     return { ...snap, leads: snap.leads.filter((l) => l !== lead), dismissed_leads: [{ lead, at: new Date(now).toISOString() }, ...snap.dismissed_leads] };
   };
-/** Bring a dismissed lead back. */
 export const restoreLead =
   (id: string): Move =>
   (snap) => {
@@ -174,7 +160,6 @@ export const restoreLead =
     return { ...snap, dismissed_leads: snap.dismissed_leads.filter((d) => d !== back), leads: [...snap.leads, back.lead] };
   };
 
-/** What starting a lead begins: a `[Learn]` chat with its agent and the brief the agent teaches from. */
 export function lessonOf(lead: Lead): { agentId: string; conversationId: string; brief: string; title: string } {
   return { agentId: lead.source.agent_id ?? "ira", conversationId: `learn-${lead.id}`, brief: lessonBrief(lead), title: learnTitle(lead.title) };
 }

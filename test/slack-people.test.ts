@@ -29,7 +29,6 @@ const user = (id: string, name: string, extra: Partial<SlackUser> = {}): SlackUs
 });
 
 describe("a workspace's people", () => {
-  /** People over two pages, a bot among them; the clock and each read are the test's. */
   const fixture = () => {
     const clock = { t: 0 };
     const reads: Array<string | null> = [];
@@ -72,7 +71,6 @@ describe("a workspace's people", () => {
 });
 
 describe("who is in a conversation", () => {
-  /** Members over two pages; the clock and each read are the test's. */
   const fixture = () => {
     const clock = { t: 0 };
     const reads: Array<string | null> = [];

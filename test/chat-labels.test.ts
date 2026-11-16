@@ -19,14 +19,12 @@ import { ModRegistry } from "../daemon/mods/registry.ts";
 import { Providers } from "../daemon/providers.ts";
 
 const ctx = BACKGROUND_CONTEXT;
-/** The colours a labels file holds. */
 const savedColors = (file: string) => (JSON.parse(readFileSync(file, "utf8")) as { colors: Record<string, number> }).colors;
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
 });
 
-/** A daemon's chats with two agents, the labels' colours kept in a file under a temporary folder. */
 async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "loki-labels-"));
   const models = createModels();
@@ -111,7 +109,6 @@ describe("label colours (KD4)", () => {
     writeFileSync(file, JSON.stringify({ colors: { a: 3, b: LABEL_COLORS, c: -1, d: "2" } }));
     const colors = new LabelColors(file);
     expect(colors.colorOf("a")).toBe(3);
-    // b, c and d were not kept, so b takes a free colour like any new label.
     expect(colors.colorOf("b")).toBe(0);
   });
 });
@@ -134,7 +131,6 @@ describe("labels on chats (plan 022)", () => {
     expect(new Set(labels.map((l) => l.color)).size).toBe(2);
     await s.chats.update({ agent_id: s.ada, conversation_id: a2, title: undefined, archived: undefined, hidden: true, labels: undefined });
     expect((await s.chats.labels()).labels.find((l) => l.name === "infra")?.chats).toBe(2);
-    // An update without labels leaves them; an empty list clears them.
     await s.chats.update({ agent_id: s.ada, conversation_id: a1, title: "Renamed", archived: undefined, hidden: undefined, labels: undefined });
     expect(await s.labelsOf(s.ada, a1)).toEqual(["infra", "billing"]);
     await s.label(s.ada, a1, []);

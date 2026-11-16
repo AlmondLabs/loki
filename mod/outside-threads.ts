@@ -33,41 +33,14 @@ import { SlackError, type SlackClient } from "./slack.ts";
 import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
 import type { SlackPeople } from "./slack-people.ts";
 
-/**
- * An outside card's thread for the person (plan 068): the whole thread to read on the card, and the person's own
- * reply, sent in it. This is the only place loki sends anything, and it is reached only by the reply frame the
- * person's own devices send (mod/frames/accounts.ts) and by the person's Send on an agent's reply card
- * (mod/reply-proposals.ts, plan 2026-11-14-1134); no agent tool is built on it, so an agent never sends by itself.
- *
- * An agent's reply takes the person's own path (KTD1): it is held in the outbox for its undo on every service, then
- * sent as the card showed it, with no move after it (R15). The send reads its files once and sends the bytes it
- * checked (KTD5), and a Gmail reply goes only when the thread's people are still the ones the card showed (KTD4).
- */
-
-/**
- * What sending a reply needs of Gmail: the thread, to answer its newest message, the addresses the person sends from
- * with their signatures, a forwarded mail's files, and the send.
- */
 export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment">;
 
-/**
- * What the person's own Slack moves need: the post, with files for an agent's reply (KTD7), a reaction, and the
- * workspace's emoji to pick one from (plan 079).
- */
 export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji">;
 
-/** What a comment on a Jira ticket needs (plan 2026-11-10-1451, U7): the post, and the attach before it (KTD8). */
 export type SendJira = Pick<JiraClient, "postComment" | "attachFiles">;
 
-/** One account's sending client. */
 export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: "slack"; client: SendSlack } | { provider: "jira"; client: SendJira };
 
-/**
- * An agent's reply the person pressed Send on (plan 2026-11-14-1134, KTD1): the thread it answers, its text as the
- * card last had it, the files to send, and the proposal its outcome is reported to. A Gmail reply goes to `people`,
- * the To and Cc the card showed; a Jira comment names `attached`, the reply's files already on the ticket from an
- * earlier Send (KTD8), beside the `files` attached now.
- */
 export interface AgentReply {
   outbox_id: string;
   account_id: string;
@@ -77,14 +50,9 @@ export interface AgentReply {
   attached: string[];
   people: { to: string[]; cc: string[] } | null;
   proposal: HeldProposal;
-  /** The people it mentions that are still in its text (plan 2026-11-14-1530, KTD6); on Gmail, cc'd after the people check. */
   mentions: ReplyMention[];
 }
 
-/**
- * The people a Gmail reply would reach at the end of its hold, when they differ from those its card showed (KTD4): the
- * new To and Cc as reply-all writes them, and who was added and removed, by bare address.
- */
 export interface PeopleChanged {
   to: string[];
   cc: string[];
@@ -92,78 +60,49 @@ export interface PeopleChanged {
   removed: string[];
 }
 
-/**
- * Where an agent's reply reports what became of it (KTD9): the proposals, bound once they exist, since this is built
- * before them. `notSent` carries the changed people when that was the reason; `attached` comes as soon as a Jira
- * ticket took the files, so a comment that fails after still leaves them recorded.
- */
 export interface AgentReplyReports {
   sent(held: HeldReply): void;
   notSent(held: HeldReply, note: { reason: string; at: string }, people: PeopleChanged | null): void;
   attached(proposal: HeldProposal, names: string[]): void;
 }
 
-/** What the thread reader and the reply are built from; the clients and readers are injected so tests own them. */
 export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
   threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt" | "clearSeeds"> &
     Partial<Pick<AccountThreads, "markNotSent">> & {
-      /** A card's record, for what its window is built around (plan 077). */
       get: (
         accountId: string,
         threadId: string,
       ) => (Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> & { place?: string | null }) | null;
     };
-  /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
-  /** A card's own reader where it shows a window rather than the whole thread: Slack's (plan 074, plan 077) and Jira's (KTD14). */
   cardView?: Partial<Record<AccountProvider, CardView>>;
   clientFor: (account: AccountRecord) => SendClient;
-  /** Waiting out a rate limit before reading again; a timer when not given. */
   sleep?: (ms: number) => Promise<void>;
-  /** Where held mail replies wait for their undo (plan 076); without it a mail reply goes at once. */
   outbox?: Omit<MailOutboxOptions, "send">;
-  /** The people in each Slack workspace, for the reply box's @ suggestions and the mentions a reply sends (plan 082). */
   slackPeople?: Pick<SlackPeople, "search">;
-  /** The people each account has mail with, for suggestions, and told of whom the person sends to (plan 076). */
   people?: Pick<MailPeople, "top" | "saw">;
-  /** The time zone a quote's date is written in; this Mac's when left out. */
   zone?: string;
   now?: () => Date;
 }
 
-/**
- * The longest rate-limit wait a thread read sits out before trying once more, the card showing it is still reading.
- * A longer wait is reported, so the card says why it shows only its last lines.
- */
 const READ_WAIT_MAX_MS = 30_000;
 
-/** The longest reply loki sends: well under Gmail's and Slack's own limits, and far past anything typed on a card. */
 const MAX_REPLY = 30_000;
 
-/** How many quick reactions a Slack card offers from the person's most used (plan 084): three on the bar, five on keys. */
 const QUICK_COUNT = 5;
 
-/** How long the person's most-used emoji are kept before Slack is asked again, so a new favourite shows within minutes. */
 const FREQUENT_TTL_MS = 10 * 60_000;
 
 /** The most a forward carries in files: under Gmail's 25 MB once the files are written out as text. */
 const MAX_FORWARD_BYTES = 17 * 1024 * 1024;
 
-/** Reads an outside card's thread and sends the person's reply in it. */
 export class OutsideThreads {
   private readonly opts: OutsideThreadsOptions;
   private readonly outbox: MailOutbox | null;
-  /** Each Slack account's own emoji, read once while loki runs for the emoji search; a failed read is tried again. */
   private readonly ownEmoji = new Map<string, Promise<Record<string, string>>>();
-  /** Each workspace's most-used emoji (plan 084) and when they were read, read again after FREQUENT_TTL_MS. */
   private readonly frequent = new Map<string, { at: number; names: Promise<string[]> }>();
-  /** Where agents' replies report, once the proposals exist. */
   private reports: AgentReplyReports | null = null;
-  /**
-   * The changed people of a Gmail reply its send just refused, by outbox id: the outbox reports a failure with its
-   * reason alone, and the proposal needs the people too, so they wait here for that report.
-   */
   private readonly changedPeople = new Map<string, PeopleChanged>();
 
   constructor(opts: OutsideThreadsOptions) {
@@ -173,7 +112,6 @@ export class OutsideThreads {
           ...opts.outbox,
           send: (held) => this.sendNow(held),
           wentOut: (held) => this.wentOut(held),
-          // An agent's reply is reported to its proposal, the person's own to its thread's card.
           onNotSent: (held, note) => {
             if (!held.proposal) {
               void opts.threads.markNotSent?.(held.account_id, held.thread_id, held.outbox_id, note && { outbox_id: held.outbox_id, text: held.text, ...note });
@@ -190,24 +128,14 @@ export class OutsideThreads {
       : null;
   }
 
-  /**
-   * Where agents' replies report from now on (KTD9). Bound before `resume`, so a reply a restart finds sent or failed
-   * reaches its proposal.
-   */
   reportAgentRepliesTo(reports: AgentReplyReports): void {
     this.reports = reports;
   }
 
-  /** Send the mail replies a daemon that stopped left held (plan 076), each when its time comes. */
   resume(): void {
     this.outbox?.resume();
   }
 
-  /**
-   * Hold an agent's reply the person pressed Send on (KTD1), on every service, for the outbox's 10 seconds; it then
-   * goes with no move after it (R15), and its outcome reaches the proposal through `reportAgentRepliesTo`, so nothing
-   * here waits for it. Throws why when it cannot be held at all: no outbox on this Mac, or an account not connected.
-   */
   holdAgentReply(reply: AgentReply): void {
     if (!this.outbox) throw new Error("replies are not held on this Mac");
     const body = reply.text.trim();
@@ -216,7 +144,6 @@ export class OutsideThreads {
     const account = this.need(reply.account_id);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     if (account.provider === "gmail" && !reply.people) throw new Error("a mail reply needs the people its card showed");
-    // A Jira comment names every file of the reply, those an earlier Send attached and those attached now (KTD8).
     const named = [...reply.attached, ...reply.files.map((f) => f.name)];
     const text = account.provider === "jira" && named.length ? [body, `Attached: ${named.join(", ")}`].filter(Boolean).join("\n\n") : body;
     const mail: MailAddressing | null =
@@ -235,33 +162,21 @@ export class OutsideThreads {
       proposal: reply.proposal,
       ...(reply.mentions.length ? { mentions: reply.mentions } : {}),
     });
-    // Sent, refused or undone, the proposal hears it from the outbox's reports; the answer here is for no one.
     void held.catch(() => undefined);
   }
 
-  /** Whether the outbox still has a reply by this id (KTD9): waiting, being sent, or kept until its proposal saves its outcome. */
   holds(outboxId: string): boolean {
     return this.outbox?.has(outboxId) ?? false;
   }
 
-  /** An agent's proposal saved what became of its reply: the outbox lets the entry go (KTD9). */
   acknowledge(outboxId: string): void {
     this.outbox?.acknowledge(outboxId);
   }
 
-  /**
-   * Whether a reply by this outbox id is in its thread already (KTD9, step 3): Gmail by the header it was sent with,
-   * null for Slack and Jira, which cannot tell.
-   */
   wentOutIn(accountId: string, threadId: string, outboxId: string): Promise<boolean | null> {
     return this.wentOut({ outbox_id: outboxId, account_id: accountId, thread_id: threadId });
   }
 
-  /**
-   * What a mail card's recipients line starts from (plan 076): who reply and reply all go to, the addresses the person
-   * sends from with their signatures as text and the one this thread is answered from, the subject, and the people the
-   * account has mail with, this thread's own first.
-   */
   async compose(accountId: string, threadId: string): Promise<MailCompose> {
     const account = this.need(accountId);
     const sender = this.opts.clientFor(account);
@@ -282,10 +197,6 @@ export class OutsideThreads {
     };
   }
 
-  /**
-   * Add the person's emoji reaction to a message on a Slack card, or take it back (plan 079). Like a reply, only the
-   * person's own frame reaches this; agents never react. It moves nothing on the card.
-   */
   async react(accountId: string, threadId: string, messageId: string, name: string, on: boolean): Promise<void> {
     const sender = this.slackSender(accountId);
     const { channel } = slackPlace(threadId);
@@ -293,7 +204,6 @@ export class OutsideThreads {
     log("outside:reacted", { provider: "slack", on });
   }
 
-  /** The emoji a Slack account can react with whose names hold `query`, the workspace's own included (plan 079). */
   async searchEmoji(accountId: string, query: string): Promise<EmojiChoice[]> {
     const sender = this.slackSender(accountId);
     let own = this.ownEmoji.get(accountId);
@@ -305,8 +215,6 @@ export class OutsideThreads {
       this.ownEmoji.set(accountId, own);
     }
     if (query.trim()) return searchEmoji(query, await own);
-    // An empty search is the person's quick reactions (plan 084): what they use most in Slack, as Slack's hover bar
-    // shows them. The card fills up to five with its own when Slack keeps fewer.
     const [names, emoji] = await Promise.all([this.frequentOf(accountId, sender), own]);
     const quick: EmojiChoice[] = [];
     for (const name of names) {
@@ -317,7 +225,6 @@ export class OutsideThreads {
     return quick;
   }
 
-  /** The person's most-used emoji in the workspace, read again once they are FREQUENT_TTL_MS old; none when unreadable. */
   private frequentOf(accountId: string, sender: SendSlack): Promise<string[]> {
     const now = (this.opts.now?.() ?? new Date()).getTime();
     const had = this.frequent.get(accountId);
@@ -330,8 +237,6 @@ export class OutsideThreads {
     return names;
   }
 
-  /** A connected Slack account's own client, or why there is none. */
-  /** The people in a Slack account's workspace whose handle or name holds `query` (plan 082), for @ suggestions. */
   async searchPeople(accountId: string, query: string): Promise<SlackPerson[]> {
     if (this.need(accountId).provider !== "slack") throw new Error("only a Slack account has people to mention");
     if (!this.opts.slackPeople) return [];
@@ -347,29 +252,19 @@ export class OutsideThreads {
     return sender.client;
   }
 
-  /** Stop a held mail reply before it goes (plan 076); false when it already went or was never held here. */
   unsend(accountId: string, outboxId: string): boolean {
     return this.outbox?.undo(accountId, outboxId) ?? false;
   }
 
-  /**
-   * The person's "send again" on a mail reply that did not go (plan 096): sent only when its thread does not have it
-   * already, then the move it was sent with. Rejects with why when it cannot be tried or fails again.
-   */
   resend(accountId: string, outboxId: string): Promise<OutsideReplied> {
     if (!this.outbox) return Promise.reject(new Error("replies are not held on this Mac"));
     return this.outbox.resend(accountId, outboxId);
   }
 
-  /** The person's "discard" on a mail reply that did not go (plan 096); false when there was none to discard. */
   discardUnsent(accountId: string, outboxId: string): boolean {
     return this.outbox?.discard(accountId, outboxId) ?? false;
   }
 
-  /**
-   * Whether a held reply is in its thread already, found by the header it was sent with. Slack and Jira carry no such
-   * header, so they cannot tell (KTD9, step 1): a send cut short there is never tried again by itself.
-   */
   private async wentOut(held: Pick<HeldReply, "outbox_id" | "account_id" | "thread_id">): Promise<boolean | null> {
     const sender = this.opts.clientFor(this.need(held.account_id));
     if (sender.provider !== "gmail") return null;
@@ -377,12 +272,6 @@ export class OutsideThreads {
     return thread.messages.some((m) => headerOf(m, OUTBOX_HEADER) === held.outbox_id);
   }
 
-  /**
-   * The thread as the card draws it: every message with its sender and time, and mail without the quoted thread under
-   * it; for a Slack or Jira card, the window around what is new, or what `ask` asks for (plan 077, KTD14), from the
-   * card's record, and for a Jira card the ticket's address in the browser and, with the opening window, the ticket
-   * itself (plan 089).
-   */
   async read(accountId: string, threadId: string, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
     const account = this.need(accountId);
     const view = this.opts.cardView?.[account.provider];
@@ -401,7 +290,6 @@ export class OutsideThreads {
       await (this.opts.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms))))(wait);
       return readThread();
     });
-    // A reader that gives no id leaves the message's place in the thread, which is stable since a thread is read whole.
     const messages = read.messages.map((m, i) => ({
       id: m.id ?? `at-${i}`,
       sender: m.sender,
@@ -428,16 +316,6 @@ export class OutsideThreads {
     return { messages, window: read.window, ...(read.link ? { link: read.link } : {}), ...(read.ticket ? { ticket: read.ticket } : {}) };
   }
 
-  /**
-   * Send the person's reply in the thread, then make the key's move (plan 070, R11, KTD6): `read` marks the thread read,
-   * `later` leaves it unread on its newest incoming message and marks the record waiting for an answer, and `archive`
-   * archives it, and `stay` makes none (plan 083). Gmail answers the newest message that is not a draft, as `mail`
-   * addresses it (plan 076), or to everyone on it but the person when it does not; Slack posts in the DM, or in the
-   * thread for an Activity card; Jira posts a comment on the ticket as plain text, and leaves its events new. A
-   * mail reply with an `outboxId` is held for its undo first, and answers as undone when `unsend` stops it. A send that
-   * fails throws its reason and nothing is marked. Once sent, the move's failure is answered, not thrown, so the client
-   * tries the move again on its own and never sends twice.
-   */
   async reply(
     accountId: string,
     threadId: string,
@@ -456,7 +334,6 @@ export class OutsideThreads {
     if (mail && account.provider !== "gmail") throw new Error("only a mail reply has recipients");
     if (threadTs && account.provider !== "slack") throw new Error("only a Slack reply goes into a thread the card opened");
     if (mail && mail.to.length + mail.cc.length + mail.bcc.length === 0) throw new Error("add someone to send it to");
-    // The person's own mentions are those they picked (plan 2026-11-14-1530, R23): a typed @handle goes as text.
     const picked = liveMentions(body, mentions);
     const held = {
       outbox_id: outboxId ?? "",
@@ -472,10 +349,6 @@ export class OutsideThreads {
     return this.sendNow(held);
   }
 
-  /**
-   * The send itself and the move after it, at once or once a hold is over. An agent's reply (one with a proposal) reads
-   * its files here, once, and sends the bytes it checked (KTD5); it makes no move and marks nothing on a card (R15).
-   */
   private async sendNow(held: Omit<HeldReply, "send_at">): Promise<OutsideReplied> {
     const { account_id: accountId, thread_id: threadId, text: body, then, mail } = held;
     const account = this.need(accountId);
@@ -483,23 +356,16 @@ export class OutsideThreads {
     const sender = this.opts.clientFor(account);
     const agent = held.proposal != null;
     const files = held.files?.length ? await checkedFiles(held.files) : [];
-    // Replying is dealing with what came before, whichever key follows (plan 077, R5). A Jira comment is not: the
-    // ticket's events stay new until the person reads the card (KTD11, AE1). An agent's reply is no move of the
-    // person's on the card at all.
     let deals = !agent;
     switch (sender.provider) {
       case "gmail":
         await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files, held.mentions ?? []);
         break;
       case "slack": {
-        // A thread the person opened on the card (plan 085) is where they are writing, else the card's own place.
         const place = slackPlace(threadId);
         const { channel } = place;
         const ts = held.thread_ts ?? place.ts;
-        // Only the stored mentions become Slack's (plan 2026-11-14-1530, KTD8): any other @ in the text, a quoted
-        // stranger's handle among them, goes as typed and notifies no one.
         const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions: held.mentions ?? [] };
-        // With files, the text rides with them as one message (KTD7).
         try {
           if (files.length) await sender.client.postWithFiles({ ...where, files });
           else await sender.client.postReply(where);
@@ -510,8 +376,6 @@ export class OutsideThreads {
         break;
       }
       case "jira":
-        // The files go on the ticket first, and the proposal hears so at once, so a comment that fails after them
-        // never attaches them a second time (KTD8). Neither is tried again by itself.
         if (files.length) {
           await sender.client.attachFiles(threadId, files);
           if (held.proposal)
@@ -520,8 +384,6 @@ export class OutsideThreads {
               files.map((f) => f.name),
             );
         }
-        // Posted once: a post that fails or times out is reported and never tried again, since a retry could post the
-        // comment twice (plan 2026-11-10-1451, KTD11). The thread id is the ticket's own id.
         try {
           await sender.client.postComment(threadId, body, held.mentions ?? []);
         } catch (err) {
@@ -529,8 +391,6 @@ export class OutsideThreads {
           throw err;
         }
         deals = false;
-        // The box held any comment the person approved, so what they sent is it, as they left it (KTD18). An agent's
-        // comment is not what the box held, so the box keeps it.
         if (!agent) this.opts.threads.clearSeeds(accountId, threadId);
         break;
     }
@@ -543,10 +403,6 @@ export class OutsideThreads {
     }
   }
 
-  /**
-   * A mail reply as Gmail writes one (plan 076): from the chosen address with its signature, to whom `mail` says (or
-   * everyone on the newest message), with that message quoted under it, or set out with its files for a forward.
-   */
   private async sendMail(
     account: AccountRecord,
     client: SendGmail,
@@ -562,8 +418,6 @@ export class OutsideThreads {
     const newest = replyTarget(thread.messages);
     if (!newest) throw new Error("that thread is empty in Gmail now");
     const own = ownAddresses(account, sendAs);
-    // An agent's reply goes only to the people its card showed (KTD4): someone added to the thread, or gone from it,
-    // since then stops it, and the card shows the new people for the person to send to again.
     if (agent && mail) {
       const change = peopleChange(newest, own, mail);
       if (change.added.length || change.removed.length) {
@@ -576,8 +430,6 @@ export class OutsideThreads {
     if (!from) throw new Error("that is not an address you send from in Gmail");
     const forward = mail?.mode === "forward";
     const people = mail ?? replyAllOf(newest, own);
-    // A mention adds its person to cc after the people check, so mentioning someone is never a change of the thread's
-    // people (plan 2026-11-14-1530, KTD5); one already on the thread is not added twice.
     const on = new Set([...people.to, ...people.cc, ...(mail?.bcc ?? [])].flatMap((p) => bareAddresses([p])));
     const added: string[] = [];
     for (const m of mentions) {
@@ -622,18 +474,14 @@ export class OutsideThreads {
       ...(files.length ? { attachments: files.map((f) => ({ filename: f.name, mimeType: fileTypeOf(f.name), data: f.data })) } : {}),
       ...(outboxId ? { outboxId } : {}),
     });
-    // Whoever the person writes to comes first in their suggestions after this.
     this.opts.people?.saw(account.account_id, [...to, ...cc, ...bcc].flatMap(headerPeople), (this.opts.now?.() ?? new Date()).getTime(), own);
   }
 
-  /** The move after a sent reply, as the card's own move frames write it back. */
   private follow(accountId: string, threadId: string, then: ReplyThen): Promise<OutsideChange | null> {
     const { threads } = this.opts;
-    // Sent alone (plan 083): the card stays for the person's own next move.
     if (then === "stay") return Promise.resolve(null);
     if (then === "archive") return threads.archive(accountId, threadId);
     if (then === "read") return threads.markRead(accountId, threadId);
-    // The wait is loki's own record and is marked first, so it holds even when Gmail refuses the unread mark.
     threads.markWaiting(accountId, threadId);
     return threads.markUnread(accountId, threadId);
   }
@@ -645,12 +493,6 @@ export class OutsideThreads {
   }
 }
 
-/**
- * What an agent's Slack or Jira post that failed tells its card (KTD9, R13). A refusal names a Slack error code or an
- * HTTP status, so nothing went and it is passed on as it is. A post cut off by its time running out or by a lost
- * connection may have reached the thread before the answer was lost, and only Gmail can be searched for it, so the
- * card says to look in the thread before sending again.
- */
 function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
   const timedOut = (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) || (err instanceof JiraError && err.code === "timeout");
   if (timedOut) return new Error(`${service} did not answer in time: ${MAY_HAVE_GONE}`);
@@ -659,28 +501,21 @@ function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
   return err instanceof Error ? err : new Error(messageOf(err));
 }
 
-/** Why an agent's Gmail reply did not go when its thread's people changed, in the person's words. */
 function peopleWords(change: { added: string[]; removed: string[] }): string {
   const parts = [change.added.length ? `${change.added.join(", ")} joined` : "", change.removed.length ? `${change.removed.join(", ")} left` : ""];
   return `the thread's people changed since the card showed them (${parts.filter(Boolean).join("; ")}): check who it goes to and send it again`;
 }
 
-/** The person's addresses in an account: the one it signed in with and every one they send from. */
 function ownAddresses(account: AccountRecord, sendAs: readonly GmailSendAs[]): string[] {
   return [account.address, ...sendAs.map((s) => s.address)].map((a) => a.toLowerCase());
 }
 
-/**
- * The address a thread is answered from, as Gmail picks it: the one of the person's addresses the message came to,
- * else their default in Gmail, else the account's own.
- */
 function defaultFrom(message: GmailMessage, sendAs: readonly GmailSendAs[], accountAddress: string): string {
   const to = ["To", "Cc", "Delivered-To"].flatMap((h) => headerPeople(headerOf(message, h)).map((p) => p.address));
   const addressed = sendAs.find((s) => to.includes(s.address.toLowerCase()));
   return (addressed ?? sendAs.find((s) => s.isDefault) ?? sendAs.at(0))?.address ?? accountAddress;
 }
 
-/** The files a forward carries: the forwarded message's own, read from Gmail, refused when they are too big to send. */
 async function forwarded(client: Pick<SendGmail, "attachment">, message: GmailMessage): Promise<GmailAttachment[]> {
   const files = mailAttachments(message);
   if (files.reduce((n, f) => n + f.size, 0) > MAX_FORWARD_BYTES) throw new Error("its files are too big to forward from loki: forward it from Gmail");

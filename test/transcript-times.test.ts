@@ -8,7 +8,6 @@ import { must } from "./fixtures/must.ts";
 
 describe("day pills", () => {
   // Restored to the zone itself: with TZ unset, assigning the undefined back left Los Angeles in place, and the
-  // later suites that build "today" and "yesterday" in the machine's zone failed whenever the two disagreed on the day.
   const tz = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   afterEach(() => {
     process.env.TZ = tz;
@@ -17,13 +16,12 @@ describe("day pills", () => {
 
   test("a pill where the calendar day changes, in the user's time zone; untimed rows get none", () => {
     const now = Date.parse("2026-09-23T12:00:00Z");
-    // 12:00 and 23:30 UTC on the 22nd, 00:30 UTC on the 23rd
     const rows = [row("2026-09-22T12:00:00Z"), row(), row("2026-09-22T23:30:00Z"), row("2026-09-23T00:30:00Z")];
     process.env.TZ = "UTC";
     expect(dayPills(rows, now)).toEqual(["Yesterday", null, null, "Today"]);
-    process.env.TZ = "Asia/Kolkata"; // +5:30: 23:30 UTC is already the 23rd
+    process.env.TZ = "Asia/Kolkata";
     expect(dayPills(rows, now)).toEqual(["Yesterday", null, "Today", null]);
-    process.env.TZ = "America/Los_Angeles"; // -7: all three fall on the 22nd
+    process.env.TZ = "America/Los_Angeles";
     expect(dayPills(rows, now)).toEqual(["Yesterday", null, null, null]);
     expect(dayPills([row(), row()], now)).toEqual([null, null]);
   });
@@ -49,7 +47,6 @@ describe("the New line", () => {
     ];
     expect(unreadBoundary(rows, true, seen)).toBe(4);
     expect(unreadBoundary(rows, false, seen)).toBeNull();
-    // turn-based would have put it after your last message
     expect(unreadBoundary(rows, true)).toBe(2);
   });
 
@@ -78,7 +75,6 @@ describe("the New line", () => {
       { role: "assistant", text: "b" },
     ];
     expect(unreadBoundary(rows, true, seen)).toBe(2);
-    // untimed history under timed live rows: nothing proves the old rows were read, so the turn rule stands
     const mixed: TranscriptRow[] = [
       { role: "assistant", text: "a" },
       { role: "user", text: "q" },
@@ -100,9 +96,7 @@ describe("the New line after a look", () => {
   test("it sits before what came since the last look, when the look is newer than done", () => {
     expect(unreadBoundary(rows, true, seen)).toBe(1);
     expect(unreadBoundary(rows, true, seen, "2026-09-23T09:15:00Z")).toBe(3);
-    // looked at everything: no line, though it is not done
     expect(unreadBoundary(rows, true, seen, "2026-09-23T09:30:00Z")).toBeNull();
-    // done is still the gate
     expect(unreadBoundary(rows, false, seen, "2026-09-23T09:15:00Z")).toBeNull();
   });
   test("a look older than done, or none, leaves the done rule; untimed rows fall back to it too", () => {
@@ -118,11 +112,8 @@ describe("the New line after a look", () => {
   test("holdMark: the look from before this open is held while the desk stays open, dropped when it closes", () => {
     const open = holdMark(null, "a/c", { viewedAt: "2026-09-23T09:15:00Z" });
     expect(open).toEqual({ key: "a/c", mark: "2026-09-23T09:15:00Z" });
-    // this open's own stamp arrives: the held mark does not move, so the line stays
     expect(holdMark(open, "a/c", { viewedAt: "2026-09-23T09:40:00Z" })).toBe(open);
-    // the item blinks out on a reload: still held
     expect(holdMark(open, "a/c", null)).toBe(open);
-    // closed, then another desk; nothing to hold before its item is known
     expect(holdMark(open, null, { viewedAt: "x" })).toBeNull();
     expect(holdMark(open, "a/d", null)).toBeNull();
     expect(holdMark(open, "a/d", { viewedAt: null })).toEqual({ key: "a/d", mark: null });
@@ -146,7 +137,7 @@ describe("Transcript draws the times in the message layout only", () => {
     expect(html.match(/class="loki-msg-day-pill"/g)?.length).toBe(2);
     expect(html).toContain(">Yesterday</span>");
     expect(html).toContain(">Today</span>");
-    expect(html.match(/<time class="loki-msg-time"/g)?.length).toBe(3); // every timed message, beside its copy button; "untimed" has none
+    expect(html.match(/<time class="loki-msg-time"/g)?.length).toBe(3);
     expect(html.match(/class="loki-msg-actions"><button[^]*?<\/button><time class="loki-msg-time"/g)?.length).toBe(3);
     expect(html).toContain(must(clockLabel(today.toISOString()), "today's clock label"));
     expect(html).not.toContain("loki-msg-divider-day");
@@ -178,7 +169,6 @@ describe("Transcript draws the times in the message layout only", () => {
     expect(at(">Yesterday</span>")).toBeLessThan(at("w-late"));
     expect(at("w-late")).toBeLessThan(at(">Today</span>"));
     expect(at(">Today</span>")).toBeLessThan(at("morning"));
-    // yesterday's messages, then a widget change today and nothing else: today still gets its pill
     const only = renderToStaticMarkup(createElement(Transcript, { rows: timed.slice(0, 1), people, widgets: [mark("now", today, 1)] }));
     expect(only.match(/class="loki-msg-day-pill"/g)?.length).toBe(2);
     expect(only.indexOf(">Today</span>")).toBeLessThan(only.indexOf("w-now"));

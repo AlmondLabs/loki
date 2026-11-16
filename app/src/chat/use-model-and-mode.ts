@@ -1,11 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import type { ModelSelection } from "../../../core/models.ts";
 
-/**
- * The conversation's switchers: Select model (the pill in the box; its effort is chosen inside it) and the
- * permission mode under the box. Owns whether each is open, the busy flags while changes are in flight, and
- * the host ticks (⌘⇧M, ⌘⇧P) that open them. Picking closes the picker first, then awaits the host.
- */
 export function useModelAndMode({
   onLoadModels,
   onPickModel,
@@ -23,15 +18,10 @@ export function useModelAndMode({
   const [switching, setSwitching] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
-  // The pill's name and effort come from list_models, so load it when a chat gains model controls instead
-  // of waiting for a first trip through the picker — and again when the host's loader changes (a new harness
-  // link: an ask made before the link was up came back empty).
-  // onPickModel is often a fresh scope-bound closure; the boolean capability is the stable trigger.
   const canPickModel = !!onPickModel;
   useEffect(() => {
     if (canPickModel) onLoadModels?.();
   }, [canPickModel, onLoadModels]);
-  // A bumped tick opens its menu from the render that sees it; the picker also asks for the model list.
   const [seenPickerTick, setSeenPickerTick] = useState(0);
   if (modelPickerTick !== seenPickerTick) {
     setSeenPickerTick(modelPickerTick);
@@ -76,5 +66,4 @@ export function useModelAndMode({
   return { pickerOpen, switching, modeOpen, changingMode, pickMode, pickModel, togglePicker, toggleMode, closePicker, closeMode };
 }
 
-/** The conversation's model and mode switchers, as `useModelAndMode` returns them. */
 export type ModelAndMode = ReturnType<typeof useModelAndMode>;

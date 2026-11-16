@@ -13,13 +13,10 @@ import { errorOf } from "../core/harness.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const conversation = 7 as ConversationId;
-/** A document reader whose chat document has `id`, or none at all. */
 const reader = (id?: string) => ({ snapshot: () => Promise.resolve(id === undefined ? undefined : { id }) }) as unknown as Pick<DocumentReader, "snapshot">;
 
-/** A command that prints `lines` lines, run without a shell so it behaves the same on Windows. */
 const print = (lines: number) => [process.execPath, "-e", `process.stdout.write("a line of output\\n".repeat(${lines}))`];
 
-/** Too-big tool results are saved under `<loki>/tool-results/<chat>/`, bash output past pi-durable's limits included. */
 describe("tool results", () => {
   test("a chat's folder is named for its chat id, made safe, or for its conversation before it has one", async () => {
     expect(await toolResultsDir("/loki", reader("c/1 x"), conversation, ctx)).toBe(join("/loki", "tool-results", "c_1_x"));
@@ -47,7 +44,6 @@ describe("tool results", () => {
   test("when the chat's folder cannot be written, the system's temp folder still takes the output", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-results-"));
     try {
-      // A file where the folder should be: nothing can be made inside it.
       const blocked = join(dir, "tool-results");
       writeFileSync(blocked, "");
       const env = new ChatEnv({ cwd: dir, resultsDir: join(blocked, "c1") });

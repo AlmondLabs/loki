@@ -1,8 +1,3 @@
-/**
- * Two Macs pairing over real sockets (plan 023, U1), under Node's own test runner, the daemon's runtime:
- * `npm run test:node`. Each "Mac" is a phone listener with its own stores; requests count as coming over the tailnet
- * unless a test says otherwise, since a test cannot join a real one.
- */
 import { strict as assert } from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +14,6 @@ import type { Client } from "../mod/server.ts";
 
 const DESKTOP = "0123456789abcdef0123456789abcdef";
 
-/** One Mac: its listener, stores and pairing, on an ephemeral port; `via` decides which way requests count as arriving. */
 async function mac(name: string, macId: string, opts: { via?: DeviceVia; protocol?: number } = {}) {
   const dir = mkdtempSync(join(tmpdir(), `loki-peer-${name}-`));
   const devices = new DeviceStore(join(dir, "devices.json"));
@@ -74,7 +68,6 @@ async function mac(name: string, macId: string, opts: { via?: DeviceVia; protoco
 const MACBOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-/** "open" with the first frame once the bridge says hello, "closed" when the upgrade is refused. */
 const socket = (url: string, headers: Record<string, string>) =>
   new Promise<string>((resolve) => {
     const ws = new WsClient(url, { headers });
@@ -106,16 +99,13 @@ void test("a code shown on one Mac and typed on the other pairs them both ways",
       mini.store.list().map((p) => [p.mac_id, p.host]),
       [[MACBOOK, book.host]],
     );
-    // Each holds the other's token, and that token opens the other's door.
     const bookToken = await book.keys.get(MINI);
     const miniToken = await mini.keys.get(MACBOOK);
     assert.ok(bookToken && miniToken && bookToken !== miniToken);
     assert.equal(mini.store.verify(bookToken)?.mac_id, MACBOOK);
     assert.equal(book.store.verify(miniToken)?.mac_id, MINI);
-    // Hearing from each other works and refreshes the record.
     assert.equal(await mini.peers.contact(MACBOOK), "ok");
     assert.equal(await book.peers.contact(MINI), "ok");
-    // A paired Mac's socket opens and names it.
     assert.equal(
       await socket(`ws://${book.host}/ws?desk=c1`, { authorization: `Bearer ${miniToken}` }),
       `open {"type":"hello","peer":"${MINI}","device":null}`,
@@ -183,7 +173,6 @@ void test("forgetting a Mac tells it, and both forget; a Mac told nothing finds 
     assert.deepEqual(mini.store.list(), []);
     assert.equal(await mini.keys.get(MACBOOK), null);
 
-    // Pair again, then forget while the other Mac is out of reach.
     await mini.peers.join(book.host, book.codes.mint().code);
     await mini.lan.stop();
     assert.equal(await book.peers.forget(MINI), true);

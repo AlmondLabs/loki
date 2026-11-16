@@ -6,31 +6,14 @@ import { migrateKeys } from "../core/snake-keys.ts";
 import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected } from "../core/recall/model.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 
-/**
- * The Recall files, under ~/.loki/recall (LOKI_RECALL_DIR in tests):
- *   cards/<id>.json      the text and its source — the worker's to write and update
- *   schedule/<id>.json   the person's review history (FSRS state) — never touched by the worker
- *   rejected/<id>.json   deleted cards, kept as negative examples the worker reads before writing
- *   leads/<id>.json      things the person could learn, proposed by the worker (core/recall/model.ts Lead)
- *   leads-dismissed/     leads the person said "not this" to — the worker's negative examples for leads
- *   lessons/<id>.json    leads the person started: the [Learn] conversation each became
- *   worker.json          what the mod's Learn worker kept before the background passes (plan 018): read for its old hidden chats only
- * One file per card so an agent, a person or a sync tool can read and edit any of it by hand.
- */
 export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
-/**
- * A file Recall wrote, renamed into today's snake_case shape: one saved camelCase before October 2026 (createdAt,
- * agentId, lastReview…) is written back once in the new shape.
- */
 function readStored(path: string): unknown {
   const { value, changed } = migrateKeys(readJson(path));
   if (changed && value !== null) {
     try {
       writeJson(path, value);
-    } catch {
-      // read-only or gone: the renamed value still serves this read, and the next read tries again
-    }
+    } catch {}
   }
   return value;
 }
@@ -44,19 +27,16 @@ function listJson<T>(dir: string): T[] {
   }
   return names.map((f) => readStored(join(dir, f)) as T | null).filter((v): v is T => v !== null);
 }
-/** The calendar day where the Mac is ("2026-09-10"): the cap resets at the person's midnight, not UTC's. */
 export const isoDay = (now: number): string => {
   const d = new Date(now);
   const two = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 };
 
-/** A new card's id: the UTC date as yyyymmdd, a dash, and six random base-36 characters (20260910-k3f9q2). */
 export function newCardId(now = Date.now()): string {
   return `${new Date(now).toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Everything Recall keeps, read fresh from disk on each call — the files are small and may be edited by hand. */
 export class RecallStore {
   readonly dir: string;
   constructor(dir = recallDir()) {
@@ -64,7 +44,6 @@ export class RecallStore {
   }
 
   private p = (...parts: string[]) => join(this.dir, ...parts);
-  /** The file a card or lead keeps in `kind`; an id that is not one (see isRecallId) is refused, never joined. */
   private f = (kind: string, id: unknown) => {
     if (!isRecallId(id)) throw new Error(`not a card or lead id: ${String(id).slice(0, 80)}`);
     return join(this.dir, kind, `${id}.json`);
@@ -90,13 +69,11 @@ export class RecallStore {
     return listJson<Rejected>(this.p("rejected")).sort((a, b) => b.at.localeCompare(a.at));
   }
 
-  /** A new card from the worker (or a restore). The schedule starts fresh: due now, unreviewed. */
   add(card: Card, schedule?: Schedule): void {
     writeJson(this.f("cards", card.id), card);
     writeJson(this.f("schedule", card.id), schedule ?? newSchedule(new Date(card.created_at).getTime() || Date.now()));
   }
 
-  /** New text for a card; the old wording goes into `previous`. The schedule is untouched. Returns the card, or null when unknown. */
   edit(id: string, text: { front?: string; back?: string; tags?: string[] }, by: "recall" | "you", now = Date.now()): Card | null {
     const cur = readStored(this.f("cards", id)) as Card | null;
     if (!cur) return null;
@@ -121,7 +98,6 @@ export class RecallStore {
     return next;
   }
 
-  /** A review: the FSRS step, recorded on the schedule file only. */
   grade(id: string, grade: Grade, now = Date.now()): Schedule | null {
     const cur = this.card(id);
     if (!cur) return null;
@@ -130,7 +106,6 @@ export class RecallStore {
     return next;
   }
 
-  /** Delete: the card moves to the rejected pile with how far it had got. That pile is the worker's negative examples. */
   reject(id: string, now = Date.now()): Rejected | null {
     const cur = this.card(id);
     if (!cur) return null;
@@ -141,9 +116,7 @@ export class RecallStore {
     return rec;
   }
 
-  /** Undo a delete: the card comes back with a fresh schedule (its history went with the delete). */
   restore(id: string): Card | null {
-    // A file from disk: it may not hold a card at all.
     const card = (readStored(this.f("rejected", id)) as Partial<Rejected> | null)?.card;
     if (!card || !isRecallId(card.id)) return null;
     this.add(card);
@@ -151,12 +124,10 @@ export class RecallStore {
     return card;
   }
 
-  /** Drop a rejection for good (the pile is otherwise kept: it is what teaches the worker). */
   forget(id: string): void {
     rmSync(this.f("rejected", id), { force: true });
   }
 
-  // --- leads and lessons -------------------------------------------------
   leads(): Lead[] {
     return listJson<Lead>(this.p("leads"))
       .filter((l) => isRecallId(l.id) && typeof l.title === "string" && typeof l.why === "string")
@@ -171,7 +142,6 @@ export class RecallStore {
   dismissedLeads(): DismissedLead[] {
     return listJson<DismissedLead>(this.p("leads-dismissed")).sort((a, b) => b.at.localeCompare(a.at));
   }
-  /** "Not this": the lead moves to the dismissed pile the worker reads before proposing again. */
   dismissLead(id: string, now = Date.now()): DismissedLead | null {
     const lead = this.lead(id);
     if (!lead) return null;
@@ -190,7 +160,6 @@ export class RecallStore {
   lessons(): Lesson[] {
     return listJson<Lesson>(this.p("lessons")).sort((a, b) => b.started_at.localeCompare(a.started_at));
   }
-  /** The lead became a conversation: it leaves the pile and is remembered as a lesson. */
   startLesson(id: string, conversation: { agentId: string; conversationId: string }, now = Date.now()): Lesson | null {
     const lead = this.lead(id);
     if (!lead) return null;

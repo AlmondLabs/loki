@@ -18,22 +18,10 @@ import { deskName } from "./model";
 import { formatRoute, parseRoute, type Route } from "./router";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
-/**
- * The phone's Search, pure (test/phone-search.test.ts): it looks only at what the phone already holds,
- * in declared fields — a desk's title and agent, an agent's name and (once loaded) description, a waiting
- * Inbox item's title and agent, and the named pages. Never a transcript, never a call to the Mac.
- *
- * Ranking is shared/search.ts's one rule: the best tier any field reaches (exact, prefix, word start,
- * substring), a title before a secondary field at the same tier, then the newest, then the order the list
- * already had. This file is the phone's adapter: its hits, routes and pages. search.tsx draws the groups with the same rows as Home, Agents and More.
- */
-
-/** Search's groups: chats ("desks", the code's older name), agents, what waits in the Inbox, and the app's pages. */
 export type GroupId = "desks" | "agents" | "inbox" | "pages";
 const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Flow", pages: "Pages" };
 const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
 
-/** One search result: the row it draws and the route it opens. */
 export interface Hit {
   key: string;
   group: GroupId;
@@ -41,14 +29,11 @@ export interface Hit {
   preview: string;
   route: Route;
   lead: Lead;
-  /** Drawn quieter: an archived desk. */
   dim: boolean;
 }
 
-/** A group of hits; `hits` holds the first GROUP_MAX of `total`. */
 export type Group = HitGroup<Hit, GroupId>;
 
-/** What the phone has loaded, from phone.tsx: the desks list, the agent list, the attention items, and agent descriptions the Agents cache already holds. */
 export interface SearchSources {
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;
@@ -56,7 +41,6 @@ export interface SearchSources {
   describe?: (agentId: string) => string | null | undefined;
 }
 
-/** A named page, and the words people use for it. */
 export interface Destination {
   route: Route;
   icon: IconName;
@@ -65,7 +49,6 @@ export interface Destination {
   keywords: string[];
 }
 
-/** The places Search can open by name: the tabs and the pages under Home and More. */
 export const DESTINATIONS: readonly Destination[] = [
   { route: { kind: "tab", tab: "home" }, icon: "home", label: "Home", line: "Chats and what needs you", keywords: ["chats", "desks", "start"] },
   {
@@ -116,10 +99,6 @@ export const DESTINATIONS: readonly Destination[] = [
   { route: { kind: "about" }, icon: "info", label: "About loki", line: "Version and build", keywords: ["version", "build", "updates"] },
 ];
 
-// ---- Queries --------------------------------------------------------------------------------------
-
-// ---- The index ------------------------------------------------------------------------------------
-
 type Entry = Indexed<Hit>;
 
 const deskHit = (d: DeskSummary & { agent_id: string; conversation_id: string }): Hit => ({
@@ -161,13 +140,8 @@ const pageHit = (d: Destination): Hit => ({
 
 const openable = (d: DeskSummary): d is DeskSummary & { agent_id: string; conversation_id: string } => !!d.agent_id && !!d.conversation_id;
 
-/** The sources as searchable entries, fields folded: build once per sources (search.tsx memoizes it), query per keystroke. */
 export type SearchIndex = CoreIndex<Hit>;
 
-/**
- * The search index over chats that can be opened, agents, the Inbox's ready cards and the app's pages; built once per
- * set of sources and queried on each keystroke.
- */
 export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
   for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskName(d), d.agent_name ?? ""], recency: timeOf(d.last_active) });
@@ -175,26 +149,20 @@ export function buildIndex(src: SearchSources): SearchIndex {
     const description = src.describe?.(a.id) ?? null;
     out.push({ hit: agentHit(a, description), fields: [a.name, description ?? ""], recency: 0 });
   }
-  // What needs you, from the loaded items; every chat is findable by its title among the chats above. An item opens
-  // its chat, so an email or Slack thread (plan 067), which is no chat, is left to the Inbox.
   for (const i of catchUpQueue(src.items))
     if (!i.outside) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agent_name ?? ""], recency: timeOf(i.last_message_at) });
   for (const d of DESTINATIONS) out.push({ hit: pageHit(d), fields: [d.label, ...d.keywords], recency: 0 });
   return buildSearchIndex(out);
 }
 
-/** The groups for a query, in a fixed order, empty ones left out; a blank query is none (the recents show instead). */
 export function search(src: SearchSources | SearchIndex, raw: string, max = GROUP_MAX): Group[] {
   const idx = "entries" in src ? src : buildIndex(src);
   return groupHits(rankHits(idx, raw), (h) => h.group, GROUP_ORDER, GROUP_TITLE, max);
 }
 
-// ---- Recently visited -----------------------------------------------------------------------------
-
-/** A remembered route hash as the row that opens it, or null when it no longer resolves (a desk deleted, an agent gone, junk). */
 export function placeHit(hash: string, src: SearchSources): Hit | null {
   const r = parseRoute(hash);
-  if (formatRoute(r) !== hash || r.kind === "search") return null; // not an address the app writes
+  if (formatRoute(r) !== hash || r.kind === "search") return null;
   const page = DESTINATIONS.find((d) => formatRoute(d.route) === hash);
   if (page) return pageHit(page);
   if (r.kind === "agent" || r.kind === "file") {
@@ -220,10 +188,8 @@ export function placeHit(hash: string, src: SearchSources): Hit | null {
   return null;
 }
 
-/** For recentPlaces.read(valid): drops what no longer resolves at read time, so it never becomes a broken row. */
 export const isPlace = (hash: string, src: SearchSources): boolean => placeHit(hash, src) !== null;
 
-/** The recent places as rows, the stale ones gone. */
 export function recentPlaceHits(hashes: string[], src: SearchSources): Hit[] {
   return hashes.map((h) => placeHit(h, src)).filter((h): h is Hit => h !== null);
 }

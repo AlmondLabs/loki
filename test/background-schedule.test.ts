@@ -14,7 +14,6 @@ describe("background tasks", () => {
   test("a task's output is read in pieces; an agent waiting on it when it ends is told by the wait, not a notice", async () => {
     const notices: Array<{ chatId: string; text: string }> = [];
     const tasks = new BackgroundTasks((_a, chatId, text) => notices.push({ chatId, text }));
-    // The second line waits for input rather than a sleep, so a busy machine cannot deliver both before the first read.
     const id = tasks.start("agent-a", "c", tmpdir(), "echo first; read go; echo second");
     expect(await tasks.wait(id, "agent-a", "first", 2000)).toContain("first");
     tasks.write(id, "agent-a", "go\n");
@@ -30,7 +29,6 @@ describe("background tasks", () => {
     const notices: Array<{ chatId: string; text: string }> = [];
     const tasks = new BackgroundTasks((_a, chatId, text) => notices.push({ chatId, text }));
     const id = tasks.start("agent-a", "c", tmpdir(), "echo done");
-    // A wait that a pattern ends before the task does leaves it unwatched.
     expect(await tasks.wait(id, "agent-a", "done", 2000)).toContain("done");
     const until = Date.now() + 3000;
     while (!notices.length && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
@@ -44,7 +42,6 @@ describe("background tasks", () => {
     const notices: string[] = [];
     const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
     // `sleep` stays a child of the shell in every shell (the echo after it keeps zsh from exec'ing it) and holds the
-    // output open: a stop must end it too, not only the shell.
     const id = tasks.start("agent-a", "c", tmpdir(), "read line; echo got $line; sleep 30; echo after");
     tasks.write(id, "agent-a", "hello\n");
     expect(await tasks.wait(id, "agent-a", "got hello", 2000)).toContain("got hello");
@@ -113,7 +110,6 @@ describe("the background tools (plan 095)", () => {
 
 describe("a stop the task's processes cannot all hear", () => {
   // A child outside the task's process group keeps its output open after the shell is gone — on Windows, a Git Bash
-  // child taskkill's tree misses. The task still reads as stopped once its shell has exited.
   test.skipIf(process.platform === "win32")("a straggler holding the output does not keep a stopped task running", async () => {
     const tasks = new BackgroundTasks(() => {});
     const id = tasks.start("agent-a", "c", tmpdir(), "perl -e '$| = 1; setpgrp(0, 0); print qq(escaped\\n); sleep 5' & wait");
@@ -136,12 +132,10 @@ describe("tasks of an agent that is gone, and tasks at the daemon's exit", () =>
     tasks.stopAll();
   });
 
-  // What the daemon does as it exits: a task that ignores SIGTERM is ended all the same, at once.
   test.skipIf(process.platform === "win32")("killAll ends a task that ignores the stop signal", async () => {
     const tasks = new BackgroundTasks(() => {});
     const id = tasks.start("agent-a", "c", tmpdir(), "trap '' TERM; sleep 30 & echo up; wait; echo after");
     // "up" comes after the shell has started its child: a group killed while its shell is still forking can miss the
-    // child being made, which then holds the output open (the race the stop's second signal is for).
     await tasks.wait(id, "agent-a", "up", 2000);
     tasks.killAll();
     const out = await tasks.wait(id, "agent-a", undefined, 3000);
@@ -163,18 +157,17 @@ describe("a task's shell", () => {
 describe("cron", () => {
   test("fields, ranges, steps and lists; day-of-month or day-of-week when both are given", () => {
     const f = parseCron("*/15 9-17 * * 1-5");
-    expect(matches(f, new Date("2026-10-12T09:30:00Z"), "UTC")).toBe(true); // a Monday
-    expect(matches(f, new Date("2026-10-11T09:30:00Z"), "UTC")).toBe(false); // a Sunday
+    expect(matches(f, new Date("2026-10-12T09:30:00Z"), "UTC")).toBe(true);
+    expect(matches(f, new Date("2026-10-11T09:30:00Z"), "UTC")).toBe(false);
     expect(matches(f, new Date("2026-10-12T09:31:00Z"), "UTC")).toBe(false);
     const either = parseCron("0 9 1 * 0");
-    expect(matches(either, new Date("2026-10-01T09:00:00Z"), "UTC")).toBe(true); // the 1st, a Thursday
-    expect(matches(either, new Date("2026-10-11T09:00:00Z"), "UTC")).toBe(true); // a Sunday
+    expect(matches(either, new Date("2026-10-01T09:00:00Z"), "UTC")).toBe(true);
+    expect(matches(either, new Date("2026-10-11T09:00:00Z"), "UTC")).toBe(true);
     expect(() => parseCron("61 * * * *")).toThrow();
     expect(() => parseCron("* * *")).toThrow("five fields");
   });
 
   test("a schedule is read in its own timezone", () => {
-    // 9:00 in Kolkata is 03:30 UTC.
     expect(matches(parseCron("0 9 * * *"), new Date("2026-10-12T03:30:00Z"), "Asia/Kolkata")).toBe(true);
     expect(matches(parseCron("0 9 * * *"), new Date("2026-10-12T09:00:00Z"), "Asia/Kolkata")).toBe(false);
   });
@@ -186,7 +179,6 @@ describe("cron", () => {
   });
 
   test("when the clocks go back, a slot in the repeated hour fires once; a yearly slot still fires a year on", () => {
-    // London, 25 October 2026: 01:30 BST is 00:30Z, and 01:30 GMT an hour later is 01:30Z.
     const early = parseCron("30 1 * * *");
     const fired = new Date("2026-10-25T00:30:20Z");
     expect(dueBetween(early, "Europe/London", fired, new Date("2026-10-25T01:31:00Z"), fired)).toBe(false);
@@ -236,7 +228,6 @@ describe("scheduled tasks", () => {
       expect(await schedules.tick(new Date("2026-10-10T08:59:00Z"))).toBe(0);
       expect(await schedules.tick(new Date("2026-10-10T09:00:00Z"))).toBe(1);
       expect(fired).toEqual(['default: Scheduled task "standup": post the standup']);
-      // Closed for three days: each task fires once, not once per missed slot.
       expect(await schedules.tick(new Date("2026-10-13T12:00:00Z"))).toBe(2);
       expect(fired.slice(1).sort()).toEqual(['c: Scheduled task "once": remind me', 'default: Scheduled task "standup": post the standup']);
       expect(schedules.list().map((t) => [t.name, t.status, t.fire_count])).toEqual([
@@ -259,7 +250,6 @@ describe("scheduled tasks", () => {
       const base = { agent_id: "agent-a", conversation_id: "c", description: null, recurring: true, prompt: "p" };
       schedules.create({ ...base, name: "rent", cron: "0 9 1 * *", timezone: "Asia/Kolkata" }, new Date("2026-10-02T00:00:00Z"));
       for (const at of ["2026-10-15T00:00:00Z", "2026-10-31T00:00:00Z", "2026-11-01T03:29:00Z"]) expect(await schedules.tick(new Date(at))).toBe(0);
-      // 09:00 in Kolkata on the 1st.
       expect(await schedules.tick(new Date("2026-11-01T03:30:00Z"))).toBe(1);
       expect(await schedules.tick(new Date("2026-11-20T00:00:00Z"))).toBe(0);
       expect(await schedules.tick(new Date("2026-12-01T03:30:00Z"))).toBe(1);
@@ -310,7 +300,6 @@ describe("scheduled tasks", () => {
       const base = { agent_id: "agent-a", conversation_id: "c", description: null, timezone: "UTC", recurring: true };
       const schedules: Schedules = new Schedules(join(dir, "crons.json"), async (_a, _c, text) => {
         fired.push(text);
-        // The agent, in the fired turn, makes a new task and cancels another before the tick ends.
         schedules.create({ ...base, name: "later", cron: "0 18 * * *", prompt: "evening" }, new Date("2026-10-10T09:00:00Z"));
         schedules.cancel("agent-a", "other");
         await new Promise<void>((r) => (release = r));

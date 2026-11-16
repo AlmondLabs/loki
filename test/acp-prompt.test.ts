@@ -25,25 +25,18 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       expect(prompt).toContain("do not edit them");
       expect(prompt).not.toContain("memory_read");
       expect(prompt).toContain(`- pruning: how to prune roses (${join(root, "skills", "pruning", "SKILL.md")})`);
-      // loki's own chats keep the memory tools' wording.
       expect(memorySection(root)).toContain("read one with memory_read");
-      // Quick replies (plan 066) need no tool, so every agent is told of them, one with nothing else included.
       expect(prompt).toContain("<loki-replies>");
       expect(agentPrompt(dir, "agent-nobody", null, false, globalSkills)).toContain("<loki-replies>");
-      // With loki's tools (plan 044), the memory is changed through them, as in loki's own chats.
       const withTools = must(agentPrompt(dir, id, "Ada", true, globalSkills));
       expect(withTools).toContain("mcp__loki__memory_read");
       expect(withTools).toContain("never by editing the files");
       expect(withTools).toContain("read one with memory_read");
       expect(withTools).not.toContain("do not edit them");
-      // Suggestions (plan 049, KTD5): an ACP agent never sees the mod's prompt sections, so the prompt names the tool.
       expect(withTools).toContain("suggestion_create");
       expect(prompt).not.toContain("suggestion_create");
-      // The history tools (plan 063): loki cannot see an ACP agent compact, so the prompt always names them, reached
-      // through the script tool (plan 099).
       expect(withTools).toContain("mcp__loki__script calling history_search");
       expect(prompt).not.toContain("history_search");
-      // An agent with no memory and no skills still learns of the tool when loki's tools reach it.
       expect(agentPrompt(dir, "agent-nobody", null, true, globalSkills)).toContain("suggestion_create");
     } finally {
       rmSync(dir, { recursive: true, force: true });

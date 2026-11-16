@@ -33,7 +33,6 @@ const turn = (over: Partial<FinishedTurn> = {}): FinishedTurn => ({
   requestId: null,
   entries: [
     { kind: "pi.user", model: [{ role: "user", content: "hello", timestamp: T0 } as never] },
-    // The model from 100 to 1100, a tool from 1150 to 1650 that failed, the model again from 1700 to 2200.
     {
       kind: "pi.assistant",
       model: [
@@ -136,7 +135,6 @@ describe("turn telemetry: one turn's event", () => {
     expect(originOf(turn({ chatId: "recall-agent-local-a" }))).toBe("recall");
     expect(originOf(turn({ chatId: "c9", hidden: true, title: "recall" }))).toBe("recall");
     expect(originOf(turn({ chatId: "reflection-local-conv-1" }))).toBe("reflection");
-    // A background pass's run says its job in the request id.
     expect(originOf(turn({ chatId: "recall-agent-local-a", requestId: "pass:learn:c1:12" }))).toBe("recall");
     expect(originOf(turn({ chatId: "reflection-agent-local-a", requestId: "pass:reflection:c1:12" }))).toBe("reflection");
   });
@@ -236,7 +234,6 @@ describe("turn telemetry: the daemon's turns", () => {
       });
       for (const key of ["ttft_ms", "total_ms", "model_ms", "tool_ms", "overhead_ms"]) expect(typeof p[key]).toBe("number");
       expect(p.total_ms as number).toBeGreaterThanOrEqual(p.ttft_ms as number);
-      // The app's chat events name the same turn as it starts and as it ends.
       expect(events.find((e) => e.kind === "loop" && e.state === "running")).toMatchObject({ turn_id: p.turn_id });
       expect(events.find((e) => e.kind === "turn_end")).toMatchObject({ turn_id: p.turn_id });
     } finally {

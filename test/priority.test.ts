@@ -14,14 +14,8 @@ import {
 import { isScheduledPrompt } from "../core/harness.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/**
- * The inbox's score (core/attention/priority.ts): one number per card, one list. Blocked agents on top, then
- * the chats you have been engaging with (their focus share), then the rest; age only drifts cards down.
- */
-
 const NOW = new Date("2026-09-16T10:00:00Z").getTime();
 const at = (minutesAgo: number) => new Date(NOW - minutesAgo * 60_000).toISOString();
-// read by default: "new" is its own term, tested on its own
 const item = (id: string, over: Partial<AttentionItem> = {}) => attentionItem(id, { last_message_at: at(60), unread: false, ...over });
 
 describe("the score", () => {
@@ -30,11 +24,9 @@ describe("the score", () => {
       expect(scoreOf(item("b", { status, last_message_at: at(30) }), NOW)).toBeCloseTo(BLOCKED_POINTS + WAITING_POINTS_PER_HOUR / 2, 5);
     }
     expect(scoreOf(item("f", { status: "failed", last_message_at: at(30) }), NOW)).toBeCloseTo(-AGE_POINTS_PER_HOUR / 2, 5);
-    // among blocked cards the one that has waited longest comes first
     expect(
       scored([item("new", { status: "approval", last_message_at: at(6) }), item("old", { status: "approval", last_message_at: at(50) })], NOW).map((i) => i.id),
     ).toEqual(["old", "new"]);
-    // a day-old approval in a chat you left still beats the chat with all your focus
     expect(scoreOf(item("b", { status: "approval", last_message_at: at(24 * 60) }), NOW, 0)).toBeGreaterThan(
       scoreOf(item("f", { last_message_at: at(0) }), NOW, 1),
     );
@@ -43,17 +35,14 @@ describe("the score", () => {
   test("new: the agent said something since you last looked, +10; a blocked card does not add it", () => {
     expect(scoreOf(item("n", { unread: true, last_message_at: at(0) }), NOW)).toBeCloseTo(NEW_POINTS, 5);
     expect(reasonOf(item("n", { unread: true }))).toBe("new");
-    // focus worth more than new names the card by its focus
     expect(reasonOf(item("n", { unread: true }), 0.8)).toBe("focus");
     expect(scoreOf(item("b", { status: "question", unread: true, last_message_at: at(0) }), NOW)).toBeCloseTo(BLOCKED_POINTS, 5);
-    // a new card from a chat you have left outranks a read one in the chat you are working in, until focus passes 2/3
     expect(scoreOf(item("n", { unread: true }), NOW, 0)).toBeGreaterThan(scoreOf(item("r"), NOW, 0.6));
   });
 
   test("focus: the chat's share of your engagement, worth up to 15 points", () => {
     expect(scoreOf(item("f", { last_message_at: at(0) }), NOW, 0.5)).toBeCloseTo(FOCUS_POINTS / 2, 5);
     expect(reasonOf(item("f"), 0.5)).toBe("focus");
-    // a sliver of focus does not earn the word
     expect(reasonOf(item("s"), 0.1)).toBe("other");
     expect(reasonOf(item("b", { status: "question" }), 0.9)).toBe("blocked");
   });
@@ -63,7 +52,6 @@ describe("the score", () => {
     const stale = item("s", { last_message_at: at(3 * 24 * 60) });
     expect(scoreOf(fresh, NOW)).toBeGreaterThan(scoreOf(stale, NOW));
     expect(scoreOf(stale, NOW)).toBeCloseTo(-AGE_POINTS_PER_HOUR * 72, 5);
-    // a card from yesterday in the chat you are working in outranks a fresh one from a chat you have left
     expect(scoreOf(item("y", { last_message_at: at(20 * 60) }), NOW, 0.4)).toBeGreaterThan(scoreOf(item("r", { last_message_at: at(10) }), NOW, 0));
     expect(scoreOf(item("n", { last_message_at: null }), NOW)).toBe(0);
   });
@@ -88,7 +76,6 @@ describe("the order", () => {
     expect(list.map((i) => i.reason)).toEqual(["blocked", "focus", "other", "other", "other"]);
     expect(list[1].focus).toBe(0.6);
     expect(list[0].score).toBeGreaterThan(BLOCKED_POINTS);
-    // byScore orders by the stamp alone, so a later re-sort reads the same instant the items were built at
     expect(byScore([list[2], list[1], list[0]]).map((i) => i.id)).toEqual(["blocked", "focused", "quiet"]);
   });
 

@@ -71,7 +71,6 @@ describe("Preferences: the section list", () => {
     expect(pagesMatching("dark")).toEqual(["appearance"]);
     expect(pagesMatching("shortcuts")).toEqual(["keys"]);
     expect(pagesMatching("zzz")).toEqual([]);
-    // Flow was the Inbox (plan 087): the old word still finds its page.
     expect(pagesMatching("inbox")).toEqual(["inbox"]);
   });
 });
@@ -197,7 +196,6 @@ describe("Mac extras only on the Mac (plan 014 U3, R3)", () => {
 
 describe("Preferences › Inbox: read and later return times for each kind of card (plan 070, R15)", () => {
   const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
-  /** The page's api with the daemon's defaults, and every set it was asked for. */
   function page() {
     const sent: ReturnTimes[] = [];
     const api: ReturnTimesApi = { times: RETURN_TIMES_DEFAULT, set: (t) => sent.push(t) };
@@ -208,7 +206,6 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     all: string[];
     chosen: string;
   }
-  /** Every pop-up on the page (plan 2026-11-15-1035, R12), by its screen-reader name, read from the element tree (no DOM in these tests). */
   function controls(node: unknown, out = new Map<string, Control>()) {
     if (Array.isArray(node)) for (const n of node) controls(n, out);
     else if (
@@ -228,7 +225,6 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     }
     return out;
   }
-  /** The choices of one pop-up, in order, and the one chosen, which the closed pop-up shows on its face. */
   function choices(api: ReturnTimesApi, label: string) {
     const c = must(controls(InboxPage({ returnTimes: api })).get(label), label);
     const face = text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: api })));

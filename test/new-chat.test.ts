@@ -4,8 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { NewChat, type NewChatProps } from "../app/src/desk/new-chat.tsx";
 
-// Plan 2026-11-12-1505, U20: ⌘N opens an empty chat in place, with a To: line holding the agent.
-
 const noop = () => {};
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
 const props: NewChatProps = {

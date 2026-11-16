@@ -37,7 +37,6 @@ describe("following a chat's events", () => {
     await expect(engine.open(c, null)).rejects.toThrow("the store is busy");
     await engine.open(c, null);
     await engine.open(c, null);
-    // Once for the failure, once for the follow that took; the third open reuses it.
     expect(watched).toBe(2);
     await store.close(ctx);
   });

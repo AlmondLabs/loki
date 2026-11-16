@@ -10,14 +10,11 @@ import { DatabaseSync } from "node:sqlite";
  * LevelDB's and Chromium's published formats, written here independently of the reader under test.
  */
 
-/** The keychain password the fixture encrypts the cookie with. */
 export const SAFE_STORAGE_PASSWORD = "fixture-safe-storage-password";
 /** The `d` cookie as Slack stores it: URL-encoded. */
 export const COOKIE_STORED = "xoxd-fixture%2Bcookie%2Fvalue%3D%3D";
-/** The same cookie decoded, as a request sends it once encoded again. */
 export const COOKIE_DECODED = "xoxd-fixture+cookie/value==";
 
-/** Two signed-in workspaces, as Slack's localConfig keeps them, plus one entry without a desktop token. */
 export const LOCAL_CONFIG = {
   teams: {
     T0ACME: { id: "T0ACME", name: "Acme", url: "https://acme.slack.com/", domain: "acme", token: "xoxc-acme-1111-2222-3333", user_id: "U0ME" },
@@ -27,12 +24,9 @@ export const LOCAL_CONFIG = {
   lastActiveTeamId: "T0ACME",
 };
 
-/** An older localConfig, written before the person signed in to Beta: a reader must prefer the newer one. */
 export const OLDER_LOCAL_CONFIG = { teams: { T0ACME: LOCAL_CONFIG.teams.T0ACME } };
 
-/** Where a direct-download Slack keeps its data under a home folder; the App Store build's container is the other. */
 export const directDownloadDir = (home: string) => join(home, "Library", "Application Support", "Slack");
-/** Where the Mac App Store build of Slack keeps its data under a home folder. */
 export const appStoreDir = (home: string) =>
   join(home, "Library", "Containers", "com.tinyspeck.slackmacgap", "Data", "Library", "Application Support", "Slack");
 
@@ -100,7 +94,6 @@ export function snappyCompress(input: Buffer): Buffer {
   return Buffer.concat(parts);
 }
 
-/** One write in a LevelDB batch: a value, or a deletion. */
 export interface LevelWrite {
   key: Buffer;
   value: Buffer | null;
@@ -179,7 +172,6 @@ export function levelTable(entries: Array<{ key: Buffer; value: Buffer; seq: num
     at += body.length + 5;
     return handle;
   };
-  // One data block per entry, so the index has several handles to follow.
   const index = internal.map((e) => ({ key: e.key, value: put(block([e])) }));
   const meta = put(block([]));
   const indexHandle = put(block(index));
@@ -205,7 +197,6 @@ export function encryptCookie(value: string, opts: { password?: string; host?: s
   return Buffer.concat([Buffer.from("v10"), cipher.update(plain), cipher.final()]);
 }
 
-/** A Chromium Cookies database with Slack's `d` cookie, and an unrelated cookie a reader must skip. */
 export function writeCookies(file: string, opts: { password?: string; domainHash?: boolean } = {}): void {
   const db = new DatabaseSync(file);
   try {
@@ -220,10 +211,6 @@ export function writeCookies(file: string, opts: { password?: string; domainHash
   }
 }
 
-/**
- * A whole Slack data folder at `dir`: a log with the older localConfig, a table with the current one (a later
- * sequence), a LOCK file as a running Slack holds, and the Cookies database in Network/.
- */
 export function writeSlackDir(dir: string, opts: { password?: string; config?: unknown } = {}): void {
   const leveldb = join(dir, "Local Storage", "leveldb");
   mkdirSync(leveldb, { recursive: true });

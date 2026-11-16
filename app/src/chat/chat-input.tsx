@@ -19,10 +19,7 @@ import { Icon } from "../shared/icons";
 import { cmdHeld } from "../shell/keymap";
 import { messageOf } from "../../../core/errors.ts";
 
-/** "what was typed" + "what was heard", one space between, no trailing space carried over. */
-/** No pictures attached: one list for every render, so what watches `images` sees no change. */
 const NO_IMAGES: Attachment[] = [];
-/** Hands the field to a forwarded ref, whichever kind the host gave. */
 function bindRef(ref: ForwardedRef<HTMLTextAreaElement>) {
   return (el: HTMLTextAreaElement | null) => {
     if (typeof ref === "function") ref(el);
@@ -31,59 +28,40 @@ function bindRef(ref: ForwardedRef<HTMLTextAreaElement>) {
 }
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
 
-/** What a message box takes, the phone's ChatInput and the desktop's Composer alike (plan 097, KTD5). */
 export interface MessageBoxProps {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
-  /** First look at a key; return true to claim it (the command palette takes arrows, tab, enter, esc while open). */
   onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => boolean;
   onEscape?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
-  /**
-   * Images and files attached to the draft; the host sends them with the text. Images ride inside the message;
-   * any other file is uploaded to the Mac as soon as it is added and goes as its path. Without onImages there is no "+".
-   */
   images?: Attachment[];
   onImages?: (images: Attachment[]) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** The phone's sizes: 36 in the row (each with a 44 target), 15px text. */
   touch?: boolean;
-  /** In the row after "+": the model pill. */
   tools?: ReactNode;
-  /** Something to send (text or an image); send is disabled without it. */
   canSend: boolean;
-  /** Send's name: "Send", or what happens mid-turn (it queues). */
   sendLabel: string;
   sendTitle?: string;
-  /** The agent is working: with nothing typed, send becomes Stop, which ends the turn so you can take over. Typed text still sends (it queues). */
   onStop?: () => void;
-  /** A stop was asked for and the turn has not ended yet. */
   stopping?: boolean;
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
   "aria-expanded"?: boolean;
 }
 
-/**
- * A message box's behaviour without its look (plan 097, KTD5): the draft with dictation woven in, files and images by
- * paste, drop or the picker (uploads tracked until they land), Enter to send, Escape, ⌘D to dictate, and the field
- * growing to six lines. ChatInput and the new pane's Composer draw the same box from it.
- */
 export function useMessageBox(
   { value, onChange, onSubmit, onKeyDown, onEscape, images = NO_IMAGES, onImages, placeholder }: MessageBoxProps,
   ref: ForwardedRef<HTMLTextAreaElement>,
 ) {
   const setRef = bindRef(ref);
-  // The latest list, for uploads that finish after the draft moved on.
   const imagesRef = useRef(images);
   useLayoutEffect(() => {
     imagesRef.current = images;
   }, [images]);
   const uploadCount = useRef(0);
-  /** Files still on their way to the Mac, with how far along; a failed one stays with its reason until removed. */
   const [uploads, setUploads] = useState<Array<{ id: string; name: string; share: number; error?: string }>>([]);
   const upload = (file: File) => {
     const id = `up-${++uploadCount.current}`;
@@ -100,7 +78,6 @@ export function useMessageBox(
     for (const f of picked.files) upload(f);
     if (!picked.images.length) return;
     const added = await Promise.all(picked.images.map((b) => imageFromBlob(b).catch(() => null)));
-    // An image this browser cannot draw (HEIC outside Safari) still goes, as a file.
     picked.images.forEach((b, i) => {
       if (!added[i] && b instanceof File) upload(b);
     });
@@ -115,16 +92,14 @@ export function useMessageBox(
   const inner = useRef<HTMLTextAreaElement | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
 
-  // What was in the box before dictation (plus finished phrases); interim words sit after it.
   const base = useRef(value);
   const [interim, setInterim] = useState("");
   const interimRef = useRef("");
-  /** Enter was pressed while listening: the message is gone, so late results from the recogniser must not refill the box. */
   const discarding = useRef(false);
   const dictation = useDictation({
     onInterim: (text) => {
       if (discarding.current) return;
-      if (!text && !interimRef.current) return; // nothing to clear (recognition ended quietly)
+      if (!text && !interimRef.current) return;
       interimRef.current = text;
       setInterim(text);
       onChange(join(base.current, text));
@@ -138,7 +113,7 @@ export function useMessageBox(
     },
   });
   const typed = (v: string) => {
-    base.current = v; // typing while listening: keep what the user wrote
+    base.current = v;
     setInterim("");
     onChange(v);
   };
@@ -147,11 +122,10 @@ export function useMessageBox(
     dictation.toggle();
     inner.current?.focus();
   };
-  /** Enter or the send button: a dictation still running ends here, and what it still emits is dropped. */
   const send = () => {
-    if (uploading) return; // the file would be left behind: send waits for it (the button says so)
+    if (uploading) return;
     if (dictation.listening || dictation.pending) {
-      discarding.current = true; // whatever the recogniser still emits belongs to the sent message
+      discarding.current = true;
       base.current = "";
       interimRef.current = "";
       setInterim("");
@@ -161,7 +135,7 @@ export function useMessageBox(
   };
   useEffect(() => {
     if (!dictation.listening) {
-      base.current = value; // sends/clears outside dictation reset the base
+      base.current = value;
       discarding.current = false;
     }
   }, [value, dictation.listening]);
@@ -172,7 +146,6 @@ export function useMessageBox(
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
-    // Empty: one line even when the placeholder would wrap.
     if (!value) {
       el.style.height = "";
       return;
@@ -199,7 +172,7 @@ export function useMessageBox(
     onPaste: (e: ClipboardEvent<HTMLTextAreaElement>) => {
       const picked = droppedFiles(e.clipboardData);
       if (onImages && (picked.images.length || picked.files.length)) {
-        e.preventDefault(); // the file, not its name
+        e.preventDefault();
         void addFiles(picked);
       }
     },
@@ -219,20 +192,16 @@ export function useMessageBox(
         e.preventDefault();
         send();
       } else if (e.key === "Escape" && onEscape) {
-        // Not prevented, so the shell still takes it on: in Flow's card it moves focus to the list (KTD14), and it
-        // skips an Esc something inside already took (the slash palette's, which prevents it in onKeyDown above).
         onEscape();
       } else if (e.key.toLowerCase() === "d" && cmdHeld(e) && !e.altKey && !e.shiftKey && dictation.supported) {
-        // ⌘D dictates (Ctrl+D off the Mac). (⌘M is minimise on a Mac and stays that way.)
         e.preventDefault();
         startDictation();
       }
     },
   };
-  /** The hidden file picker's change: images ride inside the message, other files upload. */
   const onPicked = (e: ChangeEvent<HTMLInputElement>) => {
     const all = Array.from(e.target.files ?? []);
-    e.target.value = ""; // the same file can be picked again
+    e.target.value = "";
     void addFiles({ images: all.filter(isInlineImage), files: all.filter((f) => !isInlineImage(f)) });
   };
   return {
@@ -253,13 +222,6 @@ export function useMessageBox(
   };
 }
 
-/**
- * The message box, one for the phone and the desktop (2026-09-24, after Claude's): one rounded field with the
- * text on top and a row inside it — "+" to attach images, the host's tools (the model pill), then the mic and
- * send at the end. Enter sends, Shift+Enter inserts a newline, the text grows with its content up to ~6 lines.
- * The mic (or ⌘D while focused) dictates into the same box; recognition stops by itself after a pause, then
- * Enter (or send) sends as usual. Images come in by paste, drop or "+".
- */
 export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(function ChatInput(props, ref) {
   const {
     onFocus,
@@ -312,7 +274,6 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
                     border: "1px solid var(--loki-border)",
                   }}
                 />
-                {/* 24px, the smallest target a pointer is given (WCAG 2.5.8), on the thumbnail's corner. */}
                 <IconButton
                   size={24}
                   hairline
@@ -400,11 +361,6 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
   );
 });
 
-/**
- * The box's bottom row, one height throughout (28 on the desktop, 36 on the phone): "+" and the host's tools on
- * the left; the mic (only where dictation works) and the round send at the end, green once there is something
- * to send (Slack's send), a muted circle while the box is empty.
- */
 export function ComposerBar({
   touch = false,
   attach,
@@ -425,7 +381,6 @@ export function ComposerBar({
   sendLabel: string;
   sendTitle?: string;
   onSend: () => void;
-  /** In send's place while the agent works and nothing is typed. */
   stop?: { onStop: () => void; stopping: boolean } | null;
   disabled?: boolean;
 }) {

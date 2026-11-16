@@ -6,13 +6,9 @@ import { menuSpec } from "../app/src/shell/keymap.ts";
 import { chatWorking, runUpdateItem, showReadyUpdate } from "../app/src/shell/update-notice.tsx";
 import { readyVersion, updateItemLabel, type LokiUpdate, type UpdateState, type UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
-// Plan 2026-11-15-2319, U5 (R10, R11, AE3): the loki menu's update item checks now, or restarts to a ready update; the
-// Restart to Update notice shows once per ready update and says when a chat's turn would stop.
-
 const status = (state: UpdateState): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state });
 const ready = status({ kind: "ready", version: "2026.1117.0" });
 
-/** A stand-in for the notices, keeping what each call showed so a test can press its buttons. */
 function fakeNotices() {
   const shown: Array<{ title: string; data?: ExternalToast; loading: boolean }> = [];
   const dismissed: Array<string | number | undefined> = [];
@@ -46,7 +42,6 @@ function fakeNotices() {
   return { toaster, shown, dismissed, last, press, label };
 }
 
-/** An update model whose commands are counted. */
 function fakeUpdate(s: UpdateStatus | null) {
   const calls = { check: 0, restart: 0 };
   const update: LokiUpdate = {
@@ -168,7 +163,6 @@ describe("the Restart to Update notice", () => {
     expect(notices.shown).toEqual([]);
     step(ready);
     expect(notices.shown.map((n) => n.title)).toEqual(["loki 2026.1117.0 is ready"]);
-    // Later, then the same update heard again (a re-check, a channel change).
     notices.press("cancel");
     step(ready);
     expect(notices.shown).toHaveLength(1);
@@ -206,7 +200,6 @@ describe("the Restart to Update notice", () => {
     expect(chatWorking([item({}), item({ status: "running" })])).toBe(true);
     expect(chatWorking([item({ status: "approval", pendingApproval: approval })])).toBe(true);
     expect(chatWorking([item({ status: "approval" })])).toBe(false);
-    // An agent's question holds its turn open as an approval does: restarting would stop it unasked.
     const question = { requestId: "r2", input: {}, questions: [], at: "2026-11-16T10:00:00Z" };
     expect(chatWorking([item({ status: "question", pendingQuestion: question })])).toBe(true);
   });

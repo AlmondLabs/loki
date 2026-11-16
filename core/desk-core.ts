@@ -1,15 +1,7 @@
-/**
- * desk-core — the vocabulary both halves of loki speak.
- * Imported by the mod (Node, type-stripped) and by the canvas app (Vite).
- * Pure data and pure functions only: no I/O, no framework imports.
- */
-
 /** A desk scope: "shared" or a sanitized conversation id. */
 export type Scope = string;
-/** The shared desk's scope: its widgets show on every chat's desk too. */
 export const SHARED_SCOPE: Scope = "shared";
 
-/** The desk a widget belongs to: the scope before its id's "/", or the shared desk for an id without one. */
 export function scopeOfId(id: string): Scope {
   const i = id.indexOf("/");
   return i > 0 ? id.slice(0, i) : SHARED_SCOPE;
@@ -64,7 +56,6 @@ export interface WidgetManifestEntry {
   updated_at: number;
 }
 
-/** What happened to a widget file, as its change log records it. */
 export type WidgetChange = "added" | "changed" | "removed";
 
 /** Who made a widget change: the agent writing files (the default), the person (trashing a widget), or loki itself (a lesson's card). */
@@ -105,50 +96,37 @@ export type Gesture =
   | { kind: "resize"; id: string; size: Size }
   | { kind: "focus"; id: string }
   | { kind: "close"; id: string }
-  /** Undo a close from the canvas; the inverse of `close`. */
   | { kind: "open"; id: string }
   /** `prev` is the value the tab saw before the gesture; module widgets keep their initial data client-side. */
   | { kind: "set"; id: string; path: string; value: unknown; prev?: unknown };
 
-/** A desk with no widgets placed yet, at revision 0. */
 export function emptyDesk(scope: Scope): DeskState {
   return { scope, layout: {}, overlay: {}, rev: 0 };
 }
 
-/** The highest z among a desk's widgets, 0 for an empty desk: a widget brought forward goes one above it. */
 export function topZ(layout: Record<string, WidgetLayout>): number {
   let top = 0;
   for (const l of Object.values(layout)) if (l.z > top) top = l.z;
   return top;
 }
 
-/** Cascade placement for widgets the agent did not position (client-side fallback until the mod assigns one). */
 export function autoPlace(index: number): Position {
   return { x: 140 + (index % 6) * 60, y: 120 + (index % 6) * 48 };
 }
 
-/** A widget's rectangle on the canvas: its position and size, in pixels. */
 export interface Rect extends Position, Size {}
 
-/** Frames are 280 wide by default; height is unknown until the tab measures it. */
 export const DEFAULT_SIZE: Size = { w: 280, h: 160 };
-/** An auto-sized frame grows to its content up to this width, then the content scrolls; a reading measure, matching the centred chat. */
 export const WIDGET_MAX_WIDTH = 760;
-/** Smallest a human may drag a frame; below this is a mis-grab, not an intent. */
 export const RESIZE_MIN: Size = { w: 200, h: 120 };
-/** Where the first widget on an empty desk goes. */
 export const ORIGIN: Position = { x: 120, y: 120 };
-/** Breathing room between widgets, in pixels. */
 export const GAP = 24;
-/** How wide a row of widgets grows before the next one wraps below it, in pixels. */
 export const ROW_WIDTH = 1280;
 
-/** A widget's rectangle, with the default size while the tab has not measured it. */
 export function rectOf(layout: WidgetLayout): Rect {
   return { ...layout.position, w: layout.size?.w ?? DEFAULT_SIZE.w, h: layout.size?.h ?? DEFAULT_SIZE.h };
 }
 
-/** Occupied rectangles of the visible widgets in a desk. */
 export function occupiedRects(state: DeskState): Rect[] {
   return Object.values(state.layout)
     .filter((l) => !l.hidden)
@@ -157,12 +135,6 @@ export function occupiedRects(state: DeskState): Rect[] {
 
 const overlaps = (a: Rect, b: Rect, gap: number) => a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
 
-/**
- * First free spot for a widget of `size`: the origin, or to the right of / below
- * an existing widget, whichever is nearest the top-left without overlapping
- * anything and without running past the row width. Reads left to right, top
- * to bottom, the way a person tidies a desk.
- */
 export function findFreeSpot(obstacles: Rect[], size: Size = DEFAULT_SIZE, opts: { origin?: Position; row_width?: number; gap?: number } = {}): Position {
   const origin = opts.origin ?? ORIGIN;
   const rowWidth = opts.row_width ?? ROW_WIDTH;
@@ -185,7 +157,6 @@ export function findFreeSpot(obstacles: Rect[], size: Size = DEFAULT_SIZE, opts:
       best = c;
     }
   }
-  // Nothing fits in the rows: start a new row under everything.
   if (!best) {
     const bottom = obstacles.reduce((m, o) => Math.max(m, o.y + o.h), origin.y - gap);
     best = { x: origin.x, y: bottom + gap };
@@ -193,15 +164,9 @@ export function findFreeSpot(obstacles: Rect[], size: Size = DEFAULT_SIZE, opts:
   return best;
 }
 
-/** A widget's layout entry, or undefined for one this desk has not placed: the record answers for any id. */
 const layoutOf = (state: DeskState, id: string): WidgetLayout | undefined => state.layout[id];
-/** A widget's gesture overrides, or undefined when it has none. */
 const overlayOf = (state: DeskState, id: string): Record<string, unknown> | undefined => state.overlay[id];
 
-/**
- * Give a widget a layout entry if it has none, in the first free spot given
- * everything else on screen (this desk plus the shared widgets shown with it).
- */
 export function ensureLayout(state: DeskState, id: string, obstacles: Rect[] = occupiedRects(state), size: Size = DEFAULT_SIZE): DeskState {
   if (layoutOf(state, id)) return state;
   return {
@@ -211,25 +176,18 @@ export function ensureLayout(state: DeskState, id: string, obstacles: Rect[] = o
   };
 }
 
-/** Smallest size a rendered widget frame can honestly have; anything under it is a transient layout glitch, not a measurement. */
 export const MIN_FRAME = { w: 80, h: 40 };
 
-/** Record the rendered size of a widget (reported by the tab). No-op if unchanged, or if the size is under MIN_FRAME. */
 export function applyMeasure(state: DeskState, id: string, size: Size): DeskState {
   const l = layoutOf(state, id);
   if (!l) return state;
   const w = Math.round(size.w);
   const h = Math.round(size.h);
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w < MIN_FRAME.w || h < MIN_FRAME.h) return state; // never persist a collapsed frame
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < MIN_FRAME.w || h < MIN_FRAME.h) return state;
   if (l.size && Math.abs(l.size.w - w) < 2 && Math.abs(l.size.h - h) < 2) return state;
   return { ...state, layout: { ...state.layout, [id]: { ...l, size: { w, h } } }, rev: state.rev + 1 };
 }
 
-/**
- * Tidy a desk: re-place its visible widgets in reading order (current top-left
- * first) into a packed grid, flowing around `fixed` rectangles (e.g. the shared
- * widgets). Hidden widgets and z-order are untouched.
- */
 export function arrangeLayout(state: DeskState, fixed: Rect[] = []): DeskState {
   const ids = Object.entries(state.layout)
     .filter(([, l]) => !l.hidden)
@@ -247,7 +205,6 @@ export function arrangeLayout(state: DeskState, fixed: Rect[] = []): DeskState {
   return { ...state, layout, rev: state.rev + 1 };
 }
 
-/** Apply a gesture immutably. Unknown ids are created on move/resize/focus (the file may have just landed). */
 export function applyGesture(state: DeskState, g: Gesture): DeskState {
   const base = g.kind === "set" ? state : ensureLayout(state, g.id);
   const layout = { ...base.layout };
@@ -258,7 +215,6 @@ export function applyGesture(state: DeskState, g: Gesture): DeskState {
       layout[g.id] = { ...current, position: g.position };
       break;
     case "resize":
-      // A human pinned the size: keep it, and stop auto-sizing to content.
       layout[g.id] = { ...current, size: g.size, sized: true };
       break;
     case "focus": {
@@ -279,14 +235,12 @@ export function applyGesture(state: DeskState, g: Gesture): DeskState {
   return { ...base, layout, overlay, rev: base.rev + 1 };
 }
 
-/** Drop gesture overrides for a widget — used when the agent rewrites its file. */
 export function clearOverlay(state: DeskState, id: string): DeskState {
   if (!overlayOf(state, id)) return state;
   const { [id]: _, ...overlay } = state.overlay;
   return { ...state, overlay, rev: state.rev + 1 };
 }
 
-/** Drop everything the desk knows about a widget (its file is gone). */
 export function forgetWidget(state: DeskState, id: string): DeskState {
   if (!layoutOf(state, id) && !overlayOf(state, id)) return state;
   const { [id]: _l, ...layout } = state.layout;
@@ -294,7 +248,6 @@ export function forgetWidget(state: DeskState, id: string): DeskState {
   return { ...state, layout, overlay, rev: state.rev + 1 };
 }
 
-/** Un-hide a widget (its file changed after the user minimised it, so the agent meant it). */
 export function reveal(state: DeskState, id: string): DeskState {
   const l = layoutOf(state, id);
   if (!l?.hidden) return state;
@@ -307,7 +260,6 @@ export function reveal(state: DeskState, id: string): DeskState {
  */
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
-/** Set a dot-path on a plain object, creating intermediate objects. Mutates `obj`; a path through UNSAFE_KEYS sets nothing. */
 export function setPath(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split(".");
   if (keys.some((k) => UNSAFE_KEYS.has(k))) return;
@@ -320,7 +272,6 @@ export function setPath(obj: Record<string, unknown>, path: string, value: unkno
   node[keys[keys.length - 1]] = value;
 }
 
-/** Read a dot-path, or undefined. */
 export function getPath(obj: unknown, path: string): unknown {
   let node: unknown = obj;
   for (const key of path.split(".")) {
@@ -330,18 +281,12 @@ export function getPath(obj: unknown, path: string): unknown {
   return node;
 }
 
-/** File data with the gesture overlay applied. Never mutates inputs. */
 export function mergeData(data: Record<string, unknown>, overlay: Record<string, unknown> | undefined): Record<string, unknown> {
   const out = structuredClone(data);
   if (overlay) for (const [path, value] of Object.entries(overlay)) setPath(out, path, value);
   return out;
 }
 
-/**
- * Conversation id → filesystem-safe scope. An agent's main chat is its
- * "default" conversation, whose id is literally `default`, so that one is
- * keyed by agent too or every agent's main chat would share a desk.
- */
 export function scopeFor(conversationId: string | null | undefined, agentId?: string | null): Scope {
   if (!conversationId) return SHARED_SCOPE;
   const raw = conversationId === "default" && agentId ? `default-${agentId}` : conversationId;
@@ -349,7 +294,6 @@ export function scopeFor(conversationId: string | null | undefined, agentId?: st
   return s || SHARED_SCOPE;
 }
 
-/** The local backend names files/dirs with unpadded base64 of a key. Works in Node and the browser (no Buffer there). */
 export function backendName(key: string): string {
   const bytes = new TextEncoder().encode(key);
   let bin = "";
@@ -358,12 +302,10 @@ export function backendName(key: string): string {
   return b64.replace(/=+$/, "");
 }
 
-/** Local-backend directory name for a conversation. Default conversations live under `default:<agentId>`. */
 export function conversationDirName(conversationId: string, agentId?: string | null): string {
   return backendName(conversationId === "default" && agentId ? `default:${agentId}` : `conversation:${conversationId}`);
 }
 
-/** The kit vocabulary — one line per type, what the agent reads. */
 export const KIT: Record<string, { data_shape: string }> = {
   "info-card": { data_shape: "{ lines: string[] }" },
   stat: { data_shape: "{ value: string|number, label?: string, unit?: string, delta?: number }" },

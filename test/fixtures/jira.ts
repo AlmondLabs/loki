@@ -1,35 +1,19 @@
-/**
- * A stand-in for one Jira Cloud site, driven through an injected fetch (plan 2026-11-10-1451, U2). It keeps tickets, who
- * watches each, their fields and description (plan 089), their comments and their history, a list of fields with a
- * Sprint custom field unless `state.has_sprints` is off, and the one email and API token it accepts. Tickets may
- * carry attachments, listed under the issue's `attachment` field and served as thumbnails (plan 093). Every request is
- * recorded, so a test can say which endpoints were reached and with what, and every comment posted is kept in `posted`.
- * Switches in `state` make it answer as Jira does when the token is refused or the site asks for a wait.
- */
-
-/** A person on the fake site. */
 export interface FakeJiraPerson {
   account_id: string;
   display_name: string;
-  /** The 48 px picture Jira gives under `avatarUrls`; left out, the person has none. */
   avatar?: string;
 }
 
-/** Someone in the site's people, as the user searches find them (plan 2026-11-14-1530, U2). */
 export interface FakeJiraUser extends FakeJiraPerson {
   /** Their address, which Jira shows only when their profile shares it. */
   email?: string;
   /** Ticket keys and project keys they cannot see; the site-wide search still finds them. */
   blind?: string[];
-  /** Whether tickets can be assigned to them; true when left out. */
   assignable?: boolean;
-  /** An app's account, which the searches give and loki leaves out. */
   app?: boolean;
-  /** Deactivated, which the searches give marked inactive. */
   inactive?: boolean;
 }
 
-/** A request the fake received: its method, URL, body as text, authorization header and redirect mode. */
 export interface FakeJiraRequest {
   method: string;
   url: URL;
@@ -39,7 +23,6 @@ export interface FakeJiraRequest {
   redirect: RequestRedirect;
 }
 
-/** A file attached to a ticket on the fake site; its thumbnail is `thumbnail`, or a few made-up PNG bytes when left out. */
 export interface FakeJiraAttachment {
   id: string;
   filename: string;
@@ -48,18 +31,14 @@ export interface FakeJiraAttachment {
   thumbnail?: Buffer;
 }
 
-/** How the fake's thumbnail route answers: as Jira does with `redirect=false`, or one of the ways it may refuse. */
 export type FakeJiraThumbnailAnswer = "image" | "redirect" | "unauthorized" | "not_image" | "oversize";
 
 /** Where a redirected thumbnail points, a media host apart from the site, as Jira's own redirect does. */
 export const JIRA_MEDIA_HOST = "api.media.atlassian.com";
-/** The bytes a thumbnail answers with unless its attachment names its own. */
 export const JIRA_THUMBNAIL_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/** When something happened: a Date, or the text Jira would give (`2026-11-10T19:35:27.259+0530`), served as written. */
 export type FakeJiraTime = Date | string;
 
-/** One changed field of a history entry, by the values Jira shows. */
 export interface FakeJiraChange {
   field: string;
   from: string | null;
@@ -82,13 +61,11 @@ interface StoredHistory {
   items: FakeJiraChange[];
 }
 
-/** A sprint as Jira Cloud lists it in a ticket's sprint field. */
 export interface FakeJiraSprint {
   name: string;
   state: "active" | "closed" | "future";
 }
 
-/** The fields a ticket's card shows (plan 089), each left out of the answer when null. */
 export interface FakeJiraFields {
   type: string | null;
   project: string | null;
@@ -97,13 +74,10 @@ export interface FakeJiraFields {
   priority: string | null;
   labels: string[];
   sprints: FakeJiraSprint[];
-  /** The description as plain text, served as a document of one paragraph per line; null for none. */
   description: string | null;
-  /** The files attached to the ticket, served under the `attachment` field. */
   attachments: FakeJiraAttachment[];
 }
 
-/** The id the fake site gives its sprint field, as a real site gives a custom field. */
 export const JIRA_SPRINT_FIELD = "customfield_10020";
 
 interface StoredTicket extends FakeJiraFields {
@@ -119,11 +93,8 @@ interface StoredTicket extends FakeJiraFields {
   history: StoredHistory[];
 }
 
-/** The person the accepted token belongs to. */
 export const JIRA_ME: FakeJiraPerson = { account_id: "acc-me", display_name: "Mina Example" };
-/** Someone else on the site. */
 export const JIRA_ADA: FakeJiraPerson = { account_id: "acc-ada", display_name: "Ada Lovelace" };
-/** A second someone else. */
 export const JIRA_BOB: FakeJiraPerson = { account_id: "acc-bob", display_name: "Bob Stone" };
 
 /** A time as Jira writes it: milliseconds, then an offset without a colon. */
@@ -138,7 +109,6 @@ const person = (p: FakeJiraPerson) => ({
   ...(p.avatar ? { avatarUrls: { "16x16": `${p.avatar}?s=16`, "48x48": p.avatar } } : {}),
 });
 const paragraphs = (text: string) => ({ version: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
-/** A description's text as Jira's document: a paragraph for each line. */
 const lines = (text: string) => ({
   version: 1,
   type: "doc",
@@ -156,35 +126,26 @@ const NO_FIELDS: FakeJiraFields = {
   attachments: [],
 };
 
-/** One Jira Cloud site with one signed-in person, on the test's clock. */
 export function fakeJira(opts: { now: () => Date; host?: string; email?: string; token?: string; me?: FakeJiraPerson }) {
   const host = opts.host ?? "acme.atlassian.net";
   const me = opts.me ?? JIRA_ME;
   const tickets: StoredTicket[] = [];
   const requests: FakeJiraRequest[] = [];
-  /** The site's people for the user searches: the signed-in person, Ada and Bob, and whoever a test adds. */
   const users: FakeJiraUser[] = [me, JIRA_ADA, JIRA_BOB];
-  /** Every comment posted through the API, in order: the ticket's key, the new comment's id and the document sent. */
   const posted: Array<{ key: string; id: string; body: unknown }> = [];
   const state = {
-    /** The email and token the site accepts; change the token to make the one in use stop working. */
     email: opts.email ?? "mina@example.com",
     token: opts.token ?? "fixture-jira-token",
-    /** Every call is refused with 401, as for a revoked token. */
     unauthorized: false,
     /** Every call answers 200 with an empty body and Jira's failed-login header. */
     failed_login: false,
-    /** The profile answers 200 as an anonymous visitor, with no account id. */
     profile_without_id: false,
-    /** Every call answers 429 asking for this many seconds' wait; null for no limit. */
     retry_after: null as number | null,
     /** The name of the list in a history answer: Jira's reference shows both. */
     history_list: "values" as "values" | "histories",
-    /** The address people browse the site at, when it has a custom domain. */
     display_url: null as string | null,
     /** Whether the site has a field named Sprint; a site without Jira Software has none. */
     has_sprints: true,
-    /** One read that fails with this status: a ticket's fields (`issue`) or the site's list of fields (`field`); null for none. */
     broken: null as { read: "issue" | "field"; status: number } | null,
     /** How the thumbnail route answers; a request without `redirect=false` is redirected whatever this says, as Jira does. */
     thumbnail: "image" as FakeJiraThumbnailAnswer,
@@ -241,10 +202,6 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return json(200, { issues, isLast, ...(isLast ? {} : { nextPageToken: String(from + size) }) });
   };
 
-  /**
-   * A user search: everyone whose name has a word starting with `query`, or whose address starts with it, or the one
-   * `accountId` names, among those `canBe` lets through. Jira answers a list, apps and deactivated people included.
-   */
   const userSearch = (q: URLSearchParams, canBe: (u: FakeJiraUser) => boolean): Response => {
     const query = q.get("query")?.toLowerCase();
     const id = q.get("accountId");
@@ -270,10 +227,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       })),
     );
   };
-  /** Whether someone can see a ticket: neither it nor its project is one they are blind to. */
   const sees = (u: FakeJiraUser, key: string) => !(u.blind ?? []).some((b) => b === key || b === key.split("-")[0]);
 
-  /** The answer a broken read gives: Jira's refusal of the token for 401, else a failure with a message. */
   const breaks = (read: "issue" | "field"): Response | null => {
     if (state.broken?.read !== read) return null;
     if (state.broken.status === 401) return new Response("Client must be authenticated to access this resource.", { status: 401 });
@@ -410,7 +365,6 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
   }
 
   // A redirect is followed, as fetch follows one, unless the caller asked for `manual` or `error`, so a test sees any
-  // request that would have reached another host.
   const fetchFn = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const req: FakeJiraRequest = {
@@ -435,7 +389,6 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     requests,
     posted,
     state,
-    /** A ticket, watched by the person unless `watchers` says otherwise; `at` is when it last changed (now when left out). Returns its numeric id. */
     addTicket(
       input: { key: string; summary: string; at?: FakeJiraTime; watchers?: FakeJiraPerson[]; assignee?: FakeJiraPerson | null } & Partial<FakeJiraFields>,
     ): string {
@@ -457,11 +410,9 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       });
       return id;
     },
-    /** Someone comments on a ticket at a time: plain `text`, or a whole document as `body`. Returns the comment's id. */
     comment(key: string, input: { at: FakeJiraTime; author: FakeJiraPerson; text?: string; body?: unknown; id?: string }): string {
       return store(must(key), input.at, input.author, input.body ?? paragraphs(input.text ?? ""), input.id).id;
     },
-    /** Someone changes fields of a ticket at a time: one history entry with an item per field. Returns the entry's id. */
     change(key: string, input: { at: FakeJiraTime; author: FakeJiraPerson; items: FakeJiraChange[]; id?: string }): string {
       const ticket = must(key);
       const entry = { id: input.id ?? String(++historySeq), author: input.author, created: written(input.at), ms: instant(input.at), items: input.items };
@@ -469,10 +420,6 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       ticket.updated = Math.max(ticket.updated, entry.ms);
       return entry.id;
     },
-    /**
-     * Change a ticket's title, key, assignee, watchers or other fields in place, as edits in Jira would; its update time
-     * is left alone, and no history is written: `change` writes that.
-     */
     edit(
       key: string,
       patch: { key?: string; summary?: string; assignee?: FakeJiraPerson | null; watchers?: FakeJiraPerson[] } & Partial<FakeJiraFields>,
@@ -485,15 +432,12 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       if (patch.assignee !== undefined) ticket.assignee = patch.assignee;
       if (patch.watchers !== undefined) ticket.watchers = new Set(patch.watchers.map((p) => p.account_id));
     },
-    /** Someone joins the site's people, for the user searches. */
     addUser(user: FakeJiraUser): void {
       users.push(user);
     },
-    /** The person loses sight of a ticket: it answers "not found" and leaves the search. */
     hide(key: string): void {
       must(key).hidden = true;
     },
-    /** Requests that could change something on the site: every one that is not a GET. */
     writes: () => requests.filter((r) => r.method !== "GET"),
   };
 }

@@ -6,53 +6,37 @@ import { REASONING_EFFORTS, harnessOf, harnesses, selectionOf, type Harness, typ
 import { effortEntriesFor, effortTitle, groupModelEntries, modelLists, nameInHarness, preferredModelEntry, type ModelGroup } from "./model-picker";
 import "../shell/search-sheet.css";
 
-/** One row of the switcher: a model under its harness, whether the chat can move to it, and what it is matched on. */
 export interface SwitchRow {
   key: string;
   group: ModelGroup;
   harness: Harness;
   name: string;
-  /** The muted line: the model's own words, else its provider; never the bare handle. */
   line: string | null;
-  /** This account cannot reach the model. */
   off: boolean;
   current: boolean;
-  /** A usual configuration's own effort, which a pick takes as it is; absent, the effort shown at the foot. */
   effort?: ReasoningEffort | null;
 }
 
-/** One block of rows under its title: the agent's usual configurations, or one harness's models. */
 export interface SwitchGroup {
   id: string;
   title: string;
   rows: SwitchRow[];
-  /** How many more matched than are shown. */
   hidden: number;
 }
 
-/** One of the agent's usual configurations as the app holds it (mod/usual-models.ts): a model and its effort. */
 export interface UsualChoice {
   handle: string;
   reasoning_effort: ReasoningEffort | null;
 }
 
-/** The most rows a harness shows for a query: the rest are a few more letters away. */
 const PER_HARNESS = 40;
 
-/** "anthropic/claude-x" → "anthropic"; null for a handle with no provider. */
 const providerOf = (handle: string) => {
   const at = handle.indexOf("/");
   const p = at > 0 ? handle.slice(0, at) : null;
   return p?.startsWith("acp:") ? null : p;
 };
 
-/**
- * What the switcher lists (plan 2026-11-12-1505, U19): the chat's harness first, then the others in their order, each
- * under its name. With nothing typed, loki's quick picks (and an agent's every model); typed, every model whose name,
- * provider or harness holds each word, names that start with the query first. Once the chat has started, only its
- * own harness: switching models and effort happens there, and another harness is a new chat's choice. With nothing
- * typed, the agent's usual configurations lead (plan 2026-11-13-1240), each with its effort, ones the chat can take.
- */
 export function switcherGroups(
   entries: ModelEntry[],
   current: string | null,
@@ -64,7 +48,6 @@ export function switcherGroups(
   const chatHarness = harnessOf(current);
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const tabs = harnesses(entries, chatHarness, started);
-  // Once the chat has started only its own harness is offered (plan 020, KD4): its history lives there.
   const open = tabs.filter((t) => !t.locked);
   const ordered = [...open.filter((t) => t.id === chatHarness), ...open.filter((t) => t.id !== chatHarness)];
   const all = groupModelEntries(entries);
@@ -122,13 +105,11 @@ export function switcherGroups(
   ];
 }
 
-/** The efforts a model offers, in REASONING_EFFORTS order; empty when it offers one or none. */
 function effortsOf(entries: ModelEntry[], handle: string): ReasoningEffort[] {
   const list = effortEntriesFor(entries, handle).flatMap((e) => (e.reasoning_effort ? [e.reasoning_effort] : []));
   return list.length > 1 ? list : [];
 }
 
-/** The next effort the model offers from `at`, one step left or right, staying at the ends. */
 export function stepEffort(offered: ReasoningEffort[], at: ReasoningEffort | null, step: 1 | -1): ReasoningEffort | null {
   if (!offered.length) return at;
   const i = at ? offered.indexOf(at) : -1;
@@ -137,17 +118,10 @@ export function stepEffort(offered: ReasoningEffort[], at: ReasoningEffort | nul
 }
 
 const LIST_ID = "loki-model-switch-list";
-/** A model row's option id, safe as an HTML id. */
 const optionId = (key: string) => `loki-model-switch-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-/** What the switcher works from: the open chat's models, what it is on, and how to switch (command-center.ts). */
 export type SwitchSource = Pick<SharedModels, "entries" | "current" | "currentEffort" | "started" | "usual" | "pick">;
 
-/**
- * Switch model's state over a query (plan 2026-11-12-1505, U19, U23): the groups, the highlighted row (pointed at or
- * moved to, else the current model, else the first that can be picked), the efforts it offers and the one shown, and
- * the moves. ⌘K's Models scope draws it with ModelSwitchList and ModelSwitchFoot; ⌘K's field carries the keys.
- */
 export function useModelSwitch(src: SwitchSource, query: string) {
   const { entries, current, currentEffort, started, usual } = src;
   const groups = useMemo(
@@ -168,8 +142,6 @@ export function useModelSwitch(src: SwitchSource, query: string) {
         : active?.current
           ? currentEffort
           : null;
-  // The effort shown: the one chosen here, else the row's own (a usual one), else the chat's for its own model, else
-  // the one a pick would take.
   const shownEffort =
     !active || !offered.length
       ? null
@@ -186,7 +158,6 @@ export function useModelSwitch(src: SwitchSource, query: string) {
     const entry = (at ? row.group.entries.find((e) => e.reasoning_effort === at) : undefined) ?? preferredModelEntry(row.group, currentEffort);
     src.pick(selectionOf(entry));
   };
-  /** ⌘K's field's keys in this scope: ↑↓ move; ←→ step the effort while nothing is typed. True when the key was used. */
   const onKey = (key: string): boolean => {
     if ((key === "ArrowDown" || key === "ArrowUp") && live.length) {
       const i = active ? live.indexOf(active) : -1;
@@ -203,13 +174,10 @@ export function useModelSwitch(src: SwitchSource, query: string) {
   return { groups, active, offered, shownEffort, pick, onKey, point: setActiveKey, loaded: entries !== null };
 }
 
-/** The switcher's state, as useModelSwitch returns it. */
 export type ModelSwitch = ReturnType<typeof useModelSwitch>;
 
-/** The id of a model row's option, for the field's aria-activedescendant. */
 export const modelOptionId = optionId;
 
-/** The Models scope's list: Usual, then each harness's models, the current one checked; or why there are none. */
 export function ModelSwitchList({ sw, query }: { sw: ModelSwitch; query: string }) {
   if (!sw.loaded)
     return (
@@ -243,11 +211,9 @@ export function ModelSwitchList({ sw, query }: { sw: ModelSwitch; query: string 
   );
 }
 
-/** One model as a listbox option: its name over its line, the current one checked; the field keeps focus. */
 export function ModelRow({ row: r, selected, onPoint, onPick }: { row: SwitchRow; selected: boolean; onPoint: () => void; onPick: () => void }) {
   return (
     <li id={optionId(r.key)} role="option" aria-selected={selected} aria-disabled={r.off || undefined} className="loki-list-item" data-dim={r.off || undefined}>
-      {/* A press would take the field's focus, so the row picks on click without being focused. */}
       <div
         className="loki-list-row loki-search-row"
         onPointerDown={(e) => e.preventDefault()}
@@ -266,7 +232,6 @@ export function ModelRow({ row: r, selected, onPoint, onPick }: { row: SwitchRow
   );
 }
 
-/** The Models scope's foot: the highlighted model's efforts (a click switches at that one), then the keys. */
 export function ModelSwitchFoot({ sw }: { sw: ModelSwitch }) {
   const { active, offered, shownEffort } = sw;
   return (

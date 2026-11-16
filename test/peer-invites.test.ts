@@ -17,7 +17,6 @@ const BOOK = hello("aaaaaaaa-1111-4111-8111-111111111111", "book");
 const MINI = hello("bbbbbbbb-2222-4222-8222-222222222222", "mini");
 const THIRD = hello("cccccccc-3333-4333-8333-333333333333", "third");
 
-/** The MacBook's pairing, in a fresh folder, with a clock the test moves. */
 function book() {
   const dir = mkdtempSync(join(tmpdir(), "loki-invites-"));
   const clock = { now: Date.parse("2026-10-19T10:00:00Z") };
@@ -36,7 +35,6 @@ describe("an invite for a Mac being introduced (plan 023, addendum D4)", () => {
       expect(invite?.code).toMatch(/^[a-f0-9]{64}$/);
       expect((await b.pairBy(invite?.code ?? "", THIRD)).status).toBe(200);
       expect(b.store.get(THIRD.mac_id)).not.toBeNull();
-      // Spent: the same invite pairs nothing again.
       expect((await b.pairBy(invite?.code ?? "", THIRD)).status).toBe(404);
     } finally {
       b.done();
@@ -65,15 +63,13 @@ describe("an invite for a Mac being introduced (plan 023, addendum D4)", () => {
       await b.peers.forget(MINI.mac_id);
       expect(b.store.isForgotten(MINI.mac_id)).toBe(true);
       expect(b.peers.invite(MINI.mac_id)).toBeNull();
-      // Kept across a restart.
       expect(new PeerStore(join(b.dir, "peers.json")).isForgotten(MINI.mac_id)).toBe(true);
-      // Paired again by a code the person typed: part of the group again.
       const codes = new PairingCodes();
       const again = new Peers({ store: b.store, keys: new PeerKeys(memorySecrets()), codes, me: () => BOOK });
       const typed = codes.mint().code;
       expect((await again.accept({ code: typed, hello: MINI, token: mintPeerToken() })).status).toBe(200);
       expect(b.store.isForgotten(MINI.mac_id)).toBe(false);
-      expect(b.peers.invite(BOOK.mac_id)).toBeNull(); // never for itself
+      expect(b.peers.invite(BOOK.mac_id)).toBeNull();
     } finally {
       b.done();
     }
@@ -88,7 +84,6 @@ describe("a code typed on the other Mac", () => {
       const store = new PeerStore(join(dir, "peers.json"));
       const peers = new Peers({ store, keys: new PeerKeys(memorySecrets()), codes, me: () => BOOK });
       const { code } = codes.mint();
-      // This Mac's own code back at it is refused and leaves the code for the Mac it was shown to.
       expect((await peers.accept({ code, hello: BOOK, token: mintPeerToken() })).status).toBe(409);
       expect((await peers.accept({ code, hello: MINI, token: mintPeerToken() })).status).toBe(200);
       expect((await peers.accept({ code, hello: THIRD, token: mintPeerToken() })).status).toBe(404);

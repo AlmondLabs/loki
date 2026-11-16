@@ -15,15 +15,6 @@ import type { StoreManager } from "./kernel/stores.ts";
 import { Listeners } from "../core/listeners.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * The daemon's chats as the mod reads them (plan 017, U6). The mod asks about chats at once and often (the chat list,
- * the Inbox, a thread's page, Learn's cursor), and pi-durable answers asynchronously, so the daemon keeps a
- * projection: each chat's details and its entries as thread steps, loaded when a store opens and kept current from
- * the store's commits, which pi-durable publishes synchronously after each one. A position in a chat is an entry's
- * index, which is what Learn's cursor counts.
- */
-
-/** One entry as the projection keeps it: its thread steps, and who spoke and what, for the Inbox's digest. */
 interface Kept {
   steps: Step[];
   role: "user" | "assistant" | null;
@@ -45,16 +36,10 @@ interface Chat {
   info: ChatInfo | null;
   settings: AgentSettings;
   entries: Kept[];
-  /** The newest entry id kept: entries arrive in id order, so anything at or below it is already here. */
   lastId: number;
-  /**
-   * The chat's thread as folded so far, and how many entries went into it (plan 033): made when the chat is first read,
-   * then fed only the entries since, so a page never folds the whole log again.
-   */
   fold?: { thread: ThreadModel; entries: number };
 }
 
-/** The message an entry carries for the person to read: a branch entry's own, else the model's. */
 function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMessage | undefined {
   if (entry.kind === "loki.branch") return (entry.data as { message?: PiMessage } | undefined)?.message;
   if (entry.kind === "pi.user" || entry.kind === "pi.assistant") return entry.model?.[0];
@@ -81,16 +66,8 @@ function effortOf(level: string | undefined): ReasoningEffort | null {
 
 const DIGEST_TEXT_LIMIT = 700;
 
-/**
- * How many of a store's chats load at once when it opens (plan 042). Loading every chat together held every chat's
- * records at the same moment: 519 MB of heap at the start against 233 MB after, on one person's 196 chats.
- */
 const LOAD_AT_ONCE = 4;
 
-/**
- * The projection: every chat's details and its entries as thread steps, kept in memory and current
- * from each store's commits, so the mod's reads (the ChatSource) answer synchronously. `follow` starts it on a StoreManager.
- */
 export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
   private readonly listeners = new Listeners<[agentId: string, chatId: string, kind: "answer" | "compaction"]>();
@@ -99,7 +76,6 @@ export class ChatProjection implements ChatSource {
   private readonly context: Context;
   private readonly agentName: (agentId: string) => string | null;
 
-  /** Keeps a user message's pictures as files a window loads (daemon/chat-images.ts, plan 029). */
   private readonly nameImage?: ImageNamer;
 
   constructor(context: Context, agentName: (agentId: string) => string | null, nameImage?: ImageNamer) {
@@ -108,10 +84,6 @@ export class ChatProjection implements ChatSource {
     this.nameImage = nameImage;
   }
 
-  /**
-   * Follow every store `stores` opens, now and after a reopen. A store whose chats fail to load is reported and let
-   * go: its commits would otherwise wait for a load that never ends, and the failure, unhandled, would end the daemon.
-   */
   follow(stores: StoreManager, report: (message: string) => void): () => void {
     return stores.onOpen((agentId, store) => {
       const attached = this.attach(agentId, store)
@@ -125,16 +97,13 @@ export class ChatProjection implements ChatSource {
     });
   }
 
-  /** Settles once every store opened so far has its chats loaded. */
   async loaded(): Promise<void> {
     while (this.attaching.size) await Promise.allSettled([...this.attaching]);
   }
 
-  /** Load one agent's chats and keep them current. */
   async attach(agentId: string, store: AgentStore): Promise<void> {
     this.unsubscribe.get(agentId)?.();
     for (const key of [...this.chats.keys()]) if (this.chats.get(key)?.agentId === agentId) this.chats.delete(key);
-    // Subscribed first, so nothing committed while the chats load is missed; what loads later replaces what it saw.
     const pending: CommitPublication[] = [];
     let loading = true;
     this.unsubscribe.set(
@@ -145,7 +114,6 @@ export class ChatProjection implements ChatSource {
     const load = async ([chatId, conversationId]: [string, number]) => {
       const conversation = await store.harness.conversation(conversationId as ConversationId, this.context);
       if (!conversation) return;
-      // Each record is kept as its steps as it is read, so only a page of whole records is ever held (plan 042).
       const entries: Kept[] = [];
       let lastId = 0;
       const [, info, settings] = await Promise.all([
@@ -165,23 +133,19 @@ export class ChatProjection implements ChatSource {
       }),
     );
     loading = false;
-    // What committed while loading: entries the load already holds are skipped by their ids.
     for (const publication of pending) this.apply(agentId, publication);
   }
 
-  /** Told each time a chat's agent answers, or its context is compacted, as it is committed (daemon/reflection.ts). */
   onEntry(listener: (agentId: string, chatId: string, kind: "answer" | "compaction") => void): () => void {
     return this.listeners.add(listener);
   }
 
-  /** How many entries a chat has, and how many of the agent's answers came at or after position `from`. */
   answers(conversationId: string, agentId: string, from: number): { entries: number; since: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { entries: 0, since: 0 };
     return { entries: chat.entries.length, since: chat.entries.slice(Math.max(0, from)).filter((e) => e.role === "assistant").length };
   }
 
-  /** Whether a chat's context was compacted at or after position `from` (daemon/passes.ts: reflection runs on it then). */
   compactedSince(conversationId: string, agentId: string, from: number): boolean {
     return (
       this.find(conversationId, agentId)
@@ -199,7 +163,6 @@ export class ChatProjection implements ChatSource {
     return undefined;
   }
 
-  /** One commit of one agent's store. Documents first: a chat's index entry may arrive with its first messages. */
   private apply(agentId: string, publication: CommitPublication): void {
     const isIndex = (change: CommitPublication["changes"][number]) => change.type === "document" && change.record.kind === ChatIndex.definition.kind;
     // The index first: the commit that makes a chat may write its settings (its folder) before its index entry.
@@ -211,7 +174,6 @@ export class ChatProjection implements ChatSource {
           const key = this.key(agentId, chatId);
           const was = this.chats.get(key);
           if (was?.conversationId === conversationId) continue;
-          // A chat set aside when it moved away keeps its log under a new key; the chat that came back is a new one.
           const moved = was ? undefined : this.byConversation(agentId, conversationId);
           if (moved) {
             this.chats.delete(this.key(agentId, moved.chatId));
@@ -262,11 +224,9 @@ export class ChatProjection implements ChatSource {
   info(conversationId: string, agentId?: string | null): LocalConversationInfo | null {
     const chat = this.find(conversationId, agentId);
     if (!chat) return null;
-    // A chat on an ACP agent runs on the agent's model and in the agent's own modes (plan 020).
     const engine = chat.info?.engine?.kind === "acp" ? chat.info.engine : null;
     const piModel = chat.settings.model?.provider && chat.settings.model.modelId ? `${chat.settings.model.provider}/${chat.settings.model.modelId}` : null;
     const model = engine ? `acp:${engine.agent}/${engine.model}` : piModel;
-    // An agent's main chat has no title of its own; call it by the agent's name.
     const fallback = chat.chatId === "default" ? `${this.agentName(chat.agentId) ?? "agent"} · main chat` : null;
     return {
       agentId: chat.agentId,
@@ -274,7 +234,6 @@ export class ChatProjection implements ChatSource {
       lastMessageAt: this.lastMessageAt(chat),
       archived: chat.info?.archived === true,
       model,
-      // An ACP chat's effort is the level chosen for it (plan 021), when loki has a word for it.
       reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOf(chat.settings.thinkingLevel),
       mode: engine ? (chat.info?.mode ?? "default") : modeOf(chat.info?.mode),
       labels: chat.info?.labels ?? [],
@@ -289,11 +248,6 @@ export class ChatProjection implements ChatSource {
     return this.find(conversationId)?.agentId ?? null;
   }
 
-  /**
-   * Up to `limit` rows of a chat's thread ending before position `before` (its newest when null), where they start,
-   * and whether older ones remain (plan 033). A row's position is its index in the whole thread, which only grows at
-   * the end, so a reader pages back by the position of the oldest row it has.
-   */
   page(conversationId: string, agentId: string | null, limit: number, before: number | null = null): { rows: TranscriptRow[]; more: boolean; start: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { rows: [], more: false, start: 0 };
@@ -303,31 +257,22 @@ export class ChatProjection implements ChatSource {
     return { rows: all.slice(start, end), more: start > 0, start };
   }
 
-  /** A chat's whole thread, its rows at their positions: what the history tools search and read (plan 062). */
   thread(conversationId: string, agentId: string): readonly TranscriptRow[] {
     const chat = this.find(conversationId, agentId);
     return chat ? this.folded(chat) : [];
   }
 
-  /** The row at position `row` of a chat's thread, whole, for what a lean page left out of it (plans 041 and 043). */
   row(conversationId: string, agentId: string | null, row: number): TranscriptRow | null {
     const chat = this.find(conversationId, agentId);
     return (chat ? this.folded(chat)[row] : undefined) ?? null;
   }
 
-  /** A chat's whole thread, folded once and fed only the entries that arrived since it was last read. */
   private folded(chat: Chat): readonly TranscriptRow[] {
     const fold = (chat.fold ??= { thread: new ThreadModel(), entries: 0 });
     for (; fold.entries < chat.entries.length; fold.entries++) for (const step of chat.entries[fold.entries].steps) fold.thread.apply(step);
-    // Entry steps never stream, so nothing waits to settle; if one ever did, fold it whole as foldSteps would.
     return fold.thread.streaming ? foldSteps(chat.entries.flatMap((e) => e.steps)) : fold.thread.folded();
   }
 
-  /**
-   * A chat's rows from position `from` up to `to` (its end when absent), and the position they reach. Tool rows keep
-   * their step (the call, its input and its result) only with `steps`: reflection reads failed calls (plan 036), Learn
-   * reads words.
-   */
   since(conversationId: string, agentId: string | null, from: number, to?: number, steps = false): { rows: TranscriptRow[]; lines: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { rows: [], lines: 0 };

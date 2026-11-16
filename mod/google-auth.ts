@@ -2,27 +2,13 @@ import type { GoogleService } from "../core/frame-types.ts";
 import { contactsOf, servicesOf, type Accounts, type GoogleGrants } from "./accounts.ts";
 import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, grantedContacts, grantedServices, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
 
-/**
- * One Google account's sign-in, shared by everything that calls Google for it (plan 2026-11-11 scripts, KTD8): the Gmail
- * client its watcher and Flow use, and the Google tools scripts call. It reads the tokens from the keychain, refreshes
- * them there (one refresh at a time, whoever asks), keeps the account's granted services as Google reports them, and
- * marks the account disconnected when only a new sign-in helps. `request` adds the token to any call on Google's APIs:
- * every method, JSON or raw bodies, JSON or byte answers. Nothing here hands the token out.
- */
-
-/** An access token this close to its expiry is refreshed first, so a call does not start with one about to lapse. */
 const EXPIRY_MARGIN_MS = 60 * 1000;
-/**
- * How long one call to Google may take, as SlackClient allows: a call that hangs past it fails that tick, which the
- * next tick tries again, instead of holding the account's sync until loki restarts. A transfer passes its own.
- */
 export const GOOGLE_TIMEOUT_MS = 20_000;
 /** The reasons Google gives when a Workspace admin has not allowed the app. */
 const ADMIN_REASONS = ["admin_policy_enforced"];
 /** The reasons Google gives when the token lacks the scope a call needs: the person did not grant that service. */
 const SCOPE_REASONS = ["insufficientpermissions", "access_token_scope_insufficient"];
 
-/** Each service by the name the person knows it by. */
 export const GOOGLE_SERVICE_NAME: Readonly<Record<GoogleService, string>> = {
   gmail: "Gmail",
   drive: "Drive",
@@ -31,19 +17,12 @@ export const GOOGLE_SERVICE_NAME: Readonly<Record<GoogleService, string>> = {
   calendar: "Calendar",
 };
 
-/**
- * What a call is for: one of the services scripts use, or `contacts`, the People API that finds people by name
- * (plan 2026-11-14-1530, KTD7), which is a grant of its own rather than a service.
- */
 export type GoogleCallFor = GoogleService | "contacts";
 
-/** What a call is for, by the name the person knows it by. */
 const callName = (what: GoogleCallFor): string => (what === "contacts" ? "Google Contacts" : GOOGLE_SERVICE_NAME[what]);
 
-/** The words for a call refused for want of the contacts grant, which signing the account in again gives. */
 export const CONTACTS_NOT_ALLOWED = "this Google account has not let loki look up people: sign in again in Preferences › Accounts";
 
-/** A call Google refused, with its status and Google's first reason; a missing service's says which. */
 export class GoogleError extends Error {
   readonly status: number;
   readonly reason: string | null;
@@ -56,31 +35,23 @@ export class GoogleError extends Error {
   }
 }
 
-/** What GoogleAuth is built from; fetch, the clock and the timeout are injected so tests own them. */
 export interface GoogleAuthOptions {
   accounts: Accounts;
   account_id: string;
-  /** The app to refresh with when the account was signed in with the shared one (SHARED_GOOGLE_APP). */
   sharedApp?: GoogleApp;
   fetch?: typeof fetch;
   now?: () => Date;
-  /** A fresh signal for each call, aborted after `ms`; tests pass one they abort themselves. */
   timeout?: (ms: number) => AbortSignal;
 }
 
-/** One call on a Google API: the service it belongs to (for the missing-service message), and what to send. */
 export interface GoogleRequest {
   service: GoogleCallFor;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  /** The whole URL, on a Google API host. */
   url: string;
   query?: Record<string, string>;
-  /** A JSON body. */
   json?: unknown;
-  /** A raw body and its type, for an upload. */
   body?: { data: Uint8Array<ArrayBuffer> | string; type: string };
   headers?: Record<string, string>;
-  /** How long the call may take; a transfer passes more than GOOGLE_TIMEOUT_MS. */
   timeoutMs?: number;
 }
 
@@ -97,31 +68,22 @@ export function reasonsOf(body: Record<string, unknown>): string[] {
 const isAdminBlock = (reasons: string[]) => reasons.some((r) => ADMIN_REASONS.includes(r.toLowerCase()));
 const isMissingScope = (reasons: string[]) => reasons.some((r) => SCOPE_REASONS.includes(r.toLowerCase()));
 
-/** The words for a service the account has not granted, which the row in Preferences › Accounts offers to fix. */
 export const signInAgainFor = (service: GoogleService): string =>
   `this Google account has not let loki use ${GOOGLE_SERVICE_NAME[service]}: sign in again for it in Preferences › Accounts`;
 
-/** One Google account's tokens and calls. */
 export class GoogleAuth {
   private readonly opts: GoogleAuthOptions;
   private secret: GmailSecret | null = null;
-  /** The refresh under way, which every caller that finds the token lapsed waits on. */
   private refreshing: Promise<string> | null = null;
 
   constructor(opts: GoogleAuthOptions) {
     this.opts = opts;
   }
 
-  /** The account this signs in, as `accountIdOf` names it. */
   get accountId(): string {
     return this.opts.account_id;
   }
 
-  /**
-   * A call with a good access token: a 401 refreshes the token once and tries again. A refusal throws GoogleError with
-   * Google's message; a missing service says to sign in again for it (the account stays connected), and an admin's
-   * block marks the account disconnected. Answers with the response, its body unread.
-   */
   async send(req: GoogleRequest): Promise<Response> {
     const url = `${req.url}${req.query ? `?${new URLSearchParams(req.query).toString()}` : ""}`;
     const body = req.json !== undefined ? JSON.stringify(req.json) : req.body?.data;
@@ -147,7 +109,6 @@ export class GoogleAuth {
     throw new GoogleError(str(rec(answer.error).message) || `${callName(req.service)} answered ${res.status}`, res.status, reasons[0] ?? null);
   }
 
-  /** A call whose answer is JSON; an empty answer (a 204) is `{}`. */
   async json(req: GoogleRequest): Promise<unknown> {
     const res = await this.send(req);
     const text = await res.text();
@@ -159,13 +120,10 @@ export class GoogleAuth {
     }
   }
 
-  /** A call whose answer is bytes: a file's content or an export. */
   async bytes(req: GoogleRequest): Promise<Uint8Array> {
     const res = await this.send(req);
     return new Uint8Array(await res.arrayBuffer());
   }
-
-  // --- tokens -------------------------------------------------------------------------------------------------------
 
   private now(): number {
     return (this.opts.now?.() ?? new Date()).getTime();
@@ -190,14 +148,12 @@ export class GoogleAuth {
     return secret;
   }
 
-  /** The access token, refreshed first when it has lapsed or is about to. */
   private async accessToken(): Promise<string> {
     const secret = await this.load();
     if (Date.parse(secret.expires_at) - EXPIRY_MARGIN_MS <= this.now() || !secret.access_token) return this.refresh();
     return secret.access_token;
   }
 
-  /** A new access token; callers that ask while one is being fetched share it, so the keychain is written once. */
   private refresh(): Promise<string> {
     this.refreshing ??= this.refreshNow().finally(() => (this.refreshing = null));
     return this.refreshing;
@@ -253,10 +209,6 @@ export class GoogleAuth {
     return access;
   }
 
-  /**
-   * The account's services and places to find people as Google now reports them, written only when they changed (the
-   * person took one back).
-   */
   private keepGrants(grants: GoogleGrants): void {
     const account = this.opts.accounts.get(this.opts.account_id);
     if (!account) return;
@@ -265,9 +217,7 @@ export class GoogleAuth {
     this.opts.accounts.setGrants(this.opts.account_id, grants);
   }
 
-  /** Mark the account disconnected with why, unless it already says so; an account no longer here is left alone. */
   private disconnect(cause: "sign_in_again" | "admin_blocks"): void {
-    // A sign-in made again later writes new tokens to the keychain: read them then, not the ones that stopped working.
     this.secret = null;
     const account = this.opts.accounts.get(this.opts.account_id);
     if (!account) return;

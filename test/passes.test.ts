@@ -20,7 +20,6 @@ import { must } from "./fixtures/must.ts";
 const ctx = BACKGROUND_CONTEXT;
 type Deps = ConstructorParameters<typeof PassRunner>[0];
 
-/** An ACP agent standing in for Claude Code (plan 061): the engine it offers, and every pass asked of it, answered as told. */
 function fakeAcp(engine: ChatEngine | null, answer: PassAnswer = { text: "kept", toolCalls: [] }) {
   const asked: Array<{ agentId: string; engine: ChatEngine; spec: PassSpec & { timeoutMs: number } }> = [];
   const acp: NonNullable<Deps["acp"]> = {
@@ -33,7 +32,6 @@ function fakeAcp(engine: ChatEngine | null, answer: PassAnswer = { text: "kept",
   return { acp, asked };
 }
 const CLAUDE: ChatEngine = { kind: "acp", agent: "claude-code", model: "default", session_id: "s-1" };
-/** Long enough to count as new material (MIN_NEW_CHARS). */
 const LONG = "a thought worth keeping about how the river delta builds land over centuries, ".repeat(5);
 
 async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: () => boolean; acp?: Deps["acp"] } = {}) {
@@ -87,11 +85,9 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
     const chat = (await store.chat(chatId, ctx)) ?? (await store.createChat(chatId, { agent: { model } }, ctx));
     for (const t of texts) await (await chat.submit({ type: "input", content: t }, ctx)).wait(ctx);
   };
-  /** A chat on an ACP agent (plan 020): its turns are written straight into the store, never run by pi. */
   const acpSay = async (chatId: string, text: string, reply: string) => {
     const chat = (await store.chat(chatId, ctx)) ?? (await store.createChat(chatId, {}, ctx));
     await store.updateChat(chatId, { engine: { kind: "acp", agent: "claude-code", model: "default", session_id: "s-1" } }, ctx);
-    // Both in the past, as a finished turn's are: a reply stamped ahead of the clock is not quiet yet.
     const at = Date.now() - 10;
     await store.appendEntries(
       chat,
@@ -257,7 +253,7 @@ describe("background passes", () => {
       await s.say("b", `BRAVO ${LONG}`);
       await s.runner.sweep();
       expect(s.seen).toHaveLength(1);
-      expect(s.seen[0].parts.map((p) => p.chatId)).toEqual(["a", "b"]); // the one quiet longest first
+      expect(s.seen[0].parts.map((p) => p.chatId)).toEqual(["a", "b"]);
       expect(s.seen[0].material).toMatch(/<conversation n="1">[\s\S]*ALPHA[\s\S]*<\/conversation>\n\n<conversation n="2">[\s\S]*BRAVO/);
       for (const c of ["a", "b"]) expect(s.state.cursor("reflection", s.agentId, c)).toBe(s.chats.answers(c, s.agentId, 0).entries);
       expect(s.events.at(-1)).toMatchObject({ outcome: "changed", chats: ["a", "b"] });
@@ -276,7 +272,7 @@ describe("background passes", () => {
       expect(s.seen).toHaveLength(1);
       await s.say("b", LONG);
       await s.runner.sweep();
-      expect(s.seen).toHaveLength(1); // b waits for the gap
+      expect(s.seen).toHaveLength(1);
       s.runner["deps"].batchEveryMs = 0;
       await s.runner.sweep();
       expect(s.seen.map((i) => i.parts.map((p) => p.chatId))).toEqual([["a"], ["b"]]);
@@ -289,7 +285,7 @@ describe("background passes", () => {
     const s = await setup();
     try {
       s.runner["deps"].batchEveryMs = 60 * 60_000;
-      const big = (tag: string) => `${tag} ${"the delta grows where the river slows. ".repeat(560)}`; // about 21k characters
+      const big = (tag: string) => `${tag} ${"the delta grows where the river slows. ".repeat(560)}`;
       s.faux.setResponses(Array.from({ length: 12 }, () => fauxAssistantMessage("kept")));
       for (const c of ["a", "b", "c", "d", "e"]) await s.say(c, big(c.toUpperCase()));
       await s.runner.sweep();
@@ -297,7 +293,7 @@ describe("background passes", () => {
       expect(first.length).toBeGreaterThan(1);
       expect(first.length).toBeLessThan(5);
       expect(s.seen[0].material.length).toBeLessThanOrEqual(80_000 + 500);
-      await s.runner.sweep(); // the rest at once: the last batch left them
+      await s.runner.sweep();
       const read = s.seen.flatMap((i) => i.parts.map((p) => p.chatId));
       expect(read.sort()).toEqual(["a", "b", "c", "d", "e"]);
       for (const c of ["a", "b", "c", "d", "e"]) expect(s.state.cursor("reflection", s.agentId, c)).toBe(s.chats.answers(c, s.agentId, 0).entries);
@@ -474,7 +470,7 @@ describe("background passes", () => {
       const job = s.runner["deps"].jobs[0];
       const prompt = job.prompt.bind(job);
       s.runner["deps"].jobs[0].prompt = async (input) => {
-        busyChat = "b"; // the person comes back to b while a is being read
+        busyChat = "b";
         return prompt(input);
       };
       s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
@@ -492,7 +488,7 @@ describe("background passes", () => {
   test("a stretch longer than one run reads is read over several runs, oldest first, and none of it is skipped", async () => {
     const s = await setup();
     try {
-      const big = (tag: string) => `${tag} ${"the delta grows where the river slows. ".repeat(300)}`; // about 11k characters each
+      const big = (tag: string) => `${tag} ${"the delta grows where the river slows. ".repeat(300)}`;
       s.faux.setResponses(Array.from({ length: 12 }, () => fauxAssistantMessage("kept")));
       await s.say("c", big("FIRST"), big("SECOND"), big("THIRD"));
       for (let i = 0; i < 4 && (s.state.cursor("reflection", s.agentId, "c") ?? 0) < s.chats.answers("c", s.agentId, 0).entries; i++) await s.runner.sweep();

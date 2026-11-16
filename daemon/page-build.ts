@@ -9,10 +9,8 @@ import { messageOf } from "../core/errors.ts";
  * `app/dist` changes (the Tauri CLI's static server watches it) and Vite empties its folder before writing.
  */
 
-/** A command run to its end: its exit code and everything it printed. */
 export type Runner = (cmd: string, args: string[], cwd: string) => Promise<{ code: number; output: string }>;
 
-/** Runs a program with no shell, collecting its output. */
 export const runFile: Runner = (cmd, args, cwd) =>
   new Promise((resolve) => {
     execFile(cmd, args, { cwd, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) =>
@@ -20,17 +18,14 @@ export const runFile: Runner = (cmd, args, cwd) =>
     );
   });
 
-/** Folders under `app/` that are builds, not sources. */
 const BUILT = new Set(["dist", ".dist-next", ".dist-old"]);
 
-/** Whether `file`, relative to `app/`, is a source of the page rather than a build of it or a hidden file (`.DS_Store`, an editor's swap file). */
 export function isPageSource(file: string): boolean {
   const parts = file.split(/[\\/]/);
   const top = parts[0] ?? "";
   return !BUILT.has(top) && top !== "node_modules" && !(parts.at(-1) ?? "").startsWith(".");
 }
 
-/** The newest change under `dir`, skipping what `skip` names (relative paths); 0 when there is nothing. */
 function newest(dir: string, skip: (rel: string) => boolean, rel = ""): number {
   let latest = 0;
   for (const entry of readdirSync(join(dir, rel), { withFileTypes: true })) {
@@ -41,7 +36,6 @@ function newest(dir: string, skip: (rel: string) => boolean, rel = ""): number {
   return latest;
 }
 
-/** Whether `app/dist` is missing or older than a source of the page (`app/` and `core/`, which the page imports). */
 export function pageStale(checkout: string): boolean {
   const index = join(checkout, "app", "dist", "index.html");
   if (!existsSync(index)) return true;
@@ -53,15 +47,10 @@ export function pageStale(checkout: string): boolean {
   return sources > built;
 }
 
-/** The last lines of a build's output: enough to say what failed. */
 function tail(output: string, lines = 6): string {
   return output.trim().split("\n").slice(-lines).join("\n");
 }
 
-/**
- * Build the checkout's page into `app/dist`, whole. Null once built, else what went wrong; a failed build leaves
- * `app/dist` as it was.
- */
 export async function buildPage(checkout: string, run: Runner = runFile, node: string = process.execPath): Promise<string | null> {
   const app = join(checkout, "app");
   const next = join(app, ".dist-next");

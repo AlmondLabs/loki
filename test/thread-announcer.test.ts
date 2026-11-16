@@ -4,8 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ThreadAnnouncer, threadAnnouncement } from "../app/src/chat/thread-announcer.tsx";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
-// Plan 2026-11-15-2355 KTD1: the thread says, to a screen reader, when the agent thinks, waits on you or replies.
-
 const row = (role: TranscriptRow["role"], text: string): TranscriptRow => ({ role, text });
 const said = (over: Partial<Parameters<typeof threadAnnouncement>[0]>) =>
   threadAnnouncement({ status: "idle", waiting: false, rows: [], who: "atlas", ...over });

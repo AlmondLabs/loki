@@ -4,8 +4,6 @@ import type { FrameContext } from "../mod/frames/context.ts";
 import { FrameChatClient } from "../core/attention/chat-client.ts";
 import { must } from "./fixtures/must.ts";
 
-/** An agent changed: every client hears it (agents_changed), not only the one that changed it. */
-
 const ctx = () => {
   const broadcasts: Array<{ type: string }> = [];
   const c = {
@@ -67,6 +65,6 @@ describe("agents_changed", () => {
     must<() => void>(stale, "the stale listener")();
     expect(heard).toBe(2);
     client.close();
-    expect(stale).toBeNull(); // closing the client lets go of the socket's signal too
+    expect(stale).toBeNull();
   });
 });

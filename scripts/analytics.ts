@@ -1,7 +1,3 @@
-/**
- * The analytics report: `npm run analytics [-- --days N]` (default 30). Reads ~/.loki/logs/events.jsonl and
- * the rotated .1 beside it, and prints what core/analytics.ts counts. LOKI_EVENTS_PATH points it at another file.
- */
 import { existsSync, readFileSync } from "node:fs";
 import { analyticsReport, formatAnalyticsReport, parseEvents } from "../core/analytics.ts";
 import { paths } from "../mod/paths.ts";

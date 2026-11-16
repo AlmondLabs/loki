@@ -9,7 +9,6 @@ import { PAIRING_TTL_MS } from "../mod/pairing.ts";
 import { startPeering, type PeerListener, type PeeringDeps } from "../mod/peering.ts";
 import { SeenStore } from "../mod/seen.ts";
 
-/** A Mac with nothing paired yet: its listener and its pushes recorded, the tailnet as given. */
 function mac(opts: { tailnet?: TailnetDevice[]; desks?: DeskSummary[]; inbox?: InboxRow[] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-peering-"));
   const pushed: object[] = [];
@@ -27,7 +26,6 @@ function mac(opts: { tailnet?: TailnetDevice[]; desks?: DeskSummary[]; inbox?: I
     secrets: memorySecrets(),
     memory: memoryRepos,
     chats: { list: () => [] },
-    // Nothing here moves a chat or hears another Mac's agents: no Mac is paired.
     chat: {} as PeeringDeps["chat"],
     seen: new SeenStore(join(dir, "attention.json")),
     desks: { forgetConversations: () => 0 },
@@ -52,7 +50,7 @@ describe("the paired Macs, as the mod uses them (plan 052)", () => {
     const m = mac();
     try {
       m.peering.start();
-      expect(m.needed).toEqual([]); // nothing paired: the listener need not stay up
+      expect(m.needed).toEqual([]);
       const code = await m.peering.frames.begin();
       expect(code.host).toBe("book.tail1234.ts.net:41415");
       expect(m.needed).toEqual([true]);
@@ -84,7 +82,7 @@ describe("the paired Macs, as the mod uses them (plan 052)", () => {
     try {
       m.peering.pushed("seen");
       m.peering.pushed("recall_changed");
-      m.peering.pushed("lists_changed"); // not the person's state
+      m.peering.pushed("lists_changed");
       vi.advanceTimersByTime(1000);
       expect(m.pushed).toEqual([{ type: "state_changed", folders: ["learn"], to: "macs" }]);
     } finally {

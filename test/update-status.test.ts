@@ -1,12 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { followStatus, UPDATE_EVENT, type StatusCalls, type UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
-// Plan 2026-11-15-2319, U5: each window follows the shell's update status by listening for loki:update and then asking
-// once, so neither a status from before the page loaded nor one sent while it asked is lost, and no listener outlives it.
-
 const status = (kind: "idle" | "checking"): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state: { kind } });
 
-/** A promise with its resolve handed out, so a test decides when each shell call answers. */
 function deferred<T>() {
   let resolve: (value: T) => void = () => {};
   const promise = new Promise<T>((r) => {
@@ -15,7 +11,6 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-/** Stand-in shell calls: the test answers the listen and the ask itself, and sends events to the handler listened with. */
 function fakeShell() {
   const listening = deferred<() => void>();
   const answer = deferred<UpdateStatus>();
@@ -42,7 +37,6 @@ function fakeShell() {
   return { calls, listen, answer, send, asked, events, unlistened: () => unlistened };
 }
 
-/** Let every queued promise callback run. */
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 describe("following the shell's update status", () => {

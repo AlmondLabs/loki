@@ -1,6 +1,4 @@
 // swift-tools-version: 6.0
-// loki listen: records a call's two sides (the apps' audio through a Core Audio process tap, you through the
-// microphone), transcribes both on this Mac with Apple's SpeechAnalyzer, and writes the transcript as markdown.
 import Foundation
 import PackageDescription
 

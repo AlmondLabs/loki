@@ -3,7 +3,6 @@ import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, AGENT_PAGE_LABEL, DEFAULT
 import { firstAgentId, readingFor, shownShaOf, shownSkillOf } from "../app/src/agents/reading.ts";
 import type { MemorySkillInfo } from "../core/frame-types.ts";
 
-/** The agent's pages (app/src/agents/pages.ts): five tabs under the desktop agent header; the phone's headings are four of them. */
 describe("agent pages", () => {
   test("five pages, in this order, each with a hint", () => {
     expect(AGENT_PAGES).toEqual(["profile", "memory", "changes", "reflection", "skills"]);
@@ -23,12 +22,11 @@ describe("agent pages", () => {
   });
 });
 
-/** What the reading pane shows (app/src/agents/reading.ts): the picks, with their fallbacks, and the view by page. */
 describe("agent reading pane", () => {
   const skills = [
     { name: "notes", path: "skills/notes/SKILL.md", origin: "self" as const },
     { name: "stocks", path: "skills/stocks/SKILL.md", origin: "other" as const },
-  ] as unknown as MemorySkillInfo[]; // the pure helpers only read name, path and origin
+  ] as unknown as MemorySkillInfo[];
   const d = { skills } as unknown as Parameters<typeof shownSkillOf>[0];
   const log = [{ sha: "abc12345" }, { sha: "def67890" }] as Parameters<typeof shownShaOf>[1];
 
@@ -58,7 +56,6 @@ describe("agent reading pane", () => {
   });
 });
 
-/** The chosen agent and page, shared by the sidebar's Agents sources and the place (app/src/agents/selection.ts, plan 013 U10). */
 describe("agents selection", () => {
   const memory = (seed: Record<string, string> = {}) => {
     const m = new Map(Object.entries(seed));
@@ -114,7 +111,6 @@ describe("agents selection", () => {
     expect(shownAgent("a2", "a1", agents)).toBe("a2");
     expect(shownAgent(undefined, "a2", agents)).toBe("a2");
     expect(shownAgent(undefined, null, agents)).toBe("a1");
-    // deleted: picked null, so the first — not the desk's agent, which may be the one just deleted
     expect(shownAgent(null, "a2", agents)).toBe("a1");
     expect(shownAgent(null, null, [])).toBeNull();
   });
@@ -127,7 +123,6 @@ describe("agents selection", () => {
   });
 });
 
-/** The agents as the Agents place's sources in the sidebar (app/src/agents/agents-column.tsx, plan 2026-11-14-1330 KTD9). */
 describe("agents as sources", () => {
   const item = (agentId: string, id: string, status: string) => ({
     id,
@@ -175,7 +170,6 @@ describe("agents as sources", () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
     selection.pickAgent("a1");
-    // What the delete does once the daemon has removed it (use-agent-details.ts onDeleted): the pick is dropped.
     selection.pickAgent(null);
     const left = [{ id: "a2", name: "friday" }];
     expect(agentSources({ agents: left, desks, items, initialAgentId: "a1", state: selection.get(), selection, face: () => null }).selected).toBe("a2");
@@ -207,7 +201,6 @@ describe("agents as sources", () => {
   });
 });
 
-/** Which Agents pages have a list (selection.ts agentsHasList): Profile's form spans the list and detail columns (R13). */
 describe("agents list column", () => {
   test("Profile spans the list and detail; the list returns on Memory and the other pages", async () => {
     const { agentsHasList } = await import("../app/src/agents/selection.ts");
@@ -221,7 +214,6 @@ describe("agents list column", () => {
   });
 });
 
-/** Each page's items as the list's rows (the page files), and what choosing one shows in the detail (reading.ts). */
 describe("agents page lists", () => {
   test("Memory lists the agent's files, flat under their folders, skills and the face left out; choosing one reads it", async () => {
     const { memoryRows } = await import("../app/src/agents/memory-page.tsx");
@@ -270,7 +262,6 @@ describe("agents page lists", () => {
   });
 });
 
-/** The Agents place's owner (agents.tsx): its list and its detail, from one state. */
 describe("agents place", () => {
   const props = (agents: Array<{ id: string; name: string }>) => ({
     agents,

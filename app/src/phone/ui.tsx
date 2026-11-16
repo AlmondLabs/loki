@@ -4,18 +4,6 @@ import { Button, Sheet } from "../components";
 import { Icon } from "./icons";
 import { useScrollMemory } from "./session";
 
-/**
- * The phone's few shared pieces: a top bar that clears the notch, the scrolling surface under it,
- * the back chevron, the confirmation sheet. Controls (buttons, chips, fields, rows, the sheet, the
- * banner) are the app's primitives in components/, dressed for the phone by phone.css.
- */
-
-/**
- * `progress` (0..1) swaps the bottom hairline for a 2px bar that fills as a pass goes; the deck uses it
- * for "n of N". null keeps the hairline. Static looks are classes in phone.css; only the row height and
- * the fill are inline, since they come from the caller. The title is the screen's heading: the one
- * element focus moves to when a route opens (session.ts restoreFocus), hence tabIndex -1.
- */
 export function TopBar({
   left,
   title,
@@ -29,7 +17,7 @@ export function TopBar({
   sub?: ReactNode;
   right?: ReactNode;
   progress?: number | null;
-  /** The row's height; 44 for a bar with no second line. */ height?: number;
+  height?: number;
 }) {
   return (
     <header className={progress === null ? "loki-phone-topbar" : "loki-phone-topbar loki-phone-topbar--progress"}>
@@ -52,11 +40,6 @@ export function TopBar({
   );
 }
 
-/**
- * A scrolling surface under a TopBar. Its end clears the floating navigation when that is on screen
- * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
- * offset it keeps, so a tab switch or a page and back returns to the same place (session.ts).
- */
 export function Scroll({
   children,
   style,
@@ -67,8 +50,8 @@ export function Scroll({
   children: ReactNode;
   style?: CSSProperties;
   memory?: string;
-  /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean;
-  /** The rows' arrangement: when it changes, rows glide to their new places (kit/use-flip.ts). */ flip?: string;
+  flush?: boolean;
+  flip?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useScrollMemory(ref, memory);
@@ -80,7 +63,6 @@ export function Scroll({
   );
 }
 
-/** The back chevron for the top bar: Slack's bare chevron, named for where it goes ("Back to home"). */
 export function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button type="button" className="loki-phone-icon-btn" onClick={onClick} aria-label={`Back to ${label}`}>
@@ -89,12 +71,6 @@ export function BackButton({ onClick, label }: { onClick: () => void; label: str
   );
 }
 
-/**
- * A confirmation for anything that cannot be taken back or changes the link to the Mac (unpair, reload):
- * a bottom sheet naming the action, what follows and how to recover, then Cancel beside the action. While
- * it runs the action says so and both stay put; a failure keeps the sheet open with the error and the
- * action to try again.
- */
 export function ConfirmSheet({
   title,
   children,

@@ -56,7 +56,6 @@ describe("recent models over the bridge", () => {
     const phone = client("d1");
     bridge.onMessage(phone, { type: "models_recent_add", handle: "openai/gpt" });
     expect(broadcasts.at(-1)).toEqual({ type: "models_recent", recent: ["openai/gpt", "anthropic/opus"] });
-    // nothing to add: nothing kept, nothing said
     bridge.onMessage(mac, { type: "models_recent_add", handle: "" });
     expect(broadcasts.length).toBe(1);
   });

@@ -1,13 +1,3 @@
-/**
- * Plan 017, U2: the timed trial. The prompts run on the daemon's kernel (in a throwaway store) with one model on
- * OpenRouter, and every turn is measured from what the store saved (daemon/timing.ts). Writes the raw results as JSON
- * and prints the medians; the original trial's numbers are in docs/research/2026-10-pi-trial.md.
- *
- *   OPENROUTER_API_KEY=… node --experimental-strip-types --no-warnings scripts/trial.ts --model <model> [--instructions file] [--runs 5] [--out file]
- *
- * The model is an OpenRouter id (e.g. anthropic/claude-haiku-5.5). `--instructions` is a system prompt to run with
- * (an agent's own, to compare like with like); without it, a one-line one.
- */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,8 +25,6 @@ const MODEL = args.model;
 const RUNS = Number(args.runs);
 const ctx = BACKGROUND_CONTEXT;
 
-// ---- the prompts -------------------------------------------------------------------------------------------------
-
 const LONG_DOC = Array.from({ length: 1400 }, (_, i) => `Line ${i + 1}: the quick brown fox ${i % 7 === 0 ? "naps" : "jumps"} over the lazy dog.`).join("\n");
 
 interface Prompt {
@@ -53,7 +41,6 @@ const PROMPTS: Prompt[] = [
   { name: "long-context", text: `Here is a document.\n\n${LONG_DOC}\n\nHow many lines say the fox naps? Answer with the number only, no tools.` },
 ];
 
-/** A fresh working folder per turn, with the files the prompts read. */
 function workDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "loki-trial-"));
   writeFileSync(join(dir, "a.txt"), "apple\n");
@@ -61,8 +48,6 @@ function workDir(): string {
   writeFileSync(join(dir, "c.txt"), "cherry\n");
   return dir;
 }
-
-// ---- shared ------------------------------------------------------------------------------------------------------
 
 interface Result {
   backend: "daemon";
@@ -73,7 +58,6 @@ interface Result {
   timings?: TurnTimings;
 }
 
-/** Spans from pi-ai messages as the store saved them: start, end, and whether it is a model response or a tool. */
 interface Saved {
   role: string;
   start: number;
@@ -86,8 +70,6 @@ function spansOf(saved: Saved[]): { models: Span[]; tools: Span[] } {
     tools: saved.filter((s) => s.role === "toolResult").map(({ start, end }) => ({ start, end })),
   };
 }
-
-// ---- the daemon --------------------------------------------------------------------------------------------------
 
 async function daemonStore() {
   const models = createModels();
@@ -107,7 +89,6 @@ async function daemonTurn(store: AgentStore, instructions: string, prompt: Promp
     if (firstOutputAt !== null) return;
     const live = value.docs["pi.live"] as { generation?: { message?: { content?: Array<{ type?: string; text?: string }> } }; tools?: unknown[] } | undefined;
     const content = live?.generation?.message?.content ?? [];
-    // A short answer can arrive whole, with no partial committed first: its entry is then the first output.
     const answered = value.entries.some((e) => e.kind === "pi.assistant");
     if (answered || content.some((p) => (p.type === "text" && p.text) || p.type === "thinking" || p.type === "toolCall") || (live?.tools?.length ?? 0) > 0)
       firstOutputAt = Date.now();
@@ -131,8 +112,6 @@ async function daemonTurn(store: AgentStore, instructions: string, prompt: Promp
   rmSync(cwd, { recursive: true, force: true });
   return turnTimings({ sentAt, firstOutputAt, ...spansOf(saved), endAt });
 }
-
-// ---- run ---------------------------------------------------------------------------------------------------------
 
 const results: Result[] = [];
 const instructions = args.instructions ? readFileSync(args.instructions, "utf8") : "You are a helpful coding agent. Be brief.";
@@ -168,8 +147,6 @@ let eventLoopP99Ms: number | null = null;
     await store.close(ctx);
   }
 }
-
-// ---- report ------------------------------------------------------------------------------------------------------
 
 type Summary = Record<string, number | null>;
 function summarise(backend: string, prompt?: string): Summary {

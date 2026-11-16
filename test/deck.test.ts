@@ -43,12 +43,6 @@ import { RETURN_TIMES_DEFAULT, type Rest, type ReturnTimes } from "../core/atten
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 
-/**
- * The phone deck's pure half (app/src/phone/deck.ts): when a drag commits and which way, how the
- * card leans and the reveal shows, what a pass adds up to, and which swiped cards stay hidden
- * until they move on. No DOM.
- */
-
 const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({
   id,
   agent_id: "a1",
@@ -73,7 +67,7 @@ const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => (
   ...over,
 });
 
-const W = 366; // a 390 phone minus the 12px margins
+const W = 366;
 const plain = { approval: false };
 const approval = { approval: true };
 
@@ -102,9 +96,7 @@ describe("swipe decision", () => {
     expect(swipeDecision(40, W, 0.6, plain)).toBe("seen");
     expect(swipeDecision(-40, W, -0.6, plain)).toBe("later");
     expect(swipeDecision(-40, W, 1.5, plain)).toBeNull();
-    // fast but the other way (a flick back toward rest): no
     expect(swipeDecision(40, W, -1.5, plain)).toBeNull();
-    // a flick that never cleared the slop is a twitch
     expect(swipeDecision(DRAG_SLOP, W, 2, plain)).toBeNull();
   });
   test("approvals never commit, either way, however far or fast", () => {
@@ -122,9 +114,9 @@ describe("drag start", () => {
   test("sideways past the slop is a drag; up-and-down or tiny moves are not", () => {
     expect(isHorizontalDrag(9, 2)).toBe(true);
     expect(isHorizontalDrag(-9, 2)).toBe(true);
-    expect(isHorizontalDrag(8, 0)).toBe(false); // at the slop, not past it
-    expect(isHorizontalDrag(20, 25)).toBe(false); // more vertical than horizontal: the thread scrolls
-    expect(isHorizontalDrag(3, 1)).toBe(false); // a tap
+    expect(isHorizontalDrag(8, 0)).toBe(false);
+    expect(isHorizontalDrag(20, 25)).toBe(false);
+    expect(isHorizontalDrag(3, 1)).toBe(false);
   });
 });
 
@@ -163,7 +155,6 @@ describe("lean and reveal", () => {
 describe("a release that turns back", () => {
   test("past the distance but flicked back left before letting go: springs back", () => {
     expect(swipeDecision(W * COMMIT_FRACTION + 20, W, -1.5, plain)).toBeNull();
-    // a little drift back is not a change of mind
     expect(swipeDecision(W * COMMIT_FRACTION + 20, W, -0.05, plain)).toBe("seen");
   });
 });
@@ -220,17 +211,13 @@ describe("dismissed unless the stamp changed", () => {
     expect(visibleQueue([a, b], d)).toEqual([]);
     d = restore(d, a);
     expect(visibleQueue([a, b], d).map((i) => i.id)).toEqual(["a"]);
-    // b moved on, a is gone from the list: nothing left to remember
     expect(pruneDismissed(d, [item("b", { lastAssistantText: "more" })]).size).toBe(0);
-    // b unchanged and still actionable (the round trip has not landed): kept
     expect(pruneDismissed(d, [b]).size).toBe(1);
   });
   test("an entry lasts while the chat is unchanged: a turn starting takes it out of the Inbox, and the entry goes", () => {
     const b = item("b");
     const d = dismiss(new Map(), b);
-    // marked read: still in the Inbox (a chat stays until it is archived), so the card stays dismissed for this visit
     expect(pruneDismissed(d, [item("b", { status: "idle", unread: false })]).size).toBe(1);
-    // the agent is mid-turn: out of the Inbox for now, and the entry goes
     expect(pruneDismissed(d, [item("b", { status: "running" })]).size).toBe(0);
   });
 });
@@ -247,11 +234,6 @@ describe("the top card stays on top", () => {
   });
 });
 
-/**
- * The deck as one state (U4): the pass a person is in the middle of — what went, what is on top, the card
- * held after a reply, the tally — as pure steps, so Next, Archive, undo and the approval refusal are
- * checked here rather than in a browser.
- */
 describe("the review pass: Next, Archive, undo, approvals", () => {
   const three = () => [item("a"), item("b"), item("c")];
   const ask = item("q", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } });
@@ -319,10 +301,9 @@ describe("the review pass: Next, Archive, undo, approvals", () => {
   test("a card replied to stays on top until you decide it, even as the reply takes it out of the queue", () => {
     const [a, b, c] = three();
     let s = holdCard(EMPTY_DECK, a);
-    // the reply marked it seen and the agent is working: no longer actionable, but still the card in hand
     const running = item("a", { status: "running", unread: false, lastRole: "user" });
     expect(deckQueue([running, b, c], s).map((i) => i.id)).toEqual(["a", "b", "c"]);
-    expect(deckQueue([running, b, c], s)[0]).toBe(running); // the live copy, so the thread and state are current
+    expect(deckQueue([running, b, c], s)[0]).toBe(running);
     s = commitCard(s, running, "archive");
     expect(deckQueue([running, b, c], s).map((i) => i.id)).toEqual(["b", "c"]);
     expect(s.held).toBeNull();
@@ -346,9 +327,7 @@ describe("the review pass: Next, Archive, undo, approvals", () => {
     s = reconcileDeck(s, [b, c]);
     expect(s.dismissed.size).toBe(0);
     expect(s.topId).toBe("a1/b");
-    // the list re-sorts: b stays under the thumb
     expect(deckQueue([c, b], s).map((i) => i.id)).toEqual(["b", "c"]);
-    // nothing changed: the same state object, so React does not re-render
     expect(reconcileDeck(s, [c, b])).toBe(s);
   });
 });
@@ -357,7 +336,7 @@ describe("what the card says", () => {
   const r = (role: "user" | "assistant" | "tool") => ({ role, text: role });
   test("New goes after your last message, when the agent has written since", () => {
     expect(unreadBoundary([r("assistant"), r("user"), r("tool"), r("assistant")], true)).toBe(2);
-    expect(unreadBoundary([r("assistant"), r("assistant")], true)).toBe(0); // you never spoke: all of it is new
+    expect(unreadBoundary([r("assistant"), r("assistant")], true)).toBe(0);
   });
   test("no New line on a read card, an unloaded thread, or when the last word is yours", () => {
     expect(unreadBoundary([r("user"), r("assistant")], false)).toBeNull();
@@ -376,7 +355,7 @@ describe("what the card says", () => {
     expect(dayLabel("not a date", now)).toBeNull();
   });
   test("the notice says what the agent waits on, or what it is doing after your reply", () => {
-    expect(cardNotice({ status: "done", agent_name: "friday" }, "idle")).toBeNull(); // a plain wait: the box's "Message friday" says it
+    expect(cardNotice({ status: "done", agent_name: "friday" }, "idle")).toBeNull();
     expect(cardNotice({ status: "approval", agent_name: "friday" }, "idle")).toBe("friday needs your approval");
     expect(cardNotice({ status: "question", agent_name: "friday" }, "idle")).toBe("friday asked you something");
     expect(cardNotice({ status: "failed", agent_name: null }, "idle")).toBe("The agent's last turn failed");
@@ -392,7 +371,6 @@ describe("what the card says", () => {
   });
 });
 
-/** A fake host for the real card moves (core/attention/use-attention.ts): the write-backs out there, seen marks and rests. */
 function movesHost(refuse: string | null = null, returnTimes: ReturnTimes = RETURN_TIMES_DEFAULT) {
   const rests: Record<string, Rest> = {};
   const marks: string[] = [];
@@ -463,7 +441,6 @@ describe("the phone's moves (plan 070, U8)", () => {
     s = undoCard(s, a, "later");
     expect(deckQueue([b, a], s).map((i) => i.id)).toEqual(["t1#1", "b"]);
     expect(s.pass.later).toBe(0);
-    // The thread is put back as it was, and loki never marked it seen: it is still unread.
     expect(t.calls).toEqual(["unread t1#1", "restore t1#1 unread"]);
     expect(t.marks).toEqual([]);
   });
@@ -476,7 +453,6 @@ describe("the phone's moves (plan 070, U8)", () => {
   });
 
   test("a later follows the person's return time, not the default", async () => {
-    // The phone hands useAttention the daemon's return times (phone.tsx, as shell.tsx does); the moves rest by them.
     const times: ReturnTimes = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, email: "3h" } };
     const t = movesHost(null, times);
     await makeMove(t.moves, mail, "later", "swipe");
@@ -488,11 +464,9 @@ describe("the phone's moves (plan 070, U8)", () => {
     const ledger = moveLedger();
     let s = commitCard(EMPTY_DECK, a, "seen");
     const move = ledger.made(idOf(a));
-    // Undo comes first: the card is back on top and the tally is clear.
     ledger.takenBack(idOf(a));
     s = undoCard(s, a, "seen");
     const undone = s;
-    // Then the read fails out there: it is no longer the standing move, so nothing is brought back a second time.
     expect(ledger.stands(idOf(a), move)).toBe(false);
     expect(undone.pass).toEqual(EMPTY_PASS);
     expect(deckQueue([a, b], undone).map((i) => i.id)).toEqual(["a", "b"]);
@@ -516,7 +490,6 @@ describe("the phone's moves (plan 070, U8)", () => {
 });
 
 describe("when a card put off comes back (R7)", () => {
-  // Thursday 5 November 2026, at noon where the test runs: the choices are counted in local days.
   const now = new Date(2026, 10, 5, 12, 0);
   const at = (d: number, h: number) => new Date(2026, 10, d, h, 0).toISOString();
 

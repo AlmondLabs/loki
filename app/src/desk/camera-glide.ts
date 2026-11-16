@@ -2,27 +2,13 @@ import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import { prefersReducedMotion } from "../kit/motion";
 import { settleTime, springAt, SPRINGS } from "../kit/spring";
 
-/**
- * The camera's glide to a widget (a widget landing, canvas_focus, focus, fit all) on the smooth spring, as the
- * rest of loki moves, instead of the pan-zoom library's fixed ease-out. The library draws the canvas one
- * transform at a time, so the spring is stepped once a frame here and each step handed to it at once.
- *
- * One glide at a time: a new one starts from wherever the last has got to, and a wheel, a pinch or a drag
- * stops it where it is (stopGlide), so the camera is never fought for. Reduced motion jumps.
- */
-
 let frame = 0;
 
-/** Stop the glide under way, leaving the camera where it has got to. */
 export function stopGlide(): void {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
 }
 
-/**
- * Glide the camera to a transform (the library's x and y offsets in screen pixels, and its scale), stopping any glide
- * under way first; with reduced motion it jumps.
- */
 export function glideTo(api: ReactZoomPanPinchRef, x: number, y: number, scale: number): void {
   stopGlide();
   const from = api.instance.state;

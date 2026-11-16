@@ -40,14 +40,12 @@ export interface UsageRow {
   cache_read_as_input: number;
 }
 
-/** The start of the UTC hour `ms` falls in, as a row's `hour`. */
 export function hourOf(ms: number): string {
   const d = new Date(ms);
   d.setUTCMinutes(0, 0, 0);
   return d.toISOString();
 }
 
-/** What the page reads (`usage_get`): the rows in its period, which models pi-ai has a price for, and the seed's edge. */
 export interface UsageReply {
   rows: UsageRow[];
   /** Each model in `rows`, and whether its cost is known; an unpriced model's tokens are counted, its cost is not. */
@@ -56,7 +54,6 @@ export interface UsageReply {
   seeded_until: string | null;
 }
 
-/** Tokens by type; reasoning is part of output. */
 export interface UsageTokens {
   input: number;
   cache_read: number;
@@ -66,29 +63,23 @@ export interface UsageTokens {
   total: number;
 }
 
-/** One line of a breakdown: an agent, an origin or a model, with what it spent and its share of the cost. */
 export interface UsageLine {
   key: string;
   cost: number;
   tokens: number;
-  /** Its share of the period's cost, 0 to 1 (0 when nothing had a cost). */
   share: number;
 }
 
-/** One bar of the chart: a day (`2026-10-17`) or an hour (`2026-10-17T14`) in the reader's time zone. */
 export interface UsagePoint {
   bucket: string;
   cost: number;
   tokens: number;
 }
 
-/** A period summed up for the page. */
 export interface UsageSummary {
   cost: UsageCost;
   tokens: UsageTokens;
-  /** What the cache reads saved against paying for them as plain input; history without a split counts none. */
   cache_savings: number;
-  /** Tokens of models with no known price, left out of the cost. */
   unpriced_tokens: number;
   series: UsagePoint[];
   by_agent: UsageLine[];
@@ -96,7 +87,6 @@ export interface UsageSummary {
   by_model: UsageLine[];
 }
 
-/** Which rows the page is narrowed to; each field unset means every one. */
 export interface UsageFilter {
   agent_id?: string;
   origin?: UsageOrigin;
@@ -105,7 +95,6 @@ export interface UsageFilter {
 
 const HOUR_MS = 3_600_000;
 
-/** The reader's calendar day, or day and hour, of an instant, in `timeZone` (DST included). */
 export function bucketOf(ms: number, timeZone: string, resolution: "day" | "hour"): string {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
@@ -118,10 +107,6 @@ export function bucketOf(ms: number, timeZone: string, resolution: "day" | "hour
 
 const rowTokens = (r: UsageRow) => r.input_tokens + r.cache_read_tokens + r.cache_write_tokens + r.output_tokens;
 
-/**
- * Sum `rows` between `since` and `until` (instants, ms) for the page: totals, the chart's buckets (every one in the
- * period, empty ones included), and the breakdowns by agent, origin and model, each sorted by cost.
- */
 export function summarize(
   rows: readonly UsageRow[],
   opts: { since: number; until: number; timeZone: string; resolution: "day" | "hour"; priced: UsageReply["priced"]; filter?: UsageFilter },
@@ -132,7 +117,6 @@ export function summarize(
   let cacheSavings = 0;
   let unpriced = 0;
   const series = new Map<string, UsagePoint>();
-  // Bars from `since` itself: in a zone half an hour off UTC, the reader's midnight falls inside a UTC hour.
   for (let t = since; t < until; t += HOUR_MS) {
     const bucket = bucketOf(t, timeZone, resolution);
     if (!series.has(bucket)) series.set(bucket, { bucket, cost: 0, tokens: 0 });
@@ -146,7 +130,6 @@ export function summarize(
   };
   for (const r of rows) {
     const at = Date.parse(r.hour);
-    // A row is an hour; one that starts before `since` but runs past it belongs to the period's first bar.
     if (at + HOUR_MS <= since || at >= until) continue;
     if ((filter.agent_id && r.agent_id !== filter.agent_id) || (filter.origin && r.origin !== filter.origin) || (filter.model && r.model !== filter.model))
       continue;

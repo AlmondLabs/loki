@@ -1,4 +1,3 @@
-/* ⌘K search (search-sheet.tsx, plan 013 U9): Slack's switcher — the field across the top, grouped rows, the coverage line at the foot. */
 .loki-search {
   max-height: min(560px, 80vh);
   overflow: hidden;
@@ -69,7 +68,6 @@
 .loki-search-row {
   min-height: 36px;
 }
-/* The highlighted option: the hover's colour, so pointer and keys agree on which row Enter opens. */
 .loki-list-item[aria-selected="true"] > .loki-search-row {
   background: var(--loki-selection);
   color: var(--loki-fg);
@@ -97,8 +95,6 @@
   margin: 0;
 }
 
-/* Switch model (chat/model-switcher.tsx, plan 2026-11-12-1505 U19): ⌘K's panel for models, floating with nothing dimmed;
-   the current model's check, a quiet line under the quick picks, and the highlighted model's efforts at the foot. */
 .loki-model-switch {
   max-height: min(520px, 76vh);
 }
@@ -143,7 +139,6 @@
   font-weight: 600;
 }
 
-/* ⌘K's scope (U23): a chip before the field says only the open chat's models are searched; its × steps back out. */
 .loki-search-scope {
   flex: none;
   display: inline-flex;

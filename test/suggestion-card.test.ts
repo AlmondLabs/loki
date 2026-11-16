@@ -25,12 +25,6 @@ import { must } from "./fixtures/must.ts";
 // A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
-/**
- * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were
- * made, behind a chip in the message box (plan 052), on the desktop and the phone; each one line until opened, then
- * the message with Send Now, Save as Draft, Change Chat… and Reject.
- */
-
 const suggestion = (over: Partial<Suggestion> = {}): Suggestion => ({
   id: "sugg-1",
   title: "Fix the flaky upload test",
@@ -57,7 +51,6 @@ const AGENTS = [
   { id: "friday", name: "friday" },
 ];
 
-/** useAttention's part the cards read, faked: one chat's suggestions, the lists, and the actions recorded. */
 function source(suggestions: Suggestion[], over: Partial<SuggestionSource> = {}) {
   const calls: Array<{ kind: string; id: string; arg: unknown }> = [];
   const src: SuggestionSource = {
@@ -91,12 +84,10 @@ const conversation = (src: SuggestionSource, touch: boolean, composer = true, su
 
 const cards = (html: string) => [...html.matchAll(/data-suggestion="([^"]+)"/g)].map((m) => m[1]);
 
-/** Every element of a tree drawn by calling a component, its children followed, to press a button without a DOM. */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
   const el = node as ReactElement<Record<string, unknown>>;
-  // The card's own parts hold no state, so calling them shows what they draw; other components stay as they are.
   if (typeof el.type === "function" && el.type.name.startsWith("Suggestion"))
     return [el, ...elements((el.type as (props: Record<string, unknown>) => ReactNode)(el.props))];
   return [el, ...elements(el.props.children as ReactNode)];
@@ -132,7 +123,6 @@ describe("where suggestions show", () => {
       const html = conversation(source(two).src, touch);
       expect(cards(html)).toEqual([]);
       const chip = html.indexOf("loki-suggestion-chip");
-      // The desktop's chat pane hangs the chip in its message box above the field; the phone's sits in its row.
       expect(chip).toBeGreaterThan(html.indexOf(touch ? "loki-composer" : 'data-composer="messages"'));
       expect(chip).toBeLessThan(html.indexOf(touch ? "loki-composer-end" : "loki-composer-act"));
       expect(html).toContain(`aria-label="2 suggestions"`);
@@ -259,7 +249,6 @@ describe("covers AE7: a target that is gone", () => {
     const s = suggestion({ reason: "the chat this was for is gone: pick another chat" });
     expect(targetOf(lists, s).gone).toBe(true);
     expect(targetOf(lists, suggestion({ reason: "the chat this was for is archived: pick another chat" })).gone).toBe(true);
-    // A draft waiting there is not a gone chat: send still goes.
     expect(targetOf(lists, suggestion({ reason: "that chat already holds a saved draft: send it there first, or pick another chat" })).gone).toBe(false);
   });
   test("an agent that is gone, for a new chat", () => {

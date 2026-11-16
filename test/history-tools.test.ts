@@ -12,7 +12,6 @@ import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
-/** One agent's store with a chat `chatId` holding `entries`, attached to `chats`. */
 async function agentWith(chats: ChatProjection, agentId: string, chatId: string, entries = sampleEntries()) {
   const faux = fauxProvider();
   const models = createModels();
@@ -25,7 +24,6 @@ async function agentWith(chats: ChatProjection, agentId: string, chatId: string,
   return { store, chat };
 }
 
-/** The text a history tool answers with, called as `chat` on `store`. */
 async function call(
   chats: ChatProjection,
   name: string,
@@ -118,7 +116,6 @@ describe("history_search and history_read", () => {
 });
 
 describe("the history section", () => {
-  /** The section's text for `chat` on `store`, offered `tools`. */
   async function render(chats: ChatProjection, store: AgentStore, conversationId: PromptInput["conversationId"], tools: string[]) {
     const section = must(historyExtension(chats).sections?.[0], "the history section");
     const input = { conversationId, read: store.harness, agent: { tools: tools.map((name) => ({ name })) }, env: undefined, shown: {} };

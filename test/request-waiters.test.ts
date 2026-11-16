@@ -22,7 +22,6 @@ describe("requests waiting on the mod's answer", () => {
     w.drop("timed-out");
     w.closed("socket-a");
     expect(got).toEqual([["on-a", { type: "error", request_id: "on-a", message: LINK_CLOSED }]]);
-    // The chat switch's new socket carries the request that had not gone out, and the other socket's answer still lands.
     w.sent("not-sent", "socket-b");
     expect(w.answer("not-sent", { type: "ok" })).toBe(true);
     expect(w.answer("on-b", { type: "ok" })).toBe(true);

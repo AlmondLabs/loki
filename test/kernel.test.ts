@@ -10,7 +10,6 @@ import { branchEntries, sampleEntries } from "./fixtures/entries.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
-/** A store on memory with a faux model that records what each request sent. */
 async function fauxStore() {
   const faux = fauxProvider();
   const models = createModels();
@@ -58,7 +57,6 @@ describe("agent store", () => {
       const settled = await submission.wait(ctx);
       expect(settled.status).toBe("done");
 
-      // The model sees the compaction summary and what it keeps, not the entries before it.
       const request = JSON.stringify(sent[0]);
       expect(request).toContain("Asked about the readme.");
       expect(request).toContain("It is the loki readme.");
@@ -128,7 +126,6 @@ describe("agent store", () => {
     const { store, faux, reply, model } = await fauxStore();
     try {
       const chat = await store.createChat("c", { agent: { model } }, ctx);
-      // The first request holds until the second message is queued, then fails in a way that is not retried.
       let started!: () => void;
       const asked = new Promise<void>((r) => (started = r));
       let release!: () => void;

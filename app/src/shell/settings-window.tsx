@@ -12,23 +12,16 @@ import { useRecall } from "./use-recall";
 import { useShellAttention } from "./use-shell-attention";
 import { preferencesProps } from "./views";
 
-/** Mark the models changed in shared storage; the main window's storage event asks for its list again. */
 function markModelsChanged(): void {
   localStorage.setItem(MODELS_CHANGED_KEY, String(Date.now()));
 }
 
-/** Close the window this page is in: Esc and ⌘W in the Settings window. */
 function closeThisWindow(): void {
   void import("@tauri-apps/api/window")
     .then(({ getCurrentWindow }) => getCurrentWindow().close())
     .catch((e: unknown) => console.warn("loki: close settings", e));
 }
 
-/**
- * The Settings window's page (U18): Settings filling the window, the section list on the window's sidebar material,
- * read from this window's own link to the daemon and its own attention model, as the main window's are. Esc (with no
- * dialog open) and ⌘W close it; a page asked for while it is open starts it over on that page.
- */
 export function SettingsWindow() {
   const desk = useDesk();
   const catchUp = useShellAttention(desk, desk.attention.capture);
@@ -75,7 +68,6 @@ export function SettingsWindow() {
     onChatWidth: chat.setChatWidth,
     chatPlacement: chat.chatPlacement,
     onChatPlacement: chat.setChatPlacement,
-    // The main window holds the model list: a mark in shared storage tells it to ask again (shell.tsx).
     onModelsChanged: markModelsChanged,
     update,
     shortcut,

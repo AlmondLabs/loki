@@ -1,25 +1,14 @@
 import type { Gesture, Scope, WidgetManifestEntry } from "../core/desk-core.ts";
 import { getPath } from "../core/desk-core.ts";
 
-/**
- * The return path. Gestures are described in plain language, logged per desk,
- * and attached to the user's next outbound turn in that conversation. Nothing
- * interrupts the agent; it simply always knows what the user did on the desk.
- */
-
 interface Entry {
   key: string;
   line: string;
 }
 
-/**
- * The person's gestures not yet told to the agent, per desk, in memory only: the last 60 lines a desk had, drained into
- * the next message sent in its chat.
- */
 export class GestureLog {
   private logs = new Map<Scope, Entry[]>();
 
-  /** Append a line. Consecutive entries with the same key collapse (a drag is one move). */
   record(scope: Scope, line: string, key = line): void {
     const arr = this.logs.get(scope) ?? [];
     const last = arr.at(-1);
@@ -40,7 +29,6 @@ export class GestureLog {
   }
 }
 
-/** Human line for a gesture, or null for gestures the agent need not hear about. */
 export function describeGesture(g: Gesture, entry: WidgetManifestEntry | undefined, before?: Record<string, unknown>): { line: string; key: string } | null {
   const name = entry ? `"${entry.title}" (${entry.id})` : `"${g.id}"`;
   switch (g.kind) {
@@ -69,7 +57,6 @@ export function describeGesture(g: Gesture, entry: WidgetManifestEntry | undefin
   }
 }
 
-/** The <loki-desk> block attached to the person's next message: the desk's gesture lines and where its widget files live. */
 export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~/.loki/widgets"): string {
   return [
     `<loki-desk desk="${scope}">`,
@@ -80,7 +67,6 @@ export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~
   ].join("\n");
 }
 
-/** The person's message with the block after it: a string grows a paragraph, a list of parts gains a text part. */
 export function attachDeskContext(content: string | Array<Record<string, unknown>>, block: string): string | Array<Record<string, unknown>> {
   return typeof content === "string" ? `${content}\n\n${block}` : [...content, { type: "text", text: block }];
 }

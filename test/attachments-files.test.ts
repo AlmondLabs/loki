@@ -23,7 +23,6 @@ describe("files on a message: the attachment tag", () => {
     const text = withAttachments("read this", [report]);
     expect(messageFiles(text)).toEqual([report]);
     expect(stripHarnessMarkup(text).trim()).toBe("read this");
-    // A Slack channel's tag with its own children, and one not downloaded: hidden; only files with a path are chips.
     const slack =
       'hi <attachment kind="file" attachment_id="F1" download_status="not_downloaded" name="a.pdf">\n  <download-retry>…</download-retry>\n</attachment>';
     expect(stripHarnessMarkup(slack).trim()).toBe("hi");

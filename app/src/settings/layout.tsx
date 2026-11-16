@@ -3,10 +3,6 @@ import { cn } from "@/lib/utils";
 import { Button, sentence } from "../components";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select";
 
-/**
- * One fact on a Preferences page, on the template's row: its name on the left, the value on the right (mono for paths
- * and ids). A Setting is for something you change; a Fact is for something loki reports.
- */
 export function Fact({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-baseline gap-6" style={{ padding: "12px 0" }}>
@@ -29,12 +25,6 @@ export function Fact({ label, value, mono = false }: { label: string; value: Rea
   );
 }
 
-// ---- The page template (plan 031) ----------------------------------------------------------------
-
-/**
- * A part of a Preferences page as System Settings draws one (plan 2026-11-15-1035, R11): an optional heading, its
- * settings in one rounded group divided by hairlines, and a grey note under the group on what the part is for.
- */
 export function Block({ title, help, children }: { title?: string; help?: string; children: React.ReactNode }) {
   return (
     <section className="grid">
@@ -53,7 +43,6 @@ export function Block({ title, help, children }: { title?: string; help?: string
   );
 }
 
-/** One setting: its name, and its help in muted type under it, on the left; its control on the right. A mono name is an id (a tool's). */
 export function Setting({ label, help, mono = false, children }: { label: string; help?: React.ReactNode; mono?: boolean; children?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-6" style={{ padding: "12px 0", minHeight: 32 }}>
@@ -79,7 +68,6 @@ export function Setting({ label, help, mono = false, children }: { label: string
   );
 }
 
-/** Two to four named values, one chosen, side by side in one track: a setting with a few values. */
 export function Segmented<T extends string>({
   options,
   value,
@@ -91,7 +79,6 @@ export function Segmented<T extends string>({
   value: T;
   onPick: (v: T) => void;
   labels?: Partial<Record<T, string>>;
-  /** What is being chosen, for a screen reader. */
   label: string;
 }) {
   return (
@@ -105,10 +92,6 @@ export function Segmented<T extends string>({
   );
 }
 
-/**
- * A Mac pop-up button (plan 2026-11-15-1035, R12): the value chosen, and a menu of the rest when pressed, for a setting
- * whose values are a scale (a duration) rather than a few peers side by side. shadcn's Select on Base UI.
- */
 export function PopUp<T extends string>({
   options,
   value,
@@ -120,7 +103,6 @@ export function PopUp<T extends string>({
   value: T;
   onPick: (v: T) => void;
   labels?: Partial<Record<T, string>>;
-  /** What is being chosen, for a screen reader. */
   label: string;
 }) {
   const items = options.map((o) => ({ value: o, label: labels[o] ?? o }));
@@ -151,7 +133,6 @@ export function PopUp<T extends string>({
   );
 }
 
-/** A Block folded shut until asked: reference a page keeps for when it is wanted (how the Inbox orders, where files are). */
 export function Fold({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (

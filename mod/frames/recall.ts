@@ -3,21 +3,17 @@ import type { RecallStore } from "../recall.ts";
 import type { StartLesson } from "../recall-worker.ts";
 import { fail, reply, type FrameContext, type FrameHandlers } from "./context.ts";
 
-/** What Learn's frame handler needs from its host; without `recall` every request answers that recall is not available. */
 export interface RecallDeps {
-  /** Learn (mod/recall.ts): the cards on disk; its settings, status and a run now are the daemon's (daemon/learn.ts). */
   recall?: {
     store: RecallStore;
     status: () => WorkerStatus;
     setSettings: (s: { enabled?: boolean; daily_cap?: number }) => Promise<void>;
     run: () => Promise<{ note: string }>;
     startLesson?: StartLesson;
-    /** True while the lesson's conversation holds no message: the brief never arrived and the app offers to send it again. */
     lessonEmpty?: (lesson: Lesson) => boolean;
   };
 }
 
-/** Learn: the cards, a review, edits, setting aside and back, the writer's settings and a run, export, and its leads. Every change tells other tabs and phones to refetch. */
 export function recallFrames({ recall }: RecallDeps): FrameHandlers {
   if (!recall) {
     const off = () => fail("recall is not available in this mod");
@@ -96,7 +92,7 @@ export function recallFrames({ recall }: RecallDeps): FrameHandlers {
     },
     recall_lead_start: async ({ id }, ctx) => {
       if (!recall.startLesson) return fail("lessons are not available in this mod");
-      const lesson = await recall.startLesson(id); // the tab opens the desk; the tree reads the new conversation from disk on its next list
+      const lesson = await recall.startLesson(id);
       changed(ctx);
       return reply(lesson);
     },

@@ -1,13 +1,3 @@
-/**
- * Scripts (docs/plans/2026-11-11-1011-feat-scripts-google-tools-plan.md): pi-durable's Code Mode on loki's own engine.
- * The agent writes a short JavaScript program, and it runs in a QuickJS sandbox on a worker thread with no file,
- * network or process access of its own: it reaches anything outside only by calling the tools this module lets it.
- * Those are the script-only tools (a tool with `callers: ["tools"]`, which the model is never offered: a mod's, and
- * loki's `ls`, `find` and `grep`) and pi-durable's file tools; bash, background runs, helpers and the rest stay with the model, so a script never starts a process.
- *
- * Everything a script may cost is a constant here, in one place, so the trade between what a script can do and what
- * the daemon spends on it stays visible.
- */
 import { existsSync } from "node:fs";
 import {
   defineExtension,
@@ -24,48 +14,18 @@ import { CODEMODE_OPTIONS_PREFIX, CodemodeSandbox, parseCodemodeSource, type Cod
 import { fenceScriptAnswer } from "../mod/account-ops/fence.ts";
 import { withKind } from "./tool-kinds.ts";
 
-/** The script tool's name, as the model calls it. */
 export const SCRIPT_TOOL = CODEMODE_TOOL_NAME;
 
-/**
- * The model's file tools a script may call besides the script-only tools (loki's `ls`, `find` and `grep` are among
- * those): reads and edits in the chat's folder, which the approval gate already knows how to weigh. bash is not here,
- * nor anything else that starts a process (plan, R3).
- */
 export const SCRIPT_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "write", "edit"]);
 
-/**
- * How long one script may run, waiting on its tools included. Long enough to move a few hundred Drive files one at a
- * time; a script that needs longer is better split, so a restart costs less.
- */
 export const SCRIPT_TIMEOUT_MS = 10 * 60_000;
 
-/**
- * The sandbox's own memory cap. A run measured +39 MB of daemon memory at its peak, most of it the worker and the
- * QuickJS instance, which the cap does not count; this bounds what a script builds on top.
- */
 export const SCRIPT_MEMORY_BYTES = 64 * 1024 * 1024;
 
-/**
- * Scripts running at once across every chat. Each holds a worker thread (9-13 MB each, measured on Node 22), so the
- * cap keeps a burst of chats from multiplying the daemon's memory; a script over it is refused with the reason, not
- * queued, and the agent can run it again.
- */
 export const SCRIPTS_AT_ONCE = 4;
 
-/**
- * Estimated tokens the prompt's script section may spend listing tools one by one: none. The section names each
- * namespace and what it is for, and a script finds a tool with `searchTools()` and reads it with `describeTool()`.
- * Measured on 2026-11-11 as 991 tokens a turn with this, 1,119 with 150 and 1,460 with 600; those figures counted
- * the script tool's definition twice (plan 099, U1). Counted once, a Google owner paid about 606 a turn more than an
- * agent with no account on 2026-11-14: the script tool's definition (409) and the script and accounts sections.
- */
 export const SCRIPT_LISTING_TOKENS = 0;
 
-/**
- * The namespaces scripts see in the prompt and in `searchTools()`, one per family of script-only tools; a namespace
- * shows only to an agent offered one of its tools (plan 097: Slack, Jira and Flow beside Google).
- */
 export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
   {
     name: "google",
@@ -76,18 +36,12 @@ export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
   { name: "slack", prefix: "slack_", description: "Read the Slack workspaces this agent owns." },
   { name: "jira", prefix: "jira_", description: "Read tickets on the Jira sites this agent owns." },
   { name: "flow", prefix: "flow_", description: "The threads waiting in Flow for this agent's accounts." },
-  // loki's own tools, for every agent (plan 099). `chat_` also prefixes chat_message, which is the model's, not a script's.
   { name: "history", prefix: "history_", description: "Search and read this chat's whole history, compacted turns included." },
   { name: "schedule", prefix: "schedule_", description: "List, create and cancel this chat's scheduled prompts." },
   { name: "canvas", prefix: "canvas_", description: "Read the canvas beside this chat, and move the person's view to widgets." },
   { name: "chat", prefix: "chat_", description: "List the person's agents and open chats." },
 ];
 
-/**
- * The script tool's description, loki's own (plan 099, KTD6): every chat pays for it each turn, so it says only what a
- * script needs to run correctly. Code Mode's own text also explains its output format, `image()`, `exit()`,
- * `ALL_TOOLS`, `describeNamespace()` and how a script resumes after a restart; those still hold, unmentioned. Kept under 250 tokens (test/scripts.test.ts).
- */
 export const SCRIPT_DESCRIPTION = [
   "Run JavaScript that calls loki's tools, in a sandbox with no files, network, timers or programs of its own. The input is raw JavaScript (no JSON, no code fence), run as an async function body: top-level `await` and `return` work.",
   "- `await tools.<name>({ ...args })` resolves to a string, or an object when the tool's declaration says so, and rejects with an Error on failure. Calls still running when the script ends are cancelled.",
@@ -96,32 +50,19 @@ export const SCRIPT_DESCRIPTION = [
   '- An optional first line sets limits: `// @options: {"timeout_ms": 60000, "max_output_tokens": 10000}`.',
 ].join("\n");
 
-/** Whether only scripts may call a tool: it names scripts as callers and not the model. */
 export function isScriptOnly(tool: Pick<ToolRegistration, "callers">): boolean {
   return tool.callers !== undefined && tool.callers.includes("tools") && !tool.callers.includes("model");
 }
 
-/** Whether a script may call a tool: a script-only tool or one of SCRIPT_FILE_TOOLS. */
 export function scriptMayCall(tool: Pick<ToolRegistration, "name" | "callers">): boolean {
   return isScriptOnly(tool) || SCRIPT_FILE_TOOLS.has(tool.name);
 }
 
-/**
- * Where the release bundle keeps the sandbox's worker: beside daemon.mjs (scripts/build-mod.ts). From a checkout the
- * package's own worker is used. The QuickJS wasm needs no path: the bundle carries `quickjs-wasi` in node_modules
- * beside it, where the package looks.
- */
 function bundledWorker(): URL | undefined {
   const url = new URL("./codemode-worker.mjs", import.meta.url);
   return url.protocol === "file:" && existsSync(url) ? url : undefined;
 }
 
-/**
- * The daemon's one sandbox, holding only defaults: each script gets its own worker and VM. Admission counts workers
- * until they exit, so a script that timed out still holds its place while its thread winds down. `limits` default to
- * the constants above; tests pass small ones. Each refused script is told to `refused` with how many were running
- * (plan 099, R8): the daemon logs it, so the cap can be judged by how often every chat's scripts meet it.
- */
 export function scriptSandbox(
   limits: { timeoutMs?: number; memoryLimitBytes?: number; atOnce?: number } = {},
   refused: (running: number) => void = () => {},
@@ -169,12 +110,6 @@ export function withTimeLimit(source: string, limitMs: number): string {
   return source.trimStart().startsWith(CODEMODE_OPTIONS_PREFIX) ? `${line}${parsed.code}` : `${line}\n${source}`;
 }
 
-/**
- * A script's result as the model gets it: its text fenced as other people's when the script called a tool that
- * answers with their text, found in the calls its result lists (Code Mode's `details.calls`), which are kept with the
- * result, so a script resumed after a restart is judged the same. Pictures and the rest of the result are left as they
- * are; a failed script is fenced too, since its error may quote what it read.
- */
 export function fencedIfRead<Result extends ToolExecutionResult>(result: Result, strangerText: (tool: string) => boolean): Result {
   const details: unknown = result.details;
   const calls = typeof details === "object" && details !== null && "calls" in details && Array.isArray(details.calls) ? (details.calls as unknown[]) : [];
@@ -185,10 +120,8 @@ export function fencedIfRead<Result extends ToolExecutionResult>(result: Result,
   return { ...result, output: [{ type: "text" as const, text: fenceScriptAnswer(text) }, ...rest] };
 }
 
-/** Whether a script tool call's arguments carry its code, as they do once the Harness has validated them. */
 const isScript = (args: unknown): args is { code: string } => typeof args === "object" && args !== null && "code" in args && typeof args.code === "string";
 
-/** An agent as a script sees it: its callable tools cut to the ones scripts may call. */
 function confined<Tool extends ToolRegistration>(agent: Agent<Tool>): Agent<Tool> {
   return { ...agent, callable: agent.callable.filter(scriptMayCall) };
 }
@@ -209,13 +142,6 @@ function confinedApi<Api extends ToolExecutionApi>(api: Api): Api {
   });
 }
 
-/**
- * The script tool and its prompt section, confined (plan, KTD1-KTD3): Code Mode without paid model calls, its tool
- * wrapped so a script sees only what `scriptMayCall` allows and runs one at a time in a model round, and its section
- * shown only where the tool is offered, so a background pass with a fixed tool list never gets it. Every script runs
- * within `timeLimitMs` (withTimeLimit). A script that called a tool `strangerText` names answers fenced (plan 097,
- * KTD2): such a tool answers with what other people wrote.
- */
 export function scriptExtensions(
   sandbox: CodemodeSandboxBase,
   timeLimitMs = SCRIPT_TIMEOUT_MS,
@@ -224,8 +150,6 @@ export function scriptExtensions(
   const codemode = createCodemodeExtension({ sandbox, namespaces: SCRIPT_NAMESPACES, inlineBudget: SCRIPT_LISTING_TOKENS, models: false });
   const tool = codemode.tools?.find((t) => t.name === SCRIPT_TOOL);
   if (!tool) throw new Error("pi-durable's code mode extension has no code mode tool");
-  // A script itself is a read (plan 097, KTD3): it asks by what it does, once, at its first call that would ask
-  // (daemon/approvals.ts). Strict mode still asks for it, as for everything. The kind rides on the registered tool.
   withKind("read", tool);
   const confine = defineExtension({
     name: "loki.scripts",
@@ -250,10 +174,6 @@ export function scriptExtensions(
   return [codemode, confine];
 }
 
-/**
- * Whether this daemon can run a script at all, for the release smoke test (`daemon.mjs --check-scripts`): the bundle
- * must find the worker and the QuickJS wasm, which a checkout's tests never exercise.
- */
 export async function checkScripts(): Promise<string> {
   const sandbox = scriptSandbox();
   try {

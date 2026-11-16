@@ -7,23 +7,13 @@ import type { SuggestionOutcome } from "../../core/attention/chat-store.ts";
 import type { SuggestionAction } from "../../core/frames.ts";
 import type { Suggestion, SuggestionTarget } from "../../core/frame-types.ts";
 
-/**
- * The site's made-up chats: the Inbox demo's whole world, with no daemon behind it. It answers the deck's reads the
- * way useAttention does (a chat's face, its rows, a way to hear that they moved) and plays the agent: a reply,
- * an answer or an approval gets a canned answer, streamed a few words at a time. Every agent, chat and line is
- * invented; the repository is public.
- */
-
-/** Calls `run` after `ms`; returns the way to cancel. Injected so a test can run the agent's answer at once. */
 export type Schedule = (run: () => void, ms: number) => () => void;
 
-/** The browser's timers. */
 export const timerSchedule: Schedule = (run, ms) => {
   const id = setTimeout(run, ms);
   return () => clearTimeout(id);
 };
 
-/** The made-up agents, each with its own colour for the initial on its face. */
 export const DEMO_AGENTS = [
   { id: "wren", name: "wren" },
   { id: "ira", name: "ira" },
@@ -38,18 +28,14 @@ interface DemoChat {
   rows: TranscriptRow[];
   approval?: { tool: string; input: Record<string, unknown>; then: TranscriptRow[] };
   question?: { questions: PendingQuestion["questions"]; then: (answer: string) => string };
-  /** What the agent says to any reply. */
   answer: (text: string) => string;
-  /** Messages the agent suggests for other chats (plan 049). */
   suggestions?: Array<Pick<Suggestion, "id" | "title" | "text" | "target">>;
-  /** The folder the chat works in, where a suggestion for a new chat starts it. */
   cwd?: string;
 }
 
 const user = (text: string): TranscriptRow => ({ role: "user", text });
 const agent = (text: string): TranscriptRow => ({ role: "assistant", text });
 
-/** The chats the demo opens with, most pressing first. */
 function startingChats(): DemoChat[] {
   return [
     {
@@ -167,11 +153,9 @@ interface ChatState {
   archived: boolean;
   at: number;
   suggestions: Suggestion[];
-  /** A suggestion saved as a draft, waiting in the chat's message box. */
   draft: string | null;
 }
 
-/** What a chat started from a suggestion answers: it takes the work on. */
 const NEW_CHAT_ANSWER =
   "On it. Four other tests read the clock directly; two of them assert on the day, so they would fail the same way around midnight. I'll pin both and tell you when they pass.";
 
@@ -179,14 +163,12 @@ const STREAM_WORDS = 3;
 const STREAM_MS = 45;
 const THINK_MS = 700;
 
-/** The demo's chats and the agent that answers them. */
 export class DemoChats implements ChatViews {
   private states = new Map<string, ChatState>();
   private listeners = new Listeners();
   private cancels: Array<() => void> = [];
   private itemsCache: AttentionItem[] | null = null;
   private chatsCache: AttentionItem[] | null = null;
-  /** Chats started from a suggestion so far, for their ids. */
   private made = 0;
   private readonly now: () => number;
   private readonly schedule: Schedule;
@@ -197,7 +179,6 @@ export class DemoChats implements ChatViews {
     this.reset();
   }
 
-  /** Back to the chats the demo opens with, every answer still on its way cancelled. */
   reset(): void {
     for (const cancel of this.cancels) cancel();
     this.cancels = [];
@@ -231,10 +212,8 @@ export class DemoChats implements ChatViews {
     this.changed();
   }
 
-  /** Hear about any change: a row, a status, the list. Returns the way to stop. */
   subscribe = (onChange: () => void): (() => void) => this.listeners.add(onChange);
 
-  /** The Inbox's cards: every chat not archived and not mid-turn, a stopped agent first, then the newest. */
   items = (): AttentionItem[] => {
     this.itemsCache ??= [...this.states.values()]
       .filter((s) => !s.archived && s.status === "idle")
@@ -261,16 +240,13 @@ export class DemoChats implements ChatViews {
     };
   };
 
-  /** Every chat not archived, in or out of the Inbox: the chats a suggestion can go to. */
   chats = (): AttentionItem[] => {
     this.chatsCache ??= [...this.states.values()].filter((s) => !s.archived).map((s) => this.itemOf(s));
     return this.chatsCache;
   };
 
-  /** A chat's saved draft, or null. */
   draftOf = (id: string): string | null => this.states.get(id)?.draft ?? null;
 
-  /** Send, save as draft or reject a suggestion, as the Mac carries them out: the message lands in its chat, or waits in its box. */
   decideSuggestion = (rt: Runtime, suggestionId: string, action: SuggestionAction): Promise<SuggestionOutcome> => {
     const s = this.states.get(rt.conversation_id)?.suggestions.find((x) => x.id === suggestionId);
     if (s?.status !== "pending") return Promise.resolve({ done: false, message: "this suggestion was already settled", suggestion: s ?? null });
@@ -283,7 +259,6 @@ export class DemoChats implements ChatViews {
     return Promise.resolve({ done: true, message: null, suggestion: settled });
   };
 
-  /** Point a suggestion at another chat, or at a new chat with an agent in a folder. */
   retargetSuggestion = (rt: Runtime, suggestionId: string, target: SuggestionTarget): Promise<SuggestionOutcome> => {
     const s = this.states.get(rt.conversation_id)?.suggestions.find((x) => x.id === suggestionId);
     if (!s) return Promise.resolve({ done: false, message: "this suggestion is gone", suggestion: null });
@@ -296,16 +271,12 @@ export class DemoChats implements ChatViews {
 
   threadRows = (_agentId: string, conversationId: string): TranscriptRow[] | undefined => this.states.get(conversationId)?.rows;
 
-  /** You read the card. */
   seen = (id: string): void => this.update(id, (s) => ({ ...s, unread: false }));
-  /** Next taken back: the card is new again. */
   unread = (id: string): void => this.update(id, (s) => ({ ...s, unread: true }));
 
-  /** Archive: done, out of the Inbox; and its undo. */
   archive = (id: string): void => this.update(id, (s) => ({ ...s, archived: true }));
   unarchive = (id: string): void => this.update(id, (s) => ({ ...s, archived: false }));
 
-  /** You wrote into the chat: the agent thinks, then answers. */
   reply = (id: string, text: string): void => {
     const s = this.states.get(id);
     if (!s) return;
@@ -313,7 +284,6 @@ export class DemoChats implements ChatViews {
     this.answerWith(id, s.chat.answer(text));
   };
 
-  /** Approve or deny the agent's tool call. */
   decide = (id: string, allow: boolean): void => {
     const s = this.states.get(id);
     if (!s?.approval || !s.chat.approval) return;
@@ -328,7 +298,6 @@ export class DemoChats implements ChatViews {
     if (last) this.answerWith(id, last.text);
   };
 
-  /** Answer the agent's question. */
   answer = (id: string, answers: Record<string, string | string[]>): void => {
     const s = this.states.get(id);
     if (!s?.question || !s.chat.question) return;
@@ -338,7 +307,6 @@ export class DemoChats implements ChatViews {
     this.answerWith(id, then);
   };
 
-  /** Stop every answer still on its way, when the page goes. */
   dispose(): void {
     for (const cancel of this.cancels) cancel();
     this.cancels = [];
@@ -361,7 +329,6 @@ export class DemoChats implements ChatViews {
     this.cancels.push(this.schedule(step, THINK_MS));
   }
 
-  /** A new chat with an agent, as a suggestion for a new chat makes one; returns its id. */
   private startChat(agentId: string, title: string, folder: string): string {
     this.made += 1;
     const id = `new-${this.made}`;

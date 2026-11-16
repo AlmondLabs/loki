@@ -7,16 +7,13 @@ import { notYetOn, platform, type Platform } from "../desk/env";
 import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
 
-/** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
 export interface PhoneApi {
   status: PhoneLanStatus | null;
   devices: PairedDevice[] | null;
   lastCode: PairCode | null;
   refresh: () => void;
   setEnabled: (enabled: boolean) => void;
-  /** Which way the QR sends the phone: the tailnet or this Wi‑Fi (`lan_via_set`). */
   setVia: (via: LanVia) => void;
-  /** `tailscale serve` in front of the listener, for an https origin on the tailnet (`lan_serve_set`). */
   setServe: (enabled: boolean) => void;
   beginPair: () => void;
   forget: (id: string) => void;
@@ -24,12 +21,6 @@ export interface PhoneApi {
 
 const ROUTE_NAME: Record<LanVia, string> = { tailscale: "Tailscale", lan: "this Wi‑Fi" };
 
-/**
- * Preferences › Phone, in blocks that answer four questions (plan 031). Can phones reach this Mac (a switch). Which way do
- * they come in (the route: one lit row, Tailscale or this Wi‑Fi; the lit one is what the QR carries and what a new
- * phone bookmarks). How does a new phone join (the QR, whose URL follows the lit route). Which phones are in, and
- * which way did each one last arrive.
- */
 export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; connected: boolean; os?: Platform }) {
   const { status, devices, lastCode } = phone;
   const here = os === "macos";
@@ -38,7 +29,6 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
     if (connected && here) refresh();
   }, [connected, here]);
 
-  // Pairing, the LAN listener and Tailscale are the Mac's for now (R3, AE4): a line in their place, no controls.
   if (!here) return <Setting label="Phone" help={notYetOn("Phone pairing", os)} />;
   if (!connected || !status) return <Setting label="Phone" help="Asking the mod…" />;
   const on = status.enabled;
@@ -53,7 +43,6 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
   );
 }
 
-/** Whether phones can reach this Mac: the switch, and what stops the listener when something does. */
 function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus }) {
   const on = status.enabled;
   return (
@@ -74,7 +63,6 @@ function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
   );
 }
 
-/** The way phones come in, and what anyone on it can do. */
 function RouteBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus }) {
   const safety =
     status.via === "lan"
@@ -89,7 +77,6 @@ function RouteBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
   );
 }
 
-/** Pairing a new phone: the button, then the code and its QR once one is minted. */
 function PairBlock({ phone, status, lastCode }: { phone: PhoneApi; status: PhoneLanStatus; lastCode: PairCode | null }) {
   return (
     <Block title="Pair a phone">
@@ -105,7 +92,6 @@ function PairBlock({ phone, status, lastCode }: { phone: PhoneApi; status: Phone
   );
 }
 
-/** The phones paired with this Mac, each with when it was last seen, the route it came in by, and forget. */
 function PairedPhones({ devices, on, onForget }: { devices: PairedDevice[] | null; on: boolean; onForget: (id: string) => void }) {
   return (
     <Block title="Paired phones">
@@ -125,11 +111,6 @@ function PairedPhones({ devices, on, onForget }: { devices: PairedDevice[] | nul
   );
 }
 
-/**
- * The route: two rows, one lit. Each names the way in and shows the address a phone uses for it, so the
- * page never has to say elsewhere what the QR carries. Without Tailscale there is one row and a line
- * on how to get the other; with it installed but signed out, the Tailscale row is there but cannot be lit.
- */
 function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via: LanVia) => void; onServe: (enabled: boolean) => void }) {
   const ts = status.tailscale;
   const running = !!ts?.running;
@@ -159,7 +140,6 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
   );
 }
 
-/** Under a lit Tailscale row: the `tailscale serve` switch, and the mod's error when serve would not start. */
 function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: boolean) => void }) {
   return (
     <div className="grid gap-0.5" style={{ paddingLeft: 2 }}>
@@ -173,7 +153,6 @@ function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: 
   );
 }
 
-/** The line under the route rows when Tailscale is not installed: what it would give, and where to get it. */
 function NoTailscale() {
   return (
     <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
@@ -183,7 +162,6 @@ function NoTailscale() {
   );
 }
 
-/** One route: a dot, the name, the address a phone uses, and a word on where it works. The lit one (the header tint) is what the QR carries; its dot is the accent. */
 function RouteRow({
   via,
   lit,
@@ -232,14 +210,12 @@ function RouteRow({
   );
 }
 
-/** The QR, the six letters, the URL as text (following the lit route), and the time left; the button above mints another. */
 function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus }) {
   const url = pairUrlFor(status, code.code) ?? code.url;
   const [svg, setSvg] = useState<string | null>(null);
   const now = useNow(1000);
   useEffect(() => {
     let live = true;
-    // Dark on light, whatever the page: cameras read that; the SVG carries its own quiet zone as the plate.
     void QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2 })
       .then((s) => live && setSvg(s))
       .catch((err: unknown) => console.warn("loki: qr", err));

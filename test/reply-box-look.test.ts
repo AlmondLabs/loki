@@ -5,9 +5,6 @@ import type { MailCompose } from "../core/frame-types.ts";
 import { ItemReplyBox } from "../app/src/item/reply-box.tsx";
 import { MailAddressLine, startAddressing } from "../app/src/desk/mail-address.tsx";
 
-// The mail reply box (plan 2026-11-12-1505, R7, R10): Apple's words, title case on controls, and send's key in its
-// tooltip rather than on the box.
-
 const noop = () => {};
 const html = renderToStaticMarkup;
 

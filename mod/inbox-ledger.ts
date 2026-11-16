@@ -7,19 +7,8 @@ import type { Accounts } from "./accounts.ts";
 import { messageOf } from "../core/errors.ts";
 import { log, rotateIfLarge } from "./log.ts";
 
-/**
- * The ledger of the person's moves on outside cards (plans 069 and 070): every read, later, archive, label, reply,
- * hand-off and undo on a Gmail, Slack or Jira card, with when its rest brings it back, the labels put on, whether the person
- * picked the time and the key that followed a reply; with what the thread was (its sender, subject, and for mail what
- * kind it is) and how long the card was on top first. It is the data a later step learns the person's preferences from, and in time acts on them; nothing
- * reads it yet. It lives on the Mac the account lives on, in `state/inbox-ledger.jsonl`, one line a move, and never
- * leaves it: the analytics events stay free of senders and subjects.
- */
-
-/** The size, in bytes, past which the ledger becomes `inbox-ledger.jsonl.1` and a fresh one starts: years of moves. */
 export const LEDGER_MAX_BYTES = 20 * 1024 * 1024;
 
-/** One move, as the ledger keeps it. */
 export interface LedgerEntry {
   at: string;
   account_id: string;
@@ -37,12 +26,10 @@ export interface LedgerEntry {
   sender: string;
   sender_address: string | null;
   subject: string;
-  /** Mail's kind (core/mail-filter.ts); null for Slack and Jira. */
   traits: MailTraits | null;
   /** For Slack, a DM or a thread (an Activity item); null for mail and Jira. */
   slack_kind: "dm" | "thread" | null;
   from_backfill: boolean;
-  /** When the move's rest brings the card back; this and the three facts below are absent on lines from before plan 070. */
   return_at?: string | null;
   /** The Gmail label ids a label move put on. */
   labels?: string[] | null;
@@ -52,9 +39,7 @@ export interface LedgerEntry {
   after_reply?: OutsideMove["after_reply"];
 }
 
-/** What the ledger is built from; the clock is injected so tests own it. */
 export interface InboxLedgerOptions {
-  /** The ledger file; null keeps nothing. */
   path: string | null;
   accounts: Pick<Accounts, "get">;
   threads: Pick<AccountThreads, "get">;
@@ -62,7 +47,6 @@ export interface InboxLedgerOptions {
   maxBytes?: number;
 }
 
-/** Appends the person's moves to the ledger file. */
 export class InboxLedger {
   private readonly opts: InboxLedgerOptions;
   private ready = false;
@@ -71,11 +55,6 @@ export class InboxLedger {
     this.opts = opts;
   }
 
-  /**
-   * Keep one move on a thread this Mac holds, with the thread as its record stands. Returns the entry, or null when
-   * there is no ledger, or the account or thread is not here; a failed write is logged, never thrown, since a lost
-   * line must not stop the person's move.
-   */
   record(accountId: string, threadId: string, move: OutsideMove): LedgerEntry | null {
     const { path } = this.opts;
     const account = this.opts.accounts.get(accountId);

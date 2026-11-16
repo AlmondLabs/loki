@@ -13,14 +13,6 @@ import { sameServer, type ServerConfig } from "./config.ts";
 import { Listeners } from "../../core/listeners.ts";
 import { messageOf } from "../../core/errors.ts";
 
-/**
- * The MCP servers loki is connected to (one client each), and the tools they offer. A local server is started with the
- * daemon and started again, with a growing pause, when it exits; a remote one is reconnected the same way. A server's
- * tools are read when it connects and again whenever it says they changed. Nothing here knows about chats: the
- * catalog and the calls are all loki.mcp (daemon/mcp/index.ts) needs.
- */
-
-/** One tool of one server, as loki names it to the model: `mcp__<server>__<tool>`, at most 64 characters. */
 export interface McpTool {
   key: string;
   server: string;
@@ -32,9 +24,7 @@ export interface McpTool {
   destructive: boolean;
 }
 
-/** `signin`: a remote server that wants an OAuth sign-in, which waits for the person rather than retrying. */
 export type ServerState = "starting" | "connected" | "down" | "signin";
-/** One server's state as Settings and the `mcp` section show it: `tools` is how many it offers, `purpose` the first line of its own description or instructions. */
 export interface ServerStatus {
   name: string;
   kind: ServerConfig["kind"];
@@ -44,10 +34,6 @@ export interface ServerStatus {
   purpose: string | null;
 }
 
-/**
- * Opens a connection to a server (its stderr, if any, goes to `stderr`; a remote one signs in with `auth` when it
- * asks); replaced in tests by one that connects in memory.
- */
 export type Connector = (config: ServerConfig, client: Client, stderr: (text: string) => void, auth?: OAuthClientProvider) => Promise<void>;
 
 /** Provider tool names are at most 64 characters of letters, digits, `_` and `-`. */
@@ -55,22 +41,18 @@ export function toolKey(server: string, tool: string): string {
   const safe = tool.replace(/[^A-Za-z0-9_-]+/g, "_");
   const key = `mcp__${server}__${safe}`;
   if (key.length <= 64 && safe === tool) return key;
-  // Cut (or changed) names keep a short hash of the real name, so two tools never share a key.
   const hash = createHash("sha256").update(`${server}\u0000${tool}`).digest("hex").slice(0, 6);
   return `${key.slice(0, 57)}_${hash}`;
 }
 
-/** How long to wait before the next try, after `failures` failures in a row: 1s, 2s, 4s … up to a minute. */
 export const backoffMs = (failures: number): number => Math.min(60_000, 1000 * 2 ** Math.max(0, failures - 1));
 
 const STDERR_KEEP = 2000;
 
-/** The real connector: a local server is started over stdio, a remote one reached over Streamable HTTP. */
 export const connectServer: Connector = async (config, client, stderr, auth) => {
   let transport: Transport;
   if (config.kind === "local") {
     // The given env adds to the safe defaults (PATH, HOME …) rather than replacing them: a server started with only
-    // its token in its environment could not find its own runtime.
     const stdio = new StdioClientTransport({
       command: config.command,
       args: config.args,
@@ -93,22 +75,17 @@ interface Entry {
   tools: McpTool[];
   purpose: string | null;
   client: Client | null;
-  /** The end of a local server's stderr, for the error line when it fails. */
   stderr: string;
   failures: number;
   retry: ReturnType<typeof setTimeout> | null;
-  /** Bumped on every (re)start and stop: a connection from an older start that finishes late is closed, not kept. */
   generation: number;
 }
 
-/** The servers and their connections, by name: `configure` makes them match mcp.json, a server that fails is retried after backoffMs, and `close` stops them all. */
 export class McpServers {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Listeners();
   private readonly connect: Connector;
-  /** Fills a config's `${keychain:…}` values just before it connects (daemon/mcp/config.ts withSecrets). */
   private readonly resolve: (config: ServerConfig) => Promise<ServerConfig>;
-  /** The sign-in a remote server uses when it asks for one (daemon/mcp/oauth.ts); none for a server with its own token. */
   private readonly oauthFor: (config: ServerConfig) => OAuthClientProvider | undefined;
   private readonly report: (message: string) => void;
   private readonly version: string;
@@ -130,7 +107,6 @@ export class McpServers {
     this.version = opts.version ?? "0";
   }
 
-  /** Told after any change to a server's state or tools. */
   onChange(listener: () => void): () => void {
     return this.listeners.add(listener);
   }
@@ -139,7 +115,6 @@ export class McpServers {
     this.listeners.emit();
   }
 
-  /** Make the running servers match the config: new ones start, removed ones stop, changed ones restart. */
   configure(servers: readonly ServerConfig[]): void {
     const wanted = new Map(servers.map((s) => [s.name, s]));
     for (const [name, entry] of this.entries) {
@@ -182,13 +157,10 @@ export class McpServers {
   }
 
   private async start(entry: Entry): Promise<void> {
-    // The generation is taken as stop bumps it, before waiting on the old connection: read after, two starts close
-    // together (a restart while a change still closes) both read the later one, both connect, and one is never closed.
     const stopping = this.stop(entry);
     const generation = entry.generation;
     await stopping;
     if (this.closed || generation !== entry.generation) return;
-    // A retry keeps the last error until it connects, so the log can tell a new failure from the same one again.
     if (entry.state !== "down") entry.error = null;
     entry.state = "starting";
     this.changed();
@@ -222,7 +194,6 @@ export class McpServers {
       entry.failures = 0;
       entry.state = "connected";
       this.setTools(entry, generation, listed.tools);
-      // A connection that drops (the process exited, the network went) is a down server, started again after a pause.
       client.onclose = () => {
         if (generation !== entry.generation || this.closed) return;
         entry.client = null;
@@ -232,7 +203,6 @@ export class McpServers {
       if (generation !== entry.generation) return;
       await client.close().catch(() => {});
       entry.client = null;
-      // A server that wants a sign-in waits for it: retrying would only open the same page again.
       if (error instanceof UnauthorizedError) return this.needsSignIn(entry);
       this.down(entry, generation, `${messageOf(error)}${tailOf(entry.stderr)}`);
     }
@@ -247,7 +217,6 @@ export class McpServers {
   }
 
   private down(entry: Entry, generation: number, error: string): void {
-    // The same failure on every retry (a missing program, a dead URL) is logged once, not once a minute for ever.
     if (error !== entry.error) this.report(`mcp ${entry.config.name}: ${error}`);
     entry.state = "down";
     entry.error = error;
@@ -276,7 +245,6 @@ export class McpServers {
     this.changed();
   }
 
-  /** Start a server again now (Settings' restart): a down one does not wait out its pause. */
   restart(name: string): boolean {
     const entry = this.entries.get(name);
     if (!entry) return false;
@@ -285,17 +253,14 @@ export class McpServers {
     return true;
   }
 
-  /** The configs the servers run with, as read (secrets as their `${keychain:…}` names). */
   configs(): ServerConfig[] {
     return [...this.entries.values()].map((e) => e.config);
   }
 
-  /** Every tool of every connected server, in config order. */
   tools(): McpTool[] {
     return [...this.entries.values()].flatMap((e) => (e.state === "connected" ? e.tools : []));
   }
 
-  /** The tools a server's config always loads, by key. */
   alwaysLoaded(): Set<string> {
     const out = new Set<string>();
     for (const e of this.entries.values()) for (const t of e.tools) if (e.config.alwaysLoad.includes(t.name)) out.add(t.key);
@@ -313,7 +278,6 @@ export class McpServers {
     }));
   }
 
-  /** Call a tool by its key. A server that is down, or a tool it no longer has, is an error the model reads. */
   async call(key: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<CallToolResult> {
     const tool = this.tools().find((t) => t.key === key);
     if (!tool) throw new Error(`${key} is not available: its server is down or no longer has it`);
@@ -323,7 +287,6 @@ export class McpServers {
     return client.callTool({ name: tool.name, arguments: args }, { ...(signal ? { signal } : {}), timeout: 10 * 60_000, resetTimeoutOnProgress: true });
   }
 
-  /** Stop every server (the daemon is stopping). */
   async close(): Promise<void> {
     this.closed = true;
     await Promise.all([...this.entries.values()].map((e) => this.stop(e)));

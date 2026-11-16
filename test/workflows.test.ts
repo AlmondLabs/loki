@@ -4,8 +4,6 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { must } from "./fixtures/must.ts";
 
-/** The CI workflows' shape (docs/CONTRIBUTING.md, Checks): each check once, where the system matters, and only when it can say something. */
-
 interface Step {
   id?: string;
   uses?: string;
@@ -38,7 +36,7 @@ describe("ci: a PR's checks", () => {
   test("starts nothing for a PR of docs alone, but runs for the skill the app ships", () => {
     const ignored = ci.on.pull_request?.["paths-ignore"] ?? [];
     for (const p of ["docs/**", "*.md"]) expect(ignored).toContain(p);
-    for (const p of [".github/release.txt", ".github/preview.txt"]) expect(ignored).not.toContain(p); // the retired release PRs' markers
+    for (const p of [".github/release.txt", ".github/preview.txt"]) expect(ignored).not.toContain(p);
     expect(ignored.some((p) => p.startsWith("skills"))).toBe(false);
   });
 
@@ -50,13 +48,12 @@ describe("ci: a PR's checks", () => {
     const tests = runs(ci.jobs.tests);
     expect(tests).toContain("npm test");
     for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
-    expect(tests).toContain("npm run smoke"); // the bundle on each system: the keychain module, paths, processes
-    expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]); // the Rust shell is shell.yml's
+    expect(tests).toContain("npm run smoke");
+    expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]);
   });
 });
 
 describe("main between PRs", () => {
-  // Nothing ran on main after a merge, so a refused runner went unseen for four days (macos-14, 2026-11-06).
   test("ci and the shell's tests run on main once a week, on a fixed weekday and hour", () => {
     for (const name of ["ci", "shell"]) {
       const schedule = (workflow(name).on as unknown as { schedule?: Array<{ cron: string }> }).schedule ?? [];
@@ -140,8 +137,6 @@ describe("supply chain", () => {
     expect(dropped).toBe(built + 1);
   });
 
-  // The update key signs what every loki installs (plan 2026-11-15-2319, U4): the bundler needs it to build the update
-  // files, and nothing else in any workflow sees it.
   test("the update key reaches only the steps that build the app, as each step's own env", () => {
     const holders: string[] = [];
     for (const { name, wf } of all)
@@ -170,7 +165,6 @@ describe("supply chain", () => {
   });
 
   // tauri-cli only warns when the signing key and tauri.conf.json's pubkey are not one pair, and a loki built that way
-  // can never verify an update: each build checks its signatures before anything is published or uploaded.
   test("each build checks its update signatures against the compiled-in key before it ships them", () => {
     const release = workflow("release").jobs;
     for (const [job, isBuild, isShip] of [

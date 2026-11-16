@@ -5,14 +5,6 @@ import { isAgentId } from "../../core/frames.ts";
 import { writeRecord } from "./agents.ts";
 import { writeJsonAtomic } from "../../mod/json-file.ts";
 
-/**
- * One agent across the person's Macs (plan 023, U3, KTD5, KTD6). Every Mac keeps the same agents under the same ids,
- * so an agent's record travels as it is, field by field: each field carries when and on which Mac it last changed, and
- * the later change wins. Deleting an agent leaves a tombstone that wins over any later change from a Mac that had not
- * heard of the delete. An agent's home Mac (`home_mac`) is a field like the others; a record without one lives on the
- * Mac that has it, which is how every agent from before pairing reads.
- */
-
 /** When and where a field last changed. `at` is ISO time; "" is "before anyone stamped it", older than any change. */
 export interface Stamp {
   at: string;
@@ -30,20 +22,16 @@ export interface Tombstone extends Stamp {
   id: string;
 }
 
-/** The record fields that sync between Macs. Anything else in a record stays where it is. */
 export const SYNCED_FIELDS = ["name", "description", "system", "model", "model_settings", "tags", "hidden", "home_mac"] as const;
-/** One of the record fields that sync. */
 export type SyncedField = (typeof SYNCED_FIELDS)[number];
 
 const NEVER: Stamp = { at: "", mac: "" };
 
-/** Whether stamp `b` is a later change than `a`: by time, then by Mac id, so two Macs comparing the same pair agree. */
 export function later(a: Stamp, b: Stamp): boolean {
   if (b.at !== a.at) return b.at > a.at;
   return b.mac > a.mac;
 }
 
-/** A record's stamps, read defensively: a field without one was last changed before anyone stamped it. */
 export function stampsOf(record: Record<string, unknown>): Partial<Record<SyncedField, Stamp>> {
   const raw = record.changed;
   if (typeof raw !== "object" || raw === null) return {};
@@ -55,22 +43,16 @@ export function stampsOf(record: Record<string, unknown>): Partial<Record<Synced
   return out;
 }
 
-/** The record with `fields` stamped as changed now on `mac`. */
 export function stamp(record: Record<string, unknown>, fields: readonly SyncedField[], at: Stamp): Record<string, unknown> {
   const changed = { ...stampsOf(record) };
   for (const f of fields) changed[f] = at;
   return { ...record, changed };
 }
 
-/** The Mac an agent lives on: its record's `home_mac`, or the Mac reading it when the record names none. */
 export function homeOf(record: Record<string, unknown> | null, thisMac: string): string {
   return typeof record?.home_mac === "string" && record.home_mac ? record.home_mac : thisMac;
 }
 
-/**
- * `local` with every field `remote` changed later taken from it; null when nothing changes. A record this Mac does
- * not have yet is `remote` itself.
- */
 export function merge(local: Record<string, unknown> | null, remote: Record<string, unknown>): Record<string, unknown> | null {
   if (!local) return remote;
   const mine = stampsOf(local);
@@ -88,7 +70,6 @@ export function merge(local: Record<string, unknown> | null, remote: Record<stri
   return moved ? { ...next, changed } : null;
 }
 
-/** An agent record file as JSON, or null when it is missing or unreadable. */
 export function readRecord(backendDir: string, id: string): Record<string, unknown> | null {
   try {
     const raw = JSON.parse(readFileSync(join(backendDir, "agents", `${backendName(id)}.json`), "utf8")) as unknown;
@@ -98,10 +79,6 @@ export function readRecord(backendDir: string, id: string): Record<string, unkno
   }
 }
 
-/**
- * The agents this Mac shares: every record of the person's, each with `home_mac` set,
- * a record without one being this Mac's, stamped as older than any change.
- */
 export function sharedAgents(backendDir: string, thisMac: string): SharedAgent[] {
   let ids: string[];
   try {
@@ -122,7 +99,6 @@ const isHelper = (record: Record<string, unknown>) =>
 
 const tombstonesFile = (backendDir: string) => join(backendDir, "tombstones.json");
 
-/** The agents deleted on any Mac, as this Mac knows them. */
 export function readTombstones(backendDir: string): Tombstone[] {
   try {
     const raw = JSON.parse(readFileSync(tombstonesFile(backendDir), "utf8")) as unknown;
@@ -134,27 +110,17 @@ export function readTombstones(backendDir: string): Tombstone[] {
   }
 }
 
-/** Record an agent's delete, keeping the latest stamp per agent. */
 export function addTombstone(backendDir: string, tombstone: Tombstone): void {
   const all = readTombstones(backendDir).filter((t) => t.id !== tombstone.id);
   writeJsonAtomic(tombstonesFile(backendDir), [...all, tombstone], { pretty: true });
 }
 
-/** What applying another Mac's agents changed here. */
 export interface AppliedAgents {
-  /** Records written that this Mac had not got (their memory follows, plan U7). */
   created: string[];
-  /** Records that took a later field from the other Mac. */
   updated: string[];
-  /** Agents deleted here because the other Mac deleted them. */
   deleted: string[];
 }
 
-/**
- * Take another Mac's agents and tombstones: delete what it deleted (a delete wins over any change made since), write
- * records this Mac lacks, and take every field it changed later. `deleteAgent` removes an agent's store, memory
- * and record.
- */
 export async function applyShared(
   backendDir: string,
   remote: { agents: SharedAgent[]; tombstones: Tombstone[] },

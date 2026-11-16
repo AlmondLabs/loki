@@ -18,10 +18,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/**
- * Google's token endpoint and a sliver of Drive and Gmail, on the test's clock: one access token is good at a time,
- * the refresh answers with `state.scope`, and every request is kept.
- */
 function fakeApis(now: () => Date) {
   const state = { access: "a0", expires: now().getTime() + 3600_000, refreshes: 0, scope: ALL_SCOPES.join(" "), revoked: false, missingDrive: false };
   const requests: Array<{ method: string; url: string; body: unknown }> = [];
@@ -31,7 +27,6 @@ function fakeApis(now: () => Date) {
     requests.push({ method: init?.method ?? "GET", url: url.href, body: init?.body });
     if (url.href === "https://oauth2.googleapis.com/token") {
       if (state.revoked) return json(400, { error: "invalid_grant" });
-      // Answered after a turn of the event loop, so two callers can find the token lapsed at once.
       await Promise.resolve();
       state.refreshes++;
       state.access = `a${state.refreshes}`;
@@ -51,7 +46,6 @@ function fakeApis(now: () => Date) {
   return { state, requests, fetch: fetchFn };
 }
 
-/** An account signed in with every service, its token good for an hour from the test's start. */
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-google-auth-"));
   dirs.push(dir);

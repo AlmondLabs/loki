@@ -8,21 +8,8 @@ import type { PassJob } from "./passes.ts";
 import { MIN_NEW_CHARS } from "./passes.ts";
 import type { PassState } from "./passes-state.ts";
 
-/**
- * Learn (plan 018): one of the background passes (daemon/passes.ts). From an agent's chats that have gone quiet, a
- * batch of them at once (each a slice, so a concept that comes up in several is seen as one), it writes the person a
- * few spaced-repetition cards, only for concepts, principles and knowledge of their field that will still be
- * true in months, never for one-off details of the task; up to the day's cap (`learn.daily_cap`) across all agents.
- * The same answer carries revisions of cards the person keeps failing and learning leads. It works as the agent in
- * its hidden chat `recall-<agent>`, with no tools: it answers, and the runner writes the files through Learn's store
- * (mod/recall.ts), where the person meets them in the Learn section. Deleted cards and dismissed leads are quoted
- * back as what not to write.
- */
-
-/** Failing cards of the agent sent along for a rewrite, at most. */
 const FAILING_PER_RUN = 5;
 
-/** The system instructions of Learn's hidden writer chat; what to write and how comes in each prompt (core/recall/extract.ts). */
 export const INSTRUCTIONS = `You are writing study cards for the person you work with, from a stretch of one of your conversations with them. Answer with the JSON the request asks for and nothing else; you have no tools here.`;
 
 interface Deps {
@@ -31,7 +18,6 @@ interface Deps {
   chats: ChatProjection;
 }
 
-/** Learn as a PassJob for the runner: it runs only while the day's cap has room, and its answer becomes cards and leads in `deps.store`. */
 export function learnJob(deps: Deps): PassJob {
   const { store, state, chats } = deps;
   const room = (now: Date) => Math.max(0, state.settings().learn.daily_cap - state.writtenOn(isoDay(now.getTime())));
@@ -50,7 +36,6 @@ export function learnJob(deps: Deps): PassJob {
             c.card.source.agent_id === input.agentId && keepsFailing(c.schedule) && (!c.schedule.last_review || c.card.updated_at < c.schedule.last_review),
         )
         .slice(0, FAILING_PER_RUN);
-      // Each chat of the batch is a new slice (s1, s2 …), in the batch's order; replays of failing cards come after.
       const slices: Slice[] = input.parts.map((part, i) => ({ id: `s${i + 1}`, title: part.title, mode: "new", text: part.material }));
       const inBatch = new Set(input.parts.map((part) => part.chatId));
       for (const f of failing) {
@@ -87,9 +72,7 @@ export function learnJob(deps: Deps): PassJob {
       const at = input.now.toISOString();
       const cards = store.cards();
       const byId = new Map(cards.map((c) => [c.card.id, c]));
-      // Two leads for each chat in the batch, as the prompt offers; the open pile's room is checked below.
       const ext = parseExtraction(answer.text, new Set(byId.keys()), { maxLeads: LEADS_PER_CONVERSATION * Math.max(1, input.parts.length) });
-      // Where a card or lead came from: the batch's chat its slice names; one that names none (or a replay) the first.
       const sourceOf = (slice: string | undefined) => {
         const part = input.parts[Number(/^s(\d+)$/.exec(slice ?? "")?.[1] ?? 1) - 1] ?? input.parts[0];
         const info = chats.info(part.chatId, input.agentId);
@@ -101,7 +84,6 @@ export function learnJob(deps: Deps): PassJob {
           at: info?.lastMessageAt ?? null,
         };
       };
-      // A replay yields no new cards or leads: only what names one of the batch's chats (or names none) is taken.
       const fresh = new Set(input.parts.map((_, i) => `s${i + 1}`));
       const fromHere = (slice: string | undefined) => !slice || fresh.has(slice);
       const fronts = [...cards.map((c) => c.card.front), ...store.rejected().map((r) => r.card.front)];
@@ -111,7 +93,7 @@ export function learnJob(deps: Deps): PassJob {
       for (const cand of ext.cards) {
         if (!fromHere(cand.slice) || fronts.some((f) => similarFront(f, cand.front))) continue;
         if (written >= space) {
-          capped = true; // the rest wait for tomorrow: the cursor stays and this stretch is read again
+          capped = true;
           break;
         }
         const card: Card = {

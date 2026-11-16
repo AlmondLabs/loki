@@ -1,22 +1,3 @@
-// One command for a development session, in one of two ways (plan 041):
-//   `npm start` (package.json "start") puts the person in control: the window runs the built page (app/dist, React's
-//      production build), and a change to the page, like one to the daemon, waits for **update** in the window.
-//   `npm run dev` ("dev", `--hot`) hot-reloads: the window runs Vite, and app/dist is rebuilt for the phone on every save.
-//   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and, on a Mac, Xcode's
-//      command line tools, which cargo links with there.
-//      This script, Vite and the Tauri CLI run on the Node that runs npm; loki's daemon needs a Node 22.19 or newer,
-//      which the window finds itself (Welcome says how to install one when there is none).
-//   1. `npm start`: app/dist built when a source of the page is newer, then served on 127.0.0.1:5173 by the Tauri CLI's
-//      own static server (no devUrl), which reloads the window when app/dist changes. The daemon hears LOKI_BUILT_PAGE
-//      and offers a build when app/ or core/ changes.
-//      `npm run dev`: Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `npm run dev:vite` in
-//      another terminal), and a watching build of the same app into app/dist, which the phone is served: a change
-//      reaches the phone about ten seconds later, and it offers a reload.
-//      Another project's server on that port is refused rather than shown in the window.
-//   2. `tauri dev` on it — its beforeDevCommand bundles the mod first — which opens the window.
-//   3. A watch for the mod on its port: the window starts loki's daemon, which hosts the mod, and a daemon that never
-//      came up shows only as errors in the window. One paragraph says why, and where its log is.
-// Ctrl-C (or the window closing) stops what this script started and nothing else. `--check` only reports.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, watch } from "node:fs";
 import { homedir } from "node:os";
@@ -26,18 +7,14 @@ import { buildPage, pageStale } from "../daemon/page-build.ts";
 
 const DEV_PORT = 5173;
 const DEV_URL = `http://127.0.0.1:${DEV_PORT}`;
-/** `npm run dev`: Vite and hot reload; `npm start` runs the built page. */
 const hot = process.argv.includes("--hot");
-/** The command that runs this script, for what it says. */
 const command = hot ? "npm run dev" : "npm start";
-/** In app/index.html; whatever answers on the port without it is not loki's Vite. */
 const VITE_MARKER = 'name="apple-mobile-web-app-title" content="loki"';
 const MOD_HEALTH = `http://127.0.0.1:${process.env.LOKI_PORT ?? "41414"}/health`;
 const MOD_WAIT_MS = 90_000;
 const root = fileURLToPath(new URL("..", import.meta.url));
 const windows = process.platform === "win32";
 const mac = process.platform === "darwin";
-/** A program's file names here: Windows adds the .exe and .cmd forms (npm's shims are .cmd). */
 const exeNames = (name: string): string[] => (windows ? [`${name}.exe`, `${name}.cmd`, name] : [name]);
 /**
  * The dev tools' entry scripts. On Windows node_modules/.bin holds .cmd shims, which spawn cannot start without a
@@ -48,7 +25,6 @@ const bin = (name: string) => fileURLToPath(new URL(windows ? ENTRIES[name] : `.
 const home = homedir();
 const daemonLog = join(home, ".loki", "logs", "daemon.log");
 
-/** Where `name` is, on PATH; null if nowhere. */
 function onPath(name: string, path = process.env.PATH ?? ""): string | null {
   for (const dir of path.split(delimiter)) {
     for (const n of exeNames(name)) if (dir && existsSync(join(dir, n))) return join(dir, n);
@@ -92,7 +68,6 @@ async function answering(url: string): Promise<boolean> {
   }
 }
 
-/** What answers at the dev URL: loki's Vite, something else (another project's dev server), or nothing. */
 async function viteThere(url: string): Promise<"ours" | "other" | "none"> {
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(800) });
@@ -124,7 +99,6 @@ async function waitFor(url: string, ms: number, alive: () => boolean = () => tru
 
 const children: ChildProcess[] = [];
 let env = process.env;
-/** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts; on Windows `bin` names their JS entries, so this Node runs them. */
 function run(cmd: string, args: string[]): ChildProcess {
   const child = windows
     ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env })
@@ -144,7 +118,6 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
 
 const vite = await viteThere(DEV_URL);
 const firstBuild = !existsSync(join(root, "src-tauri", "target"));
-/** `tauri dev`'s arguments: on Vite's address under `npm run dev`; with no devUrl, its own static server on the same port, under `npm start`. */
 const tauriArgs = hot ? ["dev", "--config", JSON.stringify({ build: { devUrl: DEV_URL } })] : ["dev", "--port", String(DEV_PORT)];
 if (process.argv.includes("--check")) {
   const homeCargo = onPath("cargo", join(home, ".cargo", "bin"));
@@ -193,7 +166,6 @@ if (mac && !xcodeToolsPresent()) {
   );
   process.exit(1);
 }
-// The daemon the window starts inherits this: under `npm start` it offers a page build when app/ or core/ changes.
 env = { ...process.env, PATH: path };
 if (hot) delete env.LOKI_BUILT_PAGE;
 else env.LOKI_BUILT_PAGE = "1";
@@ -232,7 +204,6 @@ if (!hot) {
   console.error(`loki dev: starting Vite at ${DEV_URL}`);
   const vite = run(bin("vite"), ["--config", "app/vite.config.ts"]);
   vite.on("exit", (code) => {
-    // Vite going away takes the session with it: the window would only show a connection error.
     if (children.length > 1) console.error(`loki dev: Vite exited (${code ?? "signal"}); stopping`);
     stopAll();
     process.exit(code ?? 1);
@@ -247,21 +218,14 @@ if (!hot) {
 if (firstBuild) console.error("loki dev: first build — cargo compiles the shell once, a few minutes; later starts take seconds");
 const tauri = run(bin("tauri"), tauriArgs);
 tauri.on("exit", (code) => {
-  stopAll(); // Vite too, if this script started it; a Vite from another terminal is not ours to stop
+  stopAll();
   process.exit(code ?? 0);
 });
 
 if (hot) watchPhoneBuild();
 
-/**
- * Under `npm run dev`, the phone's copy rebuilt on every change. Its going away only means the phone stops following;
- * the session goes on.
- */
 function watchPhoneBuild(): void {
   console.error("loki dev: rebuilding the phone's app (app/dist) as the code changes");
-  // Not emptied first: the phone keeps being served the last build while the next one is written. Old hashed files pile
-  // up until a plain `npm run build:app` clears them. Errors only: its chunk-size and dynamic-import warnings would
-  // repeat on every save (a plain `npm run build:app` still shows them).
   // A build watch reads its config once (Vite's dev server restarts on a config change; this does not), so a change to
   // app/vite.config.ts starts it afresh; a stale config once left every build failing while the watch looked alive.
   let phoneBuild: ChildProcess;
@@ -291,7 +255,6 @@ function watchPhoneBuild(): void {
   });
 }
 
-// The mod, once the daemon hosts it. Nothing to say while it comes up; one paragraph if it never does.
 void (async () => {
   const alive = () => tauri.exitCode === null;
   const modUp = await waitFor(MOD_HEALTH, MOD_WAIT_MS, alive);

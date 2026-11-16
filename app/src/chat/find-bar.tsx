@@ -4,12 +4,6 @@ import { formatKeys } from "../shell/keymap";
 import { ChevronUpIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/**
- * Find in the transcript, on the browser's own text search (window.find) so matches are wherever
- * the text is, wrapping. Enter finds the next match, ⇧Enter the previous, Esc closes and hands
- * focus back to the message box; a hit unpins the transcript so streaming does not pull it away.
- * `onFind` runs first, with the query, so rows outside the transcript's window are on the page to be found.
- */
 export function FindBar({
   fieldRef,
   onFind,
@@ -27,7 +21,6 @@ export function FindBar({
   const findNext = (backwards = false) => {
     const q = findQuery.trim();
     if (!q) return;
-    // A long thread mounts only its newest rows: the host mounts the older ones holding the text first.
     onFind?.(q);
     const w = window as Window & { find?: (text: string, caseSensitive?: boolean, backwards?: boolean, wrap?: boolean) => boolean };
     const found = w.find?.(q, false, backwards, true) ?? false;

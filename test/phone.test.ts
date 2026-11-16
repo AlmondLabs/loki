@@ -42,12 +42,6 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
-/**
- * The phone's pure bits (app/src/phone/model.ts): the pairing URL both ways, the device label,
- * the "last seen" wording. No DOM — these run without one and fence the copy Settings and the
- * phone page agree on.
- */
-
 describe("pairing URL", () => {
   test("the code comes out of the QR's URL", () => {
     expect(codeFromUrl("http://10.0.0.5:41415/?code=Q7K2M9")).toBe("Q7K2M9");
@@ -74,7 +68,7 @@ describe("code field", () => {
   test("uppercases, drops characters outside the alphabet, caps at six", () => {
     expect(normalizeCode("q7k2m9")).toBe("Q7K2M9");
     expect(normalizeCode("q7-k2 m9x")).toBe("Q7K2M9");
-    expect(normalizeCode("O0I1")).toBe(""); // the alphabet has no O/0/I/1
+    expect(normalizeCode("O0I1")).toBe("");
   });
   test("the alphabet is the mod's: 32 characters, six long", () => {
     expect(CODE_ALPHABET).toBe("ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
@@ -197,8 +191,6 @@ describe("lan_status with the route fields (addendum 3)", () => {
     expect(pairOrigin(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }))).toBe("http://my-macbook-pro.local:41415");
   });
   test("the QR follows the route while a code lives: same code, the other origin", () => {
-    // The mod built pair_code.url at minting; Settings rebuilds it from the current status, so switching
-    // the route never leaves a Tailscale pill over a .local QR.
     expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }), "K9HF6D")).toBe("http://my-macbook-pro.local:41415/?code=K9HF6D");
     expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running }), "K9HF6D")).toBe(
       "http://my-macbook-pro.tail1234.ts.net:41415/?code=K9HF6D",
@@ -388,7 +380,7 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     item({ id: "c1", status: "approval" }),
     item({ id: "c9", agent_id: "a2", agent_name: "jira", status: "question", title: "Main chat" }),
     item({ id: "c2", agent_id: "a2", agent_name: "jira", status: "running", unread: false }),
-    item({ id: "c3", status: "idle", unread: false }), // a quiet chat: in the Inbox, but not waiting on you
+    item({ id: "c3", status: "idle", unread: false }),
   ];
 
   test("shortcut counts: waiting inbox items, due cards, agents running, archived desks with a conversation", () => {
@@ -411,7 +403,7 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
   test("an actionable desk appears once: in attention, not again in the desk list", () => {
     const s = homeSections(desks, items, null, "");
     expect(s.attention.map((a) => a.item.id)).toEqual(["c1", "c9"]);
-    expect(s.desks.map((d) => d.conversation_id)).toEqual(["c3", "c2"]); // pinned first, then by recency; c1 is above
+    expect(s.desks.map((d) => d.conversation_id)).toEqual(["c3", "c2"]);
     expect(s.more).toBe(0);
     const keys = [...s.attention.map((a) => `${a.item.agent_id}/${a.item.id}`), ...s.desks.map((d) => `${d.agent_id}/${d.conversation_id}`)];
     expect(new Set(keys).size).toBe(keys.length);
@@ -429,7 +421,6 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     expect(scoped.attention.map((a) => a.item.id)).toEqual(["c9"]);
     expect(scoped.desks.map((d) => d.conversation_id)).toEqual(["c2"]);
     const typed = homeSections(desks, items, null, "loki");
-    // the approval's own title is "t"; it matches by its desk's name, and stays in attention only
     expect(typed.attention.map((a) => [a.item.id, a.desk?.title])).toEqual([["c1", "Loki mobile"]]);
     expect(typed.desks).toEqual([]);
     expect(homeSections(desks, items, null, "main").attention.map((a) => [a.item.id, a.desk])).toEqual([["c9", undefined]]);
@@ -519,7 +510,7 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
       ["a2", 1, true, 0],
       ["a3", 0, false, 0],
     ]);
-    expect(rows[2].name).toBe(agents[2].name); // a long name is kept whole; the row ellipsizes it
+    expect(rows[2].name).toBe(agents[2].name);
   });
   test("the filters: all, running, waiting on you", () => {
     expect(AGENT_FILTERS.map((f) => f.id)).toEqual(["all", "running", "waiting"]);

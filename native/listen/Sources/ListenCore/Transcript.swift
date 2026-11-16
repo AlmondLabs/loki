@@ -1,12 +1,10 @@
 import Foundation
 
-/// Who said a line: you (the microphone) or them (the apps' audio).
 public enum Speaker: String, Sendable {
   case you = "You"
   case them = "Them"
 }
 
-/// One finished utterance, at its offset from the start of the recording.
 public struct Line: Sendable, Equatable {
   public let speaker: Speaker
   public let at: Double
@@ -18,7 +16,6 @@ public struct Line: Sendable, Equatable {
   }
 }
 
-/// A call's transcript: its lines in time order, and the markdown file they are written as.
 public struct Transcript: Sendable {
   public let started: Date
   public var ended: Date?
@@ -30,7 +27,6 @@ public struct Transcript: Sendable {
     self.apps = apps
   }
 
-  /// Adds a line where it falls in time: the two sides finish their utterances out of order.
   public mutating func add(_ line: Line) {
     let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
@@ -38,9 +34,6 @@ public struct Transcript: Sendable {
     lines.insert(Line(speaker: line.speaker, at: line.at, text: text), at: at)
   }
 
-  /// Your lines that look like their words heard back through the speakers: most of the line's words were said by
-  /// them within `window` seconds of it. A measure of how much echo got past the microphone's cancelling; nothing is
-  /// removed. Lines of one or two words count only when every word matches.
   public func likelyEchoes(window: Double = 2.5, overlap: Double = 0.6) -> [Line] {
     let theirs = lines.filter { $0.speaker == .them }
     return lines.filter { line in
@@ -53,19 +46,16 @@ public struct Transcript: Sendable {
     }
   }
 
-  /// A line's words, lowercased, without punctuation.
   static func words(_ text: String) -> [String] {
     text.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != "'" }.map(String.init)
   }
 
-  /// `[mm:ss]`, or `[h:mm:ss]` past the hour.
   public static func stamp(_ seconds: Double) -> String {
     let s = max(0, Int(seconds.rounded(.down)))
     let (h, m, sec) = (s / 3600, (s % 3600) / 60, s % 60)
     return h > 0 ? String(format: "[%d:%02d:%02d]", h, m, sec) : String(format: "[%02d:%02d]", m, sec)
   }
 
-  /// The file's name: the local start time, so a folder of calls sorts by date.
   public func fileName(timeZone: TimeZone = .current) -> String {
     let f = DateFormatter()
     f.locale = Locale(identifier: "en_US_POSIX")
@@ -74,8 +64,6 @@ public struct Transcript: Sendable {
     return "\(f.string(from: started)).md"
   }
 
-  /// The markdown: front matter (when, how long, what was tapped), a title, then one paragraph per line with its
-  /// time and speaker.
   public func markdown(timeZone: TimeZone = .current) -> String {
     let iso = ISO8601DateFormatter()
     iso.timeZone = timeZone

@@ -1,7 +1,3 @@
-/**
- * Plan 032: the pictures already in a chat's store, shrunk as view_image shrinks new ones. Runs under Node (the store is
- * `node:sqlite`): npm run test:node
- */
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -16,7 +12,6 @@ const big = Buffer.alloc(400 * 1024, 7).toString("base64");
 const small = Buffer.alloc(10 * 1024, 7).toString("base64");
 const shrunkBytes = Buffer.from("tiny jpeg");
 
-/** sips as the shrink calls it: the size asked first, then the JPEG written where `--out` says. */
 const sips: Run = (_file, args) => {
   if (args[0] === "-g") return Promise.resolve("pixelWidth: 3000\npixelHeight: 2000\n");
   writeFileSync(args[args.length - 1], shrunkBytes);
@@ -30,7 +25,6 @@ const toolResult = (images: Array<{ data: string; mimeType: string }>) =>
   });
 const pasted = JSON.stringify({ kind: "pi.user", model: [{ role: "user", content: [{ type: "image", data: big, mimeType: "image/png" }] }] });
 
-/** A store with the one table the shrink reads: a large picture, a small one, a GIF, and a pasted one. */
 function store(): { dir: string; file: string } {
   const dir = mkdtempSync(join(tmpdir(), "loki-shrink-test-"));
   const file = join(dir, "agent.sqlite");

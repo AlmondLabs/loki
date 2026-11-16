@@ -1,11 +1,7 @@
-// A stand-in MCP server for tests: just enough JSON-RPC (initialize, tools/list, tools/call, ping) to be a real
-// server to @modelcontextprotocol/client. Run as a script it serves stdio; imported, `serve(transport)` answers on any
-// transport (InMemoryTransport). Plain JavaScript, so a test can start it with `node` and nothing else.
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
-/** The tools it offers: a reader, a writer, a big one, a failing one, and one that kills the process. */
 export const TOOLS = [
   {
     name: "list_issues",
@@ -29,7 +25,6 @@ export const TOOLS = [
   { name: "crash", description: "Stops the server", inputSchema: { type: "object", properties: {} } },
 ];
 
-/** What the server answers a request with; null for a notification, which gets no answer. */
 export function answer(msg, opts = {}) {
   if (msg.id === undefined) return null;
   const ok = (result) => ({ jsonrpc: "2.0", id: msg.id, result });
@@ -60,7 +55,6 @@ export function answer(msg, opts = {}) {
   }
 }
 
-/** Answer on a transport (the server end of an InMemoryTransport pair). */
 export async function serve(transport, opts = {}) {
   transport.onmessage = (msg) => {
     const reply = answer(msg, opts);
@@ -71,7 +65,6 @@ export async function serve(transport, opts = {}) {
 }
 
 // As a script: newline-delimited JSON-RPC on stdin and stdout, as MCP's stdio transport speaks it. "Run as a script"
-// compares whole paths the system's way: a split on "/" never matched a Windows path, so there the server exited at once.
 const same = (a, b) => (process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b);
 if (process.argv[1] && same(resolve(process.argv[1]), fileURLToPath(import.meta.url))) {
   process.stderr.write("fake mcp server ready\n");

@@ -20,12 +20,6 @@ interface ProviderProps {
   onModelsChanged: () => void;
 }
 
-/**
- * First launch, as a sheet over the empty desk: a provider (skipped when one is connected), then the first agent, then
- * its desk. Shown only while the daemon lists no agents at all. Before the daemon runs it shows only the machine being
- * readied (`prepare`): the runtime downloading, the tools step, or why the daemon could not start. That is all someone
- * who finished Welcome before sees after an update that names a new Node.
- */
 export function Welcome({
   step,
   providers,
@@ -42,14 +36,10 @@ export function Welcome({
   onInstallTools,
 }: ProviderProps & {
   step: WelcomeStep;
-  /** The shell's view of loki's daemon (null in a browser tab). */
   daemon: DaemonStatus | null;
-  /** Run the shell's start sequence again (retry_daemon): the runtime, git, the daemon. */
   onRetryDaemon: () => Promise<void>;
-  /** Have macOS install its command line tools (install_tools); what went wrong, if it could not. */
   onInstallTools: () => Promise<string | null>;
   models: string[] | null;
-  /** Fetch the model list; the Skip for Now / Next button calls it, the shell does when it opens on the agent step. */
   onLoadModels: () => void;
   onCreate: CreateAgent;
   onDone: (agentId: string) => void;
@@ -67,7 +57,6 @@ export function Welcome({
 
   if (step === "prepare")
     return (
-      // Nothing closes this sheet either: it goes once the daemon answers.
       <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
         <Intro
           title="Getting loki ready"
@@ -78,7 +67,6 @@ export function Welcome({
     );
 
   return (
-    // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
     <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
       <Intro
         title="Welcome to loki"
@@ -105,11 +93,9 @@ export function Welcome({
   );
 }
 
-/** The sheet's head: loki's mark, a title and a line under it. */
 function Intro({ title, line }: { title: string; line: string }) {
   return (
     <div>
-      {/* loki's mark, the L (app/public/mark.png). */}
       <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--radius-lg)", marginBottom: 16 }} />
       <Title page>{title}</Title>
       <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>{line}</div>
@@ -117,7 +103,6 @@ function Intro({ title, line }: { title: string; line: string }) {
   );
 }
 
-/** Step 1: the provider shortlist with Next / Skip for Now, then a line naming what connected. */
 function ProviderStep({
   showAgent,
   connected,
@@ -135,7 +120,6 @@ function ProviderStep({
         <div className="loki-meta loki-meta--wrap flex items-center gap-2">
           <span>Keys are checked with the provider and kept in this computer's keychain.</span>
           <span className="flex-1" />
-          {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
           <Button size="sm" onClick={onNext}>
             {connected ? "Next" : "Skip for Now"}
           </Button>
@@ -154,7 +138,6 @@ function ProviderStep({
   );
 }
 
-/** Step 2: the form for the first agent; ↵ anywhere but the persona creates it. */
 function AgentForm({
   draft,
   nameRef,
@@ -230,11 +213,6 @@ function AgentForm({
   );
 }
 
-/**
- * The machine being readied, as the shell reports it: git missing (the tools step), the runtime downloading or failed
- * to (Preparation), or any other reason the daemon could not start. Try Again and Check Again run the shell's start
- * sequence again.
- */
 export function PrepareStep({
   status,
   onRetry,
@@ -263,13 +241,8 @@ export function PrepareStep({
   return <DaemonProblem error={status?.error ?? null} busy={busy} onRetry={retry} />;
 }
 
-/** Megabytes as the download line says them: whole, as the system's own download windows do. */
 const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
 
-/**
- * The runtime downloading (Node, or PortableGit on Windows): what, a bar, and how far along. A download that failed
- * says what failed, the error and Try Again.
- */
 export function Preparation({ preparing, error, busy, onRetry }: { preparing: Preparing; error: string | null; busy: boolean; onRetry: () => void }) {
   const what = `${preparing.name === "git" ? "PortableGit" : "Node"} ${preparing.version}`;
   if (error)
@@ -297,10 +270,6 @@ export function Preparation({ preparing, error, busy, onRetry }: { preparing: Pr
   );
 }
 
-/**
- * git is missing: on the Mac, Apple's command line tools, with a button that has macOS install them; on Linux, the
- * package commands to run. Check Again looks once more and starts the daemon when git is there.
- */
 export function Tools({
   os,
   busy,
@@ -311,9 +280,7 @@ export function Tools({
 }: {
   os: "macos" | "linux";
   busy: boolean;
-  /** macOS was asked to install the tools. */
   asked: boolean;
-  /** Why asking failed, if it did. */
   problem: string | null;
   onInstall: () => void;
   onCheck: () => void;
@@ -350,7 +317,6 @@ export function Tools({
   );
 }
 
-/** Any other reason the daemon could not start: the reason, where its log is, and Check Again. */
 function DaemonProblem({ error, busy, onRetry }: { error: string | null; busy: boolean; onRetry: () => void }) {
   return (
     <div className="grid gap-2">
@@ -392,7 +358,6 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
   );
 }
 
-/** A labelled line of the form: the label column matches Settings' facts. */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="grid grid-cols-[90px_1fr] items-start gap-3" style={{ fontSize: "var(--text-xs)" }}>

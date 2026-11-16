@@ -5,13 +5,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CHART_HEIGHT, ChartCard } from "../app/src/kit/index.tsx";
 
-/**
- * What the page loads at start (plan 038): a module imported statically from one of these files is in the chunk every
- * client parses before it draws, so the surfaces, the chart library and the Settings sheet are reached only by import().
- */
 const SRC = resolve(import.meta.dirname, "..", "app", "src");
 const read = (path: string) => readFileSync(join(SRC, path), "utf8");
-/** The modules a file imports statically (`import … from "x"`, `import "x"`), not those it loads with import(). */
 const staticImports = (text: string): string[] => [...text.matchAll(/^\s*import\s+(?!type\b)(?:[^"';]*?\s+from\s+)?["']([^"']+)["']/gm)].map((m) => m[1]);
 
 describe("what loads at start (plan 038)", () => {

@@ -6,8 +6,6 @@ import { leanPage, type TranscriptRow } from "../core/attention/transcript.ts";
 import { planItems } from "../core/harness.ts";
 import { Work } from "../app/src/item/work.tsx";
 
-// Plan 097, U9: an ACP agent's plan, kept whole on its row and drawn as AI Elements' Plan.
-
 const PLAN = "[x] read the signups table\n[~] group them by week\n[ ] draw the chart";
 const planRows = (text = PLAN): TranscriptRow[] =>
   foldSteps([
@@ -43,7 +41,6 @@ describe("Work with a plan", () => {
     const out = renderToStaticMarkup(createElement(Work, { rows: planRows(), running: false, arrived: false }));
     expect(out).toContain("data-plan");
     expect(out).toContain("1 of 3 done");
-    // Closed, a stretch of steps shows its summary line; with only the plan in it there is none.
     expect(out).not.toMatch(/worked|1 tool/i);
   });
 

@@ -2,10 +2,6 @@ import type { ReactNode } from "react";
 import type { PendingApproval } from "../../../core/attention/model.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 
-/**
- * "waiting for your approval to run X" with the tool input, as Catch Up shows
- * it. `actions` (approve/deny… buttons) render underneath when given.
- */
 export function ApprovalCard({ approval, actions }: { approval: PendingApproval; actions?: ReactNode }) {
   return (
     <div data-approval className="loki-approval">
