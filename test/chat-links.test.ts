@@ -12,6 +12,7 @@ import {
   looserThan,
   lokiModeOf,
   parseLinkAnswer,
+  PERMISSION_MODES,
   stricterMode,
   timeLeft,
   type ChatLink,
@@ -120,6 +121,8 @@ describe("a chat message in the thread", () => {
     expect(FRAMES.chat_message.parse({ ...B, text: "hi", send_id: "s" })).toBe("from, text and send_id required");
     const ok = FRAMES.chat_message.parse({ ...B, from: { ...A, title: "repo" }, text: "hi", send_id: "s", cap: "sudo" });
     expect(ok).toEqual({ ...B, from: { ...A, title: "repo" }, text: "hi", send_id: "s", cap: null });
+    for (const cap of PERMISSION_MODES)
+      expect(FRAMES.chat_message.parse({ ...B, from: { ...A, title: "repo" }, text: "hi", send_id: "s", cap })).toMatchObject({ cap });
     expect(FRAMES.chat_message.phone).toBe(false);
     expect(FRAMES.chat_link_close.phone).toBe(true);
   });
