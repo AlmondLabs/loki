@@ -20,7 +20,7 @@ import { log } from "./log.ts";
 import { bareAddresses, slackPlace } from "./reply-addressing.ts";
 import { MAX_DM_PEOPLE } from "./slack.ts";
 import type { People } from "./people.ts";
-import type { JiraClient, JiraUserScope } from "./jira.ts";
+import { JiraError, type JiraClient, type JiraUserScope } from "./jira.ts";
 import type { HeldProposal, HeldReply, HeldTarget } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
 import type { ChatKey } from "./suggestions.ts";
@@ -69,6 +69,8 @@ export interface TicketInput {
   parent?: string;
   mentions?: string[];
 }
+
+const MAX_TICKET_TITLE = 255;
 
 const TICKET_FIELDS = new Set(["project", "issuetype", "summary", "description", "assignee", "priority", "labels", "parent", "reporter"]);
 
@@ -410,6 +412,7 @@ export class ReplyProposals implements AgentReplyReports {
   async proposeTicket(chat: ChatKey, input: TicketInput): Promise<ReplyProposal> {
     const title = input.title.replace(/\s+/g, " ").trim();
     if (!title) throw new Error("a new ticket needs a title");
+    if (title.length > MAX_TICKET_TITLE) throw new Error(`a ticket's title is ${String(MAX_TICKET_TITLE)} characters at most`);
     const account = this.opts.accounts.get(input.account_id);
     if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
     if (account.provider !== "jira") throw new Error("a new ticket goes on a Jira site");
@@ -426,12 +429,43 @@ export class ReplyProposals implements AgentReplyReports {
     if (!type) throw new Error(`${project.key} has no type "${input.type}"; it has ${project.types.map((t) => inert(t.name)).join(", ")}`);
     const parentKey = input.parent?.trim() || null;
     if (type.subtask && !parentKey) throw new Error(`a ${inert(type.name)} goes under a parent ticket: name it in \`parent\``);
-    const missing = (await jira.formFields(project.key, type.id)).filter((f) => f.required && !f.has_default && !TICKET_FIELDS.has(f.id));
+    const given = (field: string): boolean => {
+      switch (field) {
+        case "project":
+        case "issuetype":
+        case "summary":
+        case "reporter":
+          return true;
+        case "description":
+          return !!input.description.trim();
+        case "assignee":
+          return !!input.assignee?.trim();
+        case "priority":
+          return !!input.priority?.trim();
+        case "labels":
+          return (input.labels ?? []).some((l) => l.trim());
+        case "parent":
+          return !!parentKey;
+        default:
+          return false;
+      }
+    };
+    const fields = await jira.formFields(project.key, type.id);
+    const missing = fields.filter((f) => f.required && !f.has_default && !given(f.id));
+    const settable = missing.filter((f) => TICKET_FIELDS.has(f.id));
+    if (settable.length) throw new Error(`${project.key} needs ${settable.map((f) => inert(f.name)).join(", ")} on a ${inert(type.name)}: give it`);
     if (missing.length)
       throw new Error(
         `${project.key} needs ${missing.map((f) => inert(f.name)).join(", ")} on a ${inert(type.name)}, which loki cannot set: the person can create that ticket in Jira`,
       );
-    const parent = parentKey ? (await jira.ticketFacts(parentKey).catch(() => null))?.key : null;
+    const parent = parentKey
+      ? (
+          await jira.ticketFacts(parentKey).catch((err: unknown) => {
+            if (err instanceof JiraError && err.code === "not_found") return null;
+            throw err;
+          })
+        )?.key
+      : null;
     if (parentKey && !parent) throw new Error(`there is no ticket ${parentKey} that you can see to put it under`);
     let assignee: ReplyMention | null = null;
     if (input.assignee?.trim()) {
@@ -531,7 +565,12 @@ export class ReplyProposals implements AgentReplyReports {
     if (!p) throw new Error(`no reply ${id} in this chat`);
     const people = this.opts.people;
     if (!people) return { people: [], notice: "people cannot be found on this Mac" };
-    const scope = p.provider === "jira" && p.place ? { jira: { kind: "ticket" as const, ticket: p.place } } : {};
+    const scope =
+      p.kind === "ticket" && p.ticket
+        ? { jira: { kind: "project" as const, project: p.ticket.project } }
+        : p.provider === "jira" && p.place
+          ? { jira: { kind: "ticket" as const, ticket: p.place } }
+          : {};
     const found = await people.find(p.account_id, query, scope);
     const choices = found.people
       .slice(0, PICKER_MAX)
@@ -816,7 +855,13 @@ function whoWords(p: ReplyProposal): string {
     case "jira":
       if (p.kind === "ticket" && p.ticket) {
         const t = p.ticket;
-        return [`in ${inert(t.project_name)} (${t.project}) as a ${inert(t.type_name)}`, t.assignee ? `assigned to ${inert(t.assignee.display)}` : ""]
+        return [
+          `in ${inert(t.project_name)} (${t.project}) as a ${inert(t.type_name)}`,
+          t.parent ? `under ${t.parent}` : "",
+          t.assignee ? `assigned to ${inert(t.assignee.display)}` : "",
+          t.priority ? `priority ${inert(t.priority.name)}` : "",
+          t.labels.length ? `labels ${inert(t.labels.join(", "))}` : "",
+        ]
           .filter(Boolean)
           .join(", ");
       }
@@ -1010,7 +1055,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     description:
       "Propose a new Jira ticket on a site you own: `project` (its key or name) and `type` (an issue type of it, as jira_projects lists), a " +
       "`title` and a `description`, and if wanted an `assignee` (a full name or account id), a `priority`, `labels` and a `parent` " +
-      "ticket's key (which a sub-task needs). A project that requires another field is refused with its name: the person creates " +
+      "ticket's key (which a sub-task needs). A project that requires another field is refused with the field's name: the person creates " +
       "that ticket in Jira. The person reviews it on a card, may edit its title and description, and creates it from there as " +
       "themselves; you cannot create it, and nothing is made before their Send. You hear the new ticket's key with the next message.",
     parameters: {
@@ -1067,11 +1112,15 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       const block = notices.map((n) => `<system-reminder>${n}</system-reminder>`).join("\n");
       return typeof m.content === "string" ? `${m.content}\n\n${block}` : [...m.content, { type: "text", text: block }];
     }),
-    api.prompt.section("replies", ({ agentId }) =>
-      forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), or to post in a channel you are in, use reply_propose; to start a new email or Slack DM, use message_propose; to open a new Jira ticket, use ticket_propose. Use `attachments` for files and `mentions` for the people a message should tell: the person reviews it on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way."
-        : undefined,
-    ),
+    api.prompt.section("replies", ({ agentId }) => {
+      const owned = new Set(deps.accounts.ownedBy(agentId).map((a) => a.provider));
+      if (owned.size === 0) return undefined;
+      const start = [
+        owned.has("gmail") || owned.has("slack") ? "to start a new email or Slack DM, use message_propose" : "",
+        owned.has("jira") ? "to open a new Jira ticket, use ticket_propose" : "",
+      ].filter(Boolean);
+      return `To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), or to post in a channel you are in, use reply_propose${start.length ? `; ${start.join("; ")}` : ""}. Use \`attachments\` for files and \`mentions\` for the people a message should tell: the person reviews it on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way.`;
+    }),
   );
   return disposers;
 }

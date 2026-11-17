@@ -409,6 +409,7 @@ export class OutsideThreads {
             });
             created = made.key || null;
           } catch (err) {
+            if (err instanceof JiraError && err.status >= 500) throw new Error(`Jira failed while creating it: ${MAY_HAVE_GONE}`);
             if (agent) throw unclearPost(err, "Jira");
             throw err;
           }

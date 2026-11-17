@@ -330,7 +330,7 @@ export function ReplyProposalView({
             </Button>
           ) : (
             <>
-              <Button size="sm" disabled={off || !card.text.trim()} onClick={card.send} data-action="approve">
+              <Button size="sm" disabled={off || !(p.kind === "ticket" ? card.title : card.text).trim()} onClick={card.send} data-action="approve">
                 Send
               </Button>
               {!editing && (

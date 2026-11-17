@@ -1147,7 +1147,7 @@ describe("only the person's reply and their Send on an agent's proposal send (pl
     const dir = join(import.meta.dirname, "..", "mod");
     const callers = readdirSync(dir, { recursive: true, encoding: "utf8" })
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /\.(sendReply|postReply|postWithFiles|postComment|attachFiles|openDm)\(/.test(readFileSync(join(dir, f), "utf8")))
+      .filter((f) => /\.(sendReply|postReply|postWithFiles|postComment|attachFiles|openDm|createIssue)\(/.test(readFileSync(join(dir, f), "utf8")))
       .map((f) => f.split("\\").join("/"))
       .sort();
     expect(callers).toEqual(["outside-threads.ts"]);
@@ -1157,7 +1157,7 @@ describe("only the person's reply and their Send on an agent's proposal send (pl
     const src = readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8");
     const hold = src.slice(src.indexOf("  holdAgentReply("), src.indexOf("  holds(outboxId"));
     expect(hold).toMatch(/this\.outbox\.hold\(/);
-    expect(hold).not.toMatch(/\.(sendReply|postReply|postWithFiles|postComment|attachFiles|sendNow|sendMail)\(/);
+    expect(hold).not.toMatch(/\.(sendReply|postReply|postWithFiles|postComment|attachFiles|openDm|createIssue|sendNow|sendMail)\(/);
     expect([...src.matchAll(/this\.sendNow\(/g)].length).toBe(2);
     expect(src).toMatch(/send: \(held\) => this\.sendNow\(held\)/);
     const proposals = readFileSync(join(import.meta.dirname, "..", "mod", "reply-proposals.ts"), "utf8");

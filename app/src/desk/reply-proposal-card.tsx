@@ -357,7 +357,13 @@ function ReplyProposalCard({
             </Button>
           ) : (
             <>
-              <Button size={size} tone="positive" disabled={off || !card.text.trim()} onClick={card.send} data-action="approve">
+              <Button
+                size={size}
+                tone="positive"
+                disabled={off || !(p.kind === "ticket" ? card.title : card.text).trim()}
+                onClick={card.send}
+                data-action="approve"
+              >
                 Send
               </Button>
               <Button size={size} tone="negative" disabled={off} onClick={card.reject} data-action="reject">

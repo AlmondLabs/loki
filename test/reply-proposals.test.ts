@@ -283,7 +283,8 @@ async function fixture() {
   const slack = fakeSlack();
 
   const attached: Array<{ ticket: string; names: string[] }> = [];
-  const jiraAnswers = { commentFails: false, commentTimesOut: false, createTimesOut: false };
+  const scopes: Array<PeopleOptions | undefined> = [];
+  const jiraAnswers = { commentFails: false, commentTimesOut: false, createTimesOut: false, createStatus: 0 };
   const jiraFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const attach = /^\/rest\/api\/3\/issue\/([^/]+)\/attachments$/.exec(url.pathname);
@@ -295,6 +296,8 @@ async function fixture() {
     }
     if (jiraAnswers.commentFails && init?.method === "POST" && url.pathname.endsWith("/comment"))
       return Promise.resolve(new Response(JSON.stringify({ errorMessages: ["Jira is down for maintenance."] }), { status: 500 }));
+    if (jiraAnswers.createStatus && init?.method === "POST" && url.pathname === "/rest/api/3/issue")
+      return Promise.resolve(new Response(JSON.stringify({ errorMessages: ["Jira refused it."], errors: {} }), { status: jiraAnswers.createStatus }));
     if (jiraAnswers.createTimesOut && init?.method === "POST" && url.pathname === "/rest/api/3/issue")
       return jira.fetch(input, init).then(() => Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError")));
     if (jiraAnswers.commentTimesOut && init?.method === "POST" && url.pathname.endsWith("/comment"))
@@ -359,8 +362,14 @@ async function fixture() {
       push: (_agent, conversationId, events) => pushed.push({ chat: conversationId, events }),
       jira: () => jiraClient,
       people: {
-        resolve: (accountId: string, name: string, opts?: PeopleOptions) => Promise.resolve(resolvePerson(accountId, name, opts)),
-        find: (accountId: string, query: string) => Promise.resolve(findPeople(accountId, query)),
+        resolve: (accountId: string, name: string, opts?: PeopleOptions) => {
+          scopes.push(opts);
+          return Promise.resolve(resolvePerson(accountId, name, opts));
+        },
+        find: (accountId: string, query: string, opts?: PeopleOptions) => {
+          scopes.push(opts);
+          return Promise.resolve(findPeople(accountId, query));
+        },
       },
       members: () => readMembers(),
       now,
@@ -408,6 +417,7 @@ async function fixture() {
     gmail,
     slack,
     jira,
+    scopes,
     ops7,
     ops8,
     attached,
@@ -1368,6 +1378,77 @@ describe("new tickets (plan 2026-11-14-1530, U11)", () => {
       'The person created your new ticket "Rotate the API keys" in acme.atlassian.net (Jira), as OPS-100, in Operations (OPS) as a Task.',
     );
     expect(await f.call("reply_propose", { account: SITE, thread: "OPS-100", text: "Started." })).toMatch(/waits for the person/);
+  });
+
+  test("the title the person edited reaches the daemon through the reply frame", async () => {
+    const f = await fixture();
+    await f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "Rotate keys", description: "x" });
+    const bridge = bridgeOf({ modules: [replyFrames({ replies: f.replies })] });
+    const c = client("d1");
+    bridge.onMessage(c, {
+      request_id: "r1",
+      type: "reply_decide",
+      agent_id: WORK,
+      conversation_id: CHAT,
+      proposal_id: f.only().id,
+      action: "approve",
+      title: "Rotate the API keys",
+    });
+    await until(() => c.sent.length > 0);
+    expect(c.sent.at(-1)).toMatchObject({ type: "reply_decided", done: true, proposal: { status: "sending", subject: "Rotate the API keys" } });
+  });
+
+  test("Jira failing with a 5xx while creating it counts as may have gone, so it is not created again", async () => {
+    const f = await fixture();
+    await f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "Rotate keys", description: "x" });
+    f.jiraAnswers.createStatus = 502;
+    await f.sendAndWait(f.only().id);
+    f.jiraAnswers.createStatus = 0;
+    expect(f.only().reason).toBe(`Jira failed while creating it: ${MAY_HAVE_GONE}`);
+    expect(await f.replies.decide(f.chat, f.only().id, "approve", "desktop")).toMatchObject({ done: false });
+    expect(f.jira.created).toEqual([]);
+  });
+
+  test("a create Jira clearly refused may be sent again, and creates the ticket once", async () => {
+    const f = await fixture();
+    await f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "Rotate keys", description: "x" });
+    f.jiraAnswers.createStatus = 400;
+    await f.sendAndWait(f.only().id);
+    f.jiraAnswers.createStatus = 0;
+    expect(f.only()).toMatchObject({ status: "pending", outbox_id: null });
+    await f.sendAndWait(f.only().id);
+    expect([f.only().status, f.jira.created.length]).toEqual(["sent", 1]);
+  });
+
+  test("mentions in a description resolve among the project's people and go as Jira's; the card's picker searches the project too", async () => {
+    const f = await fixture();
+    await f.call("ticket_propose", {
+      account: SITE,
+      project: "OPS",
+      type: "Bug",
+      title: "Login times out",
+      description: "@Vivek Rao please look",
+      mentions: ["Vivek Rao"],
+    });
+    expect(f.only().mentions).toEqual([{ display: "Vivek Rao", id: "acc-vr", address: null }]);
+    expect(f.scopes.at(-1)).toEqual({ jira: { kind: "project", project: "OPS" } });
+    await f.replies.findPeople(f.chat, f.only().id, "viv");
+    expect(f.scopes.at(-1)).toEqual({ jira: { kind: "project", project: "OPS" } });
+    await f.sendAndWait(f.only().id);
+    expect(JSON.stringify(f.jira.created[0]?.fields.description)).toContain('{"type":"mention","attrs":{"id":"acc-vr","text":"@Vivek Rao"}}');
+  });
+
+  test("a ticket may go with no description; a blank title, an unknown priority or parent, and a too-long title are refused", async () => {
+    const f = await fixture();
+    await f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "Rotate keys", description: "" });
+    await f.sendAndWait(f.only().id);
+    expect(f.jira.created[0]?.fields).not.toHaveProperty("description");
+    const ask = (over: Record<string, unknown>) =>
+      f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "x", description: "x", ...over });
+    expect(await ask({ title: " " })).toMatch(/^refused: a new ticket needs a title/);
+    expect(await ask({ title: "x".repeat(256) })).toMatch(/^refused: a ticket's title is 255 characters at most/);
+    expect(await ask({ priority: "Urgent" })).toMatch(/^refused: there is no priority "Urgent"; there are High, Medium/);
+    expect(await ask({ parent: "OPS-999" })).toMatch(/^refused: there is no ticket OPS-999 that you can see/);
   });
 
   test("a create that may have gone is never sent again from its card, and a rejection tells the agent it may be in Jira", async () => {
