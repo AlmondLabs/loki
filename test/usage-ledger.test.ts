@@ -29,7 +29,10 @@ const usage = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => 
   },
 });
 
-function fakeStore(chats: Record<number, string | undefined>, totals: Partial<Record<number, Record<string, ReturnType<typeof usage>>>> = {}) {
+function fakeStore(
+  chats: Record<number, string | { id: string; helper_for: number } | undefined>,
+  totals: Partial<Record<number, Record<string, ReturnType<typeof usage>>>> = {},
+) {
   let listener: ((p: CommitPublication) => void) | null = null;
   const store = {
     harness: {
@@ -40,7 +43,10 @@ function fakeStore(chats: Record<number, string | undefined>, totals: Partial<Re
     },
     chatConversations: () => Promise.resolve(Object.keys(chats).map(Number)),
     usage: (id: number) => Promise.resolve(totals[id] ? { models: totals[id], tools: {} } : undefined),
-    chatInfo: (id: number) => Promise.resolve(chats[id] === undefined ? undefined : { id: chats[id] }),
+    chatInfo: (id: number) => {
+      const chat = chats[id];
+      return Promise.resolve(typeof chat === "string" ? { id: chat } : chat);
+    },
   } as unknown as AgentStore;
   const publish = (id: number, models: Record<string, ReturnType<typeof usage>>, created = false) => {
     listener?.({
@@ -124,15 +130,22 @@ describe("the usage ledger", () => {
     const s = setup();
     try {
       const ledger = s.make();
-      const { store, publish } = fakeStore({ 1: "local-conv-1", 2: "reflection-a1", 3: "recall-a1", 4: "doctor-a1", 6: "default" });
+      const { store, publish } = fakeStore({
+        1: "local-conv-1",
+        2: "reflection-a1",
+        3: "recall-a1",
+        4: "doctor-a1",
+        6: "default",
+        8: { id: "reflection-a1", helper_for: 2 },
+      });
       ledger.attach("a1", store);
       await ledger.settled();
-      for (const id of [1, 2, 3, 4, 6]) publish(id, { [MODEL]: usage(10, 1) });
+      for (const id of [1, 2, 3, 4, 6, 8]) publish(id, { [MODEL]: usage(10, 1) });
       publish(7, {}, true);
       publish(7, { [MODEL]: usage(10, 1) });
       await ledger.settled();
       const byOrigin = Object.fromEntries(ledger.rows().map((r) => [r.origin, r.input_tokens]));
-      expect(byOrigin).toEqual({ chats: 20, reflection: 10, learn: 10, doctor: 10, helpers: 10 });
+      expect(byOrigin).toEqual({ chats: 20, reflection: 10, learn: 10, doctor: 10, helpers: 20 });
       expect(originOfChat("reflection-a2", "a1")).toBe("chats");
       expect(originOfChat("reflection-a1-acp", "a1")).toBe("reflection");
       expect(originOfChat("doctor-a1-acp", "a1")).toBe("doctor");
