@@ -8,6 +8,7 @@ import type { ChatEngineView } from "../core/models.ts";
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { call, piece } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
+import { MAIN_CHAT_ID } from "../core/desk-core.ts";
 
 const ADA: Runtime = { agent_id: "ada", conversation_id: "c1" };
 const ENGINE: ChatEngineView = { agent: "claude", name: "Claude Code", model: "sonnet", modes: [], commands: [] };
@@ -283,6 +284,15 @@ describe("the chat store (plan 052)", () => {
     d.events({ kind: "error", message: "Not a directory: /nowhere" });
     expect(await refused).toBe("Not a directory: /nowhere");
     expect(d.store.getSnapshot().live.get("ada/c1")?.error ?? null).toBeNull();
+  });
+
+  test("a main chat can be neither archived nor renamed, and nothing reaches the daemon", async () => {
+    const d = daemon();
+    await flush();
+    expect(await d.store.archiveConversation(MAIN_CHAT_ID, true, "inbox", "ada")).toBe("a main chat cannot be archived");
+    expect(await d.store.renameConversation(MAIN_CHAT_ID, "x")).toBe("a main chat cannot be renamed");
+    expect(d.updates).toEqual([]);
+    d.stop();
   });
 
   test("an archive names the chat's agent to the daemon and takes the chat off the list", async () => {
