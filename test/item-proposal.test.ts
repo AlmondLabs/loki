@@ -174,6 +174,43 @@ describe("a card that starts a conversation (plan 2026-11-14-1530, U8)", () => {
   });
 });
 
+describe("a card that opens a ticket (plan 2026-11-14-1530, U11)", () => {
+  test("says it creates a ticket, where and as what, and lists its fields", () => {
+    const ticket = reply({
+      provider: "jira",
+      kind: "ticket",
+      thread_id: "",
+      subject: "Login times out",
+      place: "a new Bug in Operations",
+      ticket: {
+        project: "OPS",
+        project_name: "Operations",
+        type_id: "10002",
+        type_name: "Bug",
+        assignee: { display: "Vivek Rao", id: "acc-vr", address: null },
+        priority: { id: "2", name: "High" },
+        labels: ["auth", "web"],
+        parent: "OPS-7",
+      },
+    });
+    expect(kickerOf(ticket)).toBe("new ticket");
+    expect(sendNote(ticket)).toBe("Creates the ticket in Jira from your account, held 10 seconds so you can undo");
+    const out = html(createElement(ReplyProposalView, { proposal: ticket, blocked: null, onDecide: decide }));
+    expect(out).toContain("as a new Bug in Operations");
+    expect([...out.matchAll(/data-destination-note="true">([^<]*)</g)].map((m) => m[1])).toEqual([
+      "Under OPS-7.",
+      "Assigned to Vivek Rao.",
+      "Priority High.",
+      "Labels auth, web.",
+    ]);
+  });
+
+  test("Send carries the title only when the person changed it", () => {
+    expect(replySend(null, reply(), new Set(), [], "New title")).toMatchObject({ title: "New title" });
+    expect(replySend(null, reply(), new Set(), [], null)).not.toHaveProperty("title");
+  });
+});
+
 describe("the card's @ list (plan 2026-11-14-1530, R18)", () => {
   test("offers the account's people by full name; a pick writes the name and keeps the mention, without its detail", async () => {
     const picked: unknown[] = [];

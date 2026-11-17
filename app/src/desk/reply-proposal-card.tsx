@@ -5,7 +5,7 @@ import type { ChatFace } from "../../../core/attention/use-attention.ts";
 import type { ReplyAttachment, ReplyMention, ReplyPersonChoice, ReplyProposal } from "../../../core/frame-types.ts";
 import type { ReplyAction, ReplyDecideOptions } from "../../../core/frames.ts";
 import { fileSize } from "../chat/attachments";
-import { Button, Meta, TextArea, sentence } from "../components";
+import { Button, Field, Meta, TextArea, sentence } from "../components";
 import { inTauri } from "./env";
 import { MentionMarks } from "./mention-field";
 import { useMentions, type MentionSource } from "./mentions";
@@ -87,11 +87,12 @@ export const REPLY_WORDS: Record<ReplyProposal["provider"], { kicker: string }> 
 };
 
 export const kickerOf = (p: Pick<ReplyProposal, "provider" | "kind">): string =>
-  p.kind === "email" ? "new email" : p.kind === "dm" ? "new DM" : REPLY_WORDS[p.provider].kicker;
+  p.kind === "email" ? "new email" : p.kind === "dm" ? "new DM" : p.kind === "ticket" ? "new ticket" : REPLY_WORDS[p.provider].kicker;
 
 export function sendNote(p: Pick<ReplyProposal, "provider" | "attachments" | "kind">): string {
   if (p.kind === "email") return "Sends a new email from your account with your signature, held 10 seconds so you can undo";
   if (p.kind === "dm") return "Opens the DM and sends from your account, held 10 seconds so you can undo";
+  if (p.kind === "ticket") return "Creates the ticket in Jira from your account, held 10 seconds so you can undo";
   switch (p.provider) {
     case "gmail":
       return "Sends from your account with your signature, held 10 seconds so you can undo";
@@ -113,7 +114,7 @@ export function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" |
     case "slack":
       return `in ${p.place ?? "that conversation"}`;
     case "jira":
-      return `on ${p.place ?? "the ticket"}`;
+      return p.place?.startsWith("a new ") ? `as ${p.place}` : `on ${p.place ?? "the ticket"}`;
     case "gmail": {
       const added = new Set((p.people_added ?? []).map(addressOf));
       const named = (people: string[]) => people.map((x) => (added.has(addressOf(x)) ? `${x} (added)` : x)).join(", ");
@@ -142,8 +143,15 @@ function heardByWords(h: NonNullable<ReplyProposal["heard_by"]>): string {
   return `Jira usually tells ${people.length ? `${people.join(", ")} and ${last}` : last}.`;
 }
 
-export function destinationNotes(p: Pick<ReplyProposal, "provider" | "in_flow" | "shared_outside" | "heard_by">): string[] {
+export function destinationNotes(p: Pick<ReplyProposal, "provider" | "in_flow" | "shared_outside" | "heard_by" | "ticket">): string[] {
   const notes: string[] = [];
+  if (p.ticket) {
+    const t = p.ticket;
+    if (t.parent) notes.push(`Under ${t.parent}.`);
+    notes.push(t.assignee ? `Assigned to ${t.assignee.display}.` : "Assigned to no one.");
+    if (t.priority) notes.push(`Priority ${t.priority.name}.`);
+    if (t.labels.length) notes.push(`Labels ${t.labels.join(", ")}.`);
+  }
   if (p.in_flow === false) notes.push(p.provider === "jira" ? "This ticket has no card in Flow." : "This thread has no card in Flow.");
   if (p.shared_outside) notes.push("This conversation is shared with people outside your workspace.");
   if (p.heard_by) {
@@ -307,6 +315,9 @@ function ReplyProposalCard({
             {note}
           </div>
         ))}
+        {p.kind === "ticket" && (
+          <Field size={size} value={card.title} disabled={off} onChange={(e) => card.setTitle(e.target.value)} onKeyDown={keys} aria-label="Ticket title" />
+        )}
         <div className="loki-mention-field">
           {mentions.list}
           <TextArea
@@ -346,7 +357,13 @@ function ReplyProposalCard({
             </Button>
           ) : (
             <>
-              <Button size={size} tone="positive" disabled={off || !card.text.trim()} onClick={card.send} data-action="approve">
+              <Button
+                size={size}
+                tone="positive"
+                disabled={off || !(p.kind === "ticket" ? card.title : card.text).trim()}
+                onClick={card.send}
+                data-action="approve"
+              >
                 Send
               </Button>
               <Button size={size} tone="negative" disabled={off} onClick={card.reject} data-action="reject">

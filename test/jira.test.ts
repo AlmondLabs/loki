@@ -644,11 +644,11 @@ const WRITES = /post|send|add|attach(?!ments)|create|update|edit|delete|remove|a
 
 const PRIVATE = ["now", "sprintField", "call", "request", "page", "rejected", "rateLimited", "hold"];
 
-describe("the only things the client writes are the person's comment and its files", () => {
-  test("postComment and attachFiles are the only client methods whose names suggest writing", () => {
+describe("the only things the client writes are the person's comment, its files and a new ticket", () => {
+  test("postComment, attachFiles and createIssue are the only client methods whose names suggest writing", () => {
     const names = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => n !== "constructor");
     expect(names).toContain("postComment");
-    expect(names.filter((n) => WRITES.test(n)).sort()).toEqual(["attachFiles", "postComment"]);
+    expect(names.filter((n) => WRITES.test(n)).sort()).toEqual(["attachFiles", "createIssue", "postComment"]);
   });
 
   test("every other call is a GET, and the attach and the comment are the only requests that are not", async () => {
@@ -668,14 +668,19 @@ describe("the only things the client writes are the person's comment and its fil
     await c.searchUsers({ kind: "ticket", ticket: "OPS-1" }, { query: "ada" });
     await c.searchUsers({ kind: "project", project: "OPS" }, { query: "ada" });
     await c.searchUsers({ kind: "assignee", ticket: "OPS-1" }, { account_id: "acc-ada" });
+    await c.projects();
+    await c.priorities();
+    await c.formFields("OPS", "10001");
     expect(jira.writes()).toEqual([]);
     await c.attachFiles("OPS-1", [{ name: "notes.txt", data: bytes("notes") }]);
     await c.postComment("OPS-1", "hello");
+    await c.createIssue({ project: "OPS", type_id: "10001", title: "Rotate the keys", description: "" });
     expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([
       ["POST", "/rest/api/3/issue/OPS-1/attachments"],
       ["POST", "/rest/api/3/issue/OPS-1/comment"],
+      ["POST", "/rest/api/3/issue"],
     ]);
-    const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment", "attachFiles"].includes(n));
+    const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment", "attachFiles", "createIssue"].includes(n));
     expect(
       called.filter(
         (n) =>
@@ -691,8 +696,61 @@ describe("the only things the client writes are the person's comment and its fil
             "attachments",
             "thumbnail",
             "searchUsers",
+            "projects",
+            "priorities",
+            "formFields",
           ].includes(n) && !PRIVATE.includes(n),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("new tickets (plan 2026-11-14-1530, U10)", () => {
+  test("the projects the person can create in, with their types, are read page by page", async () => {
+    const { c } = attachSetup();
+    expect((await c.projects()).map((p) => [p.key, p.name, p.types.map((t) => t.name)])).toEqual([
+      ["OPS", "Operations", ["Task", "Bug", "Sub-task"]],
+      ["SUP", "Support", ["Request"]],
+    ]);
+    expect(await c.priorities()).toEqual([
+      { id: "2", name: "High" },
+      { id: "3", name: "Medium" },
+    ]);
+  });
+
+  test("every page of a type's create form is read, and its required fields without a default are named", async () => {
+    const { c } = attachSetup();
+    const fields = await c.formFields("SUP", "10101");
+    expect(fields.filter((f) => f.required && !f.has_default).map((f) => f.name)).toEqual(["Project", "Issue Type", "Summary", "Team"]);
+  });
+
+  test("a ticket is created with its fields and the mentions in its description; a refusal names the missing field", async () => {
+    const { c, jira } = attachSetup();
+    expect(
+      await c.createIssue({
+        project: "OPS",
+        type_id: "10002",
+        title: "Login times out",
+        description: "@Ada Lovelace can you look",
+        mentions: [{ display: "Ada Lovelace", id: "acc-ada" }],
+        assignee: "acc-ada",
+        priority_id: "2",
+        labels: ["auth"],
+        parent: "OPS-1",
+      }),
+    ).toEqual({ id: expect.any(String) as string, key: "OPS-100" });
+    expect(jira.created[0]?.fields).toMatchObject({
+      project: { key: "OPS" },
+      issuetype: { id: "10002" },
+      summary: "Login times out",
+      assignee: { accountId: "acc-ada" },
+      priority: { id: "2" },
+      labels: ["auth"],
+      parent: { key: "OPS-1" },
+    });
+    expect(JSON.stringify(jira.created[0]?.fields.description)).toContain('{"type":"mention","attrs":{"id":"acc-ada","text":"@Ada Lovelace"}}');
+    const refused = await c.createIssue({ project: "SUP", type_id: "10101", title: "Help", description: "" }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(JiraError);
+    expect((refused as JiraError).fields).toEqual({ customfield_10500: "Team is required." });
   });
 });

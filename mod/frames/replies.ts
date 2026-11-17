@@ -20,6 +20,7 @@ export function replyFrames(deps: ReplyDeps): FrameHandlers {
           text: p.text,
           files: p.files,
           mentions: p.mentions,
+          title: p.title,
         });
         return reply(out);
       } catch (err) {

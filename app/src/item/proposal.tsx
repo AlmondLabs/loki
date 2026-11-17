@@ -5,6 +5,7 @@ import { formatInput } from "../../../core/attention/format.ts";
 import type { ReplyAttachment, ReplyProposal } from "../../../core/frame-types.ts";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
+import { Input } from "@/ui/input";
 import { Textarea } from "@/ui/textarea";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { cn } from "@/lib/utils";
@@ -290,6 +291,9 @@ export function ReplyProposalView({
             {sentence(recipientsText(p))}
           </p>
         )}
+        {editing && p.kind === "ticket" && (
+          <Input value={card.title} disabled={off} onChange={(e) => card.setTitle(e.target.value)} onKeyDown={keys} aria-label="Ticket title" />
+        )}
         {editing ? (
           <div className="loki-mention-field">
             {mentions.list}
@@ -326,7 +330,7 @@ export function ReplyProposalView({
             </Button>
           ) : (
             <>
-              <Button size="sm" disabled={off || !card.text.trim()} onClick={card.send} data-action="approve">
+              <Button size="sm" disabled={off || !(p.kind === "ticket" ? card.title : card.text).trim()} onClick={card.send} data-action="approve">
                 Send
               </Button>
               {!editing && (

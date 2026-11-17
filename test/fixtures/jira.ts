@@ -149,7 +149,26 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     broken: null as { read: "issue" | "field"; status: number } | null,
     /** How the thumbnail route answers; a request without `redirect=false` is redirected whatever this says, as Jira does. */
     thumbnail: "image" as FakeJiraThumbnailAnswer,
+    projects: [
+      {
+        id: "10000",
+        key: "OPS",
+        name: "Operations",
+        types: [
+          { id: "10001", name: "Task", subtask: false },
+          { id: "10002", name: "Bug", subtask: false },
+          { id: "10003", name: "Sub-task", subtask: true },
+        ],
+      },
+      { id: "10100", key: "SUP", name: "Support", types: [{ id: "10101", name: "Request", subtask: false }] },
+    ],
+    required_extra: { SUP: [{ fieldId: "customfield_10500", name: "Team" }] } as Record<string, Array<{ fieldId: string; name: string }>>,
+    priorities: [
+      { id: "2", name: "High" },
+      { id: "3", name: "Medium" },
+    ],
   };
+  const created: Array<{ key: string; fields: Record<string, unknown> }> = [];
   let ticketSeq = 10000;
   let commentSeq = 30000;
   let historySeq = 50000;
@@ -252,6 +271,53 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     if (path === "/rest/api/3/search") return json(410, { errorMessages: ["The requested API has been removed. Please migrate to /rest/api/3/search/jql."] });
     if (path === "/rest/api/3/search/jql" && req.method === "GET") return search(q);
     if (path === "/rest/api/3/user/search" && req.method === "GET") return userSearch(q, () => true);
+    if (path === "/rest/api/3/project/search" && req.method === "GET") {
+      const startAt = Number(q.get("startAt") ?? "0");
+      const max = Number(q.get("maxResults") ?? "50");
+      const page = state.projects.slice(startAt, startAt + Math.min(max, 1));
+      return json(200, {
+        values: page.map((p) => ({ id: p.id, key: p.key, name: p.name, issueTypes: p.types })),
+        isLast: startAt + page.length >= state.projects.length,
+      });
+    }
+    if (path === "/rest/api/3/priority" && req.method === "GET") return json(200, state.priorities);
+    const meta = /^\/rest\/api\/3\/issue\/createmeta\/([^/]+)\/issuetypes\/([^/]+)$/.exec(path);
+    if (meta && req.method === "GET") {
+      const all = [
+        { fieldId: "project", name: "Project", required: true, hasDefaultValue: false },
+        { fieldId: "issuetype", name: "Issue Type", required: true, hasDefaultValue: false },
+        { fieldId: "summary", name: "Summary", required: true, hasDefaultValue: false },
+        { fieldId: "reporter", name: "Reporter", required: true, hasDefaultValue: true },
+        { fieldId: "description", name: "Description", required: false, hasDefaultValue: false },
+        ...(state.required_extra[decodeURIComponent(meta[1])] ?? []).map((f) => ({ ...f, required: true, hasDefaultValue: false })),
+      ];
+      const startAt = Number(q.get("startAt") ?? "0");
+      const page = all.slice(startAt, startAt + 2);
+      return json(200, { startAt, maxResults: 2, total: all.length, fields: page });
+    }
+    if (path === "/rest/api/3/issue" && req.method === "POST") {
+      const fields = rec(rec(JSON.parse(req.body) as unknown).fields);
+      const project = str(rec(fields.project).key);
+      const missing = (state.required_extra[project] ?? []).filter((f) => fields[f.fieldId] === undefined);
+      if (missing.length) return json(400, { errorMessages: [], errors: Object.fromEntries(missing.map((f) => [f.fieldId, `${f.name} is required.`])) });
+      const key = `${project}-${String(created.length + 100)}`;
+      created.push({ key, fields });
+      const id = String(++ticketSeq);
+      tickets.push({
+        ...NO_FIELDS,
+        id,
+        key,
+        summary: str(fields.summary),
+        updated: instant(opts.now()),
+        created: instant(opts.now()),
+        assignee: null,
+        watchers: new Set([me.account_id]),
+        hidden: false,
+        comments: [],
+        history: [],
+      });
+      return json(201, { id, key, self: `https://${host}/rest/api/3/issue/${id}` });
+    }
     if (path === "/rest/api/3/user/viewissue/search" && req.method === "GET") {
       const ticket = find(q.get("issueKey") ?? "");
       if (!ticket) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
@@ -439,5 +505,9 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       must(key).hidden = true;
     },
     writes: () => requests.filter((r) => r.method !== "GET"),
+    created,
   };
 }
+
+const rec = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const str = (v: unknown): string => (typeof v === "string" ? v : "");

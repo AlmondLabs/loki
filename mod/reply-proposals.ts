@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyPersonChoice, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import type { ReplyAttachment, ReplyHeardBy, ReplyMention, ReplyPersonChoice, ReplyProposal, ReplyProposalStatus, ReplyTicket } from "../core/frame-types.ts";
 import { lastByName, liveMentions, mentionSpans, writeMentions } from "../core/mentions.ts";
 import { replyMentionOf, type ChatState, type ReplyAction, type ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -20,6 +20,7 @@ import { log } from "./log.ts";
 import { bareAddresses, slackPlace } from "./reply-addressing.ts";
 import { MAX_DM_PEOPLE } from "./slack.ts";
 import type { People } from "./people.ts";
+import { JiraError, type JiraClient, type JiraUserScope } from "./jira.ts";
 import type { HeldProposal, HeldReply, HeldTarget } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
 import type { ChatKey } from "./suggestions.ts";
@@ -31,6 +32,7 @@ export interface ReplyProposalsOptions {
   threads: Pick<AccountThreads, "get">;
   clientFor(account: AccountRecord): ReplyReads;
   people?: Pick<People, "resolve" | "find">;
+  jira?(accountId: string): Pick<JiraClient, "projects" | "priorities" | "formFields" | "ticketFacts">;
   members?(accountId: string, channel: string): Promise<ReadonlySet<string>>;
   outside: Pick<OutsideThreads, "holdAgentReply" | "unsend" | "holds" | "wentOutIn" | "acknowledge">;
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
@@ -54,6 +56,23 @@ export interface ReplyInput {
 }
 
 const PICKER_MAX = 8;
+
+export interface TicketInput {
+  account_id: string;
+  project: string;
+  type: string;
+  title: string;
+  description: string;
+  assignee?: string;
+  priority?: string;
+  labels?: string[];
+  parent?: string;
+  mentions?: string[];
+}
+
+const MAX_TICKET_TITLE = 255;
+
+const TICKET_FIELDS = new Set(["project", "issuetype", "summary", "description", "assignee", "priority", "labels", "parent", "reporter"]);
 
 export type NewConversationInput =
   | { kind: "email"; account_id: string; to: string[]; cc?: string[]; subject: string; text: string; attachments?: string[]; mentions?: string[] }
@@ -124,9 +143,28 @@ const movedNotice = (p: ReplyProposal): string => `${p.account_label} moved to a
 function whatWords(p: ReplyProposal): string {
   if (p.kind === "email") return `your new email "${inert(p.subject)}"`;
   if (p.kind === "dm") return `your new ${inert((p.place ?? "DM").replace(/^a /, ""))}`;
+  if (p.kind === "ticket") return `your new ticket "${inert(p.subject)}"`;
   return `your reply in thread ${p.thread_id}`;
 }
 const MOVED = "that account moved to another agent: this reply was withdrawn";
+
+function parseTicket(v: unknown): ReplyTicket | null {
+  if (typeof v !== "object" || v === null) return null;
+  const t = v as Record<string, unknown>;
+  const text = (x: unknown) => (typeof x === "string" ? x : "");
+  const priority = typeof t.priority === "object" && t.priority !== null ? (t.priority as Record<string, unknown>) : null;
+  if (!text(t.project) || !text(t.type_id)) return null;
+  return {
+    project: text(t.project),
+    project_name: text(t.project_name) || text(t.project),
+    type_id: text(t.type_id),
+    type_name: text(t.type_name),
+    assignee: replyMentionOf(t.assignee),
+    priority: priority && text(priority.id) ? { id: text(priority.id), name: text(priority.name) } : null,
+    labels: Array.isArray(t.labels) ? t.labels.filter((l): l is string => typeof l === "string" && l !== "") : [],
+    parent: text(t.parent) || null,
+  };
+}
 
 function parseProposal(v: unknown): ReplyProposal | null {
   if (typeof v !== "object" || v === null) return null;
@@ -138,7 +176,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
     text = s("text");
   const status = r.status === "drafting" ? "pending" : STATUSES.find((x) => x === r.status);
   const provider = r.provider === "gmail" || r.provider === "slack" || r.provider === "jira" ? r.provider : null;
-  const starts = r.kind === "email" || r.kind === "dm";
+  const starts = r.kind === "email" || r.kind === "dm" || r.kind === "ticket";
   if (!id || !account || thread === null || (!thread && !starts) || text === null || !status || !provider) return null;
   const strings = (k: string) => (Array.isArray(r[k]) ? r[k].filter((x): x is string => typeof x === "string") : []);
   const files = Array.isArray(r.attachments) ? r.attachments.map(parseAttachment).filter((a): a is ReplyAttachment => a !== null) : [];
@@ -148,6 +186,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const heardBy = parseHeardBy(r.heard_by);
   const mentions = Array.isArray(r.mentions) ? r.mentions.flatMap((m) => replyMentionOf(m) ?? []) : [];
   const dmPeople = Array.isArray(r.people) ? r.people.flatMap((m) => replyMentionOf(m) ?? []) : [];
+  const ticket = parseTicket(r.ticket);
   return {
     id,
     account_id: account,
@@ -173,7 +212,8 @@ function parseProposal(v: unknown): ReplyProposal | null {
     ...(r.shared_outside === true ? { shared_outside: true } : {}),
     ...(heardBy ? { heard_by: heardBy } : {}),
     ...(mentions.length ? { mentions } : {}),
-    ...(r.kind === "email" || r.kind === "dm" ? { kind: r.kind } : {}),
+    ...(r.kind === "email" || r.kind === "dm" || r.kind === "ticket" ? { kind: r.kind } : {}),
+    ...(ticket ? { ticket } : {}),
     ...(dmPeople.length ? { people: dmPeople } : {}),
     ...(s("result") ? { result: s("result") ?? "" } : {}),
   };
@@ -215,6 +255,17 @@ const keyOf = (chat: ChatKey) => `${chat.agent_id}/${chat.conversation_id}`;
 function targetOf(p: ReplyProposal, account: AccountRecord, outboxId: string): HeldTarget | undefined {
   if (p.kind === "email") return { kind: "email", subject: p.subject, message_id: `<${outboxId}@${account.address.split("@").at(1) ?? "loki.local"}>` };
   if (p.kind === "dm") return { kind: "dm", people: (p.people ?? []).flatMap((m) => (m.id ? [m.id] : [])) };
+  if (p.kind === "ticket" && p.ticket)
+    return {
+      kind: "ticket",
+      project: p.ticket.project,
+      type_id: p.ticket.type_id,
+      title: p.subject,
+      assignee: p.ticket.assignee?.id ?? null,
+      priority_id: p.ticket.priority?.id ?? null,
+      labels: p.ticket.labels,
+      parent: p.ticket.parent,
+    };
   return undefined;
 }
 
@@ -358,11 +409,118 @@ export class ReplyProposals implements AgentReplyReports {
     return proposal;
   }
 
+  async proposeTicket(chat: ChatKey, input: TicketInput): Promise<ReplyProposal> {
+    const title = input.title.replace(/\s+/g, " ").trim();
+    if (!title) throw new Error("a new ticket needs a title");
+    if (title.length > MAX_TICKET_TITLE) throw new Error(`a ticket's title is ${String(MAX_TICKET_TITLE)} characters at most`);
+    const account = this.opts.accounts.get(input.account_id);
+    if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
+    if (account.provider !== "jira") throw new Error("a new ticket goes on a Jira site");
+    const jira = this.opts.jira?.(account.account_id);
+    if (!jira) throw new Error("tickets cannot be created from this Mac");
+    const wanted = input.project.trim().toLowerCase();
+    const projects = await jira.projects();
+    const project = projects.find((p) => p.key.toLowerCase() === wanted || p.name.toLowerCase() === wanted);
+    if (!project)
+      throw new Error(
+        `you cannot create tickets in "${input.project}"; you can in ${projects.map((p) => `${p.key} (${inert(p.name)})`).join(", ") || "no project"}`,
+      );
+    const type = project.types.find((t) => t.name.toLowerCase() === input.type.trim().toLowerCase());
+    if (!type) throw new Error(`${project.key} has no type "${input.type}"; it has ${project.types.map((t) => inert(t.name)).join(", ")}`);
+    const parentKey = input.parent?.trim() || null;
+    if (type.subtask && !parentKey) throw new Error(`a ${inert(type.name)} goes under a parent ticket: name it in \`parent\``);
+    const given = (field: string): boolean => {
+      switch (field) {
+        case "project":
+        case "issuetype":
+        case "summary":
+        case "reporter":
+          return true;
+        case "description":
+          return !!input.description.trim();
+        case "assignee":
+          return !!input.assignee?.trim();
+        case "priority":
+          return !!input.priority?.trim();
+        case "labels":
+          return (input.labels ?? []).some((l) => l.trim());
+        case "parent":
+          return !!parentKey;
+        default:
+          return false;
+      }
+    };
+    const fields = await jira.formFields(project.key, type.id);
+    const missing = fields.filter((f) => f.required && !f.has_default && !given(f.id));
+    const settable = missing.filter((f) => TICKET_FIELDS.has(f.id));
+    if (settable.length) throw new Error(`${project.key} needs ${settable.map((f) => inert(f.name)).join(", ")} on a ${inert(type.name)}: give it`);
+    if (missing.length)
+      throw new Error(
+        `${project.key} needs ${missing.map((f) => inert(f.name)).join(", ")} on a ${inert(type.name)}, which loki cannot set: the person can create that ticket in Jira`,
+      );
+    const parent = parentKey
+      ? (
+          await jira.ticketFacts(parentKey).catch((err: unknown) => {
+            if (err instanceof JiraError && err.code === "not_found") return null;
+            throw err;
+          })
+        )?.key
+      : null;
+    if (parentKey && !parent) throw new Error(`there is no ticket ${parentKey} that you can see to put it under`);
+    let assignee: ReplyMention | null = null;
+    if (input.assignee?.trim()) {
+      const people = this.opts.people;
+      if (!people) throw new Error("people cannot be found on this Mac: leave out the assignee");
+      const found = await people.resolve(account.account_id, input.assignee.trim().replace(/^@/, ""), { jira: { kind: "assignee", project: project.key } });
+      if (!found.ok) throw new Error(found.why);
+      if (found.person.provider !== "jira") throw new Error("a ticket's assignee is a person of the Jira site");
+      assignee = { display: found.person.display, id: found.person.id, address: null };
+    }
+    let priority: { id: string; name: string } | null = null;
+    if (input.priority?.trim()) {
+      const priorities = await jira.priorities();
+      const p = priorities.find((x) => x.name.toLowerCase() === input.priority?.trim().toLowerCase());
+      if (!p) throw new Error(`there is no priority "${input.priority}"; there are ${priorities.map((x) => inert(x.name)).join(", ")}`);
+      priority = p;
+    }
+    const labels = [...new Set((input.labels ?? []).map((l) => l.trim()).filter(Boolean))];
+    if (labels.some((l) => /\s/.test(l))) throw new Error("a Jira label has no spaces");
+    const { text, mentions } = await this.mentioned(account, { thread_id: "", place: null }, input.description, input.mentions ?? [], {
+      kind: "project",
+      project: project.key,
+    });
+    const proposal: ReplyProposal = {
+      id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
+      account_id: account.account_id,
+      provider: "jira",
+      account_label: accountLabel(account),
+      thread_id: "",
+      subject: title,
+      to: [],
+      cc: [],
+      place: `a new ${type.name} in ${project.name}`,
+      text,
+      status: "pending",
+      reason: null,
+      created_at: this.now(),
+      kind: "ticket",
+      ticket: { project: project.key, project_name: project.name, type_id: type.id, type_name: type.name, assignee, priority, labels, parent: parent ?? null },
+      ...(mentions.length ? { mentions } : {}),
+    };
+    await this.locked(chat, () => {
+      const r = this.record(chat);
+      this.save(chat, { ...r, proposals: [...r.proposals, proposal] });
+      return Promise.resolve();
+    });
+    return proposal;
+  }
+
   private async mentioned(
     account: AccountRecord,
     where: { thread_id: string; place: string | null },
     text: string,
     entries: readonly string[],
+    scope?: JiraUserScope,
   ): Promise<{ text: string; mentions: ReplyMention[] }> {
     const wanted = [...new Set(entries.map((e) => e.trim().replace(/^@/, "")).filter(Boolean))];
     if (wanted.length === 0) return { text, mentions: [] };
@@ -378,7 +536,7 @@ export class ReplyProposals implements AgentReplyReports {
     const mentions: ReplyMention[] = [];
     for (const entry of wanted) {
       if (!standing.has(entry.toLowerCase())) throw new Error(`@${entry} is not in the text: write it there as @${entry}, or leave it out of mentions`);
-      const jira = account.provider === "jira" && where.place ? { jira: { kind: "ticket" as const, ticket: where.place } } : {};
+      const jira = account.provider !== "jira" ? {} : scope ? { jira: scope } : where.place ? { jira: { kind: "ticket" as const, ticket: where.place } } : {};
       const found = await people.resolve(account.account_id, entry, jira);
       if (!found.ok) throw new Error(found.why);
       const person = found.person;
@@ -407,7 +565,12 @@ export class ReplyProposals implements AgentReplyReports {
     if (!p) throw new Error(`no reply ${id} in this chat`);
     const people = this.opts.people;
     if (!people) return { people: [], notice: "people cannot be found on this Mac" };
-    const scope = p.provider === "jira" && p.place ? { jira: { kind: "ticket" as const, ticket: p.place } } : {};
+    const scope =
+      p.kind === "ticket" && p.ticket
+        ? { jira: { kind: "project" as const, project: p.ticket.project } }
+        : p.provider === "jira" && p.place
+          ? { jira: { kind: "ticket" as const, ticket: p.place } }
+          : {};
     const found = await people.find(p.account_id, query, scope);
     const choices = found.people
       .slice(0, PICKER_MAX)
@@ -434,7 +597,8 @@ export class ReplyProposals implements AgentReplyReports {
     switch (action) {
       case "reject":
         return this.settle(chat, id, "rejected", by, (p) => {
-          const maybe = p.kind === "dm" && p.outbox_id ? " It may have reached Slack before: the person was asked to look." : "";
+          const service = p.kind === "ticket" ? "Jira" : "Slack";
+          const maybe = (p.kind === "dm" || p.kind === "ticket") && p.outbox_id ? ` It may have reached ${service} before: the person was asked to look.` : "";
           return `The person rejected ${whatWords(p)} in ${p.account_label}: nothing was sent.${maybe}`;
         });
       case "undo":
@@ -474,7 +638,7 @@ export class ReplyProposals implements AgentReplyReports {
         reason: `${note.reason}${onTicket}`,
         decided_by: null,
         decided_at: null,
-        ...(p.kind === "dm" && !mayHaveGone(note.reason) ? { outbox_id: null } : {}),
+        ...((p.kind === "dm" || p.kind === "ticket") && !mayHaveGone(note.reason) ? { outbox_id: null } : {}),
       };
       log("replies:not-sent", { provider: p.provider, people: people !== null });
       return { next: people ? { ...next, to: people.to, cc: people.cc, people_added: people.added, people_removed: people.removed } : next, notice: null };
@@ -541,16 +705,22 @@ export class ReplyProposals implements AgentReplyReports {
           : null;
       if (refused || !account) return put({ ...p, reason: refused }, false, refused);
       const kept = (p.attachments ?? []).filter((f) => !opts.files || opts.files.includes(f.name));
-      const text = edited ?? p.text;
+      const words = p.kind === "ticket" && opts.text != null ? opts.text : edited;
+      const text = words ?? p.text;
+      const title = p.kind === "ticket" && opts.title?.trim() ? opts.title.replace(/\s+/g, " ").trim() : null;
       const mentions = liveMentions(text, lastByName(uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])])));
-      const edits = withMentionList(withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}) }, kept)), mentions);
+      const edits = withMentionList(
+        withoutPeopleMarks(withFiles({ ...p, ...(words !== null ? { text: words } : {}), ...(title ? { subject: title } : {}) }, kept)),
+        mentions,
+      );
       try {
         await checkedFiles(kept);
       } catch (err) {
         return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
       }
-      if (p.kind === "dm" && p.outbox_id) {
-        const why = "it may have gone: look in Slack, and reject this and ask again if it did not";
+      if ((p.kind === "dm" || p.kind === "ticket") && p.outbox_id) {
+        const where = p.kind === "ticket" ? `the ${p.ticket?.project ?? "Jira"} project in Jira` : "Slack";
+        const why = `it may have gone: look in ${where}, and reject this and ask again if it did not`;
         return put({ ...edits, reason: why }, false, why);
       }
       if (p.provider === "gmail" && p.outbox_id) {
@@ -578,7 +748,7 @@ export class ReplyProposals implements AgentReplyReports {
           people: p.provider === "gmail" ? { to: p.to, cc: p.cc } : null,
           proposal: { agent_id: chat.agent_id, conversation_id: chat.conversation_id, proposal_id: p.id },
           mentions,
-          ...(p.kind ? { target: targetOf(p, account, outboxId) } : {}),
+          ...(p.kind ? { target: targetOf(edits, account, outboxId) } : {}),
         });
       } catch (err) {
         return put({ ...edits, reason: messageOf(err) }, false, messageOf(err));
@@ -684,6 +854,18 @@ function whoWords(p: ReplyProposal): string {
     case "slack":
       return `in ${inert(p.place ?? "that conversation")}`;
     case "jira":
+      if (p.kind === "ticket" && p.ticket) {
+        const t = p.ticket;
+        return [
+          `in ${inert(t.project_name)} (${t.project}) as a ${inert(t.type_name)}`,
+          t.parent ? `under ${t.parent}` : "",
+          t.assignee ? `assigned to ${inert(t.assignee.display)}` : "",
+          t.priority ? `priority ${inert(t.priority.name)}` : "",
+          t.labels.length ? `labels ${inert(t.labels.join(", "))}` : "",
+        ]
+          .filter(Boolean)
+          .join(", ");
+      }
       return `on ${inert(p.place ?? "that ticket")}`;
   }
 }
@@ -692,18 +874,42 @@ const filesWords = (files: readonly ReplyAttachment[]): string => files.map((f) 
 
 function sentNotice(p: ReplyProposal): string {
   const what =
-    p.kind === "email" ? "sent your new email" : p.kind === "dm" ? "sent your new DM" : p.provider === "jira" ? "posted your comment" : "sent your reply";
+    p.kind === "email"
+      ? "sent your new email"
+      : p.kind === "dm"
+        ? "sent your new DM"
+        : p.kind === "ticket"
+          ? `created your new ticket "${inert(p.subject)}"`
+          : p.provider === "jira"
+            ? "posted your comment"
+            : "sent your reply";
   const files = p.attachments?.length ? `, with ${filesWords(p.attachments)}` : "";
   const named = (p.mentions ?? []).map((m) => (m.address ? `${m.display} <${m.address}>` : m.display));
   const mentioned = named.length ? `, ${p.provider === "gmail" ? "copying" : "mentioning"} ${inert(named.join(", "))}` : "";
-  const thread = p.result ? `thread ${inert(p.result)}` : p.thread_id ? `thread ${p.thread_id}` : "a new conversation";
+  const thread =
+    p.kind === "ticket"
+      ? p.result
+        ? `as ${inert(p.result)}`
+        : "under a key Jira did not give back"
+      : p.result
+        ? `thread ${inert(p.result)}`
+        : p.thread_id
+          ? `thread ${p.thread_id}`
+          : "a new conversation";
   return [`The person ${what} in ${p.account_label}, ${thread}, ${whoWords(p)}${files}${mentioned}. It says:`, inert(p.text)].join("\n");
 }
 
 function proposalLine(p: ReplyProposal): string {
   const who = whoWords(p);
   const files = p.attachments?.length ? `with ${filesWords(p.attachments)}` : "";
-  const what = p.kind === "email" ? `new email "${inert(p.subject)}"` : p.kind === "dm" ? "new DM" : `thread ${p.thread_id} · "${inert(p.subject)}"`;
+  const what =
+    p.kind === "email"
+      ? `new email "${inert(p.subject)}"`
+      : p.kind === "dm"
+        ? "new DM"
+        : p.kind === "ticket"
+          ? `new ticket "${inert(p.subject)}"`
+          : `thread ${p.thread_id} · "${inert(p.subject)}"`;
   const line = [p.id, p.account_label, what, who, files, p.status, p.reason && inert(p.reason)].filter(Boolean).join(" · ");
   return p.mentions?.length ? `${line}\nMentions: ${inert(p.mentions.map(mentionWords).join("; "))}` : line;
 }
@@ -844,7 +1050,62 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     },
   };
 
-  const disposers = [propose, startNew].map((tool) => tools.register(tool));
+  const newTicket: LokiTool = {
+    name: "ticket_propose",
+    forAgent: (agentId) => deps.accounts.ownedBy(agentId).some((a) => a.provider === "jira"),
+    description:
+      "Propose a new Jira ticket on a site you own: `project` (its key or name) and `type` (an issue type of it, as jira_projects lists), a " +
+      "`title` and a `description`, and if wanted an `assignee` (a full name or account id), a `priority`, `labels` and a `parent` " +
+      "ticket's key (which a sub-task needs). A project that requires another field is refused with the field's name: the person creates " +
+      "that ticket in Jira. The person reviews it on a card, may edit its title and description, and creates it from there as " +
+      "themselves; you cannot create it, and nothing is made before their Send. You hear the new ticket's key with the next message.",
+    parameters: {
+      type: "object",
+      properties: {
+        account: { type: "string", description: "The Jira site's account id or name, from the prompt's list of your accounts." },
+        project: { type: "string", description: "The project's key (OPS) or name." },
+        type: { type: "string", description: "The issue type's name (Task, Bug, …)." },
+        title: { type: "string", description: "The ticket's title." },
+        description: { type: "string", description: "The description, as plain text. Write each person in `mentions` into it as @<entry>." },
+        assignee: {
+          type: "string",
+          description: "Whom it is assigned to: a full name or a Jira account id; one who fits several is refused with who matched.",
+        },
+        priority: { type: "string", description: "A priority's name, as jira_projects lists them." },
+        labels: { type: "array", items: { type: "string" }, description: "Labels, each one word." },
+        parent: { type: "string", description: "The key of the ticket it goes under, which a sub-task needs." },
+        mentions: { type: "array", items: { type: "string" }, description: "People to mention in the description, as for reply_propose: Jira notifies them." },
+      },
+      required: ["account", "project", "type", "title", "description"],
+      additionalProperties: false,
+    },
+    async run(ctx) {
+      const name = argText(ctx.args.account);
+      const account = ownedAccount(deps.accounts, ctx.agent.id, name);
+      if (!account) return failed(`this agent owns no account "${name}"`);
+      try {
+        const optional = (key: string) => (argText(ctx.args[key]) ? { [key]: argText(ctx.args[key]) } : {});
+        const p = await deps.replies.proposeTicket(chatOf(ctx), {
+          account_id: account.account_id,
+          project: argText(ctx.args.project),
+          type: argText(ctx.args.type),
+          title: argText(ctx.args.title),
+          description: argText(ctx.args.description),
+          ...optional("assignee"),
+          ...optional("priority"),
+          ...optional("parent"),
+          labels: strings(ctx.args.labels),
+          mentions: strings(ctx.args.mentions),
+        });
+        log("tool:ticket_propose", { agent: ctx.agent.id });
+        return `Proposed ${p.id}: it waits for the person to review and create it.\n${proposalLine(p)}`;
+      } catch (err) {
+        return failed(messageOf(err));
+      }
+    },
+  };
+
+  const disposers = [propose, startNew, newTicket].map((tool) => tools.register(tool));
   disposers.push(
     api.message.transform((m) => {
       const notices = deps.replies.takeNotices({ agent_id: m.agentId, conversation_id: m.chatId });
@@ -852,11 +1113,15 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       const block = notices.map((n) => `<system-reminder>${n}</system-reminder>`).join("\n");
       return typeof m.content === "string" ? `${m.content}\n\n${block}` : [...m.content, { type: "text", text: block }];
     }),
-    api.prompt.section("replies", ({ agentId }) =>
-      forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), or to post in a channel you are in, use reply_propose; to start a new email or Slack DM, use message_propose. Use `attachments` for files and `mentions` for the people a message should tell: the person reviews it on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way."
-        : undefined,
-    ),
+    api.prompt.section("replies", ({ agentId }) => {
+      const owned = new Set(deps.accounts.ownedBy(agentId).map((a) => a.provider));
+      if (owned.size === 0) return undefined;
+      const start = [
+        owned.has("gmail") || owned.has("slack") ? "to start a new email or Slack DM, use message_propose" : "",
+        owned.has("jira") ? "to open a new Jira ticket, use ticket_propose" : "",
+      ].filter(Boolean);
+      return `To answer a thread in an account you own, handed to you, found with a script, or named by the person (an id, a link, a #channel, a Jira key), or to post in a channel you are in, use reply_propose${start.length ? `; ${start.join("; ")}` : ""}. Use \`attachments\` for files and \`mentions\` for the people a message should tell: the person reviews it on a card and sends it from there; you cannot send it. When a name fits several people, ask the person which one they mean. Never send mail, Slack messages or Jira comments any other way.`;
+    }),
   );
   return disposers;
 }

@@ -1365,7 +1365,7 @@ differ from mail's and Slack's:
 4. Hand off sends the owner the whole ticket, and the card stays (see "Hand-off" below).
 
 Jira keeps no read mark for a ticket, so reading the ticket in Jira itself does not end its card, and nothing loki does
-changes the ticket except a comment you send. **To comment**, type in the card's box and press Enter (**Send** on the
+changes a ticket except a comment you send, or a new ticket you create from an agent's card. **To comment**, type in the card's box and press Enter (**Send** on the
 phone): the comment is posted on the ticket as you, in plain text, and the card stays, unread, with its events still
 marked new, so you choose the next move. Your comment shows on the card as yours. ⌘] or ⌘[ with text in the box posts
 it first, then makes its move. A comment that fails is not sent again on its own: your text stays in the box and the
@@ -1452,6 +1452,17 @@ new thread, so it can follow up in it. If loki stops while a new email is going,
 Message-ID before trying again, so it never goes twice; a new DM that may have gone is not sent again from its card:
 look in Slack, and reject it if it went. Nothing new shows in Flow until someone answers.
 
+**New Jira tickets.** The owner can propose a ticket on a Jira site it owns ("open a bug in OPS for the login
+timeout, assign Vivek"): a project you can create in, an issue type, a title and a description, and if it likes an
+assignee, a priority, labels and a parent ticket, which a sub-task needs. The assignee is found as a mention is, so a
+name that fits several people is never guessed. A project whose create form requires a field beyond those (a "Team",
+say) is refused with that field's name: create that ticket in Jira yourself. The card says it creates a new ticket
+and where ("as a new Bug in Operations"), with its parent, assignee, priority and labels; you may edit its title and
+description, then press **Send**, and it is created as you after the same 10-second hold. The owner then hears the
+new ticket's key, so it can comment on it. If creating it may have gone through (Jira did not answer in time), it is
+never created again from its card: look in the project, and reject it if it is there. Scripts can list the projects,
+their types and the site's priorities with `jira_projects`.
+
 A reply can carry files from the chat's folder, up to 10 and 17 MB together, on all three: attached to the mail,
 posted with the Slack message, or attached to the Jira ticket with the comment naming them. The card names each file
 with its size ("invoice.pdf (482 KB)"). On the Mac, **Show in Finder** shows you the file itself before you
@@ -1516,8 +1527,9 @@ and a value one script stores is not kept for the next.
    changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
    subject, time and the chat it went to. `people_find` finds people in one of the agent's accounts by name, with the
    address, Slack handle or Jira account id that names each one, so the agent can mention the right person, and
-   `slack_conversations` lists the channels and DMs you are in, with the ids to post in them. They only read; a reply
-   or a new message still goes through `reply_propose` or `message_propose`. Each checks that the account is the agent's, and
+   `slack_conversations` lists the channels and DMs you are in, with the ids to post in them, and `jira_projects` the
+   Jira projects you can create tickets in. They only read; a reply, a new message or a new ticket still goes through
+   `reply_propose`, `message_propose` or `ticket_propose`. Each checks that the account is the agent's, and
    names none that is not.
    A script that read any account's content (mail, messages, tickets, files, Flow's list) answers fenced: the agent
    is told it is content from other people, not instructions, as with a thread you hand it.

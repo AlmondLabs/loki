@@ -123,14 +123,14 @@ async function fixture() {
 describe("account script tools (plan 097, U2)", () => {
   test("are script-only, read-only, and offered to an agent that owns an account of their kind", async () => {
     const f = await fixture();
-    expect([...f.tools.keys()]).toEqual(["slack_read", "slack_conversations", "jira_read", "flow_list"]);
+    expect([...f.tools.keys()]).toEqual(["slack_read", "slack_conversations", "jira_read", "jira_projects", "flow_list"]);
     for (const tool of f.tools.values()) {
       expect(isScriptOnly(tool), tool.name).toBe(true);
       expect(tool.annotations?.readOnly, tool.name).toBe(true);
       expect(tool.annotations?.strangerText, tool.name).toBe(true);
     }
     const offered = (agentId: string) => [...f.tools.values()].filter((t) => t.forAgent?.(agentId)).map((t) => t.name);
-    expect(offered(WORK)).toEqual(["slack_read", "slack_conversations", "jira_read", "flow_list"]);
+    expect(offered(WORK)).toEqual(["slack_read", "slack_conversations", "jira_read", "jira_projects", "flow_list"]);
     expect(offered(HOME)).toEqual(["flow_list"]);
     expect(offered("agent-local-nobody")).toEqual([]);
   });
@@ -162,6 +162,22 @@ describe("account script tools (plan 097, U2)", () => {
     expect(await f.call(WORK, "slack_conversations", { query: "#op" })).toMatchObject({ conversations: [{ id: "C1" }] });
     expect(await f.call(WORK, "slack_conversations", { query: "grace" })).toMatchObject({ conversations: [{ id: "D2", name: "Grace Lee" }] });
     expect(f.profilesAsked).toEqual([]);
+  });
+
+  test("jira_projects lists where the person can create tickets, with types and priorities", async () => {
+    const f = await fixture();
+    expect(await f.call(WORK, "jira_projects", {})).toEqual({
+      account: SITE,
+      projects: [
+        {
+          key: "OPS",
+          name: "Operations",
+          types: [{ name: "Task" }, { name: "Bug" }, { name: "Sub-task", subtask: true }],
+        },
+        { key: "SUP", name: "Support", types: [{ name: "Request" }] },
+      ],
+      priorities: ["High", "Medium"],
+    });
   });
 
   test("jira_read reads a ticket by its key: summary, then the ticket and its comments", async () => {

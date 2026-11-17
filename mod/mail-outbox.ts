@@ -33,7 +33,19 @@ export interface HeldReply {
   target?: HeldTarget;
 }
 
-export type HeldTarget = { kind: "email"; subject: string; message_id: string } | { kind: "dm"; people: string[] };
+export type HeldTarget =
+  | { kind: "email"; subject: string; message_id: string }
+  | { kind: "dm"; people: string[] }
+  | {
+      kind: "ticket";
+      project: string;
+      type_id: string;
+      title: string;
+      assignee: string | null;
+      priority_id: string | null;
+      labels: string[];
+      parent: string | null;
+    };
 
 export interface MailOutboxOptions {
   file: string;
@@ -345,6 +357,19 @@ function isTarget(v: unknown): v is HeldTarget {
   if (typeof v !== "object" || v === null) return false;
   const t = v as Record<string, unknown>;
   if (t.kind === "email") return typeof t.subject === "string" && typeof t.message_id === "string" && t.message_id !== "";
+  const text = (x: unknown) => typeof x === "string" && x !== "";
+  const maybe = (x: unknown) => x === null || text(x);
+  if (t.kind === "ticket")
+    return (
+      text(t.project) &&
+      text(t.type_id) &&
+      text(t.title) &&
+      maybe(t.assignee) &&
+      maybe(t.priority_id) &&
+      maybe(t.parent) &&
+      Array.isArray(t.labels) &&
+      t.labels.every(text)
+    );
   return t.kind === "dm" && Array.isArray(t.people) && t.people.length > 0 && t.people.every((p) => typeof p === "string" && p !== "");
 }
 

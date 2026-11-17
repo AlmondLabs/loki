@@ -702,16 +702,32 @@ export interface ReplyProposal {
   mentions?: ReplyMention[];
   /**
    * What the proposal starts, when it is not a reply in an existing thread: a new email
-   * from a Gmail account, to `to` and `cc` under `subject`, or a new Slack DM with `people`. Absent on a reply.
+   * from a Gmail account, to `to` and `cc` under `subject`, a new Slack DM with `people`, or a new Jira ticket titled
+   * `subject` and described by `text`, with the fields in `ticket`. Absent on a reply.
    */
-  kind?: "email" | "dm";
+  kind?: "email" | "dm" | "ticket";
+  /** A new Jira ticket's fields, each as Jira named it when proposed; absent otherwise. */
+  ticket?: ReplyTicket;
   /** A new Slack DM's people, each resolved in the workspace; absent otherwise. */
   people?: ReplyMention[];
   /**
-   * What the send made, as the service named it: a new email's thread id, or a Slack
-   * post's `<channel>:<ts>`; absent until sent, and where the service gave nothing back.
+   * What the send made, as the service named it: a new email's thread id, a Slack
+   * post's `<channel>:<ts>`, or a new ticket's key; absent until sent, and where the service gave nothing back.
    */
   result?: string;
+}
+
+/** The fields of a new Jira ticket an agent proposes, each id beside the name the card shows. */
+export interface ReplyTicket {
+  project: string;
+  project_name: string;
+  type_id: string;
+  type_name: string;
+  assignee: ReplyMention | null;
+  priority: { id: string; name: string } | null;
+  labels: string[];
+  /** The key of the ticket a sub-task goes under. */
+  parent: string | null;
 }
 
 /**

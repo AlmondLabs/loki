@@ -385,6 +385,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     threads,
     outside,
     people,
+    jira: (accountId) => jiraClients.of(accountId),
     members: (accountId, channel) => channelMembers.of(accountId, channel),
     clientFor: (account): ReplyReads => {
       switch (account.provider) {
