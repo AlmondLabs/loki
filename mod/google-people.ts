@@ -3,13 +3,6 @@ import type { Accounts } from "./accounts.ts";
 import type { GoogleApp } from "./google-app.ts";
 import { GoogleAuth } from "./google-auth.ts";
 
-/**
- * A thin client for Google's People API for one Gmail account (plan 2026-11-14-1530, U2, KTD4): it searches the
- * account's saved contacts, its other contacts (people it has mailed) and, on a Workspace account, its organisation's
- * directory, so an agent's `@Ana` finds the address Gmail's own `@` would. It only reads, under the read-only scopes
- * the account granted at sign-in, through the account's shared sign-in (mod/google-auth.ts).
- */
-
 const API = "https://people.googleapis.com/v1";
 /** The most results Google gives a contacts or other contacts search in one call. */
 const PAGE_SIZE = "30";
@@ -17,7 +10,6 @@ const PAGE_SIZE = "30";
 const CONTACT_FIELDS = "names,emailAddresses,organizations";
 const OTHER_FIELDS = "names,emailAddresses";
 
-/** Someone found in one of the account's places: the name Google shows, every address, and their title when known. */
 export interface GoogleContact {
   name: string;
   addresses: string[];
@@ -25,13 +17,10 @@ export interface GoogleContact {
   source: GoogleContactSource;
 }
 
-/** What GooglePeople is built from; fetch and the clock are injected so tests own them. */
 export interface GooglePeopleOptions {
   accounts: Accounts;
   account_id: string;
-  /** The account's sign-in, shared with its Gmail client and Google tools; one of its own is made when left out. */
   auth?: GoogleAuth;
-  /** The app to refresh with when the account was signed in with the shared one (SHARED_GOOGLE_APP). */
   sharedApp?: GoogleApp;
   fetch?: typeof fetch;
   now?: () => Date;
@@ -41,7 +30,6 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
 const rec = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {});
 
-/** A People API person as loki reads it, or null when it has no address to write to. */
 function contactOf(v: unknown, source: GoogleContactSource): GoogleContact | null {
   const p = rec(v);
   const addresses = list(p.emailAddresses)
@@ -57,7 +45,6 @@ function contactOf(v: unknown, source: GoogleContactSource): GoogleContact | nul
   return { name: name ?? "", addresses: [...new Set(addresses)], title: title ?? null, source };
 }
 
-/** One Gmail account's People API searches. */
 export class GooglePeople {
   private readonly auth: GoogleAuth;
   /** The searches already warmed for this client, since Google answers a cold one from a stale cache. */
@@ -67,12 +54,10 @@ export class GooglePeople {
     this.auth = opts.auth ?? new GoogleAuth(opts);
   }
 
-  /** The account's saved contacts whose names or addresses start with `query`. */
   searchContacts(query: string): Promise<GoogleContact[]> {
     return this.search("contacts", "/people:searchContacts", CONTACT_FIELDS, query, (r) => list(r.results).map((x) => rec(x).person));
   }
 
-  /** The people the account has mailed without saving them, whose names or addresses start with `query`. */
   searchOtherContacts(query: string): Promise<GoogleContact[]> {
     return this.search("other_contacts", "/otherContacts:search", OTHER_FIELDS, query, (r) => list(r.results).map((x) => rec(x).person));
   }

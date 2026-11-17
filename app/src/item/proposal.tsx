@@ -28,22 +28,8 @@ import { inTauri } from "../desk/env";
 import { sentence } from "../components";
 import { replyKeyDown } from "../chat/quick-replies";
 
-/*
- * Proposal (plan 097, R9): anything the agent asks the person to decide, drawn in one frame whatever its kind. The
- * frame names the kind and where it applies, then shows what is proposed, then buttons that say what yes does. The
- * kinds: an approval (a tool call paused for the person), a question, a reply for an outside thread, and quick replies.
- * loki's Suggestion (a message for another chat) keeps its chip in the message box for now; AI Elements' Suggestion is
- * imported as SuggestionChip, so the two words never meet in this file (KTD4).
- */
-
-/** What kind of decision a Proposal holds, which names it and sets its tone. */
 export type ProposalKind = "approval" | "question" | "reply";
 
-/**
- * The frame every Proposal shares: its kind and where it applies, what is proposed, and the answers. An approval or a
- * question is a plain card with the attention dot by its name: the red is a dot, never a panel (docs/design.md), and the
- * words stay in the text colour so they read on night's dark card, where the red alone falls under AA.
- */
 export function ProposalFrame({ kind, where, children, className }: { kind: ProposalKind; where?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section
@@ -61,18 +47,12 @@ export function ProposalFrame({ kind, where, children, className }: { kind: Prop
   );
 }
 
-/** The first line of a call's input, for the one-line summary under the approval's question. */
 const inputLine = (input: unknown): string =>
   formatInput(input)
     .split("\n")
     .map((l) => l.trim())
     .find((l) => l && l !== "{" && l !== "[") ?? "";
 
-/**
- * The tool call the agent is paused on (KTD6; plan 2026-11-12-1505, U4): a question naming the agent and the step, the
- * input's first line under it, then Deny, Always Allow and Allow, Allow the default as a Mac alert's is. The whole input
- * opens from the summary. Keys show in the buttons' tooltips, not on their faces (KTD7).
- */
 export function ApprovalProposal({
   approval,
   onApprove,
@@ -81,9 +61,7 @@ export function ApprovalProposal({
 }: {
   approval: PendingApproval;
   onApprove: (behavior: "allow" | "deny" | "always") => void;
-  /** Flow's A and D, shown in the buttons' tooltips when the host gives them. */
   hints?: { approve?: string; deny?: string };
-  /** The agent asking, for the question the approval puts. */
   who?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -130,7 +108,6 @@ export function ApprovalProposal({
         </Button>
       </div>
       {open && <pre className="m-0 max-h-48 overflow-auto rounded-md bg-muted px-3 py-2 text-xs">{formatInput(approval.input)}</pre>}
-      {/* A grant for good, in every chat, asks first (R11), as a Mac asks before a change it cannot quietly take back. */}
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -157,7 +134,6 @@ export function ApprovalProposal({
   );
 }
 
-/** A question the agent asked, or a chat link it asks for: today's card for its answers, inside the Proposal frame. */
 export function QuestionProposal({ children, where }: { children: ReactNode; where?: string }) {
   return (
     <ProposalFrame kind="question" where={where}>
@@ -166,12 +142,6 @@ export function QuestionProposal({ children, where }: { children: ReactNode; whe
   );
 }
 
-/**
- * The replies the agent proposed from this chat for outside threads (plan 067; plan 2026-11-14-1134, U7), each a
- * Proposal: where it goes, its text and files, then Send (from the person's account, after a 10-second hold with Undo)
- * and Reject. A reply just sent stays for a moment saying where it went. The text is edited in place until the Composer
- * can take a reply's target (plan 097, R10, U7).
- */
 export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? revealFile : null }: Omit<ReplyProposalsProps, "touch">) {
   const decide = source.replies?.decide;
   const findPeople = source.replies?.findPeople;
@@ -209,13 +179,8 @@ export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? 
   );
 }
 
-/** No proposals, as one array, so the list a host without any gives reads the same each render. */
 const NONE: ReplyProposal[] = [];
 
-/**
- * A reply's files on the desktop card: each with its size, Show in Finder where it can be shown, and Remove or Put
- * Back; a file already on a Jira ticket says so and cannot be taken off. Its own component, so the card stays readable.
- */
 function ReplyFiles({
   files,
   kept,
@@ -268,10 +233,6 @@ function ReplyFiles({
   );
 }
 
-/**
- * What the desktop card says under its files: that it is sending, why the last try did not go, and why nothing can
- * be pressed, or that the reply still goes when the Mac is out of reach mid-hold. Its own component, so the card stays readable.
- */
 function ReplyNotes({ sending, reason, blocked }: { sending: boolean; reason: string | null; blocked: string | null }) {
   return (
     <>
@@ -290,10 +251,6 @@ function ReplyNotes({ sending, reason, blocked }: { sending: boolean; reason: st
   );
 }
 
-/**
- * One reply proposal: a quiet quote of its text until Edit opens it, its files, then Send and Reject; while sending,
- * Undo. A refusal says why, and a change in the thread's people is spelled out.
- */
 export function ReplyProposalView({
   proposal: p,
   blocked,
@@ -303,10 +260,8 @@ export function ReplyProposalView({
 }: {
   proposal: ReplyProposal;
   blocked: string | null;
-  /** Shows a file in its folder; null where that cannot be done. */
   reveal?: ((path: string) => void) | null;
   onDecide: DecideReply;
-  /** The people the editor's `@` list offers (plan 2026-11-14-1530, R18); null, no list. */
   find?: FindReplyPeople | null;
 }) {
   const { undoRef, ...card } = useReplyCard(p, onDecide);
@@ -314,7 +269,6 @@ export function ReplyProposalView({
   const off = card.busy || card.sending || !!blocked;
   const field = useRef<HTMLTextAreaElement | null>(null);
   const mentions = useReplyMentions(card, find, off, field);
-  // Flow's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
   return (
     <ProposalFrame
@@ -354,6 +308,7 @@ export function ReplyProposalView({
                 if (!mentions.onKeyDown(e)) keys(e);
               }}
               aria-label="Reply text"
+              {...mentions.field}
             />
             {mentions.marks}
           </div>
@@ -391,11 +346,6 @@ export function ReplyProposalView({
   );
 }
 
-/**
- * The agent's quick replies (plan 066) as AI Elements' Suggestion chips at the end of the thread: a press sends the
- * option as the person's message. With a chip focused, 1 to 4 send theirs; each key is in its chip's tooltip, not on
- * its face (docs/style.md §6).
- */
 export function QuickReplyChips({ options, onPick }: { options: readonly string[]; onPick: (text: string) => void }) {
   return (
     <SuggestionChips role="group" aria-label="Quick replies" className="py-1" onKeyDown={replyKeyDown(options, onPick)}>

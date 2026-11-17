@@ -44,7 +44,7 @@ describe("skill install", () => {
     });
     expect(skillOrigin("https://github.com/owner/repo/blob/v2/skills/pdf/SKILL.md")).toMatchObject({ ref: "v2", path: "skills/pdf" });
     expect(skillOrigin("git@example.com:team/skills.git")).toEqual({ kind: "git", url: "git@example.com:team/skills.git", ref: null, path: "" });
-    expect(skillOrigin("~/skills/mine", "/home/x")).toEqual({ kind: "folder", path: resolve("/home/x", "skills/mine") }); // D:\home\x\… on Windows
+    expect(skillOrigin("~/skills/mine", "/home/x")).toEqual({ kind: "folder", path: resolve("/home/x", "skills/mine") });
     expect(() => skillOrigin("justaname")).toThrow("GitHub path");
   });
 

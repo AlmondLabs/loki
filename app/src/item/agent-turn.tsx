@@ -4,7 +4,6 @@ import { Badge } from "@/ui/badge";
 import { Loader } from "@/ui/ai-elements/loader";
 import type { TurnPart, TurnState } from "./entries";
 
-/** How each state reads, and the role its colour comes from; done names the turn for a screen reader, not on screen. */
 const STATE: Record<TurnState, { words: (failed: number) => string; className: string }> = {
   working: { words: () => "working", className: "text-muted-foreground data-[state=working]:shimmer" },
   "needs you": { words: () => "needs you", className: "text-foreground" },
@@ -12,14 +11,6 @@ const STATE: Record<TurnState, { words: (failed: number) => string; className: s
   done: { words: () => "done", className: "text-loki-positive" },
 };
 
-/**
- * One turn of the agent's (plan 097, AgentTurn; plan 096, U6): a header with its name, how long it worked and where it
- * stands, then everything it did between two of your messages in the order it happened, its words, its stretches of
- * work, its events and the widgets it changed. The header is where a turn says it is working, waits on you or failed,
- * so that reads without opening anything; a working turn's badge carries AI Elements' Loader and its words shimmer. A
- * finished turn has no badge: nearly every turn ends done, so a badge on each said nothing, and leaving it out makes
- * the turns that are working, wait on you or failed stand out.
- */
 export function AgentTurn({
   agentName,
   state,
@@ -36,10 +27,7 @@ export function AgentTurn({
   draw: (part: TurnPart) => ReactNode;
 }) {
   const look = STATE[state];
-  // The header's words take a capital (plan 2026-11-12-1505, R7).
   const said = capitalFirst(look.words(failed));
-  // The agent's words are prose with no name over them (U14): the header says only how long it worked and where it
-  // stands, and is left out when it would say neither. The section still names the agent.
   const header = took !== null || state !== "done";
   return (
     <section data-turn={state} aria-label={`${agentName}'s turn, ${look.words(failed)}`} className="flex flex-col gap-3">
@@ -49,7 +37,6 @@ export function AgentTurn({
           {state !== "done" && (
             <Badge variant="outline" data-state={state} className={look.className}>
               {state === "working" && <Loader size={12} aria-hidden />}
-              {/* The red is the dot; the words keep the text colour, which reads on night's card where the red would not. */}
               {state === "needs you" && <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />}
               {said}
             </Badge>

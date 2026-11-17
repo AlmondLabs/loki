@@ -13,7 +13,6 @@ describe("desk registry", () => {
       const reg = new DeskRegistry(path, () => null);
       expect(reg.remember("local-conv-1", "agent-1")).toBe("local-conv-1");
       expect(reg.get("local-conv-1")).toEqual({ agent_id: "agent-1", conversation_id: "local-conv-1" });
-      // unknown agent and no local backend entry: scope still returned, nothing stored
       expect(reg.remember("conv-x", null)).toBe("conv-x");
       expect(reg.get("conv-x")).toBeUndefined();
       const again = new DeskRegistry(path, () => null);
@@ -49,7 +48,6 @@ describe("desk registry fallback", () => {
       expect(reg.get("local-conv-77")).toEqual({ agent_id: "agent-z", conversation_id: "local-conv-77" });
       expect(reg.get("local-conv-unknown")).toBeUndefined();
       expect(reg.get("shared")).toBeUndefined();
-      // resolved desks are cached to disk like any other
       const again = new DeskRegistry(join(dir, "desks.json"), () => null);
       expect(again.get("default-agent-q")).toEqual({ agent_id: "agent-q", conversation_id: "default" });
     } finally {

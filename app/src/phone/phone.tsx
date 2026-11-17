@@ -55,38 +55,24 @@ import { Banner, Button } from "../components";
 import { pageActivity, pageVisibility } from "../shared/page-activity";
 import "./phone.css";
 
-/**
- * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
- * lets the device in by cookie. `GET /me` decides between Pair and the app; once paired, the same
- * two hooks the desktop shell uses (useDesk for the mod, useAttention for the chats, over the same socket)
- * feed four tabs in a floating capsule — Home, Inbox, Agents, More, with Search beside it — and the
- * full-screen pages over them: Search, Learn, Archive, Preferences, the connection, About, a
- * conversation, an agent, and a memory file. Routes live in the hash; each page knows where it was opened from (router.ts), and
- * what a person was in the middle of — drafts, scroll, the control they left from — is kept by session.ts.
- */
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
 
 type DeskApi = ReturnType<typeof useDesk>;
 type CatchUp = ReturnType<typeof useAttention>;
 type ConversationRoute = Extract<Route, { kind: "conversation" }>;
 
-/** Out of the Inbox pass: back where it was opened from, or Home when the app was opened on it. */
 const closeInbox = () => {
   if (depthOf(history.state) > 0) history.back();
   else replace(HOME, "pop");
 };
 
-/** The phone shell: asks the mod whether this device is paired, then shows Pair, the app, or that the Mac cannot be reached. */
 export function Phone() {
   const [gate, setGate] = useState<Gate>({ kind: "checking" });
-  /** Ask the mod who this phone is; the gate says "checking" meanwhile. */
   const probe = useCallback(
     () =>
       fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" })
         .then(async (r) => {
           if (r.ok) setGate({ kind: "paired", me: (await r.json()) as Me });
-          // 401 only: no cookie, or a forgotten one. Anything else (the Mac restarting behind the https front, phones
-          // switched off) is the Mac not answering, and Pair would ask a paired phone for a code it does not need.
           else setGate({ kind: r.status === 401 ? "unpaired" : "unreachable" });
         })
         .catch(() => setGate({ kind: "unreachable" })),
@@ -120,16 +106,10 @@ export function Phone() {
   return <Paired me={gate.me} onUnpaired={() => setGate({ kind: "unpaired" })} />;
 }
 
-/**
- * "Mac unreachable, last seen …": both sockets reconnect by themselves; this only says so. Owns the
- * time of the last moment both were up and a half-minute tick so the words age; the banner is null
- * while the link is fine.
- */
 function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): ReactNode {
   const linked = desk.connection === "open" && (catchUp.status === "open" || !available);
   const [lastLinked, setLastLinked] = useState<string | null>(null);
   const [, setTickNow] = useState(0);
-  // The link's last moment up is when it drops: the cleanup runs then (and on leaving), never while it holds.
   useEffect(() => {
     if (!linked) return;
     return () => setLastLinked(new Date().toISOString());
@@ -142,15 +122,10 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
   return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked)}</Banner> : null;
 }
 
-/**
- * Why a suggestion's buttons wait (plan 049, U4): while the link to the Mac is down nothing it carries out can be
- * asked for, so the card says so instead of offering what would only fail. Null while the link holds.
- */
 function macAway(catchUp: CatchUp): string | null {
   return catchUp.status === "open" ? null : "Mac unreachable: these wait until it is back";
 }
 
-/** A closed mod socket may mean this phone was forgotten in Preferences: ask /me once; a 401 sends us back to Pair. */
 function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => void) {
   const unpaired = useEffectEvent(() => onUnpaired());
   useEffect(() => {
@@ -163,16 +138,9 @@ function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => voi
   }, [connection]);
 }
 
-/**
- * A `?prefill=` in the route starts the reply box once, then leaves the address so a reload does not repeat
- * it. It is held for its own conversation only (session.ts, nextPrefill): every ConversationPage gets this
- * value and applies it on mount, so any other conversation, or this one reopened, must see null.
- */
 function usePrefill(conv: ConversationRoute | null) {
   const convKey = conv ? draftKey(conv.agentId, conv.conversationId) : null;
   const prefillText = conv?.prefill ?? null;
-  // The route arriving is the event: it becomes the prefill, its tick one more than the last route's, from the
-  // render that sees it; the effect below then leaves the address.
   const [held, setHeld] = useState<Prefill | null>(null);
   const [arrived, setArrived] = useState<{ key: string | null; prefill: string | null; tick: number } | null>(null);
   if (arrived?.key !== convKey || arrived.prefill !== prefillText) {
@@ -184,22 +152,18 @@ function usePrefill(conv: ConversationRoute | null) {
     if (conv?.prefill) replace({ ...conv, prefill: null });
   });
   useEffect(() => tidyAddress(), [convKey, prefillText]);
-  // Held for its own conversation only: any other conversation sees null.
   return held?.key === convKey ? held : null;
 }
 
 function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const desk = useDesk();
   const { attention } = desk;
-  // Analytics (core/analytics.ts): every event the phone sends carries the tab or page on screen as $screen.
   const screenRef = useRef<string | null>(null);
   const { capture: captureRaw } = attention;
   const capture = useCallback(
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
-  // The phone's own lane (plan 087, R10): its Flow, tab badge, title and Home's attention count only its cards.
-  // Lanes are edited on a Mac (R8), so the phone has no setLanes.
   const [laneId, setLaneId] = useActiveLaneId("phone");
   const catchUp = useAttention({
     lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: null, resolve: resolveLane },
@@ -211,7 +175,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     engage: attention.engage,
     rests: attention.rests,
     rest: attention.rest,
-    // The person's return times (Preferences › Inbox), kept on the daemon, so a swipe rests a card as the Mac would.
     returnTimes: attention.returnTimes,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
@@ -219,13 +182,11 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     loadLocalStep: attention.loadStep,
     listConversations: attention.listInbox,
     capture,
-    // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
     visibility: pageVisibility,
   });
   const { route, from, arrival } = useRouteState();
-  // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).
   const routeView = screenOf(route);
   const prevView = useRef<string | null>(null);
   useEffect(() => {
@@ -234,19 +195,16 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     screenRef.current = routeView;
   }, [routeView, capture]);
 
-  // A pairing QR opened while already paired: the code is not needed, drop it from the address (the route stays).
   useEffect(() => {
     if (new URLSearchParams(location.search).has("code")) history.replaceState(null, "", location.pathname + location.hash);
   }, []);
 
-  // The desks list feeds Home and the conversation titles; ask for it whenever the mod link comes up.
   const requestDesks = useEffectEvent(() => desk.desks.request());
   useEffect(() => {
     if (desk.connection === "open") requestDesks();
   }, [desk.connection]);
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
-  // The model list for Select model, as the desktop shell keeps it: once per daemon, on the first ask.
   const models = useModelList({
     open: catchUp.status === "open",
     version: catchUp.server?.version ?? "",
@@ -260,13 +218,9 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     document.title = waiting > 0 ? `(${waiting}) loki` : "loki";
   }, [waiting]);
 
-  // The deck's pass (what was swiped, what is on top) lives here, beside the data: the top card's
-  // thread is fetched once when it arrives, and live rows stream in on top.
   const deck = useDeck(catchUp.flow.laneItems, catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
   const recall = useRecall(desk, route.kind === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
-  // Learn's sitting (the card under your hands, the ones answered) lives here, above the routes, so
-  // leaving Learn for Home or More and coming back resumes the same pass instead of starting over.
   const learnPass = useDeckPass(recall.snap?.cards ?? []);
   useEffect(() => {
     if (!recallNote) return;
@@ -278,48 +232,35 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   });
   useEffect(() => loadTopThread(), [deck.currentId]);
 
-  // A lesson begun from Learn: its conversation opens and the brief goes out as the person's first message, the way the desktop begins one.
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
     openConversation(agentId, conversationId);
     catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title, origin: "lesson" });
   };
 
-  // The conversation on screen, from the route: its title and agent from the desks list, the inbox, or the agent list.
   const conv = route.kind === "conversation" ? route : null;
   const prefill = usePrefill(conv);
 
-  // Stable for the new-desk sheet's fetch effect, and always the current link's: attention.folders is a fresh object each render.
   const foldersRef = useRef(attention.folders);
   useEffect(() => {
     foldersRef.current = attention.folders;
   });
   const recentFolders = useCallback(() => foldersRef.current.recent().then((r) => r.byAgent), []);
   const tab = route.kind === "tab" ? route.tab : null;
-  // A card up in the Inbox is a focused pass: it takes the whole screen, as Slack's Catch Up does, and its
-  // own back chevron leaves it. With no card (caught up, loading, the Mac away) the navigation is back.
   const nav = showsNav(route) && !(tab === "inbox" && deck.current);
   const inboxFrom = tab === "inbox" && from && formatRoute(from) !== formatRoute(route) ? from : HOME;
 
-  // Back from the page on screen, and what its control says: where it was opened from, else its parent.
   const onBack = () => back(route);
   const backLabel = labelOf(backTarget(route, from));
 
-  // Where a page is, without a one-shot prefill: the key for focus and for the recently visited list.
   const place = formatRoute(conv ? { ...conv, prefill: null } : route);
-  // Focus follows the route: the control you left from when you come back, the new screen's heading otherwise.
   const shellRef = useRef<HTMLDivElement>(null);
   useFocusOnRoute(shellRef, place, arrival === "pop");
-  // The on-screen keyboard: where it only shrinks the visual viewport, the shell fits what is visible (viewport.ts).
   useKeyboardInset(shellRef);
-  // On a page, a swipe from the left edge goes back, as on iOS (edge-swipe.ts).
   useEdgeSwipe(shellRef, route.kind !== "tab", onBack);
-  // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
-  // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
   useEffect(() => {
     if (route.kind !== "tab" && route.kind !== "search") recentPlaces.add(place);
   }, [place, route.kind]);
 
-  // Archive and restore go through the daemon, the way the desktop tree does; null while it cannot take them.
   const onArchive: ArchiveDesk | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
@@ -329,7 +270,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
           return err;
         }
       : null;
-  // Rename goes the same way; the new name shows at once (the mod re-broadcasts titles only at a turn's end).
   const onRename: RenameDeskName | null =
     attention.available && catchUp.status === "open"
       ? async (d, name) => {
@@ -343,18 +283,15 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       : null;
 
   const link = linkState(desk.connection);
-  // What Search looks through: only what the phone already holds (search-index.ts), agent descriptions from the Agents cache.
   const searchSources = useMemo(
     () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, describe: knownDescription }),
     [desk.desks.list, catchUp.agents, catchUp.items],
   );
-  // The /health poll lives here, not in the bar: the bar moves between the dock and the page strip, which remounts it.
   const health = useHealthBuild();
   const update = <UpdateBar servedBuild={desk.servedBuild} health={health} />;
   return (
     <WidgetSourceContext.Provider value={desk}>
       <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
-        {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
         <main className="loki-phone-main">
           {conv && (
             <ConversationPage
@@ -464,11 +401,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   );
 }
 
-/**
- * The conversation the route names, full screen over the tabs, wired to the chats and the mod's desk list. Its
- * model is the mod's word for the conversation (the desks list), switched through the daemon as the desktop
- * does; a refused switch says why in the banner for a few seconds.
- */
 function ConversationPage({
   conv,
   desk,
@@ -535,7 +467,6 @@ function ConversationPage({
           ? {
               name: convDesk.title ?? "",
               onRename: onRename ? (name) => onRename(convDesk, name) : null,
-              // The purpose line goes through the daemon too, so it waits on what rename waits on.
               onPurpose: onRename ? (purpose) => savePurpose(desk, catchUp)(convDesk, purpose) : null,
             }
           : null
@@ -560,7 +491,6 @@ function ConversationPage({
         thread.conversationId !== "default" && convDesk?.status !== "deleted"
           ? {
               archived: convDesk?.status === "archived",
-              // Any chat but a main one can go, desk or not: an Inbox chat need not be on the mod's desk list.
               onArchive: onArchive
                 ? async (archived) => {
                     const err = await catchUp.archiveConversation(thread.conversationId, archived, "phone_chat", thread.agentId);
@@ -574,7 +504,6 @@ function ConversationPage({
       folder={
         attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
           ? {
-              // The live folder (the daemon's word) first, else what the Mac's records say; the agent's recent folders to choose from.
               load: async () => {
                 const r = await attention.folders.recent();
                 const current =
@@ -602,11 +531,6 @@ function ConversationPage({
   );
 }
 
-/**
- * The four tabs. Home and the deck stay mounted under other tabs and pages, so their filters, the
- * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
- * place back from the scroll memory (their data is cached above them).
- */
 function Screen({
   tab,
   me,
@@ -638,7 +562,6 @@ function Screen({
   models: ModelEntry[] | null;
   onLoadModels: () => void;
 }) {
-  // The Inbox card's model pill: the same switch as the conversation page, a refusal shown in the card's line for 4 s.
   const [cardNote, setCardNote] = useState<string | null>(null);
   useEffect(() => {
     if (!cardNote) return;

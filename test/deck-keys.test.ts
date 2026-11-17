@@ -17,8 +17,6 @@ import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
 
-/** The desktop deck's keys (app/src/desk/use-deck-keys.ts, deck-moves.ts): what each press does to the selected card. */
-
 describe("Esc and focus in Flow (plan 2026-11-14-1330, KTD7, KTD14)", () => {
   const source = (...path: string[]) => readFileSync(join(import.meta.dirname, "..", "app", "src", ...path), "utf8");
   test("Esc in the list does not leave Flow: the deck has no Esc of its own, the reply box's hands the keys back, and the shell's skips Flow", () => {
@@ -50,21 +48,16 @@ describe("O on a card", () => {
 const DONE: MoveResult = { error: null, ask: false, rest: null };
 const settle = () => new Promise<void>((r) => setImmediate(r));
 
-/** A deck with `queue` up and its first row selected, recording every call its moves make. */
 function deck(
   queue: AttentionItem[],
   over: {
-    /** Archive's answer out there: the reason when it refused. */
     archive?: string | null;
-    /** The selected card was answered elsewhere (R11): the deck hands the moves no card. */
     elsewhere?: boolean;
     asks?: boolean;
     text?: string;
     reply?: OutsideReplyResult | Promise<OutsideReplyResult>;
     read?: MoveResult;
-    /** Mail replies are held for their undo (plan 076): what stopping one answers. */
     unsend?: (outboxId: string) => boolean;
-    /** The host's notices; absent, refusals flash on the badge. */
     notices?: string[];
     later?: MoveResult;
   } = {},
@@ -78,25 +71,18 @@ function deck(
     decided: [] as Decision[],
     flash: [] as string[],
     picker: null as PickerKind | null,
-    /** The card the open picker is on. */
     pickerId: null as string | null,
-    /** The one full reply box, as the deck holds it: the first row's to begin with. */
     box: { ...EMPTY_REPLY, text: over.text ?? "" },
     boxId: firstId,
-    /** The words left in every card's box, kept by id as the session keeps them. */
     texts: new Map<string, string>([[firstId, over.text ?? ""]]),
-    /** The cards whose reply is on its way. */
     sending: new Set<string>(),
   };
   const apply = <T>(v: SetStateAction<T>, old: T): T => (typeof v === "function" ? (v as (o: T) => T)(old) : v);
-  /** The selected card: the one picked, else the first row, as the deck falls back. */
   const selected = () => state.queue.find((i) => idOf(i) === state.selected) ?? state.queue.at(0);
-  /** A card's reply box, as useDeckActions resolves it: the full box when it is that card's, else its kept words. */
   const replyOf = (id: string) => {
     const base = id === state.boxId ? state.box : { ...EMPTY_REPLY, text: state.texts.get(id) ?? "" };
     return { ...base, busy: state.sending.has(id) };
   };
-  /** Write to a card's box, as the deck's setReply does: another card's box replaces the one held. */
   const setReply = (id: string, patch: Partial<ReplyBox>) => {
     if (patch.text !== undefined) state.texts.set(id, patch.text);
     if (id !== state.boxId) {
@@ -147,10 +133,8 @@ function deck(
         approve: () => {},
       },
     });
-  /** Select the row `id` names, as a click or the arrows commit it. */
   const select = (id: string) => (state.selected = `a1/${id}`);
   const shown = () => selected()?.id;
-  /** Type into the box of the card `cardId` names, as the person does once it is selected. */
   const type = (cardId: string, text: string) => setReply(cardId, { text });
   return { state, calls, moves, select, shown, type };
 }
@@ -244,7 +228,6 @@ describe("the selected card (R9)", () => {
     expect(d.calls).toEqual([["archive", "b"]]);
     expect(d.state.queue.map((i) => i.id)).toEqual(["a", "c"]);
   });
-  /** Two outside cards: A, with words in its box, drawn first; and B, another thread of the same account. */
   const twoThreads = () => {
     const a = outsideItem("A");
     const b = outsideItem("B", { id: "t2#1", outside: { ...must(a.outside, "facts"), thread_id: "t2", subject: "B" } });
@@ -253,7 +236,6 @@ describe("the selected card (R9)", () => {
   test("Covers AE4. a move on a newly highlighted card reads that card's box, never the drawn card's words", async () => {
     const { a, b } = twoThreads();
     const d = deck([a, b], { text: "For A only" });
-    // The moves were made while A was drawn; the highlight commits B in the same event as the key.
     const m = d.moves();
     d.state.selected = idOf(b);
     m.archive();
@@ -277,7 +259,6 @@ describe("the selected card (R9)", () => {
     const pending = new Promise<OutsideReplyResult>((r) => (finish = r));
     const d = deck([slack(a), slack(b)], { text: "on it", reply: pending });
     d.moves().read();
-    // While it goes, the person selects B and types there, then comes back to A and presses ⌘] again.
     d.state.selected = idOf(b);
     d.type(idOf(b), "h");
     d.state.selected = idOf(a);
@@ -373,7 +354,6 @@ describe("⌘] and ⌘[ on a card", () => {
     d.moves().sendReply();
     await settle();
     expect(d.calls[0]).toEqual(["reply", "t1#1", "on it", "stay", { mail: null, thread_ts: "7.0" }]);
-    // A newer message, the person's own reply among them, is the same card: the thread stays open.
     const newer = { ...slack, outside: slack.outside ? { ...slack.outside, newest_message_id: "9.0" } : undefined };
     expect(cardKey(newer)).toBe(cardKey(slack));
     d.state.box = { ...d.state.box, text: "again", thread: { key: "another card", ts: "7.0" } };
@@ -402,7 +382,6 @@ describe("⌘] and ⌘[ on a card", () => {
 });
 
 describe("a mail reply held for its undo (plan 076)", () => {
-  /** A reply that answers when the test says. */
   const later = () => {
     let answer: (r: OutsideReplyResult) => void = () => {};
     const reply = new Promise<OutsideReplyResult>((r) => (answer = r));
@@ -426,7 +405,6 @@ describe("a mail reply held for its undo (plan 076)", () => {
     ]);
     r.answer({ sent: true, error: null });
     await settle();
-    // Sent: the decision is an ordinary one now, so Z takes back the read and not the reply.
     expect(d.state.decided.map((x) => x.held)).toEqual([undefined]);
     expect(d.state.flash).toEqual(["Sending · z undo", "Sent"]);
   });

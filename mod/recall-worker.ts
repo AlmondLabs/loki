@@ -11,34 +11,15 @@ import type { RecallStore } from "./recall.ts";
 import { paths } from "./paths.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * Learn's pieces the daemon's Learn pass (daemon/learn.ts) and lessons share: which hidden chats are Learn's own,
- * the transcript as the model reads it, the existing cards worth quoting, and starting a lesson from a lead. Cards
- * are written by the Learn pass alone; the person meets them only in the Learn section.
- */
-/** A replay slice — the tail of the conversation a failing card came from — is this long at most. */
 export const REPLAY_CHARS = 4_000;
-/** Existing cards quoted in the prompt: the ones whose wording overlaps the slices, this many at most. */
 export const MAX_QUOTED_CARDS = 80;
-/** Open learning leads the pile holds at most; past this the writer is not asked for more until some are started or dismissed. */
 export const MAX_OPEN_LEADS = 12;
 
-/** True for Learn's own hidden chats (the daemon's writer chats), which must never become desks or inbox cards. */
 export const ownsRecallChat = (conversationId: string): boolean => isWriterChat(conversationId);
 
-/**
- * A background pass's own chat, which is never a desk, an inbox card or a chat in the list: Learn's (above),
- * reflection's (`reflection-<agent>`, daemon/memory.ts isReflectionChat) or a memory review's (`doctor-<agent>`). What
- * they did shows as cards and memory changes instead.
- */
 export const isPassChat = (conversationId: string): boolean =>
   ownsRecallChat(conversationId) || conversationId.startsWith("reflection-") || conversationId.startsWith("doctor-");
 
-/**
- * The cards worth quoting to the model: those whose front, back or tags share a word of five letters or more
- * with the slices (tags of three or more), most shared words first, MAX_QUOTED_CARDS at most. The rest are on
- * disk for the model to grep — the prompt tells it where — so the quoted list stops growing with the deck.
- */
 export function overlappingCards<T extends { front: string; back: string; tags: string[] }>(cards: T[], texts: string[], cap = MAX_QUOTED_CARDS): T[] {
   const words = new Set(
     texts
@@ -61,7 +42,6 @@ export function overlappingCards<T extends { front: string; back: string; tags: 
   return scored.slice(0, cap).map((x) => x.c);
 }
 
-/** How much of a failed call's input and error a transcript shows (plan 036). */
 const CALL_CHARS = 200;
 
 const clip = (text: string) => {
@@ -69,12 +49,6 @@ const clip = (text: string) => {
   return line.length > CALL_CHARS ? `${line.slice(0, CALL_CHARS - 1)}…` : line;
 };
 
-/**
- * "you: …" / "<agent>: …" lines; harness notices are left out, and so are tool calls unless `failedCalls`. With it
- * (reflection, plan 036), a call that failed is a line where it happened, `[failed bash: <input> → <error>]`, and the
- * next call of the same tool that worked follows as `[then bash worked: <input>]`, so the fix is there beside the
- * mistake. Calls that worked otherwise stay out.
- */
 export function formatTranscript(rows: TranscriptRow[], agentName: string | null, { failedCalls = false }: { failedCalls?: boolean } = {}): string {
   const who = agentName ?? "agent";
   const failing = new Set<string>();
@@ -92,17 +66,7 @@ export function formatTranscript(rows: TranscriptRow[], agentName: string | null
   return lines.join("\n");
 }
 
-/**
- * Start a lesson from a lead: a new conversation `[Learn] · <title>` for the lead's agent in the home
- * directory, the brief sent as the person's first message, the lead recorded as a lesson. The socket
- * waits for the harness's first word back (or two seconds) so the turn is under way before it closes.
- */
 export type StartLesson = (leadId: string) => Promise<Replies["recall_lesson"]>;
-/**
- * The first thing on a lesson's desk: an info card with the lead, so the desk is furnished before the agent says a
- * word. The agent's outline joins it once the brief lands (the app sends the brief over its own live socket, the way
- * the task list's dispatch does — a message fired from a socket that closes right after never reaches the agent).
- */
 export function lessonCard(lead: Lead): { type: "info-card"; title: string; data: { lines: string[] } } {
   const who = lead.source.agent_name ?? "the agent";
   const where = lead.source.title ? `it came up in "${lead.source.title}" with ${who}` : `it came up in a conversation with ${who}`;
@@ -125,14 +89,8 @@ interface LessonOpts {
   widgetsDir?: string;
   expect?: (widgetId: string, change: WidgetChange) => void;
 }
-/** Make a lesson's chat for an agent, titled `[Learn] · <lead>`, in the home folder. */
 type CreateLessonChat = (agentId: string, title: string) => Promise<{ agentId: string; conversationId: string }>;
 
-/**
- * Start a lesson: its chat made by `create` in the home folder, the info card written on its desk, the lead recorded as
- * a lesson. opts.expect: told just before the lesson card is written, so the desk's widget log reads it as loki's
- * (mod/widget-log.ts).
- */
 function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesson {
   return async (leadId) => {
     const lead = opts.store.lead(leadId);
@@ -146,7 +104,7 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
       opts.expect?.(`${scope}/lesson`, existsSync(join(dir, "lesson.json")) ? "changed" : "added");
       writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
     } catch (err) {
-      log("recall:lesson-card-failed", { message: messageOf(err) }); // the desk starts bare; the lesson still starts
+      log("recall:lesson-card-failed", { message: messageOf(err) });
     }
     const lesson = opts.store.startLesson(leadId, rt);
     log("recall:lesson-started", { lead: leadId, conversation: rt.conversationId });
@@ -154,7 +112,6 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
   };
 }
 
-/** Learn on loki's daemon: the lesson's chat is made in process (mod/frames/chat.ts). */
 export function startLessonViaChats(chats: ChatBackend, opts: LessonOpts): StartLesson {
   return startLessonWith((agentId, title) => chats.create(agentId, homedir(), title), opts);
 }

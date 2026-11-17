@@ -50,7 +50,6 @@ describe("what the mod's pushes leave in a tab (plan 058)", () => {
       mode: "default",
     } as const;
     expect(applyPush(s, title, ctx)).toBe(s);
-    // An effort that is not a level clears that chat's.
     expect(applyPush(s, { ...title, reasoning_effort: null }, ctx).reasoningEfforts).toEqual({});
   });
 
@@ -78,7 +77,6 @@ describe("what the mod's pushes leave in a tab (plan 058)", () => {
     expect(applyPush(EMPTY_DESK_SOCKET, camera, { now: NOW, lastInteraction: NOW - 100 })).toBe(EMPTY_DESK_SOCKET);
     const once = applyPush(EMPTY_DESK_SOCKET, camera, { now: NOW, lastInteraction: NOW - NO_YANK_MS - 1 });
     expect(once.cameraTarget).toEqual({ widgetId: "w1", widgetIds: ["w1"], nonce: 1 });
-    // The same widget again still moves the camera: the nonce says it is a new ask.
     expect(applyPush(once, camera, ctx).cameraTarget?.nonce).toBe(2);
   });
 

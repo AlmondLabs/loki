@@ -1,20 +1,12 @@
 import type { DeskState, Scope, WidgetLayout, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, autoPlace } from "../../../core/desk-core.ts";
 
-/** A widget on the canvas: its manifest entry, its place, and the data the person's gestures laid over its own. */
 export interface VisibleWidget {
   entry: WidgetManifestEntry;
   layout: WidgetLayout;
   overlay: Record<string, unknown> | undefined;
 }
 
-/**
- * What a desk shows, from the manifests and geometry the mod has sent: shared widgets under this
- * desk's widgets; closed ones go to the tray; layout falls back to a cascade until the mod assigns one.
- * `ownCount` is the widgets this desk owns (shared ones excluded), minimised included — zero means the
- * first-run hint. `loaded` says the desk frame for this scope has arrived; before that ownCount is not
- * meaningful.
- */
 export function deskView(scope: Scope, desks: Partial<Record<Scope, DeskState>>, widgets: Partial<Record<Scope, WidgetManifestEntry[]>>) {
   const visible: VisibleWidget[] = [];
   const closed: WidgetManifestEntry[] = [];

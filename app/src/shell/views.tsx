@@ -5,10 +5,11 @@ import { labelCommand } from "../chat/labels";
 import { saveLabels } from "../desk/desk-conversation";
 import { runAction } from "./keymap";
 import { SETTINGS_PAGE_KEY, type SettingsPage } from "../settings/pages";
-import { SETTINGS_WINDOW, openSettingsWindow } from "./settings-window";
+import { SETTINGS_WINDOW, openSettingsWindow } from "./open-settings";
 import { lastInput } from "../kit/motion";
 import { FlowPlace } from "../desk/catch-up";
 import type { PassSummaryHandler } from "../desk/use-flow-deck";
+import type { FlowKind } from "../desk/flow-kinds";
 import { Agents } from "../agents/agents";
 import { Recall } from "../recall/recall";
 import type { Recall as RecallModel } from "./use-recall";
@@ -17,23 +18,18 @@ import type { ModelEntry } from "../chat/model-picker";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 
 import { Welcome } from "./welcome";
-import type { DaemonStatus } from "./bootstrap";
+import type { DaemonStatus, WelcomeStep } from "./bootstrap";
 import type { LokiUpdate } from "./use-loki-update";
+import { chatWorking } from "./update-notice";
 import type { GlobalShortcut } from "./use-global-shortcut";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { SettingsProps } from "../settings/settings";
 
-/**
- * The views the rail switches between, each a thin wrapper that wires the window's models to one
- * component. Shell keeps the state; these keep the plumbing.
- */
-
 type OpenDesk = (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void;
 type PickModel = (scope: string, rt: Runtime, selection: ModelSelection) => Promise<void>;
 type PickMode = (scope: string, rt: Runtime, mode: string) => Promise<void>;
 
-/** Recall: the review deck, the card list and the deleted pile, over the mod's files. */
 export function RecallView({
   recall,
   active,
@@ -50,23 +46,16 @@ export function RecallView({
   );
 }
 
-/** How the Inbox's last move was made, for analytics: the last input was a key or a click. */
 const via = () => (lastInput() === "key" ? "key" : "click");
 
-/**
- * Preferences on one of its pages: Accounts, where a card's account signs in again (plan 2026-11-14-0852, 1). The Mac app's Preferences window is told the page; the sheet reads it.
- */
 function openPreferencesOn(page: SettingsPage) {
   if (SETTINGS_WINDOW) return openSettingsWindow(page);
   try {
     sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
-  } catch {
-    // Without storage Preferences opens on its first page; the person goes on from there.
-  }
+  } catch {}
   runAction("segment.settings");
 }
 
-/** Flow's owner (plan 2026-11-14-1330, KTD1): its list and its detail, with the model and mode pickers per conversation. */
 export function InboxView({
   desk,
   catchUp,
@@ -78,10 +67,13 @@ export function InboxView({
   onClose,
   onPass,
   notice,
+  kind,
+  onKind,
 }: {
   desk: Desk;
   catchUp: CatchUp;
-  /** A one-line message at the bottom of the window (a refused `/label`). */
+  kind: FlowKind;
+  onKind: (kind: FlowKind) => void;
   notice: (message: string) => void;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
@@ -97,6 +89,8 @@ export function InboxView({
       onPass={onPass}
       items={catchUp.items}
       lane={catchUp.flow.lane}
+      kind={kind}
+      onKind={onKind}
       onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
       onSignIn={() => openPreferencesOn("accounts")}
       labelList={catchUp.labels.list}
@@ -107,7 +101,6 @@ export function InboxView({
       onLabel={(item, labelIds) => catchUp.label(item, labelIds, via())}
       labelsOf={catchUp.labelsOf}
       onUndo={catchUp.undo}
-      // An approval moves its card past: seen, and an undo of that only takes the mark back (the answer stays given).
       onSeen={(item) => catchUp.seen(item)}
       onUnread={(item) => catchUp.unread(item)}
       onApprove={(item, requestId, behavior) => (
@@ -135,7 +128,6 @@ export function InboxView({
       onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agent_id), item.runtime, mode)}
       commands={catchUp.commands}
       onCommand={(item, id, args) => {
-        // loki's own commands are keymap actions; everything else is the daemon's, run for the card's conversation.
         const local = LOKI_COMMANDS.find((c) => c.id === id);
         if (id === "label") {
           const current = desk.desks.list.find((d) => d.scope === scopeFor(item.id, item.agent_id))?.labels ?? [];
@@ -147,10 +139,6 @@ export function InboxView({
   );
 }
 
-/**
- * The Agents place's owner (plan 2026-11-14-1330, KTD9): the chosen agent's page, its items in the list and the one
- * chosen in the detail; "ask to update" opens the main chat with a request typed in.
- */
 export function AgentsView({
   desk,
   catchUp,
@@ -191,10 +179,8 @@ export function AgentsView({
   );
 }
 
-/** The Settings sheet, loaded the first time it opens (plan 038): it is opened now and then, and is a large part of the page. */
 const Preferences = lazy(() => import("../settings/settings").then((m) => ({ default: m.Preferences })));
 
-/** What Preferences reads from a window's models: the shell's for the sheet, the Settings window's own for the window. */
 export interface PreferencesSources {
   update: LokiUpdate;
   shortcut: GlobalShortcut;
@@ -209,10 +195,6 @@ export interface PreferencesSources {
   onModelsChanged: () => void;
 }
 
-/**
- * Preferences' inputs from a window's models (plan 2026-11-12-1505, U18): the daemon and mod facts from the desk and
- * attention models, the chat preferences from useChatLayout. One mapping, so the sheet and the window cannot drift.
- */
 export function preferencesProps({
   desk,
   catchUp,
@@ -250,7 +232,6 @@ export function preferencesProps({
     links: catchUp.links,
     labels: {
       list: catchUp.labels.list,
-      // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
       edit: async (change) => {
         const err = await catchUp.labels.edit(change);
         if (!err) desk.desks.request();
@@ -258,6 +239,7 @@ export function preferencesProps({
       },
     },
     update,
+    working: chatWorking(catchUp.items),
     shortcut,
     recall,
     usage: { ...desk.usage, agents: catchUp.agents },
@@ -266,9 +248,7 @@ export function preferencesProps({
   };
 }
 
-/** Preferences (the Settings sheet), over the section showing. */
 export function SettingsView({ onClose, ...sources }: PreferencesSources & { onClose: () => void }) {
-  // Nothing while the sheet's chunk loads: a moment on the Mac, where it is read from disk.
   return (
     <Suspense fallback={null}>
       <Preferences onClose={onClose} {...preferencesProps(sources)} />
@@ -276,21 +256,22 @@ export function SettingsView({ onClose, ...sources }: PreferencesSources & { onC
   );
 }
 
-/** First launch, over the empty desk: Node when the daemon could not start, the provider, the first agent, its desk. */
 export function WelcomeView({
   step,
   catchUp,
   daemon,
   onRetryDaemon,
+  onInstallTools,
   models,
   onLoadModels,
   onModelsChanged,
   onDone,
 }: {
-  step: "node" | "provider" | "agent";
+  step: WelcomeStep;
   catchUp: CatchUp;
   daemon: DaemonStatus | null;
   onRetryDaemon: () => Promise<void>;
+  onInstallTools: () => Promise<string | null>;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
   onModelsChanged: () => void;
@@ -309,6 +290,7 @@ export function WelcomeView({
       onCreate={catchUp.createAgent}
       daemon={daemon}
       onRetryDaemon={onRetryDaemon}
+      onInstallTools={onInstallTools}
       onDone={onDone}
     />
   );

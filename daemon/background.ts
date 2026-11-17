@@ -8,18 +8,7 @@ import { StringDecoder } from "node:string_decoder";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { withKind } from "./tool-kinds.ts";
 
-/**
- * Background tasks (plan 017, U11, KTD13): a shell command that keeps running after the turn that started it. The
- * agent reads its output so far, writes to its input, waits on it, or stops it, all with `background_watch` (plan
- * 095); when it ends, its chat gets a `<task-notification>` (the format the thread shows as an event row,
- * core/harness.ts), which starts the agent's next turn, or goes into the one running at its next step. An agent that
- * was waiting on it when it ended, a stop included, is not told. The processes are the daemon's: they end with it, and
- * a task from before a restart is gone.
- */
-
-/** The most output a task keeps, from its end. */
 const KEEP = 256 * 1024;
-/** A finished task stays readable this long, and at most this many of them are kept. */
 const KEEP_FINISHED_MS = 60 * 60_000;
 const KEEP_FINISHED = 32;
 
@@ -30,24 +19,19 @@ interface Task {
   command: string;
   child: ChildProcess;
   output: string;
-  /** How much of the output the agent has read. */
   read: number;
   exit: { code: number | null; signal: string | null } | null;
   endedAt: number;
-  /** The signal a stop sent: Windows ends a tree with none of its own. */
   stopping?: NodeJS.Signals;
   waiters: Set<() => void>;
 }
 
-/** How a finished task tells its chat: the `<task-notification>` text, sent to the agent and chat that started it. */
 export type Notify = (agentId: string, chatId: string, text: string) => void;
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** When a stop signals the task's processes again, and when it kills what is left. */
 const RESIGNAL_MS = 150;
 const GRACE_MS = 2_000;
-/** On Windows, how long a stop waits for taskkill before it ends the task's shell itself. */
 const WINDOWS_SHELL_MS = 1_000;
 /**
  * After a stop, how long the task's output may stay open once its shell has gone. Something the stop could not reach
@@ -56,10 +40,6 @@ const WINDOWS_SHELL_MS = 1_000;
  */
 const STRAGGLER_MS = 500;
 
-/**
- * The shell a task runs in: the person's own, else /bin/sh. Windows has neither, so there it is Git Bash where Git for
- * Windows puts it, else a bash.exe on PATH: where pi-durable's own bash tool looks (@earendil-works/pi-durable/env/node).
- */
 export function shell(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
@@ -73,10 +53,6 @@ export function shell(
   return "bash.exe";
 }
 
-/**
- * The background tasks the daemon runs, by id; an agent reaches only its own. Output is kept from the end (KEEP), and
- * a finished task stays readable for an hour, up to KEEP_FINISHED of them. `stopAll` ends every one when the daemon stops.
- */
 export class BackgroundTasks {
   private readonly tasks = new Map<string, Task>();
   private readonly notify: Notify;
@@ -89,7 +65,6 @@ export class BackgroundTasks {
     this.prune();
     const id = `bg-${randomBytes(3).toString("hex")}`;
     // Its own process group off Windows, so stopping it stops what its shell started too (bash keeps `sleep 30`, a dev
-    // server under `npm run`, as children that hold the output open after the shell itself is gone).
     const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
     const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, endedAt: 0, waiters: new Set() };
     const take = (text: string) => {
@@ -123,8 +98,6 @@ export class BackgroundTasks {
       take(out.end() + err.end());
       task.exit = { code, signal };
       task.endedAt = Date.now();
-      // An agent waiting on it (background_watch) learns how it ended from the wait itself. Told again, the notice came after
-      // its answer, as a turn of its own: the run had moved on by the time the queued message could go in.
       const watched = task.waiters.size > 0;
       for (const w of task.waiters) w();
       if (watched) return;
@@ -146,7 +119,6 @@ export class BackgroundTasks {
     return task;
   }
 
-  /** Output since the agent last read, and whether the task is still running. */
   output(id: string, agentId: string): string {
     const task = this.get(id, agentId);
     const fresh = task.output.slice(task.read);
@@ -165,7 +137,6 @@ export class BackgroundTasks {
     this.kill(this.get(id, agentId));
   }
 
-  /** Stop every running task of an agent that is gone. */
   stopAgent(agentId: string): void {
     for (const task of this.tasks.values()) if (task.agentId === agentId) this.kill(task);
   }
@@ -183,9 +154,7 @@ export class BackgroundTasks {
       try {
         if (process.platform === "win32") task.child.kill();
         else process.kill(-pid, "SIGKILL");
-      } catch {
-        // Already gone.
-      }
+      } catch {}
     }
   }
 
@@ -202,8 +171,6 @@ export class BackgroundTasks {
       if (task.exit) return;
       if (process.platform === "win32") {
         // taskkill ends the tree; it can take a second or more on a busy machine, so the shell itself is ended once
-        // it answers or after WINDOWS_SHELL_MS, whichever comes first: the task then reads as stopped on time, and a
-        // child taskkill missed is the straggler the exit handler lets go of.
         const shell = setTimeout(() => !task.exit && task.child.kill(), WINDOWS_SHELL_MS);
         shell.unref();
         execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {
@@ -215,7 +182,7 @@ export class BackgroundTasks {
       try {
         process.kill(-pid, force ? "SIGKILL" : "SIGTERM");
       } catch {
-        if (!force) task.child.kill("SIGTERM"); // no group left; the shell may still be there
+        if (!force) task.child.kill("SIGTERM");
       }
     };
     end(false);
@@ -224,7 +191,6 @@ export class BackgroundTasks {
     task.child.once("close", () => timers.forEach(clearTimeout));
   }
 
-  /** Forget finished tasks past their time, and the oldest past the count. */
   private prune(now = Date.now()): void {
     const finished = [...this.tasks.values()].filter((t) => t.exit).sort((a, b) => b.endedAt - a.endedAt);
     finished.forEach((t, i) => {
@@ -232,7 +198,6 @@ export class BackgroundTasks {
     });
   }
 
-  /** Wait until the output matches `pattern`, the task ends, or `ms` pass; then its new output. */
   async wait(id: string, agentId: string, pattern: string | undefined, ms: number, signal?: AbortSignal): Promise<string> {
     const task = this.get(id, agentId);
     const re = pattern ? new RegExp(pattern) : null;
@@ -254,7 +219,6 @@ export class BackgroundTasks {
     return this.output(id, agentId);
   }
 
-  /** End every task (the daemon is stopping). */
   stopAll(): void {
     for (const task of this.tasks.values()) this.kill(task);
   }
@@ -272,16 +236,8 @@ async function caller(api: ToolExecutionApi, context: Context) {
 const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 const idParam = { task_id: { type: "string" } };
 
-/** How long a stop waits for the task to end, so its answer says how it ended: past GRACE_MS, when it is killed. */
 const STOP_WAIT_MS = GRACE_MS + 1_000;
 
-/**
- * The background-task tools, as an extension over `tasks`: `background_run` starts one, and `background_watch` does
- * the rest (plan 095): it reads the task's new output, waiting first if asked, types into it, or stops it. One tool
- * for all of these, against docs/style.md's one tool per action, because each is a way of looking at the task and every
- * one answers with the same thing, its output and state; the approval gate weighs a call that types or stops as a
- * command (daemon/approvals.ts).
- */
 export function backgroundExtension(tasks: BackgroundTasks): Extension {
   return defineExtension({
     name: "loki.background",

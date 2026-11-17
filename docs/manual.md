@@ -5,42 +5,68 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 
 ## Requirements
 
-- **macOS 13.3 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
-  shortcut.
+- **A Mac with Apple silicon, on macOS 13.3 or later.** The shell uses the traffic lights over a hidden title bar, the
+  dock badge and a global shortcut. Intel Macs are not supported: the install line and the Homebrew cask refuse one,
+  and the release carries no build for it. A loki already installed on an Intel Mac keeps working, but gets no more
+  updates; its check for one fails, and Preferences › About says so.
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under
   [Windows and Linux](#windows-and-linux).
-- **Node 22.19 or newer.** loki runs your agents in its own daemon, a Node process the window starts and keeps
-  running (see [docs/architecture.md](architecture.md)). The Homebrew cask brings Node with it. The shell looks
-  where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
-  global bin, `~/.local/bin`, nvm and fnm. On Linux the list swaps Homebrew for `/usr/local/bin`, `/usr/bin` and
-  Linuxbrew; on Windows it is npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta,
-  nvm-windows, fnm, scoop and bun. loki never downloads Node: with none new enough, Welcome says so, names the
-  usual command (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or `sudo apt install nodejs npm` /
-  `sudo dnf install nodejs`), links nodejs.org, and has **check again**, which looks afresh.
+- **Nothing else to install by hand.** loki runs your agents in its own daemon, a Node process the window starts and
+  keeps running (see [docs/architecture.md](architecture.md)), and it brings that Node itself: on first launch it
+  downloads the Node its release names from nodejs.org into `~/.loki/runtime`, checks it against the SHA-256 the
+  release carries, and starts the daemon on it. A later release that names another Node downloads that one on its
+  first launch, and removes the old one once the daemon runs on the new. A Node you installed yourself is left alone
+  and not used; `LOKI_NODE_BIN` names one to run instead.
+- **git**, which agents keep their memory and skills with. On the Mac it comes with Apple's command line tools; when
+  they are missing, Welcome asks for them (below). On Windows, when git or Git Bash is missing, loki downloads
+  PortableGit from Git for Windows' releases into `~/.loki/runtime` beside Node, checked the same way. On Linux it is
+  the distribution's package (`sudo apt install git`, `sudo dnf install git`); Welcome names it when git is missing.
 
 ## Install
 
-**Homebrew**, the recommended way:
+One line in a terminal, the same on every system. On a Mac with Apple silicon, or on Linux:
 
 ```bash
-brew install --cask almondlabs/loki/loki
-xattr -dr com.apple.quarantine /Applications/loki.app
+curl -fsSL https://almondlabs.github.io/loki/install.sh | sh                  # Stable
+curl -fsSL https://almondlabs.github.io/loki/install.sh | sh -s -- --nightly  # Nightly
 ```
 
-The second line matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned
-download as "damaged"; Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no longer has
-a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand once per install. The cask's
-own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xattr` line again; the cask
-follows each release. Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
+On Windows, in PowerShell:
 
-**Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main` that changes more than the docs, built about twenty
-minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
-conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
-and an install. Preferences › About shows which channel a build is on and names the right cask in its upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
+```powershell
+irm https://almondlabs.github.io/loki/install.ps1 | iex                                  # Stable
+$env:LOKI_CHANNEL = "nightly"; irm https://almondlabs.github.io/loki/install.ps1 | iex   # Nightly
+```
 
-**The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
-Open is not enough for an unsigned app on macOS 14 and later):
+The script downloads the newest release of its channel from GitHub and opens loki:
+
+- **On a Mac** with Apple silicon, `loki.app` goes in `/Applications`, or in `~/Applications` when `/Applications`
+  isn't yours to change. A file `curl` fetches carries no quarantine flag, so macOS opens the unsigned app without the
+  `xattr` line below. On an Intel Mac the script stops before it downloads anything and says loki needs Apple silicon;
+  it checks the Mac itself, so a terminal running under Rosetta still installs.
+- **On Linux** (x86_64), the AppImage goes to `~/.local/share/loki/loki.AppImage`, with a menu entry in
+  `~/.local/share/applications/loki.desktop` and its icon beside the app. When the AppImage needs FUSE 2 and it is
+  missing, the script stops and names the package command for your distribution (`sudo apt install libfuse2`, or
+  `libfuse2t64` on Ubuntu 24.04).
+- **On Windows** (64-bit 10 or 11), the setup runs silently for you alone, into `%LOCALAPPDATA%\loki`, with no
+  administrator prompt and a Start menu entry.
+
+It stops, and says so, when loki is open; quit it and run the line again. Run again, it replaces the app with the
+newest release and touches nothing else: your agents, chats and settings in `~/.loki` stay. It installs neither Node
+nor git; loki fetches what it needs at its first launch (Requirements). After that, loki updates itself (see
+"Updates" below), and Preferences › About moves it between Stable and Nightly, so the line is never needed again.
+
+**Nightly** is `main` as it stands whenever the maintainer releases a nightly, between stables, versioned
+`2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). A stable is the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1`
+the second (before October 2026, `2026.9.28` was simply the day). One loki is installed at a time; both channels share
+`~/.loki`, the daemon and the mod's ports. How releases are cut: [docs/releasing.md](releasing.md).
+
+### Other ways in
+
+**The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
+Applications, then clear the quarantine flag once. loki is not signed with an Apple Developer ID, and macOS refuses to
+open an unsigned download as "damaged" (right-click → Open is not enough on macOS 14 and later):
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/loki.app
@@ -48,36 +74,64 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 
 Or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security.
 
+**Homebrew**: `brew install --cask almondlabs/loki/loki`, then the same `xattr` line. The cask is for Apple silicon,
+and Homebrew refuses it on an Intel Mac. Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no
+longer has a flag to skip that (`--no-quarantine` is gone); the cask's own caveat says the same. The cask declares
+that loki updates itself, so Homebrew leaves updates to loki. A loki installed with Homebrew before it updated itself
+reaches the version that does with one last `brew upgrade --cask loki` and the `xattr` line; one from an older `.dmg`,
+with one last download. Nothing in `~/.loki` moves. The `loki-nightly` cask is deprecated: the Nightly channel in
+Preferences › About replaces it, and a loki already installed through it keeps updating itself on that channel.
+
+**Windows and Linux by hand**, from the [releases page](https://github.com/AlmondLabs/loki/releases/latest):
+`loki_<version>_x64-setup.exe`, an unsigned NSIS installer, which SmartScreen stops as an unknown publisher (**More
+info**, then **Run anyway**, once); `loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2; or
+`loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`). The Linux files are built on Ubuntu 22.04. The
+`-setup.exe` and the AppImage update themselves after that; the `.deb` does not, and its next version is another
+download from the releases page. No package manager carries them.
+
 **From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout or
 `npm run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
-**Windows (preview)**: `loki_<version>_x64-setup.exe` from a stable release, an unsigned NSIS installer. SmartScreen
-stops it as an unknown publisher; **More info**, then **Run anyway**, once.
+### First launch
 
-**Linux (preview)**: `loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`) or
-`loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2 (`libfuse2`, `libfuse2t64` on Ubuntu 24.04).
-Both are built on Ubuntu 22.04.
-
-Windows and Linux files come on stable releases only, published on their own before or after the `.dmg` of the
-same version, so take them from the newest release that has them; nightlies are Mac-only. An upgrade is the next
-such release's file; Preferences › About links it when one is out. No package manager carries them yet.
-
-Whichever way, the cask brings Node; the `.dmg`, source, Windows and Linux routes need a Node 22.19 or newer
-(Requirements). Then:
+Whichever way, loki brings its own Node (Requirements). Then:
 
 1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
    skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "What launch installed".
-   Then it finds Node and starts the daemon, which hosts the mod.
-2. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key, or sign in in
+   Then it makes sure its Node is in place and git is there, and starts the daemon, which hosts the mod.
+2. The first launch opens on **Getting loki ready** while it downloads Node (and PortableGit on Windows, when it is
+   needed): what it is fetching, a bar and how far along it is. A download that fails says what failed, with **Try
+   Again**. On a Mac without Apple's command line tools, it then asks for them: **Install Command Line Tools** shows
+   macOS's own installer, and **Check Again**, once that has finished, goes on. On Linux without git it names the
+   package command, with **Check Again**. After an update that names a new Node you see only the download, then
+   your chats.
+3. Then **Welcome** shows over the empty window: connect a model provider (paste a key, or sign in in
    the browser, for Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and more; a key is checked with
    the provider, then kept in your system's keychain; every turn is billed by that provider), then name your first
    agent, with a description, a persona and a model. You land on its main chat, on Messages, with the message box
    focused.
-3. Ask your agent to put something on the canvas.
+4. Ask your agent to put something on the canvas.
 
-Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app
-re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill folder it did not
-write, so a checkout wired up for development (below) keeps working.
+### Updates
+
+loki checks for a newer version on launch and every six hours, downloads it in the background, and installs it when
+you quit loki; the next launch is the new version. Nothing restarts by surprise: once an update has downloaded,
+a notice says it is ready, with **Restart to Update** and **Later**, and the loki menu's **Check for Updates…** reads
+**Restart to Update…**. If a chat is mid-turn, Restart to Update says that turn will stop and restarts only on
+**Update Anyway**. **Later** hides the notice until loki next opens; quitting still installs the update. An update is
+installed only when its signature matches loki's update key; a failed check, download or signature check leaves the
+running version as it was and says so quietly in Preferences › About, with **Check Again**. On the Mac, loki updates
+itself only from a folder you can change, such as `/Applications` on an administrator's account or `~/Applications`;
+anywhere else, About says to move it there rather than downloading an update it could not install. If installing at
+quit fails, About says so the next time loki opens.
+
+Preferences › About offers **Stable** (each release) or **Nightly** (each nightly of `main`); the choice takes effect at
+the next check. Switching from Nightly to Stable never installs an older build: loki stays on its nightly until a stable
+newer than it ships. The Windows installer and the Linux AppImage update the same way; the Linux `.deb` does not, and
+About links the releases page for the next one. A development build never checks.
+
+After an update the app re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill
+folder it did not write, so a checkout wired up for development (below) keeps working.
 
 An update can change how a chat store (`~/.loki/stores/<agent>.sqlite`) is laid out, for good: the update to pi 1.4
 in October 2026 did. Before the first start rewrites a store, loki copies it whole to
@@ -109,6 +163,20 @@ records take pi-ai's name for ChatGPT's provider and keep their effort as `reaso
 Learn's chats from Letta are hidden; a helper agent Letta made is moved to `~/.loki/backend/backup-letta-<date>/`.
 loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's.
 
+### Uninstall
+
+Quit loki first, then remove the app. Removing the app leaves your agents, chats and settings in `~/.loki` and loki's
+skill in `~/.agents/skills/loki`, so a later install picks up where you left off; delete those two as well to remove
+everything loki wrote.
+
+- **Mac:** move `loki.app` from `/Applications` (or `~/Applications`) to the Bin, then, if you want, delete `~/.loki`
+  and `~/.agents/skills/loki`. Installed with Homebrew, `brew uninstall --cask loki` removes the app, and
+  `brew uninstall --zap --cask loki` removes those two folders too.
+- **Windows:** Settings › Apps › Installed apps, then loki's **Uninstall**, or `uninstall.exe` in
+  `%LOCALAPPDATA%\loki`. Then, if you want, delete `%USERPROFILE%\.loki` and `%USERPROFILE%\.agents\skills\loki`.
+- **Linux:** delete `~/.local/share/loki` (the AppImage and its icon) and `~/.local/share/applications/loki.desktop`,
+  or, for the `.deb`, `sudo apt remove loki`. Then, if you want, delete `~/.loki` and `~/.agents/skills/loki`.
+
 ## The window
 
 loki is drawn to Apple's Human Interface Guidelines with Liquid Glass: what floats and steers (the sidebar, toolbars,
@@ -121,12 +189,14 @@ on the Mac's own material, the traffic lights in its top row: its first rows are
 **Agents** and **Learn**, each with a grey count (what waits on you in Flow, the cards due in Learn), the one showing
 filled. Chats lists its sources one level under its row; the other places keep their own list under the places. In
 Chats, the source's chats fill a list beside the sidebar, as Mail's messages do, and the chosen chat fills the rest. ⌃⌘S, as in Mail and Finder (Ctrl B on
-Windows and Linux), or the sidebar button beside the traffic lights, which stays while the sidebar is hidden, shows or
-hides it; drag its edge (or
+Windows and Linux), or the sidebar button, shows or hides it. On the Mac the button sits at the sidebar's right end, on
+the traffic lights' row, and beside the lights while the sidebar is hidden; elsewhere it stays at the left; drag its edge (or
 focus it and use the arrows) for a width between 200 and 300. The sidebar folds on its own when the window cannot keep
 the detail at least 480 wide beside it and the list; ⌃⌘S then shows it over the window until you choose something in
 it, and widening the window brings back what you chose. Below that the list narrows, to 260 at the least, before
-anything else gives way. With the sidebar folded the list starts past the traffic lights and the sidebar button.
+anything else gives way. With the sidebar folded on the Mac the list starts at the window's left edge, and only its title
+moves aside for the traffic lights and the sidebar button; elsewhere the list starts past the button. A chat's messages
+and its message box keep a readable width, centred in the space beside the list, as do an email's or a Slack thread's.
 **View › Show / Hide List** (⌃⌘L; Ctrl Shift L on Windows and Linux, where Ctrl L is Focus Message Box) hides the list
 in every place, so the detail (a chat's Canvas, say) takes its room; showing it again brings it back at the width it
 had. Both folds are kept for the window across restarts. ⌘⇧W hides loki. On Windows and
@@ -136,14 +206,20 @@ For the keyboard and VoiceOver the window is three regions, in this order: the s
 "Sidebar"), the list (named for the source showing, "Pinned", "Everything", "Due"), and the detail (the main
 landmark). Tab and ⇧Tab move through a region's controls and on to the next region: from the list, Tab goes to the
 detail's toolbar symbols, then its content. Esc in the detail (outside a text box, or from Flow's reply box) moves
-focus back to the list, in every place; Esc in the list does nothing, and never leaves the place.
+focus back to the list, in every place; Esc in the list does nothing, and never leaves the place. VoiceOver also hears
+a chat as it goes: when the agent starts thinking, when it waits on you, and the opening of its reply when the turn
+ends. A form's error is read as it appears, and in a list under a field (a mention, To and Cc, a folder) the one ↑↓
+are on is read.
 
-- **Chats** (⌘1): under **Chats** the sidebar lists its sources: **Pinned**, one per agent with its face (an agent
-  with no chats yet too), and **Archived**, each with a grey count of the chats that wait on you. The chevron at the
-  end of the Chats row folds them, and the fold is kept across restarts. Click **Chats** itself for every chat, under a
-  heading per agent (Pinned first), so each agent's main chat stays apart; click a source for its chats alone. Choosing a
-  source keeps the chat open when the source holds it; otherwise the chat pane says "No Chat Selected" until you pick
-  one. The list's toolbar names the source, with **New Chat** (an agent's starts a chat with that agent) and
+- **Chats** (⌘1): under the grey **Chats** heading the sidebar lists **All Chats**, **Pinned** and **Archived**, each
+  with a grey count of the chats that wait on you. The chevron at the end of the heading folds them, and the fold is
+  kept across restarts. **All Chats** shows every chat under a heading per agent (Pinned first), so each agent's main
+  chat stays apart. The pills under the list's title narrow All Chats or Pinned to **All**, **Waiting** (what waits
+  on you), **Unread** (news since you looked) or **Working** (the agent is running); the choice holds until you
+  close the window. Your agents are listed once, under **Agents**. Choosing a source keeps the chat open when the source holds it;
+  otherwise the chat pane says "No Chat Selected" until you pick one. A chat opened from ⌘K, a notification or Open
+  the Chat goes to All Chats when the source showing lacks it, setting the pills back to All when they would hide it. The
+  list's toolbar names the source, with **New Chat** and
   **Search** (⌥⌘F), which filters the source's chats by chat or agent name. Each chat is one line, its name alone,
   the main chat included; the phone's Home draws it the same. A chat's name goes bold when its agent wrote since you
   looked. On the right of each row, one thing: a blue count when it waits on you, else a green dot that breathes
@@ -242,12 +318,12 @@ focus back to the list, in every place; Esc in the list does nothing, and never 
   current. A skill nobody recorded a source for asks for one the first time. **remove** takes a skill out of the
   agent's memory. The page is remembered for the window.
 - **Preferences** (⌘, or ⌘6, or the menu bar): in the Mac app a window of its own, elsewhere a sheet over the whole window: six groups down the
-  left, and the chosen group's pages as tabs across its top, the last page remembered for the window. A filter over
-  the groups finds a page by its name or what it holds ("pair" finds Your devices; Enter opens the first page that
-  matched, Esc clears it). ⌘, closes Preferences again, Esc closes it, ⌘1, ⌘2, ⌘4 and ⌘5 close it and go to that section. ↑↓, Home
-  and End in the list move between groups, ←→ in the tabs between a group's pages, and ⌘[ and ⌘] step every page in
-  order. Each page is the same: settings in rows, the name and a line of help on the left, the control on the right; a
-  switch for on and off, a segmented control for a few choices, one blue button for the page's main action, red only
+  left as System Settings lists them, each a grey heading over its pages, one row per page with its coloured symbol;
+  the last page is remembered for the window. A filter over the list finds a page by its name, its group or what it
+  holds ("pair" finds Macs and Phone; Enter opens the first page that matched, Esc clears it). ⌘, closes Preferences
+  again, Esc closes it, ⌘1, ⌘2, ⌘4 and ⌘5 close it and go to that section. ↑↓ in the list move between pages and stop
+  at the ends, Home and End go to the first and last, and ⌘[ and ⌘] step every page in order. Each page is the same: settings in rows, the name and a line of help on the left, the control on the right; a
+  switch for on and off, a segmented control for a few choices, a pop-up menu for a duration, one blue button for the page's main action, red only
   for what removes something. The groups and their pages:
   1. **General**
      1. **Appearance**: System, Light or Dark (System follows macOS as it changes); kept per device.
@@ -291,9 +367,9 @@ focus back to the list, in every place; Esc in the list does nothing, and never 
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
   6. **loki**
-     1. **About**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
-        hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
-        the preview note), the system it runs on, how the app reaches the mod, requirements
+     1. **About**: loki's own version and where its update stands (up to date, checking, downloading, ready to install
+        when you quit with **Restart to Update**, or what failed with **Check Again**), **Stable** or **Nightly** (see
+        "Updates"), the system it runs on, how the app reaches the mod, requirements
         (the daemon's Node), and, folded, "What launch installed" and "Where loki keeps things".
      2. **Usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
         estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the
@@ -318,8 +394,12 @@ Backspace in the empty field, or the chip's ×, steps back out.
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
-same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to
-Messages, then focus from the detail back to the list; it never changes the place. Every shortcut lives in one table
+same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Canvas tab
+back to Messages, then focus from the detail back to the list; it never changes the place. A popover (a chat's folded
+links, New Chat's folder) opens beside the button that shows it, on whichever side has room, and closes on Esc, a click
+outside or the button again, leaving the focus on the button. Outside the Mac app, where loki draws a menu itself (More
+Chat Actions, New Chat's agent, a chat's right click in the list), it does the same: ↑↓ Home End and the first letters
+move through it, Return picks, and Esc or Tab closes it. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
@@ -328,14 +408,14 @@ itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Windows and Linux
 
-A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues, which
-Preferences › About links. Chats, Flow, Agents, Learn, Preferences, search and the mod are the Mac's. What
+A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues. Chats, Flow, Agents, Learn, Preferences, search and the mod are the Mac's. What
 differs:
 
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
    while maximised) and close at the right, as Slack does there. The strip drags the window and a double click
    maximises; the edges resize. ☰ opens the menus the Mac's menu bar has, with the same items and keys, by mouse or
-   by keyboard. The strip stays usable over a dialog. A second launch brings the running window forward instead
+   by keyboard: pointing at a menu, → or ↵ opens it, ← or Esc goes back, ↑↓ and the first letters move, and Esc, Tab or
+   a click outside closes it. The strip stays usable over a dialog. A second launch brings the running window forward instead
    of starting another loki.
 2. **Keys.** ⌘ is Ctrl, ⌥ Alt, ⇧ Shift, ↵ Enter, ⌫ Backspace, and every menu, tooltip, the keys sheet and
    Preferences › Keyboard shortcuts write them so. Move Chat Left and Right are Ctrl ← and Ctrl → or Ctrl Shift [ and Ctrl Shift ],
@@ -415,7 +495,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
-locks it out. When a newer loki is out, the Mac's window shows an **Update…** button at the top right of its main pane; it opens Preferences › loki, and its menu's **Later** hides it until the next version. If the icon opens on
+locks it out. If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
 cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.
@@ -459,7 +539,9 @@ pair it with any Mac of yours, and it joins the others by itself, introduced by 
 paired with every other, since a chat is reached on the Mac it lives on). A Mac you **forget** stays forgotten: it is
 not joined again until you pair it by code. While any Mac is paired,
 loki keeps the Mac from sleeping when it is idle on power, so a MacBook on its charger with the lid open stays
-reachable; a closed lid still sleeps.
+reachable; a closed lid still sleeps. When a paired Mac stays out of reach, `~/.loki/mod.log` says why in a
+`peers:link_failed` line, once each time the reason changes: no answer, no token in the keychain, or the other Mac
+turning this one away.
 
 **Where things live.**
 
@@ -530,7 +612,11 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 ## Install (development)
 
 You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs npm, Vite, the
-Tauri CLI, the tests and loki's daemon. Then:
+Tauri CLI, the tests and loki's daemon: a development build runs the daemon on your Node, never downloading one. It
+looks where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
+global bin, `~/.local/bin`, nvm and fnm (on Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place; on
+Windows npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta, nvm-windows, fnm, scoop and bun).
+Then:
 
 ```bash
 npm install
@@ -575,9 +661,8 @@ When something does not come up:
 1. **The window opens but the app never links** (Vite prints `ws proxy error … 41414`): the daemon is not
    running, or its mod failed. `~/.loki/logs/daemon.log` has the daemon's output, its error at start included,
    and `~/.loki/mod.log` the mod's.
-2. **Welcome shows the Node step**: no Node 22.19 or newer anywhere loki looks. It names the command for your
-   system (`brew install node`, `winget install OpenJS.NodeJS.LTS`, the distribution's package); install it,
-   then **check again**. `LOKI_NODE_BIN` points loki at one it does not find.
+2. **Welcome says there is no Node 22.19 or newer for this development build**: none anywhere loki looks. Put one on
+   PATH, or point `LOKI_NODE_BIN` at one it does not find, then **Check Again**.
 3. **The installed app is running**: its daemon holds `~/.loki`, so yours waits (`daemon.log` says it exited with
    code 3). Quit the app.
 
@@ -635,7 +720,8 @@ in place of the open one, as Messages opens a new message, and the list leads wi
 agents, or with the caret on it type the start of a name. The folder the chat will work in is at the end of that line
 (the open chat's folder for its own agent, else the agent's most recent); click it for the folder field (recents, typed
 paths with completion, or **Browse…** for the system's folder dialog; the git branch shows when the folder is a
-checkout). The chat runs on the agent's usual model. Nothing is created until you send the first message: Esc in the
+checkout). The list opens with nothing chosen: Tab goes on and leaves the folder as it was, unless you typed or chose
+one with ↑↓. The chat runs on the agent's usual model. Nothing is created until you send the first message: Esc in the
 empty box, or opening another chat, leaves nothing behind.
 
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
@@ -655,8 +741,8 @@ the wrong way.
 in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
 and one of its models (the others show once it has run once). From the first message the chat stays on Claude
 Code: the other tabs are greyed out, and a new chat is how you go back to loki's. loki starts Claude
-Code itself, always through `npx` at the adapter version this loki pins (npx fetches it the first time), so it needs
-Node and a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
+Code itself, always through `npx` at the adapter version this loki pins (npx, which comes with loki's Node, fetches
+it the first time), so it needs a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
 
 - the replies, tool calls and their diffs show as in any chat, and stay in loki's history and Flow;
 - when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude
@@ -781,7 +867,10 @@ under its row in the sidebar (see "Lanes" below), the lane's cards in the list b
 order" below), and the selected card beside the list with its whole thread (newest at the bottom, tool calls as muted
 markers) and its moves in its toolbar. Each row says who it is from (the sender, or the chat's agent), what it is about
 (the subject, the channel, the ticket or the chat's name) and a line of the newest words, with the kind's symbol at its
-start and a muted "Sign In" when the card's account needs mending. ↑↓ move through the list and show each card without
+start and a muted "Sign In" when the card's account needs mending. The pills under the list's title show one kind
+of card at a time: **All**, **Chats**, **Mail**, **Slack** or **Jira**, each there only while Flow holds a card of
+that kind. A kind narrows the list, the arrows, the moves and the count as a lane does, within the lane showing, and
+holds until you choose another or quit. ↑↓ move through the list and show each card without
 leaving the list; Return goes into the card's reply box, Tab to the card's moves in its toolbar; a click selects. The rows never reorder while you are in
 Flow: a card you move on from leaves its gap closed, and a card that arrives takes its place by score, never above the
 one you are on.
@@ -868,7 +957,9 @@ across the stretches. Reading them side by side, the model writes one card for a
 a revision, not a second card, for a later correction; a card the person keeps failing brings the tail of the
 conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space (or ↵ or ↓) for the answer, then one of two answers — ← again or → got it
 (1 and 2 do the same; space then stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
-the scheduler modern Anki uses.
+the scheduler modern Anki uses. The card shows no list of keys: each is in its button's tooltip (hold the pointer over
+**Show Answer**, **Delete** and the rest), in the Learn menu and in Preferences › Keyboard shortcuts. **Delete** sits apart
+at the card's trailing edge, in red.
 Learn's views are its sources in the sidebar, under Learn: **Review** (the deck, with the count of cards due), **Leads**,
 **All Cards** and **Deleted**; ⌘[ and ⌘] step through them. The list beside the sidebar holds the view's cards or leads,
 and the detail the deck or the one you chose. In Review the list is the due queue with the card in front of you selected:
@@ -910,15 +1001,19 @@ none), and the mail and Slack of all your accounts or of the ones you pick (or n
 "everything Ada owns but her chats" are each a lane. A lane set to all agents or all accounts takes in the ones you add
 later; a picked one does not. Deleting an agent or an account takes it out of every lane.
 
-**Making one.** Preferences › Flow lists your lanes above the return times; **new lane** opens the editor: a name, then
-chats from all agents, picked agents or none, then mail and Slack from all accounts, picked accounts or none. Each
-account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
+**Making one.** Preferences › Flow lists your lanes above the return times, one row each with what it shows ("Chats
+from Work and Ops, mail and Slack from one account") and **Edit…**; **Add Lane…** under them opens the same editor for a
+new one, in a sheet: a name, then chats from all agents, picked agents or none, then mail and Slack from all accounts,
+picked accounts or none. Each account shows the agent that owns it, and the Mac it lives on when that is a paired Mac.
+Names must be there and differ. Return or **Save** saves and closes the sheet, Esc or **Cancel** leaves the lane as it
+was, and **Delete Lane…** asks once more before it deletes.
 Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
 
-**Switching.** On the Mac the lanes are listed under Flow's row in the sidebar, as Mail lists its mailboxes: Flow's
-own row is Everything, then your lanes, then a lane for each agent with cards waiting (its chats and the accounts it
-owns), busiest first, each with how many of its cards need you. Click one to switch; the list's title names the lane.
-On the phone Flow's title names the lane ("Work"); tap it for the same switcher. Each device keeps its own lane until
+**Switching.** On the Mac the lanes are listed under Flow's heading in the sidebar, as Mail lists its mailboxes:
+Everything, then your lanes, each with how many of its cards need you. Click one to switch; the list's title names the
+lane. On the phone Flow's title names the lane ("Work"); tap it for the switcher, which also has a lane for each agent
+with cards waiting (its chats and the accounts it owns), busiest first. A Mac left in an agent's lane opens on
+Everything, since the Mac lists each agent once, under Agents. Each device keeps its own lane until
 you switch, so the Mac can sit in Work while the phone stays in Everything; a new device starts in Everything.
 
 **What a lane changes.** The deck holds only the lane's cards, in the usual order. Nothing from another lane breaks

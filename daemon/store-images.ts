@@ -5,26 +5,14 @@ import { DatabaseSync } from "node:sqlite";
 import { SHRINK_ABOVE_BYTES, shrinkImage, type Run } from "./image-shrink.ts";
 import { copyStore } from "./store-backup.ts";
 
-/**
- * The pictures already in a chat's store, made the size `image_view` makes new ones (plan 032). Plan 029 shrinks a
- * picture before the model gets it; the ones read before that are in the store whole, base64 inside the tool result's
- * entry, and a store grew hundreds of MB on them. Only tool results are touched: a picture the person pasted is small
- * already, and the window's copy of it is named by its bytes (daemon/chat-images.ts). The daemon must not have the
- * store open: scripts/shrink-images.ts holds the daemon's lock while this runs.
- */
-
-/** What one store held, and what it holds after (or would, without `apply`): sizes of the pictures' base64. */
 export interface StoreImagesReport {
   file: string;
-  /** Pictures that came out smaller. */
   pictures: number;
   before: number;
   after: number;
-  /** The whole store as it was, copied before the change; null when nothing was written. */
   backup: string | null;
 }
 
-/** A picture part of a message, as pi-ai keeps it. */
 interface ImagePart {
   type: "image";
   data: string;
@@ -34,7 +22,6 @@ interface ImagePart {
 const isImage = (v: unknown): v is ImagePart =>
   typeof v === "object" && v !== null && (v as { type?: unknown }).type === "image" && typeof (v as { data?: unknown }).data === "string";
 
-/** Every picture part anywhere in a record. */
 function imagesIn(v: unknown, out: ImagePart[] = []): ImagePart[] {
   if (isImage(v)) out.push(v);
   else if (Array.isArray(v)) for (const x of v) imagesIn(x, out);
@@ -42,11 +29,6 @@ function imagesIn(v: unknown, out: ImagePart[] = []): ImagePart[] {
   return out;
 }
 
-/**
- * Shrink the large tool-result pictures in the store at `file`. Without `apply` the store is only read and the report
- * says what would change. With it, the store is first copied whole into `backupDir`, then the entries are rewritten in
- * one transaction and the file compacted. `run` and `platform` reach the shrink (tests inject them).
- */
 export async function shrinkStoreImages(
   file: string,
   opts: { apply: boolean; backupDir: string; run?: Run; platform?: NodeJS.Platform },
@@ -63,7 +45,6 @@ export async function shrinkStoreImages(
       const record: unknown = JSON.parse(row.record);
       let touched = false;
       for (const image of imagesIn(record)) {
-        // Base64 is four characters to three bytes: no need to decode one that is small.
         if (image.data.length * 0.75 <= SHRINK_ABOVE_BYTES || image.mimeType === "image/gif") continue;
         const source = join(work, "picture");
         writeFileSync(source, Buffer.from(image.data, "base64"));

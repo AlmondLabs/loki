@@ -1,15 +1,3 @@
-/* loki design tokens — Liquid Glass (plan 2026-11-12-1505): loki on Apple's Human Interface Guidelines, day or night.
-   The roles are loki's, the colours Apple's semantic ones (label, secondary label, separators, fills, the system blue),
-   darkened where AA needs it. Blue (--loki-accent) is for links, focus, anything interactive and what waits on you;
-   the affirmative fill is the accent, as a Mac's default button is; --loki-positive and --loki-negative stay as status
-   inks. data-theme picks day or night. The glass tokens draw the translucent material (styles.css's glass utilities);
-   the media block below turns them solid under Reduce Transparency or Increase Contrast, or when the platform asks for
-   it (data-glass="solid").
-   Type: one sans stack for everything the app presents (--loki-display and --loki-label are aliases of it, kept so
-   older call sites resolve); SF Mono only for code, data (diffs, file bodies) and key hints. The size scale is the
-   Mac's, as AppKit sets it: body and list rows 13, secondary 11, the smallest 10, a window or section title 15, a
-   pane's large title 22, the largest 26.
-   The phone redeclares these roles under .loki-phone (phone/phone.css). */
 :root {
   color-scheme: dark;
   --loki-bg: #1c1c1e;
@@ -26,11 +14,8 @@
   --loki-brass-soft: oklch(25% 0.05 255);
   --loki-positive: #30d158;
   --loki-negative: #ff6961;
-  /* What waits on you is blue, as Mail's unread dot is (plan 2026-11-12-1505, U17); red stays for failures and the Dock. */
   --loki-attention: #3d9bff;
   --loki-on-attention: #001d3d;
-  /* An agent with no picture: Messages' grey monogram, a soft top-to-bottom gradient under a white initial that reads
-     at 4.5:1 or more even at the gradient's lightest. */
   --loki-monogram-top: #737378;
   --loki-monogram-bottom: #545458;
   --loki-on-monogram: #ffffff;
@@ -57,16 +42,7 @@
   --loki-glass-hi: rgba(255, 255, 255, 0.14);
   --loki-glass-edge: rgba(255, 255, 255, 0.12);
   --loki-glass-blur: blur(28px) saturate(180%);
-  /* The chosen segment of a segmented control, raised off its grey track as a Mac's is. */
   --loki-segment: #636366;
-  /*
-   * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
-   *   10 micro (kbd) and fine print   11 tag, small, meta, label (.loki-label)   13 body and row title
-   *   15 title   22 display   26 hero
-   * Weights carry the hierarchy: 400 reading, 600 labels and names, 700 titles. No tracking, no caps.
-   * Radii: sm 6 (fields, icon buttons, dense rows, code) · md 8 (buttons, rows, plates) ·
-   *        lg 12 (cards, sheets, popovers, panels) · pill 999 (chips, badges, toasts); circles use half their size.
-   */
   --loki-radius-pill: 999px;
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
@@ -83,7 +59,6 @@
   --spring-bouncy: linear(0, 0.0159, 0.0579, 0.1182, 0.1906, 0.2699, 0.352, 0.4338, 0.5127, 0.5872, 0.656, 0.7184, 0.7741, 0.8231, 0.8655, 0.9016, 0.9318, 0.9568, 0.9769, 0.9928, 1.0051, 1.0142, 1.0206, 1.0248, 1.0273, 1.0283, 1.0282, 1.0273, 1.0257, 1.0238, 1.0216, 1.0193, 1.017, 1.0147, 1.0125, 1.0105, 1.0087, 1.007, 1.0055, 1.0043, 1.0032, 1.0023, 1.0015, 1);
   --spring-bouncy-ms: 512ms;
   /* end springs */
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(72% 0.14 25);
   --loki-label-1: oklch(72% 0.14 65);
   --loki-label-2: oklch(72% 0.14 95);
@@ -102,7 +77,6 @@
   }
 }
 
-/* Daylight: Apple's light Mac — a white ground, pale grey panels, grey hairlines, near-black ink. */
 :root[data-theme="light"] {
   color-scheme: light;
   --loki-bg: #ffffff;
@@ -148,7 +122,6 @@
   --loki-glass-edge: rgba(0, 0, 0, 0.1);
   --loki-glass-blur: blur(28px) saturate(180%);
   --loki-segment: #ffffff;
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(54% 0.15 25);
   --loki-label-1: oklch(54% 0.15 65);
   --loki-label-2: oklch(54% 0.15 95);
@@ -159,8 +132,6 @@
   --loki-label-7: oklch(54% 0.15 350);
 }
 
-/* Glass turns solid, same shapes, when the person asked for less transparency or more contrast (R3), or when the
-   platform's budget says so: data-glass="solid" on the root. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root,
   :root[data-theme="light"] {
@@ -216,12 +187,9 @@
   --sidebar-ring: var(--loki-accent);
 }
 :root {
-  /* What the chat pane's floating header and dock measure (shared/use-height-var.ts); 0 until measured. */
   --loki-header-height: 0px;
   --loki-dock-height: 0px;
-  /* The width the Update button takes at the detail toolbar's trailing edge (shell/update-button.tsx); 0 without one. */
-  --loki-toolbar-room: 0px;
-  /* The face that leads a message in the thread; tool lines, quick replies and widgets indent by it and its 8px gap. */
+  --loki-lead: 0px;
   --loki-msg-face: 36px;
 }
 :root {
@@ -233,8 +201,6 @@
   --loki-layer-toast: 300;
 }
 
-/* More contrast (the OS setting): the quiet hairlines take the controls' stronger edge, in day and night.
-   The phone does the same for its own tokens (phone.css). */
 @media (prefers-contrast: more) {
   :root,
   :root[data-theme] {
@@ -242,7 +208,6 @@
   }
 }
 
-/* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */
 .loki-label {
   font-family: var(--loki-font);
   font-size: var(--text-xs);
@@ -250,15 +215,6 @@
   color: var(--loki-muted);
 }
 
-/* Focus flashes: when focus moves by keyboard, a 2px accent ring appears and fades over a second, so you see
-   where it went without a box sitting there. Controls (buttons, rows, tabs, links, selects, checkboxes) settle
-   on a muted ring, since nothing else shows which one Tab or Enter acts on; text fields neither flash nor ring,
-   the caret shows them (a flash on every click into a box was a blink you saw all day). The transparent ring
-   stays for forced-colours mode. The ring is drawn inside the control's edge so a scrolling list or a clipped panel never
-   cuts it off; links get a small offset since they have no box. The flash animates only the colour, from the
-   accent (or --loki-focus-flash, the phone's link colour) to the rule's own outline, so reduced motion (every
-   duration zeroed below) shows the settled state straight away. An animation beats a plain declaration: a rule
-   that turns a ring off must say animation: none too. */
 @keyframes loki-focus-flash {
   from {
     outline-color: var(--loki-focus-flash, var(--loki-accent));
@@ -301,7 +257,6 @@ a:focus-visible {
     transform: scale(0.7);
   }
 }
-/* Widgets settle onto the sheet when a desk loads (staggered per frame). */
 .loki-frame {
   animation: loki-settle 260ms ease-out both;
 }
@@ -315,12 +270,10 @@ a:focus-visible {
     transform: none;
   }
 }
-/* Frame controls stay quiet until the frame is hovered or focused. */
 .loki-frame-controls {
   opacity: 0.35;
   transition: opacity 160ms ease-out;
 }
-/* Agent content should never punch out of its frame: media and code fit the width, wide blocks scroll. */
 .loki-frame-body img,
 .loki-frame-body svg,
 .loki-frame-body video,
@@ -337,7 +290,6 @@ a:focus-visible {
   max-width: 100%;
   overflow-x: auto;
 }
-/* The resize grip hides until the frame is hovered, like the controls. */
 .loki-frame-resize {
   opacity: 0;
   transition: opacity 160ms ease-out;
@@ -362,7 +314,6 @@ a:focus-visible {
   }
 }
 
-/* Inbox: cards move the way you did. */
 @keyframes loki-veil {
   from {
     opacity: 0;
@@ -371,7 +322,6 @@ a:focus-visible {
     opacity: 1;
   }
 }
-/* Sheets opened by a click rise into place (Sheet sets data-grow); a key's sheet is just there. */
 .loki-sheet[data-grow] {
   animation: loki-sheet 160ms ease-out both;
 }
@@ -385,7 +335,6 @@ a:focus-visible {
     transform: none;
   }
 }
-/* Rail buttons. */
 @media (hover: hover) and (pointer: fine) {
   .loki-rail:hover {
     background: var(--loki-hover) !important;
@@ -412,7 +361,6 @@ a:focus-visible {
     transform: none;
   }
 }
-/* A view swapped under a fixed header (Learn's tabs): a short fade, no movement. */
 @keyframes loki-view-in {
   from {
     opacity: 0;
@@ -422,11 +370,6 @@ a:focus-visible {
   }
 }
 
-/* Reduced motion means less movement, not none. Every duration and delay goes to zero (a delayed zero-length
-   settle would leave a frame at its from-keyframe, invisible, until the delay ran out); then the things that
-   appear and help you follow what changed (a sheet and its veil, a popover, a chat's arriving rows and words,
-   widgets settling, the phone's banner) fade in briefly instead, with no move or scale. Without the fade they
-   would cut in hard, which is its own jolt. JS-driven moves read prefersReducedMotion() from kit/motion.ts. */
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0ms !important;
@@ -436,6 +379,7 @@ a:focus-visible {
   }
   :is(
     .loki-veil[data-grow],
+    .loki-sheet-veil[data-grow],
     .loki-sheet[data-grow],
     .loki-popover[data-grow],
     .loki-frame,
@@ -449,7 +393,6 @@ a:focus-visible {
     animation-duration: 150ms !important;
     animation-timing-function: ease-out !important;
   }
-  /* Opacity-only transitions keep a short fade too: controls showing on hover, a frame's glow. */
   :is(.loki-frame-controls, .loki-frame-resize, .loki-frame-glow) {
     transition-duration: 150ms !important;
   }

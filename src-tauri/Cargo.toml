@@ -14,7 +14,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# macos-private-api: the transparent window the Mac's sidebar material shows through (plan 2026-11-12-1505, U13).
 tauri = { version = "2", features = ["image-png", "macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -26,35 +25,31 @@ oxc_semantic = "0.148"
 oxc_transformer = "0.148"
 oxc_codegen = "0.148"
 percent-encoding = "2"
-# The capability token's bytes, from the OS random source on every system (lib.rs `new_token`).
 getrandom = "0.3"
 tauri-plugin-opener = "2"
-# The system's own folder dialog for a new desk, on every OS (plan 014 KTD9).
 tauri-plugin-dialog = "2"
-# The process list (procs.rs): a daemon left from an earlier run, found by its command line and stopped by pid and
-# start time.
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+sha2 = "0.10"
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+tauri-plugin-updater = { version = "2.12", default-features = false, features = ["rustls-tls", "system-proxy"] }
+semver = "1"
 
-# macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
-# tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-global-shortcut = "2"
-# Pop-up menus built in AppKit, so an item can carry a template SF Symbol (popup.rs); the versions Tauri already uses.
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
 
-# Windows only: the daemon's Job Object (harness.rs) and no console window for node (node.rs `quiet`).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
-# Windows and Linux: one loki per user — a second launch brings the running window forward instead of starting a
-# second shell and daemon on the same folder (plan 014 KTD7). The Mac's app bundle already does this.
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
 
-# Unix: SIGTERM to the daemon on stop (harness.rs `terminate`); on Linux also PR_SET_PDEATHSIG, so the daemon dies
-# with loki (harness.rs `die_with_loki`).
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

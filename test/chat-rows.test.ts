@@ -7,11 +7,6 @@ import type { DeskSummary } from "../core/frame-types.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { toggleLabelTerm } from "../core/labels.ts";
 
-/**
- * Chat rows the same on the Mac and the phone (plan 027): no lead, one line, and on the right the count while
- * something waits on you, the pulsing dot while a turn runs, else the time; an agent's face heads its section.
- */
-
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const desk = (over: Partial<DeskSummary> = {}): DeskSummary => ({

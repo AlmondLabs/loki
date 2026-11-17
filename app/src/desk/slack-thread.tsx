@@ -22,29 +22,15 @@ import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
 import { SmilePlusIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
 
-/** Where each message sits in the card: what starts before it, and whether it opens a run of one person's messages. */
 export interface SlackRowPlan {
-  /** The day pill before it, Slack's ("Today", "Yesterday", a weekday, a date); null when the day goes on. */
   day: string | null;
-  /** The red New line before it: the first message the person has not read. */
   divider: boolean;
-  /** It starts a run: a new person, a gap, a new day, the New line, or into or out of the open thread. */
   first: boolean;
-  /**
-   * The message's day, shown beside its time, when it is not the day of the row above and no pill says so: a reply
-   * posted days after its thread began, or the channel going on after such a reply (plan 075).
-   */
   dayNote: string | null;
 }
 
-/**
- * Each message's day pill, New line and run start, in the card's order (plan 074). Pills come from the channel's own
- * messages only (plan 075): a thread's replies may come days later than the channel messages after it, and pills
- * taken from both would run back in time.
- */
 export function planSlackRows(messages: readonly OutsideMessage[], now: number = Date.now()): SlackRowPlan[] {
   const days = dayPills(
     messages.map((m) => (m.in_thread ? {} : m)),
@@ -70,10 +56,6 @@ export function planSlackRows(messages: readonly OutsideMessage[], now: number =
   });
 }
 
-/**
- * Items keyed by where each starts in the message's words rather than by their place in a list. Each counts at least
- * one character, so no two share a start.
- */
 function keyed<T>(items: readonly T[], length: (item: T) => number): Array<[string, T]> {
   let at = 0;
   return items.map((item) => {
@@ -83,13 +65,11 @@ function keyed<T>(items: readonly T[], length: (item: T) => number): Array<[stri
   });
 }
 
-/** One run of a message's words as Slack draws it: styled text, a link to its address, a mention, or an emoji. */
 function Span({ s }: { s: SlackSpan }): ReactNode {
   if (s.kind === "mention") return <span className="loki-mention">{s.text}</span>;
   if (s.kind === "emoji") return s.image ? <img className="loki-emoji" src={s.image} alt={s.text} title={s.text} /> : <span title={s.text}>{s.text}</span>;
   let out: ReactNode;
   if (s.kind === "link") {
-    // Only a web or mail address opens; anything else (a slack:// link) is shown as its words.
     out = !openableHref(s.url) ? (
       s.text
     ) : (
@@ -116,7 +96,6 @@ function Spans({ spans }: { spans: readonly SlackSpan[] }) {
   return keyed(spans, (s) => s.text.length).map(([key, s]) => <Span key={key} s={s} />);
 }
 
-/** A message's paragraphs: ordinary lines, a quote with Slack's bar, a code block; the item's ContentParts draws them too (plan 097). */
 export function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
   return keyed(blocks, (b) => b.spans.reduce((n, s) => n + s.text.length, 0)).map(([key, b]) => {
     if (b.kind === "code")
@@ -134,7 +113,6 @@ export function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
   });
 }
 
-/** What an app attached to its message (plan 075): a lead line, then a bar in the app's colour beside its title, text and fields. */
 export function AppAttachment({ a }: { a: SlackAttachment }) {
   return (
     <>
@@ -163,21 +141,17 @@ export function AppAttachment({ a }: { a: SlackAttachment }) {
   );
 }
 
-/** What a shared file's chip says after its name: its kind and size, as far as Slack gave them (plan 080). */
 export function fileFacts(f: SlackFile): string {
   return [f.kind, f.size === null ? null : fileSize(f.size)].filter(Boolean).join(" · ");
 }
 
-/** The largest a picture's preview draws, in pixels, as Slack draws one in a channel. */
 const PREVIEW_BOX = { width: 360, height: 240 };
 
-/** A preview's size fitted into PREVIEW_BOX, kept to its shape and never grown, so the row is its height before it loads. */
 export function previewSize(p: { width: number; height: number }): { width: number; height: number } {
   const scale = Math.min(1, PREVIEW_BOX.width / p.width, PREVIEW_BOX.height / p.height);
   return { width: Math.round(p.width * scale), height: Math.round(p.height * scale) };
 }
 
-/** A shared picture drawn as itself, its name under it; pressing it opens it where it came from, named by `where`. */
 function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullable<SlackFile["preview"]>; where: string }) {
   const link = f.link;
   const picture = <img src={chatImageUrl(preview.name)} alt={f.name} loading="lazy" {...previewSize(preview)} />;
@@ -195,11 +169,6 @@ function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullabl
   );
 }
 
-/**
- * The files shared in a message as chips (plan 080), by name, kind and size, and a picture as itself when its account's
- * Mac saved its thumbnail; pressing one opens it in Slack, which holds its bytes. A file deleted since, or hidden by the workspace's plan, says so and opens nothing.
- * A Jira comment's files ride the same shape (plan 093), so `where` names the place they open: "Slack", or "jira" on a Jira card.
- */
 export function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
   return (
     <div className="loki-slack-files">
@@ -234,12 +203,9 @@ export function SlackFiles({ files, where }: { files: readonly SlackFile[]; wher
   );
 }
 
-/** The words Slack sends to a whole channel, which the card marks as a mention. */
 const BROADCAST = /(@(?:channel|here|everyone))\b/;
 
-/** A message's text with its links made links and @channel, @here and @everyone marked, as Slack marks them. */
 function SlackText({ text }: { text: string }): ReactNode {
-  // Each part is keyed by its kind and where it starts in the text: an empty text part and the mention after it share a start.
   let at = 0;
   return text.split(BROADCAST).map((part, i) => {
     const key = at;
@@ -254,7 +220,6 @@ function SlackText({ text }: { text: string }): ReactNode {
   });
 }
 
-/** The name and time on the first message of a run; later ones in the run keep the name for a screen reader only. */
 function SlackHead({ m, first, dayNote }: { m: OutsideMessage; first: boolean; dayNote: string | null }) {
   const name = m.mine ? "you" : m.sender;
   if (!first) return <span className="sr-only">{name}: </span>;
@@ -272,13 +237,8 @@ function SlackHead({ m, first, dayNote }: { m: OutsideMessage; first: boolean; d
   );
 }
 
-/** "1 reply", "3 replies", and so on. */
 const replies = (n: number, word = "") => `${String(n)} ${word}${n === 1 ? "reply" : "replies"}`;
 
-/**
- * What a post says of its thread: how many replies are new when some are and the thread can be opened (plan 077,
- * R11), else how many replies it has; null for a post with none.
- */
 function repliesLabel(m: OutsideMessage, canOpen: boolean): string | null {
   const fresh = canOpen ? m.new_replies : undefined;
   if (fresh === true) return "new replies";
@@ -286,10 +246,6 @@ function repliesLabel(m: OutsideMessage, canOpen: boolean): string | null {
   return m.replies ? replies(m.replies) : null;
 }
 
-/**
- * Under a post: its replies as a button that opens its whole thread, saying how many are new when some are; without
- * a way to open it (a Mac on an older loki), how many replies it has.
- */
 export function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
   const label = repliesLabel(m, onOpen !== undefined);
   if (!label) return null;
@@ -301,11 +257,6 @@ export function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => 
   );
 }
 
-/** One message as the chat draws one: a face and name on the first of a run, its time (and day, when it moved on) beside the name. */
-/**
- * What a row can do with reactions (plan 079): open the picker on it, toggle one of its pills, react with one of the
- * person's quick reactions from its hover bar (plan 084), and the picker when open.
- */
 export interface RowReacting {
   open: () => void;
   toggle: (r: SlackReaction) => void;
@@ -314,15 +265,12 @@ export interface RowReacting {
   picker: ReactNode;
 }
 
-/** How many of the person's quick reactions a message's hover bar shows, as Slack's does. */
 const BAR_QUICK = 3;
 
-/** Slack's add-reaction mark: a face with a plus, drawn in the text's colour. */
 function AddReactionMark() {
   return <Glyph icon={SmilePlusIcon} size={18} />;
 }
 
-/** The bar that shows on the message under the pointer, as Slack's does: the person's quick reactions and the picker. */
 export function HoverBar({ reacting }: { reacting: RowReacting }) {
   return (
     <div className="loki-slack-hoverbar" role="toolbar" aria-label="React">
@@ -338,7 +286,6 @@ export function HoverBar({ reacting }: { reacting: RowReacting }) {
   );
 }
 
-/** Where a message sits in the thread, as its row is drawn: the first of a run, the day it moved to, its thread, its reacting. */
 export interface SlackRowAt {
   first: boolean;
   dayNote: string | null;
@@ -347,7 +294,6 @@ export interface SlackRowAt {
   jira: boolean;
 }
 
-/** The Slack card's own row, as the phone draws it. */
 const defaultRow = (m: OutsideMessage, at: SlackRowAt) => <SlackRow m={m} {...at} />;
 
 function SlackRow({
@@ -363,7 +309,6 @@ function SlackRow({
   dayNote: string | null;
   onOpen?: () => void;
   reacting?: RowReacting;
-  /** A Jira comment (plan 091): it has no reactions or replies, so neither is drawn. */
   jira?: boolean;
 }) {
   return (
@@ -391,17 +336,14 @@ function SlackRow({
   );
 }
 
-/** What a load button says: a thread's count of replies on that side, else "load earlier" or "load later" (plan 077, R3). */
 export function loadLabel(direction: "before" | "after", more: number | boolean, busy: boolean): string {
   if (busy) return "loading…";
   if (typeof more === "number") return `${String(more)} ${direction === "before" ? "earlier" : "later"} ${more === 1 ? "reply" : "replies"}`;
   return direction === "before" ? "load earlier" : "load later";
 }
 
-/** Whether there is more on a side to load (R4). */
 const hasMore = (more: number | boolean) => (typeof more === "number" ? more > 0 : more);
 
-/** A button that loads more on one side of the window, drawn only when the window has more there (plan 077, R3, R4). */
 function LoadButton({
   direction,
   window,
@@ -422,10 +364,6 @@ function LoadButton({
   );
 }
 
-/**
- * The red New line before the first message the person has not read (plan 074), with the day when one starts there;
- * a Jira card's thread draws it too (plan 2026-11-10-1451, KTD14).
- */
 export function NewLine({ day = null }: { day?: string | null }) {
   return (
     <div className="loki-msg-divider" role="separator" aria-label="New since you last read">
@@ -436,7 +374,6 @@ export function NewLine({ day = null }: { day?: string | null }) {
   );
 }
 
-/** The day pill and the red New line before a message, as its row plan says. */
 function RowMarks({ p }: { p: SlackRowPlan }) {
   if (p.divider) return <NewLine day={p.day} />;
   if (!p.day) return null;
@@ -447,21 +384,11 @@ function RowMarks({ p }: { p: SlackRowPlan }) {
   );
 }
 
-/**
- * Which messages get the mention look: on a Slack card those that brought it (plan 077), on a Jira card the comments
- * that mention the person (plan 091, Decision 4), since any event brings a Jira card.
- */
 const washed = (m: OutsideMessage, jira: boolean) => (jira ? m.mentions_me === true : m.brought === true);
 
-/** A row's classes: indented under its post when it is a reply, and the mention look when `washed` says so. */
 const rowClass = (m: OutsideMessage, jira: boolean) =>
   [m.in_thread ? "loki-slack-reply" : "", washed(m, jira) ? "loki-slack-brought" : ""].filter(Boolean).join(" ") || undefined;
 
-/**
- * Where the card's box scrolls: to the focused row when a view opens, unless it `stays`, and, when earlier messages
- * load above what is being read, down by what they added, from wherever the person has scrolled meanwhile, so it
- * stays. A load that brings nothing leaves the box alone. Returns the refs to attach and the call that loads earlier.
- */
 function useThreadScroll(opening: string, firstId: string, busy: ThreadControls["busy"] | null, load: (() => void) | null, stays: boolean) {
   const focus = useRef<HTMLDivElement>(null);
   const top = useRef<HTMLDivElement>(null);
@@ -488,20 +415,12 @@ function useThreadScroll(opening: string, firstId: string, busy: ThreadControls[
   return { focus, top, loadEarlier };
 }
 
-/** How near the bottom the person counts as reading the newest, in pixels: a row's worth less than the very end. */
 const AT_BOTTOM_PX = 24;
 
-/** Whether a scroll box is at its bottom, or near enough that the newest message is in view. */
 export function atBottom(box: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">): boolean {
   return box.scrollHeight - box.scrollTop - box.clientHeight <= AT_BOTTOM_PX;
 }
 
-/**
- * Following new messages (plan 090), as Slack does: a message added at the end of the view brings the box down to it
- * when the person was at the bottom already, or when it is their own; anywhere else the box stays where they are
- * reading. Rows that load later are the person's own doing and are not followed. Returns the call that loads later.
- * A Jira card under its ticket (`stays`) opens at the ticket's top, so it counts as not at the bottom until scrolled.
- */
 function useFollowNewest(
   top: RefObject<HTMLDivElement | null>,
   opening: string,
@@ -528,11 +447,9 @@ function useFollowNewest(
   useLayoutEffect(() => {
     const was = seen.current;
     seen.current = { opening, lastId };
-    // While a load is out, rows it brings are the person's; once it is back, failed or not, following resumes.
     if (busy !== null) return;
     const manual = loading.current;
     loading.current = false;
-    // A view that just opened is placed by its opening; only a newer last row in the same view is followed.
     if (was.opening !== opening || was.lastId === lastId || manual || !(bottom.current || lastMine)) return;
     const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
     if (box) box.scrollTop = box.scrollHeight;
@@ -543,20 +460,12 @@ function useFollowNewest(
   };
 }
 
-/**
- * The message ⌘⇧\ reacts to (plan 079): the newest of those that brought the card, else the card's newest message,
- * else the last one shown.
- */
 export function mainMessage(messages: readonly OutsideMessage[], newest: string): string | null {
   const brought = messages.filter((m) => m.brought).at(-1);
   if (brought) return brought.id;
   return messages.some((m) => m.id === newest) ? newest : (messages.at(-1)?.id ?? null);
 }
 
-/**
- * Reactions on the card (plan 079): which message has the picker open, ⌘⇧\ to open it on the main message while
- * the card can react, and for each row what it can do; nothing where the card cannot react.
- */
 function useReacting(messages: readonly OutsideMessage[], newest: string, controls: ThreadControls | null) {
   const [picking, setPicking] = useState<string | null>(null);
   const react = controls?.react;
@@ -582,17 +491,6 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
   };
 }
 
-/**
- * A Slack card's body as Slack shows it: the window around what brought the card (plan 077), in the thread alone with
- * its first message pinned on top, or in the channel or DM with a post's threads indented under it (plan 074), with
- * Slack's day pills, its red New line before the first new message, and the mention look on the messages that brought
- * the card. Buttons load more on either side and open a post's new replies. The card opens on the New line, else on the
- * message the card is about (`newest`); a load keeps what the person is reading where it is.
- *
- * A Jira card's comments are drawn by the same rows (plan 091, Decision 2) with `jira`: without reactions, the hover
- * bar or replies, and with the mention look on the comments that mention the person. Under its ticket the card opens
- * at the ticket's top (plan 089), so `stays` keeps the box where it is when the thread opens.
- */
 export function SlackThread({
   messages,
   newest,
@@ -608,7 +506,6 @@ export function SlackThread({
   controls?: ThreadControls | null;
   jira?: boolean;
   stays?: boolean;
-  /** How one message draws; the desktop draws it with its item components (plan 097, U7), keeping all else here. */
   row?: (m: OutsideMessage, at: SlackRowAt) => ReactNode;
 }) {
   const pinned = window?.view === "thread" && messages[0]?.id === window.thread_ts ? messages[0] : null;

@@ -23,6 +23,12 @@
     "macOS": {
       "minimumSystemVersion": "13.3"
     },
-    "resources": ["resources/**/*"]
+    "resources": ["resources/**/*"],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5NDhBMjgyMDBGMEUxMQpSV1FSRGc4Z0tJcVVDWTMzY09Zang3cnZXbXRmVmRsSnYwUHR5SnN1RnB5MWEzY0xML0Z0bGlPNQo="
+    }
   }
 }

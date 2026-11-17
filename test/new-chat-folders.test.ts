@@ -14,7 +14,7 @@ describe("the phone's New chat folder", () => {
   test("the most recent to begin with; a pick holds while the agent has worked there", () => {
     expect(chosenFolder(recent.a, null)).toBe("/Users/u/work/loki");
     expect(chosenFolder(recent.a, "/Users/u/notes")).toBe("/Users/u/notes");
-    expect(chosenFolder(recent.a, "/Users/u/elsewhere")).toBe("/Users/u/work/loki"); // another agent's pick
+    expect(chosenFolder(recent.a, "/Users/u/elsewhere")).toBe("/Users/u/work/loki");
     expect(chosenFolder([], "/Users/u/notes")).toBeNull();
   });
 

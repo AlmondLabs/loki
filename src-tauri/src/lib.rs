@@ -1,11 +1,3 @@
-//! loki desktop shell (Tauri).
-//!
-//! A native window around the React canvas. The Rust side:
-//!  - moves loki's root to ~/.loki once (root.rs) and hands the page the token and the mod's port before any script runs
-//!  - installs what a release build ships (install.rs): the mod and daemon bundles, the phone canvas, the agent's skill
-//!  - runs loki's daemon on the machine's Node (node.rs, harness.rs), restarts it when it dies, and stops it on quit;
-//!    the page talks to the daemon itself, over the mod's port
-
 mod harness;
 mod install;
 mod menu;
@@ -13,12 +5,13 @@ mod native;
 mod node;
 mod popup;
 mod procs;
+mod runtime;
+mod update;
 mod widgets;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::{Manager, State};
 
-/// loki's root, where the daemon, the mod and the shell keep everything: ~/.loki.
 fn loki_dir() -> PathBuf {
     home_dir().join(".loki")
 }
@@ -27,18 +20,12 @@ fn read_token() -> Option<String> {
     std::fs::read_to_string(loki_dir().join("token")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
-/// 16 bytes from the system's random source as 32 lowercase hex chars — the shape the mod makes
-/// (`randomBytes(16).toString("hex")`). The OS source, not /dev/urandom: Windows has no such file, and
-/// reading it there silently produced no token, so the daemon started pointing at a missing token file.
 fn new_token() -> Option<String> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).ok()?;
     Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// The capability token the daemon, the mod and this shell share. The mod creates it on first
-/// activate, but a first launch starts the daemon *before* any mod ran, so the shell writes it
-/// when it is missing (`new_token`, mode 0600 where the system has modes — the same shape the mod makes).
 fn ensure_token() -> Option<String> {
     if let Some(t) = read_token() {
         return Some(t);
@@ -49,7 +36,6 @@ fn ensure_token() -> Option<String> {
             eprintln!("loki: wrote a new capability token");
             Some(token)
         }
-        // The mod wrote one between the read above and this write: that one is the token.
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => read_token(),
         Err(e) => {
             eprintln!("loki: could not write the capability token: {e}");
@@ -58,9 +44,6 @@ fn ensure_token() -> Option<String> {
     }
 }
 
-/// Write a new token file in `dir`, readable by this user only from the moment it exists: made with mode 0600 (and
-/// `dir`, when it has to be made, 0700) where the system has modes, never written first and narrowed after, when
-/// another user could read it in between. Never replaces a file already there (AlreadyExists).
 fn write_token_file(dir: &std::path::Path, token: &str) -> std::io::Result<()> {
     use std::io::Write;
     let mut folder = std::fs::DirBuilder::new();
@@ -77,8 +60,6 @@ fn write_token_file(dir: &std::path::Path, token: &str) -> std::io::Result<()> {
     file.open(dir.join("token"))?.write_all(token.as_bytes())
 }
 
-/// The system as the page names it (`__LOKI__.os`, read by `platform` in app/src/desk/env.ts): macos, windows or linux.
-/// Any other unix desktop reads as linux, the nearest in keys and chrome.
 fn page_os(os: &str) -> &'static str {
     match os {
         "macos" => "macos",
@@ -103,15 +84,12 @@ fn init_script() -> String {
     )
 }
 
-/// The Settings window's label (plan 2026-11-12-1505, U18): one at most, brought forward when it is already open.
 const SETTINGS_WINDOW: &str = "settings";
 
-/// A Preferences page id as the page names them (settings/pages.ts): lowercase words, nothing that could leave a string.
 fn settings_page(page: Option<&str>) -> Option<&str> {
     page.filter(|p| !p.is_empty() && p.len() <= 32 && p.chars().all(|c| c.is_ascii_lowercase() || c == '-'))
 }
 
-/// The Settings window's start-up script: the main window's, then which window this is and the page to open on.
 fn settings_script(page: Option<&str>) -> String {
     format!(
         "{} if (window.top === window && window.__LOKI__) {{ window.__LOKI__.window = \"settings\"; window.__LOKI__.page = {}; }}",
@@ -138,7 +116,6 @@ async fn open_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>, page: Option
         .inner_size(820.0, 600.0)
         .min_inner_size(680.0, 460.0)
         .initialization_script(settings_script(page.as_deref()));
-    // As the main window: the lights over the page, the system's sidebar material behind the section list.
     #[cfg(target_os = "macos")]
     let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true).transparent(true).effects(
         tauri::window::EffectsBuilder::new()
@@ -151,34 +128,60 @@ async fn open_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>, page: Option
     window.build().map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// The page's console, mirrored to the shell's stderr (there is no devtools in a packaged app).
 #[tauri::command]
 fn client_log(level: String, message: String) {
     eprintln!("loki[{level}]: {message}");
 }
 
-/// What launch did about the mod, the skill and the phone canvas (Settings shows it).
 #[tauri::command]
 fn install_status(report: State<'_, install::Report>) -> install::Report {
     report.inner().clone()
 }
 
-/// The daemon as Welcome and Settings see it: the Node it runs on, why it could not start, and — when no new-enough
-/// Node was found — what Welcome's Node step needs to say.
-#[derive(Clone, Debug, Default, serde::Serialize)]
+/// The daemon as Welcome and Settings see it: the Node it runs on, why it could not start, and what comes before it
+/// starts (plan 2026-11-15-2319, KTD7). While the runtime downloads, `preparing` says what and how far; a download that
+/// fails keeps it beside `error`, so Welcome can say what failed. `tools_missing` names the system whose git is missing
+/// (the Mac's command line tools, Linux's package), for Welcome's tools step.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonStatus {
     pub node: Option<String>,
     pub error: Option<String>,
-    pub node_missing: Option<node::NodeMissing>,
+    pub preparing: Option<Preparing>,
+    pub tools_missing: Option<node::Os>,
 }
 
-/// DaemonStatus, kept current by start_daemon and the supervisor; `supervising` while a supervisor thread watches
-/// the daemon, so a retry never starts a second one beside it.
+/// A runtime download as Welcome shows it: `node` or `git` (PortableGit), its version, the bytes so far and the total
+/// once the server has said it.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Preparing {
+    pub name: String,
+    pub version: String,
+    pub done: u64,
+    pub total: Option<u64>,
+}
+
+const RUNTIME_EVENT: &str = "loki:runtime";
+
+const PROGRESS_EVERY: std::time::Duration = std::time::Duration::from_millis(250);
+
 #[derive(Default)]
 struct DaemonState {
     status: std::sync::Mutex<DaemonStatus>,
     supervising: std::sync::atomic::AtomicBool,
+    starting: std::sync::atomic::AtomicBool,
+}
+
+struct Starting<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl Drop for Starting<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+fn begin_start(flag: &std::sync::atomic::AtomicBool) -> Option<Starting<'_>> {
+    (!flag.swap(true, std::sync::atomic::Ordering::SeqCst)).then_some(Starting(flag))
 }
 
 impl DaemonState {
@@ -192,13 +195,20 @@ impl DaemonState {
     }
 }
 
+fn publish(app: &tauri::AppHandle, f: impl FnOnce(&mut DaemonStatus)) {
+    use tauri::Emitter;
+    let state = app.state::<DaemonState>();
+    state.set(f);
+    if let Err(e) = app.emit(RUNTIME_EVENT, state.get()) {
+        eprintln!("loki: {RUNTIME_EVENT}: {e}");
+    }
+}
+
 #[tauri::command]
 fn daemon_status(state: State<'_, DaemonState>) -> DaemonStatus {
     state.get()
 }
 
-/// Welcome's "check again" once the person has installed Node: look for Node afresh and start the daemon, unless a
-/// supervisor already watches one (it restarts the daemon itself). Off the main thread: the look runs `node --version`.
 #[tauri::command]
 async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -214,17 +224,57 @@ async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
     .map_err(|e| e.to_string())
 }
 
-/// Start loki's daemon and keep it running: a daemon left by a crashed loki is stopped first, and one that dies is
-/// restarted (supervise_daemon). A development build runs the checkout's sources; a release build the installed
-/// bundle. What happened lands in DaemonState for daemon_status.
+#[tauri::command]
+async fn install_tools() -> Result<(), String> {
+    if !cfg!(target_os = "macos") {
+        return Err("only the Mac installs its command line tools from loki".into());
+    }
+    tauri::async_runtime::spawn_blocking(|| {
+        let out = std::process::Command::new("/usr/bin/xcode-select")
+            .arg("--install")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map_err(|e| format!("could not run xcode-select: {e}"))?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     let (home, data) = (home_dir(), loki_dir());
     let state = app.state::<DaemonState>();
-    let node = match node::find_node_program(&home) {
+    let Some(_starting) = begin_start(&state.starting) else { return Ok(()) };
+    let failed = |node: Option<String>, e: &str| {
+        publish(app, |s| *s = DaemonStatus { node, error: Some(e.to_string()), ..DaemonStatus::default() })
+    };
+    let host = if runtime_wanted() {
+        match runtime::Host::this(&data, &home) {
+            Ok(h) => Some(h),
+            Err(e) => {
+                failed(None, &e);
+                return Err(e);
+            }
+        }
+    } else {
+        None
+    };
+    let tools = || {
+        let host = node::Host::this(&home);
+        runtime::tools_missing(&host, &runtime::developer_dir).then_some(host.os)
+    };
+    let prepared =
+        prepare(host.as_ref(), tools, &std::time::Instant::now, &mut |status| publish(app, |s| *s = status))?;
+    let runtime_path = prepared.as_ref().map(|r| r.path.clone()).unwrap_or_default();
+    let node = match node::find_node_program(&home, prepared.as_ref().map(|r| r.node.as_path())) {
         Ok(n) => n,
         Err(missing) => {
             let message = missing.message();
-            state.set(|s| *s = DaemonStatus { node: None, error: Some(message.clone()), node_missing: Some(missing) });
+            failed(None, &message);
             return Err(message);
         }
     };
@@ -240,26 +290,72 @@ fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
     let node_shown = node.display().to_string();
     let launch = move |app: &tauri::AppHandle| -> Result<(), String> {
         let Some(h) = app.try_state::<harness::Harness>() else { return Err("no harness slot".into()) };
-        let daemon = harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &data };
+        let daemon =
+            harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &data, path: &runtime_path };
         h.start_daemon(&daemon, &harness::Launch { token_file: &token_file, log_dir: &data.join("logs") })
     };
     if let Err(e) = launch(app) {
-        state.set(|s| *s = DaemonStatus { node: Some(node_shown), error: Some(e.clone()), node_missing: None });
+        failed(Some(node_shown), &e);
         return Err(e);
     }
     eprintln!("loki: daemon on {node_shown}");
-    state.set(|s| *s = DaemonStatus { node: Some(node_shown), error: None, node_missing: None });
+    if let (Some(host), Some(_)) = (&host, &prepared) {
+        runtime::prune(host);
+    }
+    publish(app, |s| *s = DaemonStatus { node: Some(node_shown), ..DaemonStatus::default() });
     if !state.supervising.swap(true, std::sync::atomic::Ordering::SeqCst) {
         supervise_daemon(app.clone(), launch);
     }
     Ok(())
 }
 
-/// Watch the daemon once a second. One that exits on its own is started again after harness::restart_delay; one loki
-/// stopped is left down — and then the supervisor ends, so retry_daemon may start it again. One that found another
-/// daemon already serving (harness::EXIT_HELD) is tried again every HELD_RETRY: that one may be a leftover that dies
-/// later, and then this loki's takes over.
-/// How often a daemon that found another one serving tries again.
+fn runtime_wanted() -> bool {
+    !cfg!(debug_assertions)
+}
+
+fn prepare(
+    runtime: Option<&runtime::Host>,
+    tools_missing: impl FnOnce() -> Option<node::Os>,
+    now: &dyn Fn() -> std::time::Instant,
+    publish: &mut dyn FnMut(DaemonStatus),
+) -> Result<Option<runtime::Runtime>, String> {
+    let fetched = match runtime {
+        None => None,
+        Some(host) => {
+            let (mut current, mut sent): (Option<Preparing>, Option<std::time::Instant>) = (None, None);
+            let result = runtime::ensure(host, &mut |p| {
+                if p.done == 0 && p.total.is_none() {
+                    eprintln!("loki: runtime: fetching {} {}", p.name, p.version);
+                }
+                let preparing =
+                    Preparing { name: p.name.into(), version: p.version.into(), done: p.done, total: p.total };
+                current = Some(preparing.clone());
+                let t = now();
+                if progress_due(sent, t, p) {
+                    sent = Some(t);
+                    publish(DaemonStatus { preparing: Some(preparing), ..DaemonStatus::default() });
+                }
+            });
+            match result {
+                Ok(r) => Some(r),
+                Err(e) => {
+                    publish(DaemonStatus { error: Some(e.clone()), preparing: current, ..DaemonStatus::default() });
+                    return Err(e);
+                }
+            }
+        }
+    };
+    if let Some(os) = tools_missing() {
+        publish(DaemonStatus { tools_missing: Some(os), ..DaemonStatus::default() });
+        return Err("git is missing; Welcome asks for it".into());
+    }
+    Ok(fetched)
+}
+
+fn progress_due(last: Option<std::time::Instant>, now: std::time::Instant, p: &runtime::Progress) -> bool {
+    p.done == 0 || p.total == Some(p.done) || last.is_none_or(|t| now.duration_since(t) >= PROGRESS_EVERY)
+}
+
 const HELD_RETRY: std::time::Duration = std::time::Duration::from_secs(30);
 
 fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) -> Result<(), String> + Send + 'static) {
@@ -268,7 +364,6 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
         .spawn(move || {
             let mut exits: Vec<std::time::Instant> = vec![];
             let mut held = false;
-            // Whether the window was told the daemon keeps stopping; taken back once it has run a minute.
             let mut looping = false;
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
@@ -277,7 +372,7 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
                 let Some(status) = h.exited() else {
                     if looping && exits.last().is_some_and(|t| t.elapsed() >= std::time::Duration::from_secs(60)) {
                         looping = false;
-                        app.state::<DaemonState>().set(|s| s.error = None);
+                        publish(&app, |s| s.error = None);
                     }
                     continue;
                 };
@@ -298,20 +393,15 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
                 if h.was_stopped() { break; }
                 let result = launch(&app);
                 if let Err(e) = &result { eprintln!("loki: daemon restart failed: {e}"); }
-                // A start that works says nothing of a daemon that dies again a moment later: one that keeps
-                // stopping is reported until it has run a minute.
                 let note = harness::crash_loop_note(exits.len(), &loki_dir().join("logs").join("daemon.log"));
                 looping = note.is_some();
-                app.state::<DaemonState>().set(|s| s.error = result.err().or(note));
+                publish(&app, |s| s.error = result.err().or(note));
             }
             app.state::<DaemonState>().supervising.store(false, std::sync::atomic::Ordering::SeqCst);
         })
         .expect("the daemon supervisor thread");
 }
 
-/// SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the daemon ourselves. Windows has no such
-/// signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there (a GUI build has no console, and
-/// its quit paths all go through the exit events).
 fn stop_on_signals(handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         #[cfg(unix)]
@@ -353,7 +443,6 @@ fn home_dir() -> PathBuf {
     platform_home().unwrap_or_else(|| panic!("{HOME_VAR} is not set (checked at launch)"))
 }
 
-/// Release builds install on every launch; `tauri dev` runs the checkout instead, unless asked (LOKI_INSTALL=1).
 fn install_wanted() -> bool {
     if std::env::var_os("LOKI_NO_INSTALL").is_some() {
         return false;
@@ -361,23 +450,19 @@ fn install_wanted() -> bool {
     !cfg!(debug_assertions) || std::env::var_os("LOKI_INSTALL").is_some()
 }
 
-/// The checkout a development build was compiled from: its daemon runs the checkout's daemon/main.ts with
-/// `--mod mod/boot.ts`, and the skill is linked there where nothing is yet (install.rs `link_checkout`). Release
-/// builds: never (the path is not even in the binary). LOKI_NO_INSTALL: no, the installed bundles run.
+#[cfg(debug_assertions)]
 fn dev_checkout() -> Option<PathBuf> {
-    #[cfg(debug_assertions)]
-    {
-        if std::env::var_os("LOKI_NO_INSTALL").is_some() {
-            return None;
-        }
-        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(Path::to_path_buf);
+    if std::env::var_os("LOKI_NO_INSTALL").is_some() {
+        return None;
     }
-    #[allow(unreachable_code)]
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(std::path::Path::to_path_buf)
+}
+
+#[cfg(not(debug_assertions))]
+fn dev_checkout() -> Option<PathBuf> {
     None
 }
 
-/// Linux runs loki through XWayland (plan 014 KTD8): GDK_BACKEND=x11 unless the user chose a backend, since an
-/// undecorated window on native Wayland still has open resize and unresponsive-button bugs. The value to set, if any.
 #[cfg(any(target_os = "linux", test))]
 fn gdk_backend(current: Option<&std::ffi::OsStr>) -> Option<&'static str> {
     if current.is_some() {
@@ -415,27 +500,30 @@ pub fn run() {
         }
     }));
     builder
-        // Links leave the app through the system browser (window.open is blocked in the webview).
         .plugin(tauri_plugin_opener::init())
-        // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             client_log,
             install_status,
             daemon_status,
             retry_daemon,
+            install_tools,
             open_settings,
             native::set_waiting,
             native::set_global_shortcut,
+            native::traffic_lights,
             menu::set_menu,
-            popup::popup_menu
+            popup::popup_menu,
+            update::update_status,
+            update::check_for_updates,
+            update::set_update_channel,
+            update::restart_to_update
         ])
-        // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
         .setup(move |app| {
             use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-            // What this build ships goes in place first, so the daemon started below runs this build's bundles.
             let (home, data) = (home_dir(), loki_dir());
             let mut report = install::Report::skipped(&home);
             if install_wanted() {
@@ -467,23 +555,22 @@ pub fn run() {
             }
             app.manage(report);
 
-            // loki's daemon runs the agents and serves the page. No Node yet: Welcome says so, and retry_daemon starts
-            // it once one is installed.
             app.manage(harness::Harness::default());
             app.manage(DaemonState::default());
-            if let Err(e) = start_daemon(app.handle()) {
-                eprintln!("loki: {e}");
-            }
+            let handle = app.handle().clone();
+            drop(tauri::async_runtime::spawn_blocking(move || {
+                if let Err(e) = start_daemon(&handle) {
+                    eprintln!("loki: {e}");
+                }
+            }));
             stop_on_signals(app.handle().clone());
+            update::start(app.handle(), &data);
 
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("loki")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(900.0, 600.0)
                 .initialization_script(&script)
-                // No page opens a second loki window. A link that asks for one (a mail drawn in its frame, whose
-                // clicks the Mac's webview keeps from loki's own listener) goes to the system browser when it is a
-                // web or mail address, and nowhere otherwise.
                 .on_new_window({
                     let app = app.handle().clone();
                     move |url, _features| {
@@ -496,17 +583,8 @@ pub fn run() {
                         tauri::webview::NewWindowResponse::Deny
                     }
                 });
-            // Slack style: no native title bar. The lights float over loki's own top strip (Sidebar.tsx,
-            // TITLEBAR_HEIGHT, a drag region) at their standard spot; the title stays set for the Window menu,
-            // Mission Control and screen readers, just not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
-            // The lights sit inside Liquid Glass's inset sidebar, level with its toggle (app sidebar.tsx GLASS_LIGHTS).
-            #[cfg(target_os = "macos")]
-            let window = window.traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0));
-            // The Mac's own sidebar material behind a transparent window (plan 2026-11-12-1505, U13): Liquid Glass lets
-            // it through the sidebar and paints everything else; today's look paints the whole window, so it never
-            // shows there. It dims with the window, as Mail's does, and macOS draws it solid under Reduce Transparency.
             #[cfg(target_os = "macos")]
             let window = window.transparent(true).effects(
                 tauri::window::EffectsBuilder::new()
@@ -514,15 +592,15 @@ pub fn run() {
                     .state(tauri::window::EffectState::FollowsWindowActiveState)
                     .build(),
             );
-            // Elsewhere it starts on loki's dark ground; the page applies the saved light/dark preference after it loads.
             #[cfg(not(target_os = "macos"))]
             let window = window.background_color(tauri::window::Color(0x1c, 0x1c, 0x1e, 0xff));
-            // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
-            // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
             #[cfg(not(target_os = "macos"))]
             let window = window.decorations(false);
-            window.build()?;
-            // The menu bar, the tray and ⌥Space are the Mac's (plan 014 KTD3); elsewhere their commands are no-ops.
+            let window = window.build()?;
+            #[cfg(target_os = "macos")]
+            native::add_unified_toolbar(&window);
+            #[cfg(not(target_os = "macos"))]
+            let _ = window;
             #[cfg(target_os = "macos")]
             {
                 menu::listen(app.handle());
@@ -543,10 +621,15 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building loki")
         .run(|app, event| {
-            // Quit from the menu, the dock, or the last window closing: take the daemon down first.
             if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
-                if let Some(h) = app.try_state::<harness::Harness>() {
-                    h.stop();
+                let stop = &mut || {
+                    if let Some(h) = app.try_state::<harness::Harness>() {
+                        h.stop();
+                    }
+                };
+                match app.try_state::<update::Updates>() {
+                    Some(updates) => updates.quit(stop),
+                    None => stop(),
                 }
             }
         });
@@ -574,6 +657,16 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn one_start_at_a_time_and_the_next_may_start_once_it_ends() {
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let first = begin_start(&flag);
+        assert!(first.is_some());
+        assert!(begin_start(&flag).is_none(), "a second start while the first runs");
+        drop(first);
+        assert!(begin_start(&flag).is_some(), "a start after the first ended");
+    }
     use std::ffi::OsString;
 
     #[test]
@@ -624,7 +717,6 @@ mod tests {
         let script = settings_script(Some("keys"));
         assert!(script.contains("window.__LOKI__.window = \"settings\"; window.__LOKI__.page = \"keys\";"));
         assert!(settings_script(None).ends_with("window.__LOKI__.page = null; }"));
-        // the main window's script first, so the token and the system arrive as they do there
         assert!(script.starts_with("if (window.top === window) { window.__LOKI__ = "));
     }
 
@@ -646,10 +738,125 @@ mod tests {
             script.ends_with(&format!(", os: \"{expected}\" }}; }}")),
             "the script ends with the os (not printed: it carries the token)"
         );
-        // Only the top-level page: a widget's sandboxed frame, which Windows also runs it in, gets nothing.
         assert!(
             script.starts_with("if (window.top === window) { window.__LOKI__ = "),
             "the token is set in the top-level window only"
         );
+    }
+
+    use crate::runtime::tests::{host as runtime_host, names, temp_root, Server};
+    use std::time::{Duration, Instant};
+
+    fn ticking() -> impl Fn() -> Instant {
+        let start = Instant::now();
+        let n = std::cell::Cell::new(0u64);
+        move || {
+            n.set(n.get() + 1);
+            start + Duration::from_secs(n.get())
+        }
+    }
+
+    #[test]
+    fn a_new_mac_fetches_node_then_asks_for_the_command_line_tools_and_starts_nothing() {
+        let root = temp_root();
+        let server = Server::new();
+        let h = runtime_host(&root, "darwin-arm64", &server);
+        let mut seen: Vec<DaemonStatus> = vec![];
+        let result = prepare(Some(&h), || Some(node::Os::Macos), &ticking(), &mut |s| seen.push(s));
+        assert!(result.is_err(), "no git: the daemon does not start");
+        let fetching: Vec<&Preparing> = seen.iter().filter_map(|s| s.preparing.as_ref()).collect();
+        assert!(!fetching.is_empty());
+        assert!(fetching.iter().all(|p| p.name == "node" && p.version == "22.23.5"), "{fetching:?}");
+        let last = fetching.last().unwrap();
+        assert_eq!(last.total, Some(last.done), "the last progress is the whole download");
+        assert_eq!(fetching.first().unwrap().total, None, "the first is said before the server answers");
+        assert!(seen.iter().all(|s| s.error.is_none() && s.node.is_none()));
+        assert_eq!(
+            seen.last(),
+            Some(&DaemonStatus { tools_missing: Some(node::Os::Macos), ..DaemonStatus::default() }),
+            "then the tools step, and nothing else"
+        );
+        let mut again: Vec<DaemonStatus> = vec![];
+        let rt = prepare(Some(&h), || None, &ticking(), &mut |s| again.push(s)).unwrap();
+        assert!(again.is_empty(), "a present runtime and git: nothing to show {again:?}");
+        assert_eq!(rt.unwrap().node, root.join("node-22.23.5-darwin-arm64").join("bin").join("node"));
+        assert_eq!(server.fetches.get(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_failed_download_says_what_failed_and_try_again_runs_the_whole_sequence() {
+        let root = temp_root();
+        let server = Server::new();
+        let mut h = runtime_host(&root, "linux-x64", &server);
+        h.fetch = Box::new(|_| Err("connection reset".into()));
+        let mut seen: Vec<DaemonStatus> = vec![];
+        let err = prepare(Some(&h), || None, &ticking(), &mut |s| seen.push(s)).unwrap_err();
+        assert!(err.contains("could not download node-v22.23.5-linux-x64.tar.gz"), "{err}");
+        let last = seen.last().unwrap();
+        assert_eq!(last.error.as_deref(), Some(err.as_str()));
+        let failed = last.preparing.as_ref().expect("what was being fetched stays beside the error");
+        assert_eq!((failed.name.as_str(), failed.version.as_str()), ("node", "22.23.5"));
+        assert_eq!(last.tools_missing, None);
+        h.fetch = server.fetch();
+        let mut again: Vec<DaemonStatus> = vec![];
+        let rt = prepare(Some(&h), || None, &ticking(), &mut |s| again.push(s)).unwrap();
+        assert!(rt.is_some());
+        assert!(again.iter().all(|s| s.error.is_none()), "{again:?}");
+        assert_eq!(names(&root), ["node-22.23.5-linux-x64"]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn windows_without_git_bash_shows_portable_git_being_fetched_and_no_tools_step() {
+        let root = temp_root();
+        let server = Server::new();
+        let mut h = runtime_host(&root, "win-x64", &server);
+        h.git = true;
+        let mut seen: Vec<DaemonStatus> = vec![];
+        let rt = prepare(Some(&h), || None, &ticking(), &mut |s| seen.push(s)).unwrap().unwrap();
+        assert_eq!(rt.path.len(), 3, "Node's folder, then PortableGit's cmd and bin");
+        let fetched: Vec<&str> = seen.iter().filter_map(|s| s.preparing.as_ref()).map(|p| p.name.as_str()).collect();
+        assert_eq!(fetched.first(), Some(&"node"));
+        assert_eq!(fetched.last(), Some(&"git"));
+        assert!(seen.iter().filter_map(|s| s.preparing.as_ref()).any(|p| p.name == "git" && p.version == "2.56.1"));
+        assert!(seen.iter().all(|s| s.tools_missing.is_none()));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_update_naming_a_new_node_shows_only_the_download_and_a_dev_build_fetches_nothing() {
+        let root = temp_root();
+        let server = Server::new();
+        let h = runtime_host(&root, "darwin-arm64", &server);
+        std::fs::create_dir_all(root.join("node-22.19.0-darwin-arm64").join("bin")).unwrap();
+        std::fs::write(root.join("node-22.19.0-darwin-arm64").join("bin").join("node"), b"v22.19.0").unwrap();
+        let mut seen: Vec<DaemonStatus> = vec![];
+        let rt = prepare(Some(&h), || None, &ticking(), &mut |s| seen.push(s)).unwrap();
+        assert!(rt.is_some_and(|r| r.node.starts_with(root.join("node-22.23.5-darwin-arm64"))));
+        assert!(!seen.is_empty());
+        assert!(
+            seen.iter().all(|s| s.preparing.as_ref().is_some_and(|p| p.version == "22.23.5")
+                && s.error.is_none()
+                && s.tools_missing.is_none()),
+            "only the download, never another step: {seen:?}"
+        );
+        let mut dev: Vec<DaemonStatus> = vec![];
+        assert_eq!(prepare(None, || None, &ticking(), &mut |s| dev.push(s)), Ok(None));
+        assert!(dev.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn download_progress_goes_out_at_its_ends_and_at_most_every_quarter_second_between() {
+        let t0 = Instant::now();
+        let p = |done: u64| runtime::Progress { name: "node", version: "22.23.5", done, total: Some(1000) };
+        assert!(progress_due(None, t0, &p(500)), "the first word always goes out");
+        assert!(progress_due(Some(t0), t0, &p(0)), "a download's start always does");
+        assert!(progress_due(Some(t0), t0, &p(1000)), "and its end");
+        assert!(!progress_due(Some(t0), t0 + Duration::from_millis(100), &p(500)));
+        assert!(progress_due(Some(t0), t0 + PROGRESS_EVERY, &p(500)));
+        let unknown = runtime::Progress { name: "node", version: "22.23.5", done: 500, total: None };
+        assert!(!progress_due(Some(t0), t0 + Duration::from_millis(100), &unknown));
     }
 }

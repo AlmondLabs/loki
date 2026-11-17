@@ -41,7 +41,6 @@ describe("static app", () => {
   });
 
   test("resolveAppDist takes the first candidate that is a build: index.html plus assets/", () => {
-    // The source app/ has an index.html that points at /src/main.tsx and needs Vite; it must be skipped.
     const source = join(dir, "source-app");
     mkdirSync(source, { recursive: true });
     writeFileSync(join(source, "index.html"), '<script type="module" src="/src/main.tsx"></script>');
@@ -58,7 +57,6 @@ describe("static app", () => {
       expect(res.headers.get("content-type")).toContain("text/html");
       expect(res.headers.get("cache-control")).toBe("no-cache");
       const html = await res.text();
-      // The boot script carries the build id (a hash of index.html) so the page can tell when a new build is up.
       expect(html).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}",os:"(macos|windows|linux)"\}<\/script><\/head>/);
       expect(html).toContain(bootScript(buildIdOf(dist)));
       expect(html).toContain('<div id="root">');
@@ -69,16 +67,13 @@ describe("static app", () => {
   test("the boot script cannot be broken out of: `</script>` and friends survive as JavaScript escapes", () => {
     const hostile = "</script><script>alert(1)</script>&\u2028\u2029";
     const script = bootScript(hostile);
-    // One script element, opened and closed exactly once: nothing inside it reads as markup.
     expect(script.match(/<\/?script>/g)).toEqual(["<script>", "</script>"]);
     expect(script.startsWith("<script>window.__LOKI__={lan:true,build:")).toBe(true);
     expect(script).not.toContain("&");
-    // What the browser evaluates is the original string, character for character.
     const json = jsonForScript(hostile);
     expect(JSON.parse(json)).toBe(hostile);
     expect(runInNewContext(json)).toBe(hostile);
     expect(jsonForScript({ a: "<b>&c" })).toBe('{"a":"\\u003cb\\u003e\\u0026c"}');
-    // A plain hex build id is untouched.
     expect(bootScript("abc123def456", "macos")).toBe('<script>window.__LOKI__={lan:true,build:"abc123def456",os:"macos"}</script>');
   });
 
@@ -105,9 +100,9 @@ describe("static app", () => {
     expect(stale.headers.get("cache-control")).toBe("no-store");
     expect(await stale.text()).toBe(STALE_RELOAD_SCRIPT);
     expect(STALE_RELOAD_SCRIPT).toContain("location.reload()");
-    expect(STALE_RELOAD_SCRIPT).toContain("sessionStorage"); // the loop guard
+    expect(STALE_RELOAD_SCRIPT).toContain("sessionStorage");
     expect((await fetch(`${served.base}/assets/nope.css`)).status).toBe(404);
-    expect((await fetch(`${served.base}/nope.js`)).status).toBe(404); // only assets/ is hashed
+    expect((await fetch(`${served.base}/nope.js`)).status).toBe(404);
   });
 
   test("a missing file with an extension is 404; traversal never leaves the dist", async () => {

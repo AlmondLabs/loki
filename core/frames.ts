@@ -72,7 +72,6 @@ import type {
 
 type Raw = Record<string, unknown>;
 
-/** A parser: the raw frame as the typed payload, or a message saying why it is not one. Never throws. */
 export type Parse<P> = (m: Raw) => P | string;
 
 const str = (v: unknown): v is string => typeof v === "string";
@@ -81,7 +80,6 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter(str) : []
 
 /** The person's state kept as folders of files, which another Mac asks for only when they changed (plan 040). */
 export const STATE_FOLDERS = ["learn", "mods"] as const;
-/** One of STATE_FOLDERS. */
 export type StateFolder = (typeof STATE_FOLDERS)[number];
 /** The folders a frame names; undefined when it names none, as an older loki's frames do, which means all of them. */
 export function stateFolders(v: unknown): StateFolder[] | undefined {
@@ -99,7 +97,6 @@ export function isAgentId(id: unknown): id is string {
   return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
 }
 
-/** Whether a value names a route the phone's QR code may encode, as lan_via_set must carry. */
 export const isLanVia = (v: unknown): v is LanVia => v === "tailscale" || v === "lan";
 
 /** Whether a value is a well-formed gesture from the canvas, the only state change a tab may ask for; anything else is refused before it reaches a desk. */
@@ -123,7 +120,6 @@ export function isGesture(v: unknown): v is Gesture {
   }
 }
 
-/** An MCP server edit as Settings sends it: a local server (command…) or a remote one (url…); null removes it. */
 const stringRecord = (v: unknown): Record<string, string> | null => {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const out: Record<string, string> = {};
@@ -150,27 +146,19 @@ function mcpEdit(
   return "a server needs a command or a url";
 }
 
-/** Whether a value is an ISO date and time a request can take as an instant. */
 const isInstant = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v));
-/** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversation_id) ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id } : "conversation_id required");
 const agent = (m: Raw) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id } : "agent_id required");
-/** A chat on loki's daemon: its agent and its id, both required. */
 const chatRef = (m: Raw) =>
   isAgentId(m.agent_id) && str(m.conversation_id) && m.conversation_id
     ? { agent_id: m.agent_id, conversation_id: m.conversation_id }
     : "agent_id and conversation_id required";
-/** A saved draft as `chat_update` takes it: its text, its suggestion and the chat that suggestion was made in; null when it is not one. */
 const savedDraft = (v: unknown): SavedDraft | null => {
   const d = typeof v === "object" && v !== null ? (v as Raw) : {};
   const source = typeof d.source === "object" && d.source !== null ? (d.source as Raw) : {};
   if (!str(d.text) || !d.text || !str(d.suggestion_id) || !isAgentId(source.agent_id) || !str(source.conversation_id) || !source.conversation_id) return null;
   return { text: d.text, suggestion_id: d.suggestion_id, source: { agent_id: source.agent_id, conversation_id: source.conversation_id } };
 };
-/**
- * Where a suggestion's message goes, as a frame or an agent's tool names it (plan 049): an existing chat, or an agent
- * and a folder for a new one; null when it is neither. Other fields are left behind.
- */
 export function parseSuggestionTarget(v: unknown): SuggestionTarget | null {
   const t = typeof v === "object" && v !== null ? (v as Raw) : {};
   if (!isAgentId(t.agent_id)) return null;
@@ -186,7 +174,6 @@ export const DRAFT_HELD = "that chat already holds a saved draft";
 /** What the person does with a suggestion: send it now, save it as a draft in its chat's box, or reject it. */
 export type SuggestionAction = "send" | "draft" | "reject";
 const SUGGESTION_ACTIONS: readonly string[] = ["send", "draft", "reject"] satisfies SuggestionAction[];
-/** One suggestion of the chat a frame names; the suggestion's own id, since `request_id` is the frame's. */
 const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; suggestion_id: string } | string => {
   const c = chatRef(m);
   if (typeof c === "string") return c;
@@ -207,7 +194,6 @@ export interface ReplyDecideOptions {
   files?: readonly string[] | null;
   mentions?: readonly ReplyMention[] | null;
 }
-/** A mention a frame carries, or null when it is not one: a name, and a service id or an address. */
 export const replyMentionOf = (v: unknown): ReplyMention | null => {
   const m = typeof v === "object" && v !== null ? (v as Raw) : {};
   if (!str(m.display) || !m.display.trim()) return null;
@@ -216,7 +202,6 @@ export const replyMentionOf = (v: unknown): ReplyMention | null => {
   if (!id && !address) return null;
   return { display: m.display, id, address, ...(m.not_member === true ? { not_member: true } : {}) };
 };
-/** One end of a link as a frame names it: a chat, with its name. */
 const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title: string | null } | null => {
   const e = typeof v === "object" && v !== null ? (v as Raw) : {};
   return isAgentId(e.agent_id) && str(e.conversation_id) && e.conversation_id
@@ -227,7 +212,6 @@ const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title
 const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
-/** An account connected on a paired Mac, marked with that Mac, so Flow's lanes can pick it (plan 087, KTD9). */
 export interface MacAccountView extends AccountView {
   mac_id: string;
   /** The Mac's name as this Mac shows it. */
@@ -292,11 +276,9 @@ export interface Replies {
   chat_approvals: { always: string[] };
   chat_mcp: McpView;
   chat_engines: EnginesView;
-  /** Every label on a chat, with its colour and how many chats carry it (plan 022). */
   chat_labels: { labels: LabelView[] };
   /** What this Mac lacks to run an agent's chat (plan 023, U10): one line for the person each, none when nothing. */
   chat_requirements: { agent_id: string; missing: string[] };
-  /** A Mac paired by `peer_pair_join` (plan 023). */
   peer_paired: { peer: PeerSummary };
   /**
    * A Mac's agents for another Mac (plan 023, U3): each record as its file holds it, with its change stamps and home,
@@ -371,7 +353,6 @@ export interface Replies {
    * `then_error` is that move's reason when it failed, and the client tries the move again without the text.
    */
   account_thread_replied: { account_id: string; thread_id: string } & OutsideReplied;
-  /** What a mail card's recipients line starts from (plan 076), read on the Mac the account lives on. */
   account_compose: { account_id: string; thread_id: string } & MailCompose;
   /** Whether a held mail reply was stopped before it went (plan 076); false when it had already gone or was never held. */
   account_thread_unsent: { account_id: string; outbox_id: string; undone: boolean };
@@ -380,15 +361,11 @@ export interface Replies {
   account_thread_reacted: { account_id: string; thread_id: string; message_id: string; name: string; on: boolean };
   account_emoji: { account_id: string; emoji: EmojiChoice[] };
   account_people: { account_id: string; people: SlackPerson[] };
-  /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
-  /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
   account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow; link?: string; ticket?: JiraCardTicket };
   /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
   account_move_kept: { account_id: string; thread_id: string; kept: boolean };
-  /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
   account_thread_handoff_proposal: HandoffProposal;
-  /** An outside card's thread sent to its owner's chat (plan 067, R16): the chat it went to. */
   account_thread_handed_off: { account_id: string; thread_id: string; agent_id: string; conversation_id: string };
   /** Google's page to open for connecting a Gmail account (plan 067, U5); the account is kept when the browser comes back. */
   account_signin: { url: string };
@@ -400,10 +377,8 @@ export interface Replies {
   /** The live links of a Mac's chats, and the duration the link card starts on (plan 067). */
   chat_links: { links: ChatLink[]; default_duration: LinkDuration };
 }
-/** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
 
-/** Where a chat stands when a client opens it (loki's daemon, plan 017 U5): running or not, its mode and folder. */
 export interface ChatState {
   agent_id: string;
   conversation_id: string;
@@ -517,7 +492,6 @@ export interface Pushes {
   /** An account here was connected, moved, disconnected or changed status (plan 067): clients and paired Macs ask again. */
   accounts_changed: NoPayload;
 }
-/** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
 
 /** How a request or send crosses to another paired Mac (plan 023, addendum C). */
@@ -541,7 +515,6 @@ export interface PushPeerMeaning {
   lists?: true | ReadonlyArray<ChatEvent["kind"]>;
 }
 
-/** How long moving one chat may take, end to end: a long chat's whole log crosses the link. */
 export const MOVE_TIMEOUT_MS = 180_000;
 /**
  * What a chat says while it is held for a move to a Mac out of reach (plan 096); the app finds it in the error line and
@@ -593,27 +566,19 @@ const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; peer?: P
 });
 const push = (doc: string, peer?: PushPeerMeaning): PushEntry => ({ kind: "push", doc, ...(peer ? { peer } : {}) });
 const PHONE = true;
-/** A chat frame another paired Mac may send, routed to the Mac the chat it names lives on (plan 023, U5). */
 const BY_CHAT: PeerMeaning = { route: "chat" };
-/** The same, for a frame that changes how the chat is listed. */
 const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
-/** A canvas frame, routed to the Mac its desk lives on. */
 const BY_SCOPE: PeerMeaning = { route: "scope" };
-/** A frame about the Mac a new chat will live on, routed by its `home`. */
 const BY_HOME: PeerMeaning = { route: "home" };
 const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["read", "later", "archive", "label", "reply", "handoff", "undo", "next"];
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
 const REPLY_THENS: readonly ReplyThen[] = ["read", "later", "archive"];
-/** What a sent reply may be followed by: one of those moves, or none (plan 083). */
 const SEND_THENS: readonly ReplyThen[] = [...REPLY_THENS, "stay"];
 const MAIL_MODES: readonly MailMode[] = ["reply", "reply_all", "forward"];
-/** The most people a mail reply may go to: past Gmail's own limit nobody types on a card. */
 const MAX_RECIPIENTS = 100;
-/** An address as the recipients line sends it: one line, an @ in it, no longer than a header holds. */
 const addressLike = (v: unknown): v is string => typeof v === "string" && v.includes("@") && v.length <= 320 && !/[\r\n]/.test(v);
 
-/** The addressing a mail reply carries (plan 076), or the reason it cannot be read; absent stays absent. */
 function parseMailAddressing(v: unknown): MailAddressing | null | string {
   if (v === undefined || v === null) return null;
   if (typeof v !== "object") return "mail must be an object";
@@ -632,7 +597,6 @@ function parseMailAddressing(v: unknown): MailAddressing | null | string {
 }
 const allStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every(str);
 
-/** A change a client kept from a write-back frame and sends back for an undo (plan 070, R14), or null when it is not one. */
 function parseOutsideChange(v: unknown): OutsideChange | null {
   if (typeof v !== "object" || v === null) return null;
   const c = v as Record<string, unknown>;
@@ -648,19 +612,14 @@ function parseOutsideChange(v: unknown): OutsideChange | null {
   return { move, messages, ended: c.ended, was_unread: c.was_unread };
 }
 
-/** A frame naming one outside card's thread, sent to the Mac its account lives on by `home`. */
 const threadRef = (m: Raw) =>
   str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
     ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
     : "account_id and thread_id required";
-/** A frame only paired Macs send each other, answered where it lands. */
 const BETWEEN_MACS: PeerMeaning = {};
-/** The chat events that change how a chat is listed: running or idle, waiting on you, failed, its folder. */
 const LISTED_EVENTS: ReadonlyArray<ChatEvent["kind"]> = ["loop", "turn_end", "approval", "question", "error", "device", "reply_proposals"];
 
-/** The frame table: every frame on `/ws` by name, whether it is a request (and the reply that answers it), a send (and the pushes it causes) or a push, a line saying what it is for, its parser, and whether a paired phone may send it. */
 export const FRAMES = {
-  // Desks and widgets
   gesture: send(
     "a gesture on a widget (move, resize, set …); its desk's state follows",
     (m) => (isGesture(m.gesture) ? { gesture: m.gesture } : "malformed gesture"),
@@ -700,7 +659,6 @@ export const FRAMES = {
     causes: ["models_recent"],
   }),
 
-  // Seen marks and focus
   seen_list: send("the done and viewed marks, the focus weights and the rests", nothing, { phone: PHONE, causes: ["seen"] }),
   seen_mark: send("mark a conversation done", mark, { phone: PHONE, causes: ["seen_chat"] }),
   seen_unmark: send("mark a conversation not done", mark, { phone: PHONE, causes: ["seen_chat"] }),
@@ -729,14 +687,12 @@ export const FRAMES = {
     (m) => (isReturnTimes(m.return_times) ? { return_times: m.return_times } : "return_times must be { read_first, later } of known choices"),
     { phone: PHONE, causes: ["seen"] },
   ),
-  // Not for the phone: lanes are made and edited on a Mac (plan 087, R8); the phone only reads them from the push.
   lanes_set: send(
     "the person's whole list of lanes, replacing the one kept (core/attention/lanes.ts, plan 087)",
     (m) => (Array.isArray(m.lanes) ? { lanes: parseLanes(m.lanes) } : "lanes must be a list of lanes"),
     { causes: ["seen"] },
   ),
 
-  // Analytics
   capture: send(
     "an analytics event the app saw; a `once` key keeps the first report of an event every window sees",
     (m) => {
@@ -747,7 +703,6 @@ export const FRAMES = {
     { phone: PHONE },
   ),
 
-  // History and the Inbox
   history_get: request(
     "history",
     "up to `limit` rows of a chat's log before position `before` (its newest without), where they start, whether older ones remain, and its desk's widget log",
@@ -775,7 +730,6 @@ export const FRAMES = {
   ),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
 
-  // Chats on loki's daemon (plan 017, U5), answered by its ChatBackend (mod/frames/chat.ts)
   chat_open: request(
     "chat_state",
     "follow a chat: its state now, then its chat_event pushes; `mode` sets its permission mode",
@@ -792,7 +746,6 @@ export const FRAMES = {
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
-      // The approval's own id: `request_id` is the frame's, matched to its reply.
       return str(m.approval_id) && typeof m.allow === "boolean"
         ? { ...c, approval_id: m.approval_id, allow: m.allow, message: strOr(m.message, null), always: m.always === true }
         : "approval_id and allow required";
@@ -819,7 +772,6 @@ export const FRAMES = {
     (m) =>
       isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null), home: strOr(m.home, null) } : "agent_id required",
     PHONE,
-    // Read that Mac's chats again once it is made there: it is listed here before its first reply.
     { route: "new-chat", relists: true },
   ),
   chat_send: request(
@@ -838,7 +790,6 @@ export const FRAMES = {
     BY_CHAT,
   ),
   chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, BY_CHAT),
-  // Suggestions (plan 049), carried out by the Mac the chat they were made in lives on (KTD2).
   suggestion_decide: request(
     "suggestion_decided",
     "send a suggestion made in this chat, save it as a draft in its target's box, or reject it; the first action wins",
@@ -862,7 +813,6 @@ export const FRAMES = {
     PHONE,
     BY_CHAT,
   ),
-  // Reply proposals (plan 067, KTD9), carried out by the Mac the chat lives on, which holds the account.
   reply_people_find: request(
     "reply_people_found",
     "the people of a proposed reply's account whose names match `query` (plan 2026-11-14-1530, R18), for the card's @ picker: on Jira those who can see the ticket, on Slack marked when they are not in the conversation; answered by the Mac the chat lives on, which holds the account",
@@ -894,8 +844,6 @@ export const FRAMES = {
     PHONE,
     BY_CHAT,
   ),
-  // Only the move of Tasks into suggestions sends it (mod/task-migration.ts), to the Mac a task's source chat lives
-  // on; an agent's own suggestions are made where its chat runs, and the phone never makes one.
   suggestion_add: request(
     "suggestion_added",
     "a new suggestion in this chat: its title, its message and the chat it is for",
@@ -905,13 +853,11 @@ export const FRAMES = {
       if (!str(m.title) || !m.title.trim() || !str(m.text) || !m.text.trim()) return "title and text required";
       const target = parseSuggestionTarget(m.target);
       if (!target) return "target needs agent_id and a conversation_id or a folder";
-      // An id of the sender's choosing makes a repeated add (a move of Tasks run again) add nothing.
       return { ...c, title: m.title, text: m.text, target, ...(str(m.suggestion_id) && m.suggestion_id ? { suggestion_id: m.suggestion_id } : {}) };
     },
     false,
     BY_CHAT,
   ),
-  // Chat links (plan 067): a chat's leave to message another, kept and checked by the Mac each chat lives on.
   chat_message: request(
     "chat_accepted",
     "a message from another chat's agent along a link: delivered only when a live link on this Mac allows it",
@@ -948,7 +894,6 @@ export const FRAMES = {
     PHONE,
     BY_CHAT,
   ),
-  // Preferences › Chat › Chat links, on the Mac only: the phone closes a link from the chat's header.
   chat_links_get: request("chat_links", "the live links of this Mac's chats, and the duration the link card starts on", nothing),
   chat_links_default: request("chat_links", "the duration the link card starts on: hour, day or always", (m) =>
     isLinkDuration(m.duration) ? { duration: m.duration } : "duration must be hour, day or always",
@@ -968,8 +913,6 @@ export const FRAMES = {
         archived: typeof m.archived === "boolean" ? m.archived : undefined,
         hidden: typeof m.hidden === "boolean" ? m.hidden : undefined,
         labels: Array.isArray(m.labels) ? chatLabels(strings(m.labels)) : undefined,
-        // Absent when not given, so the callers that build this payload need not name them. A purpose is one line,
-        // and an empty one clears it.
         ...(m.purpose !== undefined ? { purpose: (str(m.purpose) && m.purpose.replace(/\s+/g, " ").trim()) || null } : {}),
         ...(draft !== undefined ? { draft } : {}),
       };
@@ -1127,8 +1070,6 @@ export const FRAMES = {
     (m) => (str(m.provider_id) && m.provider_id ? { provider_id: m.provider_id, code: strOr(m.code, null) } : "provider_id required"),
   ),
 
-  // Folders
-  // `home` asks the Mac a new chat will live on (plan 023, U6): its folders, not this Mac's.
   folders_get: request("folders", "the folders each agent and conversation has worked in", (m) => ({ home: strOr(m.home, null) }), PHONE, BY_HOME),
   folder_complete: request(
     "folder_matches",
@@ -1146,7 +1087,6 @@ export const FRAMES = {
   ),
   folder_pick: request("folder_picked", "the system folder picker (null when cancelled)", (m) => ({ default_path: strOr(m.default_path, undefined) })),
 
-  // Usage
   usage_get: request(
     "usage",
     "what the agents spent from `since` up to `until` (ISO instants): the ledger's hourly rows and each model's price status",
@@ -1154,7 +1094,6 @@ export const FRAMES = {
     PHONE,
   ),
 
-  // Learn
   recall_list: request("recall", "the whole Learn section", nothing, PHONE),
   recall_grade: request(
     "recall_card",
@@ -1189,7 +1128,6 @@ export const FRAMES = {
     PHONE,
   ),
 
-  // Agents, memory and skills
   agent_get: request("agent", "an agent's local record, memory tree, skills, face and last memory commit", agent, PHONE),
   memory_read: request(
     "memory_file",
@@ -1221,7 +1159,6 @@ export const FRAMES = {
     isAgentId(m.agent_id) && str(m.name) ? { agent_id: m.agent_id, name: m.name, source: strOr(m.source, undefined) } : "agent_id and name required",
   ),
 
-  // The phone listener (Preferences › Phone)
   lan_get: send("the listener's status, after asking Tailscale again", nothing, { causes: ["lan_status"] }),
   lan_set: send("turn the listener on or off (persisted, then bound or closed)", (m) => ({ enabled: m.enabled === true }), { causes: ["lan_status"] }),
   lan_via_set: send("which route the QR encodes", (m) => (isLanVia(m.via) ? { via: m.via } : 'via must be "tailscale" or "lan"'), { causes: ["lan_status"] }),
@@ -1230,7 +1167,6 @@ export const FRAMES = {
   devices_list: send("the paired phones", nothing, { causes: ["devices"] }),
   device_forget: send("forget a phone and close its sockets", (m) => ({ id: strOr(m.id, null) }), { causes: ["devices"] }),
 
-  // loki's daemon (plans 024 and 041): update it, as the window's update notice asks
   daemon_restart: request(
     "chat_done",
     "update a checkout's loki: build the page if due, then restart the daemon; a restart is refused while a chat works or an approval waits, unless `anyway`",
@@ -1239,7 +1175,6 @@ export const FRAMES = {
     }),
   ),
 
-  // Other Macs (plan 023, mod/peers.ts): pairing, and the Macs paired with this one, for Preferences › Macs
   peers_get: send("this Mac and the Macs paired with it", nothing, { causes: ["peers"] }),
   peer_pair_begin: send("mint a code another Mac types to pair with this one", nothing, { causes: ["peer_pair_code"] }),
   peer_pair_join: request("peer_paired", "pair with the Mac at `host` using the code it shows", (m) =>
@@ -1263,7 +1198,6 @@ export const FRAMES = {
     PHONE,
     { route: "chat", relists: true },
   ),
-  // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
   chat_requirements: request(
     "chat_requirements",
     "what the Mac a chat would live on (`home`, else this one) lacks to run the agent's chat",
@@ -1323,7 +1257,6 @@ export const FRAMES = {
     BETWEEN_MACS,
   ),
 
-  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace on this Mac and the agent that owns it.
   account_list: request("accounts", "the accounts connected on this Mac and the agent that owns each", nothing),
   account_move: request("accounts", "give an account to another agent, which gets its hand-offs and its tools from now on", (m) =>
     str(m.account_id) && m.account_id && isAgentId(m.owner_agent_id)
@@ -1400,7 +1333,6 @@ export const FRAMES = {
       else if (m.direction !== undefined) return "direction must be before or after";
       if (str(m.from) && m.from) ask.from = m.from;
       if (ask.direction && !ask.from) return "from required with direction";
-      // Plan 089: an older Mac builds its ask from the keys it knows, so it drops this one and answers as it did.
       if (m.ticket === true) ask.ticket = true;
       return { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null), ...ask };
     },
@@ -1413,18 +1345,12 @@ export const FRAMES = {
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
         return "account_id, thread_id and text required";
-      // An app or Mac from before plan 070 sends no move, and its reply archived the card then, so it still does. It
-      // waits for the answer by its request_id, which the app's socket and the peer link match on, so the answer's
-      // new name (account_thread_replied, where it awaited account_thread_archived) still reaches it.
       const then = m.then === undefined ? "archive" : SEND_THENS.find((t) => t === m.then);
       if (!then) return "then must be read, later, archive or stay";
-      // Plan 076: how a mail reply is addressed, and the id its hold is undone by; both may be left out.
       const mail = parseMailAddressing(m.mail);
       if (typeof mail === "string") return mail;
       if (m.outbox_id !== undefined && (!str(m.outbox_id) || !/^[\w-]{8,64}$/.test(m.outbox_id))) return "outbox_id must be a short id";
-      // Plan 085: the Slack thread the person opened on the card, which the reply goes into; left out, the card's place.
       if (m.thread_ts !== undefined && (!str(m.thread_ts) || !/^\d{1,12}\.\d{1,8}$/.test(m.thread_ts))) return "thread_ts must be a Slack message time";
-      // Plan 2026-11-14-1530 (R23): the people the person picked in the box, the only @names that become mentions.
       if (m.mentions !== undefined && m.mentions !== null && !(Array.isArray(m.mentions) && m.mentions.every((x) => replyMentionOf(x) !== null)))
         return "mentions must be a list of people, each with a display name and an id or address";
       return {
@@ -1440,7 +1366,6 @@ export const FRAMES = {
       };
     },
     PHONE,
-    // A mail reply is held for its undo (plan 076) before it goes, so its answer comes that much later.
     { route: "home", relists: true, timeout_ms: 60_000 },
   ),
   account_thread_compose: request(
@@ -1526,7 +1451,6 @@ export const FRAMES = {
       if (!action) return "action must be read, later, archive, label, reply, handoff, undo or next";
       const via = MOVE_VIAS.find((v) => v === m.via) ?? null;
       const dwell = typeof m.dwell_ms === "number" && Number.isFinite(m.dwell_ms) && m.dwell_ms >= 0 ? Math.round(m.dwell_ms) : null;
-      // The facts a move from before plan 070 lacks, or that cannot be read, are left out rather than refused: the ledger is data, not a gate.
       const move: OutsideMove = {
         action,
         via,
@@ -1564,7 +1488,6 @@ export const FRAMES = {
           }
         : "account_id and thread_id required",
     PHONE,
-    // A hand-off may wait on reading a long thread and on the owner's Mac making a chat.
     { route: "home", relists: true, timeout_ms: 60_000 },
   ),
   account_connect_gmail: request(
@@ -1586,7 +1509,6 @@ export const FRAMES = {
     (m) =>
       isAgentId(m.owner_agent_id) ? { owner_agent_id: m.owner_agent_id, team_id: str(m.team_id) && m.team_id ? m.team_id : null } : "owner_agent_id required",
   ),
-  // Desktop only: the frame carries the API token, as account_connect_gmail carries the person's own app secret.
   account_connect_jira: request(
     "accounts",
     "connect a Jira Cloud site the given agent will own, with its address, the person's Atlassian email and an API token, which Jira checks before anything is kept (plan 2026-11-10-1451, R1, R5); with `account_id`, connect that site again with a new token",
@@ -1601,7 +1523,6 @@ export const FRAMES = {
     causes: ["peers"],
   }),
 
-  // Pushes
   desk: push("one desk in full (on connect, and for desk_get)", { relay: "scope" }),
   desk_title: push("a desk's conversation was renamed, archived or changed model or mode"),
   state: push("a desk's geometry and overlay changed", { relay: "scope" }),
@@ -1612,11 +1533,9 @@ export const FRAMES = {
   desks: push("every desk, after list_desks or a pin", { lists: true }),
   agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again", { lists: true }),
   lists_changed: push("another Mac's chats changed, or it came into or out of reach: ask for the lists again"),
-  // Only this push, never lists_changed, makes a paired Mac fetch: it answers with lists_changed, so the two cannot loop.
   chat_changed: push("a chat on this Mac was renamed, archived, hidden, relabelled or given a purpose or draft: ask for the lists again", { lists: true }),
   memory_changed: push("an agent's memory has new commits on this Mac"),
   state_changed: push("the person's marks, pins, label colours or Learn changed on this Mac"),
-  // Neither changes how a Mac's chats are listed: marks reach a paired Mac through the state sync (plan 055).
   seen: push("every chat's done and viewed marks, focus weights and rests (on connect, and after marks from a paired Mac)"),
   seen_chat: push("one chat's done and viewed marks, focus weight and rest, after a change to that chat"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
@@ -1638,31 +1557,22 @@ export const FRAMES = {
 } as const;
 
 type Table = typeof FRAMES;
-/** The name of any frame in the table. */
 export type FrameName = keyof Table;
-/** The name of a frame the app sends and the mod answers with a reply. */
 export type RequestName = { [K in FrameName]: Table[K] extends { kind: "request" } ? K : never }[FrameName];
-/** The name of a frame the app sends without waiting for an answer; its effect comes back as pushes. */
 export type SendName = { [K in FrameName]: Table[K] extends { kind: "send" } ? K : never }[FrameName];
-/** What a request or send carries once parsed. */
 export type PayloadOf<N extends RequestName | SendName> = Exclude<ReturnType<Table[N]["parse"]>, string>;
 /** What the app sends for a frame: the parsed payload, with every field that may be null or absent left optional. */
 export type InputOf<N extends RequestName | SendName> = Optional<PayloadOf<N>>;
 type Optional<T> = { [K in keyof T as undefined extends T[K] ? K : null extends T[K] ? K : never]?: T[K] } & {
   [K in keyof T as undefined extends T[K] ? never : null extends T[K] ? never : K]: T[K];
 };
-/** How a request ends for the app: its reply, or the mod's message (or its silence, `timedOut`). */
 export type RequestResult<R> = { ok: true; reply: R } | { ok: false; error: string; timed_out: boolean };
-/** The reply a request is answered with. */
 export type ReplyOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? Replies[R] : never;
-/** A push as it arrives: its name beside its payload. */
 export type PushFrame = { [K in PushName]: { type: K } & Pushes[K] }[PushName];
 
-/** The frame table's entry for a frame's `type` (how the mod's router finds what to do); undefined for a type the table does not list. */
 export const frameEntry = (type: unknown): Table[FrameName] | undefined =>
   typeof type === "string" && Object.hasOwn(FRAMES, type) ? FRAMES[type as FrameName] : undefined;
 
-/** How the app reads a request's answer: the frame that carried its request_id, or null when none came in time. */
 export function requestResult<R>(answer: Record<string, unknown> | null): RequestResult<R> {
   if (!answer) return { ok: false, error: "no answer from the mod", timed_out: true };
   if (answer.type === "error") return { ok: false, error: typeof answer.message === "string" ? answer.message : "the mod refused", timed_out: false };
@@ -1688,13 +1598,11 @@ export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set(
  */
 export const PEER_FRAMES: ReadonlySet<FrameName> = new Set((Object.keys(FRAMES) as FrameName[]).filter((n) => peerMeaning(n) !== null));
 
-/** How another paired Mac may send a frame (addendum C), or null when it may not (or the frame is a push). */
 export function peerMeaning(name: unknown): PeerMeaning | null {
   const entry = frameEntry(name);
   return !entry || entry.kind === "push" ? null : entry.peer;
 }
 
-/** How a push from a paired Mac is taken here (addendum C), or null when it is not passed on and changes no list. */
 export function pushMeaning(name: unknown): PushPeerMeaning | null {
   const entry = frameEntry(name);
   return entry?.kind === "push" ? (entry.peer ?? null) : null;

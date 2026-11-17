@@ -39,7 +39,6 @@ describe("whether a mail is to the person, from a person (R5, KTD6)", () => {
   test("a no-reply sender is not a person", () => {
     for (const from of ["GitHub <noreply@github.com>", "no-reply@accounts.example", "DoNotReply@bank.example", "MAILER-DAEMON@acme.com", "no_reply-42@x.io"])
       expect([from, isDirectMail(h({ ...colleague, From: from, To: "ada@acme.com" }), OWN)]).toEqual([from, false]);
-    // A name that merely starts like one is a person.
     expect(isDirectMail(h({ ...colleague, From: "Noreen <noreen@acme.com>", To: "ada@acme.com" }), OWN)).toBe(true);
   });
 });
@@ -70,7 +69,6 @@ describe("what kind of mail a message is (plan 069)", () => {
       automated: true,
       category: "updates",
     });
-    // A mailbox without tabs has no category; a mail with no From is no person's.
     expect(mailTraits(h({ To: "ada@acme.com" }), OWN)).toEqual({ to_you: true, list: false, automated: true, category: null });
   });
 

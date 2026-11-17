@@ -4,7 +4,6 @@ import type { Scope } from "../core/desk-core.ts";
 import type { Audience, LokiServer, WsBridge } from "../mod/server.ts";
 import { Sockets, type PhoneListener } from "../mod/sockets.ts";
 
-/** A listener that records what it was asked to send, and whether it was closed. */
 function fakeListener(name: string, sent: string[]) {
   const record = (msg: object, scope?: Scope, to: Audience = "all") => sent.push(`${name}:${(msg as { type: string }).type}:${scope ?? "-"}:${to}`);
   const bridge: WsBridge = {

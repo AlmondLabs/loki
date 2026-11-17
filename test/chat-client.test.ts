@@ -21,7 +21,6 @@ describe("the daemon's chat client", () => {
     await client.runtimeStart({ agent_id: "a", conversation_id: "c1" });
     await client.runtimeStart({ agent_id: "a", conversation_id: "c2" });
     expect(opened).toEqual(["c1", "c2"]);
-    // The turn in c1 ended while the socket was down: reopening says so.
     loop = "idle";
     seen.length = 0;
     reconnect();

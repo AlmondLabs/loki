@@ -7,7 +7,6 @@ const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 const THIRD = "cccccccc-3333-4333-8333-333333333333";
 
-/** The MacBook's directory, holding no chat itself, with the mini's word that it holds `scopes`. */
 function directory(scopes: string[] = ["conv-1"], ask: (mac: string) => { held: boolean; moved_to: string | null } = () => ({ held: false, moved_to: null })) {
   const d = new ChatDirectory({
     here: BOOK,
@@ -21,7 +20,6 @@ function directory(scopes: string[] = ["conv-1"], ask: (mac: string) => { held: 
   return d;
 }
 
-/** A router where conv-1 (scope conv-1) lives on the mini, and everything else here. */
 const router = () =>
   new ChatRouter({
     directory: directory(),
@@ -35,7 +33,6 @@ describe("which frames go to another Mac", () => {
   test("a chat frame naming its chat, and a canvas frame naming its desk or widget, go to the Mac they live on", async () => {
     const r = router();
     expect(r.target({ type: "chat_send", conversation_id: "conv-1", agent_id: "a" })).toEqual({ mac: MINI, reachable: true });
-    // A chat no Mac claimed is asked for; none holds it, so it is answered here.
     expect(await r.target({ type: "chat_send", conversation_id: "conv-2" })).toBeNull();
     expect(r.target({ type: "gesture", gesture: { id: "conv-1/w", kind: "focus" } })).toEqual({ mac: MINI, reachable: true });
     expect(r.target({ type: "desk_get", scope: "conv-1" })).toEqual({ mac: MINI, reachable: true });
@@ -106,7 +103,6 @@ describe("which pushes from another Mac are passed on here", () => {
 });
 
 describe("where a new chat lives", () => {
-  /** On the MacBook, with Ira living on the mini; `miniUp` says whether the mini is in reach. */
   const onBook = (miniUp: boolean) =>
     new ChatRouter({
       here: BOOK,
@@ -180,7 +176,6 @@ describe("a chat that moved (addendum B)", () => {
     expect(out).toEqual({ ok: true, reply: { type: "history", messages: [] } });
     expect(sent).toEqual([MINI, THIRD]);
     expect(d.peek("conv-1")).toEqual({ at: "mac", mac: THIRD, reachable: true });
-    // The new home's events are relayed now, the old home's are not.
     expect(r.relay(THIRD, { type: "chat_event", conversation_id: "conv-1", agent_id: "a", events: [] })).toEqual({});
     expect(r.relay(MINI, { type: "chat_event", conversation_id: "conv-1", agent_id: "a", events: [] })).toBe(false);
   });

@@ -25,11 +25,9 @@ describe("the line for a run of tools", () => {
     expect(workSummary([bash()])).toBe("Ran a command");
     expect(workSummary([bash(), bash(), bash()])).toBe("Ran 3 commands");
     expect(workSummary([read(), read()])).toBe("Used 2 tools");
-    // One step that names its object says what it did to it.
     expect(workSummary([read()])).toBe("Read a.ts");
     expect(workSummary([read(true)])).toBe("Read a.ts · failed");
     expect(workSummary([{ role: "tool", text: "Read", tool: { name: "Read" } }])).toBe("Used a tool");
-    // An ACP agent's step is named by its title, which already says the verb and the object.
     expect(workSummary([{ role: "tool", text: "Read signups.csv · signups.csv", tool: { name: "Read signups.csv" } }])).toBe("Read signups.csv");
     expect(workSummary([bash(), read(true), ...Array.from({ length: 8 }, () => read())])).toBe("Ran a command, used 9 tools · 1 failed");
     expect(workSummary([bash(), read()], true)).toBe("Working");
@@ -73,7 +71,7 @@ describe("the line for a run of tools", () => {
 
   test("no description, or only a description so far: no second copy of it", () => {
     expect(toolStep("Bash", { command: "ls" }).description).toBeUndefined();
-    const early = toolStep("Bash", { description: "List files" }); // the command has not streamed in yet
+    const early = toolStep("Bash", { description: "List files" });
     expect(early.input).toBe("List files");
     expect(early.description).toBeUndefined();
     expect(toolStep("Bash", { command: "ls", description: "  two\nlines " }).description).toBe("two");
@@ -90,7 +88,7 @@ describe("the line for a run of tools", () => {
       [4, 5],
       [5, 7],
     ]);
-    expect([...toolRuns(rows, 5)]).toEqual([[5, 7]]); // a window starting mid-run starts the run there
+    expect([...toolRuns(rows, 5)]).toEqual([[5, 7]]);
   });
 });
 
@@ -109,7 +107,7 @@ describe("loki's tools, and Claude Code's names for the same steps", () => {
     expect(stepVerb("background_run")).toBe("Started in background");
     expect(stepVerb("TaskOutput")).toBe("Read a command's output");
     expect(stepVerb("TaskStop")).toBe("Stopped a command");
-    expect(stepVerb("background_output")).toBe("Used background_output"); // merged into background_watch (plan 095)
+    expect(stepVerb("background_output")).toBe("Used background_output");
     expect(stepVerb("bash_background")).toBe("Used bash_background");
     expect(stepVerb("ask_user")).toBe("Used ask_user");
   });
@@ -124,7 +122,7 @@ describe("tool inputs and outputs are kept", () => {
   test("the input a reader recognises in full, else the whole input; outputs as text, capped", () => {
     expect(toolInput("Bash", { command: "ls -la\nwc -l x" })).toBe("ls -la\nwc -l x");
     expect(toolInput("Custom", '{"a":1}')).toBe('{\n  "a": 1\n}');
-    expect(toolInput("Bash", '{"comm')).toBeUndefined(); // still streaming
+    expect(toolInput("Bash", '{"comm')).toBeUndefined();
     expect(
       toolOutput([
         { type: "text", text: "one" },
@@ -134,7 +132,6 @@ describe("tool inputs and outputs are kept", () => {
     const long = must(toolOutput("x".repeat(TOOL_TEXT_MAX + 10)), "the tool's output");
     expect(long.startsWith("x".repeat(TOOL_TEXT_MAX))).toBe(true);
     expect(long.endsWith("10 more characters")).toBe(true);
-    // Capped once by the daemon and again by the app (plan 035): the second does nothing.
     expect(toolOutput(long)).toBe(long);
     expect(toolOutput(toolOutput("y".repeat(TOOL_TEXT_MAX * 3)))).toBe(toolOutput("y".repeat(TOOL_TEXT_MAX * 3)));
   });
@@ -150,7 +147,6 @@ describe("what leaves the daemon of a tool (plan 035)", () => {
     const step = shownStep({ kind: "result", id: "t1", output: raw, failed: false });
     expect(step).toEqual({ kind: "result", id: "t1", output: toolOutput(raw), failed: false });
     expect(JSON.stringify(step).length).toBeLessThan(TOOL_TEXT_MAX + 200);
-    // The thread folds it as it would have folded the whole result.
     expect(withResult({ name: "Read" }, step.kind === "result" ? step.output : null, false)).toEqual(withResult({ name: "Read" }, raw, false));
   });
   test("a call's long strings are cut, nested ones too, and it reads the same", () => {
@@ -163,7 +159,6 @@ describe("what leaves the daemon of a tool (plan 035)", () => {
     expect(cut.path).toBe("notes.md");
     expect(toolStep("write", cut, "c1")).toEqual(toolStep("write", args, "c1"));
     expect(toolLabel("write", cut)).toBe(toolLabel("write", args));
-    // Arguments still arriving as text stay whole: cut, they might not parse.
     const streaming = shownStep({ kind: "call", name: "write", args: `{"content":"${big}`, id: "c1", at: null });
     expect(streaming.kind === "call" && streaming.args).toBe(`{"content":"${big}`);
   });

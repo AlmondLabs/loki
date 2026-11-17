@@ -3,8 +3,6 @@ import { covered, median, turnTimings } from "../daemon/timing.ts";
 
 describe("turn timings", () => {
   test("a turn with a tool splits into model, tool and harness time, and the gaps around them", () => {
-    // send at 0; request reaches the model at 100; first token 400; response ends 1000 with a tool call;
-    // the tool runs 1050–1500; the next request starts 1600 and ends 2600.
     const t = turnTimings({
       sentAt: 0,
       firstOutputAt: 400,
@@ -19,7 +17,7 @@ describe("turn timings", () => {
       totalMs: 2600,
       modelMs: 1900,
       toolMs: 450,
-      overheadMs: 250, // 100 before the first request, 50 before the tool, 100 after it
+      overheadMs: 250,
       beforeFirstRequestMs: 100,
       afterToolMs: [100],
     });

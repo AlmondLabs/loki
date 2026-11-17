@@ -3,12 +3,6 @@ import { Button, Field, Sheet } from "../components";
 import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
 import { cleanPurpose, saveRename } from "../desk/rename-desk";
 
-/**
- * The phone's Rename, as the desktop's RenameDesk: one field holding the name now, selected, so typing replaces
- * it, and under it the chat's one-line purpose when `onPurpose` is given (plan 049, R11). Return saves; Save waits
- * for a name or a purpose that differs. A refusal shows under the fields and the sheet stays to try again. Mounted
- * only while open, so each opening starts from the desk's name and purpose.
- */
 export function RenameSheet({
   name,
   onRename,
@@ -19,9 +13,7 @@ export function RenameSheet({
   name: string;
   onRename: (name: string) => Promise<string | null>;
   onClose: () => void;
-  /** The chat's purpose line now. */
   purpose?: string | null;
-  /** Save the purpose line, an empty one clearing it; left out, the sheet has no purpose field. */
   onPurpose?: (purpose: string) => Promise<string | null>;
 }) {
   const [value, setValue] = useState(name);

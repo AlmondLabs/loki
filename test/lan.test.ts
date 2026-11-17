@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { WebSocket as WsClient, type RawData } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
+import { HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress, tailnetAddresses } from "../mod/lan.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 import { request as httpRequest, type IncomingMessage } from "node:http";
@@ -21,7 +21,6 @@ const TAILNET = "my-macbook-pro.tail1234.ts.net";
 const frameOf = (raw: RawData) =>
   JSON.parse((Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8")) as Record<string, unknown>;
 
-/** A Tailscale whose CLI is recorded output: running (or stopped), with or without the https front on `port`. */
 function fakeTailscale(opts: { running?: boolean; serve?: boolean; port?: number } = {}) {
   const port = opts.port ?? 41415;
   const serve = opts.serve ?? false;
@@ -94,7 +93,6 @@ async function pair(
   return { res, cookie: `loki_device=${token}`, token, body: (await res.json()) as { device_id: string; name: string } };
 }
 
-/** Resolves when the socket closes, or after `ms` with "timeout". */
 const closedWithin = (ws: WsClient, ms: number) =>
   new Promise<string>((resolve) => {
     const t = setTimeout(() => resolve("timeout"), ms);
@@ -104,7 +102,6 @@ const closedWithin = (ws: WsClient, ms: number) =>
     });
   });
 
-/** A client whose errors (a destroyed upgrade is one) never go unhandled. */
 function connect(url: string, headers: Record<string, string> = {}): WsClient {
   const ws = new WsClient(url, { headers });
   ws.on("error", () => {});
@@ -148,7 +145,6 @@ describe("LAN listener", () => {
       const health = await fetch(`${base(f.lan)}/health`);
       expect(health.status).toBe(200);
       expect(await health.json()).toMatchObject({ ok: true });
-      // a fresh instance reads the setting back (this is what activate does after /reload)
       const again = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 0 });
       expect(again.enabled()).toBe(true);
 
@@ -175,7 +171,7 @@ describe("LAN listener", () => {
       expect(status.error).toContain("EADDRINUSE");
       expect(b.changes.map((c) => c[0])).toEqual(["status"]);
       expect(b.changes[0][1].error).toContain("EADDRINUSE");
-      expect(b.lan.enabled()).toBe(true); // the setting stays; the next start may succeed
+      expect(b.lan.enabled()).toBe(true);
     } finally {
       await a.lan.stop();
       await b?.lan.stop();
@@ -194,8 +190,6 @@ describe("LAN listener", () => {
         body: JSON.stringify({ code: "ZZZZZZ", name: "x" }),
       });
       expect(bad.status).toBe(404);
-      // Cross-site protection: a body not declared JSON (what a form or no-cors text post looks like) is 415,
-      // a foreign Origin is 403, the page's own origin passes, and a JSON body that is not JSON is 400.
       expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", body: "not json" })).status).toBe(415);
       expect(
         (await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: "http://evil.example" }, body: "{}" }))
@@ -224,7 +218,6 @@ describe("LAN listener", () => {
       const me = await fetch(`${base(f.lan)}/me`, { headers: { cookie: p.cookie } });
       expect(me.status).toBe(200);
       expect(await me.json()).toEqual({ device_id: p.body.device_id, name: "Deepak's iPhone" });
-      // The request came from loopback with no tailnet marks: the Wi‑Fi route, recorded on the device for Settings.
       expect(f.devices.list()[0].last_via).toBe("lan");
       const bearer = await fetch(`${base(f.lan)}/me`, { headers: { authorization: `Bearer ${p.token}` } });
       expect(bearer.status).toBe(200);
@@ -253,10 +246,10 @@ describe("LAN listener", () => {
       await f.lan.setEnabled(true);
       for (let i = 0; i < 9; i++) expect((await pair(f.lan, "ZZZZZZ")).res.status).toBe(404);
       const { code } = f.codes.mint();
-      expect((await pair(f.lan, code)).res.status).toBe(200); // the ninth miss did not block; a hit resets
+      expect((await pair(f.lan, code)).res.status).toBe(200);
       for (let i = 0; i < 10; i++) expect((await pair(f.lan, "ZZZZZZ")).res.status).toBe(404);
       const fresh = f.codes.mint().code;
-      expect((await pair(f.lan, fresh)).res.status).toBe(429); // blocked even with a valid code
+      expect((await pair(f.lan, fresh)).res.status).toBe(429);
     } finally {
       await f.lan.stop();
       f.cleanup();
@@ -289,8 +282,6 @@ describe("LAN listener", () => {
       });
       await new Promise((r) => setTimeout(r, 200));
       // The wrong codes' bodies all at once; the right one's only after they are answered, so it is the 31st attempt
-      // whatever order the listener reads bodies in (sent together, it was sometimes read before the tenth wrong one
-      // failed, and was rightly let in: macOS CI, 2026-10-11). It passed the first check with the others all the same.
       const wrong = reqs.slice(0, -1);
       const right = reqs[reqs.length - 1];
       for (const r of wrong) r.req.end(r.body);
@@ -299,7 +290,7 @@ describe("LAN listener", () => {
       statuses.push(await right.status);
       expect(statuses.filter((s) => s === 404)).toHaveLength(10);
       expect(statuses.filter((s) => s === 429)).toHaveLength(21);
-      expect(statuses.at(-1)).toBe(429); // the right code, past the tenth, waits too
+      expect(statuses.at(-1)).toBe(429);
       expect(f.devices.list()).toEqual([]);
     } finally {
       await f.lan.stop();
@@ -335,12 +326,10 @@ describe("LAN listener", () => {
       await new Promise<void>((resolve) => viaBearer.once("message", () => resolve()));
       expect(f.lan.clientCount()).toBe(2);
 
-      // broadcast reaches phones
       const got = new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
       f.lan.broadcast({ type: "ping" });
       expect(await got).toEqual({ type: "ping" });
 
-      // forget: the record goes and both live sockets close within a second
       const closes = Promise.all([closedWithin(good, 1000), closedWithin(viaBearer, 1000)]);
       expect(f.lan.forget(p.body.device_id)).toBe(true);
       expect(await closes).toEqual(["closed", "closed"]);
@@ -398,7 +387,6 @@ describe("LAN listener", () => {
       await new Promise<void>((r) => phone.once("message", () => r()));
       const port = f.lan.status().port;
       await f.lan.setEnabled(false);
-      // Still listening, for the paired Mac.
       expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true);
       await expect.poll(() => phone.readyState).toBe(WsClient.CLOSED);
     } finally {
@@ -442,7 +430,6 @@ describe("LAN listener", () => {
     const noName = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => en0 });
     const nothing = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => ({}) });
     try {
-      // before the first refresh the cache only knows the binary exists: the Wi‑Fi route
       expect(served.lan.status().tailscale).toEqual({ installed: true, running: false, ip: null, name: null, serve_url: null, error: null });
       expect(served.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
 
@@ -453,7 +440,6 @@ describe("LAN listener", () => {
 
       expect((await named.lan.refresh()).tailscale?.serve_url).toBeNull();
       expect(named.lan.pairUrl("ABC234")).toBe(`http://${TAILNET}:41415/?code=ABC234`);
-      // the user's choice of the Wi‑Fi wins over a running tailnet
       expect(named.lan.setVia("lan").via).toBe("lan");
       expect(named.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
       expect(named.lan.setVia("tailscale").via).toBe("tailscale");
@@ -463,7 +449,6 @@ describe("LAN listener", () => {
       expect(st.via).toBe("lan");
       expect(st.tailscale).toMatchObject({ running: false, name: TAILNET });
       expect(stopped.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
-      // asking for the tailnet while it is stopped falls through to the Wi‑Fi rather than a dead name
       stopped.lan.setVia("tailscale");
       expect(stopped.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
 
@@ -479,7 +464,6 @@ describe("LAN listener", () => {
   test("via persists to lan.json, survives a new instance, and defaults to tailscale only while it runs", async () => {
     const f = fixture({ port: 41415, tailscale: fakeTailscale() });
     try {
-      // an older file has no via: the default applies
       writeFileSync(join(f.dir, "lan.json"), JSON.stringify({ enabled: false }));
       const fresh = new LanListener({
         stateFile: join(f.dir, "lan.json"),
@@ -505,7 +489,6 @@ describe("LAN listener", () => {
       expect(JSON.parse(readFileSync(join(f.dir, "lan.json"), "utf8"))).toEqual({ enabled: false, via: "lan" });
       expect(f.changes.map((c) => c[0])).toEqual(["status"]);
       expect(f.changes[0][1].via).toBe("lan");
-      // the choice outlives a restart and an enable/disable, which rewrite the file
       const again = new LanListener({
         stateFile: join(f.dir, "lan.json"),
         devices: f.devices,
@@ -543,7 +526,7 @@ describe("LAN listener", () => {
     const f = fixture({ port: 41415, tailscale: ts });
     try {
       await f.lan.refresh();
-      expect(f.changes).toEqual([]); // the first read is not a change
+      expect(f.changes).toEqual([]);
       await f.lan.refresh();
       expect(f.changes).toEqual([]);
       serve = true;
@@ -559,6 +542,30 @@ describe("LAN listener", () => {
     }
   });
 
+  test("this Mac's tailnet addresses: Tailscale's tunnel before the CLI has answered, never a Wi‑Fi's 100.x address", () => {
+    const v4 = (address: string) => ({ address, family: "IPv4", internal: false }) as never;
+    const mac = () => ({
+      en0: [v4("100.80.0.5")],
+      utun4: [v4("100.90.1.2"), { address: "fd7a:115c:a1e0::1", family: "IPv6", internal: false } as never],
+      lo0: [v4("127.0.0.1")],
+    });
+    expect(tailnetAddresses(mac, null)).toEqual(["100.90.1.2"]);
+    expect(tailnetAddresses(mac, "100.90.1.2")).toEqual(["100.90.1.2"]);
+    // Every VPN on the Mac is a utun: another one handing out 100.x addresses (WARP, NetBird) is not Tailscale's, which
+    const otherVpn = () => ({ ...mac(), utun9: [v4("100.96.0.2"), { address: "fe80::1", family: "IPv6", internal: false } as never] });
+    expect(tailnetAddresses(otherVpn, null)).toEqual(["100.90.1.2"]);
+    expect(tailnetAddresses(() => ({ utun9: [v4("100.96.0.2")] }), null)).toEqual([]);
+    // Linux and Windows name the tunnel after Tailscale; the CLI's address counts whatever its interface is called.
+    expect(tailnetAddresses(() => ({ tailscale0: [v4("100.90.1.3")] }), null)).toEqual(["100.90.1.3"]);
+    expect(tailnetAddresses(() => ({ Tailscale: [v4("100.90.1.4")] }), null)).toEqual(["100.90.1.4"]);
+    expect(tailnetAddresses(() => ({ en0: [v4("100.80.0.5")] }), "100.90.1.2")).toEqual(["100.90.1.2"]);
+    expect(
+      tailnetAddresses(() => {
+        throw new Error("no interfaces");
+      }, null),
+    ).toEqual([]);
+  });
+
   test("the route of a request: a 100.x peer or tailscale serve on loopback is the tailnet; anything else is the Wi‑Fi", () => {
     const req = (remoteAddress: string, headers: Record<string, string> = {}) => ({ headers, socket: { remoteAddress } });
     expect(requestVia(req("100.74.177.93"))).toBe("tailscale");
@@ -570,14 +577,14 @@ describe("LAN listener", () => {
     expect(requestVia(req("127.0.0.1"))).toBe("lan");
     // A 100.x address is only the tailnet inside CGNAT space (100.64–100.127); 100.1.x is somebody's real network.
     expect(requestVia(req("100.1.2.3"))).toBe("lan");
-    // A Wi‑Fi may hand out 100.x addresses too: with this Mac's tailnet address known, only a caller that reached it counts.
+    // A Wi‑Fi may hand out 100.x addresses too: with this Mac's tailnet addresses known, only a caller that reached one counts.
     const at = (remoteAddress: string, localAddress: string) => ({ headers: {}, socket: { remoteAddress, localAddress } });
-    expect(requestVia(at("100.74.177.93", "100.90.1.2"), "100.90.1.2")).toBe("tailscale");
-    expect(requestVia(at("::ffff:100.74.177.93", "::ffff:100.90.1.2"), "100.90.1.2")).toBe("tailscale");
-    expect(requestVia(at("100.74.177.93", "100.80.0.5"), "100.90.1.2")).toBe("lan");
-    expect(requestVia(at("100.74.177.93", "100.80.0.5"), null)).toBe("lan");
-    expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }), null)).toBe("tailscale");
-    expect(requestVia(req("192.168.1.20", { "x-forwarded-for": "100.74.177.93" }))).toBe("lan"); // a header alone proves nothing
+    expect(requestVia(at("100.74.177.93", "100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
+    expect(requestVia(at("::ffff:100.74.177.93", "::ffff:100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
+    expect(requestVia(at("100.74.177.93", "100.80.0.5"), ["100.90.1.2"])).toBe("lan");
+    expect(requestVia(at("100.74.177.93", "100.80.0.5"), [])).toBe("lan");
+    expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }), [])).toBe("tailscale");
+    expect(requestVia(req("192.168.1.20", { "x-forwarded-for": "100.74.177.93" }))).toBe("lan");
     expect(isTailnetAddress("100.64.0.1")).toBe(true);
     expect(isTailnetAddress("100.127.255.254")).toBe(true);
     expect(isTailnetAddress("100.128.0.1")).toBe(false);
@@ -624,23 +631,22 @@ describe("LAN listener", () => {
 
   test("behind tailscale serve: /pair from the tailnet origin reaches the code check; a stranger is still 403", async () => {
     // Port 0, read back once bound: a port probed free first can be taken by another listener before this one binds it
-    // (it was, on macOS CI), and a failed bind returns before Tailscale is read.
     const f = fixture({ tailscale: fakeTailscale() });
     try {
       await f.lan.setEnabled(true);
       expect(f.lan.status().error).toBeNull();
       const port = f.lan.status().port;
-      expect(f.lan.status().tailscale?.name).toBe(TAILNET); // start() refreshed
+      expect(f.lan.status().tailscale?.name).toBe(TAILNET);
       const post = (origin: string, extra: Record<string, string> = {}) =>
         fetch(`${base(f.lan)}/pair`, {
           method: "POST",
           headers: { "content-type": "application/json", origin, ...extra },
           body: JSON.stringify({ code: "ZZZZZZ", name: "x" }),
         });
-      expect((await post(`https://${TAILNET}`)).status).toBe(404); // past the origin check, the code is wrong
+      expect((await post(`https://${TAILNET}`)).status).toBe(404);
       expect((await post(`http://${TAILNET}:${port}`)).status).toBe(404);
       expect((await post("https://evil.example")).status).toBe(403);
-      expect((await post("https://evil.example", { "x-forwarded-host": "evil.example" })).status).toBe(404); // a proxy in front vouches for the Host
+      expect((await post("https://evil.example", { "x-forwarded-host": "evil.example" })).status).toBe(404);
     } finally {
       await f.lan.stop();
       f.cleanup();
@@ -676,7 +682,6 @@ describe("LAN listener", () => {
       expect((await fetch(`${base(noApp.lan)}/`)).status).toBe(503);
 
       expect(withApp.lan.pairUrl("ABC234")).toMatch(/^http:\/\/[^/]+:\d+\/\?code=ABC234$/);
-      // The Bonjour name wins over the address so a bookmark survives a new network; no name → the address.
       expect(withApp.lan.status().host).toBe(bonjourHost());
       expect(withApp.lan.pairUrl("ABC234").startsWith(`http://${withApp.lan.status().host ?? withApp.lan.status().address}:`)).toBe(true);
     } finally {

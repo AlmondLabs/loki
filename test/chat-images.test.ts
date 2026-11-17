@@ -11,8 +11,6 @@ import { messageSteps } from "../core/attention/pi-steps.ts";
 import { ThreadModel } from "../core/attention/thread.ts";
 import { must } from "./fixtures/must.ts";
 
-/** Plan 029: tool-result images shrunk before they are kept, and the person's pictures on every window. */
-
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "loki-chat-images-"));
@@ -110,7 +108,6 @@ describe("the person's pictures, named and kept", () => {
     const thread = new ThreadModel();
     thread.apply(step);
     expect(thread.rows()?.map((r) => [r.text, r.images])).toEqual([["look", [images.name(png)]]]);
-    // Without a namer the pictures stay the lines that stand for them.
     expect(messageSteps({ role: "user", content: [{ type: "image", ...png }] }, null)[0]).not.toHaveProperty("images");
   });
 });
@@ -152,7 +149,6 @@ describe("the route", () => {
   });
 
   test("a picture that is there but cannot be read ends that answer, not the daemon; the next one is served", async () => {
-    // A folder under a picture's name: it exists, and reading it fails after the answer began.
     mkdirSync(join(dir, NAME));
     await fetch(`${base}/chat-images/${NAME}?t=ok`)
       .then((r) => r.text())

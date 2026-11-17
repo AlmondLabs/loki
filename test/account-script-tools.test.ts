@@ -13,8 +13,6 @@ import type { SlackMessage } from "../mod/slack.ts";
 import { JIRA_ADA, JIRA_BOB, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
 
-/** The account script tools (plan 097, U2): Slack, Jira and Flow for scripts, each checked against its owner. */
-
 const WORK = "agent-local-work";
 const HOME = "agent-local-home";
 const SLACK = "slack:T1:U1";
@@ -28,7 +26,6 @@ afterEach(() => {
 
 const slackMessage = (ts: string, user: string, text: string): SlackMessage => ({ ts, user, text, raw: {} }) as unknown as SlackMessage;
 
-/** The work agent owns a Slack workspace and a Jira site, the home agent a mailbox; Flow has a card from each of work's. */
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-account-script-tools-"));
   dirs.push(dir);

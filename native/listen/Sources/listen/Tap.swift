@@ -2,7 +2,6 @@ import AVFAudio
 import CoreAudio
 import Foundation
 
-/// A Core Audio failure, with the call that failed and its OSStatus.
 struct AudioError: Error, CustomStringConvertible {
   let call: String
   let status: OSStatus
@@ -29,7 +28,6 @@ private func stringProperty(_ object: AudioObjectID, _ selector: AudioObjectProp
   return value.takeRetainedValue() as String
 }
 
-/// An app process Core Audio knows about: what `listen --list` prints, to find what to tap.
 struct AudioProcess {
   let pid: pid_t
   let bundleID: String?
@@ -63,7 +61,6 @@ final class AppTap: @unchecked Sendable {
   init(bundleIDs: [String], onBuffer: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws {
     let description: CATapDescription
     if bundleIDs.isEmpty {
-      // Every app: listen itself plays nothing, so there is nothing to exclude.
       description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
     } else {
       description = CATapDescription(stereoMixdownOfProcesses: [])

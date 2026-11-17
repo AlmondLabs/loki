@@ -4,15 +4,6 @@ import { skillsOf } from "../skills.ts";
 import { REPLIES_PROMPT } from "../replies.ts";
 import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
 
-/**
- * What an ACP agent's system prompt gains for one of loki's agents (plan 020, KD5): who it is, its memory (persona
- * included, as loki's own chats have it) and its skills. With loki's tools (plan 044) it changes its memory with them,
- * as in loki's own chats; without them, the memory is named by path for it to read and loki keeps it up to date through
- * its passes. The skills are named by path either way. Every agent is told about quick replies (plan 066), which need
- * no tool; with tools, the prompt also names suggestion_create and the script tool, through which the history tools
- * (plan 063), the canvas, schedules and the chat list are reached (plan 099), since a tool description alone may never
- * be read.
- */
 export function agentPrompt(backendDir: string, agentId: string, name: string | null, withTools: boolean, globalSkillsDir?: string): string {
   const memory = memorySection(memoryRoot(backendDir, agentId), withTools ? "tools" : "files");
   const skills = skillsOf(backendDir, agentId, globalSkillsDir);

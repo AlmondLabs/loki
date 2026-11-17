@@ -2,10 +2,6 @@ import { Button, Sheet } from "../components";
 import { LabelEditor } from "../chat/labels";
 import type { LabelView } from "../../../core/labels.ts";
 
-/**
- * The phone's labels… (plan 022, R1), as the desktop's dialog: the same editor at touch size in a bottom sheet, and
- * Done. Each tick saves at once. Mounted only while open.
- */
 export function LabelsSheet({
   current,
   list,

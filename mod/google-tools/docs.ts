@@ -1,13 +1,7 @@
 import { flag, list, rec, str, textArg, type GoogleToolDef } from "./core.ts";
 
-/**
- * Docs for scripts (plan 2026-11-11 scripts, U9): read a document as text, or as its paragraphs with the indexes an
- * edit names. Edits go through google_api's `documents/<id>:batchUpdate`, which answers with what Docs did.
- */
-
 const API = "https://docs.googleapis.com/v1/documents";
 
-/** A paragraph's text, from its text runs. */
 const paragraphText = (p: Record<string, unknown>): string =>
   list(p.elements)
     .map((e) => str(rec(rec(e).textRun).content))
@@ -37,5 +31,4 @@ const read: GoogleToolDef = {
   },
 };
 
-/** The Docs tools. */
 export const docsTools: GoogleToolDef[] = [read];

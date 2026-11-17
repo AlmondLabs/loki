@@ -10,21 +10,10 @@ import { listAgents, writeRecord } from "./store/agents.ts";
 import { isRecord } from "./tool-kinds.ts";
 import { readJson } from "../mod/json-file.ts";
 
-/**
- * The agents' records, memory and chats' settings in the shapes loki writes now, once on each Mac (plan 045): what
- * the import from Letta brought over as Letta wrote it. Noted in `state/migrations.json` (`agents`), so a start after
- * the first reads nothing. A chat's saved entries are the store's own migration's (daemon/store-migration.ts).
- */
 export const AGENTS_VERSION = 1;
 
-/** Letta's names for ChatGPT's sign-in provider; pi-ai's is openai-codex. */
 const PROVIDER_ALIASES: Readonly<Record<string, string>> = { "chatgpt-plus-pro": "openai-codex", chatgpt_oauth: "openai-codex" };
 
-/**
- * A model handle as pi-ai can run it. A handle whose provider pi-ai knows is kept; otherwise the first part that names
- * a known provider starts it (Letta wrote some as `chatgpt-plus-pro/chatgpt-plus-pro/openai-codex/<model>`), or
- * Letta's name for ChatGPT's provider is translated. Anything else stays as it is, and fails with its own name.
- */
 export function piHandle(handle: string, known: (provider: string) => boolean): string {
   const parts = handle.split("/");
   if (parts.length < 2 || known(parts[0])) return handle;
@@ -33,14 +22,9 @@ export function piHandle(handle: string, known: (provider: string) => boolean): 
   return alias && known(alias) ? [alias, ...parts.slice(1)].join("/") : handle;
 }
 
-/** `.letta/loki` as a whole path segment pair: loki's folder before it moved to `~/.loki`. */
 const OLD_ROOT = /(?<![\w.-])\.letta\/loki(?![\w.-])/g;
 const isEffort = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
-/**
- * An agent's `model_settings` with its effort as `reasoning_effort` alone, the one key loki reads: Letta kept it as
- * `effort`, `reasoning.reasoning_effort` or a disabled `thinking`, beside its `provider_type`. Null when nothing changes.
- */
 export function settingsNow(settings: Record<string, unknown>): Record<string, unknown> | null {
   const { effort, reasoning, thinking, provider_type: _type, ...rest } = settings;
   const nested = isRecord(reasoning) ? reasoning.reasoning_effort : undefined;
@@ -50,35 +34,28 @@ export function settingsNow(settings: Record<string, unknown>): Record<string, u
   return JSON.stringify(now) === JSON.stringify(settings) ? null : now;
 }
 
-/** What the migration needs: the agents' folder and stores, which providers pi-ai knows, and Learn's old file. */
 export interface AgentMigrationDeps {
   backendDir: string;
   stores: StoreManager;
   known: (provider: string) => boolean;
-  /** Learn's `worker.json` from before the background passes, which names its chats brought from Letta. */
   learnWorkerFile: string;
-  /** `state/migrations.json`. */
   stateFile: string;
-  /** Where a helper agent's record from Letta goes, out of the agents' folder. */
   backupDir: string;
   context: Context;
   report: (line: string) => void;
 }
 
-/** Run the migration unless this Mac has; true when it ran. */
 export async function migrateAgents(d: AgentMigrationDeps): Promise<boolean> {
   const state = readJson(d.stateFile);
   const done = isRecord(state) ? state : {};
   if (typeof done.agents === "number" && done.agents >= AGENTS_VERSION) return false;
   migrateRecords(d);
-  // Each agent has its own store and memory repo, so they go together, as the daemon opens their stores at start.
   await Promise.all(listAgents(d.backendDir).map(async (id) => Promise.all([migrateMemory(d, id), migrateChats(d, id)])));
   mkdirSync(join(d.stateFile, ".."), { recursive: true });
   writeFileSync(d.stateFile, `${JSON.stringify({ ...done, agents: AGENTS_VERSION }, null, 2)}\n`);
   return true;
 }
 
-/** Each record's model by pi-ai's name and its effort under loki's key; Letta's helper agents' records moved out. */
 function migrateRecords(d: AgentMigrationDeps): void {
   const dir = join(d.backendDir, "agents");
   const names = existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith(".json")) : [];
@@ -100,7 +77,6 @@ function migrateRecords(d: AgentMigrationDeps): void {
   }
 }
 
-/** Every file in a memory repo but its git folder. */
 function memoryFiles(root: string, dir = root, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === ".git") continue;
@@ -111,7 +87,6 @@ function memoryFiles(root: string, dir = root, out: string[] = []): string[] {
   return out;
 }
 
-/** Memory files naming `~/.letta/loki` name `~/.loki`, committed as loki's. */
 async function migrateMemory(d: AgentMigrationDeps, agentId: string): Promise<void> {
   const root = memoryRoot(d.backendDir, agentId);
   if (!existsSync(root)) return;
@@ -130,7 +105,6 @@ async function migrateMemory(d: AgentMigrationDeps, agentId: string): Promise<vo
   d.report(`${agentId}: ${changed.length} memory files now name ~/.loki`);
 }
 
-/** Learn's chats brought from Letta, by chat id: its writers' and its earlier hidden chats. */
 function learnChats(file: string): Set<string> {
   const w = readJson(file);
   if (!isRecord(w)) return new Set();
@@ -138,14 +112,11 @@ function learnChats(file: string): Set<string> {
   return new Set(ids.filter((v): v is string => typeof v === "string"));
 }
 
-/** Each chat on loki's engine runs on pi-ai's name for its model, in its folder under `~/.loki`; Learn's old ones hidden. */
 async function migrateChats(d: AgentMigrationDeps, agentId: string): Promise<void> {
   if (!existsSync(join(d.backendDir, "agents", `${backendName(agentId)}.json`))) return;
   const store = await d.stores.get(agentId);
   const index = await store.harness.snapshot(ChatIndex, d.context);
   const learn = learnChats(d.learnWorkerFile);
-  // Every chat is read together, then its changes saved together: each change is a different chat's, and pi-durable
-  // puts one store's commits in order itself.
   const writes = await Promise.all(
     Object.entries(index?.chats ?? {}).map(async ([chatId, conversationId]): Promise<Array<() => Promise<unknown>>> => {
       const info = await store.chatInfo(conversationId as ConversationId, d.context);

@@ -5,17 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ConnectProvider } from "../core/attention/protocol.ts";
 
-/**
- * Model providers on loki's daemon (plan 017, U8): the ones pi-ai knows, each connected with an API key or by signing
- * in through the browser, its credential kept in the keychain (daemon/credentials.ts). Preferences › Providers reads and
- * changes them in the ConnectProvider shape it was written for. A key is tried before it is kept, by listing the
- * provider's models where the provider lists them over the network. Anthropic's subscription sign-in is not offered:
- * pi-ai implements it by presenting itself as Claude Code (KTD10).
- */
-
-/** Sign-in methods loki does not offer, by provider. */
 const NO_SIGN_IN = new Set(["anthropic"]);
-/** How long a sign-in waits for the browser. */
 export const SIGN_IN_MS = 10 * 60_000;
 
 interface Waiting {
@@ -23,12 +13,10 @@ interface Waiting {
   code?: (input: string) => void;
 }
 
-/** The providers Settings can connect: lists them with how each connects, keeps or removes a key after trying it, and runs a browser sign-in until it finishes, fails or SIGN_IN_MS passes. */
 export class Providers {
   private readonly models: Models;
   private readonly credentials: CredentialStore;
   private readonly report: (message: string) => void;
-  /** This install's stable id, which "Sign in with ChatGPT" sends OpenAI as its agent host. */
   private readonly deviceId: () => string;
   private readonly waiting = new Map<string, Waiting>();
 
@@ -45,7 +33,6 @@ export class Providers {
 
   async list(): Promise<ConnectProvider[]> {
     const shown = this.models.getProviders().filter((p) => (p.auth.apiKey?.login ? true : this.signsIn(p.id)));
-    // Each provider's kept sign-in is read at once: one at a time, the list waited on every read in turn.
     const checks = await Promise.all(shown.map((p) => this.models.checkAuth(p.id).catch(() => undefined)));
     const out: ConnectProvider[] = [];
     for (const [i, p] of shown.entries()) {
@@ -69,10 +56,6 @@ export class Providers {
     return out;
   }
 
-  /**
-   * Keep an API key, once the provider has accepted it. The provider is asked with the new key in place; one it
-   * refuses puts back whatever was kept before (a mistyped replacement does not cost the working key).
-   */
   async connectKey(providerId: string, key: string): Promise<void> {
     const provider = this.models.getProvider(providerId);
     if (!provider?.auth.apiKey) throw new Error(`${providerId} does not take an API key`);
@@ -98,12 +81,6 @@ export class Providers {
     await this.credentials.delete(providerId);
   }
 
-  /**
-   * Start signing in: resolves with the page to open (or the code to enter there) as soon as the provider names it,
-   * while the sign-in goes on until the browser comes back; its credential is kept when it does. Where the provider
-   * offers a choice, the browser is chosen. A new sign-in to a provider replaces one still waiting (both would want
-   * the same callback port), and one left waiting gives up after SIGN_IN_MS.
-   */
   signIn(providerId: string): Promise<{ url: string; instructions: string | null }> {
     if (!this.signsIn(providerId)) return Promise.reject(new Error(`loki does not sign in to ${providerId}`));
     this.waiting.get(providerId)?.abort.abort(new Error("a new sign-in started"));
@@ -121,11 +98,8 @@ export class Providers {
           prompt: (prompt) => {
             if (prompt.type === "select") return Promise.resolve(prompt.options[0]?.id ?? "");
             // A question with a blank default: GitHub Copilot's first asks for an Enterprise domain, blank for github.com.
-            // Refusing it, as loki did, failed every Copilot sign-in before it began.
             if (prompt.type === "text") return Promise.resolve("");
             if (prompt.type !== "manual_code") return Promise.reject(new Error("this sign-in asks for something loki cannot answer; use an API key"));
-            // The browser's callback usually wins; the redirect URL pasted in Settings is the way when it cannot reach
-            // this machine (signing in on another device).
             return new Promise<string>((answer, cancel) => {
               entry.code = answer;
               prompt.signal?.addEventListener("abort", () => cancel(new Error("the browser came back")), { once: true });
@@ -159,7 +133,6 @@ export class Providers {
     });
   }
 
-  /** The redirect URL (or code) the browser ended on, for a sign-in whose callback never reached this machine. */
   finishSignIn(providerId: string, code: string): void {
     const entry = this.waiting.get(providerId);
     if (!entry?.code) throw new Error(`no sign-in to ${providerId} is waiting`);
@@ -168,15 +141,12 @@ export class Providers {
   }
 }
 
-/** The install's id, made on first use and kept in `file`. */
 export function deviceIdIn(file: string): () => string {
   return () => {
     try {
       const kept = readFileSync(file, "utf8").trim();
       if (/^[0-9a-f-]{36}$/i.test(kept)) return kept;
-    } catch {
-      // made below
-    }
+    } catch {}
     const id = randomUUID();
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, `${id}\n`);

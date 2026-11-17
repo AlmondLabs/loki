@@ -29,7 +29,6 @@ beforeEach(() => {
 
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-/** A keychain that knows one password under one account, and records what it was asked. */
 function keychain(password = SAFE_STORAGE_PASSWORD, account = "Slack Key") {
   const asked: Array<[string, string | undefined]> = [];
   const read: KeychainReader = (service, acct) => {
@@ -153,7 +152,6 @@ describe("reading the Slack desktop app's sessions", () => {
     const reads = k.asked.length;
     expect((await sessions.get("T0BETA"))?.token).toBe(LOCAL_CONFIG.teams.T0BETA.token);
     expect(k.asked.length).toBe(reads);
-    // Signing out of Beta rewrites localConfig without it.
     writeFileSync(
       join(dir, "Local Storage", "leveldb", "000009.log"),
       levelLog([[{ key: storageKey("localConfig_v2"), value: storageValue(JSON.stringify({ teams: { T0ACME: LOCAL_CONFIG.teams.T0ACME } })) }]], 90),

@@ -7,8 +7,6 @@ import type { PendingApproval } from "../core/attention/model.ts";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { ApprovalProposal } from "../app/src/item/proposal.tsx";
 
-// Plan 2026-11-12-1505, U4: the chat pane on Liquid Glass, loki's one look.
-
 const noop = () => {};
 const approval: PendingApproval = { requestId: "r1", toolName: "Edit notes.txt", input: { path: "notes.txt" }, at: "2026-11-12T09:00:00Z" };
 
@@ -29,6 +27,18 @@ describe("the thread under the floating header and dock", () => {
   test("pads itself by the measured heights", () => {
     expect(css).toMatch(/padding-top: calc\(var\(--loki-header-height\) \+ 20px\);/);
     expect(css).toMatch(/padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
+  });
+
+  test("any thread with a dock beside it pads by the dock, the chat inset on the canvas too, not only the hosts named", () => {
+    expect(css).toMatch(/:has\(> \.loki-dock\) \[data-slot="message-scroller-content"\] \{\s*padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
+    expect(css).toMatch(/:has\(> \.loki-dock\) \[data-slot="message-scroller-button"\] \{\s*bottom: calc\(var\(--loki-dock-height\) \+ 12px\);/);
+    expect(css).not.toMatch(/\.loki-(desk-pane-messages|flow-card) \[data-slot="message-scroller-content"\] \{[^}]*--loki-dock-height/);
+  });
+
+  test("the dock is measured again when it comes back: kept in state, not in a ref that re-runs nothing", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "conversation.tsx"), "utf8");
+    expect(src).toMatch(/ref=\{setDockEl\} className=\{proposals \? "loki-dock/);
+    expect(src).toMatch(/useCallback\(\(\) => dockEl, \[dockEl\]\)/);
   });
 });
 
@@ -89,9 +99,8 @@ describe("Flow (U6)", () => {
     expect(out).not.toContain("<kbd");
   });
 
-  test("a Flow card pads its thread under the dock, and an outside card's reply box is the glass capsule", () => {
+  test("an outside Flow card's reply box is the glass capsule", () => {
     const css = readFileSync(join(import.meta.dirname, "..", "app", "src", "components", "components.css"), "utf8");
-    expect(css).toMatch(/\.loki-flow-card \[data-slot="message-scroller-content"\] \{\s*padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
     expect(css).toMatch(/\.loki-flow-card \[data-reply-box\] \[data-slot="input-group"\] \{[^}]*var\(--loki-glass-strong\)/);
   });
 });
@@ -185,7 +194,6 @@ describe("the thread as a Mac conversation with an agent (U14)", () => {
     const markers = (gaps?: number) => threadEntries({ ...base, gaps }).flatMap((e) => (e.kind === "day" ? [e.label] : []));
     const days = markers();
     expect(days).toHaveLength(1);
-    // the first message carries the day and its time; "two" came 4 minutes after "a", so no marker; "three" came 24 after
     expect(markers(15 * 60_000)).toEqual([`${days[0]} ${clockLabel(at(0))}`, clockLabel(at(30))]);
   });
 });
@@ -227,30 +235,29 @@ describe("a Flow card asks one thing at a time (U16)", () => {
 });
 
 describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
-  // Reading columns keep their width but start at the title's 20px edge (R1, R2); only focus states stay centred (R3).
   const classOf = (out: string, marker: string) => {
     const tag = new RegExp(`<[^>]*${marker}[^>]*>`).exec(out)?.[0] ?? "";
     return /class="([^"]*)"/.exec(tag)?.[1].split(" ") ?? [];
   };
 
-  test("the transcript and the composer start at the edge, at the thread's width", async () => {
+  test("the transcript and the composer are centred in the detail, at the thread's width", async () => {
     const { Conversation } = await import("../app/src/chat/conversation.tsx");
     const out = html(
       createElement(Conversation, { view: { rows: [{ role: "assistant", text: "On it." }], status: "idle" }, actions: { onSend: noop }, agentName: "friday" }),
     );
     const thread = classOf(out, 'data-slot="message-scroller-content"');
     expect(thread).toContain("max-w-3xl");
-    expect(thread).not.toContain("mx-auto");
-    // The chat viewport's 20px gutter is the transcript's edge, so the column adds no side padding of its own.
+    expect(thread).toContain("mx-auto");
     expect(thread.filter((c) => /^(px|pl|pr|ps|pe)-/.test(c))).toEqual([]);
     const composer = classOf(out, 'data-composer="messages"');
     expect(composer).toContain("max-w-3xl");
-    expect(composer).toContain("px-5");
-    expect(composer).not.toContain("mx-auto");
-    expect(out).not.toContain("mx-auto");
+    expect(composer).toEqual(expect.arrayContaining(["mx-auto", "w-full", "max-w-3xl"]));
+    expect(composer).not.toContain("px-5");
+    expect(classOf(out, 'class="loki-dock')).toContain("px-5");
+    expect(out).not.toMatch(/\[calc\(/);
   });
 
-  test("an outside card's thread and reply box start at the edge, 20px in", async () => {
+  test("an outside card's thread and reply box are centred, 20px in", async () => {
     const { OutsideCard } = await import("../app/src/desk/outside-card.tsx");
     const facts = {
       provider: "slack" as const,
@@ -282,9 +289,8 @@ describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
         box,
       }),
     );
-    expect(out).not.toContain("mx-auto");
-    expect(out).toContain('class="w-full max-w-3xl" style="padding:8px 20px 16px"');
-    expect(out).toContain('class="w-full max-w-3xl" style="padding:12px 20px 16px"');
+    expect(out).toContain('class="mx-auto w-full max-w-3xl" style="padding:8px 20px 16px"');
+    expect(out).toContain('class="mx-auto w-full max-w-3xl" style="padding:12px 20px 16px"');
   });
 
   test("Learn's review deck stays centred, and All Cards starts at the edge", async () => {

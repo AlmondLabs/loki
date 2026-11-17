@@ -47,165 +47,105 @@ import { messageOf } from "../errors.ts";
 import { createSentReplies, sentKey } from "./sent-replies.ts";
 import { PickedPeople } from "./picked-people.ts";
 
-/**
- * Every chat this client follows, outside React (plan 052): the list and its digests, the agents, the live half of
- * each chat (its thread, approvals, questions, queue and folder moves) and the calls that change them. useAttention
- * reads it through `subscribe` and `getSnapshot`; a test drives it with a fake ChatClient and no React at all.
- *
- * Two speeds of change: the snapshot moves when the list or a chat's face does (a new approval, a turn starting), and
- * `watchThreads` hears every streamed piece, so a reply redraws only the thread drawing it (plan 032).
- */
-
-/** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
 export type SendOrigin = "desk" | "inbox" | "lesson";
 
-/** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
 export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
 
-/** An outside card as a write-back names it: which card it is in the list, its account and thread, and its home Mac. */
 export type OutsideCardRef = Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">;
 
-/**
- * How a write-back on an outside card went (plan 070, KTD3): what it changed out there, kept for an undo (null when
- * nothing was written), or the reason in words when it failed, and the card is left as it was.
- */
 export interface OutsideWritten {
   change: OutsideChange | null;
   error: string | null;
 }
 
-/** A page of a chat's thread, as the mod reads it from the daemon's store (plan 041). */
 export interface HistoryPage {
   rows: Array<{
     role: "user" | "assistant" | "tool" | "event";
     text: string;
     summary?: string | null;
     detail?: string | null;
-    /** On an event sent lean (plan 043): where its detail is (TranscriptRow's `row`). */
     row?: number;
     at?: string | null;
     tool?: ToolStep;
     files?: FileRef[];
   }>;
   more: boolean;
-  /** Where the rows start in the chat's whole thread; a paired Mac on an older loki leaves it out. */
   start?: number;
 }
 
-/** What the store asks of the app, read at call time: the host builds these afresh on every render. */
 export interface ChatStoreHost {
   markSeen: (agentId: string, conversationId: string) => void;
-  /** Every open conversation with its digest, from the mod (inbox_list); null when the mod did not answer, and the store then keeps the list it has. */
   listConversations: () => Promise<Array<ConversationInfo & Digest> | null>;
-  /** A page of a chat's thread, through the mod; null when no page came. `before`: the page ends before that position. */
   loadLocalHistory?: (agentId: string, conversationId: string, limit?: number, before?: number) => Promise<HistoryPage | null>;
-  /** How many of the newest conversations to follow for live events. */
   subscribeLimit?: number;
-  /** Analytics (core/analytics.ts): an event this store carried out for the person. */
   capture?: (event: string, properties?: Record<string, unknown>) => void;
-  /** Tell the mod about an engagement only the app sees (a decision, an answer). */
   engage?: (agentId: string, conversationId: string, action: "decide" | "answer") => void;
-  /** A message went into this conversation (the model picker's recent list moves its model to the front). */
   sent?: (rt: Runtime) => void;
 }
 
-/**
- * What a person's action on a suggestion came to (plan 049): whether it took, the reason when it did not (another
- * device acted first, the target is gone, the Mac is out of reach), and the suggestion as it then stands, when known.
- */
 export interface SuggestionOutcome {
   done: boolean;
   message: string | null;
   suggestion: Suggestion | null;
 }
 
-/**
- * What a person's action on a reply proposal came to (plan 067; plan 2026-11-14-1134): whether it took, why not, and
- * the proposal as it then stands, when known. A Send takes as sending; how the reply went comes as the chat's event.
- */
 export interface ReplyOutcome {
   done: boolean;
   message: string | null;
   proposal: ReplyProposal | null;
 }
 
-/** An agent as the lists show it. */
 export interface AgentEntry {
   id: string;
   name: string;
   home_mac?: string | null;
 }
 
-/** Everything the store holds that the app draws, the same object until some of it changes. */
 export interface ChatSnapshot {
   status: "off" | "connecting" | "open" | "closed";
-  /** From the chat client's serverInfo: the daemon's name and the commands it runs. */
   server: { version: string | null; protocol: number | null; advertised: SlashCommand[]; only?: string[] } | null;
   agents: AgentEntry[];
-  /** False until the first agent list answered: an empty list before that means nothing. */
   agentsLoaded: boolean;
-  /** False until the chat list first came: before that, a chat missing from it is not yet known to be gone. */
   listed: boolean;
-  /** The open conversations, newest first. */
   conversations: ConversationInfo[];
   digests: Map<string, Digest>;
-  /** Each chat's live state as render sees it: a fresh map each time a chat's face moves. */
   live: Map<string, Live>;
-  /** Chats whose log holds rows older than the ones loaded. */
   older: Partial<Record<string, true>>;
-  /** Chats whose first page did not come (plan 041). */
   failed: Partial<Record<string, true>>;
-  /** The provider catalogue, null until asked for. */
   providers: ConnectProvider[] | null;
-  /** The labels every chip takes its colour from (plan 022), null until loaded. */
   labels: LabelView[] | null;
 }
 
-/** How many rows of a chat's log a page is (the mod's HISTORY_PAGE): the first load, and each older page after it. */
 export const HISTORY_PAGE = 400;
-/** How long a folder change waits for the daemon's answer. */
 const FOLDER_MOVE_MS = 8000;
-/** What every call says while the mod's socket is down. */
-/** How soon the Inbox's list is asked for again after a request for it got no answer. */
 const LIST_RETRY_MS = 5000;
 const NOT_CONNECTED = "not connected to loki's daemon";
-/** Why an outside move on a chat card is refused. */
 const NOT_OUTSIDE = "this card is not from an account";
 
-/** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
 const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
-/** A flag map without `key`. */
 const withoutKey = <T>(o: Partial<Record<string, T>>, key: string): Partial<Record<string, T>> =>
   Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
-/** A flag map with `key` set or cleared, the same map when it already was. */
 const flagged = (o: Partial<Record<string, true>>, key: string, on: boolean) =>
   !!o[key] === on ? o : on ? { ...o, [key]: true as const } : withoutKey(o, key);
 
-/**
- * A message as it goes out: images ride inside it, files as their attachment tags after the text; `key` is how
- * its echo is recognised (ownSendKey), empty when there is nothing to recognise.
- */
 function outgoing(text: string, attachments: Attachment[]): { text: string; images: ImageAttachment[]; key: string } {
   const files = attachments.filter(isFileAttachment);
   const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a));
   return { text: withAttachments(text, files), images, key: ownSendKey(text, files) };
 }
 
-/** A message's row as it shows at once: the text, its images, and chips for its files. */
 function sentRow(text: string, attachments: Attachment[], at: string) {
   const files = attachments.filter(isFileAttachment).map(({ path, name, size, mime }) => ({ path, name, size, mime }));
   const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a)).map((i) => i.url);
   return { role: "user" as const, text, ...(images.length ? { images } : {}), ...(files.length ? { files } : {}), at };
 }
 
-/** A folder change waiting on the daemon's answer (changeFolder). */
 interface FolderMove {
   from: string | undefined;
   to: string;
   done: (err: string | null) => void;
 }
 
-/** The chats this client follows, and the calls that change them. */
 export class ChatStore {
   private snap: ChatSnapshot = {
     status: "off",
@@ -223,48 +163,31 @@ export class ChatStore {
   };
   private readonly listeners = new Listeners();
   private readonly threadWatchers = new Listeners();
-  /** The live map the handlers change in place; `snap.live` is its copy as last published. */
   private readonly liveMap = new Map<string, Live>();
-  /** The chats whose thread was read from the daemon, to read again when the socket comes back after a drop. */
   private readonly threadsRead = new Map<string, Runtime>();
-  /** Each chat's face as last published (faceOf): what a flush compares to tell a list change from a thread change. */
   private readonly faces = new Map<string, readonly unknown[]>();
   private client: ChatClient | null = null;
-  /** Publish within 150 ms of the first change: a burst of streamed pieces draws once. */
   private readonly flushing = coalesce(() => this.publish(), 150);
-  /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page), on an older Mac. */
   private readonly historyLimits = new Map<string, number>();
   private readonly loading = new Set<string>();
-  /** What each chat's agent was last told of the time and the chat: the note goes again only when that changed. */
   private readonly envNotes = new Map<string, EnvNoteTold>();
   private readonly folderMoves = new Map<string, FolderMove>();
-  /** Conversations the list knows; an event from another means the list is stale. */
   private known = new Set<string>();
   private lastReload = 0;
-  /**
-   * A card was taken off the list here before the daemon's list said so: the next answer is drawn even when it matches
-   * the last one, or a card put back by an undo before any poll would stay missing.
-   */
   private droppedHere = false;
-  /** The link dropped since it was last open: when it reopens, commands left running are settled. */
   private linkDropped = false;
-  /** Whether the page is shown: the list poll skips while it is not (plan 047). */
   private visible = true;
-  /** The current connection's list load, null while disconnected. */
   private reloadNow: (() => void) | null = null;
 
   private current: ChatStoreHost;
   private readonly now: () => number;
-  /** The replies sent alone from outside cards, which their threads show until read again (plan 086). */
   readonly sent = createSentReplies();
 
-  /** `now` is the clock; the host may change, as the app builds it afresh on every render (setHost). */
   constructor(host: ChatStoreHost, now: () => number = Date.now) {
     this.current = host;
     this.now = now;
   }
 
-  /** The app's latest calls, read at each use from here on. */
   setHost(host: ChatStoreHost): void {
     this.current = host;
   }
@@ -273,47 +196,34 @@ export class ChatStore {
     return this.current;
   }
 
-  /** Hear each change to the snapshot; returns the way to stop. */
   subscribe = (listener: () => void): (() => void) => {
     return this.listeners.add(listener);
   };
 
-  /** What the app draws, the same object until some of it changes. */
   getSnapshot = (): ChatSnapshot => this.snap;
 
-  /** Hear every flush, for the threads on screen (useThreadRows); returns the way to stop. */
   watchThreads = (onChange: () => void): (() => void) => {
     return this.threadWatchers.add(onChange);
   };
 
-  /** A chat's rows as they stand now, the same array until they change (ThreadModel.rows). */
   threadRows = (agentId: string, conversationId: string): TranscriptRow[] | undefined => this.liveMap.get(keyOf(agentId, conversationId))?.thread.rows();
 
-  /** The turn running in a chat, or the last one that ran: what client events join the daemon's turn_finished by. */
   turnOf = (agentId: string, conversationId: string): string | null => this.liveMap.get(keyOf(agentId, conversationId))?.turnId ?? null;
 
-  /** Whether the page is shown; back in view, nothing is owed, the next poll or reload reads the list. */
   setVisible(shown: boolean): void {
     this.visible = shown;
   }
 
-  /** Read the list now (the sidebar archived or restored something); otherwise it refreshes each minute. */
   reload = (): void => this.reloadNow?.();
 
-  /**
-   * Follow the daemon through `client` until the returned function is called: its status, every chat's events, the
-   * agents and the list (now, each minute while shown, and whenever the mod says the lists went stale).
-   */
   connect(client: ChatClient): () => void {
     this.client = client;
     const offStatus = client.onStatus((s) => {
       this.set({ status: s });
       if (s === "closed") this.linkDropped = true;
       else if (s === "open") {
-        // Labels are read once the daemon is there, for every chip on this client.
         void this.loadLabels();
         if (!this.linkDropped) return;
-        // Back after a drop (a /reload restarts the mod, which is this link): finish what the old link left running.
         this.linkDropped = false;
         let changed = false;
         for (const l of this.liveMap.values()) if (l.thread.settleCommands()) changed = true;
@@ -326,7 +236,6 @@ export class ChatStore {
       const changed = this.heard(client, rt, events);
       const key = keyOf(rt.agent_id, rt.conversation_id);
       if (changed && !this.known.has(key) && !reloadTimer && this.now() - this.lastReload > 10_000) {
-        // Not in the list yet: refresh it soon so the conversation can become a card.
         reloadTimer = setTimeout(() => {
           reloadTimer = null;
           this.reload();
@@ -334,15 +243,12 @@ export class ChatStore {
       }
     });
     let cancelled = false;
-    /** The list's last answer on this connection, to tell a repeat from a change. */
     let lastRows: unknown = null;
-    /** Whether the connection was let go: read through a call, since it changes while the load awaits. */
     const stopped = () => cancelled;
     const loadOnce = async () => {
       void client
         .serverInfo()
         .then((info) => {
-          // The daemon runs exactly its own commands; the palette offers those and loki's.
           if (!cancelled)
             this.set({ server: keepSame(this.snap.server, { version: info.version, protocol: info.protocol, advertised: [], only: info.commands }) });
         })
@@ -351,11 +257,8 @@ export class ChatStore {
       if (cancelled) return;
       const next = agents.filter((a) => a.hidden !== true).map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
       this.set({ agents: keepSame(this.snap.agents, next), agentsLoaded: true });
-      // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
       const rows = await this.host().listConversations();
       if (stopped()) return;
-      // No answer (a slow link, a socket that closed under the request) is not an empty Inbox: what is shown stays, and
-      // the list is asked for again shortly instead of at the next poll.
       if (rows === null) {
         retryTimer ??= setTimeout(() => {
           retryTimer = null;
@@ -364,7 +267,6 @@ export class ChatStore {
         return;
       }
       this.lastReload = this.now();
-      // The same answer as last time changes nothing (plan 047): the poll and every reload no longer redraw the app.
       const same = !this.droppedHere && keepSame(lastRows, rows) === lastRows;
       this.droppedHere = false;
       lastRows = rows;
@@ -381,12 +283,8 @@ export class ChatStore {
         });
       }
       this.set({ listed: true });
-      // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
-      // An outside card (plan 067) is no chat on the daemon: there is nothing to open.
       for (const c of convs.filter((x) => !x.outside).slice(0, this.host().subscribeLimit ?? 30)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
-        // A conversation that cannot be reached still lists; it just has no live half. One at a time, newest first, on
-        // purpose: the daemon opens each chat in turn rather than up to 30 at once, and a disconnect stops the rest.
         // react-doctor-disable-next-line react-doctor/async-await-in-loop
         if (!client.isSubscribed(rt)) await client.runtimeStart(rt).catch(() => {});
         if (stopped()) return;
@@ -395,13 +293,10 @@ export class ChatStore {
     const load = () => void loadOnce().catch((err: unknown) => console.warn("loki catch up:", err));
     this.reloadNow = load;
     load();
-    // The poll is the fallback; an agent changed elsewhere, a reconnect or a return from the background asks at once.
     const poll = setInterval(() => {
       if (this.visible) load();
     }, 60_000);
     const offStale = client.onListsStale(load);
-    // Rows that settled while the socket was down (the Mac asleep, the phone in a pocket) were pushed to no one: every
-    // thread already read is read again, so an open chat shows them without being left and opened again.
     const offReopened = client.onReopened(() => {
       for (const rt of this.threadsRead.values()) void this.loadThread(rt);
     });
@@ -423,12 +318,10 @@ export class ChatStore {
     };
   }
 
-  /** Stop the pending flush: nothing is left to draw into. */
   dispose(): void {
     this.flushing.cancel();
   }
 
-  /** A batch of a chat's events: applied, then what they decide (a new request, a folder answer, a queued send). Whether the chat changed. */
   private heard(client: ChatClient, rt: Runtime, events: Array<Parameters<typeof applyChatEvent>[1]>): boolean {
     const { conversation_id: conv, agent_id: agent } = rt;
     const key = keyOf(agent, conv);
@@ -443,33 +336,30 @@ export class ChatStore {
       changed ||= r.changed;
       userSpoke ||= r.userSpoke;
     }
-    // A new permission request or question. Every window and phone sees the same one; the mod keeps the first report (`once`).
     const request =
       l.pending && l.pending.requestId !== asked.approval
         ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" }
         : l.pendingAsk && l.pendingAsk.requestId !== asked.question
           ? { id: l.pendingAsk.requestId, tool: "user_ask", kind: "question" }
           : null;
-    // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
     const move = this.folderMoves.get(key);
     const answer = move ? folderMoveAnswer(events, l.cwd, move) : null;
     if (move && answer === "moved") move.done(null);
     else if (move && answer && answer !== "moved") {
       move.done(answer.error);
-      l.error = errorBefore; // the refusal is the folder dialog's to show; the chat did not fail
+      l.error = errorBefore;
     }
     const host = this.host();
     if (request)
       host.capture?.("approval_requested", { desk: deskOf(agent, conv), agent, tool: request.tool, kind: request.kind, once: `request:${request.id}` });
     if (userSpoke) host.markSeen(agent, conv);
     if (changed) this.bump();
-    // The turn just ended and something was typed during it: it goes out now, one per turn end.
     if (wasInTurn && !l.inTurn) {
       const next = takeQueued(l);
       if (next) {
         const out = outgoing(next.text, next.images);
         l.thread.expectEcho(out.key);
-        l.inTurn = true; // until the server says so, so a second queued message waits its turn
+        l.inTurn = true;
         this.bump();
         void client
           .sendUserMessage(rt, out.text, out.images, this.noteFor(key, next.desk, next.labels))
@@ -479,17 +369,14 @@ export class ChatStore {
     return changed;
   }
 
-  /** Load a chat's thread: the newest page, with older pages already read kept in front of it (plan 033). */
   loadThread = async (rt: Runtime): Promise<void> => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     if (this.loading.has(key)) return;
     this.loading.add(key);
     const read = async () => {
       const thread = this.liveOf(key).thread;
-      // A paired Mac on an older loki pages by a growing limit instead, and its answer replaces what was loaded.
       const limit = thread.firstPosition === null ? (this.historyLimits.get(key) ?? HISTORY_PAGE) : HISTORY_PAGE;
       const page = await this.host().loadLocalHistory?.(rt.agent_id, rt.conversation_id, limit);
-      // A page that did not come leaves a thread never loaded unloaded, not empty; one already loaded stays as it is.
       const unreached = page === null;
       this.set({ failed: flagged(this.snap.failed, key, unreached && thread.rows() === undefined) });
       if (unreached) return;
@@ -504,7 +391,6 @@ export class ChatStore {
     this.loading.delete(key);
   };
 
-  /** The next page of a chat's history, older than what is loaded, put in front of it (plan 033). */
   loadOlder = (rt: Runtime): void => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     if (this.loading.has(key)) return;
@@ -528,7 +414,6 @@ export class ChatStore {
       .then(() => this.loading.delete(key));
   };
 
-  /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
   createDesk = async (agentId: string, cwd: string, name?: string, home?: string): Promise<Runtime> => {
     const client = this.client;
     if (!client) throw new Error(NOT_CONNECTED);
@@ -546,14 +431,12 @@ export class ChatStore {
     return rt;
   };
 
-  /** Follow a conversation that is not among the recent ones (the desk's, say). */
   follow = async (rt: Runtime): Promise<void> => {
     const client = this.client;
     if (!client || client.isSubscribed(rt)) return;
     await client.runtimeStart(rt).catch((err: unknown) => console.warn("loki: subscribe", err));
   };
 
-  /** Decide a pending approval: the card clears at once, and comes back if the daemon refuses. */
   decide = (rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always"): void => {
     const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
     const was = l?.pending?.requestId === requestId ? l.pending : null;
@@ -574,18 +457,16 @@ export class ChatStore {
       .catch(() => false)
       .then((ok) => {
         if (ok || !l || !was) return;
-        l.pending ??= was; // refused, or the answer never arrived: put the request back, since the agent still waits
+        l.pending ??= was;
         this.bump();
       });
   };
 
-  /** Answer a pending question (the user_ask tool); the card clears at once and comes back if the daemon refuses. */
   answer = (rt: Runtime, requestId: string, answers: Record<string, string | string[]>): void => {
     const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
     const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
     if (!l || !was) return;
     l.pendingAsk = null;
-    // A link card (plan 067) says what was allowed in words, not the card's values.
     const link = linkAskOf(was.input);
     const summary = link
       ? linkAnswerWords(link, parseLinkAnswer(answers))
@@ -612,10 +493,6 @@ export class ChatStore {
       });
   };
 
-  /**
-   * Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. During
-   * a turn it joins the turn, or on an agent waits for its end (sendMode), and goes out when the turn ends.
-   */
   send = (
     rt: Runtime,
     text: string,
@@ -656,8 +533,6 @@ export class ChatStore {
       )
       .then((why) => {
         if (why === null) return;
-        // The message is on screen as sent, so the chat says it may not be: silence would leave the person waiting
-        // on an answer to a message the agent never got.
         console.warn("loki: send", why);
         l.error = `this message may not have been sent: ${why}`;
         this.bump();
@@ -665,57 +540,37 @@ export class ChatStore {
     host.markSeen(rt.agent_id, rt.conversation_id);
   };
 
-  /**
-   * The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. The new state
-   * reaches every client as the chat's `suggestions` event, so nothing here changes the live state itself.
-   */
   decideSuggestion = (rt: Runtime, suggestionId: string, action: SuggestionAction): Promise<SuggestionOutcome> =>
     this.outcome((c) => c.suggestions.decide(rt, suggestionId, action));
 
-  /** Point a suggestion at another chat, or at a new chat with an agent in a folder, before acting on it (R4). */
   retargetSuggestion = (rt: Runtime, suggestionId: string, target: SuggestionTarget): Promise<SuggestionOutcome> =>
     this.outcome((c) => c.suggestions.retarget(rt, suggestionId, target));
 
-  /**
-   * The person's action on a reply its agent proposed (plan 2026-11-14-1134, KTD3): Send with the text as edited and
-   * the files kept, Undo, or reject, carried out by the Mac the chat lives on. The new state, and a sent reply's fate,
-   * reach every client as the chat's `reply_proposals` event, as a suggestion's does.
-   */
   decideReply = async (rt: Runtime, proposalId: string, action: ReplyAction, opts: ReplyDecideOptions = {}): Promise<ReplyOutcome> => {
     const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
     return typeof out === "string" ? { done: false, message: out, proposal: null } : out;
   };
-  /** The people a reply card's `@` picker offers (plan 2026-11-14-1530, R18), or why they could not be read. */
   findReplyPeople = (rt: Runtime, proposalId: string, query: string): Promise<{ people: ReplyPersonChoice[]; notice: string | null } | string> =>
     this.attempt((c) => c.replies.findPeople(rt, proposalId, query));
 
-  /** Close a link of a chat (plan 067), on its Mac and the other chat's: null, or why not. */
   closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
 
-  /** The live links of this Mac's chats and the link card's default duration (plan 067), or why they did not come. */
   listLinks = (): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> => this.attempt((c) => c.links.list());
 
-  /** The duration the link card starts on (plan 067); the list as it then stands, or why not. */
   setLinkDefault = (duration: LinkDuration): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> =>
     this.attempt((c) => c.links.setDefault(duration));
 
-  /** The chat holds no saved draft any more (plan 049, KTD7): its Inbox mark goes without waiting for the list. */
   noDraft = (agentId: string, conversationId: string): void => {
     const was = this.snap.conversations;
     const next = was.map((x) => (x.agent_id === agentId && x.id === conversationId && x.has_draft ? { ...x, has_draft: false } : x));
     if (next.some((x, i) => x !== was[i])) this.set({ conversations: next });
   };
 
-  /** A message box emptied of its saved draft: the draft goes here at once, and from the chat on the daemon. */
   clearDraft = (agentId: string, conversationId: string): void => {
     this.noDraft(agentId, conversationId);
     void this.client?.updateConversation(conversationId, { draft: null }).catch((err: unknown) => console.warn("loki: clear saved draft", err));
   };
 
-  /**
-   * Give a chat its one-line purpose (plan 049, R11), or clear it with an empty one; resolves to an error message or
-   * null. The list has it at once, so the header shows it before the list is read again.
-   */
   setPurpose = async (rt: Runtime, purpose: string): Promise<string | null> => {
     const line = purpose.replace(/\s+/g, " ").trim() || null;
     const err = await this.tried((c) => c.updateConversation(rt.conversation_id, { purpose: line }));
@@ -724,16 +579,11 @@ export class ChatStore {
     return null;
   };
 
-  /** Take back a message typed mid-turn before it went out. */
   cancelQueued = (rt: Runtime, text: string): void => {
     const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
     if (l && dropQueued(l, text)) this.bump();
   };
 
-  /**
-   * A slash command for the harness (/reload, /compact …). The transcript row comes from the harness's deltas when the
-   * conversation is followed; the answer here fills the row in when those never arrived, or when the call failed.
-   */
   execute = async (rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> => {
     const l = this.liveOf(keyOf(rt.agent_id, rt.conversation_id));
     const input = commandInput(commandId, args);
@@ -745,7 +595,7 @@ export class ChatStore {
       this.bump();
       return { success: false, output: NOT_CONNECTED };
     }
-    if (!client.isSubscribed(rt)) l.thread.beginCommand(input, at()); // no deltas will come for this one: show the running row here
+    if (!client.isSubscribed(rt)) l.thread.beginCommand(input, at());
     this.bump();
     try {
       const res = await client.executeCommand(rt, commandId, args);
@@ -754,7 +604,6 @@ export class ChatStore {
       return res;
     } catch (err) {
       const message = messageOf(err);
-      // /reload restarts the mod, and the mod is this link: the answer is lost with it, which is the success case.
       const reloaded = commandId === "reload" && /link closed/i.test(message);
       l.thread.finishCommand(input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message, at());
       this.bump();
@@ -762,7 +611,6 @@ export class ChatStore {
     }
   };
 
-  /** Change an agent; resolves to an error message or null. */
   updateAgent = async (agentId: string, body: { name?: string; description?: string; model?: string; home_mac?: string }): Promise<string | null> => {
     const err = await this.tried((c) => c.updateAgent(agentId, body));
     const name = body.name;
@@ -770,7 +618,6 @@ export class ChatStore {
     return err;
   };
 
-  /** A new agent with its name, description, persona and model, in one request; the lists reload. */
   createAgent = async (opts: NewAgentOptions): Promise<{ id: string } | { error: string }> => {
     const made = await this.attempt((c) => c.createAgent(opts));
     if (typeof made === "string") return { error: made };
@@ -780,7 +627,6 @@ export class ChatStore {
     return { id };
   };
 
-  /** Delete an agent; resolves to an error message or null, and the lists reload. */
   deleteAgent = async (agentId: string): Promise<string | null> => {
     const err = await this.tried((c) => c.deleteAgent(agentId));
     if (err) return err;
@@ -789,7 +635,6 @@ export class ChatStore {
     return null;
   };
 
-  /** The provider catalogue, read now; the last one read when this read fails. */
   loadProviders = async (): Promise<ConnectProvider[]> => {
     const client = this.client;
     if (!client) return [];
@@ -802,41 +647,30 @@ export class ChatStore {
     }
   };
 
-  /** Connect a model provider; resolves to an error message or null. */
   connectProvider = (providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<string | null> =>
     this.tried(async (c) => this.set({ providers: await c.connectProvider(providerId, fields, authMethodId) }));
 
-  /** Disconnect a model provider; resolves to an error message or null. */
   disconnectProvider = (providerId: string): Promise<string | null> => this.tried(async (c) => this.set({ providers: await c.disconnectProvider(providerId) }));
 
-  /** Read the labels again (plan 022); resolves to an error message or null. */
   loadLabels = (): Promise<string | null> => this.tried(async (c) => this.set({ labels: (await c.labels.get()).labels }));
 
-  /** Give a chat its labels, then read them all again. */
   setLabels = async (rt: Runtime, next: string[]): Promise<string | null> => (await this.tried((c) => c.labels.set(rt, next))) ?? this.loadLabels();
 
-  /** Rename, recolour or delete a label everywhere, then read them all again. */
   editLabel = async (change: Parameters<ChatClient["labels"]["edit"]>[0]): Promise<string | null> =>
     (await this.tried((c) => c.labels.edit(change))) ?? this.loadLabels();
 
-  /** The models the daemon offers; none while it cannot be reached. */
   listModels = async () => {
     const client = this.client;
     if (!client) return [];
     return client.listModels().catch(() => []);
   };
 
-  /**
-   * Move a conversation to another folder; resolves to an error or null once the daemon has answered (a device status
-   * with the new folder, or an error), or after FOLDER_MOVE_MS with no answer. The chat's tools run there from its next turn.
-   */
   changeFolder = async (rt: Runtime, cwd: string): Promise<string | null> => {
     const client = this.client;
     if (!client) return NOT_CONNECTED;
     const to = cwd.trim().replace(/(.)\/+$/, "$1");
     if (!to) return "no folder";
     if (!client.isSubscribed(rt)) {
-      // Its device status and errors come to followers only.
       const refused = await client.runtimeStart(rt).then(
         () => null,
         (err: unknown) => messageOf(err),
@@ -863,7 +697,6 @@ export class ChatStore {
     });
   };
 
-  /** Set a conversation's permission mode; resolves to an error message or null. */
   setMode = async (rt: Runtime, mode: string): Promise<string | null> => {
     const err = await this.tried((c) => c.runtimeStart(rt, { mode }));
     if (err) return err;
@@ -874,11 +707,6 @@ export class ChatStore {
     return null;
   };
 
-  /**
-   * Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived.
-   * Archiving is how a chat leaves the Inbox, so it goes from the list at once; a restore reads the list again.
-   * `agentId` is the chat's agent when the caller has it: the client knows only the chats it has opened or listed.
-   */
   archiveConversation = async (conversationId: string, archived: boolean, origin?: ArchiveOrigin, agentId?: string): Promise<string | null> => {
     if (this.client && conversationId === "default") return "a main chat cannot be archived";
     const err = await this.tried((c) => c.updateConversation(conversationId, { archived }, agentId));
@@ -894,12 +722,6 @@ export class ChatStore {
     return null;
   };
 
-  /**
-   * Archive an outside card (plan 067, R12): its thread is archived in Gmail or marked read in Slack by the Mac its
-   * account lives on, then the card leaves the list. Resolves to what the archive changed, kept for an undo (plan 070,
-   * R14), or the reason when it failed, and the card stays. A Jira card is refused here, before its Mac is asked, since
-   * it ends only with read (KTD12); the deck and the phone refuse it before this.
-   */
   archiveOutside = async (card: OutsideCardRef): Promise<OutsideWritten> => {
     if (card.outside && !OUTSIDE_ENDS[card.outside.provider].archive) return { change: null, error: "a jira card ends with read" };
     const r = await this.writeOutside(card, (c, o, home) => c.archiveOutside(o.account_id, o.thread_id, home));
@@ -907,25 +729,15 @@ export class ChatStore {
     return r;
   };
 
-  /**
-   * Mark an outside card read out there (plan 070, R5): Gmail marks the thread read and the card stays; reading a Slack
-   * card ends it, and it leaves the list. Resolves to what changed, for an undo, or the reason it failed.
-   */
   markReadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
     this.writeOutside(card, (c, o, home) => c.markReadOutside(o.account_id, o.thread_id, home));
 
-  /** Leave an outside card unread out there (plan 070, R6); the card stays. Resolves to what changed, or the reason. */
   markUnreadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
     this.writeOutside(card, (c, o, home) => c.markUnreadOutside(o.account_id, o.thread_id, home));
 
-  /** Put Gmail labels, by id, on an outside card's thread (plan 070, R12); the card stays. Resolves to what changed, or the reason. */
   labelOutside = (card: OutsideCardRef, labels: string[]): Promise<OutsideWritten> =>
     this.writeOutside(card, (c, o, home) => c.labelOutside(o.account_id, o.thread_id, labels, home));
 
-  /**
-   * Take back a move on an outside card (plan 070, R14): what `change` changed out there is put back, and a card that
-   * move ended is listed again. Resolves to the reason when it could not be, or null.
-   */
   restoreOutside = async (card: OutsideCardRef, change: OutsideChange): Promise<string | null> => {
     const o = card.outside;
     if (!o) return NOT_OUTSIDE;
@@ -934,14 +746,12 @@ export class ChatStore {
     return err;
   };
 
-  /** An outside card's account's Gmail labels, for the label picker (plan 070, R12), or why they could not be had. */
   labelsOf = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<AccountLabel[] | string> => {
     const o = card.outside;
     if (!o) return NOT_OUTSIDE;
     return this.attempt((c) => c.labelsOutside(o.account_id, card.home ?? null));
   };
 
-  /** One write-back on an outside card; a change that ended the card takes it off the list at once. */
   private async writeOutside(
     card: OutsideCardRef,
     work: (client: ChatClient, outside: NonNullable<ConversationInfo["outside"]>, home: string | null) => Promise<OutsideChange | null>,
@@ -954,25 +764,17 @@ export class ChatStore {
     return { change: r, error: null };
   }
 
-  /** Take one card off the list at once, before the next listing says so. */
   private dropCard(card: Pick<ConversationInfo, "agent_id" | "id">): void {
     this.droppedHere = true;
     this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
   }
 
-  /** An outside card's whole thread (plan 068), from the Mac its account lives on, or why it could not be read. */
   readOutside = async (card: Pick<ConversationInfo, "outside" | "home">, ask: OutsideWindowAsk = {}): Promise<OutsideRead | string> => {
     const o = card.outside;
     if (!o) return "this card is not from an account";
     return this.attempt((c) => c.readOutside(o.account_id, o.thread_id, card.home ?? null, ask));
   };
 
-  /**
-   * Send the person's reply in an outside card's thread (plan 068), then the key's move (`then`, plan 070, R11). Resolves
-   * whether it was sent, the reason for what failed (the send, or the move after it), and what the move changed. A move
-   * that ended the card, an archive or reading a Slack card, takes it off the list at once; after read or later the card
-   * stays. A reply that was sent must not be sent again, so the caller clears its box on `sent` whatever the error.
-   */
   replyOutside = async (
     card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
     text: string,
@@ -981,10 +783,8 @@ export class ChatStore {
   ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null; undone?: true }> => {
     const o = card.outside;
     if (!o) return { sent: false, error: "this card is not from an account", change: null };
-    // A reply sent alone stays on its card, whose thread shows it at once (plan 086); one with a move leaves with the card.
     const place = sentKey(o.account_id, o.thread_id, extra.thread_ts ?? null);
     const shown = then === "stay" ? this.sent.add(place, text.trim(), new Date(this.now()).toISOString()) : null;
-    // The people picked from the box's @ list go as mentions while their names are in the text (R23).
     const mentions = this.picked.in(o.account_id, text);
     const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, { ...extra, mentions }));
     if (shown) {
@@ -997,14 +797,12 @@ export class ChatStore {
     return { sent: true, error: r.then_error, change: r.change };
   };
 
-  /** What a mail card's recipients line starts from (plan 076), or why it could not be read. */
   composeOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<MailCompose | string> => {
     const o = card.outside;
     if (o?.provider !== "gmail") return "this card is not a mail";
     return this.attempt((c) => c.composeOutside(o.account_id, o.thread_id, card.home ?? null));
   };
 
-  /** Add or take back the person's reaction on a Slack card's message (plan 079): null when done, else why not. */
   reactOutside = async (card: Pick<ConversationInfo, "outside" | "home">, messageId: string, name: string, on: boolean): Promise<string | null> => {
     const o = card.outside;
     if (o?.provider !== "slack") return "only a Slack message takes a reaction";
@@ -1012,30 +810,25 @@ export class ChatStore {
     return typeof r === "string" ? r : null;
   };
 
-  /** The emoji a Slack card's account can react with whose names hold `query` (plan 079), or why they could not be read. */
   searchEmoji = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<EmojiChoice[] | string> => {
     const o = card.outside;
     if (o?.provider !== "slack") return "only a Slack message takes a reaction";
     return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
   };
 
-  /** The people picked from reply boxes' @ lists this session, which their sends mention (plan 2026-11-14-1530, R23). */
   readonly picked = new PickedPeople();
 
-  /** The person picked someone from a Slack card's @ list (R23): its sends mention them while their name is in the text. */
   pickPerson = (card: Pick<ConversationInfo, "outside">, person: SlackPerson): void => {
     const o = card.outside;
     if (o?.provider === "slack") this.picked.add(o.account_id, { display: person.name, id: person.id, address: null });
   };
 
-  /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why they could not be read. */
   searchPeople = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<SlackPerson[] | string> => {
     const o = card.outside;
     if (o?.provider !== "slack") return "only a Slack account has people to mention";
     return this.attempt((c) => c.searchPeople(o.account_id, query, card.home ?? null));
   };
 
-  /** Stop a held mail reply before it goes (plan 076): true when it was stopped, false when it went or could not be reached. */
   unsendOutside = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string): Promise<boolean> => {
     const o = card.outside;
     if (!o) return false;
@@ -1043,10 +836,6 @@ export class ChatStore {
     return r === true;
   };
 
-  /**
-   * Settle a mail reply that did not go (plan 096): send it again, after its thread is looked at so it never goes
-   * twice, or let it go. Null when done (the card stops saying "not sent" with the next list), else why not.
-   */
   settleUnsent = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string, action: "resend" | "discard"): Promise<string | null> => {
     const o = card.outside;
     if (!o) return NOT_OUTSIDE;
@@ -1063,30 +852,17 @@ export class ChatStore {
     return r.sent && r.then_error ? `sent, but ${r.then_error}` : null;
   };
 
-  /**
-   * Keep one of the person's moves on an outside card in its account's ledger (plan 069), on the Mac the account lives
-   * on. A move that does not reach the ledger is only data lost, so nothing waits on it and no refusal is shown.
-   */
   moveOutside = (card: Pick<ConversationInfo, "outside" | "home">, move: OutsideMove): void => {
     const o = card.outside;
     if (o) void this.tried((c) => c.moveOutside(o.account_id, o.thread_id, move, card.home ?? null));
   };
 
-  /**
-   * What handing an outside card off proposes (plan 067, R15), from the Mac its account lives on; resolves to the
-   * proposal, or the reason in words when it could not be had.
-   */
   handoffPropose = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<HandoffProposal | string> => {
     const o = card.outside;
     if (!o) return "this card is not from an account";
     return this.attempt((c) => c.handoffPropose(o.account_id, o.thread_id, card.home ?? null));
   };
 
-  /**
-   * Hand an outside card's thread to its account's agent (plan 067, R16): to `conversationId`, one of its chats, or a
-   * new chat when null. On success the card leaves the list at once (the Mac's change push brings the new chat), except
-   * a Jira card, which stays where it is (KTD13); resolves to the reason when it did not go, and the card stays.
-   */
   handoff = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, conversationId: string | null): Promise<string | null> => {
     const o = card.outside;
     if (!o) return "this card is not from an account";
@@ -1097,17 +873,11 @@ export class ChatStore {
     return null;
   };
 
-  /** Rename a conversation; resolves to an error message or null. Main chats are named after their agent. */
   renameConversation = async (conversationId: string, name: string): Promise<string | null> => {
     if (this.client && conversationId === "default") return "a main chat cannot be renamed";
     return this.tried((c) => c.renameConversation(conversationId, name));
   };
 
-  /** Stop a conversation's turn (the composer's stop button); resolves to an error message or null. */
-  /**
-   * Keep a chat on this Mac whose move cannot finish, the Mac it was going to out of reach (plan 096): it takes
-   * messages again, and its error line goes. Null when kept, else why not.
-   */
   keepMoveHere = async (rt: Runtime): Promise<string | null> => {
     const why = await this.tried((c) => c.keepMoveHere(rt));
     const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
@@ -1125,7 +895,6 @@ export class ChatStore {
       this.host().capture?.("turn_stopped", { aborted, turn_id: turnId });
     });
 
-  /** Switch a conversation's model; the applied handle and effort, or an error. */
   updateModel = async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const applied = await this.attempt((c) => c.updateModel(rt, selection));
     if (typeof applied === "string") return { applied: null, error: applied };
@@ -1133,23 +902,19 @@ export class ChatStore {
     return { applied, error: null };
   };
 
-  /** Whether reflection and Learn run (daemon/passes.ts); null while it cannot be read. */
   getPasses = async (): Promise<PassSettings | null> => {
     const client = this.client;
     if (!client) return null;
     return client.getPassSettings().catch(() => null);
   };
 
-  /** Turn reflection or Learn on or off; resolves to an error message or null. */
   setPasses = (s: PassSettingsChange): Promise<string | null> => this.tried((c) => c.setPassSettings(s));
 
-  /** A reflection pass started by hand, the same as /reflect in that chat: what the harness said. */
   reflect = async (rt: Runtime): Promise<string> => {
     const r = await this.attempt((c) => c.executeCommand(rt, "reflect"));
     return typeof r === "string" ? r : r.output || (r.success ? "started" : "the harness refused");
   };
 
-  /** A conversation's live state, made on first use: its thread holds the chat's rows, loaded and live. */
   private liveOf(key: string): Live {
     let l = this.liveMap.get(key);
     if (!l) {
@@ -1159,27 +924,23 @@ export class ChatStore {
     return l;
   }
 
-  /** The environment note a message to this chat carries as it goes out (none when nothing changed), remembered. */
   private noteFor(key: string, desk: string | null | undefined, labels?: readonly string[] | null): string | undefined {
     const note = environmentNote(this.envNotes.get(key), { desk, labels });
     this.envNotes.set(key, note.told);
     return note.text ?? undefined;
   }
 
-  /** One call to the daemon: its answer, or why not in words. */
   private async attempt<T>(work: (client: ChatClient) => Promise<T>): Promise<T | string> {
     const client = this.client;
     if (!client) return NOT_CONNECTED;
     return work(client).catch((err: unknown) => messageOf(err));
   }
 
-  /** A suggestion action's outcome; one that did not get through leaves the suggestion as it was, with the reason. */
   private async outcome(work: (client: ChatClient) => Promise<{ suggestion: Suggestion; done: boolean; message: string | null }>): Promise<SuggestionOutcome> {
     const out = await this.attempt(work);
     return typeof out === "string" ? { done: false, message: out, suggestion: null } : { done: out.done, message: out.message, suggestion: out.suggestion };
   }
 
-  /** One call to the daemon whose answer is only whether it took: null, or why not in words. */
   private async tried(work: (client: ChatClient) => Promise<unknown>): Promise<string | null> {
     const r = await this.attempt(async (c) => {
       await work(c);
@@ -1195,10 +956,6 @@ export class ChatStore {
     this.listeners.emit();
   }
 
-  /**
-   * Hand the live state to render (plan 032). A streaming reply moves only its thread, so the snapshot stays as it is
-   * and only that thread's watchers draw again; a chat's face moving (a new approval, a turn starting) moves the snapshot.
-   */
   private publish(): void {
     let moved = false;
     for (const [key, l] of this.liveMap) {
@@ -1212,7 +969,6 @@ export class ChatStore {
     this.threadWatchers.emit();
   }
 
-  /** Publish soon (`flushing`): a burst of streamed pieces draws once. */
   private bump(): void {
     this.flushing.schedule();
   }

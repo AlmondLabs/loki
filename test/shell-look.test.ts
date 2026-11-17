@@ -1,10 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { must } from "./fixtures/must.ts";
-
-// Plan 2026-11-12-1505, U3: the window shell on Liquid Glass. Its rules live in components.css in one :root block laid
-// over the plainer rules above it; these read the stylesheet and the shell's markup.
 
 const APP = join(import.meta.dirname, "..", "app", "src");
 const css = readFileSync(join(APP, "components", "components.css"), "utf8");
@@ -35,7 +32,7 @@ describe("the window shell on Liquid Glass", () => {
 
 describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", () => {
   test("every sheet, popover and type-ahead list is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
-    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-mail-suggest,\s*\.loki-title-menu-panel \{([^}]*)\}/.exec(glass), "the sheet rule")[1];
+    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-mail-suggest \{([^}]*)\}/.exec(glass), "the sheet rule")[1];
     expect(sheets).toContain("var(--loki-glass-strong)");
     expect(sheets).toContain("var(--loki-glass-blur)");
     const chips = must(/\.loki-chip--float \{([^}]*)\}/.exec(glass), "the chip rule")[1];
@@ -57,9 +54,11 @@ describe("Preferences and every tab row on Liquid Glass (U8)", () => {
     expect(must(/\.loki-segmented > button\[aria-pressed="true"\] \{([^}]*)\}/.exec(glass), "the chosen segment")[1]).toContain("var(--loki-segment)");
   });
 
-  test("a tab row is a track that hugs its tabs, the chosen tab raised; the pane header's track is glass", () => {
-    expect(must(/\n\s*\.loki-tabs \{([^}]*)\}/.exec(glass), "the tab row")[1]).toContain("width: fit-content");
-    expect(must(/\.loki-tab\[aria-selected="true"\] \{([^}]*)\}/.exec(glass), "the chosen tab")[1]).toContain("var(--loki-segment)");
+  test("a tab row is shadcn's Tabs in a capsule that hugs its tabs; the pane header's track is glass, the chosen tab lit", () => {
+    const components = readFileSync(join(APP, "components", "index.tsx"), "utf8");
+    expect(components).toMatch(/<TabsList aria-label=\{label\} activateOnFocus className="loki-tabs [^"]*rounded-full/);
+    expect(readFileSync(join(APP, "ui", "tabs.tsx"), "utf8")).toContain("w-fit");
+    expect(must(/\.loki-pane-header \.loki-tab\[aria-selected="true"\] \{([^}]*)\}/.exec(glass), "the chosen tab")[1]).toContain("var(--loki-selection)");
   });
 
   test("Appearance's values are in Apple's words, and there is no palette to pick", () => {
@@ -75,13 +74,13 @@ describe("Windows and Linux on Liquid Glass (U10)", () => {
     expect(GLASS_ON).toEqual({ macos: "glass", windows: "glass", linux: "solid" });
     const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
     expect(theme).toMatch(/if \(GLASS_ON\[platform\] === "solid"\) root\.dataset\.glass = "solid";/);
-    // the prepaint script says the same before any stylesheet, so Linux never flashes glass
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     expect(html).toMatch(/Linux\|X11\|CrOS[^\n]*dataset\.glass = "solid"/);
   });
 
   test("the ☰ menu on Windows and Linux is the same strong glass as a Mac's menus, solid where glass is off", () => {
-    expect(glass).toMatch(/\.loki-title-menu-panel \{[^}]*var\(--loki-glass-strong\)/);
+    const menu = readFileSync(join(APP, "shell", "title-menu.tsx"), "utf8");
+    expect(menu.match(/className=\{?[^>]*loki-popover/g)?.length).toBe(2);
   });
 });
 
@@ -97,6 +96,31 @@ describe("one sidebar in place of the rail (U12)", () => {
     expect(out).toContain('<span aria-hidden="true" class="loki-place-count">2</span>');
     expect(out).not.toContain("--loki-attention");
     expect(must(/\.loki-place-count \{([^}]*)\}/.exec(css), "the count rule")[1]).toContain("var(--loki-muted)");
+  });
+
+  test("a place with sources is a grey heading that is not a row, its sources the rows (plan 2026-11-15-1035, R5)", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { Places } = await import("../app/src/shell/sidebar.tsx");
+    const chats = {
+      items: [
+        { id: "all", title: "All Chats", icon: "desk" as const, count: 0 },
+        { id: "pinned", title: "Pinned", icon: "pin" as const, count: 0 },
+        { id: "archived", title: "Archived", icon: "archive" as const, count: 0 },
+      ],
+      selected: "all",
+      onSelect: () => {},
+    };
+    const out = renderToStaticMarkup(createElement(Places, { segment: "desk", onSelect: () => {}, waiting: 0, sources: { desk: chats } }));
+    expect(out).toContain('<span id="loki-place-heading-desk" class="loki-place-heading">Chats</span>');
+    expect(out).not.toMatch(/<button[^>]*>[^]*?>Chats</);
+    expect([...out.matchAll(/class="loki-place-label">([^<]+)</g)].map((m) => m[1]).slice(0, 3)).toEqual(["All Chats", "Pinned", "Archived"]);
+    expect(out).toMatch(/aria-current="page"[^>]*aria-label="All Chats"/);
+  });
+
+  test("only the row showing takes the accent; the others' symbols are in the label colour", () => {
+    expect(must(/\.loki-place\[aria-current\] \{([^}]*)\}/.exec(css), "the current place")[1]).toContain("var(--loki-accent)");
+    expect(must(/\.loki-place-icon \{([^}]*)\}/.exec(css), "the place icon")[1]).not.toContain("var(--loki-accent)");
   });
 
   test("the place showing is filled, never bold", () => {
@@ -137,14 +161,47 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(theme).toContain('if (VIBRANT) root.dataset.vibrant = "on";');
   });
 
-  test("the traffic lights sit inside the inset sidebar, and its toggle is centred on their row", async () => {
+  test("AppKit lays the traffic lights out in an empty unified toolbar, and the page lines its row up on them", async () => {
     const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
-    expect(lib).toContain("traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0))");
-    const { GLASS_LIGHTS, sidebarToggleTop, sidebarToggleLeft } = await import("../app/src/shell/sidebar.tsx");
-    expect(GLASS_LIGHTS).toEqual({ x: 20, y: 22 });
-    // a 28 px toggle centred on 14 pt buttons whose top is at 22
-    expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.y + 7);
-    expect(sidebarToggleLeft(true, "macos")).toBeGreaterThan(GLASS_LIGHTS.x + 3 * 14 + 2 * 6);
+    const native = readFileSync(join(root, "src-tauri", "src", "native.rs"), "utf8");
+    // the toolbar is AppKit's own, so nothing moves the lights after a layout and they never show in the corner
+    expect(lib).toContain("native::add_unified_toolbar(&window);");
+    expect(native).toContain("ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);");
+    expect(lib).not.toContain("traffic_light_position");
+    expect(lib).toContain("native::traffic_lights,");
+    const boot = readFileSync(join(APP, "boot.tsx"), "utf8");
+    expect(boot.indexOf("adoptTrafficLights()")).toBeGreaterThan(-1);
+    expect(boot.indexOf("adoptTrafficLights()")).toBeLessThan(boot.indexOf("createRoot("));
+    const { GLASS_LIGHTS, adoptTrafficLights, paneTop, sidebarToggleTop, sidebarToggleLeft } = await import("../app/src/shell/sidebar.tsx");
+    expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.middle);
+    expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
+    expect(sidebarToggleLeft(true, "macos")).toBe(GLASS_LIGHTS.right + 18);
+    const before = { ...GLASS_LIGHTS };
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: "x", right: 70, middle: 26 }) }));
+    await adoptTrafficLights();
+    expect(GLASS_LIGHTS).toEqual(before);
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: 13.4, right: 66.6, middle: 25.5 }) }));
+    vi.resetModules();
+    const fresh = await import("../app/src/shell/sidebar.tsx");
+    await fresh.adoptTrafficLights();
+    expect(fresh.GLASS_LIGHTS).toEqual({ left: 13, right: 67, middle: 26 });
+    expect(fresh.sidebarToggleTop(true, "macos")).toBe(12);
+    vi.doUnmock("@tauri-apps/api/core");
+  });
+
+  test("with the sidebar shown, the Mac's toggle sits at its trailing end, in line with the counts, clear of the lights", async () => {
+    const { GLASS_INSET, GLASS_LIGHTS, LIST_BAR, PLACE_PADDING, PLACES_INSET, sidebarToggleLeft, sidebarToggleLeftShown } =
+      await import("../app/src/shell/sidebar.tsx");
+    const { SIDEBAR_MIN } = await import("../app/src/shell/columns.ts");
+    expect(sidebarToggleLeftShown(280, true, "macos") + 28 - 5).toBe(GLASS_INSET + 280 - PLACES_INSET - PLACE_PADDING);
+    const css = readFileSync(join(APP, "components", "components.css"), "utf8");
+    expect(css).toMatch(new RegExp(`\\.loki-places \\{[^}]*padding: 0 ${PLACES_INSET}px ${PLACES_INSET}px;`));
+    expect(css).toMatch(new RegExp(`\\.loki-place \\{[^}]*padding: 0 ${PLACE_PADDING}px;`));
+    expect(css).toMatch(new RegExp(`\\.loki-content-list-bar \\{[^}]*padding: 4px 8px 4px ${LIST_BAR.padding}px;[^}]*\\}`));
+    expect(css).toMatch(new RegExp(`\\.loki-content-list-bar \\{[^}]*gap: ${LIST_BAR.gap}px;`));
+    expect(sidebarToggleLeftShown(SIDEBAR_MIN, true, "macos")).toBeGreaterThan(GLASS_LIGHTS.right);
+    expect(sidebarToggleLeftShown(280, true, "windows")).toBe(sidebarToggleLeft(true, "windows"));
+    expect(sidebarToggleLeftShown(280, false, "macos")).toBe(sidebarToggleLeft(false, "macos"));
   });
 
   test("the glass panel is the window's hole onto the material: its ring paints everything else opaque, hidden or shown", () => {
@@ -170,22 +227,19 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
 
 describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
   test("a header with tab views centres them between two equal sides, the trailing one never narrower than its symbols", () => {
-    const centred = must(/\.loki-pane-header:has\(> \.loki-tabs\) \{([^}]*)\}/.exec(glass), "the centred rule")[1];
-    // equal sides centre the tabs; when the symbols need more than half, the tabs fall in line before them
+    const centred = must(/\.loki-pane-header:has\(> \[data-slot="tabs"\] > \.loki-tabs\) \{([^}]*)\}/.exec(glass), "the centred rule")[1];
     expect(centred).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr)");
   });
 
-  test("every toolbar keeps a trailing side, which leaves room for the Update button over the detail's top right", async () => {
+  test("every toolbar keeps a trailing side, and none keeps room for an Update button any more (plan 2026-11-15-1035, U7)", async () => {
     const trailing = must(/\.loki-pane-header-trailing \{([^}]*)\}/.exec(glass), "the trailing rule")[1];
-    expect(trailing).toContain("padding-right: var(--loki-toolbar-room)");
+    expect(trailing).not.toContain("--loki-toolbar-room");
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { PaneHeader } = await import("../app/src/components/index.tsx");
     const out = renderToStaticMarkup(createElement(PaneHeader, { title: "t" }));
     expect(out).toContain('<div class="loki-pane-header-trailing"></div>');
-    // Flow's detail toolbar, a card's, leaves the same room (plan 2026-11-14-1330, U6).
-    const card = must(/\.loki-card-toolbar \{([^}]*)\}/.exec(glass), "the card toolbar's rule")[1];
-    expect(card).toContain("var(--loki-toolbar-room)");
+    expect(css).not.toContain("--loki-toolbar-room");
   });
 
   test("Messages and Canvas sit in the chat toolbar's centred slot", () => {
@@ -196,7 +250,6 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
 });
 
 describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
-  // The ban on --loki-text-* and on literal font sizes lives in tokens.test.ts, which reads every file.
   const styles = readFileSync(join(APP, "styles.css"), "utf8");
   const index = readFileSync(join(APP, "..", "index.html"), "utf8");
 
@@ -216,7 +269,7 @@ describe("Tailwind's own type sizes and root (plan 2026-11-15-0030)", () => {
 
 describe("blue for what waits on you, grey for counts and faces (U17)", () => {
   const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
-  const block = (selector: string) => must(new RegExp(`\\n${selector.replace(/[[\]]/g, "\\$&")} \\{([\\s\\S]*?)\\n\\}`).exec(tokens), selector)[1];
+  const block = (selector: string) => must(new RegExp(`(?:^|\\n)${selector.replace(/[[\]]/g, "\\$&")} \\{([\\s\\S]*?)\\n\\}`).exec(tokens), selector)[1];
   test("attention is the blue of the accent, red only for failures", () => {
     const dark = block(":root");
     const light = block(':root[data-theme="light"]');

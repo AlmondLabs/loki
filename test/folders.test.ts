@@ -47,8 +47,7 @@ describe("folders", () => {
     expect(expandPath("  ~\\  ", home, true)).toBe(home);
     expect(expandPath("C:\\Users\\x\\..\\y", home, true)).toBe("C:\\Users\\y");
     expect(expandPath("D:/work/loki", home, true)).toBe("D:\\work\\loki");
-    expect(expandPath("~other\\proj", home, true)).not.toContain(home); // ~user is not this home
-    // On the Mac a backslash is a character in a name, not a separator: ~\proj is not under home.
+    expect(expandPath("~other\\proj", home, true)).not.toContain(home);
     expect(expandPath("~\\proj", "/Users/x", false)).toBe(posix.resolve("~\\proj"));
   });
 
@@ -77,10 +76,9 @@ describe("folders", () => {
     expect(completeFolder("C:\\", home, 12, win)).toEqual(["C:\\Users", "C:\\Windows"]);
     expect(completeFolder("C:\\W", home, 12, win)).toEqual(["C:\\Windows"]);
     expect(completeFolder("C:\\Users\\x\\Doc", home, 1, win)).toHaveLength(1);
-    expect(completeFolder("C:", home, 12, win)).toEqual([]); // drive-relative, not a path to complete
+    expect(completeFolder("C:", home, 12, win)).toEqual([]);
     expect(completeFolder("relative\\path", home, 12, win)).toEqual([]);
     expect(completeFolder("E:\\missing\\x", home, 12, win)).toEqual([]);
-    // On the Mac a drive path is just text: nothing to complete.
     expect(completeFolder("C:\\Users\\x\\Doc", "/Users/x", 12, { windows: false, list })).toEqual([]);
   });
 
@@ -132,7 +130,7 @@ describe("folders", () => {
     expect(html("dialog")).toContain("Browse…");
     expect(html("mod")).toContain("Browse…");
     expect(html(null)).not.toContain("Browse…");
-    expect(html(null)).toContain('aria-label="Folder"'); // typing and completion still work
+    expect(html(null)).toContain('aria-label="Folder"');
   });
 
   test("a folder's name in the list: the last segment, split on backslashes too on Windows", () => {
@@ -142,6 +140,6 @@ describe("folders", () => {
     expect(folderLabel("C:/Users/x/proj", "windows")).toBe("proj");
     expect(folderLabel("C:\\", "windows")).toBe("C:");
     expect(folderLabel("/", "macos")).toBe("/");
-    expect(folderLabel("/a/back\\slash", "macos")).toBe("back\\slash"); // a Mac name may hold a backslash
+    expect(folderLabel("/a/back\\slash", "macos")).toBe("back\\slash");
   });
 });

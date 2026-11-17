@@ -1,120 +1,160 @@
 # Releasing loki
 
-Nothing is tagged by hand. `.github/workflows/release.yml` runs on every push to `main` (and on request from the
-Actions tab) and `scripts/release.ts` decides what the run does. There are two channels, nightly (the Mac's alone)
-and stable, and two PRs the workflow keeps for you: the release PR, which ships the Mac's stable when it merges, and
-the Windows and Linux PR, which puts their files on the newest stable. The release PR carries no version number, so it
-never goes stale; the Windows and Linux PR names the stable it is for. Nothing runs on a schedule.
+Nothing is tagged by hand, and nothing ships until you ask. `.github/workflows/release.yml` runs only when you run it
+from the Actions tab (or with `gh workflow run`), and `scripts/release.ts` decides what the run does. There are two
+channels, nightly and stable, and you pick one each time you run it. A merge ships nothing and starts no release run.
+Every release, stable or nightly, is built for the Mac, Windows and Linux in one run and carries the signed update
+files every loki installs from. Nothing is written down before the run, so nothing goes stale, and nothing runs on a
+schedule.
 
 ## How a change ships
 
-1. **Merge a PR into `main`.** About twenty minutes later there is a new **nightly**: the universal `.dmg` on the
-   rolling `nightly` prerelease, and `Casks/loki-nightly.rb` in the tap. Nightlies are Mac-only. Anyone on
-   `brew install --cask almondlabs/loki/loki-nightly` gets it with `brew upgrade`. Only the newest merge matters:
-   a nightly build still running is cancelled when the next merge lands.
-2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "chore(release): the
-   next stable": one commit on top of `main` that writes the `main` it was built from to `.github/release.txt`, and a body
-   listing everything since the last stable and the number it would get if merged now. It is rebuilt from `main` and
-   force-pushed by every further merge, and closed when nothing has merged since the last stable. Do not push to it;
-   anything that should ship goes through an ordinary PR.
-3. **Merge the release PR** whenever you want a stable, as often as you like. That merge builds once more, decides
-   the number (below), and publishes `v2026.1011.0` with the `.dmg` and the rendered cask attached, marked latest,
-   and pushes `Casks/loki.rb` to the tap. `brew upgrade --cask loki` follows. That merge produces no nightly; the
-   stable is that build.
-4. **The Windows and Linux PR** opens once the stable is out, branch `release/preview`, titled "chore(release): the
-   Windows and Linux preview 2026.1011.0": it writes `v2026.1011.0` to `.github/preview.txt`. Merging it builds `main` as it is at that
-   merge on Windows and Linux, stamps `2026.1011.0`, and puts the `-setup.exe`, the AppImage and the `.deb` on that
-   release, with the preview line (below) at the top of its notes. It makes no nightly and touches neither the
-   `.dmg` nor the casks. It is refreshed by every merge while that stable lacks the files, and closed once it has
-   them. Anything merged between the stable and this PR is in the Windows and Linux files but not the `.dmg`; that is
-   accepted, as it was before.
+1. **Merge PRs into `main`** as usual. That ships nothing.
+2. **See what would ship**, if you like: `npm run release -- notes` prints the notes the next release would carry,
+   everything merged since the last stable (below, "Building locally").
+3. **Run the workflow on `main`**: Actions › release › Run workflow, with `main` as the branch, and pick the kind.
+   From a terminal, `gh workflow run release.yml --ref main` for a nightly or add `-f kind=stable` for a stable.
+   - **nightly**, the default: about twenty minutes later there is a new nightly of `main` as it stands, the rolling
+     `nightly` prerelease with every system's files (below) and its `latest.json`, and `Casks/loki-nightly.rb` in the
+     tap. A loki on the Nightly channel (About) updates itself to it. Only the newest run matters: a nightly still
+     building or publishing is cancelled when the next one reaches the same job.
+   - **stable**: the run decides the number (below) and publishes `v2026.1011.0` with every system's files and the
+     rendered cask attached, marked latest, and pushes `Casks/loki.rb` to the tap. Every loki on the Stable channel
+     updates itself to it. A stable produces no nightly; a loki on the Nightly channel stays on its nightly until the
+     next one, which is numbered after this stable. Run it as often as you like.
+
+   Either way, with nothing merged since the last stable there is nothing to build, and the run says so in its
+   summary. While the builds run, the run's summary shows the notes it will publish: cancel the run before publish if
+   they are not what you meant to ship. A stable cancelled that way leaves its draft release (below): delete the draft,
+   or the next stable of the same day takes the number after it.
+
+The release PR (branch `release/next`, merged to ship a stable) and the Windows and Linux PR (branch
+`release/preview`) are retired: a stable is a run like a nightly, and every stable carries all three systems. Their
+markers, `.github/release.txt` and `.github/preview.txt`, are gone. An open release PR left from before can be closed
+and its branch deleted.
 
 ## What a release run builds
 
-1. **plan** (`npm run release -- plan`) decides stable, nightly, preview or nothing. On a push, the release PR
-   landing is recognised by the push itself changing `.github/release.txt`, and the Windows and Linux PR landing by
-   it changing `.github/preview.txt` (a preview of the stable it names, when that release exists; nothing when it
-   does not). Everything else with commits since the last stable is a nightly. Commits titled `chore(release): …` (or
-   `release: …`, before October 2026), the two PRs' own, do not count as something to ship. A manual run only refreshes the two PRs.
-2. **A nightly or a stable** is the Mac's: one `macos-15` job decides its number (`release.ts version`), stamps it
-   (`release.ts set`), smoke-tests the bundle (`npm run smoke`: it starts and signs in, or nothing ships), builds the
-   universal `.dmg` with `tauri-apps/tauri-action` (`--target universal-apple-darwin`),
-   publishes it with `release.ts publish`, renders the cask from it, attaches `cask.rb` to the release and pushes it
-   to the tap. Each of those steps is safe to run again (plan 096): a stable is made as a draft, given its `.dmg`,
-   then made public and latest, and a re-run of the same merge takes the same number back and finishes what the last
-   run left; once a stable is public a re-run changes nothing on it and makes the cask from the `.dmg` it shipped with.
-   The nightly is never deleted: its new `.dmg` goes up beside the last one's, the `nightly` tag moves, the tap gets
-   the new cask, and only then is the old `.dmg` removed (`release.ts prune-nightly`), so a nightly cancelled by a
-   newer merge at any point still downloads. A stable then offers **the Windows and Linux PR** for itself. A nightly runs **the release PRs** job
-   (`release.ts release-pr`, then `release.ts preview-pr`) to refresh both. A merge of docs alone (`docs/**`, the
-   root's `*.md`) starts no release run at all.
-3. **A preview** is two build jobs, each checking out the merge, stamping the stable's version (`release.ts set`),
-   smoke-testing the bundle and uploading its files as an artifact, then **publish Windows and Linux**:
+1. **plan** (`npm run release -- plan`) decides stable, nightly or nothing: the kind you picked (the workflow's `kind`
+   input, passed as `REQUESTED_KIND`) when anything has merged since the last stable, and nothing otherwise. It writes
+   what it decided, and why, to the run's summary.
+2. **version** decides the number once (`release.ts version`), in a queue that runs one at a time per kind (below).
+   For a stable of `main` it then drafts the release at that number straight away (`release.ts draft`): a draft has
+   no tag yet, but it counts as taken, so a stable queued behind it takes the next number. A stable run from a branch
+   drafts nothing. It writes the release notes to the run's summary (`release.ts notes`).
+3. **Three builds**, for a stable and a nightly alike, each checking out the commit the run is for, stamping the number on the runner
+   (`release.ts set`), smoke-testing the bundle (`npm run smoke`: it starts and signs in, or nothing ships), building
+   with the update key, checking every `.sig` against the compiled-in key (`scripts/check-update-key.ts`) and handing
+   its files to publish as an artifact:
 
-   | job | runner | how | files |
-   |---|---|---|---|
-   | Windows | `windows-latest` | `npm run tauri -- build --bundles nsis` | `loki_<v>_x64-setup.exe` |
-   | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `npm run tauri -- build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
+   | job     | runner           | how                                                                              | files                                                          |
+   | ------- | ---------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+   | macOS   | `macos-15`       | `tauri-apps/tauri-action`, `--target aarch64-apple-darwin`                       | `loki_<v>_aarch64.dmg`, `loki.app.tar.gz` and its `.sig`       |
+   | Windows | `windows-latest` | `npm run tauri -- build --bundles nsis`                                          | `loki_<v>_x64-setup.exe` and its `.sig`                        |
+   | Linux   | `ubuntu-22.04`   | the WebKitGTK apt packages, then `npm run tauri -- build --bundles appimage,deb` | `loki_<v>_amd64.AppImage` and its `.sig`, `loki_<v>_amd64.deb` |
 
-   Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
-   `shell.yml`'s. The last job downloads whatever built and runs `release.ts attach v<v> <files…>`:
-   `gh release upload --clobber` (a re-run replaces rather than fails) and the preview line on top of the notes if
-   they do not carry it yet. Windows and Linux never create a release. One system failing leaves only its files off,
-   with a warning on the run. **Re-run its failed jobs** from the Actions tab to add them: the Windows and Linux PR does
-   not reopen for a version `main` already records.
+   The Mac build is for Apple silicon only, so `latest.json` has no `darwin-x86_64`: a loki already on an Intel Mac
+   finds no update for itself and stays as it is. Linux builds on the oldest supported Ubuntu so the files run on
+   newer glibc too; the apt list is the same as `shell.yml`'s. The Windows installer and the AppImage are their
+   systems' update files themselves; the Mac's is the `.app` in a `.tar.gz`.
+4. **publish** runs only when all three builds succeeded, and only on `main`. A run from any other branch, of either
+   kind, builds all three and keeps the files as the run's artifacts, and never touches a release or the `nightly` tag,
+   so it checks that a branch builds. `release.ts publish` writes `latest.json` from the builds' `.sig` files (it
+   fails, naming the platform, when one is missing), then uploads in this order:
+   1. the versioned files: the `.dmg`, `loki_<v>_aarch64.app.tar.gz` (the Mac's update archive, renamed so it carries
+      the version), the `-setup.exe`, the AppImage, each update file's `.sig`, and the `.deb`;
+   2. `latest.json` and the install scripts' unversioned copies, replaced with `--clobber`:
+      `loki-macos-arm64.app.tar.gz` (the Mac's update archive), `loki-windows-x64-setup.exe` and
+      `loki-linux-x86_64.AppImage`.
 
-The preview line (`previewLine` in `scripts/release.ts`) says Windows and Linux are built and tested in CI, not
-yet tried on real machines, with the issues link. It opens the Windows and Linux PR's body and the notes of a
-release carrying their files; the release PR and the nightly do not carry it. Take it out of `previewLine` when
-people have confirmed the builds, and the README's and Settings' preview notes with it.
-[preview-checklist.md](preview-checklist.md) is what to ask them to try.
+   It then renders the cask from the `.dmg`, attaches `cask.rb` to the release and pushes it to the tap. Each of those
+   steps is safe to run again (plan 096): a stable's draft gets its files, then is made public and latest, and a re-run
+   for the same commit takes the same number back and finishes what the last run left; once a stable is public a re-run
+   changes nothing on it and makes the cask from the `.dmg` it shipped with. A stable that finishes after a newer one
+   is already out is published but not made latest, so `releases/latest` never goes back a version. The nightly is
+   never deleted: its new files go up beside the last one's, the `nightly` tag moves, `latest.json` goes up last, the
+   tap gets the new cask, and only then are the earlier nightlies' files removed (`release.ts prune-nightly`): every
+   file whose name carries another version, never `latest.json`, `cask.rb` or the unversioned copies. A nightly
+   cancelled by a newer one at any point still downloads. A re-run of an older nightly after a newer one went out
+   fails at `publish` before it uploads anything, so the cask, tap and prune steps after it don't run either.
+
+## What a release carries
+
+| file                                                                                      | for                                                                                               |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `latest.json`                                                                             | the updater: version, notes, date, and per platform the versioned update file's URL and signature |
+| `loki_<v>_aarch64.dmg`                                                                    | a download by hand, and the casks                                                                 |
+| `loki_<v>_aarch64.app.tar.gz` (+ `.sig`)                                                  | the Mac's update file (`darwin-aarch64`)                                                          |
+| `loki_<v>_x64-setup.exe` (+ `.sig`)                                                       | the Windows installer and update file (`windows-x86_64`)                                          |
+| `loki_<v>_amd64.AppImage` (+ `.sig`)                                                      | the Linux AppImage and update file (`linux-x86_64`)                                               |
+| `loki_<v>_amd64.deb`                                                                      | Debian and Ubuntu; it does not update itself                                                      |
+| `loki-macos-arm64.app.tar.gz`, `loki-windows-x64-setup.exe`, `loki-linux-x86_64.AppImage` | the install scripts (`site/public/install.sh`, `install.ps1`)                                     |
+| `cask.rb`                                                                                 | what the tap carries, to check                                                                    |
+
+loki's updater reads `https://github.com/AlmondLabs/loki/releases/latest/download/latest.json` on the Stable channel
+and `https://github.com/AlmondLabs/loki/releases/download/nightly/latest.json` on the Nightly one; the install scripts
+fetch the unversioned copies from `releases/latest/download/` or `releases/download/nightly/` the same way, without
+asking GitHub's API which release is newest. The nightly is a prerelease, so `releases/latest` is always the newest
+stable. `npm run release -- latest-json <version> <dir>` prints the `latest.json` a release would carry for built
+files in `<dir>`; with `LOKI_UPDATE_URL` pointing at a copy of it on a throwaway prerelease, an update can be tried
+by hand.
+
+The Stable install line works only once a stable built by this workflow is out: older stables carry no unversioned
+copies, so until then `releases/latest/download/` answers 404 and the scripts say the latest loki isn't published
+yet. Run a stable right after the change that brought the one-line install lands; until that stable ships, the Nightly
+line works.
 
 ## Versions
 
 A stable is `YYYY.MMDD.N`: the UTC year, then the month and the two-digit day (October 11 is `1011`, January 1 is
 `101`), then that day's release count from 0. `2026.1011.0`, then `2026.1011.1` the same day, then `2026.1012.0`.
-A nightly is the number of the stable it leads up to plus the merge it was built from: `2026.1011.1-nightly.a96ee85`.
+A nightly is the number of the stable it leads up to plus the release workflow's run number: `2026.1011.1-nightly.4821`.
+Run numbers only rise, so nightlies sort in order and each sorts below the stable it leads up to; the commit goes in its
+title and notes.
 
-- **The number is decided when the stable is built**, from the date and the stable tags, not written into the PR:
-  the build job counts today's `vYYYY.MMDD.*` tags and takes the next. Stable builds run one at a time in their own
-  queue, so a stable queued behind another sees its tag and takes the next number. GitHub keeps one waiting run per
-  queue: of three release merges within a few minutes the middle one may be dropped, and the third, built from a
-  later `main`, carries its changes. A stable never joins another merge's release: if its number is somehow taken by
-  another commit, the publish fails and a re-run numbers it again. Drafts count as taken, and a re-run of the same
-  merge takes its own stable's number back (`stableFor`), so **re-run failed jobs** after a stable's later step
-  failed (the tap token, the network) ships nothing twice.
+- **The number is decided once per run, by the version job**, from the date, the stable tags and the drafts, never
+  written down beforehand: it counts today's `vYYYY.MMDD.*` tags and releases and takes the next. Version jobs run one
+  at a time in their kind's queue (`build-stable`, `build-nightly`), and a stable's drafts its release at once, so a
+  stable queued behind another sees its draft and takes the next number. A run from a branch gets a queue of its own.
+  GitHub keeps one waiting run per queue: of three stables started within a few minutes the middle one may be
+  dropped, and the third, built from a later `main`, carries its changes. A stable never joins another commit's
+  release: if its number is somehow taken by another commit, the publish fails and a re-run numbers it again. Drafts
+  count as taken, and a stable run again for the same commit takes its own stable's number back (`stableFor`), so
+  **re-run failed jobs** after a stable's later step failed (the tap token, the network) ships nothing twice.
 - **It sorts after everything before it.** All three parts are integers, so semver, Cargo, macOS bundle versions,
   Homebrew and the app's own update check (`core/version.ts`) order it, and Windows installers' limit of 65535 per
   part is never reached. A month and day (101 to 1231) outnumber a month (1 to 12), so `2026.1011.0` is newer than
   every `YYYY.M.D` stable shipped before October 2026 (the last was `2026.10.11`), and upgrades just work.
 - **The tags are the truth.** `main` takes changes through PRs alone (the `requires-pr` ruleset), so nothing commits
   the number back: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` (and the lockfile) keep the
-  last number committed before releases moved to merges, and every build stamps its own on the runner. A checkout
+  last number committed before releases were numbered at the build, and every build stamps its own on the runner. A checkout
   therefore shows that old number in Settings and may say a newer release exists; that is expected.
 - **`CHANGELOG.md` is frozen at 2026.10.11.** Its headings would need the final number on `main`; each release's
   notes are on its GitHub release instead.
 - The version says nothing about compatibility. The release notes carry that; a `breaking` word in a PR title is
   the convention if you want one.
 
-## The release PR and CI
+## Who can release
 
-The workflow pushes the release branch with its own token, and pushes made with that token do not start other
-workflows, so `ci.yml` does not run on the release PR by default, and it skips a PR whose only change is the release
-PRs' marker files anyway. Its content is one marker file on top of `main`, which `ci` checked on each PR, and the stable build compiles and bundles everything before anything is published. If you want CI on it anyway,
-add a fine-grained token with *Contents* and *Pull requests* write access to this repository as the
-**`RELEASE_TOKEN`** secret; the workflow prefers it when present.
-
-Merging the release PR needs the same one approval as any PR (the `requires-pr` ruleset). The PR's author is the
-Actions bot, so you can approve it yourself. All of this holds for the Windows and Linux PR too.
+Running the workflow needs write access to this repository; nothing else gates it. Every change in a release already
+passed CI and its one approval as a PR (the `requires-pr` ruleset), and the builds smoke-test the bundle before
+anything is published.
 
 ## Homebrew tap (one-time setup)
 
-The app is not signed (next section), so Homebrew is the recommended install: `brew install --cask
-almondlabs/loki/loki`, then `xattr -dr com.apple.quarantine /Applications/loki.app` once. Homebrew quarantines
-cask downloads exactly like a browser would, and Homebrew 7 removed the `--no-quarantine` flag that used to skip
-it, so the cask's caveat and the README both give the `xattr` line. The two casks conflict with each other: both
-builds share `~/.loki`, the daemon and the mod's ports, so one loki is installed at a time and switching
-channels is `brew uninstall --cask loki && brew install --cask almondlabs/loki/loki-nightly` (or back).
+The cask is another way in beside the install scripts: `brew install --cask almondlabs/loki/loki`, then
+`xattr -dr com.apple.quarantine /Applications/loki.app` once. The app is not signed (next section): Homebrew
+quarantines cask downloads exactly like a browser would, and Homebrew 7 removed the `--no-quarantine` flag that used
+to skip it, so the cask's caveat and the README both give the `xattr` line. The cask declares `auto_updates true` and
+no longer depends on Homebrew's Node: loki updates itself and fetches the Node its daemon runs on, so `brew upgrade`
+leaves an installed loki to its own updater. One last `brew upgrade --cask loki` brings a loki from before that to the
+self-updating version.
+
+**The `loki-nightly` cask is deprecated.** The channel is a choice in loki's About now, so the cask carries
+Homebrew's `deprecate!` (pointing at the `loki` cask and the Nightly channel), `auto_updates true` and no Node. It is
+still rendered and pushed on every nightly, so one last `brew upgrade --cask loki-nightly` brings the people on it a
+self-updating nightly that keeps itself current from then on. The two casks still conflict with each other: both
+builds share `~/.loki`, the daemon and the mod's ports, so one loki is installed at a time.
 
 1. Create an empty public repository named **`homebrew-loki`** under the same owner as this repo (Homebrew
    resolves `<owner>/loki` to it). No files needed; the workflow adds `Casks/loki.rb` and `Casks/loki-nightly.rb`.
@@ -159,6 +199,17 @@ signs whenever that variable exists, even empty, so passing missing secrets stra
 with "failed to import keychain certificate", as the first release attempt did. Without the secrets the build
 succeeds unsigned. Both channels are signed the same way.
 
+## The update key
+
+Each of the three builds signs the files loki updates from with the `TAURI_SIGNING_PRIVATE_KEY` secret (and its
+password), passed only to the step that builds the app, and the app verifies them against `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, which is compiled in. tauri-cli
+only warns when the two are not one pair, so after each build `scripts/check-update-key.ts` compares the key id of
+every `.sig` the build made with the pubkey's. The job fails, naming the file, when they differ, when the pubkey is
+still the placeholder, or when the build made no `.sig`. A loki released with the wrong pubkey could never verify an
+update, and only a reinstall by hand would get past it. Without the secret the builds refuse to make the update files
+and the run fails before anything is published; publish also refuses a release missing any platform's signature, so
+no release ever ships that some loki could not update from.
+
 ## Building locally
 
 `npm run desktop:build` produces the `.app` and the `.dmg` under `src-tauri/target/release/bundle/`, at the version
@@ -177,7 +228,7 @@ On Windows or Linux, `npm run tauri -- build --bundles nsis` or `npm run tauri -
 same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appimage/` and `deb/` (the Linux build
 needs the apt packages in `shell.yml`). Neither needs the Finder workaround.
 
-`npm run release -- plan` says what the workflow would do for the checkout as it stands,
-`npm run release -- version stable` the number a stable built now would get, and `npm run release -- notes` the notes
-the release PR would carry. None of them changes the checkout's files (`version` fetches the tags first); `plan` and `notes` ask GitHub (`gh`, signed in) which
-releases carry a `.dmg`.
+`npm run release -- plan` says what a run would do for the checkout as it stands, as a nightly (with
+`REQUESTED_KIND=stable`, as a stable), `npm run release -- version stable` the number a stable built now would get,
+and `npm run release -- notes` the notes the next release would carry. None of them changes the checkout's files (`version` fetches the tags first); `plan` and
+`notes` ask GitHub (`gh`, signed in) which releases have shipped.

@@ -4,27 +4,14 @@ import { Button, Chip, Meta, sentence } from "../components";
 import { ago } from "./catch-up-parts";
 import { LinkedText } from "./mail-html";
 
-/**
- * A Jira card drawn as the ticket (plan 089): its type, key and project over the summary, its fields with what someone
- * else changed since the card was last read, the fields it does not show in one line, the description folded after
- * six lines, and the comments under their count. The desktop and the phone draw the same parts in the same order, in
- * sentence case. `outside-card` draws the comments themselves and the desktop header's tag and link.
- */
-
-/** The description shows this many lines before "show more". */
 const FOLD_AT = 6;
 
-/** The header's parts a change to marks new, by Jira's history name for each, with the plain word the card says for it. */
 const HEAD_FIELDS = new Map<string, string>([
   ["summary", "summary"],
   ["issuetype", "type"],
   ["project", "project"],
 ]);
 
-/**
- * The fields the card shows, in order, by the name Jira's history gives each (`Sprint` with its capital). Labels are
- * written lowercase, and `sentence` gives them their capital where they are shown.
- */
 const FIELDS: Array<{ key: keyof JiraCardFields; label: string; history: string }> = [
   { key: "status", label: "status", history: "status" },
   { key: "assignee", label: "assignee", history: "assignee" },
@@ -37,16 +24,13 @@ const FIELDS: Array<{ key: keyof JiraCardFields; label: string; history: string 
 /** Jira's history writes labels as one text parted by spaces; the card lists them parted by commas. */
 const asLabels = (text: string) => text.split(" ").filter(Boolean).join(", ");
 
-/** What a field was before the change, as the card says it: "none" when it had no value. */
 function wasText(change: JiraFieldChange): string {
   if (!change.from) return "none";
   return change.field === "labels" ? asLabels(change.from) : change.from;
 }
 
-/** Who changed it and how long ago: "Ada Lovelace · 2h". */
 const byWhen = (c: { by: string; at: string }) => [c.by, ago(c.at)].filter(Boolean).join(" · ");
 
-/** The small mark beside a part someone else changed since the card was last read. */
 function NewMark({ title }: { title?: string }) {
   return (
     <span className="loki-jira-new" title={title}>
@@ -55,28 +39,19 @@ function NewMark({ title }: { title?: string }) {
   );
 }
 
-/** A quiet line under a part: the desktop's meta or the phone's. */
 function Quiet({ touch, children }: { touch: boolean; children: ReactNode }) {
   return touch ? <span className="loki-phone-meta">{children}</span> : <Meta wrap>{children}</Meta>;
 }
 
-/**
- * The ticket's header (plan 089, item 1): the Jira mark, the key, the type and project, then the summary as the card's
- * title, the size a mail card's subject is. A change to the summary, type or project marks it new. On the desktop it
- * fills the card's head beside `right` (the tag and the link to the ticket) with `line` (who, when, where) under the
- * summary; the phone draws it at the top of its card's body, with neither.
- */
 export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket: JiraCardTicket; touch?: boolean; line?: ReactNode; right?: ReactNode }) {
   const change = ticket.changed.find((c) => HEAD_FIELDS.has(c.field));
   const kind = [ticket.type, ticket.project].filter(Boolean).join(" · ");
-  // On the desktop it is the head's growing column; on the phone a plain block at the top of the body.
   const text = (
     <div className={touch ? "loki-jira-head" : "loki-jira-head loki-card-head-text"}>
       <div className="loki-jira-key-line" style={touch ? { fontSize: "var(--phone-text-meta)" } : undefined}>
         <span className="loki-jira-type" aria-label="From Jira">
           ◆
         </span>
-        {/* The key is an id, so it is mono, as task ids are. */}
         <span className="loki-jira-key loki-mono">{ticket.key}</span>
         {kind && <span className="loki-jira-kind">· {kind}</span>}
         {change && <NewMark title={sentence(`${HEAD_FIELDS.get(change.field) ?? change.field} changed · ${byWhen(change)}`)} />}
@@ -102,7 +77,6 @@ export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket:
   );
 }
 
-/** One field's value: the status as a small pill, labels parted by commas, anything else as Jira names it. */
 function FieldValue({ field, fields }: { field: keyof JiraCardFields; fields: JiraCardFields }) {
   if (field === "labels") return <span>{fields.labels.length ? fields.labels.join(", ") : "none"}</span>;
   const value = fields[field];
@@ -110,10 +84,6 @@ function FieldValue({ field, fields }: { field: keyof JiraCardFields; fields: Ji
   return <span>{value ?? "none"}</span>;
 }
 
-/**
- * The ticket's fields on a quiet surface (plan 089, item 2), each only when the ticket has it or someone changed it: a
- * changed one is marked new, with what it was, who changed it and when under its value.
- */
 function JiraFields({ ticket, touch }: { ticket: JiraCardTicket; touch: boolean }) {
   const { fields } = ticket;
   const rows = FIELDS.map((f) => ({ ...f, change: ticket.changed.find((c) => c.field === f.history) })).filter(
@@ -138,10 +108,6 @@ function JiraFields({ ticket, touch }: { ticket: JiraCardTicket; touch: boolean 
   );
 }
 
-/**
- * The fields the card does not show that someone else changed (plan 089, item 3), as one line grouped by who changed
- * them, each group with its newest time: "also changed: Rank, Story points · Ada Lovelace · 2h".
- */
 export function alsoChangedText(changes: readonly JiraOtherChange[]): string | null {
   if (changes.length === 0) return null;
   const groups = new Map<string, { fields: string[]; at: string }>();
@@ -155,7 +121,6 @@ export function alsoChangedText(changes: readonly JiraOtherChange[]): string | n
   return `also changed: ${parts.join("; ")}`;
 }
 
-/** A part's heading: "Description", "Comments · 2". */
 function Heading({ touch, children }: { touch: boolean; children: ReactNode }) {
   return (
     <div className="loki-jira-heading" style={{ fontSize: touch ? "var(--phone-text-body)" : "var(--text-sm)" }}>
@@ -164,10 +129,6 @@ function Heading({ touch, children }: { touch: boolean; children: ReactNode }) {
   );
 }
 
-/**
- * The description (plan 089, item 4): its lines, folded after six with "show more", and marked edited when someone
- * else changed it since the card was last read. A ticket without one, never edited, draws none.
- */
 function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boolean }) {
   const [open, setOpen] = useState(false);
   const edit = ticket.changed.find((c) => c.field === "description");
@@ -200,11 +161,6 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
   );
 }
 
-/**
- * The ticket's body on its card (plan 089, items 2-6): on the phone its header first, then the fields, what else
- * changed, the description, and the comments under the ticket's count of them, which `children` draws as the thread's
- * list; the list is a window, so it may hold fewer.
- */
 export function JiraTicket({ ticket, touch = false, children }: { ticket: JiraCardTicket; touch?: boolean; children: ReactNode }) {
   const also = alsoChangedText(ticket.also_changed);
   return (

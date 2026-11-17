@@ -4,16 +4,9 @@ import { homedir } from "node:os";
 import { dirname, join, posix, resolve, win32 } from "node:path";
 import type { FolderCheck } from "../core/frame-types.ts";
 
-/**
- * Working folders for "new desk": where recent conversations ran (per agent),
- * path completion against the disk, a validity check with the git branch, and
- * the native macOS folder chooser — none of which the browser can do itself.
- */
-
 /** Windows paths take `\\` as well as `/` (`C:\\Users\\x`, `~\\proj`); elsewhere a backslash is part of a name. */
 const IS_WINDOWS = process.platform === "win32";
 
-/** Expand a leading ~ (and, on Windows, ~\\) and resolve. `windows` picks the separators, so tests can run either way. */
 export function expandPath(p: string, home = homedir(), windows = IS_WINDOWS): string {
   const path = windows ? win32 : posix;
   const t = p.trim();
@@ -23,7 +16,6 @@ export function expandPath(p: string, home = homedir(), windows = IS_WINDOWS): s
   return path.resolve(t);
 }
 
-/** The system a completion runs against: its separators, and how a folder is listed (a fake disk in tests). */
 export interface FolderSystem {
   windows: boolean;
   list: (dir: string) => Array<{ name: string; isDirectory: () => boolean }>;
@@ -31,12 +23,10 @@ export interface FolderSystem {
 
 const THIS_SYSTEM: FolderSystem = { windows: IS_WINDOWS, list: (dir) => readdirSync(dir, { withFileTypes: true }) };
 
-/** Directories matching what has been typed so far (completes the last path segment). */
 export function completeFolder(prefix: string, home = homedir(), limit = 12, system: FolderSystem = THIS_SYSTEM): string[] {
   const path = system.windows ? win32 : posix;
   const raw = prefix.trim();
   if (!raw) return [];
-  // Only a path that says where it starts: ~, /, or on Windows a drive (C:\\, C:/).
   const expanded = raw.startsWith("~") ? expandPath(raw, home, system.windows) : path.isAbsolute(raw) ? (system.windows ? path.normalize(raw) : raw) : null;
   if (!expanded) return [];
   const endsWithSlash = system.windows ? /[\\/]$/.test(raw) : raw.endsWith("/");
@@ -54,7 +44,6 @@ export function completeFolder(prefix: string, home = homedir(), limit = 12, sys
   }
 }
 
-/** Does the folder exist, and which git branch is checked out there (if any)? */
 export function checkFolder(p: string, home = homedir()): FolderCheck {
   const path = expandPath(p, home);
   try {
@@ -65,7 +54,6 @@ export function checkFolder(p: string, home = homedir()): FolderCheck {
   return { ok: true, path, branch: gitBranch(path) };
 }
 
-/** HEAD's branch by reading .git directly (no git spawn). Follows a plain .git file for worktrees. */
 export function gitBranch(path: string): string | null {
   let dir = path;
   for (let i = 0; i < 12; i++) {
@@ -92,7 +80,6 @@ export function gitBranch(path: string): string | null {
   return null;
 }
 
-/** The native folder chooser (macOS). Resolves null when cancelled or unavailable. */
 export function pickFolder(defaultPath?: string): Promise<string | null> {
   if (process.platform !== "darwin") return Promise.resolve(null);
   const start = defaultPath && existsSync(defaultPath) ? ` default location (POSIX file ${JSON.stringify(defaultPath)})` : "";

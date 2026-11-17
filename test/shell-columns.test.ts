@@ -19,12 +19,7 @@ import {
   toggleSidebar,
   type ColumnsFrame,
 } from "../app/src/shell/columns.ts";
-import { GLASS_LIGHTS, sidebarClearance, sidebarToggleLeft } from "../app/src/shell/sidebar.tsx";
-
-/**
- * The window's columns (plan 2026-11-14-1330, KTD1): the sidebar and the list keep their widths across reloads, the
- * sidebar folds when the detail would drop under 480, and the list narrows before the detail gives way.
- */
+import { GLASS_LIGHTS, LIST_BAR, paneTop, sidebarClearance, sidebarLeadRoom, sidebarToggleLeft } from "../app/src/shell/sidebar.tsx";
 
 const memory = (seed: Record<string, string> = {}) => {
   const m = new Map(Object.entries(seed));
@@ -32,7 +27,6 @@ const memory = (seed: Record<string, string> = {}) => {
 };
 
 const DEFAULTS = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, collapsed: false, listHidden: false };
-/** The Mac's frame: the glass inset of 8, and the traffic lights and toggle's clearance of 128. */
 const mac = (windowWidth: number, more: Partial<ColumnsFrame> = {}): ColumnsFrame => ({
   windowWidth,
   inset: 8,
@@ -85,14 +79,18 @@ describe("columns: where they go", () => {
     });
     expect(sidebarFits(DEFAULTS, mac(715, { hasList: false }))).toBe(false);
   });
-  test("with the sidebar folded on the Mac, the list's toolbar starts past the traffic lights and the sidebar toggle", () => {
+  test("with the sidebar folded on the Mac, the list starts near the window's edge and only its title clears the lights and toggle", () => {
     const clearance = sidebarClearance(true, "macos");
-    const at = columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440, { clearance }));
-    expect(at.listLeft).toBe(clearance);
-    // the toggle is 28 wide and sits after the lights; the list starts clear of both
-    expect(at.listLeft).toBeGreaterThan(sidebarToggleLeft(true, "macos") + 28);
-    expect(at.listLeft).toBeGreaterThan(GLASS_LIGHTS.x);
+    expect(clearance + 4).toBe(8);
+    expect(clearance + LIST_BAR.padding).toBe(20);
+    expect(columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440, { clearance })).listLeft).toBe(clearance);
     expect(columnsLayout(DEFAULTS, mac(900, { clearance })).listLeft).toBe(clearance);
+    const title = clearance + LIST_BAR.padding + sidebarLeadRoom(true, "macos") + LIST_BAR.gap;
+    expect(title).toBe(sidebarToggleLeft(true, "macos") + 28 + 8);
+    expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
+    expect(sidebarLeadRoom(true, "windows")).toBe(0);
+    expect(paneTop(true, "windows")).toBe(32);
+    expect(paneTop(false, "macos")).toBe(0);
   });
   test("a sidebar folded by choice leaves the list at the clearance", () => {
     expect(columnsLayout({ ...DEFAULTS, collapsed: true }, mac(1440))).toEqual({
@@ -142,10 +140,8 @@ describe("columns: Hide List", () => {
   test("a hidden list gives its room to the detail, and the place counts no list for the sidebar's fold", () => {
     const hidden = { ...DEFAULTS, listHidden: true };
     expect(columnsLayout(hidden, mac(1440))).toEqual({ sidebarShown: true, sidebarOver: false, listShown: false, listLeft: 236, list: 0, detailLeft: 236 });
-    // at 900 the sidebar folds only for the list's sake: with it hidden the sidebar stays
     expect(sidebarFits(DEFAULTS, mac(900))).toBe(false);
     expect(sidebarFits(hidden, mac(900))).toBe(true);
-    // with the sidebar folded too, the detail starts at the clearance
     expect(columnsLayout({ ...hidden, collapsed: true }, mac(1440)).detailLeft).toBe(128);
   });
   test("Hide List flips only the list, and showing it again restores its width", () => {

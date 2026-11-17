@@ -1,8 +1,3 @@
-/**
- * A chat that lives on another Mac, reached from this one over a real peer link (plan 023, U5): `npm run test:node`.
- * The far Mac's chat handlers stand in for its daemon and record what reaches them; the near Mac routes its clients'
- * frames there and passes the far Mac's pushes back to them.
- */
 import { strict as assert } from "node:assert";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -46,7 +41,6 @@ async function until(check: () => boolean, ms = 4000): Promise<void> {
   }
 }
 
-/** A client of the near Mac: a tab, or a phone when `deviceId` is given. */
 function client(deviceId?: string): Client & { sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
   return { scope: CONV, sent, ...(deviceId ? { deviceId } : {}), send: (m) => sent.push(m as Record<string, unknown>) };
@@ -66,8 +60,6 @@ const IRA_DESK: DeskSummary = {
   last_active: null,
 };
 
-/** The two Macs, linked, with Ira's chat living on the far one. */
-/** The chat the far Mac let go to a third Mac, in the redirect test. */
 const GONE = "local-conv-55555555-5555-4555-8555-555555555555";
 const THIRD = "33333333-cccc-4ccc-8ccc-cccccccccccc";
 
@@ -87,7 +79,6 @@ async function macs() {
     codes: new PairingCodes(),
     me: () => ({ mac_id: FAR, name: "Mac mini", host: `127.0.0.1:${port}`, build: null, protocol: PEER_PROTOCOL }),
   });
-  // The far Mac's daemon, standing in: what reaches it is recorded, and a message makes it push an event.
   const farChat: FrameHandlers = {
     chat_send: (p, ctx) => {
       reached.push({ type: "chat_send", ...p });
@@ -126,7 +117,6 @@ async function macs() {
       }),
     ],
     broadcast: (msg) => lan?.broadcast(msg),
-    // The far Mac let GONE go to a third Mac (addendum B3): a frame for it is redirected there.
     route: {
       target: () => null,
       redirect: (msg) => (msg.conversation_id === GONE ? { message: "this chat moved to the third Mac", moved_to: THIRD } : null),
@@ -146,7 +136,6 @@ async function macs() {
   });
   await lan.setPeersNeeded(true);
 
-  // The near Mac: its link to the far one, the far Mac's chats, and the router in front of its own (empty) handlers.
   const heard: Array<{ msg: Record<string, unknown>; scope?: string }> = [];
   const nearStore = new PeerStore(join(root, "near-peers.json"));
   nearStore.add({ mac_id: FAR, name: "Mac mini", host: `127.0.0.1:${port}`, build: null, protocol: PEER_PROTOCOL }, mintPeerToken());
@@ -268,11 +257,10 @@ void test("moving a chat from a tab here reaches the Mac it lives on, which offe
 void test("a chat that left the far Mac is redirected over the wire: this Mac learns where it went and sends there", async () => {
   const m = await macs();
   try {
-    m.directory.heard(FAR, { kind: "holds", scopes: [GONE] }); // a list from before the move
+    m.directory.heard(FAR, { kind: "holds", scopes: [GONE] });
     const tab = client();
     m.near.onMessage(tab, { type: "history_get", request_id: "h", agent_id: IRA, conversation_id: GONE });
     await until(() => tab.sent.length > 0);
-    // The third Mac has no link here, so the resend waits for it; the redirect itself crossed the wire.
     assert.deepEqual(m.directory.peek({ agent_id: IRA, conversation_id: GONE }), { at: "mac", mac: THIRD, reachable: true });
     assert.equal(tab.sent[0].type, "error");
     assert.match(String(tab.sent[0].message), /waiting for/);

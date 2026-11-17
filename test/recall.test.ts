@@ -44,7 +44,7 @@ describe("recall store", () => {
     expect(store.rejected()).toEqual([]);
   });
   test("an id that is not one never becomes a path: nothing outside the folder is written or removed", () => {
-    const outside = join(dir, "..", `${basename(dir)}-victim.json`); // basename: Windows paths use backslashes
+    const outside = join(dir, "..", `${basename(dir)}-victim.json`);
     writeFileSync(outside, "{}");
     try {
       for (const id of ["../x", "a/b", "..", ""]) {
@@ -54,11 +54,9 @@ describe("recall store", () => {
       }
       expect(() => store.forget(`../${basename(outside, ".json")}`)).toThrow();
       expect(readFileSync(outside, "utf8")).toBe("{}");
-      // A rejection whose card carries a bad id (a file planted by hand) is not restored.
       mkdirSync(join(dir, "rejected"), { recursive: true });
       writeFileSync(join(dir, "rejected", "r1.json"), JSON.stringify({ card: card("../../evil"), at: new Date(T0).toISOString() }));
       expect(store.restore("r1")).toBeNull();
-      // A card file with a bad id inside is left out of the list rather than breaking it.
       mkdirSync(join(dir, "cards"), { recursive: true });
       writeFileSync(join(dir, "cards", "odd.json"), JSON.stringify(card("../odd")));
       expect(store.cards()).toEqual([]);
@@ -92,7 +90,6 @@ describe("recall store", () => {
     expect(c.previous).toHaveLength(1);
     expect(c.previous[0].back).toBe("a a");
     expect(must(store.card("a"), "card a").schedule.reps).toBe(1);
-    // tags alone are not a wording change
     const t = must(store.edit("a", { tags: ["x"] }, "recall", T0 + 2000), "the edited card");
     expect(t.tags).toEqual(["x"]);
     expect(t.previous).toHaveLength(1);
@@ -217,7 +214,6 @@ describe("learn: the views as the sidebar's sources", () => {
   });
 });
 
-/** A card with its fresh schedule, as the snapshot carries it; `due` moves it out of the queue. */
 const scheduled = (id: string, over: Partial<Card> = {}, due?: string): RecallSnapshot["cards"][number] => {
   const schedule = newSchedule(T0);
   return { card: card(id, over), schedule: due ? { ...schedule, due } : schedule };
@@ -243,14 +239,11 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
     ]);
     expect(sources.selected).toBe("all");
     sources.onSelect("deleted");
-    sources.onSelect(sources.all); // Learn's own row keeps the view showing
     expect(chosen).toEqual(["deleted"]);
   });
 
-  /** A keydown on an element with focus: a row button in the list, or the detail's own element. */
   const keydown = (key: string, tagName: string, mods: { meta?: boolean } = {}, stop = () => {}) =>
     ({ key, metaKey: !!mods.meta, ctrlKey: false, shiftKey: false, altKey: false, target: { tagName }, stopPropagation: stop }) as unknown as KeyboardEvent;
-  /** A keydown in the Review list's column: whether the window's keymap (bubbling after it) would still see it, and what it would do. */
   const inList = (key: string, mods: { meta?: boolean } = {}) => {
     let stopped = false;
     const e = keydown(key, "BUTTON", mods, () => (stopped = true));
@@ -263,7 +256,6 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
   });
   test("with the list focused, the deck's answers stay in the list: → and ← do not grade, space does not reveal", () => {
     for (const key of ["ArrowRight", "ArrowLeft", " ", "1", "2", "ArrowDown", "Enter"]) expect(inList(key).reachesWindow, key).toBe(false);
-    // the rest act on the card as before, and ⌘] still steps the views
     expect(inList("x")).toEqual({ reachesWindow: true, binding: "recall.delete" });
     expect(inList("]", { meta: true })).toEqual({ reachesWindow: true, binding: "learn.nextView" });
   });
@@ -271,7 +263,6 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
   test("the Review list mirrors the due queue; choosing a row makes it the next card, and the rest keep their order", () => {
     const queue = ["a", "b", "c", "d"].map((id) => scheduled(id));
     expect(reviewRows(queue, T0).map((r) => r.title)).toEqual(["q a", "q b", "q c", "q d"]);
-    // c chosen: it is the card now; after it come a, b and d, in the queue's order
     const order: string[] = ["c"];
     let left = queue.filter((c) => c.card.id !== "c");
     let current = nextInDeck(queue, must(queue[2], "c"), true);
@@ -282,7 +273,6 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
       left = left.filter((c) => c !== at);
     }
     expect(order).toEqual(["c", "a", "b", "d"]);
-    // with no choice, the card after the current one is next, as before
     expect(nextInDeck(queue, queue[0], false)?.card.id).toBe("b");
   });
 
@@ -291,7 +281,7 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
       scheduled("a", { front: "What is FSRS?", updated_at: "2026-09-10T09:00:00Z" }),
       scheduled("b", { front: "Savings plans", tags: ["aws"], updated_at: "2026-09-11T09:00:00Z" }),
     ];
-    expect(cardRows(cards, "", T0).map((r) => r.id)).toEqual(["b", "a"]); // newest edit first
+    expect(cardRows(cards, "", T0).map((r) => r.id)).toEqual(["b", "a"]);
     expect(cardRows(cards, "fsrs", T0).map((r) => r.id)).toEqual(["a"]);
     expect(cardRows(cards, "AWS", T0).map((r) => r.id)).toEqual(["b"]);
     const out = renderToStaticMarkup(createElement(CardDetail, { c: cards[0], onSave: () => {}, onDelete: () => {} }));

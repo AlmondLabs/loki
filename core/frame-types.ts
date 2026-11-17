@@ -2,13 +2,6 @@ import type { Scope } from "./desk-core.ts";
 import type { ReasoningEffort } from "./models.ts";
 import type { AskedBy } from "./attention/priority.ts";
 
-/**
- * The shapes frames carry (core/frames.ts) that the mod produces and the app reads: desks, the Inbox's rows, the
- * suggestions, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
- * mod modules that build them import them from here.
- */
-
-/** One agent as the Agents page shows it, read by the mod from the agent's record and sent in the `agent` frame. */
 export interface LocalAgent {
   id: string;
   name: string;
@@ -61,7 +54,6 @@ export type SkillSource =
   /** A GitHub repository; refresh clones it shallowly. `path` is the skill folder inside it. */
   | { kind: "github"; url: string; path: string; ref: string | null; label: string };
 
-/** What the mod knows of a memory skill's origin: who wrote it, whether the agent changed its copy, and where refresh would fetch it. */
 export interface SkillProvenance {
   origin: SkillOrigin;
   /** Commits after the last install/refresh: the agent changed its copy. */
@@ -70,7 +62,6 @@ export interface SkillProvenance {
   source: SkillSource | null;
 }
 
-/** A memory skill with its provenance, as the `agent` frame lists it once the mod has read the repo's history. */
 export type MemorySkillInfo = MemorySkill & SkillProvenance;
 
 /** How refreshing an installed skill went (`skill_refreshed`): already current, replaced with upstream, or staged for the agent to reconcile with its own edits. */
@@ -79,7 +70,6 @@ export type RefreshOutcome =
   | { outcome: "replaced"; label: string; changed: string[]; sha: string | null }
   | { outcome: "reconcile"; label: string; changed: string[]; upstream_path: string; prompt: string };
 
-/** One skill in the global skills folder (~/.agents/skills), as `skills_global` lists them. */
 export interface GlobalSkill {
   name: string;
   /** Where the folder really is (the link target), or the folder itself. */
@@ -90,7 +80,6 @@ export interface GlobalSkill {
   source?: string | null;
 }
 
-/** An agent's reflection passes as the `reflection_state` frame reports them. */
 export interface ReflectionState {
   /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
   last_commit: MemoryCommit | null;
@@ -99,7 +88,6 @@ export interface ReflectionState {
 /** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */
 export type DeviceVia = "tailscale" | "lan";
 
-/** What the inbox decides on, from the mod's view of each chat: who spoke last, and the assistant's last words. */
 export interface LocalDigest {
   last_role: "user" | "assistant" | null;
   last_assistant_text: string | null;
@@ -125,7 +113,6 @@ export interface InboxRow extends LocalDigest, ChatHome {
   title: string | null;
   last_message_at: string | null;
   archived: false;
-  /** The person's labels on the chat (plan 022). */
   labels?: string[];
   /** The person's one line on what the chat is for (plan 049); null when none, absent from a mod that predates it. */
   purpose?: string | null;
@@ -147,7 +134,6 @@ export interface InboxRow extends LocalDigest, ChatHome {
   outside?: OutsideFacts;
 }
 
-/** A mail reply of the person's that did not go (plan 096), as its card shows it. */
 export interface NotSentReply {
   outbox_id: string;
   text: string;
@@ -295,7 +281,7 @@ export type OutsideReplied =
       sent: true;
       then_error: string | null;
       change: OutsideChange | null;
-      /** What the send made, as the service named it (plan 2026-11-14-1530, KTD11): a thread id or a Slack `<channel>:<ts>`. */
+      /** What the send made, as the service named it: a thread id or a Slack `<channel>:<ts>`. */
       created?: string | null;
     }
   | { sent: false; undone: true };
@@ -432,7 +418,6 @@ export interface MailFile {
   size: number;
 }
 
-/** An outside card's thread as its account's Mac read it: the messages, and for a Slack card its window (plan 077). */
 export interface OutsideRead {
   messages: OutsideMessage[];
   /** Null for mail, and from a Mac on a loki older than plan 077, which reads the whole view at once. */
@@ -716,14 +701,14 @@ export interface ReplyProposal {
    */
   mentions?: ReplyMention[];
   /**
-   * What the proposal starts, when it is not a reply in an existing thread (plan 2026-11-14-1530, U7, U8): a new email
+   * What the proposal starts, when it is not a reply in an existing thread: a new email
    * from a Gmail account, to `to` and `cc` under `subject`, or a new Slack DM with `people`. Absent on a reply.
    */
   kind?: "email" | "dm";
   /** A new Slack DM's people, each resolved in the workspace; absent otherwise. */
   people?: ReplyMention[];
   /**
-   * What the send made, as the service named it (plan 2026-11-14-1530, KTD11): a new email's thread id, or a Slack
+   * What the send made, as the service named it: a new email's thread id, or a Slack
    * post's `<channel>:<ts>`; absent until sent, and where the service gave nothing back.
    */
   result?: string;
@@ -778,7 +763,6 @@ export interface ReplyAttachment {
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
 export type SavedDraft = { text: string; suggestion_id: string; source: { agent_id: string; conversation_id: string } };
 
-/** The folders chats have worked in lately (`folders`), for the folder picker. */
 export interface RecentFolders {
   /** agentId → folders, most recently used first. */
   by_agent: Partial<Record<string, string[]>>;
@@ -794,7 +778,6 @@ export interface FolderCheck {
   reason?: string;
 }
 
-/** The phone listener as Preferences › Phone shows it (mod/lan.ts). */
 export interface LanStatus {
   /** The persisted setting. `error` says whether the listener is up when this is true. */
   enabled: boolean;
@@ -818,7 +801,6 @@ export interface LanStatus {
 /** Which route the phone's QR code encodes: the tailnet or the Wi-Fi. */
 export type LanVia = "tailscale" | "lan";
 
-/** The tailnet's view of the Mac (mod/tailscale.ts). */
 export interface TailscaleStatus {
   /** A CLI binary was found. False → say how to install it. */
   installed: boolean;
@@ -837,7 +819,6 @@ export interface TailscaleStatus {
 /** live: conversation exists. archived: the chat was archived. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
 export type DeskStatus = "live" | "archived" | "deleted" | "none";
 
-/** What the mod knows of the conversation behind a desk: its title, status, agent and model, as the `desk` frame carries them. */
 export interface DeskInfo {
   title: string | null;
   status: DeskStatus;
@@ -859,7 +840,6 @@ export interface DeskInfo {
   cwd?: string | null;
 }
 
-/** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */
 export interface DeskSummary extends DeskInfo, ChatHome {
   scope: Scope;
   conversation_id: string | null;
@@ -880,7 +860,6 @@ export interface DeviceSummary {
   last_via?: DeviceVia;
 }
 
-/** Another device on the tailnet, as `tailscale status` lists it (plan 023): a candidate to pair a Mac with. */
 export interface TailnetDevice {
   /** Its name on the tailnet (the device's host name). */
   name: string;

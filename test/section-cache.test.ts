@@ -33,7 +33,7 @@ describe("prompt sections kept between model calls (plan 047)", () => {
     const render = () => `text ${++renders}`;
     sections.get("memory\u0000/tmp/agent", render);
     await serial("/tmp/agent", () => Promise.resolve());
-    await Promise.resolve(); // the queue tells its listeners once the sequence has settled
+    await Promise.resolve();
     expect(sections.get("memory\u0000/tmp/agent", render)).toBe("text 2");
   });
 });

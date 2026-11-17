@@ -8,7 +8,8 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
 ## What runs where
 
 - **The shell** (`src-tauri`, Rust) opens the window, writes the capability token, installs the daemon and mod
-  bundles under `~/.loki` on each launch, and starts loki's daemon on the machine's own Node (22.19 or newer). It
+  bundles under `~/.loki` on each launch, and starts loki's daemon on the Node it downloaded and checked ([What loki
+  downloads](#what-loki-downloads); a development build, on the machine's own Node 22.19 or newer). It
   restarts the daemon when it exits and stops it when loki quits. It relays nothing: the page talks to the daemon
   itself.
 - **The daemon** (`daemon/`, TypeScript on Node) is one long-lived process that runs as you, with your permissions. It
@@ -356,14 +357,48 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 
 ## What loki downloads
 
-- **Nothing to run itself.** loki never downloads Node, never runs `sudo`, and never asks Windows for administrator
-  rights. Without a Node 22.19 or newer, Welcome names the command to run yourself (`brew install node`,
-  `winget install OpenJS.NodeJS.LTS`, the distribution's package). The daemon, the mod and the phone's canvas come
-  inside the app and are copied to `~/.loki` on launch.
-- **Updates are yours to take.** The app asks GitHub's releases API for a newer loki (on launch and every six hours,
-  on the stable or nightly channel it came from) and only links to it: the release page on the Mac, that system's
-  `-setup.exe`, AppImage or `.deb` on Windows and Linux. It never downloads or installs a loki itself, and the
-  daemon never updates itself. The Windows and Linux files are unsigned previews, like the Mac's `.dmg`.
+- **The runtime its daemon runs on, checked before it runs.** A release downloads the Node it names from nodejs.org
+  and, on Windows when git or Git Bash is missing, PortableGit from Git for Windows' releases on github.com, into
+  `~/.loki/runtime`. Each archive is hashed as it arrives and used only when its SHA-256 matches the one pinned in
+  `src-tauri/runtime.json`, which is compiled into the app; one that does not match is deleted, and nothing of it is
+  unpacked or run. This happens on first launch and when a release names another version; nothing else is fetched
+  this way, and a development build fetches nothing (it runs your Node).
+- **Nothing installed for you.** loki never runs `sudo` and never asks Windows for administrator rights. On a Mac
+  without Apple's command line tools, Welcome's Install Command Line Tools runs `xcode-select --install`, which only
+  shows macOS's own installer for you to accept; on Linux without git, Welcome names the package command for you to
+  run. The daemon, the mod and the phone's canvas come inside the app and are copied to `~/.loki` on launch.
+- **Updates, signed and checked before they install.** A release build asks GitHub for its channel's `latest.json`
+  (the newest stable's, or the rolling nightly's, as you chose in About) over HTTPS, at launch and every six hours.
+  When it names a newer version, the app downloads that system's update file (the `.app.tar.gz` on the Mac, the
+  `-setup.exe` on Windows, the AppImage on Linux) and keeps it, in memory only, once its signature verifies against
+  loki's update public key, which is compiled into the app (`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`).
+  A file that does not verify is dropped, About says the update failed, and the running version stays. Nothing
+  installs until you quit loki or choose Restart to Update. The private key is only in the release workflow's secrets,
+  given to the one step that builds the app. `LOKI_UPDATE_URL` points the check at another `latest.json` (HTTPS only),
+  for trying an update by hand; the signature is still checked against the compiled-in key, so it cannot install
+  anything the key did not sign. A development build and a Linux `.deb` never check, and the daemon never updates
+  itself apart from the app. The app is still unsigned by Apple and Microsoft: the update key is what ties an update
+  to loki's releases. The signed version is not yet checked against the one `latest.json` announces (that needs a
+  Tauri CLI that records it in the signature, then the plugin's `requireSignedVersion`), so a tampered `latest.json`
+  could pair a newer version number with an older build loki signed. On the Mac, when the app's folder is not yours to
+  write, loki does not download the update at all and About asks you to move it to a folder you can change, so it never
+  asks for an administrator's password.
+- **What reaches each channel, and when.** Both channels ship only when the maintainer runs the release workflow by
+  hand on `main` and picks one; a merge alone ships nothing. A loki on Nightly installs every nightly, and a loki on
+  Stable every stable: each running loki downloads its channel's release within six hours (or at its next launch) and
+  installs it when you next quit, with no step of yours. That is the trust either channel asks for: whatever has merged
+  to `main` through a reviewed PR by then, signed by the same key. Running the workflow needs write access to the
+  repository.
+- **The install script, before any of this.** The one-line install runs `install.sh` (macOS and Linux) or
+  `install.ps1` (Windows), which GitHub Pages serves over HTTPS from loki's own repository (`site/public/`). The
+  script itself is not signed or checksummed: you trust it as you trust that HTTPS connection to loki's GitHub, and
+  you can read it before you run it. It downloads the release's files over HTTPS from github.com, puts the app in
+  place and opens it; it never runs `sudo` or asks for administrator rights (on Linux without FUSE 2 it names the
+  package command and stops). The first install is not checked against the update key: the key only checks the
+  updates that follow. Files `curl` fetches carry no quarantine flag on a Mac, which is why that way needs no `xattr`
+  line, and why macOS's own check for downloaded apps never looks at it. On Windows the setup is fetched by PowerShell
+  without the mark a browser puts on a download, so SmartScreen's unknown-publisher screen does not show (Smart App
+  Control, where it is on, may still block it), and it installs for you alone.
 - **Claude Code, when you choose it for a chat.** loki runs the ACP adapter with `npx`, at a version each loki
   release pins (`daemon/acp/agents.ts`), so npm fetches that version from its registry the first time. An ACP agent
   of your own runs the command you wrote for it.

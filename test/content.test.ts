@@ -1,21 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { askQuestions, buildQuestionAnswer, buildUserContent, environmentReminder, environmentNote, ENV_NOTE_EVERY_MS } from "../core/attention/content.ts";
-
-describe("user message content", () => {
-  const img = { id: "i1", mediaType: "image/jpeg", data: "QUJD", url: "data:image/jpeg;base64,QUJD" };
-  test("text only stays a plain string", () => {
-    expect(buildUserContent("hi", [])).toBe("hi");
-  });
-  test("images become base64 parts after the text, in Letta's create_message shape", () => {
-    expect(buildUserContent("look", [img])).toEqual([
-      { type: "text", text: "look" },
-      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "QUJD" } },
-    ]);
-  });
-  test("an image with no text has no empty text part", () => {
-    expect(buildUserContent("  ", [img])).toEqual([{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: "QUJD" } }]);
-  });
-});
+import { askQuestions, buildQuestionAnswer, environmentReminder, environmentNote, ENV_NOTE_EVERY_MS } from "../core/attention/content.ts";
 
 describe("the question card's input (user_ask)", () => {
   const input = {
@@ -35,7 +19,7 @@ describe("the question card's input (user_ask)", () => {
   test("buildQuestionAnswer fills answers keyed by question text, joining multi-select with commas", () => {
     const out = buildQuestionAnswer(input, { "Which db?": "Postgres", "Regions?": ["eu", "us"] });
     expect(out.answers).toEqual({ "Which db?": "Postgres", "Regions?": "eu, us" });
-    expect((out.questions as unknown[]).length).toBe(3); // the rest of the input rides along
+    expect((out.questions as unknown[]).length).toBe(3);
   });
 });
 
@@ -47,9 +31,6 @@ describe("environment reminder", () => {
     expect(note).toMatch(/User's device local time: Sunday,? 6 September 2026(,| at) 02:35/);
     expect(note).toContain('the chat ("Supplier ledger")');
     expect(note).not.toContain("working directory");
-    const content = buildUserContent("hi", [], note);
-    expect(Array.isArray(content) && content.length).toBe(2);
-    expect((content as Array<{ type: string; text?: string }>)[1].text).toBe("hi");
   });
 });
 
@@ -61,7 +42,7 @@ describe("environment note: only when the agent's picture would be wrong", () =>
     expect(first.text).toContain("via loki, on their Mac or a paired phone");
     const soon = environmentNote(first.told, { now: at(10, 29), desk: "Ledger", zone });
     expect(soon.text).toBeNull();
-    expect(soon.told.at).toBe(first.told.at); // the clock runs from the last note sent, not the last message
+    expect(soon.told.at).toBe(first.told.at);
   });
   test("30 minutes on, it comes back short: the time only", () => {
     const first = environmentNote(undefined, { now: at(10, 0), desk: "Ledger", zone, locale: "en-GB" });

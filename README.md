@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml"><img src="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
-  <img src="https://img.shields.io/badge/macOS-13.3%2B-1a1a20" alt="macOS 13.3 or later">
+  <img src="https://img.shields.io/badge/macOS-13.3%2B%2C%20Apple%20silicon-1a1a20" alt="macOS 13.3 or later, on Apple silicon">
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux-preview-1a1a20" alt="Windows and Linux: preview">
   <img src="https://img.shields.io/badge/licence-Apache--2.0-1a1a20" alt="Apache-2.0">
 </p>
@@ -45,7 +45,7 @@ minutes; the window then asks for a model provider: an API key you already have 
 OpenRouter, Ollama for local models, or another provider, or signing in through the browser (ChatGPT, GitHub
 Copilot, OpenRouter and others). loki checks the key with the
 provider and keeps it in your system's keychain; each turn costs whatever that provider charges. Everything else,
-including the Homebrew install of the finished app, is under [Install](#install) and [Development](#development).
+including the one-line install of the finished app, is under [Install](#install) and [Development](#development).
 
 ## What you get
 
@@ -68,71 +68,92 @@ lists what differs).
 
 ## Install
 
-**Homebrew** is the recommended way. Two lines, because loki is not signed with an Apple Developer ID and macOS
-calls an unsigned download "damaged" until its quarantine flag is cleared once:
+One line in a terminal. On a Mac with Apple silicon, or on Linux:
+
+```bash
+curl -fsSL https://almondlabs.github.io/loki/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://almondlabs.github.io/loki/install.ps1 | iex
+```
+
+It downloads the latest release and opens loki: on a Mac in `/Applications` (or `~/Applications` when that folder
+isn't yours to change), on Linux as an AppImage in `~/.local/share/loki` with a menu entry, on Windows for you alone,
+with no administrator prompt. A Mac needs no `xattr` line this way: a file `curl` fetches carries no quarantine flag.
+Run it again, with loki closed, to reinstall; your agents and chats in `~/.loki` stay. After that loki keeps itself up
+to date: it checks on launch and every six hours, and installs what it downloaded when you quit
+([Updates](docs/manual.md#updates)). Versions are dates and a count: `2026.1011.0` is the first stable of October 11
+(UTC), `2026.1011.1` the second.
+
+**Nightly**, if you want the newest `main` whenever the maintainer releases a nightly, between stables:
+
+```bash
+curl -fsSL https://almondlabs.github.io/loki/install.sh | sh -s -- --nightly
+```
+
+```powershell
+$env:LOKI_CHANNEL = "nightly"; irm https://almondlabs.github.io/loki/install.ps1 | iex
+```
+
+One loki at a time, and either line installs the same app: Preferences › About moves it between **Stable** and
+**Nightly** later. That channel replaces the `loki-nightly` cask, which is deprecated.
+
+### Other ways in
+
+**The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
+Applications, then clear the quarantine flag once. loki is not signed with an Apple Developer ID, and macOS calls an
+unsigned download "damaged" until the flag is gone:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/loki.app
+```
+
+**Homebrew**, which quarantines its downloads like a browser, so the same line follows:
 
 ```bash
 brew install --cask almondlabs/loki/loki
 xattr -dr com.apple.quarantine /Applications/loki.app
 ```
 
-Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line. Versions are dates and a count: `2026.1011.0` is
-the first stable of October 11 (UTC), `2026.1011.1` the second.
+Either way, loki updates itself from then on.
 
-**Nightly**, if you want every merge about twenty minutes after it lands (Mac only; one loki at a time, so this
-replaces the stable install; `brew uninstall --cask loki` first, or the other way round to go back):
-
-```bash
-brew install --cask almondlabs/loki/loki-nightly
-xattr -dr com.apple.quarantine /Applications/loki.app
-```
-
-**The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
-Applications, then clear the flag once:
+**Windows and Linux by hand**, from the [releases page](https://github.com/AlmondLabs/loki/releases/latest). On
+Windows (64-bit 10 or 11), `loki_<version>_x64-setup.exe`: SmartScreen says "Windows protected your PC" (an unknown
+publisher), so choose **More info**, then **Run anyway**. On Linux (64-bit, built on Ubuntu 22.04 so it runs on newer
+releases too), the AppImage, which needs its executable bit and FUSE 2 (`libfuse2`; on Ubuntu 24.04 the package is
+`libfuse2t64`):
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/loki.app
+chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
 ```
 
-**From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout, or
-`npm run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
-
-**Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. They come on stable
-releases only, published on their own, before or after the `.dmg` of the same version, so a release may carry the
-Mac's file, the Windows and Linux files, or both (nightlies are Mac-only). Please [report what you find](https://github.com/AlmondLabs/loki/issues)
-([what to try](docs/preview-checklist.md)).
-Like the Mac's, these files are unsigned, so each system asks for one extra step the first time.
-
-**Windows** (64-bit Windows 10 or 11), `loki_<version>_x64-setup.exe` from the newest
-[release](https://github.com/AlmondLabs/loki/releases) that has one:
-
-1. Run it. SmartScreen says "Windows protected your PC" (an unknown publisher): choose **More info**, then
-   **Run anyway**.
-2. Finish the installer and open loki from the Start menu.
-
-**Linux** (64-bit, built on Ubuntu 22.04 so it runs on newer releases too). On Debian or Ubuntu, the `.deb`:
+Or, on Debian or Ubuntu, the `.deb`. It is the one file that does not update itself: the next version is another
+download from the releases page, which Preferences › About links when it is out.
 
 ```bash
 sudo apt install ./loki_*_amd64.deb
 ```
 
-On any other distribution, the AppImage, which needs its executable bit and FUSE 2 (`libfuse2`; on Ubuntu 24.04 the package is
-`libfuse2t64`):
+Both systems are built and tested in CI, not yet tried on real machines; please
+[report what you find](https://github.com/AlmondLabs/loki/issues) ([what to try](docs/preview-checklist.md)). There is
+no winget or Flatpak package.
 
-```bash
-sudo apt install libfuse2
-chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
-```
+**From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout, or
+`npm run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
 
-On both, upgrades are the next file from the releases page; Preferences › About links the one for your system when a
-newer release carries it. There is no Homebrew, winget or Flatpak package yet.
+### What you need
 
-You need macOS 13.3 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
+You need a Mac with Apple silicon and macOS 13.3 or later (Intel Macs are not supported), 64-bit Windows 10 or 11, or
+a current 64-bit desktop Linux, and:
 
-1. **Node 22.19 or newer**, which runs loki's daemon. The cask brings it; for the `.dmg`, Windows and Linux,
-   install one yourself (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or your distribution's
-   package). loki never downloads Node; if it finds none new enough, Welcome says what to run and checks again.
-2. **git**, which keeps each agent's memory as a repo with history (Xcode's command line tools bring it on a Mac).
+1. **Nothing for Node.** loki downloads the Node its daemon runs on into `~/.loki/runtime` on first launch, and checks
+   it before it runs it; Welcome shows the download.
+2. **git**, which keeps each agent's memory as a repo with history. On a Mac it comes with Apple's command line
+   tools, which Welcome offers to install; on Windows loki fetches PortableGit when git is missing; on Linux, your
+   distribution's package.
 
 On first launch loki asks for a model provider: an API key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
 others) or signing in through the browser (ChatGPT, GitHub Copilot, OpenRouter and others). Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
@@ -191,8 +212,8 @@ core/           desk-core (types + the pure gesture reducer both halves use), th
                 portable, no browser globals
 app/            Vite + React: the desktop views, the canvas and the phone
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
-src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): finds Node, starts and supervises the daemon, hosts the
-                canvas
+src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): fetches Node, starts and supervises the daemon, hosts
+                the canvas
 scripts/        dev (`npm start`), build-mod (the daemon and mod bundles the app ships), trial (the timing trial), cask
                 (Homebrew), release (date versions, notes), analytics (the local usage report)
 test/           vitest tests, on Node; test-node/ the tests that need Node's own runner (SQLite stores, resuming after a crash)

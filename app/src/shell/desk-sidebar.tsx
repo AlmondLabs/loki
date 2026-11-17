@@ -22,6 +22,7 @@ import { keyFor } from "./keymap";
 import {
   ALL_CHATS,
   ARCHIVED_CHATS,
+  CHAT_STATES,
   PINNED_CHATS,
   canArchive,
   canMove,
@@ -32,6 +33,7 @@ import {
   moveTargets,
   offscreenWaits,
   type ChatSource,
+  type ChatState,
   type MoveTarget,
   type SourceRow,
 } from "./sidebar-model";
@@ -43,22 +45,21 @@ import { HomeMark } from "./home-mark";
 import { prefersReducedMotion } from "../kit/motion";
 import "./desk-sidebar.css";
 import { popUpMenu, NATIVE_MENUS, type MenuEntry } from "./native-menu";
-import { MenuItems, menuKey } from "./menu-items";
+import { FilterPills, type FilterPill } from "./filter-pills";
+import { ActivityIcon, BellIcon, CircleDotIcon, MessagesSquareIcon, type LucideIcon } from "lucide-react";
+import { DrawnMenu } from "./menu-items";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsDialog } from "../chat/labels";
 
-/** The row's data-launch, so the pills and a closed menu can find a chat's row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;
-/** The id of the New Chat row a chat being started puts at the top; no chat's scope starts with a colon. */
 const NEW_ROW = ":new";
 
 const NO_ARCHIVE_REASON = "Archiving needs loki's daemon, which is not connected";
 const NO_MOVE_REASON = "Changing folder needs loki's daemon, which is not connected";
 const NO_LABEL_REASON = "Labels need loki's daemon, which is not connected";
 
-/** The sentence an empty source shows (KTD3). */
 function emptyFor(source: Pick<ChatSource, "id" | "title">): string {
   if (source.id === ALL_CHATS) return "No chats yet.";
   if (source.id === PINNED_CHATS) return "No pinned chats.";
@@ -66,72 +67,37 @@ function emptyFor(source: Pick<ChatSource, "id" | "title">): string {
   return `No chats with ${source.title} yet.`;
 }
 
-/** The props of the Chats list (`ChatList`): the source and its rows, the chat selected, and what its rows and menus can do. */
 export interface ChatListProps {
-  /** The source's rows, Search applied (sidebar-model.ts sourceRows). */
   rows: SourceRow[];
-  /** The source chosen in the sidebar. */
+  stateFilter?: { state: ChatState; onState: (state: ChatState) => void };
   source: Pick<ChatSource, "id" | "title" | "agentId">;
-  /** The chat committed in this list, or null when the source does not hold the one open (KTD8). */
   selected: string | null;
-  /** Chats is the place showing. Hidden, the list stays mounted for its scroll but leaves ⌥⌘F to the list on screen. */
   shown: boolean;
-  /** Every chat, for the dialogs to read a chat's latest labels and purpose. */
   desks: DeskSummary[];
   items: AttentionItem[];
-  /** The link to loki's daemon is up; archive and restore wait for it. */
   connected: boolean;
-  /** Commit a chat: an arrow's rest, a click, or ⌘[ ⌘]. It shows in the detail; focus stays in the list (KTD4). */
   onSelect: (scope: string) => void;
-  /**
-   * Return or Tab on the selected chat, or Open from its menu: focus goes into its message box. Null is the New Chat
-   * row while one is being started: focus goes into the draft's box.
-   */
   onEnter: (scope: string | null) => void;
-  /** Start a new chat, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
   onNew?: (agentId: string | null) => void;
-  /**
-   * A chat not started yet shows in the pane (⌘N, U20): the list leads with a New Chat row, the
-   * selected one, as Messages leads with a new message.
-   */
   drafting?: boolean;
   onPin: (desk: DeskSummary, pinned: boolean) => void;
   onArchive: (desk: DeskSummary, archived: boolean) => void;
-  /** Save a new name; resolves to the daemon's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
-  /** Save the chat's purpose line (plan 049, R11), an empty one clearing it; left out, the Rename dialog has no purpose field. */
   onPurpose?: (desk: DeskSummary, purpose: string) => Promise<string | null>;
-  /** Move a chat to another folder; resolves to the daemon's refusal or null. Left out with folders, the menu has no Change folder…. */
   onMove?: (desk: DeskSummary, folder: string) => Promise<string | null>;
-  /** The Mac's folders, for the Change folder dialog's field. */
   folders?: FolderApi;
-  /** Done by hand, the Inbox's clear (true) and its undo (false); left out, the menu has neither. */
   onDone?: (item: AttentionItem, done: boolean) => void;
-  /** The Search, held by the window so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
   query: string;
   onQuery: (query: string) => void;
-  /** Labels on chats (plan 022): the list chips take their colours from, and saving a chat's labels; left out, no Labels…. */
   labels?: { list: LabelView[] | null; set: (desk: DeskSummary, labels: string[]) => Promise<string | null> };
-  /**
-   * Where agents live, once Macs are paired (plan 023): this Mac's id, and each agent's home and its name. A row marks
-   * only a chat living elsewhere or one whose Mac is asleep.
-   */
   homes?: { here: string; of: (agentId: string) => { mac: string; name: string } | null };
-  /** This Mac and the Macs paired with it, and moving a chat to one (plan 023, addendum A1); left out, no Move to. */
   macs?: { view: Pushes["peers"] | null; move: (desk: DeskSummary, to: MoveTarget) => void };
-  /** The list's handle, for the window's ⌘[ ⌘] to step the rows it draws. */
   ref?: Ref<ContentListHandle>;
 }
 
-/**
- * Chats' list (plan 2026-11-14-1330, U3), Mail's message list on ContentList: the source's name over Search and New
- * Chat, then one line per chat (R5), under agent headings when the source is every chat. The arrows highlight and
- * commit after a rest, which shows the chat without moving focus; Return or Tab goes into its message box. Hover
- * shows pin and archive, a right click the row's menu. When a chat that needs you is scrolled out of sight, a pill at
- * that edge says so and brings it into view.
- */
 export function ChatList({
   rows,
+  stateFilter,
   source,
   selected,
   shown,
@@ -165,7 +131,6 @@ export function ChatList({
   const rowEl = (scope: string) => wrapRef.current?.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(scope))}"]`) ?? null;
 
   const waiting = useMemo(() => rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope), [rows]);
-  // The pills: where each waiting row sits against the visible band of the rows.
   const measure = useCallback(() => {
     const el = wrapRef.current?.querySelector<HTMLElement>(".loki-content-list-rows");
     if (!el) return;
@@ -186,7 +151,6 @@ export function ChatList({
     return () => ro.disconnect();
   }, [measure]);
 
-  // A chat selected from outside the list (⌘K, a notification, landing) is brought into view in it (R7).
   useEffect(() => {
     const list = wrapRef.current?.querySelector<HTMLElement>(".loki-content-list-rows");
     const row = selected === null ? null : wrapRef.current?.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(selected))}"]`);
@@ -228,7 +192,6 @@ export function ChatList({
     // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
     const x = e.clientX || box.left + 24;
     const y = e.clientY || box.bottom;
-    // In the Mac app the row's menu is the system's, popped up at the pointer (U19).
     if (NATIVE_MENUS) void popUpMenu(menuEntries(d), { x, y }).catch((err: unknown) => console.warn("loki: row menu", err));
     else setMenu({ desk: d, x, y });
   };
@@ -241,7 +204,6 @@ export function ChatList({
       id: d.scope,
       section: r.section,
       title: d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope),
-      // When it last spoke; the badge or the live dot takes its place while something waits or runs.
       time: ago(d.last_active),
       badge: r.badge,
       badgeNoun: r.badgeNoun,
@@ -250,7 +212,6 @@ export function ChatList({
       live: r.live,
       liveAtEnd: true,
       dim: d.status !== "live" || d.reachable === false,
-      // One mark at most beside the name, and only where it differs from its agent (the status is on the right).
       flags: (
         <HomeMark
           row={{ home: d.home, home_name: d.home_name, reachable: d.reachable }}
@@ -266,7 +227,6 @@ export function ChatList({
     };
   };
   const contentRows: ContentRow[] = [
-    // The chat it stands for is already open in the pane; the row only shows where you are.
     ...(drafting ? [{ id: NEW_ROW, lead: <ListIcon name="compose" />, title: "New Chat", label: "New chat, not started yet" }] : []),
     ...rows.map(chatRow),
   ];
@@ -276,7 +236,7 @@ export function ChatList({
       <div ref={wrapRef} className="loki-sidebar-body" onScrollCapture={measure}>
         <ContentList
           ref={ref}
-          key={source.id}
+          key={`${source.id}:${stateFilter?.state ?? "all"}`}
           label={source.title}
           title={source.title}
           rows={contentRows}
@@ -290,8 +250,8 @@ export function ChatList({
           }}
           empty={emptyFor(source)}
           newAction={onNew && { label: "New Chat", run: () => onNew(source.agentId), keys: keyFor("desk.new") }}
+          scope={stateFilter && <FilterPills pills={STATE_PILLS} value={stateFilter.state} onValue={stateFilter.onState} />}
           query={query}
-          // Hidden behind another place, the list keeps its Search but gives up ⌥⌘F.
           onQuery={shown ? onQuery : undefined}
         />
         {pills.up && (
@@ -372,7 +332,6 @@ export function ChatList({
   );
 }
 
-/** What a row's menu offers, as data (U19): drawn by RowMenu, or popped up natively in the Mac app. */
 interface RowMenuProps {
   desk: DeskSummary;
   item: AttentionItem | null;
@@ -380,20 +339,14 @@ interface RowMenuProps {
   onRename: (d: DeskSummary) => void;
   onMove?: (d: DeskSummary) => void;
   onLabels?: (d: DeskSummary) => void;
-  /** The Macs this chat can move to (sidebar-model.ts moveTargets). */
   targets: MoveTarget[];
   onMoveTo?: (d: DeskSummary, to: MoveTarget) => void;
-  /** Open: focus into the chat's message box (the right click has already selected it). */
   onOpen: (scope: string) => void;
   onPin: ChatListProps["onPin"];
   onArchive: ChatListProps["onArchive"];
   onDone?: ChatListProps["onDone"];
 }
 
-/**
- * A row's menu, Mail's way: open and read state, then what changes the chat (rename, folder, labels, another Mac),
- * then pin and archive, each group apart; only what the desk allows, and what needs the link off while it is down.
- */
 export function rowMenuEntries({
   desk: d,
   item,
@@ -460,58 +413,30 @@ export function rowMenuEntries({
   ];
 }
 
-/** A row's context menu drawn at the pointer, where no native menu pops up: rowMenuEntries. ↑↓ Enter Esc, or click; a press outside closes it. */
 function RowMenu({ x, y, onClose, ...props }: RowMenuProps & { x: number; y: number; onClose: () => void }) {
   const d = props.desk;
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    node?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
-    const away = (e: PointerEvent) => {
-      if (!node?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      // Closed with Esc or a pick that moves focus nowhere: focus goes back to the desk's row, not the page.
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a))
-        document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
-    };
-  }, [d.scope]);
-  // Kept inside the window: a menu opened near the right or bottom edge moves in.
-  const left = Math.min(x, (typeof window === "undefined" ? x : window.innerWidth) - 228);
-  const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 236);
   return (
-    <div
-      ref={ref}
-      role="menu"
-      aria-label={`${d.title ?? "Chat"} actions`}
-      className="loki-sidebar-menu"
-      style={{ left: Math.max(8, left), top: Math.max(8, top) }}
-      onKeyDown={(e) => menuKey(e, ref.current, onClose)}
-    >
-      <MenuItems entries={rowMenuEntries(props)} onPicked={onClose} />
-    </div>
+    <DrawnMenu
+      label={`${d.title ?? "Chat"} actions`}
+      entries={rowMenuEntries(props)}
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      at={{ x, y }}
+      opener={() => document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)}
+      width={220}
+    />
   );
 }
 
-/**
- * The Chats list wired to the window's models: pin through the mod, archive through loki's daemon and then a fresh
- * chats list, each with a notice.
- */
 export function ChatListView({
   desk,
   catchUp,
   notice,
   onNew,
   ...list
-}: Pick<ChatListProps, "rows" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"> & {
+}: Pick<ChatListProps, "rows" | "stateFilter" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"> & {
   desk: Desk;
   catchUp: CatchUp;
   notice: (m: string) => void;
@@ -571,10 +496,17 @@ export function ChatListView({
   );
 }
 
-/** Where each agent lives and this Mac's id, as `homesOf` builds it. */
+const STATE_PILL: Record<ChatState, { label: string; icon: LucideIcon }> = {
+  all: { label: "All", icon: MessagesSquareIcon },
+  waiting: { label: "Waiting", icon: BellIcon },
+  unread: { label: "Unread", icon: CircleDotIcon },
+  working: { label: "Working", icon: ActivityIcon },
+};
+
+const STATE_PILLS: ReadonlyArray<FilterPill<ChatState>> = CHAT_STATES.map((value) => ({ value, ...STATE_PILL[value] }));
+
 export type Homes = NonNullable<ChatListProps["homes"]>;
 
-/** Where each agent lives, by Mac name, once another Mac is paired; none before (one Mac needs no saying). The phone's Home reads it too. */
 export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): ChatListProps["homes"] {
   if (!macs?.peers.length) return undefined;
   const names = new Map([[macs.me.mac_id, macs.me.name], ...macs.peers.map((p) => [p.mac_id, p.name] as const)]);
@@ -587,7 +519,6 @@ export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id
   };
 }
 
-/** A row's pin and archive buttons, shown on hover; the row leaves them out when the chat can be neither. */
 function ChatRowActions({
   desk: d,
   pinnable,

@@ -18,7 +18,6 @@ describe("recall prompt", () => {
     expect(p).toContain(`<slice id="s1" conversation="Infra 'AWS'" mode="new" chars="55">\nyou: what does KMS rotation do?`);
     expect(p).toContain('{"cards":[{"slice":"s1"');
     expect(p).not.toContain("keeps failing");
-    // The objective: concepts, principles and lasting knowledge, never one-off details of the task.
     expect(p).toContain("a concept or principle the person met");
     expect(p).toContain("knowledge of their field, business or tools that will still be true in a few months");
     expect(p).toContain("a one-off detail of the task at hand");
@@ -57,7 +56,7 @@ describe("recall prompt", () => {
     expect(p).toContain('<slice id="s3" conversation="Terraform state" mode="replay" for="c_8f2" chars="');
     expect(p).toContain("here because card c_8f2 keeps failing");
     expect(p).toContain("Existing cards whose wording touches these stretches");
-    expect(p).toContain("name up to 4 things"); // two per new slice; the replay adds none
+    expect(p).toContain("name up to 4 things");
     expect(p).toContain('"leads":[{"slice":"s1"');
   });
 });
@@ -138,7 +137,6 @@ describe("learning leads in the writer's call", () => {
       { title: "NAT processing", why: "went by unquestioned", depth: "primer" },
     ]);
     expect(parseExtraction('{"cards":[]}', new Set()).leads).toEqual([]);
-    // A sweep over several slices allows two leads per new slice.
     const three = '{"leads":[{"title":"a","why":"w"},{"title":"b","why":"w"},{"title":"c","why":"w"}]}';
     expect(parseExtraction(three, new Set(), { maxLeads: 4 }).leads).toHaveLength(3);
     expect(parseExtraction(three, new Set()).leads).toHaveLength(2);

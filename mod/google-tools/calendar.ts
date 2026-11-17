@@ -1,13 +1,7 @@
 import { count, flag, listing, optText, rec, str, textArg, textList, type GoogleToolDef } from "./core.ts";
 
-/**
- * Calendar for scripts (plan 2026-11-11 scripts, U9): list events in a time range, and create, change or delete one,
- * inviting guests. A change answers with the event as Calendar stored it; guests hear of it unless `notify` is false.
- */
-
 const API = "https://www.googleapis.com/calendar/v3/calendars";
 
-/** An event as a script reads it. */
 function eventOf(v: unknown): Record<string, unknown> {
   const e = rec(v);
   const when = (t: unknown) => str(rec(t).dateTime) || str(rec(t).date);
@@ -136,5 +130,4 @@ const change: GoogleToolDef = {
   },
 };
 
-/** The Calendar tools. */
 export const calendarTools: GoogleToolDef[] = [events, change];

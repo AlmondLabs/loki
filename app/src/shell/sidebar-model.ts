@@ -2,23 +2,8 @@ import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
 import { labelQuery } from "../../../core/labels.ts";
 
-/**
- * The Chats model (plan 013 U4), pure so its rules are tested without a window: Pinned, then one
- * section per agent ordered by the agent's most recent activity, each live desk once (a pinned desk only
- * under Pinned), the agent's main chat first in its section; the filter by desk title or agent name; the
- * marks each row carries; the archive below; the "needs you" pills; and what is kept across restarts. The
- * phone's Home groups its chats by `sidebarModel`; the Mac splits the same sections into the sidebar's sources
- * and the list's rows (plan 2026-11-14-1330, KTD2).
- */
-
-/** The mark before a chat: waiting on you, failed, finished unread, running, archived, deleted, or none. */
 export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
 
-/**
- * The dot before a desk, as colours and words: the red attention dot when it waits on you (an approval or a
- * question), red ink when it failed, an fg ring when it finished unread (its row goes bold, like Slack's unread), a faint pulsing ring while
- * it runs; archived and deleted desks get a muted or oxblood ring. Pure, so the phone shares it.
- */
 export function deskMark(
   item: AttentionItem | undefined,
   status: DeskSummary["status"],
@@ -42,52 +27,33 @@ export function deskMark(
   return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };
 }
 
-/** A conversation can be archived (or restored) unless it is the agent's main chat or already deleted. */
 export const canArchive = (d: DeskSummary): boolean => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
-/**
- * A desk with its own conversation can be renamed, archived or not: the name is the chat's title. The main chat is
- * called after its agent (it has no summary to set) and a deleted desk has no conversation left to write to.
- */
 export const canRename = (d: DeskSummary): boolean => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
 
-/** Longest desk name: Slack's channel-name cap; past it a name stops fitting the sidebar row, the header and ⌘K anyway. */
 export const DESK_NAME_MAX = 80;
 
-/** A typed or pasted name as it is saved: whitespace runs (a pasted newline) made one space, trimmed, capped. Blank is no name (null). */
 export function cleanDeskName(raw: string): string | null {
   const name = raw.replace(/\s+/g, " ").trim().slice(0, DESK_NAME_MAX).trimEnd();
   return name || null;
 }
-/** A desk with an agent and a conversation, not deleted, can carry labels (plan 022); a main chat can too. */
 export const canLabel = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
-/** A desk with an agent and a conversation, not deleted, can move to another folder (the daemon keeps it per chat). */
 export const canMove = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
-/** A live desk with an agent and a conversation can be pinned. */
 export const canPin = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status === "live";
 
-/**
- * What a row shows: the red badge (one per waiting conversation), the bold title, the live dot, and for a
- * finished desk not looked at since, its ring with the words for it. Bold + ring: new since you last looked;
- * neither: looked at. Done is the Inbox's, which still holds a chat you looked at until you clear it there.
- */
 export interface RowState {
   kind: MarkKind;
   badge: number | null;
   badgeNoun?: string;
   unread: boolean;
   live: boolean;
-  /** A finished desk's reading, in words, while it has news you have not looked at: "new messages". */
   note?: string;
 }
 
-/** What a chat's row shows, from its Inbox item and its status (see `RowState`). */
 export function deskRowState(item: AttentionItem | undefined, d: Pick<DeskSummary, "status">): RowState {
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
   const finished = mark.kind === "finished";
-  // A look clears a finished desk's row, bold and ring (the Inbox keeps it until it is done there); waiting is news
-  // until you act, so it stays bold beside its badge.
   const fresh = finished && !!item && unviewed(item);
   return {
     kind: mark.kind,
@@ -99,55 +65,39 @@ export function deskRowState(item: AttentionItem | undefined, d: Pick<DeskSummar
   };
 }
 
-/**
- * Done, by hand: "done" offers Mark as done (the Inbox's clear, seen_mark) while the conversation is unread;
- * "undone" offers Mark as not done (the Inbox's undo, seen_unmark) once it is done and the last word was the
- * agent's (with yours last there is nothing to be not done with). An approval clears only by its decision.
- */
 export function doneAction(item: AttentionItem | undefined | null): "done" | "undone" | null {
   if (!item || item.pendingApproval) return null;
   if (item.unread) return "done";
   return item.lastRole === "assistant" && !!item.last_message_at ? "undone" : null;
 }
 
-/** One row of the Chats sidebar: its chat, its marks, whether it is the agent's main chat, and whether it is the one on show. */
 export interface SidebarRow extends RowState {
   desk: DeskSummary;
-  /** The agent's main chat (conversation "default"). */
   main: boolean;
   current: boolean;
 }
 
-/** One section of the Chats sidebar: Pinned, or one agent's chats. */
 export interface SidebarSection {
-  /** "pinned" or "agent:<agentId>" — the key a fold is kept under. */
   id: string;
   title: string;
-  /** The section's agent: its "new desk" action starts one with them. Null for Pinned and desks with no agent. */
   agentId: string | null;
   rows: SidebarRow[];
-  /** Rows that wait on you, for the folded section's count. */
   waiting: number;
 }
 
-/** The Chats sidebar as drawn: its sections, the archived chats, and whether a filter matched nothing. */
 export interface SidebarModel {
   sections: SidebarSection[];
-  /** Archived and deleted desks, in the mod's order, behind the Archived entry. */
   archived: SidebarRow[];
-  /** A filter matched nothing at all: the empty state with its clear action. */
   empty: boolean;
 }
 
 const byRecent = (a: DeskSummary, b: DeskSummary) => (b.last_active ?? "").localeCompare(a.last_active ?? "");
 
-/** The Chats sidebar's model, by the rules above, with `opts.query` filtering by chat title or agent name and `opts.current` marking the chat on show. */
 export function sidebarModel(
   desks: DeskSummary[],
   items: AttentionItem[],
   opts: { query?: string; current?: string; agents?: Array<{ id: string; name: string }> },
 ): SidebarModel {
-  // `label:` terms keep the chats with every label named; the words left match titles and agents (plan 022, R4).
   const query = labelQuery(opts.query ?? "");
   const q = query.text.toLowerCase();
   const filtering = q !== "" || query.labels.length > 0;
@@ -164,7 +114,6 @@ export function sidebarModel(
   });
 
   const live = desks.filter((d) => d.status === "live" && d.scope !== "shared");
-  // An agent's place: its most recent activity on any live desk, pinned ones included, before the filter.
   const latest = new Map<string, string>();
   for (const d of live) {
     const k = d.agent_id ?? "",
@@ -184,41 +133,28 @@ export function sidebarModel(
     const list = desksOfAgent.sort((a, b) => Number(b.conversation_id === "default") - Number(a.conversation_id === "default") || byRecent(a, b));
     sections.push(section(`agent:${k}`, agentName(list[0]), k || null, list.map(row)));
   }
-  // "none" is a scope with no conversation (the canvas's shared one), which is neither live nor in the archive.
   const archived = desks.filter((d) => isArchived(d.status) && matches(d)).map(row);
   return { sections, archived, empty: filtering && sections.length === 0 && archived.length === 0 };
 }
 
-/** An archived chat, or a deleted one the list still has. */
 const isArchived = (status: DeskSummary["status"]) => status === "archived" || status === "deleted";
 
 function section(id: string, title: string, agentId: string | null, rows: SidebarRow[]): SidebarSection {
   return { id, title, agentId, rows, waiting: rows.filter((r) => r.kind === "waits").length };
 }
 
-/** The Chats row itself: every live chat, under agent headings (R4). */
 export const ALL_CHATS = "all";
-/** The Pinned source: the pinned chats, which no agent's source repeats. */
 export const PINNED_CHATS = "pinned";
-/** The Archived source: archived chats, and deleted ones while the list still has them. */
 export const ARCHIVED_CHATS = "archived";
-/** One agent's source, by the same key as its section in `sidebarModel`; chats with no agent share `agent:`. */
 export const agentSource = (agentId: string | null | undefined): string => `agent:${agentId ?? ""}`;
 
-/** A source under Chats in the sidebar: its id (see the constants above), its name, its agent, and what waits in it. */
 export interface ChatSource {
   id: string;
   title: string;
-  /** The source's agent, whose New Chat starts a chat with them; null for Pinned, Archived and chats with no agent. */
   agentId: string | null;
-  /** Its chats that wait on you, the sidebar's grey count. */
   waiting: number;
 }
 
-/**
- * Chats' sources (plan 2026-11-14-1330, KTD2): Pinned, one per agent in `sidebarModel`'s order, then the agents with no
- * unpinned chat by name, so an agent with no chats is still somewhere to start one, then Archived.
- */
 export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents: Array<{ id: string; name: string }> = []): ChatSource[] {
   const m = sidebarModel(desks, items, { agents });
   const listed = m.sections.filter((s) => s.id !== PINNED_CHATS);
@@ -232,15 +168,10 @@ export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents
   ];
 }
 
-/** A row of the Chats list: the sidebar's row, and in every chat's list the agent heading it sits under. */
 export interface SourceRow extends SidebarRow {
   section?: string;
 }
 
-/**
- * The rows the list shows for `source`, with `query` (titles, agent names and `label:`) filtering that source only
- * (R6): every chat under its Pinned or agent heading, one agent's or Pinned's with no heading, or the archive.
- */
 export function sourceRows(
   desks: DeskSummary[],
   items: AttentionItem[],
@@ -252,10 +183,22 @@ export function sourceRows(
   return m.sections.find((s) => s.id === opts.source)?.rows ?? [];
 }
 
-/** The part of a chat that says which sources hold it. */
+export const CHAT_STATES = ["all", "waiting", "unread", "working"] as const;
+export type ChatState = (typeof CHAT_STATES)[number];
+
+export function rowInState(row: Pick<SidebarRow, "kind" | "unread" | "live">, state: ChatState): boolean {
+  if (state === "waiting") return row.kind === "waits";
+  if (state === "unread") return row.unread;
+  if (state === "working") return row.live;
+  return true;
+}
+
+export function stateRows<R extends Pick<SidebarRow, "kind" | "unread" | "live">>(rows: readonly R[], state: ChatState): R[] {
+  return rows.filter((r) => rowInState(r, state));
+}
+
 type Placed = Pick<DeskSummary, "status" | "pinned" | "agent_id">;
 
-/** Whether `source` lists the chat, before any Search. */
 export function sourceHolds(source: string, d: Placed): boolean {
   if (source === ARCHIVED_CHATS) return isArchived(d.status);
   if (d.status !== "live") return false;
@@ -264,17 +207,10 @@ export function sourceHolds(source: string, d: Placed): boolean {
   return !d.pinned && source === agentSource(d.agent_id);
 }
 
-/** The one source that is the chat's own: Archived for an archived chat, Pinned for a pinned one, else its agent's. */
 export function sourceFor(d: Placed): string {
-  if (isArchived(d.status)) return ARCHIVED_CHATS;
-  return d.pinned ? PINNED_CHATS : agentSource(d.agent_id);
+  return isArchived(d.status) ? ARCHIVED_CHATS : ALL_CHATS;
 }
 
-/**
- * Where the list goes to show a chat opened from outside it (⌘K, a notification, Flow's Open; KTD8): the source and
- * the Search as they are when the source holds the chat and the Search shows it; else the chat's own source, and no
- * Search. A chat the list does not know yet (one just made) is a live chat of its agent's.
- */
 export function openIn(
   target: { scope: string; agent_id: string | null },
   at: { source: string; query: string },
@@ -287,11 +223,6 @@ export function openIn(
   return { source, query: shows ? at.query : "" };
 }
 
-/**
- * The "needs you" pills, Slack's "Unread mentions": given where each waiting row sits (in the scroll
- * content's coordinates) and the visible band, the nearest one wholly above the band and the nearest one
- * wholly below it. A row partly in view counts as seen.
- */
 export function offscreenWaits(
   rows: Array<{ id: string; top: number; bottom: number }>,
   view: { top: number; bottom: number },
@@ -305,19 +236,12 @@ export function offscreenWaits(
   return { up: up?.id ?? null, down: down?.id ?? null };
 }
 
-/** The localStorage key the sidebar's folds are kept under. */
 export const SIDEBAR_KEY = "loki.desktop.sidebar";
 
-/**
- * The sidebar as the person left it: the places whose sources they folded. An older save also kept the archive's
- * fold and the list's scroll; the archive is a source now, and the list keeps its scroll by staying mounted.
- */
 export interface SidebarPref {
-  /** Folded ids: a place's (its sources hidden). */
   collapsed: string[];
 }
 
-/** Stored sidebar settings read back; anything missing or malformed is the fresh default. */
 export function parseSidebar(raw: string | null): SidebarPref {
   if (!raw) return { collapsed: [] };
   try {
@@ -330,7 +254,6 @@ export function parseSidebar(raw: string | null): SidebarPref {
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 
-/** The sidebar as saved in `store`; the fresh default when it cannot be read. */
 export function loadSidebar(store: Store): SidebarPref {
   try {
     return parseSidebar(store.getItem(SIDEBAR_KEY));
@@ -339,33 +262,22 @@ export function loadSidebar(store: Store): SidebarPref {
   }
 }
 
-/** Save the sidebar to `store`; a blocked store saves nothing and does not throw. */
 export function saveSidebar(store: Store, pref: SidebarPref): void {
   try {
     store.setItem(SIDEBAR_KEY, JSON.stringify(pref));
-  } catch {
-    // a blocked store only costs the folds across restarts
-  }
+  } catch {}
 }
 
-/** The settings with one fold flipped. */
 export function toggleFold(pref: SidebarPref, id: string): SidebarPref {
   return { ...pref, collapsed: pref.collapsed.includes(id) ? pref.collapsed.filter((c) => c !== id) : [...pref.collapsed, id] };
 }
 
-/** A Mac a chat can move to, from its row's menu (plan 023, addendum A1). */
 export interface MoveTarget {
   mac_id: string;
   name: string;
-  /** In reach now: a Mac asleep or off is offered, but greyed. */
   reachable: boolean;
 }
 
-/**
- * Where a chat can move: every Mac but the one it lives on, this Mac first. None for a chat whose Mac is out of reach,
- * a row that is not a chat, or an agent's main chat, which there is one of and which lives with its agent: it moves
- * when the agent's home does. None until another Mac is paired.
- */
 export function moveTargets(
   d: Pick<DeskSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
   macs: { me: MacIdentity; peers: Array<MacIdentity & { reachable: boolean }> } | null,
@@ -379,12 +291,6 @@ export function moveTargets(
   return all.filter((m) => m.mac_id !== lives);
 }
 
-/**
- * The location mark a chat's row carries (plan 023): none for a chat on its agent's Mac in reach, which its section
- * names; "away" for a chat living elsewhere; "asleep" while its Mac is out of reach. Without `agentHome` (no Mac
- * paired, or the switcher's flat list), every chat on another Mac is marked. `machine` names this Mac. The note is
- * the mark's tooltip: where the chat lives and why that is marked.
- */
 export function homeMark(
   row: { home?: string; home_name?: string; reachable?: boolean },
   agentHome: string | null | undefined,

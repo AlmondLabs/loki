@@ -10,22 +10,12 @@ import { LinkHeader } from "./link-header";
 import { PanelLeftIcon, PanelRightIcon, XIcon, MessageSquareIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/**
- * The panel sits on the sheet in one of three places (⌘← / ⌘→ move it): stacked on the left
- * edge, floating centred and wider, or stacked on the right edge. Side placements come in two
- * widths and are viewport insets for the sheet; the centre floats over it.
- */
 export type ChatWidth = "narrow" | "wide";
-/** The panel's side widths in pixels. */
 export const CHAT_WIDTHS: Record<ChatWidth, number> = { narrow: 400, wide: 640 };
-/** Where the chat panel sits on the sheet: stacked on the left or right edge, or floating centred. */
 export type ChatPlacement = "left" | "center" | "right";
-/** The placements in the order ⌘← and ⌘→ step through them, and Settings lists them. */
 export const CHAT_PLACEMENTS: ChatPlacement[] = ["left", "center", "right"];
-/** The centred chat has the inbox card's footprint (catch-up.tsx): the same width and the same insets. */
 export const CHAT_CENTER_WIDTH = 1100;
 
-/** The desk's chat: the one Conversation, framed as a panel that fades to see-through when nothing is going on in it. */
 export function ChatWindow({
   title,
   purpose = null,
@@ -47,9 +37,7 @@ export function ChatWindow({
   suggestions = null,
   onClose,
 }: {
-  /** The desk's name, over the agent's face in the header. */
   title: string | null;
-  /** The person's one line on what the chat is for (plan 049, R11), under its name. */
   purpose?: string | null;
   agentName?: string | null;
   agentId?: string | null;
@@ -59,16 +47,13 @@ export function ChatWindow({
   width?: ChatWidth;
   placement?: ChatPlacement;
   onToggleWidth?: () => void;
-  /** Bumped by the host: ⌘L focus, ⌘F find, ⌘⇧M model, ⌘⇧P mode. */
   focusTick?: number;
   findTick?: number;
   prefill?: { text: string; tick: number } | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
   suggestionsTick?: number;
-  /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
   draft?: ControlledDraft;
-  /** The suggestions made in this chat for other chats (plan 049); null or absent, none. */
   suggestions?: SuggestionsProps | null;
   onClose: () => void;
 }) {
@@ -130,7 +115,6 @@ export function ChatWindow({
   );
 }
 
-/** Where the panel sits: the three placements differ in edges and border. */
 function placementStyle(placement: ChatPlacement, width: ChatWidth): CSSProperties {
   return {
     position: "absolute",
@@ -168,7 +152,6 @@ function shadowStyle(placement: ChatPlacement, width: ChatWidth, attentive: bool
   };
 }
 
-/** How the panel reads: the whole thing fades to see-through when nothing is going on in it. */
 function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boolean): CSSProperties {
   return {
     ...placementStyle(placement, width),
@@ -177,12 +160,10 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
     background: "var(--loki-panel)",
     overflow: "hidden",
     opacity: attentive ? 1 : 0.6,
-    // The width changes at once (a menu's pick): animating it would lay the thread out on every frame.
     transition: "opacity 220ms ease-out",
   };
 }
 
-/** The round button in a desk's bottom corner that opens and closes the chat panel, with a dot when an approval or a question waits. */
 export function ChatBubble({
   open,
   onToggle,
@@ -196,10 +177,12 @@ export function ChatBubble({
 }) {
   return (
     <button
+      type="button"
       data-alert={alert || undefined}
       onClick={onToggle}
       onPointerDown={(e) => e.stopPropagation()}
-      aria-label="Toggle chat"
+      aria-label={alert && !open ? "Chat, waiting on you" : "Chat"}
+      aria-expanded={open}
       style={{
         position: "absolute",
         ...(side === "right" ? { right: 20 } : { left: 20 }),
@@ -219,7 +202,7 @@ export function ChatBubble({
       {open ? <Glyph icon={XIcon} size={18} /> : <Glyph icon={MessageSquareIcon} size={18} />}
       {alert && !open && (
         <span
-          aria-label="Permission waiting"
+          aria-hidden
           style={{
             position: "absolute",
             top: -2,

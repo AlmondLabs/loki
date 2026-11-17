@@ -1,3 +1,6 @@
+import type { IncomingMessage } from "node:http";
+import { connect } from "node:net";
+import type { Duplex } from "node:stream";
 import { describe, expect, test } from "vitest";
 import { attachWs, sameSecret, startServer, type Client } from "../mod/server.ts";
 import { WS_PROTOCOL, tokenFromProtocols, tokenProtocols } from "../core/ws-auth.ts";
@@ -30,7 +33,7 @@ describe("the token in the subprotocol header, not the URL", () => {
   });
 
   test("reading it back, and comparing in constant time", () => {
-    expect(tokenProtocols("")).toEqual([]); // a phone: its cookie is the credential
+    expect(tokenProtocols("")).toEqual([]);
     expect(tokenFromProtocols("loki, loki.t.abc")).toBe("abc");
     expect(tokenFromProtocols(["loki", "loki.t.abc"])).toBe("abc");
     expect(tokenFromProtocols("loki")).toBeNull();
@@ -76,7 +79,6 @@ describe("the limits of a socket", () => {
       ws.once("error", reject);
     });
   const closed = (ws: WsClient) => new Promise<number>((resolve) => ws.once("close", (code) => resolve(code)));
-  /** Wait for the server's side to catch up with a close the client already saw. */
   const until = async (ok: () => boolean) => {
     const deadline = Date.now() + 2000;
     while (!ok() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
@@ -112,7 +114,6 @@ describe("the limits of a socket", () => {
     const s = await startServer({ port: 0 });
     const bridge = attachWs(s.server, token, { onConnect: (c) => c.send({ type: "hello" }), onMessage: () => {} }, { heartbeatMs: 40 });
     try {
-      // A device that left the network: its socket is open here and nothing on it answers.
       const gone = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token), { autoPong: false });
       const here = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
       for (const ws of [gone, here]) ws.on("error", () => {});
@@ -136,7 +137,6 @@ describe("the limits of a socket", () => {
       {
         onConnect: (c) => c.send({ type: "hello" }),
         // Far more than any system keeps for a socket nobody reads: once its buffers are full the rest waits in the
-        // daemon's memory, and the frame after the limit is passed ends the socket.
         onMessage: (c) => {
           const fill = "x".repeat(1024 * 1024);
           for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill });
@@ -149,7 +149,6 @@ describe("the limits of a socket", () => {
       ws.on("error", () => {});
       await hello(ws);
       // A device that stopped reading, as a phone gone from the Wi-Fi has: how much its system buffers is not the
-      // test's to guess, so it reads nothing at all.
       ws.pause();
       ws.send(JSON.stringify({ type: "go" }));
       await until(() => bridge.clientCount() === 0);
@@ -157,6 +156,34 @@ describe("the limits of a socket", () => {
       expect(fed).toBeLessThan(64);
       ws.terminate();
     } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+});
+
+describe("a refused upgrade", () => {
+  test("a caller that hangs up on the refusal with a reset leaves the server serving", async () => {
+    const s = await startServer({ port: 0 });
+    const bridge = attachWs(s.server, "0123456789abcdef0123456789abcdef", { onConnect: () => {}, onMessage: () => {} });
+    // The server's end of the upgrade: an error on it with nobody listening would be thrown before it closes.
+    const ends: Duplex[] = [];
+    s.server.on("upgrade", (_req: IncomingMessage, socket: Duplex) => ends.push(socket));
+    const caller = connect(s.port, "127.0.0.1");
+    try {
+      caller.write(
+        "GET /ws HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n" +
+          "Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n",
+      );
+      const answer = await new Promise<string>((resolve) => caller.once("data", (chunk: Buffer) => resolve(chunk.toString())));
+      expect(answer).toMatch(/^HTTP\/1\.1 401/);
+      const closed = new Promise((resolve) => ends[0]?.once("close", resolve));
+      // Another Mac's link drops a refusal at once: a reset, which the server reads as ECONNRESET.
+      caller.resetAndDestroy();
+      await closed;
+      expect((await fetch(`http://127.0.0.1:${s.port}/health`)).status).toBe(200);
+    } finally {
+      caller.destroy();
       bridge.close();
       await s.close();
     }
@@ -181,7 +208,6 @@ describe("loki server", () => {
       expect((await fetch(`http://127.0.0.1:${s.port}/anything`)).status).toBe(404);
       expect((await fetch(`http://127.0.0.1:${s.port}/assets/%zz`)).status).toBe(404);
 
-      // bad token: no connection
       const bad = new WebSocket(`ws://127.0.0.1:${s.port}/ws?t=wrong&desk=c1`);
       await new Promise<void>((resolve) => {
         bad.onerror = () => resolve();
@@ -202,7 +228,6 @@ describe("loki server", () => {
       expect(err).toEqual({ type: "error", message: "invalid json" });
       expect(received[0]).toEqual(["conv_1", { type: "gesture", gesture: { kind: "focus", id: "conv_1/a" } }]);
 
-      // scoped broadcast
       const other = new WebSocket(`ws://127.0.0.1:${s.port}/ws?t=tok&desk=other`);
       await new Promise<void>((resolve) => {
         other.onmessage = () => resolve();
@@ -224,7 +249,6 @@ describe("loki server", () => {
 
   test("a push for the paired Macs reaches a Mac's socket, and no tab or phone (plan 052)", async () => {
     const s = await startServer({ port: 0 });
-    // Who each socket is, from its URL: what the LAN listener reads from a cookie or a Mac's key.
     const bridge = attachWs(
       s.server,
       (_req, url) => ({ ok: true, peerId: url.searchParams.get("peer") ?? undefined, deviceId: url.searchParams.get("device") ?? undefined }),

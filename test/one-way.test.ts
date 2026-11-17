@@ -3,7 +3,6 @@ import { Listeners } from "../core/listeners.ts";
 import { keyedQueue, serialQueue } from "../core/serial.ts";
 import { coalesce, debounce } from "../core/timers.ts";
 
-/** A promise the test settles by hand. */
 function gate() {
   let open: () => void = () => {};
   let fail: (e: Error) => void = () => {};
@@ -94,7 +93,7 @@ describe("one way per job (plan 054)", () => {
       const fn = vi.fn();
       const b = coalesce(fn, 100);
       b.flush();
-      expect(fn).not.toHaveBeenCalled(); // nothing waiting
+      expect(fn).not.toHaveBeenCalled();
       b.schedule();
       b.flush();
       expect(fn).toHaveBeenCalledTimes(1);

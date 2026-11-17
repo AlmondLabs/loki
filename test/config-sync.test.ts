@@ -16,12 +16,10 @@ describe("MCP servers on two Macs", () => {
       writeFileSync(book.config, JSON.stringify({ mcpServers: { notion: { url: "https://mcp.notion.com/mcp" } }, note: "kept" }));
       expect(applyMcp(mini.config, mini.manifest, mcpSnapshot(book.config, book.manifest, "2026-10-18T10:00:00Z"), "2026-10-18T10:00:01Z")).toBe(true);
       expect(servers(mini.config)).toEqual({ notion: { url: "https://mcp.notion.com/mcp" } });
-      // Removed on the MacBook later: the mini removes it too.
       writeFileSync(book.config, JSON.stringify({ mcpServers: {}, note: "kept" }));
       const removal = mcpSnapshot(book.config, book.manifest, "2026-10-18T11:00:00Z");
       expect(applyMcp(mini.config, mini.manifest, removal, "2026-10-18T11:00:01Z")).toBe(true);
       expect(servers(mini.config)).toEqual({});
-      // The mini's older snapshot, from before the removal, does not bring it back to the MacBook.
       expect(
         applyMcp(book.config, book.manifest, { servers: { notion: { value: { url: "x" }, at: "2026-10-18T10:00:00Z" } }, removed: {} }, "2026-10-18T11:00:02Z"),
       ).toBe(false);

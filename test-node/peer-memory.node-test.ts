@@ -1,7 +1,3 @@
-/**
- * An agent's memory on two paired Macs over a real peer link (plan 023, U7): `npm run test:node`. The far Mac answers
- * `peer_memory_get` from its repo; the near Mac clones it on first contact and pulls again when told it moved.
- */
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -41,7 +37,6 @@ async function until(check: () => boolean, ms = 4000): Promise<void> {
   }
 }
 
-/** A note written into an agent's memory and committed, as a memory tool does. */
 function write(root: string, path: string, text: string): void {
   mkdirSync(join(root, path, ".."), { recursive: true });
   writeFileSync(join(root, path), text);

@@ -9,15 +9,12 @@ import { must } from "./fixtures/must.ts";
 import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
 import { QUICK_EMOJI, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
 
-/** A Slack card's body as a window around what is new (plan 077), and as Slack draws it (plan 074, plan 075). */
-
 const ACCOUNT = "slack:T1:UME";
 
 function msg(ts: string, user: string, text: string, extra: Partial<SlackMessage> = {}): SlackMessage {
   return { ts, user, bot_id: null, text, thread_ts: null, subtype: null, reply_count: 0, raw: {}, ...extra };
 }
 
-/** Messages `from`..`to` seconds, one a second, as `<n>.000000`, from U2 unless `user` says. */
 const run = (from: number, to: number, user = (_n: number) => "U2", extra: (n: number) => Partial<SlackMessage> = () => ({})) =>
   Array.from({ length: to - from + 1 }, (_, i) => msg(`${String(from + i)}.000000`, user(from + i), `m${String(from + i)}`, extra(from + i)));
 const ts = (n: number) => `${String(n)}.000000`;
@@ -82,7 +79,6 @@ const facts = (brought: string[] = [], dealt: string | null = null, newest: stri
 const ids = (w: CardWindow) => w.messages.map((m) => m.id);
 const flagged = (w: CardWindow, flag: "unread" | "brought") => w.messages.filter((m) => m[flag]).map((m) => m.id);
 
-/** A thread of 40 replies, 1001..1040, under the post 1000. */
 const forty = () => [msg(ts(1000), "U1", "the plan", { reply_count: 40 }), ...run(1001, 1040)];
 
 describe("a thread card opens on its window (plan 077)", () => {
@@ -434,7 +430,6 @@ describe("reactions on a Slack card (plan 079)", () => {
     expect(toggleReaction(others, eyes, true)).toEqual([{ name: "eyes", count: 3, mine: true, emoji: eyes.emoji }]);
     expect(toggleReaction(toggleReaction(others, eyes, true), eyes, false)).toEqual(others);
     expect(toggleReaction([{ name: "eyes", count: 1, mine: true, emoji: eyes.emoji }], eyes, false)).toEqual([]);
-    // Reacting with what is already theirs, or taking back what is not, changes nothing.
     expect(toggleReaction([{ name: "eyes", count: 1, mine: true, emoji: eyes.emoji }], eyes, true)).toEqual([
       { name: "eyes", count: 1, mine: true, emoji: eyes.emoji },
     ]);
@@ -541,7 +536,6 @@ describe("files on a Slack card (plan 080)", () => {
   });
 
   test("a picture with a saved thumbnail draws as itself at its size, its name under it", () => {
-    // The picture's address is the mod's, as a browser tab finds it.
     vi.stubGlobal("window", {});
     vi.stubGlobal("location", { origin: "http://127.0.0.1:5173" });
     vi.stubGlobal("localStorage", { getItem: () => null });

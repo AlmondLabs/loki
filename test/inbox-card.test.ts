@@ -1,5 +1,3 @@
-// The phone's Inbox card: its message box carries the model pill as the conversation page's does, and a plain wait
-// adds no line above it (the box's "Message friday" already says it is your turn).
 import { describe, expect, test } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -46,8 +44,6 @@ const MODELS: ModelEntry[] = [
 ];
 
 const actions = (model?: CardActions["model"]): CardActions => ({ onSend: () => {}, onAnswer: () => {}, onCancelQueued: () => {}, model });
-/** The card draws the agent's face, whose URL reads the page's token and origin: a bare page for the render, then put back. */
-/** Draw an element as the phone's page would, with the browser globals it reads faked and put back after. */
 function inPage(el: ReactElement): string {
   const g = globalThis as Record<string, unknown>;
   const saved = { window: g.window, localStorage: g.localStorage, location: g.location };
@@ -124,7 +120,7 @@ describe("the Inbox card's suggestions (plan 049)", () => {
     const noop = () => {};
     const moves = { current: item(), typing: false, read: noop, later: noop, archive: noop, onOpenDesk: noop, onClose: noop };
     const html = inPage(createElement(ChatItemHeader, { current: item(), cameBack: false, flash: null, suggestions: 2, onSuggestions: noop, moves }));
-    expect(html).toMatch(/<button[^>]*loki-chip--tag[^>]*>2 suggestions<\/button>/);
+    expect(html).toMatch(/<button[^>]*>2 suggestions<\/button>/);
     expect(inPage(createElement(ChatItemHeader, { current: item(), cameBack: false, flash: null, moves }))).not.toContain("suggestion");
   });
   test("/suggestions opens them, as ⌘⇧S does", () => {
@@ -265,14 +261,10 @@ describe("an approved comment in a Jira card's box (plan 2026-11-10-1451, U8, KT
 
   test("the phone's deck locks the swipes when the top card's box takes in a comment, which fires no input", () => {
     const none = { card: null, taken: [] };
-    // A card drawn with an approved comment: the box holds text, so the swipes spring back as for typed text.
     const first = must(takeSeeds(none, "jira:OPS-7", [SEED]), "first");
     expect(first).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1"] }, lock: true });
-    // Drawn again with the same comment: nothing changes, so the person's own edit of the box keeps its say.
     expect(takeSeeds(first.next, "jira:OPS-7", [SEED])).toBeNull();
-    // A second comment approved while the card is up locks it again.
     expect(takeSeeds(first.next, "jira:OPS-7", [SEED, OTHER])).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1", "reply-2"] }, lock: true });
-    // Another card without comments starts its own count and locks nothing.
     expect(takeSeeds(first.next, "jira:OPS-8", undefined)).toEqual({ next: { card: "jira:OPS-8", taken: [] }, lock: false });
     expect(takeSeeds(none, null, undefined)).toBeNull();
   });

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { Awake } from "../daemon/awake.ts";
 
-/** A spawner that records what it starts and whether each was stopped. */
 function recorder() {
   const started: Array<{ command: string; args: string[]; killed: boolean }> = [];
   const spawn = (command: string, args: string[]) => {

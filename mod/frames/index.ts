@@ -18,7 +18,6 @@ import { seenFrames, type SeenDeps } from "./seen.ts";
 import { suggestionFrames, type SuggestionDeps } from "./suggestions.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
 
-/** What every frame handler needs, together: each module takes only its own part. */
 export type ModuleDeps = DesksDeps &
   SeenDeps &
   HistoryDeps &
@@ -35,7 +34,6 @@ export type ModuleDeps = DesksDeps &
   AccountsDeps &
   DaemonDeps;
 
-/** Every feature's frame handlers (glossary.md: Frame handler), one module per feature. */
 export function frameModules(deps: ModuleDeps): FrameHandlers[] {
   return [
     desksFrames(deps),
@@ -57,16 +55,13 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
   ];
 }
 
-/** What a socket is told when it opens: its desk and the shared desk, and the recent and usual models. */
 export function welcomeFrames(deps: ModuleDeps): (scope: Scope) => PushFrame[] {
   return (scope) => [
     deskFrame(deps, scope),
     ...(scope !== SHARED_SCOPE ? [deskFrame(deps, SHARED_SCOPE)] : []),
     ...(deps.recentModels ? [{ type: "models_recent" as const, recent: deps.recentModels.read() }] : []),
     ...(deps.usualModels ? [{ type: "models_usual" as const, usual: deps.usualModels.read() }] : []),
-    // The Macs paired with this one, for where an agent lives and, later, where each chat runs (plan 023).
     ...(deps.peers ? [{ type: "peers" as const, ...deps.peers.view() }] : []),
-    // A restart due after a checkout's daemon code changed (plan 024): the window offers it.
     ...(deps.daemon?.restartDue() ? [{ type: "restart_due" as const, file: deps.daemon.restartDue() }] : []),
   ];
 }

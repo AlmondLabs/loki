@@ -9,27 +9,15 @@ import type { UsualModels } from "../usual-models.ts";
 import type { ReasoningEffort } from "../../core/models.ts";
 import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
 
-/**
- * Chats on loki's daemon (plan 017, U5), as frames on the mod's socket: the app's FrameChatClient asks, and the
- * daemon's ChatBackend (daemon/chat-backend.ts) on the mod's host answers. A host with no backend (a test that
- * hosts the mod alone) answers every request that chats are the daemon's.
- */
 export interface ChatBackend {
   /** Tell every socket what happened in a chat; the backend calls it as events arrive. */
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void;
   open(agentId: string, conversationId: string, mode: string | null): Promise<ChatState>;
   approve(p: PayloadOf<"chat_approve">): Promise<boolean>;
   answer(p: PayloadOf<"chat_answer">): Promise<boolean>;
-  /** `home`: the Mac the person picked for it, which places it when its agent lives elsewhere (plan 023, addendum A2). */
   create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
-  /** The power a chat has now, as loki's mode (plan 067): what a message it sends may give the turn it starts. */
   power(agentId: string, conversationId: string): Promise<LokiMode | null>;
-  /**
-   * Another chat's message (plan 067), its turn held to `cap`: the chat runs with no more power than that until the
-   * person next messages it while it is idle. Why it cannot take a message so held (an ACP agent's mode, which loki
-   * cannot lower, has more power), or null when it took it.
-   */
   sendHeld(p: PayloadOf<"chat_send">, cap: LokiMode | null): Promise<string | null>;
   abort(agentId: string, conversationId: string): Promise<void>;
   /** Its reply names the saved draft's suggestion when it saved one. */
@@ -41,15 +29,11 @@ export interface ChatBackend {
   createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }>;
   updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void>;
   deleteAgent(agentId: string): Promise<void>;
-  /** Remove an agent here because another Mac deleted it (plan 023): no tombstone of this Mac's. */
   removeAgent(agentId: string): Promise<void>;
-  /** Moving a chat to the Mac its agent lives on (plan 023, U9): which, copying out, writing in, and letting go. */
   moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>>;
   exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }>;
-  /** `names`: the Macs it moved between, to mark its thread and tell its agent (plan 023, addendum A5). */
   importChat(moved: MovedChat, names?: { from: string; to: string }): Promise<boolean>;
   finishMove(agentId: string, chatId: string): Promise<void>;
-  /** The person's label colours for a paired Mac, and taking that Mac's (plan 023, U8). */
   labelColors(): LabelColorsSnapshot;
   applyLabelColors(theirs: LabelColorsSnapshot): boolean;
   providers(): Promise<Replies["chat_providers"]["providers"]>;
@@ -58,17 +42,14 @@ export interface ChatBackend {
   signIn(providerId: string, code: string | null): Promise<Replies["chat_signin"]>;
   passes(): Promise<Replies["chat_passes"]>;
   setPasses(s: PayloadOf<"chat_passes_set">): Promise<Replies["chat_passes"]>;
-  /** Learn's "Run now" (daemon/passes.ts). */
   runLearn(): Promise<void>;
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   approvals(): Promise<Replies["chat_approvals"]>;
   setApproval(p: PayloadOf<"chat_approvals_set">): Promise<Replies["chat_approvals"]>;
-  /** Labels on chats (plan 022): every label with its colour and count, and renaming, recolouring or deleting one. */
   labels(): Promise<Replies["chat_labels"]>;
   setLabel(p: PayloadOf<"chat_label_set">): Promise<Replies["chat_labels"]>;
-  /** Preferences › Engines (daemon/acp/, plan 020): the ACP agents, and adding, changing, removing and trying one. */
   engines(): Promise<Replies["chat_engines"]>;
   setEngine(p: PayloadOf<"chat_engine_set">): Promise<Replies["chat_engines"]>;
   removeEngine(id: string): Promise<Replies["chat_engines"]>;
@@ -78,7 +59,6 @@ export interface ChatBackend {
   mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<Replies["chat_mcp"]>;
   mcpRestart(name: string): Promise<Replies["chat_mcp"]>;
   mcpSignOut(name: string): Promise<Replies["chat_mcp"]>;
-  /** The browser back from an MCP server's sign-in page (mod/server.ts's callback route); not a frame. */
   mcpOauthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }>;
   mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<Replies["chat_mcp"]>;
   mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<Replies["chat_mcp_secret"]>;
@@ -86,26 +66,17 @@ export interface ChatBackend {
   disableSkill(name: string): Promise<void>;
 }
 
-/** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
 export interface ChatDeps {
   chat?: ChatBackend;
-  /**
-   * Why an agent may not be deleted now, or null: a paired Mac out of reach would keep its chats (plan 023), or it owns
-   * Inbox accounts, here or on another Mac, that must be moved or disconnected first (plan 067, R4).
-   */
   agentDeleteBlocked?: (agentId: string) => string | null;
-  /** Why a chat takes no message now (it is moving to another Mac), or null (plan 023, U9). */
   chatBlocked?: (agentId: string, conversationId: string) => string | null;
-  /** The `desk_title` push for a chat as it now stands, or null before it has a title (mod/chat-listing.ts). */
   titleFrame?: (agentId: string, conversationId: string) => DeskTitleFrame | null;
-  /** Each agent's usual models (mod/usual-models.ts): read for a window that opens, recorded on a switch. */
   usualModels?: { read: () => UsualModels; record: (agentId: string, handle: string, effort: ReasoningEffort | null) => UsualModels };
 }
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
 const DONE: Replies["chat_done"] = {};
 
-/** Run `work` against the backend: its reply, or why not. */
 async function served<R>(backend: ChatBackend | undefined, work: (b: ChatBackend) => Promise<R>): Promise<Outcome<R>> {
   if (!backend) return fail(NOT_HERE);
   try {
@@ -115,23 +86,12 @@ async function served<R>(backend: ChatBackend | undefined, work: (b: ChatBackend
   }
 }
 
-/**
- * A change to the agents, told to every client once it is done. Only the client that made it knew before, so another
- * window or a paired phone kept the old list (an agent shown as "Agent", a renamed one under its old name) until its
- * next poll.
- */
 async function agentsChange<R>(work: Promise<Outcome<R>>, ctx: FrameContext): Promise<Outcome<R>> {
   const out = await work;
   if (out.ok) ctx.broadcast({ type: "agents_changed" });
   return out;
 }
 
-/**
- * A chat renamed, archived, hidden, relabelled, or given a purpose or draft, told to every client and paired Mac once it
- * is done (plan 050). Only
- * the client that changed it knew before, so the others kept the old row until their next poll. The tabs showing it
- * also get its title: their header keeps the one the last `desk_title` gave over the list's.
- */
 async function chatChange(p: PayloadOf<"chat_update">, work: Promise<Outcome<Replies["chat_done"]>>, deps: ChatDeps, ctx: FrameContext) {
   const out = await work;
   if (!out.ok) return out;
@@ -141,11 +101,6 @@ async function chatChange(p: PayloadOf<"chat_update">, work: Promise<Outcome<Rep
   return out;
 }
 
-/**
- * The chat frames: each one passed to the daemon's ChatBackend and its result returned as the reply, or `error` with why.
- * A change to the agents (create, update, delete, import) is also told to every client as `agents_changed`, and a change
- * to a chat's listing as `chat_changed`.
- */
 export function chatFrames(deps: ChatDeps): FrameHandlers {
   const b = deps.chat;
   return {
@@ -170,7 +125,6 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         ctx,
       ),
     chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
-    // A switch the person made counts toward the agent's usual models (plan 2026-11-13-1240); every window and phone hears.
     chat_model: (p, ctx) =>
       served(b, async (x) => {
         await x.model(p);
@@ -199,7 +153,6 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
       );
     },
     chat_passes_get: () => served(b, (x) => x.passes()),
-    // Asked of the Mac a new chat will live on (plan 023, U10); the router sends it there when `home` is another Mac.
     chat_requirements: ({ agent_id: agentId }) => served(b, async (x) => ({ agent_id: agentId, missing: await missingFor(x, agentId) })),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),

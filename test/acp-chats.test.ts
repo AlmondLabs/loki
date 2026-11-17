@@ -35,7 +35,6 @@ afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
 });
 
-/** A daemon with ACP chats on the fake agent; `restart` makes a new one over the same stores, as after a restart. */
 function setup(
   opts: {
     systemPrompt?: (agentId: string, withTools: boolean) => string | null;
@@ -107,13 +106,11 @@ function setup(
       .flatMap((e) => (e.kind === "step" && e.step.kind === "assistant" && !e.step.chunk ? [e.step.text] : []))
       .join(" | ");
   const errors = () => events().flatMap((e) => (e.kind === "error" ? [e.message] : []));
-  /** A new ACP chat on the fake agent. */
   const chat = async () => {
     const { conversationId } = await daemon.chats.create("ada", null, null);
     await daemon.chats.model({ agent_id: "ada", conversation_id: conversationId, handle: "acp:fake/default", reasoning_effort: null });
     return conversationId;
   };
-  /** Send and wait for the turn to end. */
   const say = async (conversationId: string, text: string) => {
     const before = turnsEnded();
     await daemon.chats.send({ agent_id: "ada", conversation_id: conversationId, text, images: [], context: null, send_id: null });
@@ -173,7 +170,6 @@ describe("ACP agents (plan 020)", () => {
     const s = setup();
     const id = await s.chat();
     await s.say(id, "hello");
-    // The engine's own updates (device) are the next test's.
     const kinds = s
       .events()
       .filter((e) => e.kind !== "device")
@@ -247,7 +243,6 @@ describe("ACP agents (plan 020)", () => {
     await until(() => s.events().filter((e) => e.kind === "turn_end").length === 1);
     expect(s.errors()).toContain("the agent did not answer the stop, so loki ended the turn without it");
     expect(turns()[0]).toMatchObject({ stop_reason: "cancelled", error_code: "aborted" });
-    // What it said before the stop is kept.
     expect(s.words()).toContain("working");
     await s.say(id, "hello");
     expect(s.words()).toContain("Hi there");
@@ -256,7 +251,6 @@ describe("ACP agents (plan 020)", () => {
   test("Stop frees a chat whose session never opens: the message queued behind it goes on a new one", async () => {
     const s = setup({ stopWaitMs: 20, env: { FAKE_ACP_HANG_FIRST_SESSION: "1" } });
     const id = await s.chat();
-    // Opened ahead of the first message, the session hangs; a message waits behind it.
     await until(() => s.logged.includes("fake: fake-acp: holding the first session"));
     await s.chats.send({ agent_id: "ada", conversation_id: id, text: "hello", images: [], context: null, send_id: null });
     expect(s.events().some((e) => e.kind === "turn_end")).toBe(false);
@@ -296,7 +290,6 @@ describe("ACP agents (plan 020)", () => {
     expect(turns()[0].cost).toBeGreaterThan(0);
     expect(typeof turns()[0].ttft_ms).toBe("number");
     expect(turns()[0].total_ms).toBeGreaterThanOrEqual(turns()[0].ttft_ms as number);
-    // The app's turn id, so client events join it.
     expect(turns()[0].turn_id).toBe(s.events().find((e) => e.kind === "turn_end")?.turn_id);
 
     await s.say(id, "write");
@@ -310,7 +303,6 @@ describe("ACP agents (plan 020)", () => {
 
     await s.say(id, "crash");
     expect(turns()[3]).toMatchObject({ stop_reason: null, error: true, error_code: "agent_error" });
-    // It said something before it died.
     expect(typeof turns()[3].ttft_ms).toBe("number");
   });
 
@@ -385,7 +377,6 @@ describe("ACP agents (plan 020)", () => {
     await expect(model("faux/faux-1")).rejects.toThrow(/start a new chat/);
     await expect(model("acp:nobody/x")).rejects.toThrow(/no ACP agent/);
     await expect(s.chats.folder("ada", id, tmpdir())).rejects.toThrow(/folder it started in/);
-    // A command other than loki's passes goes to the agent as typed.
     expect(await s.chats.command({ agent_id: "ada", conversation_id: id, command: "mode?", args: null })).toMatchObject({ success: true });
   });
 
@@ -396,7 +387,6 @@ describe("ACP agents (plan 020)", () => {
     ]);
     const id = await s.chat();
     await s.say(id, "hello");
-    // One handle per model; a model with effort levels is one entry per level (plan 021).
     const handles = () => [...new Map(s.acp.models().map((m) => [m.handle, [m.handle, m.label]])).values()];
     expect(handles()).toEqual([
       ["acp:fake/default", "Fake"],
@@ -422,7 +412,6 @@ describe("ACP agents (plan 020)", () => {
       ["acp:fake/sonnet", null],
     ]);
     await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: null });
-    // Sonnet's "ultra" has no word in loki, so it is left out.
     expect(efforts().slice(3)).toEqual([
       ["acp:fake/sonnet", "low"],
       ["acp:fake/sonnet", "high"],
@@ -439,7 +428,6 @@ describe("ACP agents (plan 020)", () => {
     await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
     await until(() => s.acp.models().some((m) => m.reasoning_effort === "medium"));
     expect([...new Set(s.acp.models().map((m) => m.handle))]).toEqual(["acp:fake/default", "acp:fake/sonnet"]);
-    // A model picked while it is open reaches the session; the first message runs on it.
     await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "max" });
     await s.say(id, "effort?");
     expect(s.words()).toBe("model sonnet, effort max");
@@ -464,7 +452,6 @@ describe("ACP agents (plan 020)", () => {
     await s.say(id, "effort?");
     const { store } = await s.stored(id);
     expect((await store.chats(ctx)).find((c) => c.id === id)?.engine).toMatchObject({ model: "sonnet", effort: "max" });
-    // A level the model does not offer leaves the agent's own.
     await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "medium" });
     await s.say(id, "effort?");
     await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "high" });
@@ -501,7 +488,6 @@ describe("ACP agents (plan 020)", () => {
   test("a chat opened on loki's engine and then moved to an agent shows each message once", async () => {
     const s = setup();
     const { conversationId: id } = await s.chats.create("ada", null, null);
-    // Opened first, as the app does: loki follows the chat through pi-durable from here on.
     await s.chats.open("ada", id);
     await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
     await s.say(id, "hello");
@@ -539,14 +525,12 @@ describe("ACP agents (plan 020)", () => {
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((c) => c.name === "Write a.txt")).toBe(true);
     const result = s.events().find((e) => e.kind === "step" && e.step.kind === "result");
-    // As every result leaves the daemon (plan 035): its text, not its parts.
     expect(result).toMatchObject({ step: { output: "--- a.txt\n+++ a.txt\n+a" } });
   });
 
   test("Preferences › Engines: how each agent stands, and adding, changing, trying and removing one", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-acp-engines-"));
     const file = join(dir, "state", "acp.json");
-    // Claude Code started the person's way, on the fake agent, so nothing here depends on npx being installed.
     writeAcpAgents(file, [{ ...FAKE, id: "claude-code", name: "Claude Code" }]);
     const stores = new StoreManager(
       join(dir, "stores"),
@@ -573,7 +557,6 @@ describe("ACP agents (plan 020)", () => {
     await acp.setEngine({ id: "gone", name: "Gone", command: process.execPath, args: [join(dir, "no-such-script.mjs")] });
     expect((await acp.checkEngine("gone")).engines.find((e) => e.id === "gone")).toMatchObject({ status: "failed" });
 
-    // An edit from Settings, which shows no environment or sign-in method, keeps them.
     writeAcpAgents(file, [
       ...readAcpAgents(file).filter((a) => a.id !== "gone"),
       { id: "gone", name: "Gone", command: "x", args: [], env: { A: "1" }, auth_method: "m" },
@@ -600,7 +583,6 @@ describe("ACP agents (plan 020)", () => {
     await asked.say(id, "hello");
     expect(asked.words()).toBe("Hi there");
 
-    // Not told the method, loki never asks, and the agent says it is signed out.
     const unasked = setup({ env: { FAKE_ACP_AUTH: "fake_login" } });
     const other = await unasked.chat();
     await unasked.say(other, "hello");
@@ -709,7 +691,6 @@ describe("ACP agents (plan 020)", () => {
     expect(asked).toContain(`ada ${id}`);
     expect(prompts.at(-1)).toBe(true);
 
-    // An agent that takes no MCP server over HTTP gets none, and its prompt keeps the memory read-only.
     const plain = setup({ mcpServers: servers, systemPrompt, env: { FAKE_ACP_NO_HTTP_MCP: "1" } });
     const other = await plain.chat();
     await plain.say(other, "mcp?");
@@ -731,7 +712,6 @@ describe("ACP agents (plan 020)", () => {
     expect(opened).toEqual(["https://signin.example.com/authorize?state=1"]);
     expect(s.words()).toBe("sign-in accept");
 
-    // Denied: nothing opens, and the agent hears it declined.
     const other = await s.chat();
     await s.chats.send({ agent_id: "ada", conversation_id: other, text: "signin", images: [], context: null, send_id: null });
     await until(() => s.events().filter((e) => e.kind === "approval").length === 2);
@@ -775,14 +755,12 @@ describe("covers plan 061: a background pass on an ACP agent", () => {
     });
     expect(await s.acp.runPass(pass(s.dir, "mcp?"))).toBe("mcp: loki http://127.0.0.1:9/mcp | allowed: mcp__loki__memory_write");
     expect(asked).toEqual([["memory_write"]]);
-    // A job with no tools (Learn) gets no server at all.
     expect(await s.acp.runPass(pass(s.dir, "mcp?", { tools: [] }))).toBe("mcp: none | allowed: none");
   });
 
   test("whatever the agent asks permission for is refused, and no approval card waits for anyone", async () => {
     const s = setup();
     const said = await s.acp.runPass(pass(s.dir, "edit"));
-    // The fake says "not edited" when its request was rejected, "cancelled" when it got no answer.
     expect(said).toBe("not edited");
     expect(s.approvals.waitingIn("ada", "reflection-ada-acp")).toEqual([]);
   });

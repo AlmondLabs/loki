@@ -1,13 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildSearchIndex, cleanQuery, groupHits, rankHits, tierOf, type Indexed } from "../app/src/shared/search.ts";
 
-/**
- * The shared search core (app/src/shared/search.ts): matching and ranking over any hit type, with no
- * routes and no pages of its own. The phone (phone/search-index.ts) and the desktop's ⌘K each build their
- * hits and destinations on top of it.
- */
-
-/** A hit that is only a name and a group: nothing a router knows about. */
 interface Thing {
   id: string;
   group: "a" | "b";

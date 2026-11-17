@@ -5,8 +5,6 @@ import type { SlashCommand } from "../core/attention/commands.ts";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { SlashPalette } from "../app/src/chat/slash-palette.tsx";
 
-// Plan 2026-11-12-1505, U20: the type-ahead list of commands, drawn as Liquid Glass draws it.
-
 const noop = () => {};
 const commands: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki" },

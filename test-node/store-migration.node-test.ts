@@ -1,7 +1,3 @@
-/**
- * Plans 044 and 045: saved chats take the shapes loki writes now, loki's tool names and none of Letta's, once per store,
- * copied first; a chat on an ACP agent keeps its agent's. Runs under Node (the store is `node:sqlite`): npm run test:node
- */
 import { strict as assert } from "node:assert";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,7 +18,6 @@ const result = (id: string, name: string) =>
   JSON.stringify({ kind: "pi.tool-result", model: [{ role: "toolResult", toolCallId: id, toolName: name, content: [{ type: "text", text: "ok" }] }] });
 const user = (text: string) => JSON.stringify({ kind: "pi.user", model: [{ role: "user", content: [{ type: "text", text }] }] });
 
-/** The rows a store's renaming reads, in conversations 1 (loki's engine) and 2 (an ACP agent's). */
 const ROWS: Array<[number, string]> = [
   [1, call("t1", "tasks", { action: "create", title: "rotate keys" })],
   [1, result("t1", "tasks")],
@@ -44,7 +39,6 @@ const records = (file: string): string[] => {
   }
 };
 
-/** A store with the one table the renaming reads. */
 function table(file: string, rows: Array<[number, string]>): void {
   const db = new DatabaseSync(file);
   db.exec(
@@ -71,9 +65,7 @@ void test("calls and results take the names now, a split tool's by its action; a
     assert.equal(after[2], call("d1", "canvas_read", {}));
     assert.equal(after[3], result("d1", "canvas_read"));
     assert.equal(after[4], call("q1", "user_ask", { questions: [] }));
-    // A current name, an action the old tool never had, and the ACP agent's own names are as they were.
     assert.deepEqual(after.slice(5), before.slice(5));
-    // Again: nothing left to rename, and no second copy.
     assert.deepEqual(migrateStoredEntries(file, new Set([2]), join(dir, "backup2")), { entries: 0, backup: null });
     assert.equal(existsSync(join(dir, "backup2")), false);
   } finally {
@@ -98,7 +90,6 @@ void test("the background task's output, input and stop calls become background_
     assert.equal(after[1], result("o1", "background_watch"));
     assert.equal(after[2], call("w1", "background_watch", { task_id: "bg-1", input: "y\n", timeout_ms: 0 }));
     assert.equal(after[3], call("s1", "background_watch", { task_id: "bg-1", stop: true }));
-    // Claude Code's own TaskStop, in its chat, is its own.
     assert.equal(after[4], call("s2", "TaskStop", { task_id: "b2" }));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -120,8 +111,6 @@ void test("the daemon's store manager renames a store once as it opens it, and l
   } finally {
     await first.closeAll();
   }
-  // A new store is noted as at the version now when it first opens. Forget that (below), and add calls under old names,
-  // as a store from before plan 044 has them.
   table(file, [
     [loki, call("d1", "desk_state", {})],
     [claude, call("s1", "Skill", { skill: "plan" })],
@@ -140,7 +129,6 @@ void test("the daemon's store manager renames a store once as it opens it, and l
   } finally {
     await second.closeAll();
   }
-  // Opened again, it is not read through again.
   const third = new StoreManager(dir, options, ctx, (m) => reports.push(m));
   try {
     await third.get("agent-local-a");
@@ -161,7 +149,6 @@ void test("Letta's notes are loki's reminders, its transcript pointer goes, and 
     withoutLettaText('<task-notification>\n<summary>Background command "Re-auth dev" completed</summary>\n</task-notification>'),
     "<task-notification>\n<summary>Re-auth dev</summary>\n</task-notification>",
   );
-  // A second pass changes nothing.
   for (const t of ["hi <system-alert>low</system-alert>", alert]) assert.equal(withoutLettaText(withoutLettaText(t)), withoutLettaText(t));
 });
 

@@ -3,11 +3,9 @@ import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 import { Button, Field, TextArea } from "../components";
 import { formatKeys } from "../shell/keymap";
 
-/** What the persona box says before anything is typed: what goes there, and where it ends up. */
 export const PERSONA_HINT =
   "Who this agent is and how it works, in your words (optional) — it starts the agent's memory, system/persona.md, which the agent keeps up from there";
 
-/** The form for a new agent: name, description, persona (in the person's own words), a model. */
 export function NewAgent({
   models,
   onLoadModels,
@@ -92,7 +90,11 @@ export function NewAgent({
         </Labelled>
         <Labelled label="">
           <div className="flex items-center gap-2">
-            {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+            {error && (
+              <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+                {error}
+              </span>
+            )}
             <span className="flex-1" />
             {canCancel && <Button onClick={onCancel}>Cancel</Button>}
             <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>
@@ -105,17 +107,14 @@ export function NewAgent({
   );
 }
 
-/**
- * A labelled line in the new-agent form: one label column wide enough for the longest label, so every control starts
- * at the same edge; the label sits level with the control's first line (a list's label at its top, not its middle).
- */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
+  const Line = label ? "label" : "div";
   return (
-    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4" style={{ padding: "0 8px" }}>
+    <Line className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4" style={{ padding: "0 8px" }}>
       <span className="loki-label" style={{ paddingTop: 8, lineHeight: "18px" }}>
         {label}
       </span>
-      <div className="min-w-0">{children}</div>
-    </div>
+      <span className="block min-w-0">{children}</span>
+    </Line>
   );
 }

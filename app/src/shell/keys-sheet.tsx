@@ -2,20 +2,12 @@ import { Button, Kbd, Meta, Sheet, sentence } from "../components";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
 import { keyboard } from "../desk/env";
 
-/**
- * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
- * then the ones that work everywhere — and closes on `?` or Escape. The rows are the keymap's (keymap.ts), so
- * the sheet cannot drift from the handler or the menu; the full table with the global key lives in Preferences › Keys.
- * It is a plain panel that dims nothing behind it (plan 2026-11-12-1505, U20): the menu bar carries the keys, and this is
- * the list of them for the view, named as the sidebar names it.
- */
 export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; onClose: () => void; onSettings: () => void }) {
   const groups = keysFor(segment, KEYMAP, keyboard);
   const place = PLACE[segment] ?? sentence(segment);
   return (
     <Sheet label={`Keys for ${place}`} onClose={onClose} width={620} clear>
       <div
-        // The card caps its height and clips; the list scrolls inside it, so a view with many keys shows them all.
         className="grid gap-4"
         style={{ padding: "16px 24px", maxHeight: "inherit", boxSizing: "border-box", overflowY: "auto" }}
         onKeyDown={(e) => {
@@ -65,16 +57,10 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
   );
 }
 
-/** The footer's pointer to Preferences › Keys; the system-wide key is there on the Mac only (R3). */
 export function keysSheetNote(os: Platform = keyboard): string {
   return os === "macos" ? "the whole table, and the system-wide key, are in Preferences › Keys" : "the whole table is in Preferences › Keys";
 }
 
-/**
- * The groups the sheet shows for a segment: the view's own bindings (the desk's include the chat box's), then "anywhere"
- * — less any key the view takes for itself (none does today; keymap.test.ts keeps it so). The rows carry
- * the system's own keys (keysOf).
- */
 export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
@@ -96,7 +82,6 @@ export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform 
     .filter((g) => g.rows.length > 0);
 }
 
-/** A section as the sidebar names it, where that differs from its id. */
 const PLACE: Partial<Record<Segment, string>> = { desk: "Chats", inbox: "Flow" };
 
 const TITLE: Partial<Record<Where, string>> = {

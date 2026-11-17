@@ -1,15 +1,3 @@
-/* loki app primitives — the one vocabulary for chrome, in Slack's voice (2026-09-23).
-   Every control here has default, hover, focus (kit/tokens.css), active and disabled states in CSS, so a
-   component never re-invents them inline. Sizes: sm 28 · md 36 · touch 44 (the phone's floor). Radii come
-   from the tokens: sm 6 field, icon button, dense row · md 8 button, row · lg 12 sheet, popover, card ·
-   pill chip, toast. Tones (the API names are kept): quiet (muted ink) · paper (fg ink) · brass → the
-   interactive blue (accent ink on a hairline; no longer "needs you") · positive → Slack's green affirmative,
-   filled · negative (red ink). Needs-you is the red attention badge (Chip `attention`), never a button tone.
-   The type is the sans reading face throughout; mono is left for key hints and fields that hold code.
-   Widgets keep their own kit (kit/index.tsx); this file is for the shell, the chat, the inbox,
-   the agents pages, settings and the phone (which restyles some of it under .loki-phone). */
-
-/* ---- Button -------------------------------------------------------------------------------------- */
 .loki-btn {
   display: inline-flex;
   align-items: center;
@@ -74,7 +62,6 @@
 .loki-btn--paper {
   color: var(--loki-fg);
 }
-/* brass (the kept name): the interactive blue — a link-coloured action on a hairline. */
 .loki-btn--brass {
   color: var(--loki-accent);
 }
@@ -84,7 +71,6 @@
   background: var(--loki-brass-soft);
   color: var(--loki-accent);
 }
-/* positive: Slack's affirmative button — green filled, white ink. The one commit on a surface. */
 .loki-btn--positive {
   border-color: var(--loki-affirm);
   background: var(--loki-affirm);
@@ -106,61 +92,73 @@
 .loki-btn--negative {
   color: var(--loki-negative);
 }
-/* No hairline: header actions, inline links-that-act. */
 .loki-btn--bare {
   border-color: transparent;
 }
-/* Destroys something: red only once the pointer commits to it. */
 @media (hover: hover) and (pointer: fine) {
   .loki-btn--danger:hover:not(:disabled) {
     color: var(--loki-negative);
   }
 }
-/* A square glyph button; the size is set inline (24, 28, 36, 40). */
 .loki-btn--icon {
   padding: 0;
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
 }
-/* Fills its row; the label sits left. */
 .loki-btn--block {
   width: 100%;
   justify-content: flex-start;
   text-align: left;
   white-space: normal;
 }
-/* Pages down the left of Settings and Agents: the reading face, the row radius, the panel when current. */
 .loki-nav {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
   text-align: left;
-  padding: 8px;
+  padding: 4px 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: transparent;
-  color: var(--loki-muted);
+  color: var(--loki-fg);
   font-family: var(--loki-font);
   font-size: var(--text-sm);
-  cursor: pointer;
+  cursor: default;
   transition:
     background-color 120ms ease-out,
     color 120ms ease-out;
 }
 @media (hover: hover) and (pointer: fine) {
-  .loki-nav:hover {
+  .loki-nav:hover:not([aria-selected="true"]) {
     background: var(--loki-hover);
-    color: var(--loki-fg);
   }
 }
 .loki-nav[aria-current],
 .loki-nav[aria-selected="true"] {
-  background: var(--loki-selection);
-  border-color: var(--loki-control-border);
-  color: var(--loki-fg);
+  background: var(--loki-affirm);
+  color: var(--loki-on-affirm);
+}
+.loki-settings-row-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--loki-bg);
+}
+.loki-settings-heading {
+  padding: 12px calc(8px + 1px) 4px;
+  color: var(--loki-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.loki-settings-heading:first-child {
+  padding-top: 0;
 }
 
-/* ---- Chip ---------------------------------------------------------------------------------------- */
 .loki-chip {
   display: inline-flex;
   align-items: center;
@@ -196,31 +194,26 @@
   opacity: 0.5;
   cursor: default;
 }
-/* Chosen: neutral. A filter or a choice is a selection, not an alert. */
 .loki-chip--active {
   border-color: var(--loki-fg);
   background: var(--loki-selection);
   color: var(--loki-fg);
 }
-/* brass (the kept name): the blue pick — a chosen agent, an open permission mode. Blue ink on a blue wash. */
 .loki-chip--brass {
   border-color: var(--loki-accent);
   background: var(--loki-brass-soft);
   color: var(--loki-accent);
 }
-/* Needs you: Slack's red badge — a filled pill, white ink, bold. Unread and waiting counts. */
 .loki-chip--attention {
   border-color: var(--loki-attention);
   background: var(--loki-attention);
   color: var(--loki-on-attention);
   font-weight: 700;
 }
-/* A status badge in its own colour: set --chip-tone inline. */
 .loki-chip--tone {
   color: var(--chip-tone);
   border-color: var(--chip-tone);
 }
-/* Reads only: a tag, a badge. */
 .loki-chip--static {
   cursor: default;
 }
@@ -228,35 +221,29 @@
   min-height: 32px;
   padding: 4px 12px;
 }
-/* A tag inside a meta line: as tall as the line. */
 .loki-chip--tag {
   min-height: 0;
   padding: 1px 8px;
   font-size: var(--text-xs);
 }
-/* Floating over the sheet or the transcript: opaque, with the low shadow. */
 .loki-chip--float {
   background: var(--loki-panel);
   box-shadow: var(--loki-shadow-low);
 }
-/* Mid-change ("switching…"): quiet and waiting, never dimmed text. */
 .loki-chip[aria-busy="true"] {
   color: var(--loki-muted);
   border-color: var(--loki-control-border);
   cursor: progress;
 }
-/* A name chip (the new chat's agents, Settings' choices): the chip, a touch bolder. It was condensed caps until 2026-09-23. */
 .loki-chip--label {
   font-weight: 600;
 }
 
-/* ---- Field --------------------------------------------------------------------------------------- */
-/* A field and the button beside it share a size (sm with sm, md with md, touch with touch). */
 .loki-field {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
+  min-height: 36px;
   padding: 4px 12px;
   border: 1px solid var(--loki-control-border);
   border-radius: var(--radius-md);
@@ -282,18 +269,19 @@
 .loki-field[aria-invalid="true"] {
   border-color: var(--loki-negative);
 }
+.loki-field:focus:not(.loki-field--bare, [aria-invalid="true"], .loki-phone *) {
+  border-color: var(--loki-accent);
+}
 .loki-field--sm {
   min-height: 28px;
   padding: 4px 12px;
   font-size: var(--text-xs);
 }
-/* 15px so iOS does not zoom in on focus; 44 tall for a thumb. */
 .loki-field--touch {
   min-height: 44px;
   padding: 12px;
   font-size: var(--text-sm);
 }
-/* The first line of a sheet (search, a title): no box, a hairline below. */
 .loki-field--bare {
   min-height: 0;
   padding: 12px 16px;
@@ -307,7 +295,6 @@
     border-color: var(--loki-border);
   }
 }
-/* Text that is secretly editable (an agent's name on its profile): shows its box on hover and focus. */
 .loki-field--inline {
   min-height: 0;
   padding: 2px 4px;
@@ -336,8 +323,6 @@ textarea.loki-field {
   overflow-y: auto;
 }
 
-/* ---- Row ----------------------------------------------------------------------------------------- */
-/* A pickable line in a list: neutral hover and selection states, never the accent or the badge. */
 .loki-row {
   display: flex;
   align-items: center;
@@ -374,7 +359,6 @@ textarea.loki-field {
 .loki-row--touch {
   min-height: 44px;
 }
-/* Rows inside one bordered group: square, hairlines between, two-line content top-aligned. */
 .loki-row--flush {
   border-radius: 0;
   align-items: flex-start;
@@ -383,7 +367,6 @@ textarea.loki-field {
   border-top-color: var(--loki-border);
 }
 
-/* ---- Sheet, popover, toast ------------------------------------------------------------------------ */
 .loki-veil {
   position: absolute;
   inset: 0;
@@ -393,20 +376,37 @@ textarea.loki-field {
   place-items: start center;
   padding-top: var(--sheet-top, 6vh);
 }
-/* Only a sheet opened by a click fades in (Sheet sets data-grow); one a key opens is just there. */
 .loki-veil[data-grow] {
   animation: loki-veil 160ms ease-out both;
 }
-.loki-veil--scroll {
-  overflow-y: auto;
+/* A desktop sheet (plan 2026-11-15-1900): shadcn's Dialog, its overlay the veil and its viewport what places the card.
+   These rules are outside Tailwind's layers, so they win over the overlay's own utilities. */
+.loki-sheet-veil {
+  position: fixed;
+  inset: 0;
+  background: var(--loki-veil);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
 }
-/* A floating panel (Sheet clear): the window stays as it is behind it, as behind Spotlight. */
-.loki-veil--clear,
-.loki-veil--clear[data-grow] {
+.loki-sheet-veil[data-grow] {
+  animation: loki-veil 160ms ease-out both;
+}
+.loki-sheet-veil--clear,
+.loki-sheet-veil--clear[data-grow] {
   background: transparent;
   animation: none;
 }
-.loki-veil--scroll > .loki-sheet-card {
+.loki-sheet-viewport {
+  box-sizing: border-box;
+  display: grid;
+  place-items: start center;
+  padding-top: var(--sheet-top, 6vh);
+}
+.loki-sheet-viewport--scroll {
+  overflow-y: auto;
+}
+.loki-sheet-viewport--scroll > .loki-sheet-card {
   max-height: none;
   overflow: visible;
   margin-bottom: 48px;
@@ -468,7 +468,10 @@ textarea.loki-field {
   top: auto;
   bottom: calc(100% + 6px);
 }
-/* Opened by a click, it grows out of the corner it hangs from: light and quick, as a popover should be. */
+.loki-popover--anchored {
+  position: static;
+  max-width: none;
+}
 @keyframes loki-popover-grow {
   from {
     opacity: 0;
@@ -522,7 +525,6 @@ textarea.loki-field {
   font-size: var(--text-xs);
 }
 
-/* ---- Text ---------------------------------------------------------------------------------------- */
 .loki-kbd {
   font-family: var(--loki-mono);
   font-size: var(--text-xs);
@@ -543,7 +545,6 @@ textarea.loki-field {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* brass (the kept name): a meta line worth a look, in the accent blue. */
 .loki-meta--brass {
   color: var(--loki-accent);
 }
@@ -551,17 +552,14 @@ textarea.loki-field {
   white-space: normal;
   overflow: visible;
 }
-/* A small line that went wrong (a failed save, a refused install): the same meta, in the negative ink. */
 .loki-meta--negative {
   color: var(--loki-negative);
 }
 /* The two text classes. They sit after .loki-meta so a meta line can take either: a Tailwind utility would lose to
    .loki-meta, because loki's stylesheets are not in a cascade layer and Tailwind's utilities are. */
-/* Mono: code, paths, hosts, keys and other data (the rule under Tokens). Sets the face only. */
 .loki-mono {
   font-family: var(--loki-mono);
 }
-/* One line, cut with an ellipsis. min-width: 0 lets it shrink as a flex or grid item. */
 .loki-truncate {
   min-width: 0;
   overflow: hidden;
@@ -599,35 +597,29 @@ textarea.loki-field {
   margin: 8px 0 0;
   line-height: 1.6;
 }
-.loki-empty > .loki-btn {
+.loki-empty > button {
   margin-top: 12px;
 }
 
-/* ---- Dot ----------------------------------------------------------------------------------------- */
 .loki-dot {
   display: inline-block;
   flex: 0 0 auto;
   box-sizing: border-box;
   border-radius: 50%;
 }
-/* Lifted off whatever it sits on (a rail icon) by a panel-coloured ring. */
 .loki-dot--halo {
   outline: 1px solid var(--loki-panel);
 }
 
-/* ---- Slack building blocks (plan 013) ------------------------------------------------------------- */
-/* The icon family (shared/icons.tsx): a block, so it sits on the line box's centre, never its baseline. */
 .loki-icon {
   display: block;
   flex: none;
 }
-/* In a line of text ("⎇ main", "↓ Needs you"): on the line, centred on its letters. */
 .loki-icon.loki-icon--inline {
   display: inline-block;
   vertical-align: -0.15em;
 }
 
-/* A list of rows (ListRow): no markers, no indent. */
 .loki-list {
   list-style: none;
   margin: 0;
@@ -650,7 +642,6 @@ textarea.loki-field {
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
-  /* Full ink, as Mail titles every message: what is new is told by weight and its mark, never by greying the rest. */
   color: var(--loki-fg);
   font-family: var(--loki-font);
   font-size: var(--text-sm);
@@ -670,19 +661,14 @@ textarea.loki-field {
     color: var(--loki-fg);
   }
 }
-/* The open chat: the selection a clear step past hover, so it holds while the pointer is on its neighbour. The ink
-   mixed in keeps it neutral in every theme and family (never the accent or the badge). */
 .loki-list-row[aria-current] {
   background: color-mix(in srgb, var(--loki-selection), var(--loki-fg) 8%);
   color: var(--loki-fg);
 }
-/* On the selection fill the muted grey falls under AA, so the open row's preview and time take full ink, as Mail's
-   selected message does; their smaller size still sets them below the name. */
 .loki-list-row[aria-current] .loki-list-row-preview,
 .loki-list-row[aria-current] .loki-list-row-time {
   color: var(--loki-fg);
 }
-/* Unread: bold, in full ink. The status words in the row say it too (rowStatus), so weight is not the only sign. */
 .loki-list-row--unread {
   color: var(--loki-fg);
   font-weight: 700;
@@ -700,8 +686,6 @@ textarea.loki-field {
   flex: none;
   color: inherit;
 }
-/* The agent is working: Slack's green presence dot, at the lead's corner (or before the title when there is no lead). */
-/* A chat mid-turn: the dot breathes while it works. Reduced motion zeroes the duration, which leaves it steady. */
 @keyframes loki-live-pulse {
   50% {
     opacity: 0.3;
@@ -716,7 +700,6 @@ textarea.loki-field {
   background: var(--loki-positive);
   animation: loki-live-pulse 1.6s ease-in-out infinite;
 }
-/* In the badge's place on the right, where every row's mark lines up (ListRow liveAtEnd). */
 .loki-list-row-live--end {
   margin: 0 4px;
 }
@@ -753,8 +736,6 @@ textarea.loki-field {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* On the name line, at its right edge: the name truncates first, and the time keeps its width and the row's 8px from
-   the words before it (ListRow). */
 .loki-list-row-time {
   flex: none;
   margin-left: auto;
@@ -763,7 +744,6 @@ textarea.loki-field {
   font-weight: 400;
   color: var(--loki-muted);
 }
-/* Needs you: Slack's red count pill. */
 .loki-list-badge {
   flex: none;
   min-width: 18px;
@@ -786,7 +766,6 @@ textarea.loki-field {
 .loki-list-badge[data-pop] {
   animation: loki-badge-pop var(--spring-bouncy-ms) var(--spring-bouncy);
 }
-/* Row actions: out of sight until the row is hovered or one of them has focus, then over the row's right edge. */
 .loki-list-row-actions {
   position: absolute;
   top: 50%;
@@ -810,12 +789,10 @@ textarea.loki-field {
     pointer-events: auto;
   }
 }
-/* On the open chat they sit on its fill (.loki-list-row[aria-current]). */
 .loki-list-item[data-current] .loki-list-row-actions {
   background: color-mix(in srgb, var(--loki-selection), var(--loki-fg) 8%);
 }
 
-/* A sidebar section (ListSection): a folding heading with its actions on the right, then the rows. */
 .loki-list-section {
   margin: 0 0 8px;
 }
@@ -868,7 +845,6 @@ button.loki-list-section-toggle {
   font-weight: 400;
   color: var(--loki-muted);
 }
-/* The Mac an agent lives on, beside its section's title: always shown, quieter than the title. */
 .loki-list-section-aside {
   display: inline-flex;
   align-items: center;
@@ -893,7 +869,6 @@ button.loki-list-section-toggle {
   }
 }
 
-/* The window's top edge in the app (TitleStrip): the rail's colour across the width, the traffic lights over its left end. */
 .loki-title-strip {
   position: absolute;
   top: 0;
@@ -903,7 +878,6 @@ button.loki-list-section-toggle {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Off the Mac (plan 014 KTD4) the strip carries Slack's Windows and Linux chrome: ☰ at the left, the window buttons flush right, flat and full height. */
 .loki-title-strip--own {
   display: flex;
   align-items: stretch;
@@ -936,11 +910,11 @@ button.loki-list-section-toggle {
 }
 .loki-title-btn--menu {
   width: 48px;
-} /* the rail's width (SIDEBAR_WIDTH): ☰ sits over the rail */
+}
 @media (hover: hover) and (pointer: fine) {
   .loki-title-btn--close:hover {
-    background: var(--loki-attention);
-    color: var(--loki-on-attention);
+    background: var(--loki-negative);
+    color: var(--loki-bg);
   }
 }
 .loki-window-controls {
@@ -951,38 +925,11 @@ button.loki-list-section-toggle {
   position: relative;
   display: flex;
 }
-.loki-title-menu {
-  position: absolute;
-  top: 100%;
-  left: 4px;
-  display: flex;
-  align-items: flex-start;
-  gap: 2px;
+.loki-browser-menu .loki-title-btn--menu {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-lg);
 }
-.loki-title-menu-panel {
-  box-sizing: border-box;
-  min-width: 180px;
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  padding: 4px;
-  background: var(--loki-panel);
-  border: 1px solid var(--loki-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--loki-shadow-float);
-}
-.loki-title-submenu {
-  min-width: 260px;
-}
-.loki-title-menu-item,
-.loki-desk-pane-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  font-size: var(--text-sm);
-}
-/* A drawn menu's icon column (U22): the action's Lucide icon, at the toolbar's size and stroke, in the label's colour. */
 .loki-menu-label {
   display: inline-flex;
   align-items: center;
@@ -1001,21 +948,10 @@ button.loki-list-section-toggle {
   height: 16px;
   stroke-width: 1.75;
 }
-/* A drawn menu's checkmark on its chosen item, and a submenu's label over its items (shell/menu-items.tsx, U19). */
 .loki-menu-check {
   color: var(--loki-accent);
 }
-.loki-menu-group-label {
-  padding: 8px 8px 2px;
-}
-.loki-title-menu-sep {
-  height: 1px;
-  margin: 4px 0;
-  border: none;
-  background: var(--loki-border);
-}
 
-/* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
 .loki-pane-header {
   flex: none;
   display: flex;
@@ -1023,9 +959,6 @@ button.loki-list-section-toggle {
   border-bottom: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
-/* The detail's, the list's and a Flow card's title bars (plan 2026-11-14-2224, KTD4) are 52 high, their buttons centred
-   and their title stacks at the top 6px down, 4 of the bar's padding and 2 of the stack's own margin (the detail
-   title's 40px stack centred in 52), so a one-line and a two-line title share one top line. */
 .loki-pane-header-line {
   display: flex;
   align-items: center;
@@ -1068,46 +1001,12 @@ button.loki-list-section-toggle {
   flex: none;
 }
 
-/* A tab row (TabRow): Slack's Messages | Canvas | Files. The chosen tab is full ink over a 2px rule. */
-.loki-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 0 12px;
-}
-.loki-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 8px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--loki-muted);
-  font-family: var(--loki-font);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    color 120ms ease-out,
-    border-color 120ms ease-out;
-}
-@media (hover: hover) and (pointer: fine) {
-  .loki-tab:hover {
-    color: var(--loki-fg);
-  }
-}
-.loki-tab[aria-selected="true"] {
-  color: var(--loki-fg);
-  border-bottom-color: var(--loki-fg);
-}
 .loki-tab-count {
   font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
 }
 
-/* The desk pane (desk/desk-pane.tsx): the header over two stacked tab panels; the hidden one keeps its layout (visibility), so the thread keeps its scroll and the sheet its camera. */
 .loki-desk-pane {
   position: absolute;
   inset: 0;
@@ -1147,7 +1046,6 @@ button.loki-list-section-toggle {
   display: inline-flex;
 }
 
-/* A pane with nothing in it (EmptyPane): the Empty block, centred in whatever space the pane has. */
 .loki-empty-pane {
   flex: 1;
   min-height: 0;
@@ -1161,7 +1059,6 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
 }
 
-/* The sidebar (shell/ListColumn): the places and their sources, beside the list column. */
 .loki-column {
   position: absolute;
   bottom: 0;
@@ -1171,8 +1068,6 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
 }
-/* The list column (shell/shell.tsx, plan 2026-11-14-1330 KTD1): a place's items between the sidebar and the detail, on the
-   detail's ground with a hairline before it, as Mail's message list. */
 .loki-list-column {
   display: flex;
   flex-direction: column;
@@ -1181,14 +1076,12 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
-/* The slot the place's list is drawn into (shell/place-columns.tsx). */
 .loki-list-column-slot {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-/* The place's list inside it (shell/content-list.tsx, KTD3): Mail's message list, a toolbar over the rows. */
 .loki-content-list {
   display: flex;
   flex-direction: column;
@@ -1203,7 +1096,15 @@ button.loki-list-section-toggle {
   min-height: 52px;
   padding: 4px 8px 4px 16px;
 }
-/* The bar's title stack: the source's name and grey count, over its grey line when it has one. */
+.loki-lead-room {
+  display: none;
+}
+[data-lead] .loki-lead-room {
+  display: block;
+  flex: none;
+  width: var(--loki-lead);
+  align-self: stretch;
+}
 .loki-content-list-head {
   display: flex;
   flex-direction: column;
@@ -1211,6 +1112,10 @@ button.loki-list-section-toggle {
   min-width: 0;
   align-self: flex-start;
   margin-top: 2px;
+}
+:root[data-vibrant] .loki-content-list-head {
+  align-self: center;
+  margin-top: 0;
 }
 .loki-content-list-name {
   display: flex;
@@ -1235,11 +1140,12 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
-/* New keeps the toolbar's trailing edge, with or without a count. */
-.loki-content-list-bar > .loki-btn {
+.loki-content-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
 }
-/* The toolbar's grey line under the title (All Cards: when Learn last wrote), as a chat's toolbar has one. */
 .loki-content-list-line {
   margin: 0;
   overflow: hidden;
@@ -1248,8 +1154,10 @@ button.loki-list-section-toggle {
   font-size: var(--text-xs);
   color: var(--loki-muted);
 }
-/* The list column has two edges: the search field's box and the row highlight at 4, and the title, its line, the
-   field's text and the rows' text at 16 (4 + 12; the field's 1px border takes one of its 12). */
+.loki-content-list-scope {
+  flex: none;
+  padding: 0 4px 8px;
+}
 .loki-content-list-search {
   flex: none;
   padding: 0 4px 8px;
@@ -1265,6 +1173,28 @@ button.loki-list-section-toggle {
   overflow-y: auto;
   padding: 4px 4px 8px;
 }
+.loki-content-list-rows[data-divided] .loki-list-row {
+  padding-block: 8px;
+}
+.loki-content-list-rows[data-divided] .loki-list-item + .loki-list-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 40px;
+  right: 12px;
+  border-top: 1px solid var(--loki-border);
+  pointer-events: none;
+}
+.loki-content-list-rows[data-divided] .loki-list-item[data-current]::before,
+.loki-content-list-rows[data-divided] .loki-list-item[data-current] + .loki-list-item::before {
+  border-top-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-content-list-rows[data-divided] .loki-list-item:hover::before,
+  .loki-content-list-rows[data-divided] .loki-list-item:hover + .loki-list-item::before {
+    border-top-color: transparent;
+  }
+}
 .loki-content-list-empty {
   display: flex;
   flex-direction: column;
@@ -1279,9 +1209,6 @@ button.loki-list-section-toggle {
   margin: 0;
   font-weight: 600;
 }
-/* The selection while the rows have focus: the accent with white ink, as a Mac list's (R15); grey otherwise
-   (.loki-list-row[aria-current]). The affirmative fill is the accent's blue that holds white at AA in both themes, which
-   the tokens test checks; the row's grey words and its badge take the same white. */
 .loki-content-list-rows:focus-within .loki-list-item[data-current] > .loki-list-row,
 .loki-content-list-rows:focus-within .loki-list-item[data-current] .loki-list-row-actions {
   background: var(--loki-affirm);
@@ -1295,8 +1222,11 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-on-affirm);
 }
-/* Agents (plan 2026-11-14-1330, KTD9): the chosen agent's page as the detail, its item under the toolbar; on Profile,
-   which has no list, the detail spans the list's column too. */
+/* The filled row is the focus mark, as a Mac list's (plan 2026-11-15-1035, R3): the ring goes transparent on it, so it
+   still draws where forced colours repaint outlines. Any other focused row (none chosen yet, a held row) keeps the ring. */
+.loki-content-list-rows .loki-list-item[data-current] > .loki-list-row:focus-visible {
+  outline: 2px solid transparent;
+}
 .loki-agents-detail {
   position: absolute;
   inset: 0;
@@ -1312,8 +1242,6 @@ button.loki-list-section-toggle {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
 }
-/* Learn (plan 2026-11-14-1330, U8): a view's cards or leads in the list column, the deck or the item chosen as the
-   detail, which takes focus from the list's Return so Review's keys answer the card. */
 .loki-learn-list {
   display: flex;
   flex-direction: column;
@@ -1327,7 +1255,6 @@ button.loki-list-section-toggle {
   flex-direction: column;
   background: var(--loki-bg);
 }
-/* Flow (plan 2026-11-14-1330, U6): its list in the list column, its selected card as the detail, the card without a box. */
 .loki-flow-list {
   display: flex;
   flex-direction: column;
@@ -1348,7 +1275,6 @@ button.loki-list-section-toggle {
   display: flex;
   flex-direction: column;
 }
-/* A Flow row's subject and its line of preview, each one line under the sender (desk/flow-column.tsx). */
 .loki-flow-row-subject,
 .loki-flow-row-line {
   display: block;
@@ -1359,14 +1285,12 @@ button.loki-list-section-toggle {
 .loki-flow-row-subject {
   color: var(--loki-fg);
 }
-/* A card whose account needs mending: a muted mark after the sender, never red. */
 .loki-flow-row-mark {
   flex: none;
   font-size: var(--text-xs);
   font-weight: 400;
   color: var(--loki-muted);
 }
-/* The visit's summary in Flow's detail: what it did, then the way back to Everything in a lane. */
 .loki-empty-pane-summary {
   margin: 0 0 4px;
   font-size: var(--text-sm);
@@ -1380,7 +1304,6 @@ button.loki-list-section-toggle {
   gap: 8px;
   margin-top: 12px;
 }
-/* The resize edge: a few px over the hairline, the accent while dragged or focused. */
 .loki-column-edge {
   position: absolute;
   top: 0;
@@ -1401,7 +1324,6 @@ button.loki-list-section-toggle {
   }
 }
 
-/* ---- Segmented: two to four values, one chosen, in one track (Preferences, plan 031) ----------------------- */
 .loki-segmented {
   display: inline-flex;
   padding: 2px;
@@ -1438,17 +1360,10 @@ button.loki-list-section-toggle {
   box-shadow: var(--loki-shadow-low);
 }
 
-/* ---- A Preferences block: its settings divided by hairlines (plan 031) ------------------------------------- */
 .loki-settings-block > * + * {
   border-top: 1px solid var(--loki-border);
 }
 
-/* Liquid Glass, the window shell (plan 2026-11-12-1505, U3). The list column sits clear on one glass panel inset from
-   the window's edge (shell.tsx); the top strip and the pane header lose their fills and rules, and the header's view
-   tabs become a capsule of glass beside the title, as a Mac toolbar's segmented control. The block below lays these
-   over the plainer rules above. */
-/* The Settings window (shell/settings-window.tsx, U18): Settings fills it; its section list is the sidebar, on the window's
-   material in the Mac app (styles.css) and on the panel colour elsewhere. */
 .loki-settings-window {
   position: fixed;
   inset: 0;
@@ -1458,12 +1373,9 @@ button.loki-list-section-toggle {
 .loki-settings-nav {
   background: var(--loki-panel);
 }
-/* The window's ground (shell.tsx), opaque except where the Mac app lets its material through (styles.css, U13). */
 .loki-shell {
   background: var(--loki-bg);
 }
-/* Liquid Glass's places (shell/sidebar.tsx Places, U12): the source list's first rows, as Mail lists its mailboxes. A
-   symbol in the accent, the name, a grey count; the place showing is filled, never bold. */
 .loki-places {
   flex: 0 1 auto;
   min-height: 0;
@@ -1491,19 +1403,19 @@ button.loki-list-section-toggle {
 }
 .loki-place[aria-current] {
   background: var(--loki-selection);
+  color: var(--loki-accent);
 }
 .loki-place-icon {
   position: relative;
   display: grid;
   place-items: center;
   width: 20px;
-  color: var(--loki-accent);
+  color: inherit;
 }
 .loki-place-icon svg {
   width: 16px;
   height: 16px;
 }
-/* An agent at work (the Agents place's sources): the green dot at its face's corner, as on a list row's lead. */
 .loki-place-icon > .loki-list-row-live {
   position: absolute;
   right: 0;
@@ -1521,8 +1433,6 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
-/* A place's sources (plan 2026-11-14-1330, R1): one level under its row, and a chevron at the row's trailing edge that
-   folds them, shown on hover as Mail's is. */
 .loki-place-group,
 .loki-place-sources {
   display: flex;
@@ -1532,10 +1442,20 @@ button.loki-list-section-toggle {
 .loki-place-head {
   position: relative;
   display: flex;
+  align-items: center;
+  height: 28px;
+  margin-top: 8px;
+  padding: 0 8px;
 }
-.loki-place-head > .loki-place {
+.loki-place-group:first-child > .loki-place-head {
+  margin-top: 0;
+}
+.loki-place-heading {
   flex: 1;
   min-width: 0;
+  color: var(--loki-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
 }
 .loki-place-fold {
   position: absolute;
@@ -1562,11 +1482,9 @@ button.loki-list-section-toggle {
   padding: 0;
   list-style: none;
 }
-.loki-place--source {
+.loki-place-sources .loki-place {
   width: 100%;
-  padding-left: 20px;
 }
-/* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
 .loki-sidebar-toggle[aria-pressed] {
   background: transparent;
 }
@@ -1582,7 +1500,6 @@ button.loki-list-section-toggle {
     background: transparent;
     border-right: 0;
   }
-  /* A row's count is grey text at its trailing edge, as a Mac source list's is (U17): no pill, no red. */
   .loki-list-badge {
     min-width: 0;
     padding: 0;
@@ -1591,7 +1508,6 @@ button.loki-list-section-toggle {
     font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
-  /* One sidebar (U12): it floats inside the glass panel. */
   .loki-column {
     bottom: 8px;
   }
@@ -1613,25 +1529,6 @@ button.loki-list-section-toggle {
   .loki-pane-header-subtitle {
     grid-area: sub;
   }
-  /* Every tab row is a segmented control (U8): a grey track with the chosen tab raised; in the pane header the track
-     is glass (below). */
-  .loki-tabs {
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--loki-radius-pill);
-    background: var(--loki-hover);
-    width: fit-content;
-  }
-  .loki-tab {
-    min-height: 26px;
-    padding: 0 12px;
-    border-bottom: 0;
-    border-radius: var(--loki-radius-pill);
-  }
-  .loki-tab[aria-selected="true"] {
-    background: var(--loki-segment);
-    box-shadow: var(--loki-shadow-low);
-  }
   .loki-pane-header .loki-tabs {
     grid-area: tabs;
     background: var(--loki-glass);
@@ -1642,10 +1539,7 @@ button.loki-list-section-toggle {
       0 0 0 0.5px var(--loki-glass-edge),
       var(--loki-shadow-low);
   }
-  /* Tab views are centred in the toolbar (plan 2026-11-14-1330, KTD11): two equal sides hold them in the middle, and
-     the trailing side never shrinks below its symbols, so on a narrow detail the tabs fall in line just before them and
-     the title gives way. */
-  .loki-pane-header:has(> .loki-tabs) {
+  .loki-pane-header:has(> [data-slot="tabs"] > .loki-tabs) {
     grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   }
   .loki-pane-header .loki-tab {
@@ -1658,21 +1552,17 @@ button.loki-list-section-toggle {
     background: var(--loki-selection);
   }
 
-  /* The chat's toolbar (U13): one row, the title over a grey line of facts, then the Messages / Canvas control and one
-     glass group of the chat's moves as symbols, their names and keys in their tooltips, as Mail's toolbar draws them. */
   .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
     min-height: 22px;
     padding: 0 12px;
     font-size: var(--text-xs);
   }
-  /* The symbols, and room for the Update button the shell lays over the detail's top right (shell/update-button.tsx). */
   .loki-pane-header-trailing {
     grid-area: tools;
     justify-self: end;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-right: var(--loki-toolbar-room);
   }
   .loki-toolbar-title {
     display: flex;
@@ -1691,20 +1581,16 @@ button.loki-list-section-toggle {
     font-weight: 600;
     color: var(--loki-fg);
   }
-  /* A Flow card's toolbar (U16; plan 2026-11-14-1330, R10), the detail's top band as the chat's is: the card's title
-     and facts, its moves as symbols at the trailing edge, which leaves room for the Update button; the title opens the
-     chat. An outside card's sender face leads it. */
   .loki-card-toolbar {
     display: flex;
     align-items: center;
     gap: 12px;
     min-height: 52px;
-    padding: 4px calc(12px + var(--loki-toolbar-room)) 4px 20px;
+    padding: 4px 12px 4px 20px;
   }
   .loki-card-toolbar > .loki-toolbar-title {
     flex: 1;
   }
-  /* Solid to its foot with a short fade, as the chat's toolbar is, so the thread scrolls out of sight beneath it. */
   .loki-card-toolbar {
     position: relative;
     z-index: 2;
@@ -1744,7 +1630,6 @@ button.loki-list-section-toggle {
     font-size: var(--text-xs);
     color: var(--loki-muted);
   }
-  /* A chat's link to another (chat/link-header.tsx) reads as more of the grey line, not a pill that grows the toolbar. */
   .loki-toolbar-sub .loki-chat-links {
     display: inline-flex;
     margin-left: 8px;
@@ -1757,8 +1642,6 @@ button.loki-list-section-toggle {
     font-size: var(--text-xs);
     font-weight: 400;
   }
-  /* A chat not started yet (U20): under its title, a To: line as Messages draws one, with the agent as a token and
-     the folder it will work in, quiet, at the trailing edge. */
   .loki-new-chat-to {
     display: flex;
     align-items: center;
@@ -1829,11 +1712,10 @@ button.loki-list-section-toggle {
   .loki-new-chat-notice {
     width: 100%;
     max-width: 48rem;
-    padding: 0 20px 8px;
+    margin: 0 auto;
+    padding: 0 0 8px;
   }
 
-  /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as
-     under a Mac window's scroll edge, never through its words. */
   .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title) {
     background: var(--loki-bg);
   }
@@ -1888,7 +1770,6 @@ button.loki-list-section-toggle {
   .loki-toolbar-item:disabled {
     opacity: 0.35;
   }
-  /* The group's one prominent item (plan 2026-11-14-1330, R10): tinted in the accent, as a Mac toolbar's. */
   .loki-toolbar-item--prominent,
   .loki-toolbar-item--prominent:hover:not(:disabled) {
     background: var(--loki-affirm);
@@ -1898,21 +1779,6 @@ button.loki-list-section-toggle {
     width: 16px;
     height: 16px;
     stroke-width: 1.75;
-  }
-  /* A newer loki (shell/update-button.tsx, plan 2026-11-14-1330 R18): a glass group over the detail's top right, the
-     same spot in every place, centred on the toolbar's 52px line; Update… in words, then the menu that holds Later. */
-  .loki-update-slot {
-    position: absolute;
-    top: 0;
-    right: 12px;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    height: 52px;
-  }
-  /* The menu that holds Later hangs from the group, not from the taller slot. */
-  .loki-update-slot > .loki-toolbar-group {
-    position: relative;
   }
   .loki-toolbar-item--text {
     width: auto;
@@ -1930,22 +1796,25 @@ button.loki-list-section-toggle {
     height: 14px;
   }
 
-  /* The chat pane (U4): the header and the dock float, and the thread scrolls on beneath both, padded by their
-     measured heights (shared/use-height-var.ts) so its first and last rows stay clear. The header fades the thread
-     out under it, as a Mac window's scroll edge does. */
   .loki-desk-pane > .loki-pane-header {
     position: relative;
     z-index: 2;
     background: linear-gradient(var(--loki-bg) 75%, transparent);
+  }
+  .loki-desk-pane > .loki-pane-header :is(.loki-tabs, .loki-toolbar-group) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   .loki-desk-pane-messages {
     top: calc(-1 * var(--loki-header-height));
   }
   .loki-desk-pane-messages [data-slot="message-scroller-content"] {
     padding-top: calc(var(--loki-header-height) + 20px);
+  }
+  :has(> .loki-dock) [data-slot="message-scroller-content"] {
     padding-bottom: calc(var(--loki-dock-height) + 20px);
   }
-  .loki-desk-pane-messages [data-slot="message-scroller-button"] {
+  :has(> .loki-dock) [data-slot="message-scroller-button"] {
     bottom: calc(var(--loki-dock-height) + 12px);
   }
   .loki-dock {
@@ -1976,9 +1845,6 @@ button.loki-list-section-toggle {
     border-radius: 24px;
   }
 
-  /* The message box as Messages draws it (U21): "+" in a glass circle outside a one-line capsule that grows with the
-     text; inside the capsule, at its trailing edge, one round button: the microphone, the accent up-arrow once there
-     is something to send, or stop while the agent works. */
   .loki-composer-plus {
     display: grid;
     place-items: center;
@@ -2052,14 +1918,6 @@ button.loki-list-section-toggle {
     color: var(--loki-accent);
   }
 
-  /* Flow (U6): a chat card holds the same floating dock as the chat pane, so its thread pads itself the same way; an
-     outside card's reply box is the same glass capsule as the composer. */
-  .loki-flow-card [data-slot="message-scroller-content"] {
-    padding-bottom: calc(var(--loki-dock-height) + 20px);
-  }
-  .loki-flow-card [data-slot="message-scroller-button"] {
-    bottom: calc(var(--loki-dock-height) + 12px);
-  }
   .loki-flow-card [data-reply-box] [data-slot="input-group"] {
     border-color: transparent;
     border-radius: 24px;
@@ -2072,12 +1930,9 @@ button.loki-list-section-toggle {
       var(--loki-shadow-float);
   }
 
-  /* Search, sheets, menus and the Canvas's floating chips (U7): the layer that comes and goes over the page is strong
-     glass, as a Mac's sheets, popovers and menus are; what they hold stays as it is. */
   .loki-sheet-card,
   .loki-popover,
-  .loki-mail-suggest,
-  .loki-title-menu-panel {
+  .loki-mail-suggest {
     border-color: transparent;
     background: var(--loki-glass-strong);
     -webkit-backdrop-filter: var(--loki-glass-blur);
@@ -2087,8 +1942,6 @@ button.loki-list-section-toggle {
       0 0 0 0.5px var(--loki-glass-edge),
       var(--loki-shadow-sheet);
   }
-  /* Type-ahead lists (U20): people to mention and mail addresses read as a Mac's completion list, at menu sizes, with
-     the arrow a menu has, not a link's hand. */
   .loki-mail-suggest-row {
     padding: 4px 8px;
     font-size: var(--text-sm);
@@ -2097,8 +1950,6 @@ button.loki-list-section-toggle {
   .loki-mail-suggest-name {
     font-weight: 400;
   }
-  /* The label picker (U20) is a menu hung over the card from its Label move, on the popover's glass: its slot above
-     the moves takes no room, and the list fills the menu, so the focus ring is the menu's own edge. */
   .loki-card-picker:has(> .loki-label-menu) {
     position: relative;
     height: 0;
@@ -2129,8 +1980,6 @@ button.loki-list-section-toggle {
       var(--loki-shadow-low);
   }
 
-  /* Preferences (U8): settings grouped in rounded boxes as a Mac's System Settings groups them, and the segmented
-     control as a grey track with the chosen value raised. */
   .loki-settings-block {
     padding: 0 12px;
     border-radius: var(--radius-xl);
@@ -2147,23 +1996,17 @@ button.loki-list-section-toggle {
     background: var(--loki-segment);
   }
 
-  /* Keyboard (U5): Apple's focus ring in place of loki's flash, a steady accent halo around the control that has
-     focus. Text fields keep the caret as their mark, as in every family. */
   button:focus-visible,
   select:focus-visible,
   summary:focus-visible,
   [role="button"]:focus-visible,
   [tabindex]:focus-visible,
   a:focus-visible {
-    outline: 3px solid color-mix(in oklab, var(--loki-accent) 55%, transparent);
+    outline: 3px solid var(--loki-accent);
     outline-offset: 1px;
     animation: none;
   }
 
-  /* The sidebar's real material (U13): in the Mac app the page is clear (styles.css) and the glass panel becomes the
-     window's hole onto the system's sidebar material. Its ring of the page's ground, far wider than the window, paints
-     everything outside its rounded corners opaque; with the sidebar hidden it is an empty box whose ring covers all.
-     Under Reduce Transparency and Increase Contrast the page is painted again and the panel is its solid self. */
   &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass {
     display: block;
     background: transparent;

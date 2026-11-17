@@ -3,14 +3,6 @@ import { unansweredWhy } from "./chat-events.ts";
 import { ChatDoc } from "./kernel/index.ts";
 import { withKind } from "./tool-kinds.ts";
 
-/**
- * Subagents (plan 017, U10, KTD12): the `subagent` tool hands a self-contained task to a helper that runs in a child
- * conversation the call owns, with the parent's model, tools and folder, and returns the helper's final answer.
- * Aborting the call aborts the helper; a rerun after a crash finds the same child (the call is replay-safe). The child
- * carries the parent chat's id, so its approvals ask in the chat you are looking at and its tools act on that chat's
- * canvas, and it asks under the parent chat's permission mode as it is at each call. A helper cannot start helpers of
- * its own, nor run scripts: `withoutAlso` (the script extensions) is dropped from the child with the subagent tool.
- */
 export function subagentExtension(withoutAlso: readonly Extension[] = []): Extension {
   const extension: Extension = defineExtension({
     name: "loki.subagents",
@@ -31,18 +23,15 @@ export function subagentExtension(withoutAlso: readonly Extension[] = []): Exten
             const { prompt } = args as { prompt: string };
             const parentInfo = await api.snapshot(ChatDoc, api.conversationId, context);
             const child = await api.commit(async (tx) => {
-              // The ownership index remembers the child, so a rerun reuses it.
               const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items.at(0);
               if (existing) return existing.id;
               const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
               await configure(tx, created.id, { extensions: { remove: [extension, ...withoutAlso] } });
-              // The chat's id and a pointer to its conversation, never a copy of its settings: a copy would keep the mode
-              // the chat had when the helper started, and the approvals read it from the parent instead.
               const info = await tx.doc(ChatDoc, created.id);
               Object.assign(info, { id: parentInfo?.id ?? "", hidden: true, helper_for: api.conversationId });
               return created.id;
             }, context);
-            await api.details({ conversationId: child }, context); // lets a client attach to the child
+            await api.details({ conversationId: child }, context);
             const handle = await api.conversation(child, context);
             if (!handle) throw new Error("the helper's conversation is gone");
             const settled = await (await handle.submit({ type: "input", content: prompt, requestId: `subagent:${api.taskId}` }, context)).wait(context);

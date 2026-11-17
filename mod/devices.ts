@@ -4,12 +4,6 @@ import type { DeviceSummary, DeviceVia } from "../core/frame-types.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
-/**
- * Paired phones. Each holds a 32-byte token (in an HttpOnly cookie, see mod/lan.ts);
- * the file at state/devices.json keeps only the token's sha256, so reading the file
- * never yields a usable credential.
- *   [{ id, name, token_hash, created_at, last_seen_at, last_via? }]
- */
 export interface DeviceRecord extends DeviceSummary {
   /** sha256 hex of the device token. */
   token_hash: string;
@@ -17,13 +11,8 @@ export interface DeviceRecord extends DeviceSummary {
 
 const SEEN_WRITE_INTERVAL_MS = 60_000;
 
-/** The sha256 hex of a device token: the only form of a token state/devices.json keeps. */
 export const hashToken = (token: string): string => createHash("sha256").update(token).digest("hex");
 
-/**
- * The paired phones, kept in state/devices.json (mode 0600) and loaded once at start; an unreadable file means no
- * paired phones. Writes are best effort: a failed one costs a re-pair, never a crash.
- */
 export class DeviceStore {
   private devices: DeviceRecord[] = [];
   private readonly path: string;
@@ -46,7 +35,6 @@ export class DeviceStore {
     }
   }
 
-  /** A new device; the token is returned once and never stored. */
   mint(name: string): { id: string; token: string } {
     const token = randomBytes(32).toString("hex");
     const at = new Date(this.now()).toISOString();
@@ -58,11 +46,6 @@ export class DeviceStore {
     return { id, token };
   }
 
-  /**
-   * The device a token belongs to, or null. Refreshes last_seen_at and, when given, the route the request
-   * came in by; the file is rewritten at most once a minute per device, or at once when the route changed
-   * (that is the fact Settings shows, and a phone switching Wi‑Fi for the tailnet should read so right away).
-   */
   verify(token: string, via?: DeviceVia): DeviceRecord | null {
     if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return null;
     const hash = hashToken(token);
@@ -79,7 +62,6 @@ export class DeviceStore {
     return device;
   }
 
-  /** Called when a verify moved a device's last_seen_at on disk (so the canvas's list can follow). */
   onSeen: ((device: DeviceRecord) => void) | null = null;
 
   forget(id: string): boolean {
@@ -107,8 +89,6 @@ export class DeviceStore {
   private persist(): void {
     try {
       writeJsonAtomic(this.path, this.devices, { pretty: true, newline: true, mode: 0o600, pidTemp: true });
-    } catch {
-      // best effort: a failed write costs a re-pair, never a crash
-    }
+    } catch {}
   }
 }

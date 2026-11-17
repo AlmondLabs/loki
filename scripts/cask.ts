@@ -1,17 +1,7 @@
-// The Homebrew cask for a release: `npm run cask -- <owner> <version> <sha256> [stable|nightly]` prints
-// Casks/loki.rb, or Casks/loki-nightly.rb for the rolling nightly. .github/workflows/release.yml runs it after
-// each build and pushes the result to <owner>/homebrew-loki. The two casks conflict: loki shares its state
-// (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
-// The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
-// xattr line that lets macOS open it; System Settings › Privacy & Security › Open Anyway is the other way.
-// The cask depends on the `node` formula: loki's daemon runs on Node 22.19 or newer, so a Mac with nothing on it
-// gets Node from Homebrew.
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** Which cask to write: loki for the stables, loki-nightly for the rolling nightly. */
 export type Channel = "stable" | "nightly";
-/** What a cask is made from: the GitHub owner of the loki repo, the version without its v, and the dmg's sha256. */
 export interface CaskInput {
   owner: string;
   version: string;
@@ -19,17 +9,17 @@ export interface CaskInput {
   channel?: Channel;
 }
 
-/** The dmg the release workflow attaches (tauri's `--target universal-apple-darwin`). */
+export const NIGHTLY_DEPRECATED = "2026-11-16";
+
 export function dmgName(version: string): string {
-  return `loki_${version}_universal.dmg`;
+  return `loki_${version}_aarch64.dmg`;
 }
 
-/** The cask's Ruby, as Casks/loki.rb or Casks/loki-nightly.rb. Throws on an owner, version or sha256 that does not look right for the channel. */
 export function renderCask({ owner, version, sha256, channel = "stable" }: CaskInput): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)) throw new Error(`not a GitHub owner: ${owner}`);
   if (channel === "stable" && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version} (expected 2026.1011.0, no v)`);
-  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(version))
-    throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.a96ee85)`);
+  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[1-9]\d*$/.test(version))
+    throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.4821)`);
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error(`not a sha256: ${sha256}`);
   const nightly = channel === "nightly";
   const tag = nightly ? "nightly" : "v#{version}";
@@ -52,13 +42,23 @@ ${
     strategy :github_latest
   end`
 }
+${
+  nightly
+    ? `
+  # Homebrew finishes the sentence: "has been deprecated because it …".
+  deprecate! date: "${NIGHTLY_DEPRECATED}", because: "is replaced by the loki cask and the Nightly channel in loki's About"
+`
+    : ""
+}
+  # loki replaces itself through its signed updater; brew upgrade leaves it to that.
+  auto_updates true
 
   # One loki at a time: both builds share ~/.loki and the mod's port.
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
+  # Apple silicon only: Homebrew refuses an Intel Mac with its own message.
+  depends_on arch: :arm64
   depends_on macos: :ventura
-  # loki's daemon runs on Node 22.19 or newer (docs/manual.md › Requirements).
-  depends_on formula: "node"
 
   app "loki.app"
 
@@ -77,7 +77,6 @@ end
 `;
 }
 
-// Run as a script, not imported by its test.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [owner, version, sha256, channel = "stable"] = process.argv.slice(2);
   if (!owner || !version || !sha256 || (channel !== "stable" && channel !== "nightly")) {

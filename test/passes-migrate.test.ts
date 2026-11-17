@@ -59,7 +59,6 @@ describe("background passes: the first start carries over what reflection and Le
     const s = setup();
     try {
       s.write(join(s.old.reflectionRoot, "agent-a", "c1", "state.json"), { reflected_through: 40, total_completed_steps: 30 });
-      // Letta's state files carry counters but no cursor.
       s.write(join(s.old.reflectionRoot, "agent-a", "c2", "state.json"), { total_completed_steps: 12 });
       s.write(s.old.learnWorker, {
         enabled: false,
@@ -80,7 +79,6 @@ describe("background passes: the first start carries over what reflection and Le
       expect(state.cursor("reflection", "agent-b", "c3")).toBe(7);
       expect(state.cursor("learn", "agent-b", "c3")).toBe(7);
       expect(state.writtenOn("2026-10-10")).toBe(3);
-      // What was kept is read back by a fresh state, as after a restart.
       expect(s.state().cursor("reflection", "agent-a", "c1")).toBe(40);
     } finally {
       s.cleanup();

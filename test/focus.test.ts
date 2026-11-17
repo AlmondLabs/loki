@@ -6,11 +6,8 @@ import { FOCUS_CUSHION, FOCUS_OPEN_GAP_MS, addFocus, decayed, focusShares, prune
 import { SeenStore } from "../mod/seen.ts";
 import { must } from "./fixtures/must.ts";
 
-/** Focus (core/attention/focus.ts): each chat's share of what you have been doing lately, fading by half every 12 hours. */
-
 const H = 3_600_000;
 const T0 = new Date("2026-09-20T09:00:00Z").getTime();
-/** One chat's entry after the given actions, `hours` after T0 each. */
 function run(actions: Array<[number, "message" | "answer" | "decide" | "open"]>): FocusEntry {
   let e: FocusEntry | undefined;
   for (const [h, a] of actions) e = addFocus(e, a, T0 + h * H) ?? e;
@@ -31,7 +28,6 @@ describe("focus weights", () => {
     const e = run([[0, "open"]]);
     expect(addFocus(e, "open", T0 + FOCUS_OPEN_GAP_MS - 1)).toBeNull();
     expect(must(addFocus(e, "open", T0 + FOCUS_OPEN_GAP_MS), "the open's entry").w).toBeGreaterThan(0.25);
-    // a message is never throttled
     expect(must(addFocus(e, "message", T0 + 60_000), "the message's entry").w).toBeCloseTo(1.25, 2);
   });
 
@@ -43,7 +39,6 @@ describe("focus weights", () => {
   });
 
   test("parking: a new task overtakes yesterday's within a handful of replies, and a parked chat fades in days", () => {
-    // A: 20 replies yesterday 09:00–17:00; B: the new task from 10:00 today, a reply every quarter hour
     const a = run(Array.from({ length: 20 }, (_, i) => [i * 0.4, "message"] as [number, "message"]));
     const bAfter = (n: number) => run(Array.from({ length: n }, (_, i) => [25 + i * 0.25, "message"] as [number, "message"]));
     const at = (n: number) => T0 + (25 + (n - 1) * 0.25) * H + 1;

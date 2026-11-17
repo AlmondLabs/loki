@@ -20,7 +20,6 @@ describe("an ACP agent's process", () => {
     try {
       await before.capabilities();
       await after.capabilities();
-      // A session opened on the first process must not pass for one on the second.
       expect(after.epoch()).not.toBe(before.epoch());
     } finally {
       await before.close();

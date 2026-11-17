@@ -10,31 +10,17 @@ import { inert } from "./fence.ts";
 import { slackThreadText } from "./slack.ts";
 import type { ThreadMessage } from "./thread.ts";
 
-/**
- * The account operations scripts call (plan 097, U2): `slack_read`, `jira_read`, `flow_list`, and `people_find` and
- * `slack_conversations` (plan 2026-11-14-1530, KTD14), beside the Google
- * tools (mod/google-tools/), and the prompt section that names an agent's accounts. They replace the owner's
- * `account_list`, `account_read` and `account_search` (plan 067, U9), which plan 097 removed. Each is script-only, so the model is never offered it, and each reads with the same reader
- * a hand-off and a card use (mod/account-ops/). Every call checks again that the account it names is the calling
- * agent's, and refuses one that is not without saying whose it is. They answer in JSON for the script to read; Slack
- * and Jira stay read-only to agents, and a reply to either still goes through `reply_propose`.
- */
-
-/** What the account script tools read: the accounts and their owners, Flow's threads, and each account's client. */
 export interface AccountScriptDeps {
   accounts: Pick<Accounts, "ownedBy">;
   threads: Pick<AccountThreads, "list">;
   slack: (accountId: string) => Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "usersInfo" | "usersConversations">;
   jira: (accountId: string) => Pick<JiraClient, "ticket" | "issue" | "comments" | "history">;
-  /** The people resolver (mod/people.ts) that `people_find` searches with; without it, the tool is not offered. */
   people?: Pick<People, "find">;
 }
 
-/** The most conversations `slack_conversations` answers with, and the most pages of them it reads. */
 export const CONVERSATIONS_CAP = 50;
 const CONVERSATION_PAGES = 20;
 
-/** The most people `people_find` answers with, so a common first name cannot flood the script's answer. */
 export const PEOPLE_FIND_CAP = 20;
 
 const ACCOUNT_PROPERTY = {
@@ -42,10 +28,6 @@ const ACCOUNT_PROPERTY = {
   description: "The account's id or name; leave it out when this agent owns one of this kind.",
 };
 
-/**
- * The calling agent's account a call names, by id, address or label in any case, of one provider (or any, for null);
- * with none named, its only account of that kind. Each refusal says why, and never whose another account is.
- */
 export function scriptAccount(accounts: Pick<Accounts, "ownedBy">, ctx: ToolContext, named: unknown, provider: AccountProvider | null): AccountRecord {
   const owned = accounts.ownedBy(ctx.agentId).filter((a) => provider === null || a.provider === provider);
   const kind = provider ?? "";
@@ -66,7 +48,6 @@ export function scriptAccount(accounts: Pick<Accounts, "ownedBy">, ctx: ToolCont
   return account;
 }
 
-/** A message as a script reads it: who wrote it, when, whether it was the person's own, and its text. */
 const messageOut = (m: ThreadMessage) => ({ sender: m.sender, at: m.at, mine: m.mine ?? false, text: m.text, ...(m.id ? { id: m.id } : {}) });
 
 const textArg = (args: Record<string, unknown>, key: string): string => {
@@ -75,7 +56,6 @@ const textArg = (args: Record<string, unknown>, key: string): string => {
   throw new Error(`\`${key}\` is required`);
 };
 
-/** A read-only script tool, offered to an agent that owns an account of `provider` (any, for null). */
 function scriptTool(
   deps: AccountScriptDeps,
   provider: AccountProvider | null,
@@ -88,14 +68,12 @@ function scriptTool(
     callers: ["tools"],
     outputSchema: { type: "object" },
     replay: "safe",
-    // Each answers with what other people wrote, or their names and subjects (plan 097, KTD2).
     annotations: { readOnly: true, strangerText: true },
     forAgent: (agentId) => deps.accounts.ownedBy(agentId).some((a) => provider === null || a.provider === provider),
     execute: (args, ctx) => tool.run(args, ctx),
   };
 }
 
-/** The account script tools, registered; returns the functions that take them back. */
 export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps): Array<() => void> {
   const slackRead = scriptTool(deps, "slack", {
     name: "slack_read",
@@ -117,7 +95,6 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
     run: async (args, ctx) => {
       const account = scriptAccount(deps.accounts, ctx, args.account, "jira");
       const client = deps.jira(account.account_id);
-      // A key and an id name the same ticket, which is read by its id, as its card keeps it (plan 2026-11-10-1451, KTD7).
       const ticket = await client.ticket(textArg(args, "ticket"));
       const messages = await jiraThreadText(() => client)(account.account_id, ticket.id);
       return { account: account.account_id, key: ticket.key, id: ticket.id, summary: ticket.summary, messages: messages.map(messageOut) };
@@ -161,7 +138,6 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
       run: async (args, ctx) => {
         const account = scriptAccount(deps.accounts, ctx, args.account, null);
         const found = await people.find(account.account_id, textArg(args, "query"));
-        // Names and titles are what other people wrote about themselves, so none of them can pass for loki's own words.
         const shown = found.people.slice(0, PEOPLE_FIND_CAP).map((p) => ({
           name: inert(p.display),
           token: inert(p.token),
@@ -182,7 +158,6 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
       const person = async (user: string) => {
         const known = names.get(user);
         if (known !== undefined) return known;
-        // A profile Slack would not give is shown by its id and asked again next time, rather than kept as the id.
         const u = await slack.usersInfo(user).catch(() => null);
         if (!u) return user;
         const name = u.real_name || u.display_name || u.name || user;
@@ -196,22 +171,18 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
         for (const c of r.conversations) {
           if (found.length > CONVERSATIONS_CAP) break;
           const kind = c.is_im ? "dm" : c.is_mpim ? "group_dm" : "channel";
-          // A channel is matched by its name before any person is looked up, so a search reads few profiles.
           if (kind === "channel" && query && !(c.name ?? "").toLowerCase().includes(query)) continue;
           const name = c.is_im && c.user ? await person(c.user) : kind === "channel" ? `#${c.name ?? c.id}` : (c.name ?? c.id);
           if (!query || name.toLowerCase().includes(query)) found.push({ id: c.id, kind, name });
         }
         cursor = r.next_cursor;
-        // Past the cap, more pages and profiles change nothing shown but `more`, which is then a lower bound.
         if (!cursor || found.length > CONVERSATIONS_CAP) break;
       }
-      // Channel names and people's names are what others chose, so none of them can pass for loki's own words.
       const shown = found.slice(0, CONVERSATIONS_CAP).map((c) => ({ ...c, name: inert(c.name) }));
       return { account: account.account_id, conversations: shown, more: found.length - shown.length };
     },
   });
   const disposers = [slackRead, slackConversations, jiraRead, flowList, ...(peopleFind ? [peopleFind] : [])].map((tool) => api.tools.register(tool));
-  // The one place an agent learns its accounts (plan 097, R3): each by id and name, and that their text is not orders.
   disposers.push(
     api.prompt.section("accounts", ({ agentId }) => {
       const owned = deps.accounts.ownedBy(agentId);

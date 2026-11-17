@@ -5,33 +5,13 @@ import { textToAdf } from "./jira-text.ts";
 import type { JiraHistoryItem } from "./jira-text.ts";
 import { log } from "./log.ts";
 
-/**
- * A thin Jira Cloud client over fetch for one connected site (plan 2026-11-10-1451, U2), calling as the person with
- * their email and a classic API token as basic auth against the site's own API host (KTD3). It reads who the token
- * belongs to, where the site lives, the tickets the person watches, and a ticket's fields, comments and history, and it posts
- * the person's own comment with its files, and it reads a ticket's attachment list and a picture's thumbnail (plan 093),
- * and it searches the site's people for mentions (plan 2026-11-14-1530, U2). Nothing else here can change a ticket (R20): `postComment` and `attachFiles` are the only requests that are not a GET,
- * and no agent tool is given either.
- *
- * Every call goes through one wrapper that tells three answers apart (KTD5). Jira rejecting the token marks the
- * account as needing a new one (R3). A rate limit holds every call back for as long as Jira asks and is never a
- * rejection. Anything else is a failed call, and a ticket the person cannot see is a failure of that ticket alone.
- */
-
-/** What an account's keychain entry holds for Jira: the site's API host, and the email and API token to call it with. */
 export interface JiraSecret {
-  /** The host calls go to, as in `acme.atlassian.net`. */
   site: string;
   email: string;
   token: string;
-  /**
-   * The host people browse the site at, as in `jira.acme.example`, kept only when it differs from `site` (a custom
-   * domain), so a card's link opens the address the person knows. An entry from before it was kept has none.
-   */
   link_host?: string;
 }
 
-/** A Jira account's keychain entry read back, or null when there is none or it is not one: then only connecting again helps. */
 export function parseJiraSecret(raw: string | null): JiraSecret | null {
   if (!raw) return null;
   try {
@@ -51,7 +31,6 @@ export function jiraPersonOf(accountId: string): string {
   return accountId.split(":").slice(2).join(":");
 }
 
-/** A ticket's address in the browser (R14): on the site's own domain when it has one, else on its API host. */
 export function jiraTicketUrl(secret: Pick<JiraSecret, "site" | "link_host">, key: string): string {
   return `https://${secret.link_host ?? secret.site}/browse/${encodeURIComponent(key)}`;
 }
@@ -59,50 +38,31 @@ export function jiraTicketUrl(secret: Pick<JiraSecret, "site" | "link_host">, ke
 /** Jira's header, on an answer of any status, when it did not accept the credentials: some calls answer 200 with it. */
 const LOGIN_REASON_HEADER = "x-seraph-loginreason";
 const LOGIN_FAILED = "AUTHENTICATED_FAILED";
-/** How long to hold back after a rate limit that names no wait. */
 const DEFAULT_RETRY_MS = 60_000;
 const TIMEOUT_MS = 20_000;
-/**
- * The slowest upload speed an attach is given time for, in bytes a millisecond (about 150 KB/s), on top of the usual
- * timeout, so a 17 MB attach has well over two minutes (plan 2026-11-14-1134, KTD11).
- */
 const UPLOAD_BYTES_PER_MS = 150;
-/** The largest thumbnail kept, as for Slack's previews: anything larger is not a thumbnail worth a card's space. */
 const THUMBNAIL_MAX_BYTES = 1_000_000;
-/** How many tickets a search page asks for unless told. */
 const SEARCH_PAGE = 50;
-/** How many comments or history entries a page asks for unless told. */
 const EVENT_PAGE = 50;
 /** The fields a search asks for by name: Jira returns only the id otherwise. */
 const SEARCH_FIELDS = "summary,updated,assignee";
-/** The fields a card shows of a ticket (plan 089, Decision 2), asked for by name; the site's sprint field is added to them. */
 const ISSUE_FIELDS = "summary,issuetype,project,status,assignee,reporter,priority,labels,description,created";
 /** The name a Jira site gives its sprint field, whose id differs from site to site. */
 const SPRINT_NAME = "Sprint";
-/** The digits a Jira id is padded to inside an event id, so ids compare as text the way their numbers do. */
 const ID_DIGITS = 12;
 
-/** How long an attach of `bytes` in all may take before it is given up: the usual timeout, and more as the files grow. */
 export function jiraUploadTimeoutMs(bytes: number): number {
   return TIMEOUT_MS + Math.ceil(bytes / UPLOAD_BYTES_PER_MS);
 }
 
-/** A file to attach to a ticket: the name it goes by and its bytes, read and checked by the caller (KTD5). */
 export interface JiraFile {
   name: string;
   data: Uint8Array;
 }
 
-/**
- * A Jira call that failed. `code` says how: `rejected` (Jira did not accept the token), `rate_limited` (Jira asked for
- * a wait), `not_found` (the ticket is gone or the person may not see it), `timeout` (an attach got no answer in time,
- * so its files may be on the ticket), or `http_<status>` for anything else.
- */
 export class JiraError extends Error {
   readonly code: string;
-  /** The HTTP status Jira answered with; 0 when no request was made. */
   readonly status: number;
-  /** For `rate_limited`: how long is left of the wait Jira asked for. */
   readonly retryAfterMs: number | null;
 
   constructor(message: string, code: string, status: number, retryAfterMs: number | null = null) {
@@ -114,17 +74,13 @@ export class JiraError extends Error {
   }
 }
 
-/** What JiraClient is built from; fetch and the clock are injected so tests own them. */
 export interface JiraClientOptions {
-  /** The site, email and token to call with, read for each call so a reconnect's new token is used; null when none is kept. */
   secret: () => Promise<JiraSecret | null>;
-  /** Tell the account its status changed: here only ever to `{ disconnected: "sign_in_again" }`, each time Jira rejects the token. */
   setStatus: (status: AccountStatus) => void;
   fetch?: typeof fetch;
   now?: () => Date;
 }
 
-/** Who the token belongs to, as Jira's profile reports it. */
 export interface JiraIdentity {
   account_id: string;
   display_name: string;
@@ -132,27 +88,20 @@ export interface JiraIdentity {
   email: string | null;
 }
 
-/** Where a site lives: the address its API answers at, and the one people browse, which differ on a custom domain. */
 export interface JiraServerInfo {
   base_url: string;
   display_url: string;
 }
 
-/** A watched ticket as the search returns it. */
 export interface JiraTicket {
   /** Jira's numeric id, which stays the same when the ticket moves to another project. */
   id: string;
   key: string;
   summary: string;
-  /** When the ticket last changed, in UTC to the millisecond. */
   updated: string;
   assignee_account_id: string | null;
 }
 
-/**
- * A ticket's fields as its card shows them (plan 089): the header's type and project, the fixed set of fields, and the
- * description as Jira's document, for `adfText` to read. A field the ticket does not have is null, or empty for labels.
- */
 export interface JiraIssue {
   id: string;
   key: string;
@@ -163,20 +112,12 @@ export interface JiraIssue {
   assignee: string | null;
   reporter: string | null;
   priority: string | null;
-  /** The sprint the ticket is in: its active one, else the last it was put in; null on a site without a sprint field. */
   sprint: string | null;
   labels: string[];
-  /** The description as Jira's document; null when it has none. */
   description: unknown;
-  /** When the ticket was made, in UTC to the millisecond. */
   created: string;
 }
 
-/**
- * What a reply's card says of a ticket (plan 2026-11-14-1530, R9 and R10): its key and title, and who Jira usually
- * tells of a comment on it, the assignee, the reporter and its watchers, and whether it is a service desk's, whose
- * customer sees a comment.
- */
 export interface JiraTicketFacts {
   id: string;
   key: string;
@@ -187,30 +128,23 @@ export interface JiraTicketFacts {
   service_desk: boolean;
 }
 
-/** A file attached to a ticket, as its attachment list gives it (plan 093): enough to match, label and open it. */
 export interface JiraAttachment {
-  /** Jira's REST id for the file, which its thumbnail and content addresses take. */
   id: string;
   filename: string;
-  /** The file's type as Jira gives it, as in `image/png`; empty when Jira gave none. */
   mime_type: string;
-  /** Its size in bytes; 0 when Jira gave none. */
   size: number;
 }
 
-/** A picture's thumbnail as fetched: its bytes and its content type, always an `image/*` one. */
 export interface JiraThumbnail {
   data: Buffer;
   type: string;
 }
 
-/** One page of watched tickets, and the token that asks for the next; null on the last page. */
 export interface JiraTicketPage {
   tickets: JiraTicket[];
   next_page_token: string | null;
 }
 
-/** Someone on the site as a user search gives them: their id, the name Jira shows, and their address when Jira shares it. */
 export interface JiraUser {
   account_id: string;
   display_name: string;
@@ -218,10 +152,6 @@ export interface JiraUser {
   email: string | null;
 }
 
-/**
- * Which people a user search looks among: anyone on the site, those who can see a ticket, those who can browse a
- * project, or those a ticket (or a project's new tickets) can be assigned to. A ticket is named by its key or id.
- */
 export type JiraUserScope =
   | { kind: "site" }
   | { kind: "ticket"; ticket: string }
@@ -229,50 +159,33 @@ export type JiraUserScope =
   | { kind: "assignee"; ticket: string }
   | { kind: "assignee"; project: string };
 
-/** How many people one user search asks for: a name shared by more than this many is refused anyway. */
 const USER_PAGE = 50;
 
-/** Someone who wrote a comment or changed a ticket. */
 export interface JiraPerson {
   account_id: string;
   display_name: string;
-  /**
-   * Their picture: the 48 px one of Jira's `avatarUrls`, which the card draws as Slack draws a photo (plan 091); absent
-   * when Jira gave none or one that is not a web address.
-   */
   avatar?: string;
 }
 
-/**
- * Something that happened on a ticket: a comment, or a history entry of changed fields (KTD8). `id` is the creation
- * time in UTC to the millisecond, then `c` or `h`, then Jira's id padded with zeros, so ids compare as text in the
- * order the events happened, comments and history together.
- */
 export type JiraEvent = {
   id: string;
-  /** Jira's own id for the comment or the history entry. */
   jira_id: string;
-  /** When it was made, in UTC to the millisecond. */
   created: string;
   author: JiraPerson;
 } & (
   | {
       kind: "comment";
-      /** The comment as Jira's document, for `adfText` to read. */
       body: unknown;
     }
   | { kind: "history"; items: JiraHistoryItem[] }
 );
 
-/** A page of a ticket's comments or history, oldest first, and what to pass as `before` for the page before it; null at the start. */
 export interface JiraEventPage {
   events: JiraEvent[];
   earlier: number | null;
-  /** How many the whole list holds, as Jira counts it. */
   total: number;
 }
 
-/** Which page of events to read: `limit` of them, ending just before position `before`, or at the newest when it is left out. */
 export interface JiraEventPageOptions {
   limit?: number;
   before?: number | null;
@@ -294,12 +207,10 @@ export function jiraTime(value: string): string {
   return Number.isNaN(ms) ? value : new Date(ms).toISOString();
 }
 
-/** The id of a comment (`c`) or a history entry (`h`) made at `created`, which sorts by time and then by Jira's id (KTD8). */
 export function jiraEventId(created: string, kind: "c" | "h", jiraId: string): string {
   return `${jiraTime(created)}:${kind}${jiraId.padStart(ID_DIGITS, "0")}`;
 }
 
-/** A user search's path and the parameters that say whom it looks among. */
 function userSearchOf(among: JiraUserScope): [string, Record<string, string>] {
   switch (among.kind) {
     case "site":
@@ -313,7 +224,6 @@ function userSearchOf(among: JiraUserScope): [string, Record<string, string>] {
   }
 }
 
-/** A user as a search gives them, or nothing for an app, a deactivated person, or an answer without an id. */
 function parseUser(v: unknown): JiraUser[] {
   const r = rec(v);
   const id = str(r.accountId);
@@ -321,7 +231,6 @@ function parseUser(v: unknown): JiraUser[] {
   return [{ account_id: id, display_name: str(r.displayName), email: strOrNull(r.emailAddress) }];
 }
 
-/** Someone as Jira gives them: their id, their name, and their 48 px picture when it is a web address (plan 091). */
 function parsePerson(v: unknown): JiraPerson {
   const r = rec(v);
   const avatar = str(rec(r.avatarUrls)["48x48"]);
@@ -354,7 +263,6 @@ function parseHistory(v: unknown): JiraEvent {
   return { id: jiraEventId(created, "h", str(r.id)), kind: "history", jira_id: str(r.id), created: jiraTime(created), author: parsePerson(r.author), items };
 }
 
-/** One entry of a ticket's attachment list, or nothing when it names no id or file name and so cannot be matched or opened. */
 function parseAttachment(v: unknown): JiraAttachment[] {
   const r = rec(v);
   const id = str(r.id);
@@ -362,7 +270,6 @@ function parseAttachment(v: unknown): JiraAttachment[] {
   return id && filename ? [{ id, filename, mime_type: str(r.mimeType), size: num(r.size) }] : [];
 }
 
-/** The basic auth header for a site's email and API token. */
 const basicAuth = (secret: JiraSecret) => `Basic ${Buffer.from(`${secret.email}:${secret.token}`).toString("base64")}`;
 
 function parseTicket(v: unknown): JiraTicket {
@@ -412,22 +319,15 @@ function parseIssue(v: unknown, sprintField: string | null): JiraIssue {
   };
 }
 
-/** One connected Jira site's calls. */
 export class JiraClient {
   private readonly opts: JiraClientOptions;
-  /** Until when Jira asked for no calls (a rate limit), in ms since the epoch; the wait covers every call to the site. */
   private holdUntil = 0;
-  /**
-   * The site's sprint field id, found once from its list of fields and kept for the client's life (plan 089), null
-   * when the site has none. A look that failed is not kept, so the next read asks again.
-   */
   private sprintId: Promise<string | null> | null = null;
 
   constructor(opts: JiraClientOptions) {
     this.opts = opts;
   }
 
-  /** Who the token belongs to, which connecting checks before keeping the account. An answer naming no account is a rejection. */
   async myself(): Promise<JiraIdentity> {
     const r = await this.call("GET", "/rest/api/3/myself");
     const accountId = str(r.accountId);
@@ -465,28 +365,16 @@ export class JiraClient {
     return { tickets: list(r.issues).map(parseTicket), next_page_token: strOrNull(r.nextPageToken) };
   }
 
-  /**
-   * One ticket by its id or its key, as the search gives it: the owner's tools name a ticket either way, and both lead
-   * to the numeric id a card keeps (KTD7). A ticket the person may not see is not found.
-   */
   async ticket(idOrKey: string): Promise<JiraTicket> {
     return parseTicket(await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields: SEARCH_FIELDS }));
   }
 
-  /**
-   * A ticket's fields as its card shows them (plan 089), by its id or its key, with the sprint read from the site's own
-   * sprint field. A ticket the person may not see is not found.
-   */
   async issue(idOrKey: string): Promise<JiraIssue> {
     const sprint = await this.sprintField();
     const fields = sprint ? `${ISSUE_FIELDS},${sprint}` : ISSUE_FIELDS;
     return parseIssue(await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields }), sprint);
   }
 
-  /**
-   * The facts a reply's card shows of a ticket, by its id or its key in any case (plan 2026-11-14-1530): one read of
-   * the few fields it needs. A ticket the person may not see is not found.
-   */
   async ticketFacts(idOrKey: string): Promise<JiraTicketFacts> {
     const r = await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields: "summary,assignee,reporter,watches,project" });
     const fields = rec(r.fields);
@@ -501,12 +389,10 @@ export class JiraClient {
     };
   }
 
-  /** A page of a ticket's comments, read from the newest back; the ticket is named by its id or its key. */
   async comments(ticket: string, opts: JiraEventPageOptions = {}): Promise<JiraEventPage> {
     return this.page(`/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, opts, (r) => list(r.comments).map(parseComment));
   }
 
-  /** A page of a ticket's history, read from the newest back; the ticket is named by its id or its key. */
   async history(ticket: string, opts: JiraEventPageOptions = {}): Promise<JiraEventPage> {
     // Jira's reference names the list `histories` in one place and `values` in another; whichever is there is read.
     return this.page(`/rest/api/3/issue/${encodeURIComponent(ticket)}/changelog`, opts, (r) =>
@@ -514,12 +400,6 @@ export class JiraClient {
     );
   }
 
-  /**
-   * The people on the site matching `by` among those `among` names (plan 2026-11-14-1530, U2, KTD4): anyone, those who
-   * can see a ticket, those who can browse a project, or those a ticket or a project's tickets can be assigned to. A
-   * name or address is matched by Jira's own search; an account id is asked for as itself. Apps and deactivated
-   * people are left out, since nobody mentions them. Jira gives nobody when the token's owner may not browse users.
-   */
   async searchUsers(among: JiraUserScope, by: { query: string } | { account_id: string }): Promise<JiraUser[]> {
     const who: Record<string, string> = "query" in by ? { query: by.query } : { accountId: by.account_id };
     const [path, scope] = userSearchOf(among);
@@ -527,23 +407,11 @@ export class JiraClient {
     return list(answer).flatMap(parseUser);
   }
 
-  /**
-   * The files attached to a ticket (plan 093, KTD2), named by its id or its key, for matching a comment's files to
-   * what can be opened. A ticket without files gives an empty list.
-   */
   async attachments(ticket: string): Promise<JiraAttachment[]> {
     const r = await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(ticket)}`, { fields: "attachment" });
     return list(rec(r.fields).attachment).flatMap(parseAttachment);
   }
 
-  /**
-   * A picture's thumbnail by its attachment id (plan 093, KTD3), or null when there is none to be had. The address is
-   * built from the id on the site's own host, never taken from Jira, and asks for the bytes themselves with
-   * `redirect=false`; a redirect is never followed, since Jira's goes to a media host with a token in its address, so
-   * the API token reaches only the site (R7). Only a picture of at most THUMBNAIL_MAX_BYTES is kept. A thumbnail is
-   * an extra, so a refusal of any kind never marks the account as needing a new token, and a held or failed call is
-   * simply none; a rate limit Jira answers here still holds every call.
-   */
   async thumbnail(id: string): Promise<JiraThumbnail | null> {
     if (this.holdUntil > this.now()) return null;
     const secret = await this.opts.secret();
@@ -568,22 +436,11 @@ export class JiraClient {
     }
   }
 
-  /**
-   * Post the person's own comment on a ticket, as plain text (R17) with Jira's own mention of each stored mention still
-   * in it (plan 2026-11-14-1530, R11), and return the new comment's Jira id. Only the person's own send reaches this;
-   * with `attachFiles`, it is one of the two calls here that change anything in Jira.
-   */
   async postComment(ticket: string, text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> = []): Promise<{ id: string }> {
     const r = await this.call("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, undefined, { body: textToAdf(text, mentions) });
     return { id: str(r.id) };
   }
 
-  /**
-   * Attach files to a ticket in one request, before the comment that names them is posted (KTD8), and return the
-   * names Jira gave them, or the names sent when its answer gives none. The bytes are the ones the caller checked
-   * (KTD5); no path is read here. An attach is never asked again by itself: a second one would put the files on the
-   * ticket twice, so one that got no answer in time says the files may already be there.
-   */
   async attachFiles(ticket: string, files: JiraFile[]): Promise<string[]> {
     const form = new FormData();
     // A Blob takes only bytes over a plain ArrayBuffer, and a caller's view may sit over a shared one, so each is copied.
@@ -596,8 +453,6 @@ export class JiraClient {
     const names = list(answer).flatMap((a) => (str(rec(a).filename) ? [str(rec(a).filename)] : []));
     return names.length ? names : files.map((f) => f.name);
   }
-
-  // --- requests ----------------------------------------------------------------------------------------------------
 
   private now(): number {
     return (this.opts.now?.() ?? new Date()).getTime();
@@ -640,16 +495,10 @@ export class JiraClient {
     return { events, earlier: start > 0 ? start : null, total: Math.max(num(answer.total), start + events.length) };
   }
 
-  /** One request whose answer is an object, as nearly every Jira answer is. */
   private async call(method: "GET" | "POST", path: string, query?: Record<string, string>, body?: unknown, withToken = true): Promise<Record<string, unknown>> {
     return rec(await this.request(method, path, query, body, withToken));
   }
 
-  /**
-   * One request to the site, and the one place that decides whether an answer is a rejection, a wait or a failure.
-   * An `upload` goes as a multipart body, whose content type and boundary fetch writes, with Jira's header that lets a
-   * non-browser post files and the time its size needs.
-   */
   private async request(
     method: "GET" | "POST",
     path: string,
@@ -675,7 +524,6 @@ export class JiraClient {
     });
     const res = upload
       ? await sent.catch((err: unknown) => {
-          // Jira may have taken the files before the answer was lost, so the person is told to look before sending again.
           if (err instanceof Error && err.name === "TimeoutError")
             throw new JiraError("Jira did not answer in time: the files may be on the ticket: check before sending again", "timeout", 0);
           throw err;
@@ -690,14 +538,12 @@ export class JiraClient {
     throw new JiraError(said, res.status === 404 ? "not_found" : `http_${res.status}`, res.status);
   }
 
-  /** Jira did not accept the token: revoked, expired or mistyped. Only a new token helps, and the account says so (R3). */
   private rejected(why: string, status: number): never {
     log("jira:rejected", { why });
     this.opts.setStatus({ disconnected: "sign_in_again" });
     throw new JiraError("Jira did not accept the API token: reconnect with a new one in Preferences › Accounts", "rejected", status);
   }
 
-  /** Hold every call back for as long as Jira asks, and say how long that is; the account stays connected. */
   private hold(retryAfter: string | null): number {
     const seconds = Number(retryAfter);
     const wait = retryAfter !== null && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RETRY_MS;
@@ -706,19 +552,12 @@ export class JiraClient {
     return wait;
   }
 
-  /** A rate limit on a call that must fail: every call is held back, and this one throws. */
   private rateLimited(retryAfter: string | null): never {
     const wait = this.hold(retryAfter);
     throw new JiraError(`Jira asked loki to wait ${Math.ceil(wait / 1000)} s`, "rate_limited", 429, wait);
   }
 }
 
-/**
- * The client of one connected Jira account (plan 2026-11-10-1451, U3). It reads the site, email and token from the
- * account's keychain entry for each call, so a reconnect's new token is used at once, and a token Jira rejects marks
- * the account as needing a new one (R3). An account that already says so is not written again, since every call made
- * with a rejected token would otherwise tell every client the accounts changed; one no longer here is left alone.
- */
 export function jiraAccountClient(
   accounts: Pick<Accounts, "get" | "getSecret" | "setStatus">,
   accountId: string,

@@ -3,20 +3,10 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 import { Meta, Row } from "../components";
 
-/**
- * The labels an email card offers (plan 070, R12): the account's own, by name. Gmail's system labels (Inbox, Unread,
- * Sent and the like) are what read, later and archive already move, so they are not offered here.
- */
 export function pickableLabels(labels: readonly AccountLabel[]): AccountLabel[] {
   return labels.filter((l) => l.type === "user").sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/**
- * The label picker L opens on an email card: the account's labels, asked for once when it opens. Arrows move, Enter
- * or a click adds the label to the thread, and the card stays for the next key; Esc closes with nothing added. Drawn
- * as a menu hung over the card from its Label move (plan 2026-11-12-1505, U20), dimming nothing, and a press outside it
- * closes it as Esc does.
- */
 export function LabelPicker({
   item,
   labelsOf,
@@ -24,9 +14,7 @@ export function LabelPicker({
   onCancel,
 }: {
   item: AttentionItem;
-  /** The account's labels, or why they could not be had. */
   labelsOf: (item: AttentionItem) => Promise<AccountLabel[] | string>;
-  /** Add these labels to the thread; resolves to the reason when refused, or null, and the picker closes. */
   onPick: (labelIds: string[]) => Promise<string | null>;
   onCancel: () => void;
 }) {
@@ -37,7 +25,6 @@ export function LabelPicker({
   const listRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  // The labels are the account's to list: asked once per card when the picker opens, dropped if it closes first.
   const ask = useEffectEvent(() => labelsOf(item));
   const card = `${item.agent_id}/${item.id}`;
   useEffect(() => {
@@ -51,14 +38,12 @@ export function LabelPicker({
       gone = true;
     };
   }, [card]);
-  // The picker holds focus while the labels come (and when there are none), so Esc closes it; then the list takes it.
   useEffect(() => boxRef.current?.focus({ preventScroll: true }), []);
   const ready = labels !== null;
   useEffect(() => {
     if (ready) listRef.current?.focus({ preventScroll: true });
   }, [ready]);
 
-  // The menu lines up with the Label move it opened from, and a press anywhere else puts it away.
   const cancel = useEffectEvent(onCancel);
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -69,7 +54,6 @@ export function LabelPicker({
     const away = (e: PointerEvent) => {
       if (!box.contains(e.target as Node)) cancel();
     };
-    // capture phase: the card stops pointerdown from bubbling, and a press there must still close the menu
     window.addEventListener("pointerdown", away, true);
     return () => window.removeEventListener("pointerdown", away, true);
   }, []);
@@ -85,7 +69,6 @@ export function LabelPicker({
     });
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    // The deck's own keys wait while the picker is open.
     e.stopPropagation();
     if (e.key === "Escape") onCancel();
     else if (e.key === "ArrowDown") setHi((i) => Math.min(i + 1, options.length - 1));

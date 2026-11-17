@@ -3,11 +3,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ListRow, ListSection, PaneHeader, countText, rowStatus } from "../app/src/components/index.tsx";
 
-/**
- * The desktop's Slack building blocks (components/index.tsx): a row says its state in words as well as
- * weight and colour, so a screen reader and a colour-blind reader get the same news the red badge gives.
- */
-
 describe("list row words", () => {
   test("counts past two digits read 99+", () => {
     expect([countText(1), countText(99), countText(100)]).toEqual(["1", "99", "99+"]);
@@ -17,7 +12,6 @@ describe("list row words", () => {
     expect(rowStatus({ badge: 1, badgeNoun: "needs you" })).toBe("1 needs you");
     expect(rowStatus({ badge: 0 })).toBe("");
     expect(rowStatus({})).toBe("");
-    // a note says more than "unread" (the desk sidebar: "new messages", "viewed, not done")
     expect(rowStatus({ unread: true, note: "new messages", badge: 1 })).toBe("new messages, 1 waiting");
     expect(rowStatus({ unread: false, note: "viewed, not done" })).toBe("viewed, not done");
   });
@@ -72,7 +66,7 @@ describe("list row markup", () => {
     expect(out).toContain('aria-expanded="false"');
     expect(out).not.toContain("loki-list-row");
   });
-  test("the pane header's tab row is a tablist with one selected tab, reachable by Tab", () => {
+  test("the pane header's tab row is shadcn's tablist with one selected tab, each naming its panel", () => {
     const out = html(
       createElement(PaneHeader, {
         title: "Loki mobile",
@@ -83,12 +77,15 @@ describe("list row markup", () => {
         tab: "desk",
         onTab: () => {},
         tabsLabel: "Desk views",
+        panelId: (id: string) => `panel-${id}`,
       }),
     );
-    expect(out).toContain('role="tablist"');
-    expect(out).toContain('aria-label="Desk views"');
+    expect(out).toContain('data-slot="tabs-list"');
+    expect(out).toMatch(/role="tablist"[^>]*aria-label="Desk views"/);
     expect(out.match(/aria-selected="true"/g)?.length).toBe(1);
-    expect(out).toMatch(/aria-selected="true" tabindex="0"[^>]*>(<[^>]+>)*Desk/);
-    expect(out).toMatch(/aria-selected="false" tabindex="-1"/);
+    // Base UI gives the chosen tab the one tab stop once mounted; a static render shows which tab is chosen.
+    expect(out).toMatch(/aria-selected="true"[^>]*>(<[^>]+>)*Desk/);
+    expect(out).toContain('aria-controls="panel-desk"');
+    expect(out).toContain('aria-controls="panel-messages"');
   });
 });

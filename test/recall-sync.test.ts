@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyFiles, applyRecall, filesSnapshot, recallSnapshot, type SyncedFiles } from "../mod/recall-sync.ts";
 
-/** A Learn file written at `at` (ms). */
 function put(dir: string, path: string, text: string, at: number): void {
   mkdirSync(join(dir, path, ".."), { recursive: true });
   writeFileSync(join(dir, path), text);
@@ -53,7 +52,7 @@ describe("Learn's files on two Macs", () => {
     const mini = join(root, "mini");
     try {
       put(book, "cards/c1.json", '{"front":"a"}', T);
-      recallSnapshot(book, T); // the MacBook has seen it
+      recallSnapshot(book, T);
       applyRecall(mini, recallSnapshot(book, T), T);
       rmSync(join(book, "cards/c1.json"));
       expect(applyRecall(mini, recallSnapshot(book, T + 1000), T + 1000)).toBe(true);
@@ -79,7 +78,6 @@ describe("Learn's files on two Macs", () => {
 });
 
 describe("a mod's files on two Macs", () => {
-  /** A mods folder's files, as peering lists them: every file directly in it. */
   const MODS: SyncedFiles = {
     list: (dir) => Object.fromEntries(["icon.png", "mod.ts"].filter((n) => existsSync(join(dir, n))).map((n) => [n, T])),
     safe: (path) => /^[\w.-]+$/.test(path),
@@ -101,7 +99,6 @@ describe("a mod's files on two Macs", () => {
       expect(applyFiles(mini, MODS, snap, T)).toBe(true);
       expect(readFileSync(join(mini, "icon.png")).equals(png)).toBe(true);
       expect(readFileSync(join(mini, "mod.ts"), "utf8")).toBe("export default () => {}; // ünïcode");
-      // A Mac on an older loki sends no mark: its text is written as text.
       expect(applyFiles(mini, MODS, { files: { "mod.ts": { content: "old", mtime: T + 1 } }, deleted: {} }, T + 1)).toBe(true);
       expect(readFileSync(join(mini, "mod.ts"), "utf8")).toBe("old");
     } finally {

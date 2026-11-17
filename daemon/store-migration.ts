@@ -7,34 +7,17 @@ import type { Context } from "@earendil-works/chord";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { ChatIndex, type AgentStore } from "./kernel/index.ts";
 
-/**
- * A store's saved entries in the shapes loki writes now, rewritten once when the store first opens on a loki that has
- * this, so nothing that reads history knows an older shape (plans 044 and 045). A chat on an ACP agent is left as it
- * is: its steps carry the agent's own names (Claude Code's `Agent`, `Skill`…), not loki's.
- *
- * Version 1 renamed loki's old tool names. Version 2 rewrites what chats imported from Letta still carried: the
- * Codex-style `cmd` argument, Letta's notes in user messages, its background-task notices, `multiSelect` in questions
- * and paths under `~/.letta/loki`. Version 3 makes the background task's output, input and stop calls the
- * `background_watch` calls they are now (plan 095). Every step is idempotent, so a store at any older version runs
- * them all.
- */
 export const STORE_VERSION = 3;
 
-/** Letta's notes inside a user message: kept for the model as loki's own reminder, which the window hides. */
 const LETTA_NOTES: ReadonlyArray<[RegExp, (block: string) => string]> = [
   [/<system-alert>([\s\S]*?)<\/system-alert>/g, (inner) => `<system-reminder>${inner}</system-reminder>`],
   [/<channel-notification[^>]*>([\s\S]*?)<\/channel-notification>/g, (inner) => `<system-reminder>${inner}</system-reminder>`],
 ];
-/** Letta's compaction note, a line of JSON on its own. */
 const SYSTEM_ALERT = /^(\s*)(\{"type":\s*"system_alert"[\s\S]*?\})(\s*)$/gm;
-/** Letta's pointer to its own copy of a conversation, a path into its folder. */
 const TRANSCRIPT_LINE = /^\s*Full transcript available at: \S+\s*$/gm;
-/** Letta's background notice names the command (`Background command "X" completed`); loki's summary is the command. */
 const LETTA_NOTICE = /<summary>\w+ command "(.+?)" \w+(?: \([^)]*\))?<\/summary>/g;
-/** `.letta/loki` as a whole path segment pair: loki's folder before it moved to `~/.loki`. */
 const OLD_ROOT = /(?<![\w.-])\.letta\/loki(?![\w.-])/g;
 
-/** A user message's text as loki writes it: Letta's notes as reminders, its transcript pointer gone, notices bare. */
 export function withoutLettaText(text: string): string {
   let out = text;
   for (const [pattern, wrap] of LETTA_NOTES) out = out.replace(pattern, (_m, inner: string) => wrap(inner));
@@ -44,7 +27,6 @@ export function withoutLettaText(text: string): string {
     .replace(LETTA_NOTICE, (_m, command: string) => `<summary>${command}</summary>`);
 }
 
-/** The text parts of a user message, rewritten in place; true when any changed. */
 function rewriteUser(m: Record<string, unknown>): boolean {
   if (typeof m.content === "string") {
     const now = withoutLettaText(m.content);
@@ -65,7 +47,6 @@ function rewriteUser(m: Record<string, unknown>): boolean {
   return changed;
 }
 
-/** A tool call's arguments as loki reads them: the shell command as `command`, a question's `multi_select`. */
 function rewriteCall(part: Record<string, unknown>): boolean {
   const args = part.arguments;
   if (!isRecord(args)) return false;
@@ -86,10 +67,6 @@ function rewriteCall(part: Record<string, unknown>): boolean {
   return changed;
 }
 
-/**
- * One saved entry's messages in the shapes loki writes now, in place: tool names (filling `calls`, so a result follows
- * its call), call arguments, user messages' text, and a branch entry's message. True when anything changed.
- */
 export function migrateMessages(record: Record<string, unknown>, calls: Map<string, string>): boolean {
   const messages = [...(Array.isArray(record.model) ? (record.model as unknown[]) : [])];
   if (isRecord(record.data) && isRecord(record.data.message)) messages.push(record.data.message);
@@ -103,7 +80,6 @@ export function migrateMessages(record: Record<string, unknown>, calls: Map<stri
   return changed;
 }
 
-/** What a saved entry may hold that needs rewriting, for the first pass's filter: an old tool name or a Letta shape. */
 const NEEDLES = [
   ...[...Object.keys(RENAMED_TOOLS), ...Object.keys(SPLIT_TOOLS), ...Object.keys(MERGED_TOOLS)].map((n) => `"${n}"`),
   '"cmd"',
@@ -116,19 +92,11 @@ const NEEDLES = [
   ".letta/loki",
 ];
 
-/** What one store's migration did. */
 export interface StoreMigrationReport {
-  /** Entries rewritten. */
   entries: number;
-  /** The whole store as it was, copied before the change; null when nothing was written. */
   backup: string | null;
 }
 
-/**
- * Rewrite the store at `file`'s saved entries in the shapes loki writes now, except in the conversations `skip` names
- * (chats on an ACP agent): the store is first copied whole into `backupDir`, then every changed entry is written in one
- * transaction. pi-durable may have the store open, unstarted: nothing it holds in memory is an entry.
- */
 export function migrateStoredEntries(file: string, skip: ReadonlySet<number>, backupDir: string): StoreMigrationReport {
   const db = new DatabaseSync(file);
   try {
@@ -166,7 +134,6 @@ export function migrateStoredEntries(file: string, skip: ReadonlySet<number>, ba
   }
 }
 
-/** The file beside the stores that holds each one's version, so each step runs once. */
 const versionsFile = (file: string) => join(dirname(file), "migrations.json");
 
 const readVersions = (file: string): Record<string, number> => {
@@ -179,16 +146,13 @@ const readVersions = (file: string): Record<string, number> => {
   }
 };
 
-/** The version the store at `file` is at: 0 until it has first opened on a loki with migrations. */
 export const storeVersion = (file: string): number => readVersions(file)[basename(file)] ?? 0;
 
-/** Note the store at `file` as at STORE_VERSION. Plan 044's `tool-names.json`, which this replaces, goes. */
 export function markStoreVersion(file: string): void {
   writeFileSync(versionsFile(file), `${JSON.stringify({ ...readVersions(file), [basename(file)]: STORE_VERSION }, null, 2)}\n`);
   rmSync(join(dirname(file), "tool-names.json"), { force: true });
 }
 
-/** The conversations of the store's chats on an ACP agent, which keep the agent's own names. */
 export async function acpConversations(store: AgentStore, context: Context): Promise<Set<number>> {
   const index = await store.harness.snapshot(ChatIndex, context);
   const chats = Object.values(index?.chats ?? {});

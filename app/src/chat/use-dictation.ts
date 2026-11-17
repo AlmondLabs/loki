@@ -2,12 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { inLan, keyboard, type Platform } from "../desk/env";
 import { KEYMAP, keyFor, keysOf } from "../shell/keymap";
 
-/**
- * Speech to text through the browser's Web Speech API (Chrome: webkitSpeechRecognition).
- * Continuous with interim results; recognition ends on its own after a pause,
- * which is the natural end of a dictated message. Note: Chrome may send the
- * audio to Google's speech service unless on-device recognition is available.
- */
 interface RecognitionAlternative {
   transcript: string;
 }
@@ -52,36 +46,18 @@ export function dictationSupported(hasRecognition: boolean, os: Platform = keybo
   return hasRecognition && (os === "macos" || phone);
 }
 
-/** The mic's tooltip, with ⌘D where the keymap lists it (the Mac); a phone that reads as Linux has the mic but no listed key. */
 export function dictateTitle(os: Platform = keyboard): string {
   const b = KEYMAP.find((x) => x.id === "chat.dictate");
   return b && keysOf(b, os).length > 0 ? `dictate (${keyFor("chat.dictate", os)})` : "dictate";
 }
 
-/** Whether this page shows the mic, decided once at load. */
 export const DICTATION_SUPPORTED = dictationSupported(typeof window !== "undefined" && recognitionCtor() !== null);
 
-/**
- * Dictation into the composer: start and stop listening, with interim words and finished phrases handed to the
- * callbacks as they are recognised; `error` is a line to show when the mic is blocked or recognition fails.
- */
-export function useDictation({
-  onInterim,
-  onFinal,
-  lang,
-}: {
-  /** Words still being recognised; replace the previous interim text with these. */
-  onInterim: (text: string) => void;
-  /** A finished phrase; append it. */
-  onFinal: (text: string) => void;
-  lang?: string;
-}) {
+export function useDictation({ onInterim, onFinal, lang }: { onInterim: (text: string) => void; onFinal: (text: string) => void; lang?: string }) {
   const [listening, setListening] = useState(false);
-  /** start() was called but the browser has not begun listening yet (permission prompt, engine spin-up). */
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rec = useRef<Recognition | null>(null);
-  // The recogniser's callbacks are wired once per start(); they read the latest handlers through this ref.
   const handlers = useRef({ onInterim, onFinal });
   useEffect(() => {
     handlers.current = { onInterim, onFinal };
@@ -114,7 +90,7 @@ export function useDictation({
       handlers.current.onInterim(interim.trim());
     };
     r.onerror = (e) => {
-      if (e.error === "no-speech" || e.error === "aborted") return; // a pause, or we stopped it
+      if (e.error === "no-speech" || e.error === "aborted") return;
       setError(
         e.error === "not-allowed" || e.error === "service-not-allowed" ? "microphone blocked — allow it in the address bar" : `dictation failed: ${e.error}`,
       );

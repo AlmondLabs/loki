@@ -38,7 +38,6 @@ describe("chat projection", () => {
         title: "Readme",
         archived: false,
         model: `${model.provider}/${model.modelId}`,
-        // No thinking level set is pi's default, off.
         reasoningEffort: "none",
         lastMessageAt: "2026-10-01T10:00:06.000Z",
       });
@@ -93,7 +92,6 @@ describe("chat projection", () => {
       expect(pages.flatMap((p) => p.rows)).toEqual(whole);
       expect(pages[0].start).toBe(0);
       expect(pages.at(-1)?.start).toBe(whole.length - 2);
-      // A position past the end is the end; one before the start is nothing.
       expect(chats.page("local-conv-1", AGENT, 2, whole.length + 10).rows).toEqual(whole.slice(-2));
       expect(chats.page("local-conv-1", AGENT, 2, 0)).toEqual({ rows: [], more: false, start: 0 });
     } finally {
@@ -110,7 +108,6 @@ describe("chat projection", () => {
       for (const [i, answer] of answers.entries()) {
         faux.setResponses([fauxAssistantMessage(answer)]);
         await (await chat.submit({ type: "input", content: `question ${i + 1}` }, ctx)).wait(ctx);
-        // Read each time, so the fold is fed in steps rather than all at once.
         expect(chats.page("c", AGENT, 100).rows.at(-1)?.text).toBe(answer);
       }
       const fresh = new ChatProjection(ctx, () => "Ada");

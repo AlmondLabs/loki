@@ -23,37 +23,26 @@ import "./search-sheet.css";
 const LIST_ID = "loki-search-results";
 const optionId = (key: string) => `loki-search-opt-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-/** A command plain ⌘K offers: a menu-bar action that works on this screen now, and its key (commandsFor). */
 export interface CommandHit {
   id: string;
   label: string;
   keys: string | null;
 }
 
-/** One row of plain ⌘K, whatever it is: a search hit, a command to run, or a model to switch to. */
 type Row =
   { kind: "hit"; hit: SearchHit } | { kind: "command"; command: CommandHit } | { kind: "model"; model: SwitchRow } | { kind: "mode"; mode: SharedMode };
 const rowKey = (r: Row) =>
   r.kind === "hit" ? r.hit.key : r.kind === "command" ? `command:${r.command.id}` : r.kind === "model" ? `model:${r.model.key}` : `mode:${r.mode.id}`;
 
-/** How many commands and models plain ⌘K shows for a query: the Models scope holds the rest. */
 const COMMANDS_MAX = 5;
 const MODELS_MAX = 3;
-/** Typed at the start of plain ⌘K, this steps into the Models scope. */
 const MODELS_PREFIX = /^models?\s$/i;
-/** Typed at the start of plain ⌘K, this steps into the Permissions scope. */
 const PERMISSIONS_PREFIX = /^(permissions?|modes?)\s$/i;
 
-/**
- * The chat's permission modes for what is typed (plan 2026-11-12-1505, U21). In the Permissions scope: all of them, or
- * those whose name or line holds each word. In plain ⌘K: only once something is typed, the ones it names, or all of
- * them for "permission" or "mode". A typed word matches the start of a word, as a name is typed.
- */
 export function matchModes(modes: SharedModes | null | undefined, typed: string, inScope: boolean): SharedMode[] {
   if (!modes) return [];
   const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return inScope ? [...modes.list] : [];
-  // Each word must start a word of the mode's name or line: "strict" is not inside "Unrestricted".
   const named = modes.list.filter((m) => {
     const said = `${m.label} ${m.description}`.toLowerCase().split(/[^a-z0-9]+/);
     return words.every((w) => said.some((x) => x.startsWith(w)));
@@ -62,14 +51,12 @@ export function matchModes(modes: SharedModes | null | undefined, typed: string,
   return words.every((w) => "permission mode".includes(w)) && typed.length >= 3 ? [...modes.list] : [];
 }
 
-/** The commands whose label holds every word of the query, at most COMMANDS_MAX; none before anything is typed. */
 export function matchCommands(commands: readonly CommandHit[], typed: string): CommandHit[] {
   const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   return commands.filter((c) => words.every((w) => c.label.toLowerCase().includes(w))).slice(0, COMMANDS_MAX);
 }
 
-/** The open chat's best model matches for plain ⌘K: at most MODELS_MAX, none before anything is typed or with no chat. */
 export function matchModels(models: SharedModels | null, typed: string): SwitchRow[] {
   if (!models?.entries || !typed) return [];
   return switcherGroups(models.entries, models.current, models.started, typed)
@@ -80,14 +67,6 @@ export function matchModels(models: SharedModels | null, typed: string): SwitchR
 
 const EMPTY_SOURCE: SwitchSource = { entries: null, current: null, currentEffort: null, started: false, usual: [], pick: () => {} };
 
-/**
- * ⌘K, loki's one command panel (plan 013 U9; plan 2026-11-12-1505 U23): a panel near the top of the window, floating
- * with nothing dimmed, the field focused at once. Plain, it finds chats, agents, labels, waiting items and pages
- * (before typing, the recent places), runs this screen's commands, and offers the open chat's best model matches. The
- * Models scope (a chip in the field: the model pill or ⌘⇧M open on it; Tab on a model, or "model ", steps in;
- * Backspace on the empty field steps out) is the model switcher: Usual first, the chat's harness, effort at the foot.
- * ↑↓ move the highlight (focus stays in the field: a combobox over one listbox), Enter takes it, Esc and ⌘K close.
- */
 export function SearchSheet({
   sources,
   here,
@@ -101,23 +80,19 @@ export function SearchSheet({
   onCommand = () => {},
 }: {
   sources: SearchSources;
-  /** The place showing (a recent-places key), left out of the recents. */ here: string | null;
+  here: string | null;
   avatar: (agentId: string) => string | null;
   onOpen: (hit: SearchHit) => void;
   onClose: () => void;
   scope?: CommandScope;
   onScope?: (scope: CommandScope) => void;
-  /** The open chat's model controls (command-center.ts); null with no chat open. */
   models?: SharedModels | null;
-  /** This screen's commands (commandsFor). */
   commands?: readonly CommandHit[];
   onCommand?: (id: string) => void;
 }) {
-  // No autoFocus on the field: Sheet notes the element focused before it (to hand focus back on close), then focuses the field, its first control.
   const [query, setQuery] = useState("");
   const [placeKeys, setPlaceKeys] = useState(() => recentPlaces.read());
   const modes = models?.modes ?? null;
-  // The Permissions scope opens with the chat's own mode highlighted, as a Mac pop-up opens on its current item.
   const currentModeAt = Math.max(0, modes?.list.findIndex((m) => m.id === modes.current) ?? 0);
   const [active, setActive] = useState(() => (scope === "permissions" ? currentModeAt : 0));
   const scroller = useRef<HTMLDivElement>(null);
@@ -141,7 +116,6 @@ export function SearchSheet({
   const commandHits = matchCommands(commands, typed);
   const modelHits = matchModels(models, typed);
   const modeHits = matchModes(modes, typed, inModes);
-  // In the Permissions scope the list is the modes alone; plain ⌘K ends with the ones typed for.
   const rows: Row[] = inModes
     ? modeHits.map((mode): Row => ({ kind: "mode", mode }))
     : [
@@ -155,7 +129,6 @@ export function SearchSheet({
   const current = at >= 0 ? rows[at] : null;
   const sw = useModelSwitch(models ?? EMPTY_SOURCE, inModels ? typed : "");
 
-  // A new query starts at the top result (the highlight resets as it is typed, below).
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0;
   }, [typed, scope]);
@@ -198,7 +171,7 @@ export function SearchSheet({
     setActive(0);
   };
 
-  const starts = groupStarts(groups); // each group's first row in `rows`
+  const starts = groupStarts(groups);
   const hitRow = (h: SearchHit, i: number) => (
     <HitRow key={h.key} hit={h} selected={current?.kind === "hit" && current.hit === h} avatar={avatar} onPoint={() => setActive(i)} onOpen={() => open(h)} />
   );
@@ -337,7 +310,6 @@ export function SearchSheet({
         ) : (
           <>
             {!typed && places.length > 0 && (
-              // The recents' heading sits outside the listbox: its Clear is a button, not an option.
               <div className="loki-search-group-head">
                 <span id="loki-search-recent" className="loki-search-group-title">
                   Recent
@@ -428,7 +400,6 @@ export function SearchSheet({
   );
 }
 
-/** A permission mode as a listbox option: its name over the line saying what it lets through, the chat's own checked. */
 function ModeRow({
   mode,
   current,
@@ -457,7 +428,6 @@ function ModeRow({
   );
 }
 
-/** A command as a listbox option: its label, its key on the right; the field keeps focus. */
 function CommandRow({ command, selected, onPoint, onRun }: { command: CommandHit; selected: boolean; onPoint: () => void; onRun: () => void }) {
   return (
     <li id={optionId(`command:${command.id}`)} role="option" aria-selected={selected} className="loki-list-item">
@@ -480,7 +450,6 @@ function CommandRow({ command, selected, onPoint, onRun }: { command: CommandHit
   );
 }
 
-/** Where each group's rows start in the flat list, the groups in order (a counter in render keeps the React Compiler off). */
 function groupStarts(groups: ReadonlyArray<{ hits: readonly unknown[] }>): number[] {
   const out: number[] = [];
   let at = 0;
@@ -491,7 +460,6 @@ function groupStarts(groups: ReadonlyArray<{ hits: readonly unknown[] }>): numbe
   return out;
 }
 
-/** A group of options: a quiet heading, and how many of how many when capped, over its rows. */
 function Group({ title, note, children }: { title: string; note?: string | null; children: ReactNode }) {
   const id = `loki-search-group-${title.toLowerCase()}`;
   return (
@@ -509,7 +477,6 @@ function Group({ title, note, children }: { title: string; note?: string | null;
   );
 }
 
-/** One result: ListRow's anatomy as a listbox option — the lead, the title over its line; highlighted while chosen. */
 function HitRow({
   hit,
   selected,

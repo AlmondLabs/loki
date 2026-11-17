@@ -1,7 +1,3 @@
-/**
- * The same agents on two paired Macs over a real peer link (plan 023, U3): `npm run test:node`. The far Mac answers
- * `peer_agents_get` from its backend folder; the near Mac pulls through its link and applies.
- */
 import { strict as assert } from "node:assert";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
@@ -41,13 +37,11 @@ async function until(check: () => boolean, ms = 4000): Promise<void> {
   }
 }
 
-/** An agent record with its memory folder, as the daemon keeps them. */
 function agent(dir: string, id: string, record: Record<string, unknown>): void {
   mkdirSync(join(dir, "memfs", id, "memory"), { recursive: true });
   writeRecord(dir, id, record);
 }
 
-/** Two Macs: the far one serving its backend's agents, the near one linked to it and pulling. */
 async function pair() {
   const root = mkdtempSync(join(tmpdir(), "loki-peer-agents-"));
   const farBackend = join(root, "far");
@@ -96,7 +90,6 @@ async function pair() {
   await lan.setPeersNeeded(true);
   const removed: string[] = [];
   let changes = 0;
-  // The near Mac's agents, set below: the link's push handler only runs once the link is up.
   const nearRef: { agents: PeerAgents | null } = { agents: null };
   const link = new PeerLink({
     macId: FAR,

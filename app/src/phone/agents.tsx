@@ -11,22 +11,11 @@ import { Button, Chip } from "../components";
 import { Scroll, TopBar } from "./ui";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
-/** What the phone reads about agents: the mod's `agent_get`, `memory_read`, `memory_log`, `memory_diff`. */
 export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
 
-/**
- * Agent records, read once per session: the list and every page share them, so a page opened from
- * the list does not ask the Mac again. Only records are kept: a `null` answer is also what a Mac out of reach or
- * slow to answer gives, so the next page that wants the agent asks again.
- */
 const cache = new Map<string, AgentDetails>();
 const inflight = new Map<string, Promise<AgentDetails | null>>();
-/** An agent's description when its record is already here; Search reads it and never asks the Mac. */
 export const knownDescription = (agentId: string): string | null => cache.get(agentId)?.agent.description ?? null;
-/**
- * An agent's record on the phone, from the session's cache or asked of the Mac once: undefined while not yet known,
- * null when the Mac has no local record of it.
- */
 export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): AgentDetails | null | undefined {
   const [d, setD] = useState<AgentDetails | null | undefined>(() => (agentId ? cache.get(agentId) : undefined));
   const fetchDetails = useEffectEvent((id: string) => api.get(id));
@@ -47,24 +36,12 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
       live = false;
     };
   }, [agentId]);
-  // A record already here wins over what this hook last heard: it is what the hook would have been told.
   const hit = agentId ? cache.get(agentId) : undefined;
   return hit ?? d;
 }
 
-/**
- * The filter chosen on the Agents tab, kept for the session like the records: the tab mounts afresh each
- * visit, and its place in the list comes back from the scroll memory, so its filter comes back from here.
- */
 const kept = new Map<"filter", AgentFilter>();
 
-/**
- * The Agents tab, Slack's DM list with loki's agents: one avatar-led row each — its name (bold while
- * something of it waits on you), what it is doing and who it is on one line, when its memory last
- * changed, the count waiting on you as the badge, and a presence dot while a turn runs. Chips narrow the
- * list to the agents running or waiting on you. A row opens the agent's profile; the list's place and the
- * filter survive the trip.
- */
 export function Agents({
   agents,
   loaded,
@@ -147,7 +124,6 @@ export function Agents({
   );
 }
 
-/** One agent: its record (description, last memory change) arrives from the shared cache and fills the row in. */
 function AgentRow({ row, api }: { row: AgentRowModel; api: PhoneAgentsApi }) {
   const d = useAgentDetails(api, row.id);
   const name = d?.agent.name ?? row.name;

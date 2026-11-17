@@ -24,16 +24,12 @@ const row = (id: string, at: string): ConversationInfo & Digest => ({
   last_ask: null,
 });
 
-/** The daemon as the store meets it: what was sent and started recorded, events pushed by the test, answers as set. */
 function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T10:00:00Z")]) {
   let hear: (rt: Runtime, events: ChatEvent[]) => void = () => {};
-  /** The socket came back after a drop and the followed chats are open again. */
   let reopened: () => void = () => {};
   const sent: string[] = [];
   const started: string[] = [];
-  /** Each send-again and discard of a mail reply that did not go (plan 096). */
   const settled: string[][] = [];
-  /** `fails`: every call to the daemon rejects with it, as when the socket closed under the request. `noList`: the list gets no answer. */
   const answers = { approval: true, fails: null as string | null, noList: false };
   const updates: Array<[string, Record<string, unknown>, string | undefined]> = [];
   const outside: Array<[string, string, string | null]> = [];
@@ -41,13 +37,9 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const handoffs: Array<[string, string, string | null, string | null]> = [];
   const moves: unknown[] = [];
   const replies: Array<[string, string, string, string, string | null]> = [];
-  /** What else each reply carried beside its text: the mentions picked from the box among it. */
   const replyExtras: unknown[] = [];
-  /** How the daemon answers a reply: refused before it was sent, or sent with the move's reason. */
   const replyAnswer = { refused: null as string | null, thenError: null as string | null };
-  /** Each write-back and restore the daemon was asked for. */
   const writes: unknown[][] = [];
-  /** Whether the daemon's read ends the card, as reading a Slack card does. */
   const readEnds = { value: false };
   const change = (move: OutsideWrite, ended: boolean): OutsideChange => ({
     move,
@@ -146,7 +138,6 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   };
 }
 
-/** Let the store's awaits and its 150 ms flush run. */
 const flush = () => vi.advanceTimersByTimeAsync(200);
 
 beforeEach(() => void vi.useFakeTimers());
@@ -161,7 +152,6 @@ describe("the chat store (plan 052)", () => {
     expect(snap.agentsLoaded).toBe(true);
     expect(snap.conversations.map((c) => c.id)).toEqual(["new", "old"]);
     expect(d.started).toEqual(["new", "old"]);
-    // The same list again changes nothing, so nothing redraws.
     d.store.reload();
     await flush();
     expect(d.store.getSnapshot()).toBe(snap);
@@ -244,7 +234,6 @@ describe("the chat store (plan 052)", () => {
     await flush();
     await d.store.loadThread(ADA);
     expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hello"]);
-    // The Mac slept through the agent's answer; the socket is back.
     pages.push([...(pages[0] ?? []), { role: "assistant", text: "hi, Ada here", at: "2026-10-29T10:00:05Z" }]);
     d.reopen();
     await flush();
@@ -351,7 +340,6 @@ describe("the chat store (plan 052)", () => {
     expect(d.updates).toEqual([]);
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
 
-    // A move on it goes to the ledger on the same Mac (plan 069); one that does not get there is let go quietly.
     d.store.moveOutside(card, { action: "archive", via: "key", dwell_ms: 900 });
     d.refuse.outside = "out of reach";
     d.store.moveOutside(card, { action: "next", via: "key", dwell_ms: 1 });
@@ -402,19 +390,15 @@ describe("the chat store (plan 052)", () => {
     expect(ids()).toEqual(["c1"]);
     expect(d.replies.map((r) => r[3])).toEqual(["later", "read", "archive", "archive"]);
     expect(d.replies[0]).toEqual(["gmail:ada@acme.com", "t1", "hello", "later", "mac-mini"]);
-    // A reply with a move leaves with its card, so its thread keeps none of them (plan 086).
     const key = sentKey("gmail:ada@acme.com", "t1");
     expect(d.store.sent.get(key).replies).toEqual([]);
-    // A reply sent alone shows on its card from the press, and is marked gone once it went.
     const going = d.store.replyOutside(card, " see you ", "stay");
     expect(d.store.sent.get(key).replies).toMatchObject([{ text: "see you", gone: false }]);
     await going;
     expect(d.store.sent.get(key)).toMatchObject({ went: 1, replies: [{ text: "see you", gone: true }] });
-    // One that is refused goes from the thread as its words go back to the box.
     d.replyAnswer.refused = "Gmail is out of reach";
     await d.store.replyOutside(card, "again", "stay");
     expect(d.store.sent.get(key)).toMatchObject({ went: 1, replies: [{ text: "see you" }] });
-    // One sent into a post's thread opened on the card shows in that thread, not the card's own view (plan 085).
     d.replyAnswer.refused = null;
     await d.store.replyOutside(card, "in there", "stay", { thread_ts: "1731.2" });
     expect(d.store.sent.get(sentKey("gmail:ada@acme.com", "t1", "1731.2")).replies).toMatchObject([{ text: "in there" }]);
@@ -450,14 +434,12 @@ describe("the chat store (plan 052)", () => {
     await flush();
     const ids = () => d.store.getSnapshot().conversations.map((c) => c.id);
 
-    // A refused write says why and keeps the card.
     d.refuse.outside = "Gmail is out of reach";
     expect(await d.store.markReadOutside(card)).toEqual({ change: null, error: "Gmail is out of reach" });
     expect(await d.store.labelsOf(card)).toBe("Gmail is out of reach");
     expect(ids()).toContain("t1#1");
     d.refuse.outside = null;
 
-    // An email read, put off or labelled stays in the list.
     const read = await d.store.markReadOutside(card);
     expect(read).toMatchObject({ change: { move: "read", ended: false }, error: null });
     expect(await d.store.markUnreadOutside(card)).toMatchObject({ change: { move: "unread" }, error: null });
@@ -465,7 +447,6 @@ describe("the chat store (plan 052)", () => {
     expect(await d.store.labelsOf(card)).toEqual([{ id: "gmail:ada@acme.com:L1", name: "Clients", type: "user" }]);
     expect(ids()).toContain("t1#1");
 
-    // A read that ends the card, as on Slack, drops it; restoring that change lists the card again.
     d.readEnds.value = true;
     const ended = await d.store.markReadOutside(card);
     expect(ids()).toEqual(["c1"]);
@@ -515,7 +496,6 @@ describe("the chat store (plan 052)", () => {
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).not.toContain("t1#1");
   });
 
-  /** An open Jira card (plan 2026-11-10-1451) on the Mac its site lives on. */
   const ticket = (): ConversationInfo & Digest => ({
     ...row("10001#1", "2026-11-10T09:00:00Z"),
     kind: "outside",

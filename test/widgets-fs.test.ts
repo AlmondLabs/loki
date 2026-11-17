@@ -60,7 +60,6 @@ describe("scan + watch", () => {
       expect(d.added[0].kind).toBe("module");
       expect(d.changed.map((e) => e.id)).toEqual(["shared/welcome"]);
 
-      // runtime error merges into entries and clears when the file changes
       expect(w.setRuntimeError("conv1/trip", "boom")).toBe(true);
       expect(must(w.get("conv1/trip"), "the trip widget").error).toBe("boom");
       writeFileSync(join(root, "conv1", "trip.tsx"), "export default function T() { return <i/> }");
@@ -101,20 +100,17 @@ describe("a scan with a cache", () => {
       const a = join(root, "shared", "a.tsx");
       writeFileSync(a, 'export const title = "One";\nexport default () => null');
       writeFileSync(join(root, "shared", "b.json"), '{"type":"stat","title":"B","data":{"value":1}}');
-      const when = new Date("2026-10-01T10:00:00Z"); // whole seconds: set back exactly below
+      const when = new Date("2026-10-01T10:00:00Z");
       utimesSync(a, when, when);
       const cache: ScanCache = new Map();
       const first = await scanWidgets(root, cache);
       expect(first.get("shared/a")?.title).toBe("One");
-      // Same size and mtime, different text: a scan that trusts the cache keeps what it read (it did not read it).
       writeFileSync(a, 'export const title = "Two";\nexport default () => null');
       utimesSync(a, when, when);
       const second = await scanWidgets(root, cache);
       expect(second.get("shared/a")).toBe(first.get("shared/a"));
-      // A real change (a new mtime) is read.
       utimesSync(a, when, new Date(when.getTime() + 5000));
       expect((await scanWidgets(root, cache)).get("shared/a")?.title).toBe("Two");
-      // A removed file leaves the cache and the manifest.
       rmSync(join(root, "shared", "b.json"));
       expect((await scanWidgets(root, cache)).has("shared/b")).toBe(false);
       expect([...cache.keys()].some((k) => k.endsWith("b.json"))).toBe(false);

@@ -1,15 +1,8 @@
 import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from "react";
 import { matchCommands, slashQuery, type SlashCommand } from "../../../core/attention/commands.ts";
 
-/** One empty list for every draft that is not a command: a fresh `[]` each render made the box's handlers new each time. */
 const NO_MATCHES: SlashCommand[] = [];
 
-/**
- * The command palette over a message box, shared by the desk chat's footer (Composer) and the inbox
- * card's reply box: what it lists for the draft, which row is lit, and the keys the box hands it first —
- * ↑↓ move, ⇥ fills the name in, ↵ runs (or fills in a command that takes arguments), esc puts it away for
- * this draft. `aria` goes on the textarea so a screen reader follows the list.
- */
 export function useSlashPalette({
   draft,
   onDraft,
@@ -25,12 +18,10 @@ export function useSlashPalette({
 }) {
   const query = slashQuery(draft);
   const [index, setIndex] = useState(0);
-  /** Esc put the palette away for this draft; typing brings it back. */
   const [dismissed, setDismissed] = useState<string | null>(null);
   const listId = useId();
   const matches = query !== null && commands.length && dismissed !== draft ? matchCommands(query, commands) : NO_MATCHES;
   const open = query !== null && dismissed !== draft && commands.length > 0;
-  // A new query lights its first row.
   const [indexQuery, setIndexQuery] = useState(query);
   if (query !== indexQuery) {
     setIndexQuery(query);
@@ -43,7 +34,7 @@ export function useSlashPalette({
 
   const pick = (c: SlashCommand) => {
     if (c.args) {
-      onDraft(`/${c.id} `); // it takes arguments: fill the name in and keep typing
+      onDraft(`/${c.id} `);
       inputRef.current?.focus();
       return;
     }

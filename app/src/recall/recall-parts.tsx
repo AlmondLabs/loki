@@ -18,9 +18,6 @@ import { dueWord, writtenLine } from "./learn-list";
 import type { LearnView } from "./views";
 import { WELCOME_LINE, WELCOME_MORE, WELCOME_TITLE, welcomeRows, type WelcomeRow } from "./welcome";
 
-/** The pieces around the deck: the source line, the card editor, the details of what Learn's lists hold, the key legend. */
-
-/** Where a card came from: the agent's name as a chip, then the chat's title and how long ago. */
 export function SourceLine({ c }: { c: CardWithSchedule }) {
   const { source } = c.card;
   return (
@@ -41,7 +38,6 @@ export function SourceLine({ c }: { c: CardWithSchedule }) {
   );
 }
 
-/** Front and back as text boxes; save or cancel. The deck's editor takes the caret; All Cards' detail leaves it (`autoFocus`). */
 export function CardEditor({
   c,
   autoFocus = true,
@@ -71,7 +67,6 @@ export function CardEditor({
   );
 }
 
-/** The earlier wording of a card, when the worker rewrote it. */
 export function PreviousText({ c }: { c: CardWithSchedule }) {
   const prev = c.card.previous.at(-1);
   if (!prev) return null;
@@ -81,15 +76,11 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
         Before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
       </Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
-      <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
+      <div style={{ marginTop: 2, whiteSpace: "pre-wrap" }}>{prev.back}</div>
     </div>
   );
 }
 
-/**
- * Learn's reading column, 760px wide. The review deck is a focus state, so it sits in the middle of the pane as Apple
- * centres one; the other views' items and the notices start at the pane title's 20px edge (plan 2026-11-14-2224, KTD3).
- */
 export function LearnColumn({ view, children }: { view: LearnView; children: ReactNode }) {
   return (
     <div className="flex flex-1 flex-col gap-4" style={{ width: 760, maxWidth: "100%", ...(view === "review" ? { margin: "0 auto" } : {}) }}>
@@ -98,7 +89,6 @@ export function LearnColumn({ view, children }: { view: LearnView; children: Rea
   );
 }
 
-/** A detail's card: the deck's look, for the one item chosen in Leads, All Cards or Deleted. */
 const DETAIL: CSSProperties = {
   background: "var(--loki-panel)",
   border: "1px solid var(--loki-border)",
@@ -106,13 +96,9 @@ const DETAIL: CSSProperties = {
   boxShadow: "var(--loki-shadow-sheet)",
   padding: "16px 24px",
 };
-/** How a detail's card stacks its parts. */
 const DETAIL_LAYOUT = "grid gap-4";
-/** The row of a detail's buttons under a hairline. */
 const MOVES: CSSProperties = { borderTop: "1px solid var(--loki-border)", paddingTop: 12 };
-/** How the row of a detail's buttons lines them up, wrapping when the pane is narrow. */
 const MOVES_LAYOUT = "flex flex-wrap items-center gap-2";
-/** A detail's title: the card's front, the lead's name. */
 const TITLE: CSSProperties = {
   fontSize: "var(--text-2xl)",
   fontWeight: 600,
@@ -122,13 +108,8 @@ const TITLE: CSSProperties = {
   textWrap: "balance",
   overflowWrap: "anywhere",
 };
-/** A detail's body text: the card's back, the line quoting where a lead came up. */
 const BODY: CSSProperties = { fontSize: "var(--text-sm)", lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
 
-/**
- * A card chosen in All Cards, edited in the detail (R14): where it came from, its front and back in boxes, how it
- * stands, and Delete. Cancel puts the saved wording back. Choosing it never moves focus into the boxes (KTD7).
- */
 export function CardDetail({
   c,
   now,
@@ -140,7 +121,6 @@ export function CardDetail({
   onSave: (text: { front: string; back: string }) => void;
   onDelete: () => void;
 }) {
-  // Bumped by Cancel: the editor starts over from the card as saved.
   const [round, setRound] = useState(0);
   return (
     <section aria-label="Card" className={DETAIL_LAYOUT} style={DETAIL}>
@@ -160,7 +140,6 @@ export function CardDetail({
   );
 }
 
-/** A deleted card chosen in Deleted: what it said, when it went, and Restore or Forget. */
 export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRestore: () => void; onForget: () => void }) {
   return (
     <section aria-label="Deleted card" className={DETAIL_LAYOUT} style={DETAIL}>
@@ -185,22 +164,6 @@ export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRest
   );
 }
 
-/** The key legend under the deck. */
-export function RecallKeys({ revealed }: { revealed: boolean }) {
-  return (
-    <div className="loki-meta loki-meta--wrap loki-mono" style={{ textAlign: "center", marginTop: 12 }}>
-      {revealed
-        ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back"
-        : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
-    </div>
-  );
-}
-
-/**
- * Learn's welcome before it has ever been on (plan 2026-11-14-0852, 2), as Apple's welcome sheets are: a title, three
- * rows of a symbol, a bold line and a sentence, one filled button, and the rest behind Learn More…. Off by default
- * because it spends the person's model budget in the background; nothing is written until they say so.
- */
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
   const [more, setMore] = useState(false);
   return (
@@ -252,13 +215,8 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
   );
 }
 
-/** The welcome's symbols, from the one icon set (Lucide): chats, the spaced repeat, the budget's gauge. */
 const WELCOME_ICON: Record<WelcomeRow["icon"], LucideIcon> = { chats: MessagesSquareIcon, spaced: RepeatIcon, budget: GaugeIcon };
 
-/**
- * Preferences › Learn: the writer's switch and knobs, in Settings' fact grid, and the export for Anki. They were the
- * strip under All Cards until Learn moved onto the list (plan 2026-11-14-1330, KTD10), which keeps only the grey line.
- */
 export function RecallSettings({
   worker,
   onSettings,
@@ -320,10 +278,8 @@ export function RecallSettings({
   );
 }
 
-/** The word for a lead's depth. */
 const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting", course: "A course · several sittings" };
 
-/** Where a lead came up: the agent's name as a chip, the chat's title and how long ago. */
 function LeadSource({ lead, at }: { lead: Lead; at: string }) {
   return (
     <span className="flex flex-wrap items-center gap-2">
@@ -337,11 +293,6 @@ function LeadSource({ lead, at }: { lead: Lead; at: string }) {
   );
 }
 
-/**
- * A lead chosen in Leads: something the writer thinks the person could learn properly, with Start the Lesson (the
- * lesson opens as a [Learn] chat and its brief goes out), Not This (the dismissed pile the writer reads) and the chat
- * where it came up.
- */
 export function LeadDetail({
   lead,
   starting,
@@ -384,7 +335,6 @@ export function LeadDetail({
   );
 }
 
-/** A lesson under way chosen in Leads: the lead it began from, a way to its chat, and Send the Brief when it never arrived. */
 export function LessonDetail({ lesson, onOpen, onResume }: { lesson: Lesson; onOpen: () => void; onResume: () => void }) {
   return (
     <section aria-label={`Lesson: ${lesson.lead.title}`} className={DETAIL_LAYOUT} style={DETAIL}>
@@ -405,7 +355,6 @@ export function LessonDetail({ lesson, onOpen, onResume }: { lesson: Lesson; onO
   );
 }
 
-/** A dismissed lead chosen in Deleted: what it was, when it was dismissed, and Restore. */
 export function DismissedDetail({ d, onRestore }: { d: DismissedLead; onRestore: () => void }) {
   return (
     <section aria-label={`Dismissed lead: ${d.lead.title}`} className={DETAIL_LAYOUT} style={DETAIL}>

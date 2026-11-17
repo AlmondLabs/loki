@@ -1,10 +1,3 @@
-//! The menu bar, built from the keymap the page sends at startup (app/src/shell/keymap.ts is the
-//! only source of truth). Our items emit `loki:menu` with the binding id; the page runs the action.
-//! The App, Edit and Window menus are the system's predefined items.
-//!
-//! The Mac's only (plan 014 KTD4): Windows and Linux set no native menu at all; loki's own ☰ in its title strip
-//! opens the same menus there, from the same keymap. `set_menu` is a no-op on those systems.
-
 use serde::Deserialize;
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
@@ -28,7 +21,7 @@ pub struct MenuSpec {
 }
 
 #[cfg(target_os = "macos")]
-pub const SETTINGS_ID: &str = "app.settings";
+const APP_MENU: &str = "loki";
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -36,7 +29,6 @@ pub fn set_menu(app: AppHandle, menus: Vec<MenuSpec>) -> Result<(), String> {
     build(&app, menus).map_err(|e| e.to_string())
 }
 
-/// Windows and Linux: no menu bar; the ☰ in the title strip carries the menus.
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn set_menu(menus: Vec<MenuSpec>) -> Result<(), String> {
@@ -46,35 +38,18 @@ pub fn set_menu(menus: Vec<MenuSpec>) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn build<R: Runtime>(app: &AppHandle<R>, menus: Vec<MenuSpec>) -> tauri::Result<()> {
-    let settings = MenuItemBuilder::with_id(SETTINGS_ID, "Settings…").accelerator("CmdOrCtrl+Comma").build(app)?;
-    let app_menu = SubmenuBuilder::new(app, "loki")
-        .item(&PredefinedMenuItem::about(app, Some("About loki"), None)?)
-        .separator()
-        .item(&settings)
-        .separator()
-        .hide()
-        .hide_others()
-        .show_all()
-        .separator()
-        .quit()
-        .build()?;
+    let (own, rest): (Vec<MenuSpec>, Vec<MenuSpec>) = menus.into_iter().partition(|m| m.title == APP_MENU);
+    let mut app_menu =
+        SubmenuBuilder::new(app, "loki").item(&PredefinedMenuItem::about(app, Some("About loki"), None)?).separator();
+    for m in own {
+        app_menu = add_items(app, app_menu, m.items)?;
+    }
+    let app_menu = app_menu.separator().hide().hide_others().show_all().separator().quit().build()?;
     let edit = SubmenuBuilder::new(app, "Edit").undo().redo().separator().cut().copy().paste().select_all().build()?;
 
     let mut bar = MenuBuilder::new(app).item(&app_menu).item(&edit);
-    for m in menus {
-        let mut sub = SubmenuBuilder::new(app, &m.title);
-        for it in m.items {
-            if it.separator == Some(true) {
-                sub = sub.separator();
-                continue;
-            }
-            let (Some(id), Some(label)) = (it.id, it.label) else { continue };
-            let mut item = MenuItemBuilder::with_id(id, label);
-            if let Some(acc) = it.accelerator {
-                item = item.accelerator(acc);
-            }
-            sub = sub.item(&item.build(app)?);
-        }
+    for m in rest {
+        let sub = add_items(app, SubmenuBuilder::new(app, &m.title), m.items)?;
         bar = bar.item(&sub.build()?);
     }
     let window = SubmenuBuilder::new(app, "Window").minimize().maximize().separator().close_window().build()?;
@@ -83,7 +58,27 @@ fn build<R: Runtime>(app: &AppHandle<R>, menus: Vec<MenuSpec>) -> tauri::Result<
     Ok(())
 }
 
-/// Route every menu click to the page as `loki:menu` carrying the binding id. Registered once, at setup.
+#[cfg(target_os = "macos")]
+fn add_items<'m, R: Runtime>(
+    app: &AppHandle<R>,
+    mut sub: SubmenuBuilder<'m, R, AppHandle<R>>,
+    items: Vec<MenuItemSpec>,
+) -> tauri::Result<SubmenuBuilder<'m, R, AppHandle<R>>> {
+    for it in items {
+        if it.separator == Some(true) {
+            sub = sub.separator();
+            continue;
+        }
+        let (Some(id), Some(label)) = (it.id, it.label) else { continue };
+        let mut item = MenuItemBuilder::with_id(id, label);
+        if let Some(acc) = it.accelerator {
+            item = item.accelerator(acc);
+        }
+        sub = sub.item(&item.build(app)?);
+    }
+    Ok(sub)
+}
+
 #[cfg(target_os = "macos")]
 pub fn listen<R: Runtime>(app: &AppHandle<R>) {
     app.on_menu_event(|app, event| {

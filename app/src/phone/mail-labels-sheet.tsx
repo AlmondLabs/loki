@@ -3,14 +3,8 @@ import { Button, Chip, Sheet, sentence } from "../components";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 import { messageOf } from "../../../core/errors.ts";
 
-/** Gmail's own labels worth putting on a thread by hand; the rest (INBOX, UNREAD, SENT, …) are other moves or Gmail's. */
 const SYSTEM_PICKS = new Set(["STARRED", "IMPORTANT"]);
 
-/**
- * The phone's label picker on an email card (plan 070, R12): the account's Gmail labels as chips, read from Gmail when
- * the sheet opens; Add puts the ticked ones on the thread and the card stays for its next move. A refusal shows under
- * the chips and the sheet stays. Mounted only while open.
- */
 export function MailLabelsSheet({
   load,
   onAdd,

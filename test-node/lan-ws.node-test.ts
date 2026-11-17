@@ -1,7 +1,3 @@
-/**
- * The LAN listener's /ws refusing another site's Origin, under Node's own test runner, the daemon's runtime:
- * `npm run test:node`.
- */
 import { strict as assert } from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +8,6 @@ import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
 import { LanListener } from "../mod/lan.ts";
 
-/** "open" once the bridge says hello, "closed" when the upgrade is refused, "timeout" if neither. */
 const outcome = (url: string, headers: Record<string, string>) =>
   new Promise<string>((resolve) => {
     const ws = new WsClient(url, { headers });
@@ -55,7 +50,7 @@ void test("an upgrade from a page on another site is refused, even with the phon
     assert.ok(cookie);
     assert.equal(await outcome(`ws://${base}/ws?desk=c1`, { cookie, origin: "http://evil.example" }), "closed");
     assert.equal(await outcome(`ws://${base}/ws?desk=c1`, { cookie, origin: `http://${base}` }), "open");
-    assert.equal(await outcome(`ws://${base}/ws?desk=c1`, { cookie }), "open"); // the phone app's own socket names no Origin
+    assert.equal(await outcome(`ws://${base}/ws?desk=c1`, { cookie }), "open");
   } finally {
     await lan.stop();
     rmSync(dir, { recursive: true, force: true });

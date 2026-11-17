@@ -21,7 +21,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** What a fake write-back says it changed: nothing on any message. */
 const changeOf = (move: OutsideChange["move"], ended: boolean, record: ThreadRecord): OutsideChange => ({
   move,
   messages: [],
@@ -29,7 +28,6 @@ const changeOf = (move: OutsideChange["move"], ended: boolean, record: ThreadRec
   was_unread: record.unread_out_there,
 });
 
-/** A write-back that changes nothing out there, with any of its writes replaced. */
 const fakeSource = (more: Partial<OutsideSource> = {}): OutsideSource => ({
   archive: (_a, r) => Promise.resolve(changeOf("archive", true, r)),
   markRead: (_a, r) => Promise.resolve(changeOf("read", false, r)),
@@ -40,7 +38,6 @@ const fakeSource = (more: Partial<OutsideSource> = {}): OutsideSource => ({
   ...more,
 });
 
-/** A bridge with only the account frames, over two accounts of the work agent. */
 async function fixture(
   source?: OutsideSource,
   connect?: AccountConnectDeps,
@@ -341,13 +338,11 @@ describe("the account frames", () => {
   });
 });
 
-/** Made-up sessions of the Slack desktop app: Acme (already connected in the fixture) and Globex. */
 const SESSIONS: SlackSession[] = [
   { team_id: "T01", team_name: "Acme", url: "https://acme.slack.com/", user_id: "U02", token: "xoxc-acme", cookie: "xoxd-acme" },
   { team_id: "T09", team_name: "Globex", url: "https://globex.slack.com/", user_id: "U07", token: "xoxc-globex", cookie: "xoxd-globex" },
 ];
 
-/** The ways to connect, over a sign-in that records what it started with and a Slack whose auth.test names the session's workspace. */
 function connecting(opts: { supported?: boolean } = {}) {
   const started: unknown[] = [];
   const slackCalls: string[] = [];
@@ -470,7 +465,6 @@ describe("connecting an account (plan 067, U5)", () => {
 const NOW = () => new Date("2026-11-10T09:00:00Z");
 const JIRA_ID = "jira:acme.atlassian.net:acc-me";
 
-/** The ways to connect with a Jira site behind them: Acme's, which accepts one email and token. */
 function connectingJira(site = fakeJira({ now: NOW })) {
   const connect: AccountConnectDeps = { ...connecting().connect, jiraFetch: site.fetch };
   const details = { type: "account_connect_jira", owner_agent_id: "agent-home", site: site.host, email: site.state.email, token: site.state.token };
@@ -557,7 +551,6 @@ describe("connecting a Jira site (plan 2026-11-10-1451, U3)", () => {
     const { ask, accounts, secrets } = await fixture(undefined, connect);
     expect((await ask({ ...details, site: "jira.acme.example" })).type).toBe("accounts");
     expect(accounts.list().filter((a) => a.provider === "jira")).toMatchObject([{ account_id: JIRA_ID, address: "acme.atlassian.net" }]);
-    // The custom domain is kept beside the token, so the card's link opens there (R14).
     expect(JSON.parse(secrets.entries.get(`account:${JIRA_ID}`) ?? "null")).toMatchObject({ site: "acme.atlassian.net", link_host: "jira.acme.example" });
     expect(await ask(details)).toMatchObject({ type: "error", message: "acme.atlassian.net (Jira) is already connected" });
   });
@@ -587,7 +580,6 @@ describe("connecting a Jira site (plan 2026-11-10-1451, U3)", () => {
     await expect(jira.myself()).rejects.toMatchObject({ code: "rejected" });
     await expect(jira.myself()).rejects.toMatchObject({ code: "rejected" });
     expect(accounts.get(JIRA_ID)?.status).toEqual({ disconnected: "sign_in_again" });
-    // The account is told once: a second rejection finds it already saying so.
     expect(changes).toEqual(["status"]);
 
     const answer = await ask({ ...details, owner_agent_id: "agent-work", token: "second-token", account_id: JIRA_ID });

@@ -3,7 +3,6 @@ import { Button, Dot, Field, TextArea, sentence } from "../components";
 import { Block, Setting } from "./layout";
 import type { EnginesView, EngineView } from "../../../core/frame-types.ts";
 
-/** What Preferences › Engines asks of the daemon; each call resolves to the agents as they now stand, or an error message. */
 export interface EnginesApi {
   get: () => Promise<EnginesView | string>;
   set: (engine: { id: string; name: string; command: string; args: string[] }) => Promise<EnginesView | string>;
@@ -20,7 +19,6 @@ const TONE: Record<EngineView["status"], string> = {
   failed: "var(--loki-negative)",
 };
 
-/** A status as the list says it. */
 const WORDS: Record<EngineView["status"], string> = {
   ready: "ready",
   started: "starts",
@@ -30,17 +28,12 @@ const WORDS: Record<EngineView["status"], string> = {
   failed: "failed",
 };
 
-/** A name as an agent id: lowercase letters, digits and dashes ("Gemini CLI" → "gemini-cli"). */
 export const engineId = (name: string): string =>
   name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-/**
- * Preferences › Engines (plan 020, R10): the ACP agents a chat can run on, the built-in ones first, each with how it stands
- * (its command found, signed in, its last failure). Try starts one now; add and edit write ~/.loki/state/acp.json.
- */
 export function Engines({ api }: { api: EnginesApi }) {
   const [view, setView] = useState<EnginesView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +61,12 @@ export function Engines({ api }: { api: EnginesApi }) {
   if (!view) return <Setting label="Engines" help={error ?? "Asking loki…"} />;
   return (
     <>
-      <Block help="What a chat can run on besides loki's own models. A chat picks its engine in the model picker, before its first message.">
-        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      <Block help="What a chat can run on besides loki's own models, chosen in the model picker before its first message.">
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
         {view.engines.map((e) => (
           <EngineRow
             key={e.id}
@@ -105,7 +102,6 @@ export function Engines({ api }: { api: EnginesApi }) {
   );
 }
 
-/** One engine: its name and how it stands, the command that starts it behind "details", and try, edit and remove. */
 function EngineRow({
   e,
   trying,
@@ -137,14 +133,20 @@ function EngineRow({
         <Button size="sm" bare onClick={() => setDetails(!details)} aria-expanded={details}>
           Details
         </Button>
-        <Button size="sm" onClick={onTry} disabled={trying !== null} aria-label={`Try starting ${e.name}`}>
+        <Button size="sm" onClick={onTry} disabled={trying !== null} aria-label={trying === e.id ? `Starting ${e.name}…` : `Try ${e.name}`}>
           {trying === e.id ? "Starting…" : "Try"}
         </Button>
         <Button size="sm" onClick={onEdit} aria-label={`Edit ${e.name}`}>
           Edit
         </Button>
         {(!e.builtin || e.changed) && (
-          <Button size="sm" tone="negative" onClick={onRemove} aria-label={e.builtin ? `Start ${e.name} as loki ships it` : `Remove ${e.name}`}>
+          <Button
+            size="sm"
+            tone="negative"
+            onClick={onRemove}
+            aria-label={e.builtin ? `Reset ${e.name}` : `Remove ${e.name}`}
+            title={e.builtin ? `Start ${e.name} as loki ships it` : undefined}
+          >
             {e.builtin ? "Reset" : "Remove"}
           </Button>
         )}
@@ -158,7 +160,6 @@ function EngineRow({
   );
 }
 
-/** Add an ACP agent, or change how one starts: its name, its command and its arguments, one per line. */
 function EngineForm({
   engine,
   configPath,
@@ -220,7 +221,11 @@ function EngineForm({
         placeholder={"-y\n@google/gemini-cli\n--experimental-acp"}
         spellCheck={false}
       />
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2">
         <Button size="sm" tone="positive" onClick={() => void save()} disabled={busy}>
           {busy ? "Saving…" : "Save"}

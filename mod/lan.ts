@@ -19,112 +19,56 @@ import { serialQueue } from "../core/serial.ts";
 import { messageOf } from "../core/errors.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
-/**
- * The second listener, for phones on the same Wi‑Fi. Off by default; the setting in
- * state/lan.json survives /reload. Binds 0.0.0.0:41415 (LOKI_LAN_PORT) and speaks:
- *   GET  /health                       liveness, nothing else
- *   POST /pair  {code, name}           a pairing code → a device token in an HttpOnly cookie
- *   GET  /me                           {device_id, name} or 401: is this browser paired?
- *   POST /unpair                       clears the cookie and forgets the device
- *   GET  /agents/<id>/profile.png      device auth (cookie or bearer), never ?t=
- *   POST/DELETE /uploads               a file attached to a message (mod/uploads.ts), device auth, same-site only
- *   /ws                                the same bridge as loopback, device auth only
- *   everything else                    the built canvas as a single-page app (mod/static.ts)
- * The desktop token is refused here even when presented as a bearer.
- *
- * Paired Macs (plan 023, mod/peers.ts) use the same port, over the tailnet only:
- *   POST /peer/pair    {code, hello, token}  pairs with the Mac showing the code
- *   GET  /peer/hello                        this Mac's hello, for a Mac's bearer token
- *   POST /peer/unpair                       the Mac behind the bearer token forgot this one
- *   /ws                                     a Mac's bearer token, routed with a Mac's allow-list (mod/bridge.ts)
- * While any Mac is paired, or a Mac pairing code is live, the listener stays up with the phone switch off; the
- * phone's routes then answer 404 and a phone's token opens nothing.
- */
-
-/** What changed on the phone listener: its status, or the paired devices. */
 export type LanChange = "status" | "devices";
 
-/** What the phone listener is built with; the options marked for tests replace the machine's network, host and clocks. */
 export interface LanOptions {
-  /** Default LOKI_LAN_PORT or 41415. 0 picks an ephemeral port (tests). */
   port?: number;
-  /** state/lan.json */
   stateFile: string;
   devices: DeviceStore;
   codes: PairingCodes;
-  /** The same handlers the loopback bridge uses (mod/bridge.ts). */
   handlers: WsHandlers;
-  /** The loopback capability token: refused on this listener. */
   desktopToken?: string;
   profile?: (agentId: string) => string | null;
-  /** Where attached files go (mod/uploads.ts); no upload route without it. */
   uploads?: string;
-  /** The pictures in messages (mod/chat-images.ts): the folder, and asking the paired Macs for one not here. */
   chatImages?: { dir: string; fetchRemote: (name: string) => Promise<Buffer | null> };
-  /** Override the canvas directory; default resolveAppDist() (LOKI_APP_DIST, installed layout, app/dist). */
   appDist?: string | null;
   health?: () => object;
-  /** "status" after start/stop/bind error; "devices" after pair or a persisted last-seen. */
   onChange?: (what: LanChange, status: LanStatus) => void;
-  /** For tests: the interface table. */
   interfaces?: () => ReturnType<typeof networkInterfaces>;
-  /** For tests: the Bonjour host (default bonjourHost()). */
   host?: () => string | null;
-  /** For tests: the clock the Bonjour host is kept by (default Date.now). */
   now?: () => number;
-  /** How often to look for a new canvas build while listening (default 5 s). */
   buildPollMs?: number;
-  /** The tailnet reader; omit and status().tailscale is null (tests that do not care). */
   tailscale?: Tailscale | null;
-  /** How often to re-read Tailscale while listening (default 60 s). */
   tailscalePollMs?: number;
-  /** Pairing between Macs; without it the /peer routes answer 404 and no Mac's token is accepted. */
   peers?: Peers | null;
-  /** For tests: which way a request came in (default requestVia). Macs are accepted over the tailnet only. */
   via?: (req: IncomingMessage) => DeviceVia;
 }
 
-/**
- * How long the Bonjour host is kept (plan 047). Reading it runs scutil, which blocked the daemon about 10 ms, and
- * status() runs on every phone's socket, upload and pairing; a renamed Mac shows within this.
- */
 export const HOST_TTL_MS = 60_000;
 
-/** The name of the HttpOnly cookie that carries a paired phone's device token. */
 export const DEVICE_COOKIE = "loki_device";
 const COOKIE_MAX_AGE = 365 * 24 * 3600;
 const MAX_BODY = 64 * 1024;
 
-/**
- * The phone listener: the setting, the bound server and its /ws, pairing, the routes it advertises in
- * the QR (the Wi‑Fi address or the tailnet name), and a watch for new canvas builds while it listens.
- */
 export class LanListener {
   private readonly opts: LanOptions;
   private readonly configuredPort: number;
   private dist: string | null;
   private serveStatic: StaticHandler;
   private enabledFlag: boolean;
-  /** The Bonjour host as last read, and when (host()). */
   private bonjour: { at: number; name: string | null } | null = null;
-  /** Paired Macs, or a live Mac pairing code, need the listener up whatever the phone switch says. */
   private peersNeeded = false;
-  /** The user's route choice, or undefined for the default (tailscale iff running). */
   private viaSetting: LanVia | undefined;
   private readonly tailscale: Tailscale | null;
-  /** The Tailscale status the last refresh() saw, to notice a change worth broadcasting. */
   private lastTailscale: TailscaleStatus | null = null;
   private tailscalePoll: ReturnType<typeof setInterval> | null = null;
-  /** Wrong pairing codes per remote address: ten in ten minutes and that address waits ten minutes. */
   private readonly attempts = new Attempts();
   private server: Server | null = null;
-  /** While listening: the build id last announced, and the poll that watches for a new one. */
   private announcedBuild: string | null = null;
   private buildPoll: ReturnType<typeof setInterval> | null = null;
   private ws: WsBridge | null = null;
   private boundPort: number | null = null;
   private bindError: string | null = null;
-  /** Starts and stops, one at a time. */
   private readonly busy = serialQueue();
 
   constructor(opts: LanOptions) {
@@ -139,12 +83,10 @@ export class LanListener {
     opts.devices.onSeen = () => this.opts.onChange?.("devices", this.status());
   }
 
-  /** The persisted setting, whether or not the socket is up. */
   enabled(): boolean {
     return this.enabledFlag;
   }
 
-  /** Synchronous: the Tailscale part is whatever the last refresh() (or the cache) said. */
   status(): LanStatus {
     const addresses = lanAddresses(this.opts.interfaces).filter((a) => !isTailnetAddress(a));
     const listening = this.server !== null;
@@ -162,14 +104,12 @@ export class LanListener {
     };
   }
 
-  /** The Bonjour host, read again once it is older than HOST_TTL_MS. */
   private host(): string | null {
     const now = (this.opts.now ?? Date.now)();
     if (!this.bonjour || now - this.bonjour.at >= HOST_TTL_MS) this.bonjour = { at: now, name: (this.opts.host ?? bonjourHost)() };
     return this.bonjour.name;
   }
 
-  /** Ask Tailscale again (cached inside its ttl), then status(). Broadcasts when the tailnet's answer changed. */
   async refresh(): Promise<LanStatus> {
     if (this.tailscale) {
       const next = await this.tailscale.status();
@@ -183,11 +123,6 @@ export class LanListener {
     return this.status();
   }
 
-  /**
-   * The QR's payload: the page redeems `code` on load (D4'). Off the Wi‑Fi first (Addendum 3): the https front
-   * from `tailscale serve`, else the MagicDNS name; on the Wi‑Fi the Bonjour name, which survives a new address
-   * on another network; else the address.
-   */
   pairUrl(code: string): string {
     const s = this.status();
     return `${this.origin(s)}/?code=${encodeURIComponent(code)}`;
@@ -202,10 +137,6 @@ export class LanListener {
     return `http://${s.host ?? s.address ?? "127.0.0.1"}:${s.port}`;
   }
 
-  /**
-   * Persist first, then bind or close. Resolves with the status either way. Turned off while paired Macs keep the
-   * listener up, the phones already connected are let go here: the check at connect would leave them on.
-   */
   setEnabled(enabled: boolean): Promise<LanStatus> {
     this.enabledFlag = enabled;
     writeState(this.opts.stateFile, { enabled, via: this.viaSetting });
@@ -216,13 +147,11 @@ export class LanListener {
     return enabled || this.peersNeeded ? this.start() : this.stop();
   }
 
-  /** Paired Macs need the listener (or no longer do): bind it, or close it when the phone switch is off too. */
   setPeersNeeded(needed: boolean): Promise<LanStatus> {
     this.peersNeeded = needed;
     return needed || this.enabledFlag ? this.start() : this.stop();
   }
 
-  /** The user's route choice, persisted; every tab hears the new status. */
   setVia(via: LanVia): LanStatus {
     this.viaSetting = via;
     writeState(this.opts.stateFile, { enabled: this.enabledFlag, via });
@@ -231,7 +160,6 @@ export class LanListener {
     return status;
   }
 
-  /** Turn `tailscale serve` on or off for this listener; a CLI complaint shows in status().tailscale.error. */
   async setServe(enabled: boolean): Promise<LanStatus> {
     if (!this.tailscale) return this.status();
     this.lastTailscale = await this.tailscale.setServe(enabled);
@@ -240,7 +168,6 @@ export class LanListener {
     return status;
   }
 
-  /** Origins the cross-site check accepts besides the request's own Host: the tailnet name and the Bonjour name. */
   private allowedHosts(): string[] {
     const s = this.status();
     const out: string[] = [];
@@ -250,7 +177,6 @@ export class LanListener {
     return out;
   }
 
-  /** Bind. Failures land in status().error, never here. */
   start(): Promise<LanStatus> {
     return this.serialized(async () => {
       if (this.server) return;
@@ -269,12 +195,14 @@ export class LanListener {
       this.boundPort = (server.address() as { port: number }).port;
       // A page on another site can open a WebSocket to this address, and the phone's cookie rides along:
       // an upgrade naming a foreign Origin is refused, as /uploads is.
-      this.ws = attachWs(server, (req, url) => (crossOrigin(req, this.allowedHosts()) ? { ok: false } : this.authorize(req, url)), this.opts.handlers);
+      this.ws = attachWs(
+        server,
+        (req, url) => (crossOrigin(req, this.allowedHosts()) ? { ok: false, refusal: 403 } : this.authorize(req, url)),
+        this.opts.handlers,
+      );
       log("lan:listening", { port: this.boundPort, addresses: lanAddresses(this.opts.interfaces), appDist: this.dist });
-      // Phones cannot reload themselves from a menu: watch the build and tell them when it changes.
       this.announcedBuild = buildIdOf(this.dist);
       this.buildPoll = setInterval(() => this.checkBuild(), this.opts.buildPollMs ?? 5000);
-      // The tailnet can come and go (sign-out, laptop lid): read it now, then once a minute.
       if (this.tailscale) {
         await this.refresh();
         this.tailscalePoll = setInterval(() => void this.refresh(), this.opts.tailscalePollMs ?? 60_000);
@@ -282,9 +210,7 @@ export class LanListener {
     });
   }
 
-  /** Announce a new canvas build to every phone (`app_build {build}`); they offer to reload. */
   checkBuild(): void {
-    // Nobody to tell: a phone that connects later loads the page as it is now (plan 048).
     if (this.clientCount() === 0) return;
     const build = buildIdOf(this.dist);
     if (!build || build === this.announcedBuild) return;
@@ -312,7 +238,6 @@ export class LanListener {
     });
   }
 
-  /** Runs `fn` after any start/stop in flight, then reports the status change. */
   private async serialized(fn: () => Promise<void>): Promise<LanStatus> {
     await this.busy(fn);
     const status = this.status();
@@ -328,12 +253,10 @@ export class LanListener {
     return this.ws?.clientCount() ?? 0;
   }
 
-  /** Close a forgotten Mac's live sockets. */
   closePeer(macId: string): number {
     return this.ws?.closePeer(macId) ?? 0;
   }
 
-  /** Forget a device and close its live sockets. */
   forget(id: string): boolean {
     const gone = this.opts.devices.forget(id);
     const closed = this.ws?.closeDevice(id) ?? 0;
@@ -341,27 +264,24 @@ export class LanListener {
     return gone;
   }
 
-  // --- auth -----------------------------------------------------------------------------------
   private readonly authorize: Authorize = (req) => {
     const token = deviceToken(req);
     if (!token || token === this.opts.desktopToken) return { ok: false };
     const via = this.via(req);
-    // A phone is let in only while the phone switch is on, even when the listener is up for paired Macs.
     if (this.enabledFlag) {
       const device = this.opts.devices.verify(token, via);
       if (device) return { ok: true, deviceId: device.id };
     }
-    const mac = via === "tailscale" ? this.opts.peers?.verify(token) : null;
+    if (via !== "tailscale") return { ok: false, refusal: this.opts.peers ? 403 : 401 };
+    const mac = this.opts.peers?.verify(token);
     return mac ? { ok: true, peerId: mac } : { ok: false };
   };
 
   private via(req: IncomingMessage): DeviceVia {
     if (this.opts.via) return this.opts.via(req);
-    // With a tailnet reader, a 100.x caller counts only when it reached this Mac's own tailnet address.
-    return requestVia(req, this.tailscale ? this.tailscale.cached().ip : undefined);
+    return requestVia(req, this.tailscale ? tailnetAddresses(this.opts.interfaces, this.tailscale.cached().ip) : undefined);
   }
 
-  // --- http -----------------------------------------------------------------------------------
   private handle(req: IncomingMessage, res: ServerResponse): void {
     let url: URL;
     try {
@@ -371,7 +291,6 @@ export class LanListener {
     }
     try {
       if (url.pathname.startsWith("/peer/")) return this.peerRoute(req, res, url);
-      // Up only for paired Macs: the phone's routes and the canvas are not served.
       if (!this.enabledFlag && url.pathname !== "/health") return json(res, 404, { error: "not found" });
       switch (url.pathname) {
         case "/health":
@@ -412,8 +331,6 @@ export class LanListener {
         uploadRoute(req, res, url, { authorize: this.authorize, dir: this.opts.uploads, denied: 401, guard: (r) => crossOrigin(r, this.allowedHosts()) })
       )
         return;
-      // The canvas build can land after the mod started (the app installs it on launch; a developer runs
-      // build:app later): look again while it is missing, so phones stop seeing the 503 without a /reload.
       if (this.dist === null && this.opts.appDist === undefined) {
         const found = resolveAppDist();
         if (found) {
@@ -430,7 +347,6 @@ export class LanListener {
     }
   }
 
-  /** The routes between Macs: over the tailnet only, never the Wi‑Fi, and only with pairing built in. */
   private peerRoute(req: IncomingMessage, res: ServerResponse, url: URL): void {
     const peers = this.opts.peers;
     if (!peers) return json(res, 404, { error: "not found" });
@@ -439,7 +355,6 @@ export class LanListener {
       const token = deviceToken(req);
       return token && token !== this.opts.desktopToken ? peers.verify(token) : null;
     };
-    // A picture in a message, for a paired Mac showing one of this Mac's chats: only what is here, asked of no one else.
     const images = this.opts.chatImages;
     if (images && chatImageRoute({ prefix: "/peer/chat-images/", dir: images.dir, authorize: () => ({ ok: !!bearer() }), denied: 401 })(req, res, url)) return;
     switch (url.pathname) {
@@ -449,7 +364,6 @@ export class LanListener {
         if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
         if (!(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) return json(res, 415, { error: "send application/json" });
         void readJson(req)
-          // Again once the body is in, as for a phone: requests sent together all passed the first check before any failed.
           .then((body) => (this.attempts.blocked(ip) ? { status: 429, body: { error: "too many wrong codes; wait a while" } } : peers.accept(body)))
           .then(
             (answer) => {
@@ -466,7 +380,6 @@ export class LanListener {
         return json(res, 200, peers.hello());
       }
       case "/peer/uploads": {
-        // A file attached on another Mac to a chat that lives here (U5): saved where this Mac's uploads go.
         if (!this.opts.uploads) return json(res, 404, { error: "not found" });
         const peerAuth: Authorize = () => ({ ok: !!bearer() });
         uploadRoute(req, res, new URL(`/uploads${url.search}`, "http://0.0.0.0"), { authorize: peerAuth, dir: this.opts.uploads, denied: 401 });
@@ -488,7 +401,6 @@ export class LanListener {
     if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
     void readJson(req).then(
       (body) => {
-        // Again once the body is in: requests sent together all passed the first check before any had failed.
         if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
         if (!body || typeof body.code !== "string") return json(res, 400, { error: "expected {code, name}" });
         if (!this.opts.codes.redeem(body.code)) {
@@ -506,8 +418,6 @@ export class LanListener {
     );
   }
 }
-
-// --- helpers ------------------------------------------------------------------------------------
 
 /**
  * `/pair` and `/unpair` set or clear the device cookie, and a browser applies Set-Cookie even from a
@@ -544,7 +454,6 @@ export function crossOrigin(req: IncomingMessage, allowedHosts: string[] = []): 
   return null;
 }
 
-/** Wrong-code counter per address. Codes have 32^6 values; ten guesses in ten minutes is plenty for a human. */
 export class Attempts {
   private readonly byIp = new Map<string, { count: number; first: number; until: number }>();
   private readonly limit: number;
@@ -583,17 +492,18 @@ export class Attempts {
  * loopback and names the peer in X-Forwarded-For (and the tailnet in Host). Everything else is the Wi‑Fi.
  *
  * The 100.x range is not Tailscale's alone: a carrier or a Wi‑Fi may hand out the same addresses. So when the caller
- * knows this Mac's tailnet address (`tailnetIp`; null for "not on a tailnet"), a 100.x peer counts only if it reached
- * that address, which only the tailnet's interface has. Left out, the peer's address alone decides.
+ * knows this Mac's tailnet addresses (`tailnetIps`, from tailnetAddresses; empty for "not on a tailnet"), a 100.x
+ * peer counts only if it reached one of them, which only the tailnet's interface has. Left out, the peer's address
+ * alone decides.
  */
 export function requestVia(
   req: Pick<IncomingMessage, "headers"> & { socket?: { remoteAddress?: string | null; localAddress?: string | null } },
-  tailnetIp?: string | null,
+  tailnetIps?: readonly string[],
 ): DeviceVia {
   const remote = (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
   if (isTailnetAddress(remote)) {
-    if (tailnetIp === undefined) return "tailscale";
-    return tailnetIp !== null && (req.socket?.localAddress ?? "").replace(/^::ffff:/i, "") === tailnetIp ? "tailscale" : "lan";
+    if (tailnetIps === undefined) return "tailscale";
+    return tailnetIps.includes((req.socket?.localAddress ?? "").replace(/^::ffff:/i, "")) ? "tailscale" : "lan";
   }
   const forwarded = req.headers["x-forwarded-for"];
   const peer = (Array.isArray(forwarded) ? forwarded[0] : (forwarded ?? "")).split(",")[0]?.trim() ?? "";
@@ -609,9 +519,36 @@ export function isTailnetAddress(ip: string): boolean {
   return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127;
 }
 
+/** An interface Tailscale names after itself: `tailscale0` on Linux, `Tailscale` on Windows. */
+const TAILSCALE_NAMED = /^tailscale\d*$/i;
+/** A tunnel on the Mac. Every VPN's is a `utun`, so a name alone does not say whose it is. */
+const MAC_TUNNEL = /^utun\d+$/i;
+/** Tailscale's own IPv6 prefix, fd7a:115c:a1e0::/48, which its tunnel always holds beside its 100.x address. */
+const TAILSCALE_ULA = /^fd7a:115c:a1e0:/i;
+
+/**
+ * This machine's tailnet addresses: the 100.64/10 addresses Tailscale's interface holds, and the address the CLI last
+ * reported (`cliIp`, null when it has not answered). On the Mac, Tailscale's `utun` is the one that also holds an
+ * address in Tailscale's IPv6 prefix; another VPN's tunnel (WARP, NetBird) and a Wi‑Fi's 100.x address from a
+ * carrier's NAT are not.
+ */
+export function tailnetAddresses(interfaces: () => ReturnType<typeof networkInterfaces> = networkInterfaces, cliIp: string | null = null): string[] {
+  const out = new Set<string>(cliIp ? [cliIp] : []);
+  let table: ReturnType<typeof networkInterfaces>;
+  try {
+    table = interfaces();
+  } catch {
+    return [...out];
+  }
+  for (const [name, infos = []] of Object.entries(table)) {
+    const tailscales = TAILSCALE_NAMED.test(name) || (MAC_TUNNEL.test(name) && infos.some((info) => TAILSCALE_ULA.test(info.address)));
+    if (tailscales) for (const info of infos) if (!info.internal && isTailnetAddress(info.address)) out.add(info.address);
+  }
+  return [...out];
+}
+
 const isLoopback = (ip: string) => ip === "127.0.0.1" || ip === "::1";
 
-/** Non-internal IPv4 addresses, en0 (the Mac's Wi‑Fi) first. */
 export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfaces> = networkInterfaces): string[] {
   let table: ReturnType<typeof networkInterfaces>;
   try {
@@ -636,9 +573,7 @@ export function bonjourHost(): string | null {
   try {
     name =
       execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
-  } catch {
-    // not macOS, or scutil unavailable
-  }
+  } catch {}
   if (!name) {
     try {
       name =
@@ -653,7 +588,6 @@ export function bonjourHost(): string | null {
   return `${name.toLowerCase()}.local`;
 }
 
-/** The device token from the cookie or an Authorization: Bearer header; `?t=` is never read here. */
 export function deviceToken(req: IncomingMessage): string | null {
   const auth = req.headers.authorization;
   if (typeof auth === "string") {
@@ -704,7 +638,6 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
   });
 }
 
-/** state/lan.json: `{ enabled, via? }`. Files from before Addendum 3 have no `via`: the default applies. */
 interface LanState {
   enabled: boolean;
   via?: LanVia;

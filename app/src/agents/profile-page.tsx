@@ -13,7 +13,6 @@ import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit } from "./types";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
-/** The profile page: who the agent is (editable), where it is working (its chats), and the way out. */
 export function ProfilePage({
   d,
   selected,
@@ -41,9 +40,7 @@ export function ProfilePage({
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onShowDesks: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
-  /** The Inbox accounts and every agent, so a delete first moves or disconnects the accounts this agent owns (plan 067, R4). */
   accounts?: { api: AccountsApi; agents: readonly AgentName[] };
-  /** This Mac first, then the Macs paired with it (plan 023); with more than one, the agent's home can be changed. */
   macs?: MacIdentity[];
   confirmDelete: boolean;
   setConfirmDelete: (v: boolean) => void;
@@ -101,10 +98,6 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   );
 }
 
-/**
- * The last step before deleting: what closes (live desks), and the accounts the agent owns, each to move or disconnect
- * before it can go (plan 067, R4). A refused delete asks for the accounts again, so one connected meanwhile shows too.
- */
 function ConfirmDelete({
   d,
   myDesks,
@@ -257,15 +250,10 @@ function Identity({
   );
 }
 
-/** A context window as people say it: 200k, 1M. */
 function contextSize(tokens: number): string {
   return tokens >= 1_000_000 ? `${Math.round(tokens / 100_000) / 10}M` : `${Math.round(tokens / 1000)}k`;
 }
 
-/**
- * The MCP servers this agent can use, each switched on or off for it alone; its chats follow from their next message.
- * Servers are added in Preferences › MCP servers.
- */
 function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get" | "agent"> }) {
   const [view, setView] = useState<McpView | null>(null);
   const [error, setError] = useState<string | null>(null);

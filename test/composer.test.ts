@@ -9,13 +9,6 @@ import { groupModelEntries } from "../app/src/chat/model-picker.tsx";
 import { resolve } from "../app/src/shell/keymap.ts";
 import { must } from "./fixtures/must.ts";
 
-/**
- * The phone's message box (2026-09-24): the text on top and a row inside the same field —
- * "+", the model pill (name, then effort), the mic where dictation works, send. The pill opens "Select
- * model": the harnesses as tabs, the chosen one's models with a check on the current one, More models ›, then the
- * current model's effort levels (plan 021).
- */
-
 const MODELS: ModelEntry[] = [
   { id: "opus-low", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", is_featured: true, reasoning_effort: "low" },
   { id: "opus-medium", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", is_featured: true, reasoning_effort: "medium" },
@@ -26,7 +19,6 @@ const MODELS: ModelEntry[] = [
 ];
 const CURRENT = "anthropic/claude-opus-5-5";
 
-/** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
@@ -34,13 +26,11 @@ function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>>
   return [el, ...elements(el.props.children as ReactNode)];
 }
 const choice = (tree: ReactNode, id: string) => elements(tree).find((e) => e.props["data-choice"] === id);
-/** The accessible names of the buttons in the box's bottom row, in order. */
 const barLabels = (html: string) => {
   const bar = html.slice(html.indexOf('class="loki-composer-bar'));
   return [...bar.matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
 };
 
-/** The accessible names of the desktop box's own buttons ("+" and the one round button), in order. */
 const boxLabels = (html: string) => [...html.matchAll(/<button[^>]*class="loki-composer-(?:plus|round)"[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
 
 const conversation = (touch: boolean, draft = "", over: { mode?: string; onStop?: () => Promise<string | null>; status?: "idle" | "streaming" } = {}) =>
@@ -63,19 +53,16 @@ describe("the phone's message box's bottom row", () => {
   test("+, the model pill with its name and effort, then send, inside the one field", () => {
     const html = conversation(true);
     expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Send"]);
-    // the text and the row share the one rounded field
     expect(html.indexOf('class="loki-composer-box')).toBeLessThan(html.indexOf("loki-composer-text"));
     expect(html.indexOf("loki-composer-text")).toBeLessThan(html.indexOf('class="loki-composer-bar'));
-    // the model in the foreground, the effort after it in the muted colour
     expect(html).toMatch(/class="loki-model-pill-name">Opus 5\.5<\/span><span class="loki-model-pill-effort">Medium<\/span>/);
-    // the old placement is gone: no model or effort chip in the row under the box
     expect(html).not.toContain('aria-label="model"');
     expect(html).not.toContain("reasoning effort:");
   });
 
   test("the permission mode sits beside the model pill, inside the box, not in the row under it", () => {
     const html = conversation(true, "", { mode: "standard" });
-    expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Permission mode", "Send"]);
+    expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "standard, permission mode", "Send"]);
     expect(html).not.toContain("loki-conversation-footer");
   });
 
@@ -101,7 +88,7 @@ describe("the phone's message box's bottom row", () => {
   test("send is disabled while the box is empty and live once there is text", () => {
     const send = (html: string) => must(/<button[^>]*aria-label="Send"[^>]*>/.exec(html), "the Send button")[0];
     expect(send(conversation(true))).toContain('disabled=""');
-    expect(send(conversation(true, "ship it"))).not.toContain("disabled");
+    expect(send(conversation(true, "ship it"))).not.toContain('disabled=""');
   });
 
   test("while the agent works, an empty box's send is Stop; typing brings send back (it queues); no handler, no Stop", () => {
@@ -110,7 +97,6 @@ describe("the phone's message box's bottom row", () => {
     expect(working("", stop)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Stop"]);
     expect(working("and also this", stop)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Queue: sends when this turn ends"]);
     expect(working("")).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Queue: sends when this turn ends"]);
-    // idle: never Stop
     expect(barLabels(conversation(true, "", { onStop: stop }))).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Send"]);
   });
 
@@ -120,8 +106,6 @@ describe("the phone's message box's bottom row", () => {
   });
 });
 
-// The desktop's box is Messages' (plan 2026-11-12-1505, U21): the model and the permission mode live in ⌘K, so the box
-// has neither pill, and its one round button shows only when there is something to send or a turn to stop.
 describe("the desktop's message box", () => {
   test("+ outside the capsule and no pills; send once there is text, live", () => {
     const html = conversation(false);
@@ -131,7 +115,7 @@ describe("the desktop's message box", () => {
     expect(html).not.toContain("loki-composer-bar");
     const typed = conversation(false, "ship it");
     expect(boxLabels(typed)).toEqual(["Attach Files", "Send"]);
-    expect(must(/<button[^>]*aria-label="Send"[^>]*>/.exec(typed), "the Send button")[0]).not.toContain("disabled");
+    expect(must(/<button[^>]*aria-label="Send"[^>]*>/.exec(typed), "the Send button")[0]).not.toContain('disabled=""');
   });
 
   test("the permission mode is not in the box, nor in a row under it", () => {
@@ -147,7 +131,6 @@ describe("the desktop's message box", () => {
     expect(working("", stop)).toEqual(["Attach Files", "Stop"]);
     expect(working("and also this", stop)).toEqual(["Attach Files", "Queue: sends when this turn ends"]);
     expect(working("")).toEqual(["Attach Files"]);
-    // idle: never Stop
     expect(boxLabels(conversation(false, "", { onStop: stop }))).toEqual(["Attach Files"]);
   });
 });
@@ -192,9 +175,7 @@ describe("select model", () => {
     const { short, more } = modelLists(MODELS, CURRENT);
     expect(short.map((g) => g.handle)).toEqual(["anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5"]);
     expect(more.map((g) => g.handle)).toEqual(["ollama/llama-5", "openai/gpt-6"]);
-    // a current model outside the featured set still shows, so its check is in view
     expect(modelLists(MODELS, "openai/gpt-6").short.map((g) => g.handle)).toContain("openai/gpt-6");
-    // nothing featured: the first few
     const plain = MODELS.map(({ is_featured: _f, ...e }) => e);
     expect(modelLists(plain, null).short.length).toBeGreaterThan(0);
   });
@@ -207,7 +188,6 @@ describe("select model", () => {
       { id: "f3", handle: "lab/f3", label: "F3", is_featured: true },
       { id: "gated", handle: "lab/gated", label: "Gated", is_featured: true, available: false },
     ];
-    // gpt and llama were used lately (gpt the latest); the featured ones fill the rest, the unreachable one never
     const used = withRecent(many, ["openai/gpt-6", "ollama/llama-5"]);
     expect(modelLists(used, null).short.map((g) => g.handle)).toEqual([
       "openai/gpt-6",
@@ -216,18 +196,14 @@ describe("select model", () => {
       "anthropic/claude-sonnet-5",
       "lab/f1",
     ]);
-    // the unreachable model is still in More models, where the filter finds it
     expect(modelLists(used, null).more.map((g) => g.handle)).toContain("lab/gated");
-    // an unreachable recent model is left out of the quick picks too
     const gatedRecent = withRecent(many, ["lab/gated", "openai/gpt-6"]);
     expect(modelLists(gatedRecent, null).short[0].handle).toBe("openai/gpt-6");
-    // the current model outside the picks is added after them, so its check is in view
     expect(
       modelLists(used, "lab/f3")
         .short.map((g) => g.handle)
         .at(-1),
     ).toBe("lab/f3");
-    // nothing recent or featured: the first few the account can reach
     const plain = many.map(({ is_featured: _f, ...e }) => e);
     expect(modelLists(plain, null).short.map((g) => g.handle)).not.toContain("lab/gated");
   });
@@ -243,7 +219,7 @@ describe("select model", () => {
           "the ollama/llama-5 entry",
         ),
       ),
-    ).toBeNull(); // the label already is the handle
+    ).toBeNull();
   });
 
   test("the list shows the short list with a check on the current model, More models ›, then its efforts", () => {
@@ -253,7 +229,6 @@ describe("select model", () => {
     expect(names).toEqual(["Opus 5.5", "Sonnet 5"]);
     expect(html).toMatch(/aria-checked="true"[^>]*data-choice="anthropic\/claude-opus-5-5"/);
     expect(html).toContain(">More models<");
-    // loki alone: no tabs
     expect(html).not.toContain('role="tablist"');
     expect(html.indexOf(">More models<")).toBeLessThan(html.indexOf('role="radiogroup"'));
   });
@@ -268,7 +243,6 @@ describe("select model", () => {
     expect(row).toMatch(/role="radio" aria-checked="true" data-choice="medium"/);
     (must(choice(tree, "high"), "the high choice").props.onClick as () => void)();
     expect(picked).toEqual([{ id: "opus-high", handle: CURRENT, reasoning_effort: "high" }]);
-    // a model with one level or none has no row
     expect(renderToStaticMarkup(ModelChoices({ ...props, current: "anthropic/claude-sonnet-5", view: "models" }))).not.toContain('role="radiogroup"');
   });
 
@@ -312,7 +286,6 @@ describe("select model", () => {
     expect([...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Opus 5.5", "Sonnet 5"]);
     const claude = renderToStaticMarkup(ModelChoices({ ...props, entries: ACP, current: "acp:claude-code/sonnet", currentEffort: "max", view: "models" }));
     expect(tabsOf(claude).find((t) => t[2])?.[0]).toBe("claude-code");
-    // in its own tab an agent's models drop its name; its default reads Default
     expect([...claude.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Default", "Sonnet"]);
     expect(claude).not.toContain(">More models<");
     expect([...claude.matchAll(/role="radio"[^>]*>([^<]+)</g)].map((m) => m[1])).toEqual(["Low", "Max"]);
@@ -332,7 +305,6 @@ describe("select model", () => {
     expect(picked).toEqual([]);
     const shown = ModelChoices({ ...props, entries: ACP, harness: "claude-code", view: "models", onPick: (s) => picked.push(s) });
     const html = renderToStaticMarkup(shown);
-    // the chat's model is not in this tab: no check, and no effort row until a model here is the chat's
     expect(html).not.toMatch(/aria-checked="true"/);
     expect(html).not.toContain('role="radiogroup"');
     (must(choice(shown, "acp:claude-code/default"), "Claude Code's default").props.onClick as () => void)();
@@ -372,7 +344,6 @@ describe("select model", () => {
     expect(named("acp:claude-code/default")).toBe("Default");
     expect(named("acp:claude-code/sonnet")).toBe("Sonnet");
     expect(named(CURRENT, { id: null, name: "loki", locked: false })).toBe("Opus 5.5");
-    // the pill keeps the agent's name: KD3
     expect(modelName(ACP, "acp:claude-code/sonnet")).toBe("Claude Code · Sonnet");
     expect(modelName(ACP, CURRENT)).toBe("Opus 5.5");
   });

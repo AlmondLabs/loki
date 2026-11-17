@@ -2,30 +2,14 @@ import type { AccountRecord } from "../accounts.ts";
 import { JiraError, type JiraClient } from "../jira.ts";
 import type { FlowRecord, ReplyDestination } from "./thread.ts";
 
-/**
- * Reading where a Jira comment goes (plan 2026-11-14-1530, U1): any ticket of the site the person can see, named by
- * its key, its id or its link, read from Jira itself rather than from Flow's record, which once was the only way a key
- * could be found (plan 2026-11-10-1451, R28).
- */
-
-/**
- * What reading a comment's ticket needs of the site: the ticket's facts, and the host people browse the site at when
- * it is not the API's own (a custom domain), which a link may name.
- */
 export interface ReplyJiraReads extends Pick<JiraClient, "ticketFacts"> {
   linkHost(): Promise<string | null>;
 }
 
-/** A Jira site's host from its account id, `jira:<host>:<account id>`. */
 const siteOf = (account: AccountRecord): string => account.account_id.split(":")[1] ?? "";
 
-/** A ticket key as Jira writes it: a project key, a hyphen, a number. */
 const KEY = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 
-/**
- * The ticket a reference names, as Jira is asked for it: a key in upper case, an id as given, or a link's key when the
- * link is the account's own site. Throws why for anything else, so a link to another site is never followed.
- */
 async function ticketOf(account: AccountRecord, client: ReplyJiraReads, reference: string): Promise<string> {
   const ref = reference.trim();
   if (KEY.test(ref)) return ref.toUpperCase();
@@ -45,11 +29,6 @@ async function ticketOf(account: AccountRecord, client: ReplyJiraReads, referenc
   return key.toUpperCase();
 }
 
-/**
- * Where a comment goes: the ticket by its numeric id, which stays when it moves to another project (plan
- * 2026-11-10-1451, KTD7), shown by its key and title, with who Jira usually tells. A ticket Jira does not have, or the
- * person may not see, is refused.
- */
 export async function jiraReplyDestination(account: AccountRecord, client: ReplyJiraReads, reference: string, flow: FlowRecord): Promise<ReplyDestination> {
   const ticket = await ticketOf(account, client, reference);
   const facts = await client.ticketFacts(ticket).catch((err: unknown) => {

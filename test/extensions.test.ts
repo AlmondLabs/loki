@@ -8,10 +8,6 @@ import { builtinExtensions, builtinKinds } from "../daemon/extensions.ts";
 import { Schedules } from "../daemon/schedule.ts";
 import { RENAMED_TOOLS } from "../daemon/tool-kinds.ts";
 
-/**
- * Every chat's built-in tools come from one ordered list (daemon/extensions.ts), each tool says what kind it is on its
- * own definition, and every name is snake_case (docs/style.md, tool names).
- */
 function builtins() {
   const dir = mkdtempSync(join(tmpdir(), "loki-extensions-"));
   const approvals = new Approvals();
@@ -30,7 +26,6 @@ describe("the built-in tools", () => {
     const { extensions, dir } = builtins();
     try {
       expect(extensions[0]?.name).toBe("loki.approvals");
-      // Quick replies (plan 066) reach every loki chat as a prompt section, with no tool of their own.
       expect(extensions.find((e) => e.name === "loki.replies")?.sections?.length).toBe(1);
       const names = extensions.flatMap((e) => (e.tools ?? []).map((t) => t.name));
       expect(new Set(names).size).toBe(names.length);
@@ -59,8 +54,6 @@ describe("the built-in tools", () => {
           "write",
         ].sort(),
       );
-      // ls, find and grep are there for scripts only; bash does their work for the model (plan 094). History and
-      // schedules are scripts' too (plan 099).
       const scriptsOnly = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.callers?.includes("model") === false);
       expect(scriptsOnly.map((t) => t.name).sort()).toEqual(
         ["find", "grep", "history_read", "history_search", "ls", "schedule_create", "schedule_delete", "schedule_list"].sort(),
@@ -76,7 +69,6 @@ describe("the built-in tools", () => {
       const kinds = builtinKinds(extensions);
       const names = extensions.flatMap((e) => (e.tools ?? []).map((t) => t.name));
       expect(names.filter((n) => !kinds.has(n))).toEqual([]);
-      // Today's classes, kept as they were before each tool declared its own.
       expect(Object.fromEntries([...kinds].filter(([, k]) => k !== "read"))).toEqual({
         background_run: "command",
         bash: "command",
@@ -115,13 +107,10 @@ describe("tools allowed always, under their old names", () => {
     try {
       writeFileSync(path, JSON.stringify({ always: ["Agent", "TaskOutput", "bash", "mcp__github__list_issues"] }));
       const approvals = new Approvals({ alwaysPath: path });
-      // TaskOutput only read, so its allow is not carried to background_watch, which can also stop (plan 095).
       expect(approvals.always()).toEqual(["bash", "mcp__github__list_issues", "subagent"]);
       expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ always: ["bash", "mcp__github__list_issues", "subagent"] });
-      // A merged tool that was a command carries its allow to the tool it is in.
       writeFileSync(path, JSON.stringify({ always: ["background_stop", "background_write"] }));
       expect(new Approvals({ alwaysPath: path }).always()).toEqual(["background_watch"]);
-      // A list with no old names is left as it is on disk.
       writeFileSync(path, JSON.stringify({ always: ["bash"] }));
       new Approvals({ alwaysPath: path });
       expect(readFileSync(path, "utf8")).toBe(JSON.stringify({ always: ["bash"] }));

@@ -1,15 +1,8 @@
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
 import { SIDEBAR_MAX, SIDEBAR_MIN } from "./columns";
 
-/** One arrow press on the resize handle, in px. */
 const KEY_STEP = 16;
 
-/**
- * The sidebar (plan 2026-11-14-1330, R1): the places and their sources, the same rows in every place, so changing place
- * moves only the selection. It is the window's navigation landmark, "Sidebar", first in the Tab order (KTD13). Each place's items are in the list column beside it, never under the places. The right
- * edge is a separator: drag it, or focus it and use the arrows (Home / End for the ends); the width is kept when the
- * drag ends.
- */
 export function ListColumn({
   shown,
   width,
@@ -22,13 +15,9 @@ export function ListColumn({
   shown: boolean;
   width: number;
   onWidth: (w: number, commit: boolean) => void;
-  /** Where the column starts, in px: the glass sidebar's inset. */
   left: number;
-  /** The column's top, in px: under the glass sidebar's row of lights. */
   top: number;
-  /** The places and their sources (U12). */
   head: ReactNode;
-  /** Its stacking while a folded sidebar shows over the list and the detail (columns.ts); none while it sits beside them. */
   layer?: number;
 }) {
   return (
@@ -45,11 +34,6 @@ export function ListColumn({
   );
 }
 
-/**
- * A column's right edge, a separator: drag it, or focus it and use the arrows (Home / End for the ends). `onWidth`
- * gets each width as it moves and `commit` once the drag ends or a key moves it, so the width is kept then. The sidebar
- * and the list column each have one.
- */
 export function ColumnEdge({
   label,
   min,
@@ -63,7 +47,6 @@ export function ColumnEdge({
   max: number;
   width: number;
   onWidth: (w: number, commit: boolean) => void;
-  /** A hidden column's edge leaves the Tab order. */
   shown?: boolean;
 }) {
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {

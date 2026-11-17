@@ -1,12 +1,6 @@
 import { contentImages, contentText, toolArgsShown, toolOutput } from "../harness.ts";
-import type { Step } from "./thread.ts";
+import type { Step, StoredStep } from "./thread.ts";
 
-/**
- * Pi's messages as thread steps (core/attention/thread.ts): a durable entry's pi-ai message, as the daemon stores it.
- * Structural types only: core imports no packages (test/core-portability.test.ts).
- */
-
-/** A pi-ai message as either source stores it: user, assistant, toolResult or system. */
 export interface PiMessage {
   role?: string;
   content?: unknown;
@@ -18,29 +12,19 @@ export interface PiMessage {
   errorMessage?: unknown;
 }
 
-/** A pi-durable transcript entry: its kind, the messages it gives the model, and its own data. */
 export interface PiEntry {
   kind: string;
   model?: readonly PiMessage[];
   data?: unknown;
 }
 
-/**
- * Names a picture in a user message as the mod serves it (plan 029; the daemon's ChatImages keeps the file), or null
- * when it cannot be kept. Without one, a message's pictures stay the "[image]" lines its text carries.
- */
 export type ImageNamer = (image: { data: string; mimeType: string }) => string | null;
 
-/** When a message was written, from its numeric timestamp; null when it has none. */
 export function messageAt(m: PiMessage): string | null {
   return typeof m.timestamp === "number" && Number.isFinite(m.timestamp) ? new Date(m.timestamp).toISOString() : null;
 }
 
-/**
- * One message as steps: a user message with its text, the assistant's words then its tool calls, and a tool result
- * as the result of the call it names. System messages and thinking are nothing.
- */
-export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageNamer): Step[] {
+export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageNamer): StoredStep[] {
   if (m.role === "toolResult")
     return typeof m.toolCallId === "string" ? [shownStep({ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true })] : [];
   if (m.role !== "user" && m.role !== "assistant") return [];
@@ -49,21 +33,18 @@ export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageN
     const images = nameImage ? contentImages(m.content).flatMap((image) => nameImage(image) ?? []) : [];
     return [{ kind: "user", raw: text, at, ...(images.length ? { images } : {}) }];
   }
-  // What the model thought before it answered, from its thinking parts (pi's, or an ACP agent's thoughts loki wrote).
   const thought = thinkingText(m.content);
-  const out: Step[] = [...(thought ? [{ kind: "thinking" as const, text: thought, at }] : []), { kind: "assistant", text, at }];
+  const out: StoredStep[] = [...(thought ? [{ kind: "thinking" as const, text: thought, at }] : []), { kind: "assistant", text, at }];
   for (const part of Array.isArray(m.content) ? m.content : []) {
     const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
     if (p?.type === "toolCall" && p.name)
       out.push(shownStep({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at }));
   }
-  // A model call that failed with nothing said: what the provider answered, as a row of its own (plan 037).
   if (out.length === (thought ? 2 : 1) && !text.trim() && m.stopReason === "error" && typeof m.errorMessage === "string" && m.errorMessage.trim())
     return [{ kind: "failed", message: m.errorMessage.trim().replace(/\s+/g, " "), at }];
   return out;
 }
 
-/** A message's thinking parts, joined; empty when it has none or they were redacted. */
 function thinkingText(content: unknown): string {
   if (!Array.isArray(content)) return "";
   const parts: string[] = [];
@@ -74,41 +55,32 @@ function thinkingText(content: unknown): string {
   return parts.join("\n\n");
 }
 
-/**
- * A step as a window needs it (plan 035): a tool's result as its text, capped as the transcript caps it (pictures and
- * other parts that are not text leave nothing, as they do in a window), and a call's arguments with every string cut.
- * The daemon keeps steps this way and sends them this way; the store and the model keep everything.
- */
+export function shownStep(step: StoredStep): StoredStep;
+export function shownStep(step: Step): Step;
 export function shownStep(step: Step): Step {
   if (step.kind === "result") return { ...step, output: toolOutput(step.output) };
   if (step.kind === "call" || step.kind === "approval") return { ...step, args: toolArgsShown(step.args) };
   return step;
 }
 
-/** The entry kinds a thread shows as messages; prompt changes and resets are the model's, not the person's. */
 const SHOWN = new Set(["pi.user", "pi.assistant", "pi.tool-result"]);
 
-/** A compaction's summary (plan 078): shown as one row where it was written, never as the message the model reads it as. */
-const COMPACTION = "pi.compaction";
+export const COMPACTION = "pi.compaction";
 
-/** The words inside pi's `<summary>` wrapper, else the message's whole text; null when it says nothing. */
 function summaryOf(m: PiMessage): string | null {
   const text = contentText(m.content);
   const inner = /<summary>\n?([\s\S]*?)\n?<\/summary>/.exec(text)?.[1] ?? text;
   return inner.trim() || null;
 }
 
-/** A compaction entry's message as its step: the summary written, `at` when nobody knows. */
-export function compactionSteps(entry: PiEntry, at: string | null = null): Step[] {
+export function compactionSteps(entry: PiEntry, at: string | null = null): StoredStep[] {
   const m = entry.kind === COMPACTION ? entry.model?.[0] : undefined;
   return m ? [{ kind: "compaction", state: "done", detail: summaryOf(m), at: messageAt(m) ?? at }] : [];
 }
 
-/** A message off the chat's main path (`loki.branch`, the mark a chat move leaves): shown, never sent to the model. */
 const BRANCH = "loki.branch";
 
-/** One pi-durable entry as steps; `nameImage` keeps a user message's pictures (plan 029). */
-export function entrySteps(entry: PiEntry, nameImage?: ImageNamer): Step[] {
+export function entrySteps(entry: PiEntry, nameImage?: ImageNamer): StoredStep[] {
   if (entry.kind === BRANCH) {
     const message = (entry.data as { message?: PiMessage } | undefined)?.message;
     return message ? messageSteps(message, messageAt(message), nameImage) : [];

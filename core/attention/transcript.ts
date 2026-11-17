@@ -1,8 +1,4 @@
 /**
- * One row of a conversation as loki shows it everywhere (desk chat, Catch Up, the phone):
- * user and assistant bubbles, quiet tool markers, collapsible harness events.
- */
-/**
  * A tool the agent ran, as the thread's steps show it: what it was, what it was given (the command, the path,
  * or the whole input), what came back, and whether it failed. Input and output are capped (TOOL_TEXT_MAX) so a
  * long log never rides every frame; `id` pairs a result with its call. Rows from before this was kept have none.
@@ -29,13 +25,11 @@ export interface ToolStep {
   plan?: PlanItem[];
 }
 
-/** One entry of an agent's plan, as ACP reports it. */
 export interface PlanItem {
   content: string;
   status: "pending" | "in_progress" | "completed";
 }
 
-/** A file a message carried (its attachment tag), shown as a chip on the bubble. */
 export interface FileRef {
   path: string;
   name: string;
@@ -43,7 +37,6 @@ export interface FileRef {
   mime?: string;
 }
 
-/** One row of a conversation as every view draws it (the desk chat, the Inbox, the phone): a user or assistant bubble, a quiet tool marker, or a collapsible harness event. */
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";
   text: string;
@@ -79,16 +72,10 @@ export interface TranscriptRow {
   at?: string;
 }
 
-/** How much of a thought a row carries; more is cut, and the store keeps the whole. */
 export const THOUGHT_MAX = 4000;
 
-/** How long a lean tool row's label and name may be: one line, as the closed step shows it. */
 export const LEAN_LINE_MAX = 200;
 
-/**
- * How long an event's detail may be and still travel with its page (plan 043). Most are longer (the median is about
- * 2,000 characters); a shorter one costs less than the round trip that would fetch it.
- */
 export const LEAN_DETAIL_MAX = 1000;
 
 const line = (text: string): string => {
@@ -96,14 +83,6 @@ const line = (text: string): string => {
   return first.length > LEAN_LINE_MAX || first.length < text.length ? `${first.slice(0, LEAN_LINE_MAX).trimEnd()}…` : first;
 };
 
-/**
- * The rows of a history page as they travel (plans 041 and 043), from position `start`: a finished tool row keeps its
- * one-line label and name, its description and whether it failed, and leaves out its input and output, which most of a
- * page's bytes were; its step says where it is, so opening it fetches the rest. An event with a detail longer than
- * LEAN_DETAIL_MAX (a background task's result, a loaded skill) leaves the detail out the same way and says where it
- * is. A call still waiting for its result goes whole, so the approval or result that comes for it finds it; so does
- * every other row.
- */
 export function leanPage(rows: readonly TranscriptRow[], start: number): TranscriptRow[] {
   return rows.map((r, i) => {
     if (r.role === "event" && r.detail && r.detail.length > LEAN_DETAIL_MAX) return { ...r, detail: null, row: start + i };
@@ -113,7 +92,6 @@ export function leanPage(rows: readonly TranscriptRow[], start: number): Transcr
   });
 }
 
-/** What `history_step_get` answers for one row a page sent lean: a tool row's whole step, or an event's whole detail. */
 export interface WholeRow {
   step: ToolStep | null;
   detail: string | null;

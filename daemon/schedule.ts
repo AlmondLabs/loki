@@ -7,13 +7,6 @@ import type { Delivery } from "./engine.ts";
 import { piTool, type ChatCall, type ChatTool } from "./chat-tools.ts";
 import { writeJsonAtomic } from "../mod/json-file.ts";
 
-/**
- * Scheduled tasks (plan 017, U11): a prompt the agent sets to arrive in a chat on a cron schedule, in a timezone, once
- * or again and again. They are kept in one file, snake_case, and checked once a minute; a slot missed while loki was closed fires once at the next start, never once per slot. A
- * fired prompt begins "Scheduled task", which is how the Inbox tells a schedule's turn from yours
- * (core/attention/priority.ts).
- */
-
 /** One scheduled task, as the file keeps it (snake_case). A one-time task is `done` once it fires; `cancelled` is a deleted one, kept in the file. */
 export interface ScheduledTask {
   id: string;
@@ -45,7 +38,6 @@ interface Fields {
   weekdayStar: boolean;
 }
 
-/** One cron field ("*", "5", "1-5", "*\/15", "1,3"), as the values it allows. */
 function field(text: string, min: number, max: number): Set<number> {
   const out = new Set<number>();
   for (const part of text.split(",")) {
@@ -58,7 +50,6 @@ function field(text: string, min: number, max: number): Set<number> {
   return out;
 }
 
-/** A five-field cron expression: minute hour day-of-month month day-of-week. */
 export function parseCron(expr: string): Fields {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) throw new Error(`a cron expression has five fields: ${expr}`);
@@ -75,13 +66,8 @@ export function parseCron(expr: string): Fields {
   };
 }
 
-/**
- * One formatter per timezone: dueBetween looks at every minute since a task last fired, up to 31 days of them each
- * tick, and building a formatter costs far more than using one.
- */
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
-/** The wall-clock parts of `at` in a timezone. */
 function partsIn(at: Date, timezone: string) {
   let f = formatters.get(timezone);
   if (!f) {
@@ -132,19 +118,10 @@ export function dueBetween(fields: Fields, timezone: string, from: Date, to: Dat
   return false;
 }
 
-/**
- * How a schedule's prompt reaches its chat: in the daemon, as a message from loki that waits for a running turn to end
- * (DaemonChats.deliver). It resolves once the prompt is handed over, with how the turn ends where the engine can tell.
- */
 export type Fire = (agentId: string, conversationId: string, text: string) => Promise<Delivery | null>;
 
-/**
- * After a firing could not reach the model (no network, a provider down), how many minutes until each try again
- * (plan 037): three tries, the last an hour on, which covers a Mac waking from sleep. Any other end is not tried again.
- */
 export const RETRY_AFTER_MINUTES = [5, 15, 60];
 
-/** A task's prompt as it arrives; a retry says it is one, with when the first try was, in the task's timezone. */
 function promptOf(task: ScheduledTask, retry: boolean): string {
   const text = `Scheduled task "${task.name}": ${task.prompt}`;
   if (!retry || !task.last_fired_at) return text;
@@ -152,17 +129,12 @@ function promptOf(task: ScheduledTask, retry: boolean): string {
   return `${text}\n\n(another try: at ${first} the model could not be reached)`;
 }
 
-/** The scheduled tasks in their file: `start` checks them once a minute and fires what came due, and the tools add, list and cancel them. */
 export class Schedules {
   private readonly file: string;
   private readonly fire: Fire;
   private readonly report: (message: string) => void;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
-  /**
-   * The span each task was last looked at and found with no slot due, by task, cron and timezone: the next tick looks
-   * only at the minutes after it. A monthly task otherwise walked up to a month of minutes every minute.
-   */
   private readonly quiet = new Map<string, { from: number; to: number }>();
 
   private readonly now: () => Date;
@@ -202,11 +174,6 @@ export class Schedules {
     return task;
   }
 
-  /**
-   * A task as it was on another Mac, its id and when it last fired kept, so a slot it already fired there does not
-   * fire again here (plan 023, U9). One already here is left as it is, unless it is the copy cancelled when its chat
-   * moved away: a chat that comes back brings its task back with it.
-   */
   adopt(task: ScheduledTask): void {
     const tasks = this.list();
     const here = tasks.find((t) => t.id === task.id);
@@ -214,7 +181,6 @@ export class Schedules {
     this.save([...tasks.filter((t) => t !== here), task]);
   }
 
-  /** Cancel a task of this agent by its id or name; false when there is none. */
   cancel(agentId: string, idOrName: string): boolean {
     const tasks = this.list();
     const task = tasks.find((t) => t.agent_id === agentId && t.status === "active" && (t.id === idOrName || t.name === idOrName));
@@ -224,7 +190,6 @@ export class Schedules {
     return true;
   }
 
-  /** Cancel every task of an agent that is gone, so none fires into a chat that no longer exists; how many there were. */
   cancelAgent(agentId: string): number {
     const tasks = this.list();
     const mine = tasks.filter((t) => t.agent_id === agentId && t.status === "active");
@@ -234,11 +199,6 @@ export class Schedules {
     return mine.length;
   }
 
-  /**
-   * Fire every active task with a slot due since it last fired (or was made), once each. A firing is written down before
-   * its prompt goes out, against the list as it is then, so a task made or cancelled while another fires is kept. A tick
-   * that starts while one is still firing (a slow chat) does nothing.
-   */
   async tick(now = this.now()): Promise<number> {
     if (this.ticking) return 0;
     this.ticking = true;
@@ -262,7 +222,6 @@ export class Schedules {
             this.report(`schedule ${task.name}: ${String(error)}`);
             continue;
           }
-        // A slot that comes due replaces a retry still waiting: one task never has two runs open.
         const retry = !due && !!task.retry_at && Date.parse(task.retry_at) <= now.getTime();
         if (!due && !retry) continue;
         if (due) {
@@ -278,7 +237,6 @@ export class Schedules {
           this.report(`schedule ${task.name} did not fire: ${String(error)}`);
           return null;
         });
-        // How the turn ends comes later; the tick does not wait for it, so one slow turn holds no other task back.
         const firing = { fireCount: task.fire_count, retries: task.retries ?? 0 };
         if (delivery)
           void delivery.outcome.then(
@@ -292,15 +250,10 @@ export class Schedules {
     }
   }
 
-  /**
-   * A firing's turn ended (plan 037). One that could not reach the model is tried again after the next of
-   * RETRY_AFTER_MINUTES, while tries are left and the task has not fired anew since; anything else ends its tries.
-   */
   settled(id: string, outcome: Awaited<Delivery["outcome"]>, firing: { fireCount: number; retries: number }): void {
     const tasks = this.list();
     const task = tasks.find((t) => t.id === id);
     if (!task || task.status === "cancelled") return;
-    // The task fired again (a slot, or a retry) before this turn ended: that firing's own end decides.
     if (task.fire_count !== firing.fireCount || (task.retries ?? 0) !== firing.retries) return;
     const tries = task.retries ?? 0;
     const wait = outcome.status === "unanswered" && outcome.reason === "model_error" ? RETRY_AFTER_MINUTES[tries] : undefined;
@@ -310,7 +263,6 @@ export class Schedules {
     this.save(tasks);
   }
 
-  /** Check at start (a slot missed while closed) and then once a minute. */
   start(): void {
     void this.tick();
     this.timer = setInterval(() => void this.tick(), 60_000);
@@ -322,13 +274,8 @@ export class Schedules {
   }
 }
 
-/** Only scripts call the schedule tools (plan 099): the model reaches them with one. */
 const SCRIPTS_ONLY = ["tools"] as const;
 
-/**
- * The scheduling tools (`schedule_create`, `schedule_list`, `schedule_delete`) over `schedules`; each acts for the chat
- * and agent it is called from, and only scripts call them.
- */
 export function scheduleTools(schedules: Schedules): ChatTool[] {
   const caller = async (call: ChatCall, context: Context) => {
     const [agent, chat] = await Promise.all([call.read.snapshot(AgentInfoDoc, context), call.read.snapshot(ChatDoc, call.conversationId, context)]);
@@ -400,7 +347,6 @@ export function scheduleTools(schedules: Schedules): ChatTool[] {
   ];
 }
 
-/** The scheduling tools as an extension over `schedules`. */
 export function scheduleExtension(schedules: Schedules): Extension {
   return defineExtension({ name: "loki.schedule", tools: scheduleTools(schedules).map(piTool) });
 }

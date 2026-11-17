@@ -22,8 +22,6 @@ import { outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
 import { addressSummary, addressingFor, recipientName, startAddressing, suggest, typedRecipient } from "../app/src/desk/mail-address.tsx";
 
-/** Replying to mail the way Gmail does (plan 076): recipients, modes, the quote, the signature, From and undo send. */
-
 const dirs: string[] = [];
 const scratch = (): string => {
   const dir = mkdtempSync(join(tmpdir(), "loki-mail-"));
@@ -56,7 +54,6 @@ const leaf = (mimeType: string, data: string, over: Partial<GmailMessagePart> = 
   ...over,
 });
 
-/** A message from Pinku to Ada, in plain text and HTML, with a file on it. */
 const PINKU: GmailMessage = {
   id: "m1",
   threadId: "t1",
@@ -93,7 +90,6 @@ const SEND_AS: GmailSendAs[] = [
   { address: "help@acme.com", name: "Acme help", signature: "", isDefault: false },
 ];
 
-/** OutsideThreads on one Gmail account with Pinku's thread, recording what was sent and moved. */
 function mail(opts: { outbox?: string; key?: string | null; now?: () => Date; after?: (fn: () => void, ms: number) => () => void; sendFails?: string } = {}) {
   const sent: GmailDraftInput[] = [];
   const moves: string[] = [];
@@ -148,7 +144,6 @@ function mail(opts: { outbox?: string; key?: string | null; now?: () => Date; af
   return { t, sent, moves, people };
 }
 
-/** A timer the test fires itself. */
 function timers() {
   const due: Array<{ fn: () => void; ms: number; live: boolean }> = [];
   return {
@@ -210,7 +205,6 @@ describe("the body Gmail would write", () => {
   test("each recipient is written out again from its name and address: a name cannot close its quote and add a second one", () => {
     const headers = (to: string[]) => rfc2822({ threadId: "t1", inReplyTo: "", references: [], to, cc: [], subject: "s", body: "b" }).split("\r\n");
     const toLine = (to: string[]) => headers(to).find((h) => h.startsWith("To: "));
-    // A stranger's From, with a quote escaped inside the name to look like two people.
     const crafted = '"a\\" <victim@corp.example>, \\"b" <attacker@evil.example>';
     expect(headerPeople(crafted)).toEqual([{ name: 'a" <victim@corp.example>, "b', address: "attacker@evil.example" }]);
     expect(toLine([crafted])).toBe('To: "a\\" <victim@corp.example>, \\"b" <attacker@evil.example>');
@@ -236,8 +230,6 @@ describe("the body Gmail would write", () => {
       attachments: [{ filename: "screen shot.png", mimeType: "image/png", data: Buffer.from("png") }],
     });
     expect(raw).toContain('From: "Ada" <ada@acme.com>\r\n');
-    // An address with a line break in it never adds a header of its own: what is no address adds nobody, and a
-    // name keeps only what a name may hold.
     expect(raw).toContain("Bcc: Boss <boss@acme.com>\r\n");
     expect(raw).not.toContain("X-Evil");
     expect(raw).toContain('Content-Type: multipart/mixed; boundary="loki-mix"');
@@ -400,7 +392,6 @@ describe("undo send", () => {
     await settle();
     const kept = JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> };
     expect(typeof kept.held[0]?.seal).toBe("string");
-    // What an agent with a file tool could do: a reply of its own, and the held one's words changed under its seal.
     const forged = {
       outbox_id: "o2-abcdefgh",
       account_id: MAIL,
@@ -476,7 +467,6 @@ describe("undo send", () => {
 
   test("entries sealed before new conversations, by the formula of their day, still verify and go after a restart (plan 2026-11-14-1530, KTD10)", async () => {
     const file = join(scratch(), "outbox.json");
-    // The seal as each earlier loki wrote it: the base fields alone, then the thread, files and proposal, then mentions.
     const seal = (fields: unknown[]) => createHmac("sha256", "the daemon's key").update(JSON.stringify(fields)).digest("hex");
     const at = "2026-11-08T00:00:00.000Z";
     const base = (id: string) => ({ outbox_id: id, account_id: MAIL, thread_id: "t1", text: "ok", then: "stay", mail: null, send_at: at });
@@ -544,15 +534,10 @@ describe("undo send", () => {
 describe("a mail reply that did not go (plan 096)", () => {
   const reply = { outbox_id: "o3-abcdefgh", account_id: MAIL, thread_id: "t1", text: "ok", then: "read" as const, mail: null };
   const AT = Date.parse("2026-11-12T10:00:00Z");
-  /** The hold's timer, run on the next turn: the outbox has the reply in hand by then, as with a real timer. */
   const soon = (fn: () => void) => {
     queueMicrotask(fn);
     return () => {};
   };
-  /**
-   * An outbox over `file` whose send fails while `fails` holds a reason (and never answers while `hang` is set), with
-   * what its card was told, what it sent, and whether its thread has the reply.
-   */
   const box = (file = join(scratch(), "outbox.json"), at = AT) => {
     const notes: Array<{ id: string; reason: string | null }> = [];
     const sent: string[] = [];
@@ -575,7 +560,6 @@ describe("a mail reply that did not go (plan 096)", () => {
     const kept = () => (JSON.parse(readFileSync(file, "utf8")) as { held: Array<{ outbox_id: string; state?: string; reason?: string }> }).held;
     return { outbox, notes, sent, state, kept, file };
   };
-  /** A reply that failed: in the file as failed, its card told. */
   const failed = async () => {
     const b = box();
     await expect(b.outbox.hold(reply)).rejects.toThrow("Gmail is unreachable");
@@ -601,7 +585,7 @@ describe("a mail reply that did not go (plan 096)", () => {
 
   test("send again never sends twice: a reply already in its thread is settled without a second send", async () => {
     const b = await failed();
-    b.state.inThread = true; // Gmail took it, and only its answer was lost
+    b.state.inThread = true;
     expect(await b.outbox.resend(MAIL, "o3-abcdefgh")).toMatchObject({ sent: true });
     expect(b.sent).toEqual([]);
     expect(b.kept()).toEqual([]);
@@ -627,7 +611,7 @@ describe("a mail reply that did not go (plan 096)", () => {
   test("after a restart: a send cut short is looked for in its thread, and a failed one is shown again", async () => {
     const file = join(scratch(), "outbox.json");
     const before = box(file);
-    before.state.hang = true; // the daemon stops while Gmail has not answered
+    before.state.hang = true;
     void before.outbox.hold({ ...reply, outbox_id: "cut-short-1" });
     await settle();
     before.state.hang = false;
@@ -637,7 +621,7 @@ describe("a mail reply that did not go (plan 096)", () => {
       ["failed-001", "failed"],
     ]);
     const after = box(file, AT + 60_000);
-    after.state.inThread = true; // the cut-short one reached Gmail
+    after.state.inThread = true;
     after.outbox.resume();
     await settle();
     await settle();
@@ -823,7 +807,6 @@ describe("the mail reply box as drawn", () => {
   };
   const facts = must(outsideItem("Help").outside, "an outside card");
   const onSend = () => Promise.resolve({ sent: true, error: null });
-  // The desktop's card draws its box with the item components (items); the phone keeps its own.
   test("the recipients line, the box, the signature under it and the folded quote; send names ⌘Enter", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts, compose, quote: "Please update", onSend, items: true }));
     expect(html).toContain("To Pinku, cc Ops");
@@ -846,7 +829,6 @@ describe("the mail reply box as drawn", () => {
     const phone = draw(true, () => Promise.resolve(null));
     expect(phone).toContain("Not sent: Gmail is unreachable");
     expect(phone).toContain(">Send Again<");
-    // With nothing to settle it by, it still says so, and offers nothing.
     expect(draw(false)).toContain("Not sent: Gmail is unreachable");
     expect(draw(false)).not.toContain("Send Again");
     expect(draw(false)).not.toContain("Let it go");
@@ -878,7 +860,6 @@ describe("the outbox holds any service's reply (plan 2026-11-14-1134, U1)", () =
     queueMicrotask(fn);
     return () => {};
   };
-  /** An outbox over `file` at `at`, with what it sent and what each proposal was told. */
   const box = (file: string, at = AT, went: boolean | null = false) => {
     const sent: string[] = [];
     const told: Array<{ id: string; outcome: string }> = [];
@@ -910,7 +891,6 @@ describe("the outbox holds any service's reply (plan 2026-11-14-1134, U1)", () =
     expect(before.sent).toEqual(["slack-0001"]);
     expect(before.told).toEqual([{ id: "slack-0001", outcome: "sent" }]);
     expect(before.kept()).toMatchObject([{ outbox_id: "slack-0001", state: "sent" }]);
-    // loki stops before the proposal saved it: the next start reports it again, and sends nothing.
     const after = box(file, AT + 60_000);
     after.outbox.resume();
     await settle();
@@ -984,7 +964,6 @@ describe("the outbox holds any service's reply (plan 2026-11-14-1134, U1)", () =
 
 describe("Gmail sends files through its upload route (plan 2026-11-14-1134, U2)", () => {
   const SIGNED_IN = JSON.stringify({ access_token: "access-1", refresh_token: "refresh-1", expires_at: "2099-01-01T00:00:00.000Z" });
-  /** A connected Gmail account whose client answers every send from a fake Gmail that keeps each request. */
   const gmail = async () => {
     const now = () => new Date("2026-11-14T10:00:00Z");
     const accounts = new Accounts({ file: join(scratch(), "accounts.json"), secrets: memorySecrets(), agentExists: () => true, now });
@@ -1025,7 +1004,6 @@ describe("Gmail sends files through its upload route (plan 2026-11-14-1134, U2)"
     const boundary = /^multipart\/related; boundary="?([^";]+)"?$/.exec(sent.type)?.[1];
     expect(boundary).toBeTruthy();
     const parts = sent.body.split(`--${boundary ?? ""}`);
-    // The metadata first, then the message itself, then the closing boundary.
     expect(parts).toHaveLength(4);
     expect(parts[1]).toContain("Content-Type: application/json");
     expect(JSON.parse((parts[1] ?? "").split("\r\n\r\n")[1] ?? "")).toEqual({ threadId: "t1" });
@@ -1046,7 +1024,6 @@ describe("Gmail sends files through its upload route (plan 2026-11-14-1134, U2)"
     expect(json.raw).toBe(Buffer.from(rfc2822(reply), "utf8").toString("base64url"));
   });
 
-  /** The newest message of a thread, from Grace to Ada and Alan, cc Bob and whoever else `cc` adds. */
   const newest = (headers: Record<string, string>): GmailMessage => ({
     ...PINKU,
     payload: { mimeType: "text/plain", filename: "", body: { size: 0 }, parts: [], headers: Object.entries(headers).map(([name, value]) => ({ name, value })) },

@@ -10,7 +10,6 @@ import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
-/** An agent's store on memory, with a faux model whose requests are recorded, over `mods`. */
 async function setup(mods: ModRegistry, agent = { id: "agent-local-a", name: "Ada" }) {
   const faux = fauxProvider();
   const models = createModels();
@@ -38,7 +37,6 @@ const echoTool = (seen: unknown[], label = "v1"): ModTool => ({
 
 const toolTurn = (word: string) => fauxAssistantMessage(fauxToolCall("echo", { word }), { stopReason: "toolUse" });
 
-/** The text of every tool result in a chat. */
 async function results(store: AgentStore, chatId: string) {
   const chat = must(await store.chat(chatId, ctx), `chat ${chatId}`);
   return (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
@@ -204,7 +202,6 @@ describe("reloading a mod", () => {
     });
     const first = mods.load(copy(1, slow));
     const second = mods.load(copy(2));
-    // The second waits for the first, however long it takes to start.
     await Promise.resolve();
     expect(live.size).toBe(0);
     release();

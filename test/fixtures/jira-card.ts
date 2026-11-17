@@ -1,9 +1,5 @@
 import type { JiraCardTicket, OutsideMessage } from "../../core/frame-types.ts";
 
-/**
- * A Jira ticket as its card's read gives it (plan 089): OPS-7, a task in Operations, whose status Ada moved on since the
- * card was last read, with a rank and story points changed beside it and an eight-line description.
- */
 export const jiraTicket = (over: Partial<JiraCardTicket> = {}): JiraCardTicket => ({
   key: "OPS-7",
   summary: "Rotate the keys",
@@ -20,7 +16,6 @@ export const jiraTicket = (over: Partial<JiraCardTicket> = {}): JiraCardTicket =
   ...over,
 });
 
-/** The ticket's comments: the person's own, read, then Ada's, not yet read. */
 export const JIRA_COMMENTS: OutsideMessage[] = [
   { id: "c1", sender: "Mina Example", at: "", text: "On it", mine: true },
   { id: "c2", sender: "Ada Lovelace", at: "", text: "Can you look at the rotation?", mine: false, unread: true, brought: true },

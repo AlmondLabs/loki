@@ -1,36 +1,41 @@
-import { useEffect, useRef, useState } from "react";
-import { Kbd, Row } from "../components";
+import { useRef, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
+import { cx } from "../components/parts";
 import { keyboard, type Platform } from "../desk/env";
+import { lastInput } from "../kit/motion";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
-import { ChevronRightIcon, MenuIcon } from "lucide-react";
+import { MenuIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
-/** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
 export interface TitleMenuEntry {
   id: string;
   label: string;
   keys: string | null;
 }
-/** One ☰ menu: its title and its lines, with separators between groups. */
 export interface TitleMenuGroup {
   title: string;
   items: Array<TitleMenuEntry | { separator: true }>;
 }
 
 const HIDE = "window.hide";
-/** Hide's line in the keymap, which every build has. */
 const HIDE_BINDING: Binding = (() => {
   const b = KEYMAP.find((x) => x.id === HIDE);
   if (!b) throw new Error(`the keymap has no ${HIDE}`);
   return b;
 })();
 
-/**
- * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
- * in Ctrl words. An item without an accelerator on the Mac shows none here either.
- */
-export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP): TitleMenuGroup[] {
-  return menuSpec(map, os).map((m) => ({
+export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP, labels: Record<string, string> = {}): TitleMenuGroup[] {
+  return menuSpec(map, os, labels).map((m) => ({
     title: m.title,
     items: m.items.map((it) => {
       if ("separator" in it) return it;
@@ -41,170 +46,78 @@ export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP): Ti
   }));
 }
 
-/** A ☰ pick: the action the Mac's menu click runs (useShellKeys, loki:menu), straight through the registry. */
 export function runMenuItem(id: string): void {
   if (!runAction(id)) console.warn("loki: menu item without an action", id);
 }
 
-/**
- * The menu itself, without state: the titles, then Hide loki (Minimise loki there, labelOf); beside them the open title's items. Pointing at a
- * title opens it, as a menu bar's does.
- */
-export function TitleMenuPanel({
-  groups,
-  open,
-  onOpen,
-  onPick,
-  os = keyboard,
-}: {
-  groups: TitleMenuGroup[];
-  open: string | null;
-  onOpen: (title: string | null) => void;
-  onPick: (id: string) => void;
-  os?: Platform;
-}) {
-  const current = groups.find((g) => g.title === open) ?? null;
+const keyBefore = (items: TitleMenuGroup["items"], i: number): string => {
+  const before = i > 0 ? items[i - 1] : undefined;
+  return before && !("separator" in before) ? before.id : "start";
+};
+
+const ITEM = "justify-between gap-3";
+
+export function TitleMenuItems({ groups, onPick, os = keyboard }: { groups: TitleMenuGroup[]; onPick: (id: string) => void; os?: Platform }) {
   return (
     <>
-      <div role="menu" aria-label="loki" className="loki-title-menu-panel">
-        {groups.map((g) => (
-          <Row
-            key={g.title}
-            dense
-            role="menuitem"
-            aria-haspopup="menu"
-            aria-expanded={open === g.title}
-            data-menu={g.title}
-            selected={open === g.title}
-            className="loki-title-menu-item"
-            onClick={() => onOpen(g.title)}
-            onPointerEnter={() => onOpen(g.title)}
-          >
-            <span>{g.title}</span>
-            <Glyph icon={ChevronRightIcon} size={12} />
-          </Row>
-        ))}
-        <hr className="loki-title-menu-sep" />
-        <Row dense role="menuitem" data-menu-id={HIDE} className="loki-title-menu-item" onClick={() => onPick(HIDE)} onPointerEnter={() => onOpen(null)}>
-          <span>{labelOf(HIDE_BINDING, os)}</span>
-          <Kbd>{keyFor(HIDE, os)}</Kbd>
-        </Row>
-      </div>
-      {current && (
-        <div role="menu" aria-label={current.title} className="loki-title-menu-panel loki-title-submenu">
-          {current.items.map((it, i) =>
-            "separator" in it ? (
-              <hr key={`sep-${i}`} className="loki-title-menu-sep" />
-            ) : (
-              <Row key={it.id} dense role="menuitem" data-menu-id={it.id} className="loki-title-menu-item" onClick={() => onPick(it.id)}>
-                <span>{it.label}</span>
-                {it.keys && <Kbd>{it.keys}</Kbd>}
-              </Row>
-            ),
-          )}
-        </div>
-      )}
+      {groups.map((g) => (
+        <DropdownMenuSub key={g.title}>
+          <DropdownMenuSubTrigger data-menu={g.title}>{g.title}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent aria-label={g.title} className="loki-popover" style={{ minWidth: 260 }}>
+            {g.items.map((it, i) =>
+              "separator" in it ? (
+                <DropdownMenuSeparator key={`sep-after-${keyBefore(g.items, i)}`} />
+              ) : (
+                <DropdownMenuItem key={it.id} data-menu-id={it.id} className={ITEM} onClick={() => onPick(it.id)}>
+                  <span>{it.label}</span>
+                  {it.keys && <DropdownMenuShortcut>{it.keys}</DropdownMenuShortcut>}
+                </DropdownMenuItem>
+              ),
+            )}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem data-menu-id={HIDE} className={ITEM} onClick={() => onPick(HIDE)}>
+        <span>{labelOf(HIDE_BINDING, os)}</span>
+        <DropdownMenuShortcut>{keyFor(HIDE, os)}</DropdownMenuShortcut>
+      </DropdownMenuItem>
     </>
   );
 }
 
-const items = (panel: Element | null | undefined) => [...(panel?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-
-/**
- * ☰ and its menu, at the strip's left end on Windows and Linux. The header menus' manners (DeskPane): focus goes in,
- * ↑↓ move, → or Enter opens a title's menu and ← or Esc goes back to it, Esc on the titles closes, a press outside
- * closes, and focus returns to ☰.
- */
-export function TitleMenu({ os = keyboard }: { os?: Platform }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+export function TitleMenu({ os = keyboard, labels = {}, className }: { os?: Platform; labels?: Record<string, string>; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const popup = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const grows = open && lastInput() === "pointer";
   return (
-    <span className="loki-title-menu-anchor">
-      <button
-        type="button"
-        className="loki-title-btn loki-title-btn--menu"
-        aria-label="Menu"
-        title="Menu"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((v) => !v)}
-      >
-        <Glyph icon={MenuIcon} size={16} />
-      </button>
-      {menuOpen && (
-        <TitleMenuPopover
-          os={os}
-          onPick={(id) => {
-            setMenuOpen(false);
-            runMenuItem(id);
-          }}
-          onClose={() => setMenuOpen(false)}
+    <span className={className ? `loki-title-menu-anchor ${className}` : "loki-title-menu-anchor"}>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger
+          ref={trigger}
+          render={
+            <button type="button" className="loki-title-btn loki-title-btn--menu" aria-label="Menu" title="Menu">
+              <Glyph icon={MenuIcon} size={16} />
+            </button>
+          }
         />
-      )}
+        <DropdownMenuContent
+          ref={popup}
+          aria-label="loki"
+          align="start"
+          sideOffset={4}
+          finalFocus={() => {
+            const a = document.activeElement;
+            if (a && a !== document.body && !popup.current?.contains(a)) return false;
+            return trigger.current ?? true;
+          }}
+          className={cx("loki-popover loki-popover--anchored", !grows && "data-open:animate-none")}
+          style={{ minWidth: 180 }}
+        >
+          <TitleMenuItems groups={titleMenus(os, KEYMAP, labels)} os={os} onPick={runMenuItem} />
+        </DropdownMenuContent>
+      </DropdownMenu>
     </span>
-  );
-}
-
-function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState<string | null>(null);
-  /** Bumped when the keyboard opens a title: its menu's first item takes the focus once it shows. */
-  const [enter, setEnter] = useState(0);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const anchor = node?.parentElement ?? null;
-    items(node?.firstElementChild)[0]?.focus();
-    const away = (e: PointerEvent) => {
-      if (!anchor?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail and the list column stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    };
-  }, []);
-  useEffect(() => {
-    if (enter) items(ref.current?.querySelector(".loki-title-submenu"))[0]?.focus();
-  }, [enter]);
-  const titles = () => ref.current?.firstElementChild;
-  const focusTitle = (t: string | null) =>
-    t
-      ? items(titles())
-          .find((el) => el.dataset.menu === t)
-          ?.focus()
-      : undefined;
-  return (
-    <div
-      ref={ref}
-      className="loki-title-menu"
-      onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        const here = (document.activeElement as HTMLElement | null)?.closest('[role="menu"]') ?? null;
-        const inSub = !!here?.classList.contains("loki-title-submenu");
-        const all = items(here);
-        const i = all.indexOf(document.activeElement as HTMLElement);
-        const title = (document.activeElement as HTMLElement | null)?.dataset.menu;
-        if (e.key === "ArrowDown") all[(i + 1) % all.length]?.focus();
-        else if (e.key === "ArrowUp") all[(i - 1 + all.length) % all.length]?.focus();
-        else if ((e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") && title) {
-          setOpen(title);
-          setEnter((n) => n + 1);
-        } else if ((e.key === "ArrowLeft" || e.key === "Escape") && inSub) {
-          focusTitle(open);
-          setOpen(null);
-        } else if (e.key === "Escape") onClose();
-        else if (e.key === "Tab") return onClose();
-        else return;
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-    >
-      <TitleMenuPanel groups={titleMenus(os, KEYMAP)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
-    </div>
   );
 }

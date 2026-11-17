@@ -1,5 +1,3 @@
-// A suggestion saved as a draft (plan 049, U5): it waits in its chat's message box on every surface while nothing is
-// typed there, marks the chat's Inbox card, and goes when the chat sends or the box is emptied.
 import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -12,7 +10,6 @@ import { Card, CardConversation } from "../app/src/phone/inbox.tsx";
 import { ConversationHeader } from "../app/src/chat/conversation.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** A saved layer over a core registry, as the app's own is, with each box emptied of a draft recorded. */
 function setup() {
   const saved = createSavedDrafts();
   const emptied: string[] = [];
@@ -67,7 +64,6 @@ describe("a saved draft in the message box", () => {
     const s = setup();
     s.save("look at the flaky upload test");
     s.store.set(s.key, { text: "look at the flaky upload test now", images: [] });
-    // useAttention's send drops it first; the box's own clear follows.
     s.saved.drop("a1", "c1");
     s.store.set(s.key, { text: "", images: [] });
     expect(s.store.get(s.key).text).toBe("");
@@ -79,7 +75,6 @@ describe("a saved draft in the message box", () => {
     let heard = 0;
     const off = s.store.subscribe(s.key, () => heard++);
     s.save("look at the flaky upload test");
-    // The same list again tells nobody.
     s.save("look at the flaky upload test");
     s.saved.replace(new Map());
     off();
@@ -96,8 +91,6 @@ describe("one draft across the surfaces", () => {
   afterEach(() => savedDrafts.replace(new Map()));
 
   test("the desktop Inbox deck, the desk pane and the phone read one draft for one chat", () => {
-    // The deck's card and the desk pane both read `drafts` under draftKey(agent, conversation); the phone's session
-    // re-exports the same store.
     savedDrafts.replace(new Map([[keyOf("a1", "c1"), "look at the flaky upload test"]]));
     expect(drafts.get(draftKey("a1", "c1")).text).toBe("look at the flaky upload test");
     drafts.set(draftKey("a1", "c1"), { text: "typed on the desk", images: [] });
@@ -149,7 +142,6 @@ describe("the Inbox mark and the purpose line", () => {
   });
 });
 
-/** The card draws the agent's face, whose URL reads the page's token and origin: a bare page for the render, then put back. */
 function withPage<T>(render: () => T): T {
   const g = globalThis as Record<string, unknown>;
   const saved = { window: g.window, localStorage: g.localStorage, location: g.location };

@@ -1,12 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Listeners } from "../../../core/listeners.ts";
 
-/**
- * One value for the window, kept in sessionStorage and shared by every component that reads it — a list
- * column and the pane beside it stay on the same view without the shell holding it (plan 013 U11).
- * `parse` turns what was stored (or null) into a valid value, so a stale key reads as the default. `storage` picks
- * another store: localStorage for a preference that outlives the window.
- */
 export function createSessionValue<T extends string>(key: string, parse: (raw: string | null) => T, storage: () => Storage = () => sessionStorage) {
   const read = (): T => {
     try {
@@ -22,9 +16,7 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
     value = next;
     try {
       storage().setItem(key, next);
-    } catch {
-      // Storage off: the value still holds for this window.
-    }
+    } catch {}
     listeners.emit();
   };
   const subscribe = (l: () => void) => {
@@ -47,7 +39,6 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
       listeners.emit();
     });
   const get = () => value;
-  /** The value and its setter, re-rendering on every change; a render outside the window (a test) reads the same value. */
   const use = (): [T, (next: T) => void] => [useSyncExternalStore(subscribe, get, get), set];
   return { get, set, subscribe, use };
 }

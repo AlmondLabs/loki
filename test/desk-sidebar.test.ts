@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   DESK_NAME_MAX,
@@ -22,6 +22,10 @@ import {
   sourceRows,
   openIn,
   sourceHolds,
+  CHAT_STATES,
+  stateRows,
+  type ChatState,
+  type SidebarRow,
 } from "../app/src/shell/sidebar-model.ts";
 
 import { stepRow } from "../app/src/shell/list-keys.ts";
@@ -30,12 +34,8 @@ import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-/**
- * The desk sidebar's model (app/src/shell/sidebar-model.ts, plan 013 U4): Pinned, then one section per agent
- * by recent activity, each live desk once, the agent's main chat first; the filter; the marks; the pin and
- * archive rules; the "needs you" pills; and what survives a reload. Since plan 2026-11-14-1330 (U3) the same rules
- * give Chats' sources in the sidebar and each source's rows in the list.
- */
+// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
+vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
   scope,
@@ -73,7 +73,7 @@ describe("sections (scenario 1)", () => {
     const m = sidebarModel(desks, [], {});
     expect(m.sections.map((s) => [s.id, s.title, scopes(s.rows)])).toEqual([
       ["pinned", "Pinned", ["email"]],
-      ["agent:a2", "ira", ["default-a2", "notes"]], // ira's main chat is the most recent activity
+      ["agent:a2", "ira", ["default-a2", "notes"]],
       ["agent:a1", "friday", ["default-a1", "jira", "aws"]],
     ]);
   });
@@ -181,14 +181,14 @@ describe("Chats' sources in the sidebar (plan 2026-11-14-1330, R4)", () => {
   });
 });
 
-describe("opening a chat from outside the list chooses its source (KTD8, R7)", () => {
+describe("opening a chat from outside the list chooses its source (KTD8; plan 2026-11-15-1035, R9)", () => {
   const at = (source: string, query = "") => ({ source, query });
-  test("an unpinned chat of ira's opened while Pinned shows: the source becomes ira (AE3)", () => {
-    expect(openIn({ scope: "notes", agent_id: "a2" }, at("pinned"), desks)).toEqual({ source: "agent:a2", query: "" });
+  test("an unpinned chat of ira's opened while Pinned shows: the source becomes All Chats", () => {
+    expect(openIn({ scope: "notes", agent_id: "a2" }, at("pinned"), desks)).toEqual({ source: "all", query: "" });
   });
-  test("an archived chat selects Archived; a pinned one while an agent shows selects Pinned", () => {
-    expect(openIn({ scope: "gone", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("archived");
-    expect(openIn({ scope: "email", agent_id: "a1" }, at("agent:a1"), desks).source).toBe("pinned");
+  test("an archived chat selects Archived; a live one the source showing lacks goes to All Chats", () => {
+    expect(openIn({ scope: "gone", agent_id: "a1" }, at("all"), desks).source).toBe("archived");
+    expect(openIn({ scope: "jira", agent_id: "a1" }, at("archived"), desks).source).toBe("all");
   });
   test("a source that holds the chat stays, every chat's included", () => {
     expect(openIn({ scope: "jira", agent_id: "a1" }, at("all"), desks).source).toBe("all");
@@ -198,8 +198,8 @@ describe("opening a chat from outside the list chooses its source (KTD8, R7)", (
     expect(openIn({ scope: "jira", agent_id: "a1" }, at("all", "aws"), desks)).toEqual({ source: "all", query: "" });
     expect(openIn({ scope: "aws", agent_id: "a1" }, at("all", "aws"), desks)).toEqual({ source: "all", query: "aws" });
   });
-  test("a chat not listed yet, just made, goes under its agent", () => {
-    expect(openIn({ scope: "fresh", agent_id: "a2" }, at("pinned"), desks).source).toBe("agent:a2");
+  test("a chat not listed yet, just made, goes to All Chats", () => {
+    expect(openIn({ scope: "fresh", agent_id: "a2" }, at("pinned"), desks).source).toBe("all");
   });
 });
 
@@ -210,7 +210,6 @@ describe("choosing another source (KTD8)", () => {
     expect(["pinned", "agent:a2", "archived"].map((x) => sourceHolds(x, jira))).toEqual([false, false, false]);
     expect(sourceHolds("archived", desks[6])).toBe(true);
     expect(sourceHolds("all", desks[6])).toBe(false);
-    // The canvas's shared scope has no conversation: it is in no source, the archive included.
     expect(sourceHolds("archived", desk("shared", { status: "none", conversation_id: null }))).toBe(false);
   });
 });
@@ -280,11 +279,9 @@ describe("marks (scenario 3)", () => {
     );
     expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false });
     expect(looked.note).toBeUndefined();
-    // waiting stays bold with its badge whatever the look: it needs you to act
     expect(
       deskRowState(item("a1", "jira", "approval", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),
     ).toMatchObject({ kind: "waits", badge: 1, unread: true });
-    // done: neither
     expect(deskRowState(item("a1", "jira", "idle", { unread: false, last_message_at: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({
       kind: "none",
       unread: false,
@@ -375,7 +372,6 @@ describe("rename rules", () => {
     expect(cleanDeskName("   \n ")).toBeNull();
     const long = "x".repeat(DESK_NAME_MAX + 20);
     expect(cleanDeskName(long)).toBe("x".repeat(DESK_NAME_MAX));
-    // Capping never leaves a trailing space behind.
     expect(cleanDeskName(`${"y".repeat(DESK_NAME_MAX - 1)} tail`)).toBe("y".repeat(DESK_NAME_MAX - 1));
   });
 });
@@ -502,7 +498,6 @@ describe("the Chats list, rendered", () => {
     expect(html.indexOf(">ira<")).toBeLessThan(html.indexOf(">friday<"));
     expect(html).toContain("unread, 1 needs approval</span>");
     expect(html).toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*aws/);
-    // Not connected: archive is there but disabled, with the reason.
     expect(html).toMatch(/aria-label="Archive"[^>]*disabled|disabled[^>]*aria-label="Archive"/);
     expect(html).toContain("Archiving needs loki&#x27;s daemon");
   });
@@ -574,5 +569,38 @@ describe("where a chat lives, in its row (plan 023)", () => {
   test("with no Mac paired nothing is marked; in a flat list every chat on another Mac is", () => {
     expect(homeMark(on(), undefined, undefined, "this Mac")).toBeNull();
     expect(homeMark(on(MINI), undefined, undefined, "this Mac")).toEqual({ kind: "away", note: "lives on Mac mini" });
+  });
+});
+
+describe("Chats' state pills (plan 2026-11-15-1523)", () => {
+  const row = (scope: string, over: Partial<Pick<SidebarRow, "kind" | "unread" | "live">>) => ({
+    scope,
+    kind: "none" as SidebarRow["kind"],
+    unread: false,
+    live: false,
+    section: scope.startsWith("a") ? "ada" : "bo",
+    ...over,
+  });
+  const rows = [
+    row("a-wait", { kind: "waits", unread: true }),
+    row("a-new", { kind: "finished", unread: true }),
+    row("b-run", { kind: "running", live: true }),
+    row("b-quiet", {}),
+  ];
+  const kept = (state: ChatState) => stateRows(rows, state).map((r) => r.scope);
+
+  test("All keeps every chat; Waiting, Unread and Working keep what the badge, the bold title and the live dot say", () => {
+    expect(kept("all")).toEqual(["a-wait", "a-new", "b-run", "b-quiet"]);
+    expect(kept("waiting")).toEqual(["a-wait"]);
+    expect(kept("unread")).toEqual(["a-wait", "a-new"]);
+    expect(kept("working")).toEqual(["b-run"]);
+  });
+
+  test("a kept row keeps its agent heading", () => {
+    expect(stateRows(rows, "working")[0].section).toBe("bo");
+  });
+
+  test("the four pills, in order", () => {
+    expect([...CHAT_STATES]).toEqual(["all", "waiting", "unread", "working"]);
   });
 });

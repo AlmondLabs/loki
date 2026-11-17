@@ -1,14 +1,5 @@
-/**
- * The Vite tab's copy of src-tauri/src/widgets.rs `rewrite_shared_imports`: a widget's bare imports of the
- * shared modules become reads from `window.__lokiShared`, which the widget frame fills (app/src/frame/main.tsx),
- * so a widget uses the frame's one React. One import statement per line, as esbuild and oxc both print them.
- */
 export const SHARED_SPECIFIERS = ["react", "react/jsx-runtime", "react-dom", "recharts", "@loki/kit"] as const;
 
-/**
- * A widget's code with each bare import of a shared module (SHARED_SPECIFIERS) turned into a read from
- * `window.__lokiShared`; every other line is left as it is.
- */
 export function rewriteSharedImports(code: string): string {
   return code
     .split("\n")

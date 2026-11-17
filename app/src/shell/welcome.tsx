@@ -4,8 +4,10 @@ import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { PERSONA_HINT } from "../agents/new-agent";
 import { Providers } from "../settings/providers";
 import { isConnected } from "../settings/provider-model";
-import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
+import { Progress } from "@/ui/progress";
+import type { DaemonStatus, Preparing, WelcomeStep } from "./bootstrap";
 import { formatKeys } from "./keymap";
+import { toolsWords } from "./os-words";
 import { useAgentDraft, type CreateAgent } from "./use-agent-draft";
 import { CheckIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
@@ -18,11 +20,6 @@ interface ProviderProps {
   onModelsChanged: () => void;
 }
 
-/**
- * First launch, as a sheet over the empty desk: a provider (skipped when one is connected), then
- * the first agent, then its desk. Shown only while the daemon lists no agents at all, or could not start
- * (then Node, or the reason, comes first).
- */
 export function Welcome({
   step,
   providers,
@@ -36,14 +33,13 @@ export function Welcome({
   onDone,
   daemon,
   onRetryDaemon,
+  onInstallTools,
 }: ProviderProps & {
-  step: "node" | "provider" | "agent";
-  /** The shell's view of loki's daemon (null in a browser tab). */
+  step: WelcomeStep;
   daemon: DaemonStatus | null;
-  /** Look for Node again and start the daemon (the shell's retry_daemon). */
   onRetryDaemon: () => Promise<void>;
+  onInstallTools: () => Promise<string | null>;
   models: string[] | null;
-  /** Fetch the model list; the "skip for now" / "next" button calls it, the shell does when it opens on the agent step. */
   onLoadModels: () => void;
   onCreate: CreateAgent;
   onDone: (agentId: string) => void;
@@ -51,8 +47,7 @@ export function Welcome({
   const [skipProvider, setSkipProvider] = useState(false);
   const draft = useAgentDraft(onCreate, onDone);
   const nameRef = useRef<HTMLInputElement>(null);
-  const nodeStep = step === "node";
-  const showAgent = !nodeStep && (step === "agent" || skipProvider);
+  const showAgent = step === "agent" || (step === "provider" && skipProvider);
   useEffect(() => {
     if (!showAgent) return;
     const t = setTimeout(() => nameRef.current?.focus(), 0);
@@ -60,27 +55,26 @@ export function Welcome({
   }, [showAgent]);
   const connected = providers?.some(isConnected) ?? false;
 
+  if (step === "prepare")
+    return (
+      <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
+        <Intro
+          title="Getting loki ready"
+          line="loki downloads what it runs your agents on. This happens on first launch, and after an update that needs a newer version."
+        />
+        <PrepareStep status={daemon} onRetry={onRetryDaemon} onInstallTools={onInstallTools} />
+      </Sheet>
+    );
+
   return (
-    // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
     <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
-      <div>
-        {/* loki's mark, the L (app/public/mark.png). */}
-        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--radius-lg)", marginBottom: 16 }} />
-        <Title page>Welcome to loki</Title>
-        <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>
-          A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
-        </div>
-      </div>
+      <Intro
+        title="Welcome to loki"
+        line="A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think."
+      />
 
-      {nodeStep && (
-        <Step n={0} title={daemon?.nodeMissing ? "Node" : "Starting loki"} active>
-          <DaemonProblem status={daemon} onRetry={onRetryDaemon} />
-        </Step>
-      )}
-
-      <Step n={1} title="A model provider" done={connected} active={!showAgent && !nodeStep}>
+      <Step n={1} title="A model provider" done={connected} active={!showAgent}>
         <ProviderStep
-          nodeStep={nodeStep}
           showAgent={showAgent}
           connected={connected}
           providers={providers}
@@ -99,9 +93,17 @@ export function Welcome({
   );
 }
 
-/** Step 1: waits for the daemon, then the provider shortlist with "next" / "skip for now", then a line naming what connected. */
+function Intro({ title, line }: { title: string; line: string }) {
+  return (
+    <div>
+      <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--radius-lg)", marginBottom: 16 }} />
+      <Title page>{title}</Title>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>{line}</div>
+    </div>
+  );
+}
+
 function ProviderStep({
-  nodeStep,
   showAgent,
   connected,
   providers,
@@ -110,8 +112,7 @@ function ProviderStep({
   onDisconnect,
   onModelsChanged,
   onNext,
-}: ProviderProps & { nodeStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
-  if (nodeStep) return <span className="loki-meta loki-meta--wrap">Once loki is running</span>;
+}: ProviderProps & { showAgent: boolean; connected: boolean; onNext: () => void }) {
   if (!showAgent)
     return (
       <div className="grid gap-3">
@@ -119,9 +120,8 @@ function ProviderStep({
         <div className="loki-meta loki-meta--wrap flex items-center gap-2">
           <span>Keys are checked with the provider and kept in this computer's keychain.</span>
           <span className="flex-1" />
-          {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
           <Button size="sm" onClick={onNext}>
-            {connected ? "next" : "skip for now"}
+            {connected ? "Next" : "Skip for Now"}
           </Button>
         </div>
       </div>
@@ -138,7 +138,6 @@ function ProviderStep({
   );
 }
 
-/** Step 2: the form for the first agent; ↵ anywhere but the persona creates it. */
 function AgentForm({
   draft,
   nameRef,
@@ -195,7 +194,11 @@ function AgentForm({
         </datalist>
       </Labelled>
       <div className="flex items-center gap-2" style={{ marginTop: 4 }}>
-        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+        {error && (
+          <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </span>
+        )}
         <span className="flex-1" />
         {canGoBack && (
           <Button size="sm" onClick={onBack}>
@@ -203,69 +206,127 @@ function AgentForm({
           </Button>
         )}
         <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void create()} disabled={busy || !name.trim()}>
-          {busy ? "creating…" : "create and open the chat"}
+          {busy ? "Creating…" : "Create and Open the Chat"}
         </Button>
       </div>
     </div>
   );
 }
 
-/** The daemon could not start: for want of a new-enough Node, the Node step; for anything else, the reason and "check again". */
-export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null; onRetry: () => Promise<void> }) {
+export function PrepareStep({
+  status,
+  onRetry,
+  onInstallTools,
+}: {
+  status: DaemonStatus | null;
+  onRetry: () => Promise<void>;
+  onInstallTools: () => Promise<string | null>;
+}) {
   const [busy, setBusy] = useState(false);
+  const [asked, setAsked] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const retry = () => {
     setBusy(true);
     void onRetry().finally(() => setBusy(false));
   };
-  if (status?.nodeMissing) return <NodeNeeded missing={status.nodeMissing} busy={busy} onRecheck={retry} />;
+  const install = () => {
+    setProblem(null);
+    void onInstallTools().then((err) => {
+      setAsked(!err);
+      setProblem(err);
+    });
+  };
+  if (status?.toolsMissing) return <Tools os={status.toolsMissing} busy={busy} asked={asked} problem={problem} onInstall={install} onCheck={retry} />;
+  if (status?.preparing) return <Preparation preparing={status.preparing} error={status.error} busy={busy} onRetry={retry} />;
+  return <DaemonProblem error={status?.error ?? null} busy={busy} onRetry={retry} />;
+}
+
+const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
+
+export function Preparation({ preparing, error, busy, onRetry }: { preparing: Preparing; error: string | null; busy: boolean; onRetry: () => void }) {
+  const what = `${preparing.name === "git" ? "PortableGit" : "Node"} ${preparing.version}`;
+  if (error)
+    return (
+      <div className="grid gap-2">
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{`loki could not download ${what}.`}</div>
+        <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>
+        <Button size="sm" tone="positive" disabled={busy} onClick={onRetry} className="justify-self-start">
+          {busy ? "Trying…" : "Try Again"}
+        </Button>
+      </div>
+    );
+  const { done, total } = preparing;
+  const percent = total ? Math.min(100, Math.round((done / total) * 100)) : null;
+  const far = total ? `${megabytes(done)} of ${megabytes(total)} MB` : done > 0 ? `${megabytes(done)} MB` : "Connecting…";
   return (
     <div className="grid gap-2">
-      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
-      {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{`Downloading ${what}`}</div>
+      <Progress value={percent} aria-label={`Downloading ${what}`} />
+      <div className="loki-meta loki-meta--wrap">{far}</div>
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-        Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
+        loki checks it against the checksum it was built with before it runs anything.
       </div>
-      <Button size="sm" tone="positive" disabled={busy} onClick={retry} className="justify-self-start">
-        {busy ? "checking…" : "check again"}
-      </Button>
     </div>
   );
 }
 
-/**
- * No Node 22 or newer anywhere loki looks: what to install, this system's usual command, the nodejs.org link, and
- * one button — the daemon's retry, which looks for Node afresh and starts the daemon once one is there. loki
- * never downloads Node itself.
- */
-export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing; busy: boolean; onRecheck: () => void }) {
-  const help = nodeHelp(missing.os);
+export function Tools({
+  os,
+  busy,
+  asked,
+  problem,
+  onInstall,
+  onCheck,
+}: {
+  os: "macos" | "linux";
+  busy: boolean;
+  asked: boolean;
+  problem: string | null;
+  onInstall: () => void;
+  onCheck: () => void;
+}) {
+  const words = toolsWords(os);
   return (
     <div className="grid gap-2">
-      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. loki runs your agents on it.</div>
-      {missing.found && (
-        <div className="loki-meta loki-meta--wrap">
-          The Node found is {missing.found}
-          {missing.at ? (
-            <>
-              {" "}
-              at <code className="loki-mono">{missing.at}</code>
-            </>
-          ) : null}
-          , older than {missing.needed}.
+      <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--loki-fg)" }}>{words.title}</div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{words.needed}</div>
+      {words.commands.length > 0 && (
+        <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+          {words.commands.map((c, i) => (
+            <span key={c}>
+              {i > 0 && " or "}
+              <code className="loki-mono">{c}</code>
+            </span>
+          ))}{" "}
+          {words.where}
         </div>
       )}
-      <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-        <code className="loki-mono">{help.command}</code>
-        {help.also ? (
-          <>
-            {" "}
-            or <code className="loki-mono">{help.also}</code>
-          </>
-        ) : null}{" "}
-        {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
+      {asked && words.asked && <div className="loki-meta loki-meta--wrap">{words.asked}</div>}
+      {problem && <div className="loki-meta loki-meta--negative loki-meta--wrap">{problem}</div>}
+      <div className="flex items-center gap-2">
+        {words.install && (
+          <Button size="sm" tone="positive" disabled={busy} onClick={onInstall}>
+            {words.install}
+          </Button>
+        )}
+        <Button size="sm" tone={words.install ? undefined : "positive"} disabled={busy} onClick={onCheck}>
+          {busy ? "Checking…" : "Check Again"}
+        </Button>
       </div>
-      <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} className="justify-self-start">
-        {busy ? "checking…" : "check again"}
+    </div>
+  );
+}
+
+function DaemonProblem({ error, busy, onRetry }: { error: string | null; busy: boolean; onRetry: () => void }) {
+  return (
+    <div className="grid gap-2">
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
+      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+        Its log is <code className="loki-mono">~/.loki/logs/daemon.log</code>.
+      </div>
+      <Button size="sm" tone="positive" disabled={busy} onClick={onRetry} className="justify-self-start">
+        {busy ? "Checking…" : "Check Again"}
       </Button>
     </div>
   );
@@ -297,7 +358,6 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
   );
 }
 
-/** A labelled line of the form: the label column matches Settings' facts. */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="grid grid-cols-[90px_1fr] items-start gap-3" style={{ fontSize: "var(--text-xs)" }}>

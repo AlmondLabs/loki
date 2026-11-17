@@ -66,7 +66,6 @@ describe("chat event converter", () => {
     c.convert(piece("Keep"), NOW);
     c.convert(written("Keep it"), NOW);
     expect(c.inFlight()).toBeNull();
-    // Following starts mid-answer: pi-durable's snapshot carries the partial.
     const late = new ChatEventConverter();
     late.convert(
       {
@@ -106,12 +105,19 @@ describe("chat event converter", () => {
     };
 
     test("a text block begun with its first words already in it, then words added", () => {
-      // The screenshot's case: "Yes. Skills give townhall a way" came in the block's start and never showed.
       const events = [
         update({ type: "text_start", contentIndex: 0, block: { type: "text", text: "Yes. Skills give townhall a way" } }),
         piece(" to preserve how"),
       ];
       expect(fold(events)).toEqual({ shown: ["Yes. Skills give townhall a way to preserve how"], inFlight: "Yes. Skills give townhall a way to preserve how" });
+    });
+
+    test("a message begun with its first words already in it, then words added", () => {
+      const events = [
+        { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "Then " }] } } as AgentEvent,
+        piece("all published skills"),
+      ];
+      expect(fold(events)).toEqual({ shown: ["Then all published skills"], inFlight: "Then all published skills" });
     });
 
     test("a block after thinking: only the text shows, and a second text block joins as the written answer joins them", () => {
@@ -146,7 +152,7 @@ describe("chat event converter", () => {
 
   test("the app sets its stream from what was written so far, and the pieces after it add on", () => {
     const l = emptyLive();
-    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "rmart", at: NOW, chunk: true } }, NOW); // a piece that beat the state
+    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "rmart", at: NOW, chunk: true } }, NOW);
     applyChatEvent(l, { kind: "streaming", text: "Keep `farmart", at: NOW }, NOW);
     applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "-co", at: NOW, chunk: true } }, NOW);
     expect(must(l.thread.rows(), "the thread's rows").map((r) => r.text)).toEqual(["Keep `farmart-co"]);
@@ -154,7 +160,6 @@ describe("chat event converter", () => {
 
   describe("a reply shows once, however its stream went", () => {
     const REPLY = "Keep `farmart-co-read-write-user` for the farmart.co website project. That closes the Dev review.\n\nNext is Stage `Cluster0`.";
-    /** What a client draws after these events, and after the history page that follows the turn. */
     const drawn = (events: AgentEvent[], from = 0) => {
       const c = new ChatEventConverter();
       const out = events.flatMap((e) => c.convert(e, NOW));
@@ -235,8 +240,11 @@ describe("chat event converter", () => {
     ]);
   });
 
-  test("a real streamed answer shows from its first word while it streams, after thinking", async () => {
-    // Fast enough that pi-durable saves several words per batch: the text block then begins with its first words in it.
+  const ANSWER = "Yes. Skills give townhall a way to preserve how the organisation does things, not just what people discussed.";
+  test.each([
+    ["after thinking", [fauxThinking("Let me think about skills for a moment here."), fauxText(ANSWER)]],
+    ["with no thinking first", [fauxText(ANSWER)]],
+  ])("a real streamed answer shows from its first word while it streams, %s", async (_, content) => {
     const faux = fauxProvider({ tokensPerSecond: 40, tokenSize: { min: 3, max: 3 } });
     const models = createModels();
     models.setProvider(faux.provider);
@@ -255,8 +263,7 @@ describe("chat event converter", () => {
           }
         return Promise.resolve();
       });
-      const ANSWER = "Yes. Skills give townhall a way to preserve how the organisation does things, not just what people discussed.";
-      faux.setResponses([fauxAssistantMessage([fauxThinking("Let me think about skills for a moment here."), fauxText(ANSWER)])]);
+      faux.setResponses([fauxAssistantMessage(content)]);
       await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await new Promise((r) => setTimeout(r, 50));
       await stream.stop();

@@ -4,11 +4,6 @@ import { Button, Dot, Field, Row } from "../components";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, sortProviders } from "./provider-model";
 import { Block, Segmented, Setting } from "./layout";
 
-/**
- * Model providers as rows: connected first, then the usual suspects, then everything the daemon
- * knows behind a filter. A row opens into the daemon's own field list; the key is checked against
- * the provider before it is saved, and never shown again afterwards. A sign-in opens the browser.
- */
 export function Providers({
   providers,
   onLoad,
@@ -21,9 +16,7 @@ export function Providers({
   onLoad: () => Promise<unknown>;
   onConnect: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
   onDisconnect: (providerId: string) => Promise<string | null>;
-  /** After a connect or disconnect: the model list is stale. */
   onChanged?: () => void;
-  /** Welcome: the shortlist open, the rest behind "more". */
   shortlist?: boolean;
 }) {
   const [filter, setFilter] = useState("");
@@ -84,10 +77,6 @@ export function Providers({
   );
 }
 
-/**
- * Preferences › Providers (plan 031): the providers you use first, each opening into its key or sign-in; the rest of the
- * daemon's catalogue only after "Add Provider…", behind a search, the usual ones on top.
- */
 export function ProviderSettings({
   providers,
   onLoad,
@@ -126,7 +115,7 @@ export function ProviderSettings({
   );
   return (
     <>
-      <Block title="Connected" help="Who answers your agents' models. A key is checked with the provider, then kept in this computer's keychain.">
+      <Block title="Connected" help="Who answers your agents' models, each key kept in this computer's keychain.">
         {connected.length === 0 && <Setting label="None yet" help="Add a provider below to give your agents a model." />}
         {connected.map(row)}
       </Block>
@@ -183,11 +172,6 @@ export function ProviderSettings({
 type ConnectFn = Parameters<typeof Providers>[0]["onConnect"];
 type DisconnectFn = Parameters<typeof Providers>[0]["onDisconnect"];
 
-/**
- * One row's connect state: the auth method picked, the field values typed, the busy flag and the
- * last error, with connect and disconnect on top. It lives in the row, not the form, so a half-typed
- * key survives folding the row shut.
- */
 function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconnect: DisconnectFn, onChanged: (() => void) | undefined, onToggle: () => void) {
   const [method, setMethod] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -221,7 +205,6 @@ function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconne
       setBusy(false);
     }
   };
-  /** A sign-in still waiting for its browser: the address the browser ended on finishes it (the wait in connect sees it). */
   const finish = async (address: string) => {
     if (!address.trim()) return;
     setError(await onConnect(p.id, { redirect_url: address.trim() }, "oauth_code"));
@@ -279,10 +262,8 @@ function ProviderRow({
   );
 }
 
-/** The open row's form: a method picker when the provider has more than one, the daemon's fields, connect / disconnect, the error. */
 function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: boolean; state: ConnectState }) {
   const { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect, finish } = state;
-  /** Each field's input is `${fieldId}-${key}`, so its label can name it. */
   const fieldId = useId();
   const [address, setAddress] = useState("");
   const signIn = authMethodId === "oauth" ? p.auth_methods?.find((m) => m.id === "oauth") : undefined;
@@ -303,7 +284,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         <label key={f.key} htmlFor={`${fieldId}-${f.key}`} className="grid grid-cols-[140px_1fr] items-center gap-3" style={{ fontSize: "var(--text-xs)" }}>
           <span style={{ color: "var(--loki-muted)" }}>
             {f.label}
-            {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
+            {f.required === false ? <span> · optional</span> : null}
           </span>
           <Field
             id={`${fieldId}-${f.key}`}
@@ -340,7 +321,11 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             Disconnect
           </Button>
         )}
-        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+        {error && (
+          <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </span>
+        )}
       </div>
       {signIn && busy && (
         <label htmlFor={`${fieldId}-address`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3" style={{ fontSize: "var(--text-xs)" }}>

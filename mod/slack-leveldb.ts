@@ -11,14 +11,6 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { snappyUncompress } from "./slack-snappy.ts";
 
-/**
- * A read-only LevelDB reader for the Slack desktop app's Local Storage (plan 067, U6, KTD7), in plain TypeScript so
- * loki needs no native module. It reads every table (.ldb, .sst) and log (.log) in a folder and keeps, for each key, the
- * newest write by sequence number, so a value overwritten or deleted since is not taken for the current one. It reads
- * a snapshot copy, never Slack's own folder, since Slack holds its lock while it runs.
- */
-
-/** The newest write to one key: its value, or null when that write deleted it. */
 export interface LevelEntry {
   key: Buffer;
   value: Buffer | null;
@@ -63,9 +55,7 @@ function blockEntries(block: Buffer): Array<{ key: Buffer; value: Buffer }> {
       at += valueLen.value;
       prev = key;
     }
-  } catch {
-    // A block cut short keeps the entries read before the break.
-  }
+  } catch {}
   return out;
 }
 
@@ -131,9 +121,7 @@ function batchEntries(batch: Buffer, out: LevelEntry[]): void {
       else break;
       seq++;
     }
-  } catch {
-    // A batch cut short (Slack writing as the snapshot was taken) keeps the writes read before the break.
-  }
+  } catch {}
 }
 
 /** A log's writes: records in 32 KiB blocks, a batch split over several records when it does not fit in one. */
@@ -167,7 +155,6 @@ function logEntries(file: Buffer): LevelEntry[] {
   return out;
 }
 
-/** The newest write of every key in a LevelDB folder whose key contains `part`, across its tables and logs. */
 export async function readLevelDb(dir: string, part: Buffer): Promise<LevelEntry[]> {
   const files = await readdir(dir);
   const newest = new Map<string, LevelEntry>();

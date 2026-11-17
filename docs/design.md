@@ -50,7 +50,7 @@ AA on every working surface. The roles:
 - `--loki-grid` is the canvas's dot grid, `--loki-veil` the dim behind a sheet, and `--loki-focus-flash` the colour
   the focus ring flashes in where a surface sets one (the phone's link colour); unset, it is the accent.
 
-No literal colour appears in a component; the agent chip's hue is the one computed colour. `data-theme`
+No literal colour appears in a component; even the agent chip takes the label colour nearest its name's hue. `data-theme`
 selects dark or light values, and the saved `system` preference follows the operating system; there is one palette.
 An inline initializer applies it before first paint; the grounds are repeated in `index.html`, the web manifest and
 the native window (`src-tauri`).
@@ -68,14 +68,19 @@ Tailwind's steps `0`, `px`, `0.5`, `1`, `2`, `3`, `4`, `5`, `6`, `8` and `12`. E
 gap takes one, in the stylesheets and in the views; a tie goes to the step the same control already uses. One step is
 Tailwind's default quarter rem, 4px at the 16px root; loki sets no `--spacing` of its own.
 
-Every pane's content starts 20px from its edge, the same inset as its title, as Mail lines a message up under its
-header: the transcript, the composer, an outside item's thread, the agents' pages, Learn's items and Preferences. A
-reading column keeps its width (`max-w-3xl`) and starts at that edge rather than in the middle. Indentation that shows
-hierarchy, such as a mail body under its sender's face, starts from it. Only focus and empty states are centred:
-Learn's review deck and welcome card, the empty canvas hint and the "No … Selected" panes. The list column's text
-starts 16px in, with its boxes (rows, search) 4px in. The list bar, the pane header and the card toolbar are each
-52px with their title stacks top-aligned 6px down, so the list title and the detail title share one line; a list row's
-time sits on its name line, and every Flow row has three lines.
+Every pane's content starts 20px from its edge, the same inset as its title: the agents' pages, Learn's items and
+Preferences. Indentation that shows hierarchy, such as a mail body under its sender's face, starts from it. A reading
+column is the exception: the transcript, the proposals, the composer, the new-chat notice and an outside item's thread
+and reply box keep their width (`max-w-3xl`) and are centred in the detail, never closer than 20px to its edges. They
+started at the edge from 2026-11-14 until 2026-11-15, when a wide window left most of the pane empty on their right.
+Focus and empty states are centred too: Learn's review deck and welcome card, the empty canvas hint and the
+"No … Selected" panes. The list column's text starts 16px in, with its boxes (rows, search) 4px in. The list bar, the
+pane header and the card toolbar are each 52px with their title stacks top-aligned 6px down, so the list title and the
+detail title share one line; in the Mac app the bars sit on the traffic lights' row and the list's title is centred on
+it instead. A list row's time sits on its name line, and every Flow row has three lines. Because its three lines would
+otherwise run into the next row's, Flow's list is divided (`ContentList`'s `divided`): 8px above and below each row and
+a `--loki-border` hairline between rows, from where the text starts to the row's trailing padding, gone beside the
+hovered or selected row. A list of one-line rows stays undivided.
 
 Fixed layout is written as Tailwind classes on
 this scale (`flex items-center gap-2`), with padding, sizes and colour left in `style`. A value computed from state or
@@ -89,12 +94,12 @@ Radii are Tailwind's own, at the 16px root: `rounded-sm` **4** and `rounded-md` 
 `app/src/kit/layers.ts` (panel 100, bubble 101, rail 110 (the sidebar toggle), modal 200, strip 250, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
 
-Focus flashes, one rule in `tokens.css`: when focus moves by keyboard, a 2px accent-blue ring appears and
-fades over a second, so you see where focus went without a box sitting there. Controls (buttons, rows, tabs,
-links, selects, checkboxes) settle on a 2px muted ring, since nothing else shows which one Tab or Enter acts
-on; text fields settle on nothing, the caret shows them. The ring is inset (so a clipped list never cuts it
-off) and offset on links. Only the colour animates, so under reduced motion the settled ring shows at once.
-Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion means less
+Focus on the desktop is Apple's (plan 2026-11-15-1035, U5, in `components.css`): a control that has keyboard focus
+(buttons, rows, tabs, links, selects) wears a steady 3px accent ring just outside it, the accent at full strength
+because Apple's half-strength tint measured under the 3:1 a focus mark needs. A text field wears the accent as its
+edge instead of a ring (plan 2026-11-15-2345), except the bare first line of a sheet, which is focused whenever the
+sheet is open. The phone keeps its own in `phone.css`: a 2px ring that flashes and settles on the muted colour, and
+the caret alone for a field, as iOS does. Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion means less
 movement, not none: it zeroes every CSS duration *and delay*, then lets what appears (sheets, popovers, a chat's
 arriving rows and words, widgets, the phone's banner) fade in over 150 ms with no move or scale, so nothing cuts in
 hard. JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/motion.ts`.
@@ -176,7 +181,7 @@ The chrome is built from one vocabulary, with every state in `components/compone
 kbd), **IconButton** (24 · 28 · 36 · 40; danger goes red on hover), **NavButton**, **Chip** (active is
 neutral, brass the blue pick, attention the badge for what waits on you, tone for a status badge, static, tag, touch, label,
 float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row** (selected, dense, touch,
-flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or bottom), **Popover**, **Kbd**,
+flush), **Sheet** (veil, aria-modal, Escape, click-out, focus held inside and returned; top or bottom; on the desktop shadcn's Dialog on Base UI since plan 2026-11-15-1900, with loki's veil and card, while the phone's bottom sheet keeps its own markup for its drag), **Popover** (owns the button it hangs from; on the desktop shadcn's Popover on Base UI since plan 2026-11-15-2130, placed beside the button on the side with room, closed by Esc, a press outside or the button, focus returned to it; the phone draws its own panel beside the button), **Kbd**,
 **Meta** (sans 12 muted; brass, negative for a small error, wrap; a div that is a meta line takes the
 `loki-meta` class instead of a hand-set fontSize and colour), **Title**, **Dot**, **Empty**, **Banner**, and
 **Switch** (an on/off switch with its label), **ListIcon** (an icon in a list row's avatar place), and
@@ -185,9 +190,20 @@ or one that stays with an action and a cancel button; one stack, top right under
 colours; never a
 hand-built toast).
 
-The tone names predate this look and are kept for compatibility. What they render now: `quiet` muted ink
-on a hairline · `paper` fg ink · `brass` the accent blue ink (an interactive action) · `positive` the default
-button, the accent filled with white ink · `negative` red ink. Buttons are semibold; a label takes a capital
+On the desktop the primitives are thin wrappers over shadcn's components in `app/src/ui` (plan 2026-11-15-1035, U2): Button
+and IconButton draw `ui/button`, Chip draws `ui/badge`, Switch draws `ui/switch`, and a `type="search"` Field draws an
+`ui/input-group` capsule. The phone, and any `touch`-sized control, keeps loki's own markup and `phone.css`'s restyle of it,
+in `components/phone.tsx` (plan 2026-11-15-2330): the choice is made at run time, since one screen serves both, so screens
+import the wrappers rather than `app/src/ui`. A menu loki draws itself, where the Mac app's native one is not there (a
+button's menu, a sidebar row's menu), is shadcn's DropdownMenu on Base UI (`DrawnMenu` in `shell/menu-items.tsx`): hung
+from its button or the pointer, on the side with room, moved with ↑↓ Home End and type-ahead, closed by Esc, Tab, a press
+outside or a pick, focus returned to what opened it.
+The tone names predate this look and are kept for compatibility. What they render on the desktop, as the Mac's buttons:
+`quiet` and `paper` the push button (raised grey in the dark, white with a hairline edge in the day) · `brass` the plain
+button, accent text with no bezel · `positive` the default button, the accent filled with white ink · `negative` the
+destructive button, red. A `bare` button has no bezel and keeps its tone's ink. A chip is a filled capsule with no
+hairline, the accent fill when active, picked or waiting. A search field is a filled capsule with the magnifier leading.
+In a list with focus, the chosen row's fill is the focus mark; its ring goes transparent. Buttons are semibold; a label takes a capital
 (`capitalChildren`) and a `kbd` goes into the tooltip ("Archive (⌘E)"), not onto the face. Chips, meta, banners and labels are the sans at 12, no caps, no tracking; titles are sans bold. Kbd
 stays mono. Selection and hover use distinct neutral steps; neither the accent nor the badge is spent on a
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
@@ -196,13 +212,14 @@ share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into
 hand-built: the sidebar toggle (`.loki-rail`), the chat bubble, the phone's tab bar.
 The list-and-detail layout has its own blocks (2026-09-23): **ListRow** (a lead, the title bold when unread, a preview,
 the time or the count, hover actions; `aria-current` on the chosen one), **ListSection** (a folding
-heading with a count and actions), **TabRow** (an ARIA tablist with roving focus, the underline tabs),
+heading with a count and actions), **TabRow** (shadcn's Tabs on Base UI since plan 2026-11-15-2130: an ARIA tablist with
+roving focus, ←→ choosing, in the toolbar's glass capsule; each tab names the panel the host draws outside it),
 **PaneHeader** (the pane's name line and tab row) and **EmptyPane**.
 
 ## The chat pane and Flow's cards (shadcn and AI Elements, plans 096 and 097)
 
-The desktop chat pane and Flow's cards are built on a second vocabulary; the rest of the app keeps the primitives
-above. The phone keeps its own thread and cards.
+The desktop chat pane and Flow's cards are built on shadcn directly; the rest of the desktop reaches the same
+components through the primitives above, which wrap them (plan 2026-11-15-1035). The phone keeps its own thread and cards.
 
 **Foundation.** [shadcn](https://ui.shadcn.com) components on Base UI (a custom trigger is `render=`, not `asChild`)
 and Vercel's [AI Elements](https://ai-sdk.dev/elements) live in `app/src/ui/` and `app/src/ui/ai-elements/`, copied
@@ -223,7 +240,9 @@ the grey line only while they hold; a card whose account needs mending has **Sig
 **Timeline** (time told at gaps of a quarter of an hour), **MessageEntry** (yours a bubble at the trailing edge with no
 label, its time in its tooltip; the agent's prose, copy beside it on hover), **AgentTurn** (no name on screen: the
 header says only how long it worked and, while it is not simply done, where it stands, with the Loader while working;
-a New line or a day that falls inside a turn is drawn inside it), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps,
+a New line or a day that falls inside a turn is drawn inside it), **Work** (AI Elements' ChainOfThought: one summary line, marked with a checklist once done (a wrench while it works),
+opened to steps; a failure named under the closed line is red only when the turn stopped on it and grey when the agent
+went on past it (plan 2026-11-15-1035, U9);
 a step to its Tool or Task; finished steps at full strength, never AI Elements' half-faded "pending"), the agent's
 **Plan** (folded to "plan as before" when it repeats unchanged) and **Thought** (Reasoning, folded; inside a Work line a thought is one of its steps, "Thought for 12 seconds", in the place it came, and the thought before a reply that follows work joins that line, so a turn that thinks, reads, thinks and answers is one line before the answer), **EventEntry** (one quiet line; a compaction
 a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column; an
@@ -241,7 +260,12 @@ measured heights (`shared/use-height-var.ts`) and scrolls on beneath them.
 
 The window has no native title bar (2026-09-23): the title bar is an overlay with its title hidden, the
 traffic lights sit in the sidebar's top row, and loki draws the top edge itself — a 28px **title strip** that drags the
-window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). The
+window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). On the Mac the
+window has an empty unified toolbar, as Mail's has, so AppKit itself lays the lights out low in a 52px title bar
+(`src-tauri/src/native.rs`); moving them after AppKit's layout, as Tauri's `traffic_light_position` does, showed them
+in the corner for a frame on every focus, resize, title or appearance change. The page reads where they are before it
+first draws (`adoptTrafficLights`), and centres the panes' 52px title bars and the sidebar's toggle on their row
+(`paneTop`); the bars drag the window too. The
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
 "· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead: a chat's is a Mac toolbar
@@ -258,8 +282,9 @@ keys stay; ⌘⇧↵ still marks the open chat read). Two earlier forms were dro
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
 **Windows and Linux (preview, plan 014).** There the window is undecorated and the strip is loki's for those
-systems: 32px, the height Windows gives its caption buttons, on `--loki-panel`. At its left a ☰ button opens the Mac's menu bar as a strong-glass popover: the menu titles (the `menuSpec()` groups), each opening its items
-beside it, keys written Ctrl, Alt, Shift, with the header menus' keyboard manners; at its right minimise, maximise (Restore, with the two-square glyph, while maximised) and close,
+systems: 32px, the height Windows gives its caption buttons, on `--loki-panel`. At its left a ☰ button opens the Mac's menu bar as a strong-glass popover: the menu titles (the `menuSpec()` groups), each a submenu opening its items
+beside it, keys written Ctrl, Alt, Shift; it is shadcn's DropdownMenu on Base UI with its submenus, as every drawn menu is,
+so it moves and closes as they do (plan 2026-11-15-1930); at its right minimise, maximise (Restore, with the two-square glyph, while maximised) and close,
 46px wide, flat and full height, square because they run to the window's edge. Hover is `--loki-hover`; close
 alone hovers red, because that is what close does on both systems. The strip sits on `LAYER.strip`, above sheets, so the window buttons stay usable while a dialog is
 up, as a system title bar would. The strip drags; double click maximises. The rest of the window is the Mac's.
@@ -290,23 +315,33 @@ Internals keep the name desk.
 
 - **Places.** The sidebar's first rows (plan 2026-11-12-1505, U12) are Chats, Flow, Agents and Learn, each a symbol
   in the accent, its name and a grey count (what waits in Flow, the cards due in Learn), the one showing filled and
-  never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. A newer loki is
-  an **Update…** button at the detail toolbar's trailing edge (plan 2026-11-14-1330, R18), laid over the detail's top
-  right by the shell so it sits in the same spot in every place, with each toolbar's trailing side leaving it room; its
-  menu holds **Later**, which hides it until the next version. It sat as a row at the sidebar's foot until 2026-11-14,
-  then was a notice over the content; Preferences › loki keeps saying it while it is newer. A place's **sources** sit one level under its row, at most two levels in all, as Mail's mailboxes
-  (plan 2026-11-14-1330, R1): the same rows in every place, so changing place moves only the selection. Each source is
-  a symbol in the accent or an agent's face, its name and a grey count of what waits in it; the place's row then stands
-  for its own "all" source and is filled only while that one shows. A chevron at the row's trailing edge, shown on
-  hover and always while folded, folds the sources; the folds are kept in `loki.desktop.sidebar`. Chats has sources
-  (Pinned, each agent, Archived), Flow its lanes, and Agents its agents (face, name, a green dot while one works, the
-  count of what waits in Flow; the Agents row stands for no one agent, so choosing it keeps the agent shown), and Learn
-  its views (Review with its grey count of cards due, Leads, All Cards, Deleted; the Learn row keeps the view shown).
+  never bold. Preferences is not a row: it is ⌘, and the menu bar's, and in the Mac app a window of its own. Updates are
+  offered from the loki menu, as a Mac app offers them (plan 2026-11-15-2319, U5): **Check for Updates…** checks now
+  and opens Preferences › About, and once an update has downloaded it reads **Restart to Update…**; a development
+  build never has one ready. The page lists the loki
+  menu's items in `menuSpec` like every other menu, so the Mac's menu bar, the ☰ menu on Windows and Linux, and the ☰
+  beside the sidebar toggle in a browser tab show the same items. A place is a small grey **heading** that is not a row, as Mail's Favourites is, and its
+  **sources** are the rows under it (plan 2026-11-15-1035, R5): the same rows in every place, so changing place moves
+  only the selection, and each agent is listed once, under Agents. A source is a symbol or an agent's face and its name
+  in the label colour and a grey count of what waits in it; the source showing is filled and takes the accent. A chevron
+  at the heading's trailing edge, shown on hover and always while folded, folds the sources; the folds are kept in
+  `loki.desktop.sidebar`. Chats' sources are All Chats, Pinned and Archived; the list keeps a heading per agent, and Mail's
+  category pills under its title (plan 2026-11-15-1523) narrow it to **All**, **Waiting**, **Unread** or **Working**:
+  the chosen one a filled capsule with its symbol and name, the rest grey circles with their symbol; Archived has none. Flow's are Everything and the person's lanes; an agent's
+  lane is the phone's, and on the desktop a saved one reads as Everything. Flow's list carries the same pills
+  (`FilterPills`, plan 2026-11-15-1740) by kind: **All**, then **Chats**, **Mail**, **Slack** and **Jira**, each only
+  while Flow holds a card of it (the chosen one kept), none with fewer than two; a kind narrows the deck as a lane does,
+  and the two combine. Agents' are its agents (face, name, a green
+  dot while one works, the count of what waits in Flow), and Learn's its views (Review with its grey count of cards due,
+  Leads, All Cards, Deleted).
 - **Sidebar.** The places and their sources and nothing under them (`ListColumn`), dragged or arrowed on its
-  edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or the toggle beside the traffic
-  lights, which stays while the sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list
-  and a detail of 480, and with it folded the list starts at a clearance past the traffic lights and the toggle (128 on
-  the Mac, 52 in a browser). Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
+  edge, shown or hidden with ⌃⌘S (Ctrl B off the Mac; ⌘⇧D is Flow's Deny alone) or its toggle, which on the Mac sits
+  at the sidebar's trailing end on the lights' row, in line with the rows' counts, and beside the lights while the
+  sidebar is hidden; columns.ts folds it when the window is too narrow for it, the list and a detail of 480. With it
+  folded, on the Mac the list starts 4 from the window's edge, so its boxes sit 8 in (the glass sidebar's inset) and
+  its text 20 in; only the leading title bar makes room for the lights and the toggle, with a
+  spacer (`LeadRoom`) whose width the shell computes, so its title starts 128 in. Elsewhere the list starts past the
+  toggle (52, and 84 in a browser). Until 2026-11-14 each section's own list sat under the places, mounted on first visit and kept;
   Learn's views were the last of them, and every place's items are in the list column now.
 - **Hide List.** View › Show / Hide List (⌃⌘L; Ctrl Shift L off the Mac, where Ctrl L is Focus Message Box) hides the
   list column in every place, and the detail takes its room; showing it brings it back at its width. It is a keymap
@@ -371,13 +406,19 @@ Internals keep the name desk.
   items and the app's pages, the menu bar's commands for the screen showing, and the open chat's models and modes
   (plan 2026-11-12-1505, U21, U23); it does not search message text, and says so in its foot line. An empty query lists
   recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
-- **Preferences.** In the Mac app Preferences is a window of its own (U18); elsewhere a large sheet over the whole
-  window: a named page list on
-  the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
+- **Preferences.** In the Mac app Preferences is a window of its own (U18), which a browser tab opens with
+  `?window=settings` (and `&page=<id>`) so it can be checked as the Mac draws it; elsewhere a large sheet over the whole
+  window, in System Settings' form (plan 2026-11-15-1035, U6): down the left, each group a small grey heading over one
+  row per page, the page's symbol white-on-colour in a rounded square (`PAGE_ICON`), the page showing filled with the
+  accent (an ARIA tab list; focus follows the page, ↑↓ stop at the ends); on the right the page, with no tabs, its
+  settings in rounded groups divided by hairlines and a grey note of one sentence under each group (a setting's own
+  help is one sentence too; the manual holds the rest, plan 2026-11-15-2358), a duration as a pop-up menu,
+  sentence case, confirmations as sheets, a list of things you make (Flow's lanes) as a row each with what it holds
+  and Edit…, Add… under the rows and the editor in a sheet (plan 2026-11-15-2359). ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Flow** (plan 2026-11-14-1330, U6) is Mail's message list and reading pane: its lanes are its sources in the
-  sidebar, as Mail lists its mailboxes (Flow's own row is Everything, then the person's lanes, then each agent with
-  cards, each with the count of what needs the person); the list column holds the lane's cards in the deck's order on
+  sidebar, as Mail lists its mailboxes (Everything, then the person's lanes, each with the count of what needs the
+  person); the list column holds the lane's cards in the deck's order on
   `ContentList`, titled with the lane and its count; the detail is the selected card. A row says who it is from (the
   sender, or the chat's agent), what it is about and one line of the newest words, the kind's symbol (a chat's bubble,
   a mail, Slack's #, a ticket) at its start and a muted "Sign In" mark where the account needs mending. The card has no
@@ -448,7 +489,8 @@ box is one for both, its sizes set by `touch`.
   and the Dock's badges, as Apple's are). No colour is decoration.
 - Glass only on what floats and steers (the sidebar, toolbar groups, menus, popovers, sheets, decisions, the box);
   content is solid. Glass turns solid under Reduce Transparency, Increase Contrast and `data-glass="solid"`.
-- Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
+- Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information (Flow's hairlines mark
+  where one item of several lines ends).
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Apple's title case on controls, sentences everywhere else (docs/style.md); keys in the menu bar and tooltips, not on
   buttons; sans for every label, mono only for code, data and keys.
@@ -458,6 +500,16 @@ box is one for both, its sizes set by `touch`.
 
 ## Tried and dropped
 
+- **Preferences as groups with tabs, and the Update button (2026-11-12 to 2026-11-15).** Preferences listed six groups,
+  each page a tab across its group, a paragraph of help above each block and durations as rows of segments; a newer
+  loki was an Update… button over the detail's top right. Retired for System Settings' one row per page and the loki
+  menu's update item (plan 2026-11-15-1035, U6 and U7).
+- **Places as rows with every agent under each (2026-11-14 to 2026-11-15).** Each place was a row that stood for its
+  "all" view, and each agent appeared three times, as a Chats source, a Flow lane and an Agents page. Retired for
+  Mail's grey headings and one row per agent, under Agents (plan 2026-11-15-1035, U4).
+- **All Chats' agent pop-up (2026-11-15).** A pop-up in the Chats list's toolbar showed one agent's chats and set New
+  Chat's agent. Retired the same day for state pills over the list (plan 2026-11-15-1523): the list's agent headings
+  already group the chats.
 - **Slack's look (2026-09-23 to 2026-11-14).** The desktop and the phone wore Slack's look and layout: a neutral grey
   ground, a labelled rail of five sections down the left (Preferences among them), a `#` before each chat, a 48px
   name line over a tab row, the red badge for what waits on you and green for the affirmative button, a pill and a

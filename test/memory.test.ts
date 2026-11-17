@@ -79,7 +79,7 @@ describe("an agent's memory", () => {
       expect(readFileSync(join(root, "system", "human.md"), "utf8")).toBe("Likes green tea.\n");
       expect(log(root)).toEqual(["Ada|Edit system/human.md", "Ada|Note the tea", "Ada|Begin memory"]);
       expect(sent[0]).toContain("I am Ada.");
-      expect(sent[2]).toContain("Likes green tea."); // the section after the edit
+      expect(sent[2]).toContain("Likes green tea.");
       expect(sent[3]).toContain("is not a memory file");
       await store.close(ctx);
     } finally {
@@ -176,7 +176,6 @@ describe("an agent's memory", () => {
       await revertMemoryCommit(dir, agentId, head());
       expect(readFileSync(join(root, "notes.md"), "utf8")).toBe("one\ntwo\n");
       expect(log(root)[0]).toBe('You|Revert "Shout two"');
-      // An older change whose lines a later one rewrote cannot be taken out on its own.
       await editMemoryFile(dir, agentId, "notes.md", "one\nthree\n", "Three");
       const three = head();
       await editMemoryFile(dir, agentId, "notes.md", "one\nfour\n", "Four");

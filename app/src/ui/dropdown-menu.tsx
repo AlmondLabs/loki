@@ -20,12 +20,13 @@ function DropdownMenuContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  anchor,
   className,
   ...props
-}: MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
+}: MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset" | "anchor">) {
   return (
     <MenuPrimitive.Portal>
-      <MenuPrimitive.Positioner className="isolate z-toast" align={align} alignOffset={alignOffset} side={side} sideOffset={sideOffset}>
+      <MenuPrimitive.Positioner className="isolate z-toast" align={align} alignOffset={alignOffset} side={side} sideOffset={sideOffset} anchor={anchor}>
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(

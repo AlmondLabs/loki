@@ -1,13 +1,3 @@
-/* loki on the phone — Liquid Glass (plan 2026-11-12-1505, U9): iOS's colours on loki's semantic roles.
-   The phone keeps loki's roles (--loki-bg, --loki-fg, …) but redeclares them on the phone root element, so every
-   shared control inside inherits the mobile values. A declaration on the element beats the one inherited from :root
-   whatever its specificity, so the desktop's values never reach the phone; only data-theme picks night or day. The
-   desktop never renders .loki-phone and is untouched. The bars keep their glass (the tab bar, search and the compose
-   button), in iOS's material, and content stays solid. The phone's extra roles live beside them as --phone-*: links,
-   the unread badge, presence, the affirmative button, the type scale, radii, spacing, layers and motion.
-   test/tokens.test.ts fences all of it. */
-
-/* Night: iOS's black ground, grouped surfaces a step lighter. */
 .loki-phone {
   color-scheme: dark;
   --loki-bg: #000000;
@@ -51,19 +41,13 @@
   --phone-affirm: #0a6cff;
   --phone-on-affirm: #ffffff;
   --phone-focus: #3d9bff;
-  /* the floating navigation: a material the list shows through (blurred and saturated behind it, as iOS's bars
-     are), a hairline a step lighter, the current tab's pill */
   --phone-nav-surface: rgba(30, 30, 32, 0.66);
   --phone-nav-border: rgba(255, 255, 255, 0.12);
   --phone-nav-active: rgba(255, 255, 255, 0.16);
-  /* loki's workspace mark in Home's header: a cream tile with a green letter, in both themes */
-  /* one sans stack for everything the phone presents; mono is left for code */
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
   --loki-label: var(--loki-font);
-  /* type (px): micro tab labels · meta timestamps · body previews · emph row titles and messages · title · large */
   --phone-text-micro: 11px;
-  /* the tab bar's labels and badge: fixed, as iOS keeps its tab bar when the text size grows */
   --phone-text-tab: 11px;
   --phone-text-meta: 13px;
   --phone-text-body: 15px;
@@ -74,12 +58,10 @@
   --phone-leading-tight: 1.25;
   --phone-weight-strong: 700;
   --phone-weight-heavy: 800;
-  /* radii: rows and buttons · cards and sheets · the floating capsule · pills and circles */
   --phone-radius-sm: 8px;
   --phone-radius-md: 12px;
   --phone-radius-lg: 24px;
   --phone-radius-pill: 999px;
-  /* spacing on a 4px step; the gutter is Slack's 16 */
   --phone-space-1: 4px;
   --phone-space-2: 8px;
   --phone-space-3: 12px;
@@ -88,11 +70,9 @@
   --phone-space-6: 24px;
   --phone-gutter: 16px;
   --phone-touch: 44px;
-  /* layers mirror kit/layers.ts: bars inside a screen, the floating navigation (rail), toasts */
   --phone-layer-bar: 10;
   --phone-layer-nav: 110;
   --phone-layer-toast: 300;
-  /* motion: quick state changes */
   --phone-ease: cubic-bezier(0.2, 0, 0, 1);
   --phone-dur-fast: 120ms;
   --phone-safe-top: env(safe-area-inset-top, 0px);
@@ -108,7 +88,6 @@
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(72% 0.14 25);
   --loki-label-1: oklch(72% 0.14 65);
   --loki-label-2: oklch(72% 0.14 95);
@@ -119,7 +98,6 @@
   --loki-label-7: oklch(72% 0.14 350);
 }
 
-/* Day: iOS's light grouped ground, white surfaces, grey hairlines, black ink. */
 :root[data-theme="light"] .loki-phone {
   color-scheme: light;
   --loki-bg: #f2f2f7;
@@ -166,7 +144,6 @@
   --phone-nav-surface: rgba(250, 250, 252, 0.72);
   --phone-nav-border: rgba(0, 0, 0, 0.1);
   --phone-nav-active: rgba(0, 0, 0, 0.08);
-  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(54% 0.15 25);
   --loki-label-1: oklch(54% 0.15 65);
   --loki-label-2: oklch(54% 0.15 95);
@@ -243,7 +220,6 @@ html:has(.loki-phone-shell) {
     height: 100dvh;
   }
 }
-/* The main landmark holds whatever route is on screen and passes the column through; the dock floats over it. */
 .loki-phone-main {
   flex: 1;
   min-height: 0;
@@ -251,7 +227,6 @@ html:has(.loki-phone-shell) {
   flex-direction: column;
 }
 
-/* Checking, unreachable: one centred message on the ground. */
 .loki-phone-splash {
   display: grid;
   place-items: center;
@@ -270,7 +245,6 @@ html:has(.loki-phone-shell) {
   margin-top: var(--phone-space-5);
 }
 
-/* ---- Type ---------------------------------------------------------------------------------------- */
 .loki-phone-large-title {
   margin: 0;
   font-size: var(--phone-text-large);
@@ -303,7 +277,6 @@ html:has(.loki-phone-shell) {
   color: var(--phone-link);
   text-decoration: none;
 }
-/* Named for screen readers, not drawn: a heading the layout has no room to show. */
 .loki-phone-sr-only {
   position: absolute;
   width: 1px;
@@ -322,7 +295,6 @@ html:has(.loki-phone-shell) {
   white-space: nowrap;
 }
 
-/* The shared primitives, in the phone's voice: no mono metadata, no condensed caps, bold sans titles. */
 .loki-phone .loki-label {
   font-family: var(--loki-font);
   font-size: var(--phone-text-meta);
@@ -359,10 +331,6 @@ html:has(.loki-phone-shell) {
   font-weight: 600;
 }
 
-/* ---- Focus and touch ----------------------------------------------------------------------------- */
-/* The flash from tokens.css, in the link colour: a 2px ring that fades over a second, settling on a muted ring
-   off the control (so it never sits on the control's own hairline) and on nothing in a text field, where the
-   caret shows focus. Fields keep it inside, since their containers clip. */
 .loki-phone {
   --loki-focus-flash: var(--phone-focus);
 }
@@ -393,7 +361,6 @@ html:has(.loki-phone-shell) {
   display: block;
   flex: none;
 }
-/* A bare icon control: the visible glyph can be small, the target is always 44. */
 .loki-phone-icon-btn {
   display: inline-grid;
   place-items: center;
@@ -416,8 +383,6 @@ html:has(.loki-phone-shell) {
   cursor: default;
 }
 
-/* ---- The shared pieces in ui.tsx ------------------------------------------------------------------ */
-/* The top bar clears the notch and draws on the ground with a hairline, the way Slack's headers do. */
 .loki-phone-topbar {
   flex: 0 0 auto;
   position: relative;
@@ -439,7 +404,6 @@ html:has(.loki-phone-shell) {
   flex: 1;
   min-width: 0;
 }
-/* With no back control the title starts on the list's gutter (16), not the control's 8. */
 .loki-phone-topbar-copy:first-child {
   padding-left: var(--phone-space-2);
 }
@@ -449,7 +413,6 @@ html:has(.loki-phone-shell) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Flow's title in the Inbox names the lane and opens the lane sheet (lane-sheet.tsx): the heading's own type, touch-sized. */
 .loki-phone-lane-title {
   display: inline-flex;
   align-items: center;
@@ -489,7 +452,6 @@ html:has(.loki-phone-shell) {
   background: var(--loki-border);
   overflow: hidden;
 }
-/* Filled by scale, not width: a transform moves on the compositor without laying the bar out again. */
 .loki-phone-progress-fill {
   height: 100%;
   background: var(--loki-accent);
@@ -497,9 +459,8 @@ html:has(.loki-phone-shell) {
   transition: transform var(--spring-smooth-ms) var(--spring-smooth);
 }
 
-/* One vertical scroll owner per screen; it contains its own overscroll so the page never moves. */
 .loki-phone-scroll {
-  position: relative; /* a row that leaves fades where it stood, inside the scroll (kit/use-flip.ts) */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -507,9 +468,6 @@ html:has(.loki-phone-shell) {
   -webkit-overflow-scrolling: touch;
   padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left));
 }
-/* The end of every scroll owner clears the floating navigation once, so its last row can scroll out from
-   under the capsule; --phone-nav-clearance is set on the shell by the dock (tab-bar.tsx) and absent — zero —
-   while the navigation is hidden. A screen with a fixed bottom stops above the dock instead. */
 .loki-phone-scroll::after {
   content: "";
   display: block;
@@ -519,9 +477,6 @@ html:has(.loki-phone-shell) {
   margin-bottom: var(--phone-nav-clearance, 0px);
 }
 
-/* ---- The floating navigation (tab-bar.tsx) ------------------------------------------------------- */
-/* The dock hovers over the bottom of the screen, just above the home indicator: nothing paints a band
-   under it; the space around the capsule is the screen behind. Only its controls take touches. */
 .loki-phone-dock {
   position: absolute;
   left: 0;
@@ -574,7 +529,6 @@ html:has(.loki-phone-shell) {
     background-color var(--phone-dur-fast) var(--phone-ease),
     color var(--phone-dur-fast) var(--phone-ease);
 }
-/* the current tab: a raised pill and full ink, so it is never told by colour alone */
 .loki-phone-nav-item[aria-current="page"] {
   background: var(--phone-nav-active);
   color: var(--loki-fg);
@@ -609,7 +563,6 @@ html:has(.loki-phone-shell) {
   border-radius: var(--phone-radius-pill);
   background: var(--phone-unread);
   color: var(--phone-on-unread);
-  /* the ring cuts the badge out of the icon in the panel's solid colour: a see-through ring would show the list */
   box-shadow: 0 0 0 2px var(--loki-panel);
   font-size: var(--phone-text-tab);
   font-weight: var(--phone-weight-strong);
@@ -617,7 +570,6 @@ html:has(.loki-phone-shell) {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* Search: its own circle beside the capsule, as tall as the capsule */
 .loki-phone-search-btn {
   flex: none;
   display: grid;
@@ -638,7 +590,6 @@ html:has(.loki-phone-shell) {
   background: var(--loki-hover);
 }
 
-/* Home's compose button (New desk), Slack's: a circle at the bottom right, over the list, above the dock */
 .loki-phone-compose {
   position: absolute;
   right: calc(var(--phone-space-4) + var(--phone-safe-right));
@@ -661,12 +612,10 @@ html:has(.loki-phone-shell) {
 .loki-phone-compose:active {
   background: var(--loki-hover);
 }
-/* Home's list ends clear of it too, so the last desk's time and dot can scroll out from under it. */
 .loki-phone-page:has(> .loki-phone-compose) .loki-phone-scroll::after {
   height: calc(max(var(--phone-nav-clearance, 0px), var(--phone-safe-bottom)) + 56px + var(--phone-space-3));
 }
 
-/* The update notice: a strip at the bottom of a full-screen page, or docked above the capsule on a tab. */
 .loki-phone-update {
   flex: 0 0 auto;
   padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-2) + var(--phone-safe-bottom))
@@ -680,7 +629,6 @@ html:has(.loki-phone-shell) {
   background: transparent;
 }
 
-/* ---- More (more.tsx): named rows, a chevron on each ---------------------------------------------- */
 .loki-phone-list {
   list-style: none;
   margin: 0;
@@ -717,9 +665,6 @@ html:has(.loki-phone-shell) {
   font-size: var(--phone-text-body);
 }
 
-/* ---- Search (search.tsx): the field stays put, results scroll beneath it -------------------------- */
-/* The bar is intrinsic and the list takes the rest: with the keyboard up the shell is fitted to the visible
-   viewport (viewport.ts), so the field stays in view and only the results give up height. */
 .loki-phone-search-bar {
   flex: 0 0 auto;
   display: flex;
@@ -742,7 +687,6 @@ html:has(.loki-phone-shell) {
   background: var(--loki-well);
   color: var(--loki-muted);
 }
-/* The focus ring goes round the whole field (icon, text, clear), not the bare input inside it. */
 .loki-phone-search-field:focus-within {
   outline: 2px solid transparent;
   outline-offset: -1px;
@@ -773,7 +717,6 @@ html:has(.loki-phone-shell) {
   color: var(--loki-muted);
   opacity: 1;
 }
-/* The clear control is ours (44 wide, keeps the keyboard); the browser's own goes. */
 .loki-phone .loki-phone-search-input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
@@ -798,7 +741,6 @@ html:has(.loki-phone-shell) {
   color: var(--loki-fg);
 }
 
-/* Recents: a quiet heading with Clear on the right, then rows. */
 .loki-phone-search-recents {
   padding-bottom: var(--phone-space-2);
 }
@@ -838,7 +780,6 @@ html:has(.loki-phone-shell) {
   color: var(--loki-muted);
 }
 
-/* Notes about coverage and the link: quiet lines on the gutter, wrapping for long words and large text. */
 .loki-phone-search-note,
 .loki-phone-search-coverage {
   margin: 0;
@@ -855,9 +796,6 @@ html:has(.loki-phone-shell) {
   overflow-wrap: anywhere;
 }
 
-/* ---- Reading ------------------------------------------------------------------------------------- */
-/* The desktop's transcript caps a bubble at 78% of the column; on a phone the column is the measure, so
-   messages span it (the cap is an inline style in chat/transcript.tsx). */
 .loki-phone-thread [data-row="user"] > div,
 .loki-phone-thread [data-row="assistant"] > div {
   max-width: 100% !important;
@@ -907,7 +845,6 @@ html:has(.loki-phone-shell) {
   overflow-x: auto;
 }
 
-/* ---- Pages --------------------------------------------------------------------------------------- */
 /* A screen, and the Inbox: one column under the shell. Home stays mounted while hidden, so `hidden` must win
    over flex. */
 .loki-phone-page,
@@ -921,12 +858,10 @@ html:has(.loki-phone-shell) {
 .loki-phone-page[hidden] {
   display: none;
 }
-/* Edge-to-edge lists: the rows carry the gutter inside, so their pressed state spans the screen. */
 .loki-phone-scroll--flush {
   padding: 0 0 var(--phone-space-6);
 }
 
-/* ---- Home's header (home.tsx) -------------------------------------------------------------------- */
 .loki-phone-home-top {
   border-bottom: none;
   background: var(--loki-panel-header);
@@ -938,7 +873,6 @@ html:has(.loki-phone-shell) {
   min-height: 64px;
   padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left));
 }
-/* loki's mark: the L on its dark tile, rounded as the app icon is. */
 .loki-phone-workspace {
   display: block;
   flex: none;
@@ -953,7 +887,6 @@ html:has(.loki-phone-shell) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* the menu and the profile share one pill, Slack's workspace switcher */
 .loki-phone-home-actions {
   display: flex;
   align-items: center;
@@ -990,7 +923,6 @@ html:has(.loki-phone-shell) {
   font-size: var(--phone-text-body);
   font-weight: var(--phone-weight-strong);
 }
-/* Presence: filled when on, a hollow ring otherwise; the control's name says which, so colour is never alone. */
 .loki-phone-presence {
   position: absolute;
   right: 2px;
@@ -1011,7 +943,6 @@ html:has(.loki-phone-shell) {
   border-color: var(--loki-negative);
 }
 
-/* ---- The shortcut rail ----------------------------------------------------------------------------- */
 .loki-phone-rail {
   display: flex;
   gap: var(--phone-space-2);
@@ -1076,14 +1007,12 @@ html:has(.loki-phone-shell) {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Filter pills: what narrows the list, and the tap that clears it ------------------------------- */
 .loki-phone-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--phone-space-2);
   padding: var(--phone-space-1) calc(var(--phone-gutter) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left));
 }
-/* the target is 44 tall; the pill drawn inside it is 32 */
 .loki-phone-pill {
   display: flex;
   align-items: center;
@@ -1109,11 +1038,9 @@ html:has(.loki-phone-shell) {
   font-size: var(--phone-text-meta);
   font-weight: var(--phone-weight-strong);
 }
-/* In a sheet, the pills line up with its field: the sheet has its own gutter. */
 .loki-phone-sheet .loki-phone-pills {
   padding: 0;
 }
-/* A label not in force, in Home's menu: outlined, not filled (plan 028). */
 .loki-phone-pill[aria-pressed="false"] .loki-phone-pill-face {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--loki-border);
@@ -1124,7 +1051,6 @@ html:has(.loki-phone-shell) {
   height: 8px;
 }
 
-/* ---- Sections and rows (rows.tsx) ---------------------------------------------------------------- */
 .loki-phone-section {
   padding-bottom: var(--phone-space-2);
 }
@@ -1283,7 +1209,6 @@ span.loki-phone-section-btn {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* The row's actions for keyboards and screen readers: out of sight until focused, then over the row's end. */
 .loki-phone-row-more {
   position: absolute;
   right: calc(var(--phone-space-1) + var(--phone-safe-right));
@@ -1298,7 +1223,6 @@ span.loki-phone-section-btn {
   pointer-events: auto;
 }
 
-/* Empty and failure lines, centred under a list. */
 .loki-phone-empty {
   display: grid;
   justify-items: center;
@@ -1315,7 +1239,6 @@ span.loki-phone-section-btn {
 .loki-phone-empty .loki-phone-headline {
   color: var(--loki-fg);
 }
-/* Learn's welcome (plan 2026-11-14-0852, 2): three rows of a symbol, a bold line and a sentence, read from the start. */
 .loki-phone .loki-phone-welcome {
   display: grid;
   gap: var(--phone-space-4);
@@ -1356,7 +1279,6 @@ span.loki-phone-section-btn {
   margin: 0;
   overflow-wrap: anywhere;
 }
-/* A filter field at the top of a list page. */
 .loki-phone-filter {
   padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-left));
 }
@@ -1365,7 +1287,6 @@ span.loki-phone-section-btn {
   box-sizing: border-box;
 }
 
-/* ---- Bottom sheets (Home's menu, a desk's actions, a new desk) ------------------------------------ */
 .loki-sheet-card.loki-phone-sheet {
   display: grid;
   /* one column the sheet's width: a long line inside wraps or cuts instead of widening the sheet past the screen */
@@ -1416,7 +1337,6 @@ span.loki-phone-section-btn {
   justify-content: center;
 }
 
-/* ---- Inbox: the review pass ---------------------------------------------------------------------- */
 /* The Inbox stays mounted under other tabs and pages. Out of sight it keeps its boxes (visibility, not
    display), so the card's thread keeps its scroll offset and the box its caret; nothing in it is reachable. */
 .loki-phone-inbox[data-away] {
@@ -1430,7 +1350,6 @@ span.loki-phone-section-btn {
   padding: 0 var(--phone-space-4);
   border: none;
   border-radius: var(--phone-radius-pill);
-  /* A bare link-coloured word, as in an iOS bar: link blue on the hover grey is 4.3:1 in the dark, under AA. */
   background: transparent;
   color: var(--phone-link);
   font: inherit;
@@ -1440,7 +1359,6 @@ span.loki-phone-section-btn {
 .loki-phone-undo:active {
   background: var(--loki-selection);
 }
-/* The deck: the card fills it, less the few pixels where the stack shows through below. */
 .loki-phone-deck {
   flex: 1;
   min-height: 0;
@@ -1515,11 +1433,9 @@ span.loki-phone-section-btn {
   flex: none;
   font-variant-numeric: tabular-nums;
 }
-/* A suggestion saved as a draft waits in this chat's box (plan 049): a quiet word beside when, never a badge. */
 .loki-phone-card-draft {
   flex: none;
 }
-/* The card's suggestions mark (plan 052): a word in the accent that opens them; its target reaches past the line. */
 .loki-phone-card-suggestions {
   flex: none;
   margin: -12px 0;
@@ -1531,7 +1447,6 @@ span.loki-phone-section-btn {
   font-weight: 600;
   cursor: pointer;
 }
-/* The card's conversation: the thread takes what is left and scrolls on its own; notice and box stay put. */
 .loki-phone-card-body {
   flex: 1;
   min-height: 0;
@@ -1551,7 +1466,6 @@ span.loki-phone-section-btn {
   background: var(--loki-veil);
   pointer-events: none;
 }
-/* "atlas is waiting for your reply": a quiet pill between the thread and the box. */
 .loki-phone-notice {
   flex: none;
   display: flex;
@@ -1565,7 +1479,6 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-meta);
   line-height: var(--phone-leading);
 }
-/* What a right drag reveals under the card: Next. */
 .loki-phone-reveal {
   position: absolute;
   inset: 0 0 12px;
@@ -1589,8 +1502,6 @@ span.loki-phone-section-btn {
 .loki-phone-reveal-later {
   color: var(--loki-muted);
 }
-/* Read, Later and Archive (and Label on an email card), or Deny and Approve: big buttons under the card, clear of the home indicator
-   (the navigation is hidden while a card is up, so this row owns the bottom inset). */
 .loki-phone-decide {
   flex: none;
   display: grid;
@@ -1628,7 +1539,6 @@ span.loki-phone-section-btn {
 .loki-phone-decide-btn--deny {
   color: var(--loki-negative);
 }
-/* "Always allow <tool>": under the two decisions, quieter than either; it allows this tool from now on, in every chat. */
 .loki-phone-decide-always {
   grid-column: 1 / -1;
   min-height: var(--phone-touch);
@@ -1643,7 +1553,6 @@ span.loki-phone-section-btn {
 .loki-phone-decide-always:active {
   color: var(--loki-fg);
 }
-/* A deferred card's row: Bring back beside it, visible, not behind a long press. */
 .loki-phone-row-action {
   flex: none;
   align-self: center;
@@ -1659,8 +1568,6 @@ span.loki-phone-section-btn {
   cursor: pointer;
 }
 
-/* Short screens (landscape, the keyboard up): the head goes to one line and the buttons to touch height,
-   so the thread keeps the room. */
 @media (max-height: 500px) {
   .loki-phone-card-head {
     display: flex;
@@ -1681,7 +1588,6 @@ span.loki-phone-section-btn {
   }
 }
 
-/* ---- Messages: the shared transcript's avatar-led layout (chat/transcript.tsx, `people`) ---------- */
 .loki-phone-thread .loki-msg[data-row] {
   display: flex;
   align-items: flex-start;
@@ -1718,9 +1624,6 @@ span.loki-phone-section-btn {
 .loki-phone .loki-msg-queued {
   margin-top: var(--phone-space-1);
 }
-/* Under every message, its copy button, always there (a phone has no hover), its touch area the full 44. A long
-   press on the message opens its actions (phone/use-message-actions.tsx), so the browser's own selection and callout
-   stay off the thread; Select text in that sheet gives the text back to select. */
 .loki-phone .loki-msg-actions {
   display: flex;
   align-items: center;
@@ -1748,8 +1651,6 @@ span.loki-phone-section-btn {
   -webkit-user-select: none;
   user-select: none;
 }
-/* The message's actions (MessageActions.tsx): two lines of the message under who wrote it; Select text shows all
-   of it where the browser's selection works again, scrolling inside itself when long. */
 .loki-phone-message-preview {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1793,14 +1694,12 @@ span.loki-phone-section-btn {
 .loki-phone .loki-msg-divider-new {
   color: var(--loki-negative);
 }
-/* Message times: quiet after the author's name; a touch screen has no hover, so a run's later rows show none. */
 .loki-phone .loki-msg-time {
   margin-left: var(--phone-space-2);
   font-size: var(--phone-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
-/* Day pills: a hairline across the day's top, the pill sticky at the thread's top until the next day's pushes it off. */
 .loki-phone .loki-msg-day {
   position: relative;
 }
@@ -1833,9 +1732,6 @@ span.loki-phone-section-btn {
   line-height: var(--phone-leading-tight);
   color: var(--loki-fg);
 }
-/* ---- The full conversation (conversation.tsx) ------------------------------------------------------ */
-/* Regions: the header, the thread (the one scroll owner), the question or approval, the notice, the box.
-   The navigation is hidden on this page, so the box owns the bottom inset (through the shared gutter). */
 .loki-phone-convo-head {
   flex: none;
   display: flex;
@@ -1846,7 +1742,6 @@ span.loki-phone-section-btn {
   border-bottom: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
-/* A round control with a hairline and a surface: back and the actions circle. */
 .loki-phone-circle {
   flex: none;
   display: grid;
@@ -1870,7 +1765,6 @@ span.loki-phone-section-btn {
   margin: 0;
   font: inherit;
 }
-/* The identity pill: face with the working dot, bold name, "working · desk" under it. */
 .loki-phone-convo-who {
   display: flex;
   align-items: center;
@@ -1920,9 +1814,6 @@ span.loki-phone-section-btn {
   padding-right: calc(var(--phone-gutter) + var(--phone-safe-right)) !important;
 }
 
-/* The box, in both the page and the Inbox card: the shared field (chat/chat.css) at the phone's sizes — the 24
-   radius, 15px text, the row's controls 36 and round with a 44 target each; no hairline over it (the notice
-   pill separates). The flash goes round the whole field there, as on Search's. */
 .loki-phone .loki-file-chip {
   min-height: 40px;
   max-width: 100%;
@@ -1944,11 +1835,9 @@ span.loki-phone-section-btn {
 .loki-phone .loki-field.loki-composer-text {
   padding: var(--phone-space-1) var(--phone-space-2);
   font-size: var(--phone-text-body);
-  /* 20px at the default size, growing with the text (iOS's text size) */
   line-height: calc(20em / 15);
   scrollbar-width: none;
 }
-/* The empty box stays one line at 320: a long placeholder ends in an ellipsis rather than wrapping. */
 .loki-phone .loki-composer-text::placeholder {
   white-space: nowrap;
   overflow: hidden;
@@ -1958,7 +1847,6 @@ span.loki-phone-section-btn {
 .loki-phone .loki-composer-end {
   gap: var(--phone-space-2);
 }
-/* The glyphs are smaller than a fingertip; the target is not (44 around each). */
 .loki-phone .loki-composer-round::after,
 .loki-phone .loki-model-pill::after {
   content: "";
@@ -1982,9 +1870,6 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-meta);
 }
 
-/* Select model as the phone's bottom sheet: the grip, a round close at the top left and the title centred,
-   then the grouped card on the sheet's ground (the model name at 17, its line muted), then Effort › and More
-   models › as rounded rows of their own. The steps and suggestions sheets share its ground. */
 .loki-sheet-card.loki-phone-sheet.loki-model-sheet,
 .loki-sheet-card.loki-phone-sheet.loki-steps-sheet,
 .loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
@@ -2067,8 +1952,6 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-meta);
 }
 
-/* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour; "always allow"
-   takes a quiet row of its own under them, as under an Inbox card. */
 .loki-phone .loki-conversation-footer {
   flex-wrap: wrap;
 }
@@ -2101,7 +1984,6 @@ span.loki-phone-section-btn {
   color: var(--phone-on-affirm);
 }
 
-/* The open question and the approval: a quiet panel on the ground, sentence case, not the desktop's brass slab. */
 .loki-phone .loki-question,
 .loki-phone .loki-approval {
   margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
@@ -2146,8 +2028,6 @@ span.loki-phone-section-btn {
   min-height: var(--phone-touch);
   font-size: var(--phone-text-body);
 }
-/* The desk caps the question at 38% of the column; on a phone that cuts the options in half at 320×568. The
-   question is what the card asks for, so it may take most of the height and the thread above gives way. */
 .loki-phone .loki-question {
   max-height: 70%;
 }
@@ -2160,7 +2040,6 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-meta);
 }
 
-/* Tool and event rows: quiet sans meta lines between messages, lined up with the message text. */
 .loki-phone .loki-steps {
   margin: 2px 0 2px 44px;
   font-family: var(--loki-font);
@@ -2171,9 +2050,6 @@ span.loki-phone-section-btn {
   min-height: 32px;
 }
 
-/* A run of tools, opened (tool-steps.tsx): a bottom sheet with the grip, a round close (or back, in a step) and the
-   title; the steps on a thin timeline, each its icon, a verb and what it was done to; a step opens its input and
-   output in the same sheet. */
 .loki-phone .loki-steps-head {
   display: grid;
   justify-items: center;
@@ -2217,7 +2093,6 @@ span.loki-phone-section-btn {
 .loki-phone .loki-steps-timeline li {
   position: relative;
 }
-/* the thread between two steps' icons */
 .loki-phone .loki-steps-timeline li + li::before {
   content: "";
   position: absolute;
@@ -2253,7 +2128,6 @@ span.loki-phone-section-btn {
 .loki-phone .loki-steps-timeline .loki-steps-verb {
   font-size: var(--phone-text-emph);
 }
-/* the row opens its step: a chevron at the end, as Claude's app has it */
 .loki-phone .loki-steps-open-chev {
   flex: none;
   align-self: center;
@@ -2325,14 +2199,12 @@ span.loki-phone-section-btn {
   border-radius: var(--phone-radius-sm);
 }
 
-/* "Jump to latest" floats over the thread at the desk's chip height; its target is a fingertip tall. */
 .loki-phone-thread .loki-chip--float::after {
   content: "";
   position: absolute;
   inset: -9px 0;
 }
 
-/* A failed turn's message: the desk's mono line becomes a sans meta line, still in the negative colour. */
 .loki-phone .loki-thread-error {
   font-family: var(--loki-font);
   font-size: var(--phone-text-meta);
@@ -2340,7 +2212,6 @@ span.loki-phone-section-btn {
   margin-left: 44px;
 }
 
-/* Reading: links in the link colour and breakable anywhere; a code block scrolls inside itself, the page never does. */
 .loki-phone .loki-msg-body .loki-md a,
 .loki-phone-thread .loki-md a {
   color: var(--phone-link);
@@ -2365,7 +2236,6 @@ span.loki-phone-section-btn {
   max-width: 100%;
 }
 
-/* Short screens (landscape, the keyboard up): the header tightens and the paused tool's input shrinks, so the thread keeps room. */
 @media (max-height: 500px) {
   .loki-phone-convo-head {
     padding-top: calc(var(--phone-space-1) + var(--phone-safe-top));
@@ -2388,12 +2258,9 @@ span.loki-phone-section-btn {
   height: var(--phone-viewport-height, 100%);
   --phone-safe-bottom: 0px;
 }
-/* Typing on a short screen: the notice steps aside, and the question or approval gives up height (scrolling
-   inside itself) before the box or the decide buttons would be pushed off the visible part. */
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
 }
-/* The suggestions sheet (plans 052, 056): its header stays, its list scrolls under it. */
 .loki-phone .loki-suggestion-modal-head {
   padding: var(--phone-space-1) var(--phone-space-2) var(--phone-space-2) var(--phone-space-3);
 }
@@ -2401,7 +2268,6 @@ span.loki-phone-section-btn {
   min-height: 36px;
   padding: 0 var(--phone-space-3) 0 var(--phone-space-2);
 }
-/* The phone's suggestions sit on its gutters, and their text reads at the phone's body size. */
 .loki-phone .loki-suggestion {
   padding: var(--phone-space-2) var(--phone-space-3);
   font-size: var(--phone-text-body);
@@ -2413,8 +2279,6 @@ span.loki-phone-section-btn {
   overflow-y: auto;
 }
 
-/* ---- More, Preferences, the connection and About (more.tsx, settings.tsx; rows.tsx RowGroup) --------- */
-/* Slack's You sheet: the profile, then groups of rows split by one hairline each — no rule under every row. */
 .loki-phone-me {
   display: flex;
   align-items: center;
@@ -2494,7 +2358,6 @@ span.loki-phone-section-btn {
   color: var(--loki-muted);
   cursor: default;
 }
-/* A fact: its name, then the value on the right; a long value (an address, the screen line) wraps under it. */
 .loki-phone-fact {
   display: flex;
   flex-wrap: wrap;
@@ -2542,7 +2405,6 @@ span.loki-phone-section-btn {
 .loki-phone-state-dot[data-state="off"] {
   border-color: var(--loki-negative);
 }
-/* A confirmation sheet (ui.tsx ConfirmSheet): the question, what follows, then Cancel beside the action. */
 .loki-phone-confirm-title {
   margin: 0;
 }
@@ -2550,7 +2412,6 @@ span.loki-phone-section-btn {
   color: var(--loki-muted);
 }
 
-/* ---- An agent's profile and its files (Agent.tsx) ---------------------------------------------------- */
 .loki-phone-hero {
   display: grid;
   justify-items: start;
@@ -2595,7 +2456,6 @@ span.loki-phone-section-btn {
   gap: var(--phone-space-2);
   border-radius: var(--phone-radius-sm);
 }
-/* A memory folder's head inside the Memory section: it folds the files under it. */
 .loki-phone-subhead {
   display: flex;
   align-items: center;
@@ -2618,7 +2478,6 @@ span.loki-phone-section-btn {
 .loki-phone-subhead:active {
   background: var(--loki-hover);
 }
-/* A memory commit: the message may wrap to two lines; opened, its diff follows in a well that scrolls on its own. */
 .loki-phone-change[data-open] {
   background: var(--loki-well);
 }
@@ -2663,7 +2522,6 @@ span.loki-phone-section-btn {
   background: var(--loki-bg);
 }
 
-/* ---- Learn (recall.tsx) ----------------------------------------------------------------------------- */
 .loki-phone-learn {
   display: grid;
   gap: var(--phone-space-4);
@@ -2744,7 +2602,6 @@ span.loki-phone-section-btn {
 .loki-phone-lead-start.loki-btn {
   justify-content: center;
 }
-/* A lead's moment, quoted where it came up. */
 .loki-phone-lead-why {
   margin: 0;
   font-size: var(--phone-text-body);
@@ -2754,7 +2611,6 @@ span.loki-phone-section-btn {
   overflow-wrap: anywhere;
 }
 
-/* ---- Pairing (pair.tsx) ----------------------------------------------------------------------------- */
 .loki-phone-pair {
   justify-content: center;
   padding: calc(var(--phone-space-6) + var(--phone-safe-top)) calc(var(--phone-space-6) + var(--phone-safe-right))
@@ -2816,11 +2672,6 @@ span.loki-phone-section-btn {
   color: var(--loki-muted);
 }
 
-/* ---- Motion: springs ---------------------------------------------------------------------------- */
-/* The phone moves the way iOS does: springs (kit/spring.ts, --spring-* in kit/tokens.css), only transform and
-   opacity, and nothing for what is done from a keyboard. Colour changes keep their short eased fades. */
-
-/* Things you press give under the finger, to 97%, and spring back. List rows highlight instead, as iOS lists do. */
 .loki-phone
   :is(
     .loki-phone-icon-btn,
@@ -2860,12 +2711,10 @@ span.loki-phone-section-btn {
   ):active:not(:disabled) {
   scale: 0.97;
 }
-/* Small round controls give a little more, or the press is too small to see. */
 .loki-phone :is(.loki-phone-icon-btn, .loki-phone-search-btn, .loki-phone-circle, .loki-composer-round):active:not(:disabled) {
   scale: 0.92;
 }
 
-/* Small confirmations bounce: the send button as it comes alive, the inbox badge on a new count. */
 @keyframes loki-pop {
   from {
     scale: 0.8;
@@ -2881,7 +2730,6 @@ span.loki-phone-section-btn {
   animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy);
 }
 
-/* Bottom sheets rise on the smooth spring over a fading veil; they leave the same way (sheet-motion.ts). */
 @keyframes loki-sheet-rise {
   from {
     transform: translateY(100%);
@@ -2896,14 +2744,10 @@ span.loki-phone-section-btn {
 .loki-phone .loki-sheet-card--bottom {
   animation: loki-sheet-rise var(--spring-smooth-ms) var(--spring-smooth) both;
 }
-/* A sheet that fits takes a vertical drag anywhere; one that scrolls, only by its grip and head. */
 .loki-phone :is(.loki-sheet-card--bottom[data-fits], .loki-model-head, .loki-phone-sheet-head) {
   touch-action: none;
 }
 
-/* While a sheet is up the screen behind it recedes: down a little, smaller, its corners rounded, on black, as
-   on iOS. A drag moves it by its own inline transform (sheet-motion.ts, whose RECEDE_* match these numbers); the floating
-   navigation steps out of the way. A sheet on its way out (data-leaving) already lets it come back. */
 .loki-phone-shell {
   background: var(--loki-bg);
   transition: background-color 200ms ease-out;
@@ -2933,7 +2777,6 @@ span.loki-phone-section-btn {
   opacity: 0;
 }
 
-/* Inbox: past the commit distance the word under the card pops, so you know letting go will do it. */
 .loki-phone-reveal-read,
 .loki-phone-reveal-later {
   transition: scale var(--spring-bouncy-ms) var(--spring-bouncy);
@@ -2942,10 +2785,6 @@ span.loki-phone-section-btn {
   scale: 1.12;
 }
 
-/* Screens (transitions.ts). The browser takes a picture of the screen before and after; these move the two.
-   push: the page comes in from the right, over the one it left, which drifts a third left and dims.
-   pop: the page goes off to the right (from where a finger left it, --nav-from) and the one under comes forward.
-   zoom: the Inbox card grows into its conversation, and shrinks back into it. fade: reduced motion. */
 @keyframes loki-nav-in {
   from {
     transform: translateX(100%);
@@ -3008,7 +2847,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation-duration: 160ms;
 }
 
-/* A page being swiped back from the left edge (edge-swipe.ts): it casts a shadow on the darker ground it uncovers. */
 .loki-phone-shell[data-edge-drag] {
   background: var(--phone-behind);
 }
@@ -3016,14 +2854,10 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   background: var(--loki-bg);
   box-shadow: var(--phone-lift-shadow);
 }
-/* On a page the shell reads sideways pans from the edge itself; lists still scroll, code blocks still slide. */
 .loki-phone-shell:not([data-screen="tab"]) > .loki-phone-main {
   touch-action: pan-y pinch-zoom;
 }
 
-/* The chat as it happens. A streaming reply's words fade in as they arrive (Transcript's rehypeWords); a row
-   that comes in while you read rises into place (data-arrived), history does not; scrolled up, the chip
-   springs up and pops on each new count. */
 @keyframes loki-word-in {
   from {
     opacity: 0;
@@ -3056,12 +2890,10 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy);
 }
 
-/* Undo springs into the top bar; it shrinks away when it goes (kit/leave.ts). */
 .loki-phone-undo {
   animation: loki-chip-in var(--spring-smooth-ms) var(--spring-smooth);
 }
 
-/* A swipe an approval refuses shakes the card, as iOS shakes a wrong passcode: the refusal is felt, not only outlined. */
 @keyframes loki-shake {
   0%,
   100% {
@@ -3084,9 +2916,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-shake 360ms ease-out;
 }
 
-/* Arriving and waiting. A list or card still being read shows its shape, after a beat (a quick answer never
-   flashes it), with a light passing over it left to right, as iOS lists load: the light is a picture moved by
-   transform, never a repainted background. */
 @keyframes loki-skel-in {
   from {
     opacity: 0;
@@ -3152,7 +2981,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   border-radius: var(--phone-radius-md);
 }
 
-/* Caught up: the check springs in, then the words and what the pass did rise after it, once as the pass ends. */
 @keyframes loki-mark-in {
   from {
     opacity: 0;
@@ -3166,7 +2994,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-rise-in var(--spring-smooth-ms) var(--spring-smooth) 120ms both;
 }
 
-/* A banner (the Mac unreachable) slides down from the top edge it hangs from, and back up as it goes (components Banner). */
 @keyframes loki-banner-in {
   from {
     opacity: 0;
@@ -3177,8 +3004,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-banner-in var(--spring-smooth-ms) var(--spring-smooth);
 }
 
-/* Learn (phone/learn.tsx): the next card rises into the place of the one graded away; the turn to the answer
-   and the throw are the card's own (Web Animations), so this is only the arrival. */
 @keyframes loki-card-rise {
   from {
     opacity: 0;
@@ -3189,10 +3014,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-card-rise var(--spring-smooth-ms) var(--spring-smooth) 60ms both;
 }
 
-/* ---- Transparency and contrast ----------------------------------------------------------------------- */
-/* The floating navigation, search and compose buttons are the phone's one material: a raised surface with a blur
-   behind it. Asked for less transparency, they are solid and the blur goes; asked for more contrast, solid too,
-   with the controls' stronger edge, and every hairline takes that edge (as tokens.css does on the desktop). */
 @media (prefers-reduced-transparency: reduce) {
   .loki-phone,
   :root[data-theme] .loki-phone {
@@ -3216,9 +3037,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   }
 }
 
-/* ---- Motion -------------------------------------------------------------------------------------- */
-/* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with
-   it, so a transition written with them never moves. Focus rings, selection and state colours stay. */
 @media (prefers-reduced-motion: reduce) {
   .loki-phone {
     --phone-dur-fast: 0ms;
@@ -3236,13 +3054,11 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   font-size: var(--phone-text-body);
 }
 
-/* Whose chat it is, after its name, where a section mixes agents (Needs your attention). */
 .loki-phone-row-agent {
   flex: none;
   font-weight: 400;
   color: var(--loki-muted);
 }
-/* A one-line row (a chat): a touch tall, as the Mac's sidebar row is one line, its time on the line. */
 .loki-phone-row:not(:has(.loki-phone-row-preview)) {
   min-height: var(--phone-touch);
 }
@@ -3250,7 +3066,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   align-self: center;
   padding-top: 0;
 }
-/* A running turn: the Mac's pulsing dot (components.css loki-live-pulse), in the time's place. */
 .loki-phone-row-live {
   width: 8px;
   height: 8px;
@@ -3261,12 +3076,10 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-live-pulse 1.6s ease-in-out infinite;
 }
 
-/* Quick replies (plan 066) under the message text, past the 36px face and the row's gap. */
 .loki-phone .loki-quick-replies--column {
   margin-left: calc(36px + var(--phone-space-2));
 }
 
-/* A chat's links to other chats (plan 067), a strip under the header with the time each has left. */
 .loki-phone-links {
   padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
   flex: 0 0 auto;

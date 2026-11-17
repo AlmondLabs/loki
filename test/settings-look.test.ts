@@ -4,16 +4,11 @@ import { join } from "node:path";
 import { NAV_ROW_PADDING, NAV_TEXT_INSET } from "../app/src/settings/page-list.tsx";
 import { PANE_INSET } from "../app/src/settings/settings.tsx";
 
-// Plan 2026-11-14-2224, U6: Preferences has one left edge per column (R8). The nav's title, search text and page names
-// start at one x; the pane's title, tab track and cards start 20px in, the detail panes' inset (R1). These read the
-// sources, as the list column's look test does, since the edges are a stylesheet's padding plus a view's.
-
 const APP = join(import.meta.dirname, "..", "app", "src");
 const css = readFileSync(join(APP, "components", "components.css"), "utf8");
 const settings = readFileSync(join(APP, "settings", "settings.tsx"), "utf8");
 const pageList = readFileSync(join(APP, "settings", "page-list.tsx"), "utf8");
 
-/** Every declaration given to `selector` alone, in stylesheet order, so a later one wins as in the cascade. */
 function decls(selector: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -30,23 +25,20 @@ function decls(selector: string): Map<string, string> {
   return out;
 }
 
-/** The left value of a padding shorthand, in px. */
 function paddingLeft(padding: string): number {
   const w = padding.split(/\s+/);
   return parseFloat(w.length === 4 ? w[3] : w.length > 1 ? w[1] : w[0]);
 }
 
-/** The width of a `1px solid …` border, in px. */
 const borderWidth = (border: string) => parseFloat(border);
 
 describe("Preferences' pane starts at the detail panes' 20px edge", () => {
-  test("the header's line and the body both pad 20 on the left, and the tab track starts there", () => {
+  test("the header's line and the body both pad 20 on the left, and no page has a tab track (plan 2026-11-15-1035, R10)", () => {
     expect(PANE_INSET).toBe(20);
-    // The header is the detail panes' title line, so its title takes their 20 and their top line (KTD4).
     expect(settings).toMatch(/className="loki-pane-header-line[ "]/);
     expect(paddingLeft(decls(".loki-pane-header-line").get("padding") ?? "")).toBe(PANE_INSET);
     expect(settings).toContain("padding: `24px ${PANE_INSET}px 48px`");
-    expect(settings).toContain("padding: `0 ${PANE_INSET}px`");
+    expect(settings).not.toContain("<TabRow");
   });
 });
 

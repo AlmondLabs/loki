@@ -6,11 +6,8 @@ import { reactionEmoji, readSlackMessage, slackFileParts, type SlackNames, type 
 import { SlackError } from "./slack.ts";
 import { tsAfter, tsKey } from "./slack-sync.ts";
 
-/** The messages a card shows on each side of what is new when it opens (plan 077, R1). */
 export const VIEW_AROUND = 5;
-/** The messages one press of "load earlier" or "load later" adds (plan 077, R3). */
 export const VIEW_LOAD = 20;
-/** The most unread DM messages a card opens on; a longer run says more came after. */
 const DM_RUN = 50;
 /**
  * Pages of 100 read to reach the messages right after a message in a busy channel. Slack gives the newest first, so a
@@ -18,14 +15,9 @@ const DM_RUN = 50;
  */
 const AFTER_PAGES = 3;
 const PAGE = 100;
-/**
- * Pages of 200 read of one thread, which is read whole and cut to the window (plan 077, KTD4). A thread longer than
- * this shows its first 1,000 replies and says more came.
- */
 const THREAD_PAGES = 5;
 const THREAD_PAGE = 200;
 
-/** Who wrote a message as the card shows them: the name Slack shows and their photo. */
 interface Person {
   name: string;
   image: string | null;
@@ -33,38 +25,22 @@ interface Person {
 
 type ViewClient = Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "conversationsInfo" | "usersInfo" | "emojiList">;
 
-/** What the card's record says about it (plan 077, KTD1, KTD2): the dealt-with mark and the messages that brought it. */
 export interface CardFacts {
   dealt_message_id: string | null;
   brought_ids: readonly string[];
-  /** The card's newest message, the one its header names; what brought a card that remembers nothing else. */
   newest_message_id: string | null;
-  /** Where the card's thread is, as its record names it: a Jira ticket's key, which its link is built from. */
   place?: string | null;
 }
 
-/** A card's window: its messages, oldest first, and what more there is (plan 077). */
 export interface CardWindow {
   messages: ThreadMessage[];
   window: OutsideWindow;
-  /** The thread's address in the browser, for a Jira card (R14). */
   link?: string;
-  /** A Jira card's ticket (plan 089), with its opening window only. */
   ticket?: JiraCardTicket;
 }
 
-/** A card's window read from its account: the opening one, or what `ask` asks for. */
 export type CardView = (accountId: string, threadId: string, facts: CardFacts, ask: OutsideWindowAsk) => Promise<CardWindow>;
 
-/**
- * A Slack card's body as a window around what is new (plan 077): the messages that brought the card, with 5 messages
- * either side, in the thread alone when every new message is a reply in it (R10), else in the channel or DM around it;
- * 20 more before or after a message when the card asks; and a post's whole thread when the person opens it. Each message carries its sender's photo, whether it is new,
- * whether it brought the card, and its words read as Slack draws them (plan 075). People, channels and the workspace's
- * own emoji are remembered across reads of one account, so opening another card asks Slack only about what it has not
- * seen yet; the emoji are read once per account while loki runs. `preview` gives a shared picture its thumbnail (plan
- * 080); without it every file is a chip.
- */
 export function slackChannelView(
   client: (accountId: string) => ViewClient,
   preview: (accountId: string, thumb: SlackThumb) => Promise<SlackFile["preview"] | null> = () => Promise.resolve(null),
@@ -78,7 +54,6 @@ export function slackChannelView(
     people.set(accountId, seen);
     const named = channels.get(accountId) ?? new Map<string, Promise<string | null>>();
     channels.set(accountId, named);
-    // A workspace whose emoji cannot be read shows its own by name; the read is tried again on the next card.
     let own = emoji.get(accountId);
     if (!own) {
       own = slack.emojiList().catch(() => {
@@ -87,7 +62,6 @@ export function slackChannelView(
       });
       emoji.set(accountId, own);
     }
-    // The lookup itself is remembered, so messages drawn at once by one person ask Slack about them once.
     const person = (user: string): Promise<Person> => {
       const had = seen.get(user);
       if (had) return had;
@@ -109,13 +83,10 @@ export function slackChannelView(
       named.set(id, p);
       return p;
     };
-    // The workspace's emoji are read beside the messages (below), and messages are drawn once both are in.
     let ownEmoji: Record<string, string> = {};
     const names: SlackNames = { person: name, channel: channelName, emoji: (n) => ownEmoji[n] ?? null };
-    // The account is the workspace and the person it calls as (`slack:<team>:<user>`), so a message by that user is theirs.
     const me = accountId.split(":").at(2) ?? "";
     const mine = (m: SlackMessage) => me !== "" && m.user === me;
-    // A picture's thumbnail is fetched beside the rest of the card; one that cannot be had leaves its file a chip.
     const withPreviews = (m: SlackMessage): Promise<SlackFile[]> =>
       Promise.all(
         slackFileParts(m).map(async ({ file, thumb }) => {
@@ -149,18 +120,10 @@ export function slackChannelView(
     ownEmoji = emojiRead;
     const mark = facts.dealt_message_id;
     const channelRead = info?.last_read ?? null;
-    // Only what brought the card since the person last dealt with it counts (R6): a reply sent with "later" marks the
-    // card dealt with while the record still holds what brought it before.
-    // A card from before plan 077 remembers nothing that brought it, so its newest message, which its header names, is
-    // taken as what did: the card opens on it, in its thread when it is a reply there.
     const remembered = facts.brought_ids.length > 0 ? facts.brought_ids : facts.newest_message_id ? [facts.newest_message_id] : [];
     const broughtIds = dm ? [] : remembered.filter((id) => !mark || tsAfter(id, mark));
     const brought = new Set(broughtIds);
-    // A DM is new from the later of loki's mark and Slack's own read marker, so reading on in Slack is not new here (R7).
     const later = (a: string | null, b: string | null) => (a && b ? (tsAfter(a, b) ? a : b) : (a ?? b));
-    // What is new (plan 077, R2, R6): in a DM, the person's unread messages after the dealt-with mark, else after
-    // Slack's read marker; on a channel or thread card, the messages that brought it. A card from before this change
-    // brought nothing it remembers, so its new messages are those after Slack's read markers, as before.
     const isNew = (m: SlackMessage, slackRead: string | null): boolean => {
       if (mine(m)) return false;
       if (!dm && brought.size > 0) return brought.has(m.ts);
@@ -182,8 +145,6 @@ export function slackChannelView(
       const replies = whole.messages.filter((m) => m.ts !== threadTs);
       const lastRead = root?.raw.last_read;
       const threadRead = typeof lastRead === "string" && lastRead ? lastRead : channelRead;
-      // A thread the person opened from the channel or DM comes whole, so every reply can be read in it; the card's
-      // own thread opens on its window around what is new.
       const opened = ask.thread_ts !== undefined && !ask.direction;
       const [start, end] = opened
         ? [0, replies.length]
@@ -204,8 +165,6 @@ export function slackChannelView(
       };
     }
 
-    // A post's new replies (plan 077, R11, KTD6): on a channel card, its own post's replies that brought it, counted
-    // from the record; in a DM, each post whose latest reply is after the mark has its thread read and counted.
     const ownReplies = cardTs ? broughtIds.filter((id) => id !== cardTs).length : 0;
     const repliesOf = async (m: SlackMessage): Promise<Partial<ThreadMessage>> => {
       if (m.reply_count <= 0) return {};
@@ -223,7 +182,6 @@ export function slackChannelView(
         throw err;
       }
     };
-    // The channel or DM view. A load reads 20 more on one side of a message.
     if (ask.direction && ask.from) {
       const page = ask.direction === "before" ? await before(slack, channel, ask.from, VIEW_LOAD) : await after(slack, channel, ask.from, VIEW_LOAD);
       const drawn = await Promise.all(page.messages.map(async (m) => draw(m, { ...flags(m, channelRead), ...(await repliesOf(m)) })));
@@ -238,11 +196,9 @@ export function slackChannelView(
       };
     }
 
-    // The opening window: around the card's own post, or around a DM's unread run.
     let around: SlackMessage[];
     let moreBefore: boolean;
     let moreAfter: boolean;
-    // More came after than loki reads (KTD5): the card says so in words, since no load could reach it.
     let far = false;
     if (cardTs) {
       const [earlier, post, next] = await Promise.all([
@@ -266,7 +222,6 @@ export function slackChannelView(
         moreBefore = earlier.more;
         moreAfter = run.more || fromFirst.length > lastNew + 1 + VIEW_AROUND;
       } else {
-        // Nothing new: the DM's latest messages, the newest last.
         const latest = await slack.conversationsHistory({ channel, limit: VIEW_AROUND + 1 });
         around = byTime(latest.messages);
         moreBefore = latest.has_more;
@@ -280,10 +235,6 @@ export function slackChannelView(
   };
 }
 
-/**
- * Where a window starts and ends in a run of messages, as indexes: 5 either side of the new ones when it opens, else
- * 20 before or after the message asked from. With nothing new it ends at the newest message.
- */
 function cut(ids: readonly string[], fresh: readonly boolean[], ask: OutsideWindowAsk): [number, number] {
   if (ask.direction && ask.from) {
     const i = ids.indexOf(ask.from);
@@ -296,7 +247,6 @@ function cut(ids: readonly string[], fresh: readonly boolean[], ask: OutsideWind
   return [Math.max(0, first - VIEW_AROUND), Math.min(ids.length, last + 1 + VIEW_AROUND)];
 }
 
-/** A thread read whole, its first message first, and whether it is longer than loki reads (plan 077, KTD4). */
 async function wholeThread(slack: ViewClient, channel: string, ts: string): Promise<{ messages: SlackMessage[]; more: boolean }> {
   const found: SlackMessage[] = [];
   let page = await slack.conversationsReplies({ channel, ts, limit: THREAD_PAGE });
@@ -308,7 +258,6 @@ async function wholeThread(slack: ViewClient, channel: string, ts: string): Prom
   return { messages: byTime(found), more: page.has_more };
 }
 
-/** Up to `count` channel messages right before `ts`, oldest first, and whether there are more before them. */
 async function before(slack: ViewClient, channel: string, ts: string, count: number): Promise<{ messages: SlackMessage[]; more: boolean }> {
   const page = await slack.conversationsHistory({ channel, latest: ts, inclusive: false, limit: count });
   return { messages: byTime(page.messages), more: page.has_more };
@@ -336,10 +285,6 @@ function byTime(messages: readonly SlackMessage[]): SlackMessage[] {
   return [...messages].sort((a, b) => tsKey(a.ts).localeCompare(tsKey(b.ts)));
 }
 
-/**
- * A message's reactions as the card draws them (plan 079): Slack's `reactions`, each with its count, whether the
- * person is among those who reacted, and its emoji; nothing when it has none.
- */
 function reactionsOf(m: SlackMessage, me: string, names: Pick<SlackNames, "emoji">): { reactions?: SlackReaction[] } {
   const raw = m.raw.reactions;
   if (!Array.isArray(raw)) return {};

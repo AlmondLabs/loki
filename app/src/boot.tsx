@@ -1,16 +1,10 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { inLan, installShellLogging, openExternal } from "./desk/env";
+import { inLan, inTauri, installShellLogging, openExternal, platform, settingsWindow } from "./desk/env";
 
 installShellLogging();
 import { ThemeProvider } from "./theme";
 
-/**
- * Links leave the canvas. Anything the agent or a widget links to — markdown in
- * the chat, a URL in a card — opens in the default browser, never inside this
- * window: through the opener plugin in the Tauri shell, a new tab in a browser
- * tab. Reading a link belongs in the browser; the desk stays put.
- */
 document.addEventListener(
   "click",
   (e) => {
@@ -18,22 +12,20 @@ document.addEventListener(
     const a = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
     if (!a) return;
     const url = new URL(a.href, location.href);
-    if (!/^https?:$/.test(url.protocol)) return; // mailto:, etc. keep their default
-    if (url.origin === location.origin && url.pathname === location.pathname) return; // in-page (#anchors, desk links)
+    if (!/^https?:$/.test(url.protocol)) return;
+    if (url.origin === location.origin && url.pathname === location.pathname) return;
     e.preventDefault();
     openExternal(url.href);
   },
   true,
 );
 
-// Served over the Wi‑Fi by the mod (window.__LOKI__.lan): the phone's inbox instead of the desk. Only the surface this
-// client shows is loaded (plan 038): each is a chunk of its own, and a phone never parses the desktop, nor it the phone.
 const root = document.getElementById("root");
 if (!root) throw new Error("loki: index.html has no #root element");
-// The Mac app's Settings window (plan 2026-11-12-1505, U18) is the same page told by its start-up script which it is.
+if (!inLan && !settingsWindow && inTauri && platform === "macos") await (await import("./shell/sidebar")).adoptTrafficLights();
 const Surface = inLan
   ? (await import("./phone/phone")).Phone
-  : window.__LOKI__?.window === "settings"
+  : settingsWindow
     ? (await import("./shell/settings-window")).SettingsWindow
     : (await import("./shell/shell")).Shell;
 createRoot(root).render(

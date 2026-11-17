@@ -2,10 +2,8 @@ import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { agentLaneId, laneItems, type Lane } from "../core/attention/lanes.ts";
 import { catchUpQueue } from "../core/attention/queue.ts";
-import { LANE_KEYS, createActiveLaneStore, resolveLane } from "../app/src/shared/active-lane.ts";
+import { LANE_KEYS, createActiveLaneStore, resolveDesktopLane, resolveLane } from "../app/src/shared/active-lane.ts";
 import { attentionItem } from "./fixtures/attention.ts";
-
-/** The active lane per device (plan 087, U5): what is kept, how it reads, and what the badges then count. */
 
 const work: Lane = { id: "work", name: "Work", chats: ["ada"], accounts: [] };
 const home: Lane = { id: "home", name: "Home", chats: ["bo"], accounts: [] };
@@ -23,6 +21,15 @@ const memory = (seed: Record<string, string> = {}) => {
   } as unknown as Storage;
   return { storage, m };
 };
+
+describe("the desktop's reading of a stored lane (plan 2026-11-15-1035, KTD9)", () => {
+  test("a saved agent lane opens Flow on Everything, while the person's own lanes read as before (AE4)", () => {
+    expect(resolveDesktopLane([work], [], agents, agentLaneId("ada"))).toBeNull();
+    expect(resolveLane([work], [], agents, agentLaneId("ada"))).not.toBeNull();
+    expect(resolveDesktopLane([work], [], agents, "work")).toBe(work);
+    expect(resolveDesktopLane([work], [], agents, "")).toBeNull();
+  });
+});
 
 describe("which lane a stored id reads as", () => {
   test("an id naming a lane that exists is that lane", () => {

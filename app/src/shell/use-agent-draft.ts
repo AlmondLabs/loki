@@ -1,14 +1,8 @@
 import { useState } from "react";
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
-/** Files a new agent through the daemon; resolves to its id or the daemon's error. */
 export type CreateAgent = (opts: NewAgentOptions) => Promise<{ id: string } | { error: string }>;
 
-/**
- * The first agent's form as the welcome sheet keeps it: name, description, persona and model, with
- * the busy flag and the last error, and `create`, which files the agent and hands its id to `onDone`. The
- * draft lives above the form so stepping back to the provider and forward again keeps what was typed.
- */
 export function useAgentDraft(onCreate: CreateAgent, onDone: (agentId: string) => void) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");

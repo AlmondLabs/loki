@@ -27,11 +27,6 @@ export function keyboardInset(layoutHeight: number, vv: VisualViewportLike | nul
   return hidden >= 1 ? Math.round(hidden) : 0;
 }
 
-/**
- * Fits the shell to the visible area while the keyboard is up: `data-keyboard` on it, with the visible
- * top and height as --phone-viewport-top / --phone-viewport-height (phone.css). Removed as the keyboard
- * goes. A no-op without visualViewport.
- */
 export function useKeyboardInset(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
@@ -40,7 +35,6 @@ export function useKeyboardInset(ref: RefObject<HTMLElement | null>) {
     let frame = 0;
     const apply = () => {
       frame = 0;
-      // Only a change of height is the keyboard: the visible part scrolling moves the shell without resizing it.
       const before = el.getBoundingClientRect().height;
       const inset = keyboardInset(window.innerHeight, vv);
       if (inset > 0) {
@@ -68,7 +62,6 @@ export function useKeyboardInset(ref: RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
-/** Less than this is the page settling (an accessory bar, a scroll), not the keyboard coming or going. */
 const KEYBOARD_MIN = 80;
 
 /**

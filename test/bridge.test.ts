@@ -133,7 +133,6 @@ describe("bridge", () => {
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "focus", id: "shared/welcome" } });
     expect(store.get("c1").overlay["c1/sleep"]).toEqual({ value: 7 });
     expect(store.get("shared").layout["shared/welcome"].position).toEqual({ x: 3, y: 4 });
-    // Each under its own desk: the shared one's moves reach every chat's next turn (turn_start drains both).
     expect(gestures.peek("c1")).toEqual(['set value = 7 (was 6) on "Sleep" (c1/sleep)']);
     expect(gestures.peek("shared")).toEqual(['moved "loki" (shared/welcome) to (3, 4)']);
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "move", id: "c1/sleep" } });
@@ -271,7 +270,7 @@ describe("bridge", () => {
     const c = client("c1");
     bridge.onMessage(c, { type: "measure", id: "c1/a", size: { w: 280, h: 240 } });
     expect(store.get("c1").layout["c1/a"].size).toEqual({ w: 280, h: 240 });
-    bridge.onMessage(c, { type: "measure", id: "c1/a", size: { w: "x" } }); // ignored
+    bridge.onMessage(c, { type: "measure", id: "c1/a", size: { w: "x" } });
     bridge.onMessage(c, { type: "arrange" });
     const a = store.get("c1").layout["c1/a"].position;
     const b = store.get("c1").layout["c1/b"].position;
@@ -329,13 +328,11 @@ describe("bridge: viewed", () => {
       });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
-      // Only this chat's marks go out (plan 055); the whole frame is for seen_list.
       const frame = must(broadcasts.at(-1), "the chat's marks");
       expect(frame).toMatchObject({ type: "seen_chat", key: "a/x", viewed: expect.any(String) as unknown, seen: null, rest: null });
       bridge.onMessage(c, { type: "seen_list" });
       expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) as unknown } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
-      // Learn's leads work from the phone (a lesson started there opens its conversation); the writer's settings do not.
       for (const type of ["recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"] as const) expect(PHONE_FRAMES.has(type)).toBe(true);
       expect(PHONE_FRAMES.has("recall_settings")).toBe(false);
       seen.flush();
@@ -370,7 +367,6 @@ describe("bridge: focus", () => {
       expect(broadcasts.slice(-2).map((f) => f.key)).toEqual(["a/x", "a/y"]);
       expect(weight(-2)).toBeCloseTo(1.25, 3);
       expect(weight(-1)).toBe(0.5);
-      // messages are counted where turns start, never from a client: a client cannot claim one
       const before = broadcasts.length;
       bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "x", action: "message" });
       expect(broadcasts.length).toBe(before);
@@ -404,8 +400,8 @@ describe("bridge: a mark that changes nothing", () => {
       expect(broadcasts.length).toBe(1);
       seen.flush();
       writeFileSync(path, "untouched");
-      bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" }); // the same instant: the same look
-      bridge.onMessage(c, { type: "seen_unmark", agent_id: "a", conversation_id: "x" }); // not done already
+      bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
+      bridge.onMessage(c, { type: "seen_unmark", agent_id: "a", conversation_id: "x" });
       expect(broadcasts.length).toBe(1);
       seen.flush();
       expect(readFileSync(path, "utf8")).toBe("untouched");
@@ -664,7 +660,6 @@ describe("bridge: a paired phone's authority", () => {
       });
       expect(phone.sent.some((m) => m.type === "error" && String(m.message).includes("not available on the phone"))).toBe(false);
     }
-    // the desktop (no deviceId) keeps everything
     const desk = client("shared");
     bridge.onMessage(desk, { type: "pair_begin" });
     expect(desk.sent.at(-1)?.type).toBe("pair_code");
@@ -721,7 +716,6 @@ describe("bridge phone frames", () => {
         },
         setServe: (e: boolean) => {
           calls.push(["setServe", e]);
-          // the stub's tailnet has HTTPS disabled: turning serve on fails with the CLI's words, off works
           if (e) serveError = "Error: HTTPS is not enabled for this tailnet";
           else {
             serveError = null;
@@ -755,7 +749,7 @@ describe("bridge phone frames", () => {
     const c = client("c1");
     bridge.onMessage(c, { type: "lan_get" });
     await new Promise((r) => setTimeout(r, 0));
-    expect(d.refreshed()).toBe(1); // lan_get asks Tailscale again before answering
+    expect(d.refreshed()).toBe(1);
     expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status });
     bridge.onMessage(c, { type: "lan_set", enabled: true });
     await new Promise((r) => setTimeout(r, 0));
@@ -830,7 +824,6 @@ describe("recall frames", () => {
         previous: [],
       });
       const broadcasts: Array<Record<string, unknown>> = [];
-      // Learn's settings and status are the daemon's; here a plain object stands in for them.
       const status = { enabled: true, daily_cap: 25, last_run_at: null, last_run_note: null, written_today: 0 };
       const bridge = bridgeOf({
         store: new DeskStore(),
@@ -870,13 +863,11 @@ describe("recall frames", () => {
       bridge.onMessage(c, { type: "recall_run", request_id: "r9" });
       await new Promise((r) => setTimeout(r, 0));
       expect(c.sent.pop()).toMatchObject({ type: "recall_ran", note: "ran" });
-      // a phone may review but not change the worker's settings
       const phone = { ...client("p"), deviceId: "d1" } as Client & { sent: Array<Record<string, unknown>> };
       bridge.onMessage(phone, { type: "recall_grade", request_id: "p1", id: "k1", grade: 4 });
       expect(must(phone.sent.pop(), "the reply").type).toBe("recall_card");
       bridge.onMessage(phone, { type: "recall_settings", request_id: "p2", enabled: true });
       expect(must(phone.sent.pop(), "the reply").type).toBe("error");
-      // no store wired: a clear error
       const bare = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
       bare.onMessage(c, { type: "recall_list", request_id: "x" });
       expect(c.sent.pop()).toMatchObject({ type: "error", message: "recall is not available in this mod" });

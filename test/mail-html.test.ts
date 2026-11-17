@@ -6,8 +6,6 @@ import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref, quote
 import { OutsideThread } from "../app/src/desk/outside-card.tsx";
 import { firstLine } from "../app/src/desk/mail-thread.tsx";
 
-/** A mail drawn as its sender wrote it, in a frame where nothing runs, its links opened in the browser. */
-
 const BILL = [
   "<html><head><style>.total{font-weight:bold}</style><script>steal()</script></head>",
   '<body><p class="total">Amount 6490.0 INR</p><a href="https://bills.example/pdf">CLICK HERE</a>',
@@ -39,7 +37,6 @@ describe("the frame's document for a mail", () => {
       `<html><body><meta name="referrer" content="unsafe-url"><META content=unsafe-url NAME=referrer><img referrerpolicy="unsafe-url" src="https://x.example/a.png"><a href="https://x.example" ReferrerPolicy=unsafe-url>go</a></body></html>`,
     );
     expect(doc).toContain('<meta name="referrer" content="no-referrer">');
-    // The word appears twice in loki's own tag (its name and its value) and nowhere else.
     expect(doc.match(/referrer/gi)).toHaveLength(2);
     expect(doc).toContain('<img src="https://x.example/a.png">');
     expect(doc).toContain('<a href="https://x.example">go</a>');

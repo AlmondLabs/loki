@@ -10,8 +10,6 @@ import { environmentNote } from "../core/attention/content.ts";
 import { canLabel, sidebarModel } from "../app/src/shell/sidebar-model.ts";
 import { buildIndex, placeHit, search, type SearchSources } from "../app/src/shell/search-model.ts";
 
-/** Labels on chats in the app (plan 022, unit 2): the filter, chips, the picker, `/label` and ⌘K. */
-
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
   scope,
   title: scope,
@@ -153,9 +151,7 @@ describe("agents see a chat's labels (plan 022, unit 3)", () => {
   test("the first note names them; a change, a clear, or nothing new decides the next", () => {
     const first = environmentNote(undefined, { now: at(0), desk: "Deploy", labels: ["infra", "client-x"], zone: "UTC" });
     expect(first.text).toContain("The user has labelled this chat: infra, client-x.");
-    // The same labels a minute on: nothing to say.
     expect(environmentNote(first.told, { now: at(1), desk: "Deploy", labels: ["infra", "client-x"], zone: "UTC" }).text).toBeNull();
-    // Labels the sender does not know are not news, and what was told is kept.
     const unknown = environmentNote(first.told, { now: at(2), desk: "Deploy", labels: null, zone: "UTC" });
     expect(unknown.text).toBeNull();
     expect(unknown.told.labels).toBe("infra, client-x");

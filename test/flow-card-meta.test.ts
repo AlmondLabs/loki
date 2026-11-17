@@ -4,15 +4,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatCardMeta } from "../app/src/desk/catch-up-parts.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
-// A Flow chat card's when-and-why line: dot-joined in the toolbar's grey line, where its parts sit in running text and
-// once ran together ("22mread").
-
 const card = attentionItem("c1", { has_draft: true });
 
 describe("a Flow chat card's meta line", () => {
   test("joins its parts with dots, since it sits in a line of text", () => {
     const text = renderToStaticMarkup(createElement(ChatCardMeta, { current: card, cameBack: true })).replace(/<[^>]+>/g, "");
-    // The first part is how long ago, which reads the clock; the joins are what this is about.
     expect(text).toMatch(/^\S+ · back · new since you moved on · draft$/);
   });
 });

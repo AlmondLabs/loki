@@ -6,12 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ContentList } from "../app/src/shell/content-list.tsx";
 import { must } from "./fixtures/must.ts";
 
-// Plan 2026-11-14-2224, U4: the list column has one text edge and one box edge (KTD5), and its title shares a top line
-// with the detail's (KTD4). These read components.css, where the glass block's rules come after and win.
-
 const css = readFileSync(join(import.meta.dirname, "..", "app", "src", "components", "components.css"), "utf8");
 
-/** Every declaration given to `selector` alone, in stylesheet order, so a later one wins as in the cascade. */
 function decls(selector: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -28,12 +24,10 @@ function decls(selector: string): Map<string, string> {
   return out;
 }
 
-/** The first value of a padding shorthand, or `padding-top` when set after it. */
 function paddingTop(rule: Map<string, string>): string {
   return rule.get("padding-top") ?? must(/^\S+/.exec(rule.get("padding") ?? ""), "a padding")[0];
 }
 
-/** The side value of a padding shorthand: its second word, else its first. */
 function paddingSide(rule: Map<string, string>): string {
   const words = (rule.get("padding") ?? "").split(/\s+/);
   return words[1] ?? words[0];
@@ -100,5 +94,43 @@ describe("the list column's edges (KTD5)", () => {
   });
   test("the bar's title starts 16 in, as the rows' text does", () => {
     expect(decls(".loki-content-list-bar").get("padding")?.split(/\s+/)[3]).toBe("16px");
+  });
+});
+
+describe("Flow's rows are divided", () => {
+  const list = (divided: boolean) =>
+    renderToStaticMarkup(
+      createElement(ContentList, {
+        label: "Flow",
+        title: "Flow",
+        rows: [
+          { id: "a", title: "Priya", preview: "Launch review" },
+          { id: "b", title: "Sam", preview: "Budget" },
+        ],
+        selectedId: null,
+        onSelect: () => {},
+        onEnter: () => {},
+        empty: "Caught up.",
+        divided,
+      }),
+    );
+  const divided = ".loki-content-list-rows[data-divided]";
+
+  test("only a divided list is marked, and Flow is one", () => {
+    expect(list(true)).toContain('class="loki-content-list-rows" data-divided="true"');
+    expect(list(false)).not.toContain("data-divided");
+    const flow = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up.tsx"), "utf8");
+    expect(flow).toMatch(/rows=\{flowRows\(flow\.rows\)\}\s*divided\s/);
+  });
+  test("its rows get 8px above and below, and a hairline from the text's edge between them", () => {
+    expect(decls(`${divided} .loki-list-row`).get("padding-block")).toBe("8px");
+    const line = decls(`${divided} .loki-list-item + .loki-list-item::before`);
+    expect(line.get("left")).toBe(`${12 + 20 + 8}px`);
+    expect(line.get("right")).toBe(paddingSide(decls(".loki-list-row")));
+    expect(line.get("border-top")).toBe("1px solid var(--loki-border)");
+  });
+  test("the lines beside the selected row go, so its fill is not cut", () => {
+    expect(decls(`${divided} .loki-list-item[data-current]::before`).get("border-top-color")).toBe("transparent");
+    expect(decls(`${divided} .loki-list-item[data-current] + .loki-list-item::before`).get("border-top-color")).toBe("transparent");
   });
 });

@@ -21,7 +21,7 @@ describe("trying again", () => {
         { role: "assistant", text: "hi" },
         { role: "user", text: "11 first" },
       ]),
-    ).toEqual({ label: "Send again", text: "11 first" });
+    ).toEqual({ label: "Send Again", text: "11 first" });
     expect(
       retryMessage([
         { role: "user", text: "11 first" },

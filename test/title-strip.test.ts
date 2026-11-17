@@ -2,10 +2,10 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
-import { Places, TitleStrip, WindowControls, sidebarClearance, titlebarHeight } from "../app/src/shell/sidebar.tsx";
+import { Places, TitleStrip, WindowControls, paneTop, sidebarClearance, titlebarHeight } from "../app/src/shell/sidebar.tsx";
 import { ListColumn } from "../app/src/shell/list-column.tsx";
 import { columnsLayout, LIST_DEFAULT, SIDEBAR_DEFAULT } from "../app/src/shell/columns.ts";
-import { TitleMenuPanel, titleMenus, runMenuItem } from "../app/src/shell/title-menu.tsx";
+import { TitleMenu, TitleMenuItems, titleMenus, runMenuItem } from "../app/src/shell/title-menu.tsx";
 import { KEYMAP, labelOf, menuSpec, registerActions, resolve } from "../app/src/shell/keymap.ts";
 import { guardBrowserKey } from "../app/src/shell/use-shell-keys.ts";
 import { LAYER } from "../app/src/kit/layers.ts";
@@ -14,7 +14,6 @@ import { must } from "./fixtures/must.ts";
 
 const strip = (os: Platform, shell = true) => renderToStaticMarkup(createElement(TitleStrip, { os, shell }));
 
-/** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
 function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
@@ -67,16 +66,15 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
 
   test("Windows and Linux: the strip keeps its ☰ and window buttons over the sidebar and the list beside it", () => {
     const shell = readFileSync(new URL("../app/src/shell/shell.tsx", import.meta.url), "utf8");
-    // the list column and the detail start under the strip, never over its buttons
-    expect(shell).toMatch(/className="loki-list-column"[\s\S]*?top: TITLEBAR_HEIGHT,/);
-    expect(shell).toMatch(/<main style=\{\{ position: "absolute", top: TITLEBAR_HEIGHT,/);
+    expect(shell).toMatch(/className="loki-list-column"[\s\S]*?top: paneTop\(\),/);
+    expect(shell).toMatch(/<main[^>]*style=\{\{[^}]*top: paneTop\(\),/);
+    for (const os of ["windows", "linux"] as const) expect(paneTop(true, os)).toBe(titlebarHeight(true, os));
     for (const os of ["windows", "linux"] as const) {
       const labels = [...strip(os).matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
       expect(labels).toEqual(["Menu", "Minimise", "Maximise", "Close"]);
       const frame = { windowWidth: 1280, inset: 8, clearance: sidebarClearance(true, os), hasList: true, peek: false };
       const pref = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, collapsed: false, listHidden: false };
       expect(columnsLayout(pref, frame)).toMatchObject({ sidebarShown: true, listShown: true, listLeft: 236, list: 300 });
-      // folded, the list starts past the sidebar toggle at the strip's left
       expect(columnsLayout({ ...pref, collapsed: true }, frame).listLeft).toBe(52);
     }
   });
@@ -113,13 +111,19 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
 });
 
 describe("the ☰ menu (plan 014 U4, KTD4)", () => {
-  test("it lists every menu the Mac's menu bar shows, in order, then Hide loki", () => {
+  const words = (node: ReactNode): string[] =>
+    elements(node).flatMap((el) =>
+      (Array.isArray(el.props.children) ? el.props.children : [el.props.children]).filter((c): c is string => typeof c === "string"),
+    );
+  const tree = (os: Platform, onPick: (id: string) => void = () => {}) => TitleMenuItems({ groups: titleMenus(os), os, onPick });
+  const triggers = (os: Platform) => elements(tree(os)).filter((el) => typeof el.props["data-menu"] === "string");
+
+  test("it lists every menu the Mac's menu bar shows, in order, each a submenu, then Hide loki", () => {
     for (const os of ["windows", "linux"] as const) {
-      const groups = titleMenus(os);
-      expect(groups.map((g) => g.title)).toEqual(menuSpec(undefined, os).map((m) => m.title));
-      const out = renderToStaticMarkup(createElement(TitleMenuPanel, { groups, open: null, onOpen: () => {}, onPick: () => {}, os }));
-      for (const g of groups) expect(out).toContain(`>${g.title}<`);
-      expect(out).toContain(
+      const titles = triggers(os).map((el) => el.props["data-menu"]);
+      expect(titles).toEqual(menuSpec(undefined, os).map((m) => m.title));
+      const all = words(tree(os));
+      expect(all).toContain(
         labelOf(
           must(
             KEYMAP.find((b) => b.id === "window.hide"),
@@ -128,7 +132,7 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
           os,
         ),
       );
-      expect(out).toContain("Ctrl Shift W");
+      expect(all).toContain("Ctrl Shift W");
     }
   });
 
@@ -136,17 +140,16 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
     for (const os of ["windows", "linux"] as const) {
       const groups = titleMenus(os);
       const spec = menuSpec(undefined, os);
+      expect(words(tree(os)).join(" ")).not.toMatch(/[⌘⇧⌥]/);
       for (const g of groups) {
-        const out = renderToStaticMarkup(createElement(TitleMenuPanel, { groups, open: g.title, onOpen: () => {}, onPick: () => {}, os }));
-        expect(out).not.toMatch(/[⌘⇧⌥]/);
         const mac = must(
           spec.find((m) => m.title === g.title),
           `the Mac's ${g.title} menu`,
         );
         for (const it of mac.items) {
           if ("separator" in it) continue;
-          expect(out).toContain(it.label.replace(/&/g, "&amp;"));
           const mine = g.items.find((x) => !("separator" in x) && x.id === it.id);
+          expect(mine && !("separator" in mine) && mine.label).toBe(it.label);
           expect(mine && !("separator" in mine) && mine.keys !== null).toBe(it.accelerator !== null);
         }
       }
@@ -162,13 +165,12 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
     const ran: string[] = [];
     const off = registerActions({ "desk.new": () => ran.push("desk.new"), "window.hide": () => ran.push("window.hide") });
     try {
-      const groups = titleMenus("windows");
       const picked: string[] = [];
-      const tree = TitleMenuPanel({ groups, os: "windows", open: "Go", onOpen: () => {}, onPick: (id) => (picked.push(id), runMenuItem(id)) });
+      const items = elements(tree("windows", (id) => (picked.push(id), runMenuItem(id))));
       const click = (id: string) =>
         (
           must(
-            elements(tree).find((el) => el.props["data-menu-id"] === id),
+            items.find((el) => el.props["data-menu-id"] === id),
             `the ${id} item`,
           ).props.onClick as () => void
         )();
@@ -181,16 +183,12 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
     }
   });
 
-  test("a menu title opens its menu", () => {
-    const opened: Array<string | null> = [];
-    const tree = TitleMenuPanel({ groups: titleMenus("linux"), os: "linux", open: null, onOpen: (t) => opened.push(t), onPick: () => {} });
-    (
-      must(
-        elements(tree).find((el) => el.props["data-menu"] === "Learn"),
-        "the Learn menu title",
-      ).props.onClick as () => void
-    )();
-    expect(opened).toEqual(["Learn"]);
+  test("closed, ☰ says it opens a menu and that it is shut, and no menu is drawn (plan 2026-11-15-1930)", () => {
+    const out = renderToStaticMarkup(createElement(TitleMenu, { os: "linux" }));
+    expect(out).toMatch(/<button[^>]*aria-haspopup="menu"/);
+    expect(out).toContain('aria-expanded="false"');
+    expect(out).toContain('aria-label="Menu"');
+    expect(out).not.toContain("Learn");
   });
 });
 

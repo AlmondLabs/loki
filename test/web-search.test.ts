@@ -6,7 +6,6 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { parseResults, webSearchExtension } from "../daemon/web-search.ts";
 
-/** DuckDuckGo's HTML results, in the shape its page has (an ad first, then two results, one through its redirect). */
 const PAGE = `
 <div class="result results_links results_links_deep result--ad ">
   <h2 class="result__title"><a rel="nofollow" class="result__a" href="https://duckduckgo.com/y.js?ad_domain=x">Buy now</a></h2>

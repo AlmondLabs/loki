@@ -50,7 +50,6 @@ describe("a model error stays in the chat (plan 037)", () => {
 });
 
 describe("a scheduled run that could not reach the model tries again (plan 037)", () => {
-  /** A schedule whose fire hands back an outcome the test settles, on a clock the test moves. */
   function harness(dir: string, file = "crons.json") {
     const clock = { now: new Date("2026-10-26T04:30:00Z") };
     const fired: string[] = [];
@@ -68,7 +67,6 @@ describe("a scheduled run that could not reach the model tries again (plan 037)"
       clock.now = new Date(iso);
       return schedules.tick(clock.now);
     };
-    /** End a firing's turn (the newest unless `which` says), and let the schedule hear of it. */
     const end = async (o: Awaited<Delivery["outcome"]>, which = ends.length - 1) => {
       ends[which]?.(o);
       await new Promise((r) => setImmediate(r));
@@ -148,9 +146,8 @@ describe("a scheduled run that could not reach the model tries again (plan 037)"
       const h = harness(dir);
       h.schedules.create({ ...daily, cron: "*/30 * * * *" }, new Date("2026-10-26T04:00:00Z"));
       await h.at("2026-10-26T04:30:00Z");
-      await h.at("2026-10-26T05:00:00Z"); // the next slot fires while the first turn still runs
+      await h.at("2026-10-26T05:00:00Z");
       await h.end({ status: "done" }, 1);
-      // Now the first turn ends, late, with a model error: the newer firing got through, so no retry.
       await h.end(modelError, 0);
       expect(h.schedules.list()[0].retry_at).toBeNull();
     } finally {
@@ -167,7 +164,6 @@ describe("a scheduled run that could not reach the model tries again (plan 037)"
       await h.end(modelError);
       await h.at("2026-10-26T04:35:00Z");
       await h.end(modelError);
-      // The retry would be at 04:50; the 05:00 slot comes first after a quiet spell, and fires as itself.
       expect(await h.at("2026-10-26T05:00:00Z")).toBe(1);
       expect(h.fired.at(-1)).toBe('Scheduled task "mail": check the mail');
       expect(h.schedules.list()[0]).toMatchObject({ retry_at: null, retries: 0 });

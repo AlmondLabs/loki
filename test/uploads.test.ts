@@ -16,7 +16,6 @@ describe("uploads: names and places", () => {
     expect(safeName("")).toBe("file");
   });
   test("a taken name gets a number before its extension", () => {
-    // In this system's separators: freePath joins with node:path, so Windows' come back as backslashes.
     const taken = new Set([join("/u", "q3.pdf"), join("/u", "q3 (2).pdf")]);
     expect(freePath("/u", "q3.pdf", (p) => taken.has(p))).toBe(join("/u", "q3 (3).pdf"));
     expect(freePath("/u", "notes", () => false)).toBe(join("/u", "notes"));

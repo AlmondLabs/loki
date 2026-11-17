@@ -1,16 +1,11 @@
 import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
+import { COMPACTION, compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { turnIdOf } from "./telemetry.ts";
 
-/** How much of the provider's own message an unanswered turn passes on (plan 036). */
 const DETAIL_CHARS = 300;
 
-/**
- * What pi-durable recorded about an unanswered input beyond its reason — for a model error, the provider's own message
- * (a rate limit, a prompt too long, a dropped connection) — on one line, cut to DETAIL_CHARS; null when it kept none.
- */
 export function unansweredDetail(detail: unknown): string | null {
   if (detail === undefined || detail === null) return null;
   const text = (typeof detail === "string" ? detail : JSON.stringify(detail)).replace(/\s+/g, " ").trim();
@@ -18,13 +13,11 @@ export function unansweredDetail(detail: unknown): string | null {
   return text.length > DETAIL_CHARS ? `${text.slice(0, DETAIL_CHARS - 1)}…` : text;
 }
 
-/** Why an input went unanswered, for a log or a tool result: its reason, then the provider's message when there is one. */
 export function unansweredWhy(settled: { status: string; reason?: string; detail?: unknown }): string {
   const detail = unansweredDetail(settled.detail);
   return `${settled.reason ?? settled.status}${detail ? `: ${detail}` : ""}`;
 }
 
-/** Why a message went unanswered, for the person: what to do, then what the provider said when it said something. */
 function unanswered(reason: string | undefined, detail: unknown): string {
   const said = unansweredDetail(detail);
   const tail = said ? ` (${said})` : "";
@@ -35,7 +28,6 @@ function unanswered(reason: string | undefined, detail: unknown): string {
   return `the agent could not take this message up${reason ? ` (${reason}${said ? `: ${said}` : ""})` : tail}`;
 }
 
-/** A message's text blocks by content index. */
 function textBlocks(message: AssistantMessage | undefined): Map<number, string> {
   const out = new Map<number, string>();
   (Array.isArray(message?.content) ? message.content : []).forEach((block, i) => {
@@ -44,25 +36,12 @@ function textBlocks(message: AssistantMessage | undefined): Map<number, string> 
   return out;
 }
 
-/**
- * One chat's pi-durable agent events as loki's chat events (plan 017, U5), what the daemon pushes to every client
- * watching the chat. An answer's words stream in as pieces (`chunk`) for the live view; when the answer is written it
- * goes out whole, as the stored message (what a history page shows), and the client puts it in place of what
- * streamed. Sending only "the rest" after what streamed broke whenever the two disagreed: a retried attempt's
- * pieces were still counted, a client that joined mid-answer had missed the start, and an answer the stream did not
- * prefix went out whole on top of its pieces: the reply showed twice, the second copy glued to the first's tail.
- */
 export class ChatEventConverter {
-  /** The answer in flight as streamed so far, for a client that opens the chat mid-answer (DaemonChats.open). */
   private partial: { text: string; at: string | null } | null = null;
-  /** The in-flight message's text blocks by content index: what `partial` is joined from. */
   private blocks = new Map<number, string>();
-  /** The turn in flight (daemon/telemetry.ts names it the same), for the app's analytics to carry. */
   private turnId: string | null = null;
-  /** The compactions running that hold the turn up, by task: the ones the thread shows while they run (plan 078). */
   private readonly blocking = new Set<string>();
   private readonly agentId: string;
-  /** Keeps the person's pictures as files a window loads (plan 029); without it they stay "[image]" lines. */
   private readonly nameImage?: ImageNamer;
 
   constructor(agentId = "", nameImage?: ImageNamer) {
@@ -70,14 +49,12 @@ export class ChatEventConverter {
     this.nameImage = nameImage;
   }
 
-  /** The answer being written now, as far as it has streamed; null between answers. */
   inFlight(): { text: string; at: string | null } | null {
     return this.partial?.text ? { ...this.partial } : null;
   }
 
   convert(ev: AgentEvent, now = new Date().toISOString()): ChatEvent[] {
     switch (ev.type) {
-      // Where the chat stands when following starts: an answer already under way is the partial to start from.
       case "snapshot": {
         this.blocks = textBlocks(ev.generation?.message);
         const text = this.joined();
@@ -95,13 +72,10 @@ export class ChatEventConverter {
         return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
       }
       // A message begun. A user message is shown at its end, which comes with it and says what entry it is: a
-      // compaction's summary is a user message too, and shown as one it put the whole summary in the thread.
       case "message_start":
-        if (ev.message.role !== "user") this.blocks.clear();
-        return [];
-      // The in-flight message changes in batches, and a batch's words can come in any of four shapes: a text block
-      // begun (holding all it has so far: an answer's first words, often), words added to one, a block or the whole
-      // message rewritten. Taking only the added words lost the first ones until the written answer replaced them.
+        if (ev.message.role === "user") return [];
+        this.blocks = textBlocks(ev.message.role === "assistant" ? ev.message : undefined);
+        return this.streamed(now);
       case "message_update": {
         for (const change of ev.changes) {
           if (change.type === "text_start" || change.type === "block") {
@@ -109,17 +83,8 @@ export class ChatEventConverter {
           } else if (change.type === "text_delta") this.blocks.set(change.contentIndex, (this.blocks.get(change.contentIndex) ?? "") + change.delta);
           else if (change.type === "message") this.blocks = textBlocks(change.message);
         }
-        const was = this.partial?.text ?? "";
-        const text = this.joined();
-        if (text === was) return [];
-        const at = this.partial?.at ?? now;
-        this.partial = text ? { text, at } : null;
-        // What was shown still leads: the rest goes as a piece. Otherwise the client is handed the answer so far.
-        if (text.startsWith(was)) return [{ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } }];
-        return [{ kind: "streaming", text, at }];
+        return this.streamed(now);
       }
-      // The attempt failed and pi-durable tries again: what it streamed is not the answer. An empty written answer
-      // clears it on the client (ThreadModel), and the next attempt streams afresh.
       case "auto_retry_start":
         this.partial = null;
         this.blocks.clear();
@@ -138,12 +103,10 @@ export class ChatEventConverter {
           },
         ];
       }
-      // A compaction that holds the turn up shows while it runs (plan 078): the turn waits on it, saying nothing else.
       case "compaction_start":
         if (!ev.blocking) return [];
         this.blocking.add(String(ev.taskId));
         return [{ kind: "step", step: { kind: "compaction", state: "running", detail: null, at: now } }];
-      // Its summary, written, came as a message (answered); without one, its running row goes, or says why it failed.
       case "compaction_end": {
         const shown = this.blocking.delete(String(ev.taskId));
         if (ev.error) return [{ kind: "step", step: { kind: "compaction", state: "failed", detail: ev.error, at: now } }];
@@ -151,7 +114,6 @@ export class ChatEventConverter {
       }
       case "task_failed":
         return [{ kind: "error", message: ev.message }];
-      // A message the agent could not take up at all (no model to run it on, say): the turn ends here, and says why.
       case "submission":
         if (ev.record.status !== "unanswered") return [];
         return [
@@ -165,7 +127,16 @@ export class ChatEventConverter {
     }
   }
 
-  /** The text blocks joined as the written answer joins them (contentText). */
+  private streamed(now: string): ChatEvent[] {
+    const was = this.partial?.text ?? "";
+    const text = this.joined();
+    if (text === was) return [];
+    const at = this.partial?.at ?? now;
+    this.partial = text ? { text, at } : null;
+    if (text.startsWith(was)) return [{ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } }];
+    return [{ kind: "streaming", text, at }];
+  }
+
   private joined(): string {
     return [...this.blocks.entries()]
       .sort((a, b) => a[0] - b[0])
@@ -173,14 +144,10 @@ export class ChatEventConverter {
       .join("\n");
   }
 
-  /**
-   * A message written: an answer as a history page has it (its words whole, then its tool calls), a person's message,
-   * or a compaction's summary as its one row.
-   */
   private answered(entry: EntryRecord, now: string): ChatEvent[] {
     const message = entry.model?.[0] as PiMessage | undefined;
     const steps =
-      entry.kind === "pi.compaction"
+      entry.kind === COMPACTION
         ? compactionSteps(entry, now)
         : (entry.kind === "pi.assistant" && message?.role === "assistant") || (entry.kind === "pi.user" && message?.role === "user")
           ? messageSteps(message, messageAt(message) ?? now, message.role === "user" ? this.nameImage : undefined)

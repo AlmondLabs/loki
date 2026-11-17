@@ -1,14 +1,3 @@
-/**
- * The loki daemon (plan 017): the one long-running process the shell starts and supervises. It holds the lock, opens
- * every agent's store and runs every chat, and loads the mods: loki's own (canvas, suggestions, Learn, the phone listener)
- * and any in the `mods` folder beside its state, on loki's mod API (daemon/mods).
- *
- *   node daemon.mjs --loki-daemon --dir <loki folder> --mod <mod entry> [--token-file <file>]
- *
- * `--loki-daemon` and the token file mark the command line as loki's, so a shell finds a leftover from a crash.
- * `node daemon.mjs --check-scripts` runs one script in the sandbox and exits, for the release smoke test.
- * Exit code 3: another daemon holds this folder's lock; the shell then leaves that one serving.
- */
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -62,12 +51,17 @@ import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
 import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
-/** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
+
+/**
+ * The flag every start passes so the shell can tell loki's daemon from any other Node process: `is_own_daemon` in
+ * `src-tauri/src/procs.rs` matches it, with the token file, on a leftover daemon's command line. The daemon never reads it.
+ */
+const DAEMON_MARKER = "loki-daemon";
 
 const { values: args } = parseArgs({
   options: {
-    "loki-daemon": { type: "boolean" },
+    [DAEMON_MARKER]: { type: "boolean" },
     dir: { type: "string" },
     mod: { type: "string" },
     "token-file": { type: "string" },
@@ -95,28 +89,18 @@ const report = (message: string) => console.error(`loki-daemon: ${message}`);
 const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
-// The daemon's agents (records and memory, daemon/store/agents.ts) and the pinned chats live under its folder; the
-// mod's readers are told where, for a daemon serving a folder other than ~/.loki. Each agent's chats are in its own
-// store (daemon/kernel/stores.ts).
 const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
-// Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
-// variable. A keychain that cannot be reached leaves the environment, and says so.
-// LOKI_KEYCHAIN=0 keeps secrets in memory for this daemon's life: a test or a scratch run never writes the login keychain.
 const secrets =
   process.env.LOKI_KEYCHAIN === "0"
     ? memorySecrets()
     : await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
 const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
 // The sign-in flows (ChatGPT, OpenRouter, GitHub Copilot…), imported statically. pi-ai loads each through a variable
-// path so a bundler cannot follow it, and in the release bundle (daemon.mjs) that path pointed beside the bundle at
-// files that are not there: every sign-in failed with "Cannot find module …/openai-chatgpt.js". Its Bun helper is
-// plain static imports, which suits Node and the bundle alike.
 registerBunOAuthFlows();
 const models = builtinModels(credentials ? { credentials } : {});
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: chatEnvs(args.dir) }, context, report);
-// MCP servers (daemon/mcp/): their tools wait behind mcp_search, and their own hints say which only read.
 const mcp = new McpTools({
   registry: mods.registry,
   configPath: join(args.dir, "mcp.json"),
@@ -125,12 +109,8 @@ const mcp = new McpTools({
   version: appVersion(paths.root) ?? undefined,
   ...(secrets ? { secrets } : {}),
 });
-// Background tasks and scheduled prompts deliver into their chat through `chat`, made below (daemon/background.ts,
-// daemon/schedule.ts).
 const schedulesFile = join(args.dir, "state", "crons.json");
 const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);
-// The notice's turn is followed to its end too: its outcome rejects when the store closes under it (the agent
-// deleted), and a rejection nobody handles ends the daemon.
 const background = new BackgroundTasks(
   (agentId, chatId, text) =>
     void chat
@@ -139,29 +119,20 @@ const background = new BackgroundTasks(
       .catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)),
 );
 const schedules = new Schedules(schedulesFile, deliver, report);
-// The approval gate asks by each tool's kind: loki's own declare theirs (builtinToolKinds, filled below, before any
-// chat runs); a mod's or an MCP server's tools say so in their annotations. "Always allow" answers are kept beside the
-// other state, for every chat.
 const approvals = new Approvals({
   widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
   kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
   alwaysPath: join(args.dir, "state", "approvals.json"),
-  // A script's calls are checked against what scripts may call, among the tools registered now (daemon/scripts.ts).
   scriptMayCall: (name) =>
     mods.registry
       .snapshot()
       .tools()
       .some(({ tool }) => tool.name === name && scriptMayCall(tool)),
 });
-// The person's pictures as files a window loads (plan 029), named as each message is read.
 const chatImages = new ChatImages(join(args.dir, "chat-images"));
 const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
-// Made before the built-in tools: the history tools read it (plan 062).
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
-// Scripts (daemon/scripts.ts): one sandbox for the daemon, closed before the stores at shutdown, so a script cut off by
-// it counts as undecided and resumes on the next start.
 const sandbox = scriptSandbox({}, (running) => report(`a script was refused: ${running} scripts were already running, the most at once (plan 099, R8)`));
-// Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
 const builtins = builtinExtensions({
   approvals,
   backendDir: backend,
@@ -172,13 +143,10 @@ const builtins = builtinExtensions({
 });
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
-// The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
 const installId = deviceIdIn(join(args.dir, "state", "device-id"));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, installId);
-// The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
-// Where a pass on an ACP agent runs before the agent has a memory folder (plan 061).
 const passScratch = join(args.dir, "scratch");
 const passes = new PassRunner({
   stores,
@@ -189,15 +157,12 @@ const passes = new PassRunner({
   context,
   jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })],
   busy,
-  // A pass runs on the agent's own model; with no provider for it (only Claude Code chats, say), passes wait.
-  // An agent with no model of its own runs on pi's default, so then any reachable model will do.
   canRun: async (handle) => {
     const available = await models.getAvailable();
     const slash = handle.indexOf("/");
     if (slash <= 0) return available.length > 0;
     return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
   },
-  // Without a model loki can reach, a pass runs on the agent's newest ACP chat's agent (plan 061), unless turned off.
   acp: {
     engineFor: async (agentId) => {
       const infos = await (await stores.get(agentId)).chats(context);
@@ -208,11 +173,9 @@ const passes = new PassRunner({
       return newest?.engine ?? null;
     },
     ask: async (agentId, engine, spec) => {
-      // The memory folder, so whatever the agent reads without asking is the pass's own; a scratch one before it exists.
       const root = memoryRoot(backend, agentId);
       const cwd = existsSync(root) ? root : passScratch;
       mkdirSync(cwd, { recursive: true });
-      // Calls left from a run that was stopped are not this one's.
       lokiTools.takeCalls(agentId, spec.chatId);
       const text = await acp.runPass({ ...spec, agentId, engine, cwd });
       return { text, toolCalls: lokiTools.takeCalls(agentId, spec.chatId) };
@@ -221,8 +184,6 @@ const passes = new PassRunner({
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
-// The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
-// store has its chats loaded.
 const oldPassFiles = {
   reflectionSettings: join(args.dir, "state", "reflection.json"),
   reflectionRoot: join(args.dir, "reflection"),
@@ -237,13 +198,11 @@ async function carryOverPasses(): Promise<void> {
   passState.migrate(oldPassFiles, list);
   report(`background passes: settings and cursors carried over for ${list.length} chats`);
 }
-// loki's own tools, served on loopback to chats on an ACP agent (plan 044): the same tool bodies loki's engine runs.
 const lokiTools = new LokiTools({
   tools: () => [...memoryTools(backend), ...historyTools(chats), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
   stores,
   context,
   version: appVersion(paths.root) ?? "0",
-  // Scripts for chats on ACP agents (plan 097, U5): the same sandbox and limits, the same one card a run.
   scripts: {
     sandbox,
     timeoutMs: SCRIPT_TIMEOUT_MS,
@@ -259,7 +218,6 @@ const lokiTools = new LokiTools({
   },
 });
 await lokiTools.start();
-// Chats on ACP agents (plan 020): Claude Code built in, others added in state/acp.json.
 const acpFile = join(args.dir, "state", "acp.json");
 const acp = new AcpChats({
   stores,
@@ -268,9 +226,7 @@ const acp = new AcpChats({
   agents: () => readAcpAgents(acpFile),
   systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools),
   homeDir: homedir(),
-  // Mod prompt sections and message transforms reach ACP chats as they reach loki's own (plan 067).
   mods,
-  // A session gets loki's tools and the MCP servers its agent has on, which it connects to and signs in to itself.
   mcpServers: async (agentId, conversationId) => {
     const own = lokiTools.serverFor(agentId, conversationId);
     return [...(own ? [own] : []), ...(await mcp.acpServers(agentId))];
@@ -280,7 +236,6 @@ const acp = new AcpChats({
   openUrl: (url) => openInBrowser(url, report),
   configFile: acpFile,
   cacheFile: join(args.dir, "state", "acp-offered.json"),
-  // An ACP turn is not in pi-durable's runs, which TurnTelemetry follows, so the chats measure it themselves.
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
@@ -301,12 +256,9 @@ const chat: DaemonChats = new DaemonChats({
   macId: installId(),
   schedules,
   background,
-  // A new chat starts on its agent's usual model (plan 2026-11-13-1240); the mod records the switches.
   usualModel: (agentId) => topUsualModel(agentId),
 });
 chats.follow(stores, report);
-// Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
-// mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
 const analytics = createAnalytics({
   path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events,
   statePath: paths.analytics,
@@ -321,8 +273,6 @@ const telemetry = new TurnTelemetry({
   report,
 });
 telemetry.follow(stores);
-// What every model call cost, by hour, agent, model and origin, for the usage page (daemon/usage.ts); not analytics,
-// so LOKI_ANALYTICS=0 leaves it on.
 const usage = new UsageLedger({
   file: join(paths.state, "usage.json"),
   context,
@@ -334,7 +284,6 @@ const usage = new UsageLedger({
   report,
 });
 usage.follow(stores);
-// What the import from Letta brought over, in loki's shapes, once on this Mac (plan 045): records, memory, chats' settings.
 await migrateAgents({
   backendDir: backend,
   stores,
@@ -352,7 +301,6 @@ await Promise.all(
   }),
 );
 
-// loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
 const loadCore = (): Promise<LoadResult> =>
   mods.load({
@@ -363,12 +311,9 @@ const loadCore = (): Promise<LoadResult> =>
         chats,
         chat,
         analytics,
-        // This Mac as other Macs know it (plan 023): its install id, and the keychain for the tokens it presents to them.
         macId: installId(),
         secrets: secrets ?? memorySecrets(),
-        // The memory repos' one queue, shared with the mod, which is bundled apart and would otherwise make its own (plan 046).
         memory: memoryRepos,
-        // The suggestions kept on this Mac's chat records (plan 049, KTD1); the mod reads and writes a chat's whole list.
         suggestions: {
           read: async (agentId, id) => {
             const store = await stores.get(agentId);
@@ -380,7 +325,6 @@ const loadCore = (): Promise<LoadResult> =>
             if (!(await (await stores.get(agentId)).updateChat(id, { suggestions }, context))) throw new Error(`no chat ${id}`);
           },
         },
-        // The link card (plan 067): shown in the chat whose agent asks, as a question card the first client answers.
         askLink: async (agentId, conversationId, link, signal) => {
           const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
             agentId,
@@ -390,7 +334,6 @@ const loadCore = (): Promise<LoadResult> =>
           );
           return parseLinkAnswer(reply.answers.answers);
         },
-        // A restart due after a checkout's daemon code changed, and restarting when the person asks (plan 024).
         daemon: devReload,
         usage: {
           rows: () => usage.rows(),
@@ -406,10 +349,6 @@ const loadCore = (): Promise<LoadResult> =>
         },
       }),
   });
-// A checkout keeps up with its sources (plans 024 and 041): the mod (mod/boot.ts bundles mod/index.ts and core afresh on
-// every activate) reloads when mod/ or core/ changes, and a change to daemon/ or core/ makes a restart due. Under
-// `npm start` (LOKI_BUILT_PAGE) the window runs the built page, so a change to app/ or core/ makes a build due too. The
-// window offers what is due; the update itself is the person's (any loki can be asked for a restart).
 const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
 const builtPage = checkout && process.env.LOKI_BUILT_PAGE === "1" ? checkout : null;
 const devReload: DevReload = new DevReload({
@@ -418,7 +357,6 @@ const devReload: DevReload = new DevReload({
     return "loaded" in result ? "ok" : result.refused;
   },
   ...(builtPage ? { buildPage: () => buildPage(builtPage) } : {}),
-  // A moment later, so the window hears that the restart is under way before its socket closes.
   restart: (why) => void setTimeout(() => stop(`${why}, restarting as asked`), 200),
   idle: async () => {
     for (const c of chats.list()) if (c.agentId && (await busy(c.agentId, c.conversationId))) return false;
@@ -445,7 +383,6 @@ const stopWatchingCore = () => {
 };
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
-// The passes' settings and cursors carried over (carryOverPasses, above); then the runner looks over the chats once a minute.
 void carryOverPasses()
   .then(() => passes.start())
   .catch((error: unknown) => report(`background passes did not start: ${String(error)}`));

@@ -26,7 +26,6 @@ async function setup(
   opts: {
     tokensPerSecond?: number;
     tool?: (done: () => void) => Promise<void>;
-    /** What the `slow` tool answers with; "slow done" when absent. */
     toolText?: string;
     passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"];
     schedules?: ConstructorParameters<typeof DaemonChats>[0]["schedules"];
@@ -126,7 +125,6 @@ describe("the daemon's chats", () => {
       expect(result?.kind === "result" && typeof result.output === "string" && result.output.length).toBeLessThan(TOOL_TEXT_MAX + 100);
       expect(call?.kind === "call" && (call.args as { note: string }).note.length).toBe(TOOL_TEXT_MAX);
       expect(JSON.stringify(s.pushed).length).toBeLessThan(30_000);
-      // The model and the store keep it whole.
       expect(modelSaw.includes(big)).toBe(true);
     } finally {
       await s.cleanup();
@@ -134,7 +132,6 @@ describe("the daemon's chats", () => {
   });
 
   test("loki's own message steered in while a turn works goes in at its next step, not as a turn after the answer", async () => {
-    // A background task ends while the agent is still at work (here, inside a tool call): its notice is delivered then.
     let notice: () => Promise<unknown> = async () => {};
     const s = await setup({
       tool: async () => {
@@ -183,7 +180,6 @@ describe("the daemon's chats", () => {
       await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "keep it", images: [], send_id: "s1", context: null });
       const chunks = () => s.pushed.flatMap((p) => p.events).filter((e) => e.kind === "step" && e.step.kind === "assistant" && e.step.chunk).length;
       await until(() => chunks() >= 1, 10_000);
-      // A second client opens now: the pieces so far went out before it listened.
       const at = s.pushed.length;
       const state = await s.chats.open(agent.id, conversationId);
       expect(state.loop).toBe("running");
@@ -191,17 +187,16 @@ describe("the daemon's chats", () => {
       const streaming = must(state.streaming, "the streaming reply");
       expect(REPLY.startsWith(streaming.text)).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
-      // It draws what chat-client makes of the state, then only what was pushed after it opened.
       const l = emptyLive();
       applyChatEvent(l, { kind: "streaming", text: streaming.text, at: streaming.at });
-      expect(must(must(l.thread.rows(), "the thread's rows").at(-1), "the last row").text.startsWith("Keep `farm")).toBe(true); // from its first word, while it streams
+      expect(must(must(l.thread.rows(), "the thread's rows").at(-1), "the last row").text.startsWith("Keep `farm")).toBe(true);
       for (const p of s.pushed.slice(at)) for (const e of p.events) applyChatEvent(l, e);
       expect(
         must(l.thread.rows(), "the thread's rows")
           .filter((r) => r.role === "assistant")
           .map((r) => r.text),
       ).toEqual([REPLY]);
-      expect((await s.chats.open(agent.id, conversationId)).streaming).toBeUndefined(); // nothing in flight once done
+      expect((await s.chats.open(agent.id, conversationId)).streaming).toBeUndefined();
     } finally {
       await s.cleanup();
     }
@@ -212,7 +207,6 @@ describe("the daemon's chats", () => {
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada", home_mac: null }]);
-      // With no persona of yours, the agent's memory starts with its name; with one, with your words.
       expect(readFileSync(join(s.dir, "backend", "memfs", agent.id, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada.\n");
       const told = await s.chats.createAgent({
         name: "Bo",
@@ -237,7 +231,6 @@ describe("the daemon's chats", () => {
       expect(await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hello", images: [], send_id: "s1", context: null })).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(kinds(s.pushed)).toEqual(expect.arrayContaining(["loop", "step:user", "step:assistant", "settle", "turn_end"]));
-      // The rider every mod adds reached the model.
       expect(s.sent[0]).toContain("hello\\n<loki-desk/>");
     } finally {
       await s.cleanup();
@@ -280,9 +273,7 @@ describe("the daemon's chats", () => {
       expect(await s.chats.sendHeld(held, "standard")).toBeNull();
       await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 1);
       expect((await info())?.turn_cap).toBe("standard");
-      // The chat passes the hold on: a message it sends now gives no more than standard.
       expect(await s.chats.power(agent.id, conversationId)).toBe("standard");
-      // A second message with less power holds it lower still; one with no power known holds it to strict.
       expect(await s.chats.sendHeld({ ...held, send_id: "m2" }, null)).toBeNull();
       await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 2);
       expect((await info())?.turn_cap).toBe("strict");
@@ -317,7 +308,6 @@ describe("the daemon's chats", () => {
       await s.chats.send({ ...base, text: "install it", send_id: "s1" });
       await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
       await new Promise((r) => setTimeout(r, 300));
-      // The agent's next step, in the same turn, read it.
       expect(seen).toContain("use pnpm, not npm");
       expect(kinds(s.pushed).filter((k) => k === "turn_end")).toHaveLength(1);
       expect(asked).toBe(2);
@@ -398,7 +388,6 @@ describe("the daemon's chats", () => {
       expect((await run("remember", "I like tea")).success).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(s.sent[0]).toContain("Please remember this in your memory: I like tea");
-      // A chat this short has nothing old enough to summarise: /compact is accepted and leaves it as it is.
       expect((await run("compact")).success).toBe(true);
       expect((await run("clear")).success).toBe(true);
       await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hello again", images: [], send_id: "x", context: null });
@@ -441,7 +430,6 @@ describe("the daemon's chats", () => {
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
-      // No open: a client that opened the chat before a restart sends straight away.
       s.faux.setResponses([s.reply("still heard")]);
       await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hi", images: [], send_id: "r1", context: null });
       await until(() => kinds(s.pushed).includes("turn_end"));
@@ -525,9 +513,7 @@ describe("the daemon's chats", () => {
       const ids = (await s.chats.moveCandidates("mac-mini")).map((c) => c.conversation_id);
       expect(ids).toContain(followed.conversationId);
       expect(ids).not.toContain(placed.conversationId);
-      // The agent's one main chat goes with it to its new home.
       expect(ids).toContain("default");
-      // Picked on the agent's own home, a chat is not placed: it follows the agent like any other.
       await home("mac-book");
       const atHome = await s.chats.create(agent.id, null, "at home", "mac-book");
       await home("mac-mini");
@@ -582,7 +568,6 @@ describe("the daemon's chats", () => {
       s.faux.setResponses([fauxAssistantMessage("first"), fauxAssistantMessage("back again")]);
       await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hi", images: [], send_id: "s1", context: null });
       await vi.waitFor(() => expect(kinds(s.pushed)).toContain("turn_end"));
-      // It moves away and comes back: this Mac's copy is hidden, then set aside for the one that returns.
       const moved = must((await s.chats.exportChat(agent.id, conversationId)).chat, "the export");
       await s.chats.finishMove(agent.id, conversationId);
       expect(await s.chats.importChat(moved)).toBe(true);

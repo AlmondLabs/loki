@@ -9,7 +9,6 @@ import { CONFLICTS_PATH, applyMemoryBundle, memoryBundle, memoryHead, pendingCon
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-/** git in a repo, as a person would, with a fixed author. */
 const git = (root: string, ...args: string[]) =>
   execFileSync(
     "git",
@@ -33,7 +32,6 @@ const git = (root: string, ...args: string[]) =>
     },
   );
 
-/** A note written and committed. */
 function write(root: string, path: string, text: string): void {
   mkdirSync(join(root, path, ".."), { recursive: true });
   writeFileSync(join(root, path), text);
@@ -41,7 +39,6 @@ function write(root: string, path: string, text: string): void {
   git(root, "commit", "--quiet", "-m", `write ${path}`);
 }
 
-/** Friday's memory on the MacBook (with a first note) and an empty folder for it on the mini. */
 function macs() {
   const dir = mkdtempSync(join(tmpdir(), "loki-memory-sync-"));
   const book = join(dir, "book", "memory");
@@ -53,14 +50,12 @@ function macs() {
   return { dir, book, mini, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-/** The mini takes what the MacBook has that it lacks. */
 async function miniPulls(book: string, mini: string, homeIsHere = false) {
   const have = [await memoryHead(mini), ...(existsSync(join(mini, ".git")) ? [] : [])].filter((x): x is string => !!x);
   const bundle = await memoryBundle(book, have);
   return bundle ? applyMemoryBundle(mini, bundle, { from: BOOK, homeIsHere }) : "unchanged";
 }
 
-/** The MacBook takes what the mini has that it lacks. */
 async function bookPulls(book: string, mini: string, homeIsHere = true) {
   const have = [await memoryHead(book)].filter((x): x is string => !!x);
   const bundle = await memoryBundle(mini, have);
@@ -120,7 +115,6 @@ describe("an agent's memory on two Macs", () => {
       await miniPulls(m.book, m.mini);
       write(m.book, "system/persona.md", "I am Friday, at work.\n");
       write(m.mini, "system/persona.md", "I am Friday, at home.\n");
-      // The MacBook is Friday's home: its text stays.
       expect(await bookPulls(m.book, m.mini, true)).toBe("conflicted");
       const note = readFileSync(join(m.book, "system/persona.md"), "utf8");
       expect(note).toBe("I am Friday, at work.\n");
@@ -130,7 +124,6 @@ describe("an agent's memory on two Macs", () => {
       expect(conflicts).toContain("I am Friday, at home.");
       expect(git(m.book, "status", "--porcelain")).toBe("");
       expect(git(m.book, "log", "-1", "--format=%an")).toBe("Sync\n");
-      // The mini, not the home, takes the merge as it is and ends where the MacBook did.
       expect(await miniPulls(m.book, m.mini)).toBe("merged");
       expect(readFileSync(join(m.mini, "system/persona.md"), "utf8")).toBe("I am Friday, at work.\n");
       expect(readFileSync(join(m.mini, CONFLICTS_PATH), "utf8")).toContain("I am Friday, at home.");

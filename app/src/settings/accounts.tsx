@@ -6,84 +6,47 @@ import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
 import { Block, Fold, Setting } from "./layout";
 import { JiraConnectForm, JiraConnectSetting, type JiraConnect, type JiraForm } from "./jira-connect";
 
-/** The Jira form's shapes and its check, which live with the form; named here too, beside the rest of the page's. */
-
-/**
- * Preferences › Accounts (plan 067, U11): the Gmail mailboxes, Slack workspaces and Jira sites whose mail, messages
- * and ticket events reach the Inbox, each owned by one agent. Connecting asks for the owner first (R2); an account can move to another agent
- * (R3) or be disconnected, and one that stopped working says why and how to get it back (R22).
- */
-
-/** What Preferences › Accounts asks of the daemon about accounts (core/daemon-calls.ts); each call answers, or says why not. */
 export interface AccountsApi {
   list: () => Promise<AccountView[] | string>;
   move: (accountId: string, ownerAgentId: string) => Promise<AccountView[] | string>;
   disconnect: (accountId: string) => Promise<AccountView[] | string>;
-  /**
-   * Google's sign-in page for a mailbox the agent will own, through loki's shared Google app or the person's own; with
-   * `accountId`, for that account here signing in again.
-   */
   connectGmail: (ownerAgentId: string, ownApp: OwnApp | null, accountId?: string | null) => Promise<{ url: string } | string>;
-  /** Without a team, the workspaces signed in to the Slack desktop app; with one, that workspace connected. */
   connectSlack: (ownerAgentId: string, teamId?: string) => Promise<{ workspaces: SlackWorkspaceView[]; account: AccountView | null } | string>;
-  /** A Jira site connected with the person's API token, or connected again when `account_id` names one; answers with the accounts as they now stand. */
   connectJira: (input: JiraConnect) => Promise<AccountView[] | string>;
 }
 
-/** The person's own Google app, used in place of loki's shared one (R20). */
 export interface OwnApp {
   client_id: string;
   client_secret: string;
 }
 
-/** An agent as the owner pickers name it. */
 export interface AgentName {
   id: string;
   name: string;
 }
 
-/**
- * How a disconnected account comes back: Gmail signs that account in again, Slack connects its workspace again, and
- * Jira takes a new API token for the same site. Each service has its own shape, so one can never be sent down
- * another's way.
- */
 export type Reconnect =
   | { provider: "gmail"; owner_agent_id: string; account_id: string; team_id: null }
-  /** `team_id` is the Slack workspace to connect again. */
   | { provider: "slack"; owner_agent_id: string; team_id: string | null }
-  /** `site` is the host the form opens with. */
   | { provider: "jira"; owner_agent_id: string; account_id: string; site: string };
 
-/** One account's row: what it is, who owns it, whether it works, and the way back when it does not. */
 export interface AccountRow {
   account_id: string;
   label: string;
   service: string;
   owner_agent_id: string;
-  /** The owner's name, or a plain line when that agent is gone. */
   owner: string;
   state: string;
   problem: boolean;
   reconnect: Reconnect | null;
-  /**
-   * A connected Google account's sign-in again for the services it has not granted (plan 2026-11-11 scripts, R17), and
-   * their names; null when it has them all, or is not a Google account.
-   */
   more: { reconnect: Reconnect; services: string } | null;
-  /**
-   * A connected Gmail account that has not let loki look in its contacts and directory (plan 2026-11-14-1530, R15):
-   * the line saying agents find people there by address only, which signing in again fixes; null otherwise.
-   */
   people: string | null;
 }
 
-/** What a Gmail row says while its sign-in has not granted contacts (R15). */
 export const PEOPLE_BY_ADDRESS_ONLY = "Agents can find people here only by address until it signs in again for Contacts";
 
-/** The Google services loki asks for, by the words the row uses. */
 const GOOGLE_SERVICE_WORDS: Record<GoogleService, string> = { gmail: "Gmail", drive: "Drive", sheets: "Sheets", docs: "Docs", calendar: "Calendar" };
 
-/** Services as one phrase: "Drive", "Drive and Docs", "Drive, Sheets and Docs"; Contacts last when it is missing too. */
 function servicesWords(services: readonly GoogleService[], contacts = false): string {
   const words = [...services.map((s) => GOOGLE_SERVICE_WORDS[s]), ...(contacts ? ["Contacts"] : [])];
   return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1) ?? ""}`;
@@ -91,26 +54,18 @@ function servicesWords(services: readonly GoogleService[], contacts = false): st
 
 const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 
-/** Every Google service loki asks for, in the order Google's page and the row list them (mod/accounts.ts GOOGLE_SERVICES). */
 const GOOGLE_SERVICES: readonly GoogleService[] = ["gmail", "drive", "sheets", "docs", "calendar"];
 
-/** How often the list is asked again while the page shows: a Gmail sign-in finishes in the browser, and accounts can stop working. */
 const POLL_MS = 3000;
 
-/**
- * Whether connecting can start: an owner must be chosen first, and Slack is read from the desktop app on a Mac only.
- * Gmail and Jira connect on every OS.
- */
 export function connectState(provider: AccountProvider, owner: string | null, os: Platform): { ready: boolean; reason: string | null } {
   if (provider === "slack" && os !== "macos") return { ready: false, reason: notYetOn("Connecting Slack", os) };
   if (!owner) return { ready: false, reason: "Add an agent first: an account belongs to one" };
   return { ready: true, reason: null };
 }
 
-/** The Slack workspace in an account id, `slack:<team_id>:<user_id>`; null for any other. */
 const teamOf = (accountId: string): string | null => /^slack:([^:]+):/.exec(accountId)?.[1] ?? null;
 
-/** The way back for a disconnected account, by its service. */
 function reconnectOf(a: AccountView): Reconnect {
   switch (a.provider) {
     case "gmail":
@@ -122,16 +77,12 @@ function reconnectOf(a: AccountView): Reconnect {
   }
 }
 
-/** What a row's reconnect starts, one way for each service. */
 export interface ReconnectWays {
-  /** Sign the account in again (`accountId`), for its owner. */
   gmail: (ownerId: string, accountId: string) => void;
   slack: (ownerId: string, teamId?: string) => void;
-  /** Open the Jira form for the account, with its site filled in. */
   jira: (form: JiraForm) => void;
 }
 
-/** Start a row's reconnect the way of its own service; every service is named, so a new one cannot fall into another's. */
 export function reconnectVia(r: Reconnect, ways: ReconnectWays): void {
   switch (r.provider) {
     case "gmail":
@@ -143,15 +94,11 @@ export function reconnectVia(r: Reconnect, ways: ReconnectWays): void {
   }
 }
 
-/** The accounts as rows: the owner by name, the state in words, and a reconnect wherever the person can bring it back. */
 export function accountRows(accounts: readonly AccountView[], agents: readonly AgentName[]): AccountRow[] {
   return accounts.map((a) => {
     const cause = a.status === "connected" ? null : a.status.disconnected;
-    // A service failing for now comes back on its own; every other cause needs the person to connect again.
     const reconnect = cause && cause !== "temporarily_failing" ? reconnectOf(a) : null;
-    // An account signed in before loki asked for more than Gmail has granted Gmail alone.
     const missing = a.provider === "gmail" ? GOOGLE_SERVICES.filter((s) => !(a.services ?? ["gmail"]).includes(s)) : [];
-    // Contacts is a grant of its own (KTD7): its line sits apart from the one about the services scripts use.
     const noContacts = a.provider === "gmail" && !cause && (a.contacts ?? []).length === 0;
     const more = !cause && (missing.length > 0 || noContacts) ? { reconnect: reconnectOf(a), services: servicesWords(missing, noContacts) } : null;
     return {
@@ -173,24 +120,20 @@ export function accountRows(accounts: readonly AccountView[], agents: readonly A
   });
 }
 
-/** The own Google app as the sign-in takes it: both fields filled in, trimmed; otherwise null, and loki's shared app is used. */
 export function ownAppOf(clientId: string, clientSecret: string): OwnApp | null {
   const id = clientId.trim();
   const secret = clientSecret.trim();
   return id && secret ? { client_id: id, client_secret: secret } : null;
 }
 
-/** The accounts an agent owns, each to be moved or disconnected before the agent can be deleted (R4, AE5). */
 export function deleteBlockers(accounts: readonly AccountView[], agentId: string): AccountView[] {
   return accounts.filter((a) => a.owner_agent_id === agentId);
 }
 
-/** The agents an account can move to: every one but its owner. */
 export function moveTargets(agents: readonly AgentName[], ownerId: string): AgentName[] {
   return agents.filter((g) => g.id !== ownerId);
 }
 
-/** A choice of agent; empty until one is picked when `placeholder` is given. */
 export function AgentPicker({
   agents,
   value,
@@ -225,7 +168,6 @@ export function AgentPicker({
   );
 }
 
-/** The accounts list, asked again every few seconds while the page shows; `apply` takes any call's answer. */
 function useAccounts(api: AccountsApi) {
   const [accounts, setAccounts] = useState<AccountView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -249,23 +191,14 @@ function useAccounts(api: AccountsApi) {
   return { accounts, error, setError, apply };
 }
 
-/**
- * Preferences › Accounts (plan 068): each account with its service, owner and state, the owner changed in place and
- * "disconnect" on each; then "connect gmail", "connect slack" and "connect jira", with the agent a new account goes to
- * beside them, already set to the first agent. Gmail opens Google's page in the browser; Slack lists the workspaces
- * signed in to its desktop app to pick from; Jira opens a form for the site's address, the person's email and an API
- * token (plan 2026-11-10-1451, U3), which a Jira row's reconnect opens too, with its site filled in.
- */
 export function Accounts({ api, agents, os = platform }: { api: AccountsApi; agents: readonly AgentName[]; os?: Platform }) {
   const { accounts, error, setError, apply } = useAccounts(api);
   const [picked, setOwner] = useState<string | null>(null);
-  // A new account goes to the agent picked, else the first one, so connecting never waits on a choice first.
   const owner = picked && agents.some((g) => g.id === picked) ? picked : (agents[0]?.id ?? null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<{ owner: string; list: SlackWorkspaceView[] } | null>(null);
-  // The Jira form while it is open. The token lives here only until the form closes.
   const [jiraForm, setJiraForm] = useState<JiraForm | null>(null);
 
   const gmail = async (ownerId: string, accountId?: string) => {
@@ -284,7 +217,6 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     }
     setWorkspaces({ owner: ownerId, list: r.workspaces });
   };
-  // A connect on its way: a second press would connect the site again and end in "already connected" under a success.
   const [connecting, setConnecting] = useState(false);
   const reconnect = (r: Reconnect) =>
     reconnectVia(r, {
@@ -299,18 +231,19 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   const slackState = connectState("slack", owner, os);
   return (
     <>
-      <Block
-        title="Accounts"
-        help="Mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as cards in Flow; each account belongs to one agent, which gets its hand-offs and its tools."
-      >
-        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      <Block title="Accounts" help="Mail, Slack and Jira that need you arrive as cards in Flow, and each account belongs to one agent.">
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
         {!accounts && !error && <Setting label="Accounts" help="Asking loki…" />}
         {accounts && rows.length === 0 && <Setting label="None yet" help="Connect a Gmail account, a Slack workspace or a Jira site below." />}
         {rows.map((row) => (
           <AccountLine key={row.account_id} row={row} agents={agents} api={api} apply={apply} onReconnect={reconnect} />
         ))}
       </Block>
-      <Block title="Connect an account" help="A mailbox, a workspace or a Jira site; it goes to the agent below, which you can change on its row later.">
+      <Block title="Connect an account" help="A mailbox, a workspace or a Jira site, given to the agent below.">
         <Setting label="Gmail" help={gmailState.reason ?? "Opens Google's sign-in in your browser."}>
           <Button tone="positive" disabled={!gmailState.ready} onClick={() => owner && void gmail(owner)}>
             Connect Gmail
@@ -352,7 +285,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
       <Fold title="Use your own Google app">
         <Setting
           label="Client id and secret"
-          help="From an OAuth client of your own in Google Cloud, for a desktop app. Filled in, Connect Gmail signs in with it instead of loki's shared app."
+          help="An OAuth client of your own for a desktop app, which Connect Gmail then signs in with instead of loki's shared app."
         />
         <Field value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client ID" placeholder="Client ID" mono />
         <Field
@@ -369,7 +302,6 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   );
 }
 
-/** One account: its label, service, owner and state, with move, disconnect, and reconnect when it stopped working. */
 function AccountLine({
   row,
   agents,
@@ -434,10 +366,6 @@ function AccountLine({
   );
 }
 
-/**
- * Before an agent that owns accounts is deleted (R4, AE5): each of its accounts, to move to another agent or disconnect.
- * Asked again whenever `asked` changes, so a refused delete shows what still stands in the way.
- */
 export function OwnedAccounts({
   api,
   agentId,
@@ -449,7 +377,6 @@ export function OwnedAccounts({
   agentId: string;
   agents: readonly AgentName[];
   asked: number;
-  /** How many accounts the agent still owns here, after each answer. */
   onOwned: (count: number) => void;
 }) {
   const [owned, setOwned] = useState<AccountView[]>([]);
@@ -473,7 +400,11 @@ export function OwnedAccounts({
   if (!owned.length && !error) return null;
   return (
     <div role="group" aria-label="Accounts this agent owns" className="grid gap-2">
-      {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+      {error && (
+        <span role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </span>
+      )}
       {owned.length > 0 && <span>It owns these accounts: move each to another agent or disconnect it first.</span>}
       {accountRows(owned, agents).map((row) => (
         <div key={row.account_id} className="flex flex-wrap items-center gap-2">

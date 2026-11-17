@@ -5,234 +5,230 @@ import type {
   InputHTMLAttributes,
   KeyboardEvent,
   MouseEvent,
+  ReactElement,
   ReactNode,
   Ref,
   TextareaHTMLAttributes,
 } from "react";
-import { forwardRef, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { forwardRef, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
-import { useSheetMotion } from "./sheet-motion";
+import { cx, firstControl } from "./parts";
+import { BottomSheet, PhoneButton, PhoneChip, PhoneIconButton, PhonePopover, PhoneSwitch } from "./phone";
 import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
 import { capitalChildren, capitalFirst } from "../kit/words";
 import { ariaShortcut } from "../shell/keymap";
+import { inLan } from "../desk/env";
+import { Button as UiButton } from "@/ui/button";
+import { Switch as UiSwitch } from "@/ui/switch";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";
+import { Badge } from "@/ui/badge";
+import { Popover as UiPopover, PopoverContent, PopoverTrigger } from "@/ui/popover";
+import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
+import { Dialog, DialogOverlay, DialogPopup, DialogPortal, DialogViewport } from "@/ui/dialog";
+import { SearchIcon } from "lucide-react";
 
-/**
- * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
- * desktop's Slack building blocks (ListRow, ListSection, PaneHeader with its TabRow, EmptyPane).
- * States (hover, focus, active, disabled, pressed, current) live in components/components.css; a call site chooses a size
- * and a tone and never restyles a state. `className` and `style` are the escape hatch for a one-off, and
- * a one-off that repeats becomes a modifier here. Widgets on the sheet keep their own kit (kit/index.tsx).
- */
-
-/**
- * Button tones. The names predate the Slack direction (2026-09-23) and are kept for compatibility:
- * quiet muted ink · paper fg ink · brass the interactive blue (accent ink on a hairline) · positive Slack's
- * green affirmative, filled · negative red ink. "Needs you" is the red attention badge, not a tone.
- */
 export type Tone = "quiet" | "paper" | "brass" | "positive" | "negative";
-/** Control heights: sm 28px (the desktop's default), md 36px, touch 44px (the phone). */
 export type Size = "sm" | "md" | "touch";
 
-const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
-
-/** Sentence case for a label built from an id ("inbox" → "Inbox"); labels are shown as written, never transformed. */
 export const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-/** What Tab can land on inside a sheet. */
-const FOCUSABLE = 'a[href], button, input, textarea, select, summary, [tabindex]:not([tabindex="-1"])';
 
-const BTN_SIZE: Record<Size, string> = { sm: "loki-btn--sm", md: "loki-btn--md", touch: "loki-btn--touch" };
-const BTN_TONE: Record<Tone, string | null> = {
-  quiet: null,
-  paper: "loki-btn--paper",
-  brass: "loki-btn--brass",
-  positive: "loki-btn--positive",
-  negative: "loki-btn--negative",
-};
-
-/** The props of `Button`: the native button's, with a tone, a size, and the hairline, width and shortcut hint options. */
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tone?: Tone;
-  /** sm 28 (desktop default) · md 36 · touch 44 (the phone). */
   size?: Size;
-  /** No hairline: header actions, inline actions. */
   bare?: boolean;
-  /** Fills the row, label left. */
   block?: boolean;
-  /** A shortcut hint after the label, e.g. "⌘↵". */
   kbd?: ReactNode;
 }
 
-/**
- * The button. Coloured text on a hairline, or filled for the affirmative (`positive`). Its label takes a capital and its
- * key is in the tooltip, not on the face (plan 2026-11-12-1505, R7 and R10).
- */
+const phoneMarkup = (size?: Size) => inLan || size === "touch";
+
+const KIND: Record<Tone, "push" | "plain" | "default" | "destructive"> = {
+  quiet: "push",
+  paper: "push",
+  brass: "plain",
+  positive: "default",
+  negative: "destructive",
+};
+const BARE_INK: Record<Tone, string> = {
+  quiet: "text-muted-foreground",
+  paper: "text-foreground",
+  brass: "text-loki-accent",
+  positive: "text-loki-accent",
+  negative: "text-destructive",
+};
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", title, ...rest },
   ref,
 ) {
   const keyTip = kbd != null && typeof kbd === "string" ? kbd : null;
+  const tip = keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title;
+  const shortcut = keyTip ? ariaShortcut(keyTip) : undefined;
+  if (phoneMarkup(size))
+    return (
+      <PhoneButton
+        ref={ref}
+        type={type}
+        tone={tone}
+        size={size}
+        bare={bare}
+        block={block}
+        className={className}
+        title={tip}
+        aria-keyshortcuts={shortcut}
+        {...rest}
+      >
+        {children}
+      </PhoneButton>
+    );
+  const variant = bare && tone !== "positive" ? "ghost" : KIND[tone];
   return (
-    <button
+    <UiButton
       ref={ref}
       type={type}
-      className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
-      title={keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title}
-      aria-keyshortcuts={keyTip ? ariaShortcut(keyTip) : undefined}
+      variant={variant}
+      size={size === "md" ? "default" : "sm"}
+      className={cx(bare && tone !== "positive" && BARE_INK[tone], block && "w-full justify-start text-left whitespace-normal", className)}
+      title={tip}
+      aria-keyshortcuts={shortcut}
       {...rest}
     >
       {capitalChildren(children)}
-    </button>
+    </UiButton>
   );
 });
 
-/** The props of `IconButton`: a glyph button that needs an accessible label in place of children text. */
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
-  /** The accessible name; also the tooltip unless `title` is given. */
   label: string;
-  /** Square side in px: 24 (in a header line), 28 (beside a field), 36 (the rail), 40 (a thumb). */
   size?: 24 | 28 | 36 | 40;
   tone?: Tone;
-  /** Keep the hairline (a standalone glyph button, not one in a header line). */
   hairline?: boolean;
-  /** Destroys something: goes red on hover. */
   danger?: boolean;
   children: ReactNode;
 }
 
-/** A glyph in a square, no hairline until hovered. */
+const ICON_SIZE = { 24: "icon-xs", 28: "icon-sm", 36: "icon", 40: "icon-lg" } as const;
+
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
   { label, size = 28, tone = "quiet", hairline, danger, className, style, type = "button", title, ...rest },
   ref,
 ) {
+  if (inLan)
+    return (
+      <PhoneIconButton
+        ref={ref}
+        type={type}
+        label={label}
+        size={size}
+        tone={tone}
+        hairline={hairline}
+        danger={danger}
+        className={className}
+        style={style}
+        title={title}
+        {...rest}
+      />
+    );
   return (
-    <button
+    <UiButton
       ref={ref}
       type={type}
       aria-label={label}
       title={title ?? label}
-      className={cx("loki-btn", !hairline && "loki-btn--bare", "loki-btn--icon", BTN_TONE[tone], danger && "loki-btn--danger", className)}
-      style={{ width: size, height: size, ...style }}
+      variant={hairline ? "push" : "ghost"}
+      size={ICON_SIZE[size]}
+      className={cx(!hairline && BARE_INK[tone], danger && "hover:text-destructive", className)}
+      style={style}
       {...rest}
     />
   );
 });
 
-/** A page down the left of Settings or Agents; `current` marks the one showing. */
 export function NavButton({ current, className, type = "button", ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { current: boolean }) {
   return <button type={type} aria-current={current ? "page" : undefined} className={cx("loki-nav", className)} {...rest} />;
 }
 
-/** The props of `Chip`: the native button's, with the chosen, blue-pick, attention and static looks. */
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** The button, for a host that hands focus back to it (the model pill). */
   ref?: Ref<HTMLButtonElement>;
-  /** Neutral when chosen. */
   active?: boolean;
-  /** The blue pick: accent ink on a blue wash (a chosen agent, an open permission mode). */
   brass?: boolean;
-  /** Needs you: the red filled badge (unread, waiting counts). */
   attention?: boolean;
-  /** A status colour of its own (a token), for badges. */
   tone?: string;
-  /** Reads only: renders a span, no hover. */
   static?: boolean;
   touch?: boolean;
-  /** A name chip: a touch bolder (was condensed caps until 2026-09-23). */
   label?: boolean;
-  /** Floating over content: opaque, low shadow. */
   float?: boolean;
-  /** A tag inside a meta line: as tall as the line. */
   tag?: boolean;
 }
 
-/** A pill: a filter, a choice, a badge. Sans 12. */
-export function Chip({
-  active,
-  brass,
-  attention,
-  tone,
-  static: isStatic,
-  touch,
-  label,
-  float,
-  tag,
-  className,
-  style,
-  children,
-  type = "button",
-  ...rest
-}: ChipProps) {
-  const cls = cx(
-    "loki-chip",
-    active && "loki-chip--active",
-    brass && "loki-chip--brass",
-    attention && "loki-chip--attention",
-    tone && "loki-chip--tone",
-    (isStatic || tone) && "loki-chip--static",
-    touch && "loki-chip--touch",
-    label && "loki-chip--label",
-    float && "loki-chip--float",
-    tag && "loki-chip--tag",
+export function Chip(props: ChipProps) {
+  if (inLan || props.touch) return <PhoneChip {...props} />;
+  const { active, brass, attention, tone, static: isStatic, touch: _touch, label, float, tag, className, style, children, type = "button", ...rest } = props;
+  const look = cx(
+    "h-6 px-2 font-normal",
+    (active || brass || attention) && "font-semibold",
+    label && "font-semibold",
+    tag && "h-auto py-px",
+    float && "bg-loki-panel shadow-low",
+    !isStatic && !tone && "cursor-pointer hover:brightness-110 disabled:cursor-default disabled:opacity-50",
     className,
   );
-  const st = tone ? ({ "--chip-tone": tone, ...style } as CSSProperties) : style;
+  const variant = active || brass || attention ? "default" : "secondary";
+  const toned = tone ? { color: tone, ...style } : style;
   if (isStatic || tone) {
     const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
     return (
-      <span className={cls} style={st} {...span}>
+      <Badge variant={variant} className={look} style={toned} {...span}>
         {children}
-      </span>
+      </Badge>
     );
   }
   return (
-    <button type={type} className={cls} style={st} {...rest}>
+    <Badge variant={variant} className={look} style={toned} render={<button type={type} />} {...rest}>
       {children}
-    </button>
+    </Badge>
   );
 }
 
 interface FieldMods {
-  /** sm 28 · md 32 (default) · touch 44 with 15px type. */
   size?: Size;
   mono?: boolean;
-  /** The first line of a sheet: no box, a hairline below. */
   bare?: boolean;
-  /** Editable text that shows its box on hover and focus. */
   inline?: boolean;
 }
 const FIELD_SIZE: Record<Size, string | null> = { sm: "loki-field--sm", md: null, touch: "loki-field--touch" };
 const fieldClass = ({ size = "md", mono, bare, inline }: FieldMods, className?: string) =>
   cx("loki-field", FIELD_SIZE[size], mono && "loki-field--mono", bare && "loki-field--bare", inline && "loki-field--inline", className);
 
-/** `size` is ours (the native character-count attribute is never used here). */
 export type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & FieldMods;
-/** A text input on the well. */
-export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ size, mono, bare, inline, className, ...rest }, ref) {
-  return <input ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} {...rest} />;
+export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ size, mono, bare, inline, className, style, ...rest }, ref) {
+  if (rest.type === "search" && !inLan && !bare && !inline && size !== "touch")
+    return (
+      <InputGroup className={cx("h-7 rounded-full border-transparent bg-loki-hover dark:bg-loki-hover", className)} style={style}>
+        <InputGroupAddon className="pl-3 text-muted-foreground">
+          <SearchIcon aria-hidden className="size-3.5" />
+        </InputGroupAddon>
+        <InputGroupInput ref={ref} className={cx("text-sm", mono && "font-mono")} {...rest} />
+      </InputGroup>
+    );
+  return <input ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} style={style} {...rest} />;
 });
 
-/** The props of `TextArea`: the native textarea's with the field's size and look options. */
 export type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & FieldMods;
-/** A textarea on the well; never resizable by hand (the layout owns its height). */
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea({ size, mono, bare, inline, className, ...rest }, ref) {
   return <textarea ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} {...rest} />;
 });
 
-/** The props of `Row`: the native button's, with the selected, dense, touch and flush looks. */
 export interface RowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean;
-  /** 6px radius, tighter padding: options in a picker. */
   dense?: boolean;
   touch?: boolean;
-  /** One of several inside a bordered group: square, a hairline between neighbours. */
   flush?: boolean;
 }
 
-/** A pickable line in a list. Neutral tints on hover and when selected; never the accent or the badge. */
 export const Row = forwardRef<HTMLButtonElement, RowProps>(function Row({ selected, dense, touch, flush, className, type = "button", ...rest }, ref) {
   return (
     <button
@@ -245,26 +241,16 @@ export const Row = forwardRef<HTMLButtonElement, RowProps>(function Row({ select
   );
 });
 
-/** The props of `Sheet`, loki's one dialog: its name, how it closes, its size and where it sits. */
 export interface SheetProps {
-  /** The dialog's accessible name. */
   label: string;
-  /** Escape and a click on the veil call this; leave it out for a sheet that cannot be dismissed (Welcome). */
   onClose?: () => void;
-  /** Pixels, or any CSS length ("min(1000px, 92vw)" for Preferences). */
   width?: number | string;
-  /** A fixed height (any CSS length), for a sheet laid out as a window rather than grown by its content; it also lifts the 84vh cap. */
   height?: number | string;
-  /** Distance from the top of the window; "bottom" docks the sheet to the bottom edge (the phone). */
   top?: string;
   placement?: "top" | "bottom";
-  /** Let a tall sheet scroll the veil instead of clipping (Welcome). */
   scroll?: boolean;
-  /** Stacking; LAYER.modal unless it can open over another sheet. */
   zIndex?: number;
-  /** Escape closes by default; pass false when the sheet handles keys itself. */
   escape?: boolean;
-  /** Nothing dims behind it: a floating panel (the model switcher) that a click outside still closes. */
   clear?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -272,19 +258,21 @@ export interface SheetProps {
   children: ReactNode;
 }
 
-/**
- * A modal sheet over a veil: aria-modal, Escape and a click on the veil close it, and focus returns to
- * where it was when the sheet closes. (A Tab loop inside the sheet is the next step; see docs/design.md.)
- * A bottom sheet (the phone's) is drawn at the phone shell's root, above the screen it covers so that
- * screen can recede under it, and moves as an iOS sheet does (sheet-motion.ts).
- */
-export function Sheet({
+export function Sheet(props: SheetProps) {
+  return props.placement === "bottom" ? <BottomSheet {...props} /> : <DialogSheet {...props} />;
+}
+
+export function sheetCloses(reason: string, { canClose, escape }: { canClose: boolean; escape: boolean }): boolean {
+  if (!canClose) return false;
+  return reason !== "escape-key" || escape;
+}
+
+function DialogSheet({
   label,
   onClose,
   width = 560,
   height,
   top,
-  placement = "top",
   scroll,
   zIndex = LAYER.modal,
   escape = !!onClose,
@@ -294,126 +282,101 @@ export function Sheet({
   cardProps,
   children,
 }: SheetProps) {
-  const opener = useRef<Element | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
-  const veilRef = useRef<HTMLDivElement>(null);
-  const bottom = placement === "bottom";
-  const shell = bottom && typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
-  useSheetMotion(veilRef, cardRef, onClose, !!shell);
-  // Opened by a click it fades and rises; opened by a key (search, the keys sheet) it is simply there.
-  // A bottom sheet always rises: on the phone the finger is what opened it.
-  const [grows] = useState(() => bottom || lastInput() === "pointer");
-  useEffect(() => {
-    opener.current = document.activeElement;
-    // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
-    const card = cardRef.current;
-    if (card && !card.contains(document.activeElement)) {
-      // The first control in the tab order: one taken out of it (⌘K's scope chip ×) is for the pointer, not for focus.
-      const first =
-        card.querySelector<HTMLElement>("[autofocus]") ??
-        [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => el.tabIndex >= 0 && !el.hasAttribute("disabled")) ??
-        null;
-      // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
-      // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
-      (first ?? card).focus({ preventScroll: true });
-    }
-    return () => {
-      const el = opener.current;
-      if (el instanceof HTMLElement && document.contains(el)) el.focus({ preventScroll: true });
-    };
-  }, []);
-  const sheet = (
-    <div
-      ref={veilRef}
-      className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom", clear && "loki-veil--clear")}
-      data-sheet
-      data-grow={grows || undefined}
-      style={{ zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-      onKeyDown={(e) => {
-        if (escape && onClose && e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        } else if (e.key === "Tab" && !e.defaultPrevented) {
-          // Focus stays inside the sheet: from the last control Tab wraps to the first, and back.
-          const card = cardRef.current;
-          if (!card) return;
-          const stops = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-            (el) => !el.hasAttribute("disabled") && el.tabIndex >= 0 && el.getClientRects().length > 0,
-          );
-          if (stops.length === 0) return;
-          const first = stops[0];
-          const last = stops[stops.length - 1];
-          const active = document.activeElement;
-          if (e.shiftKey && (active === first || active === card)) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && active === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
+  const [grows] = useState(() => lastInput() === "pointer");
+  const viewportStyle = { zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) };
+  return (
+    <Dialog
+      open
+      disablePointerDismissal={!onClose}
+      onOpenChange={(open, details) => {
+        if (!open && onClose && sheetCloses(details.reason, { canClose: true, escape })) onClose();
       }}
     >
-      <div
-        ref={cardRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        data-grow={grows || undefined}
-        className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)}
-        style={{ width: placement === "bottom" ? undefined : width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }}
-        {...cardProps}
-      >
-        {children}
-      </div>
-    </div>
+      <DialogPortal>
+        <DialogOverlay className={cx("loki-sheet-veil", clear && "loki-sheet-veil--clear")} data-grow={grows || undefined} style={{ zIndex }} />
+        <DialogViewport className={cx("loki-sheet-viewport", scroll && "loki-sheet-viewport--scroll")} style={viewportStyle}>
+          <DialogPopup
+            ref={cardRef}
+            aria-modal="true"
+            aria-label={label}
+            initialFocus={() => (cardRef.current && firstControl(cardRef.current)) ?? true}
+            data-grow={grows || undefined}
+            className={cx("loki-sheet", "loki-sheet-card", className)}
+            style={{ width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }}
+            {...cardProps}
+          >
+            {children}
+          </DialogPopup>
+        </DialogViewport>
+      </DialogPortal>
+    </Dialog>
   );
-  return shell ? createPortal(sheet, shell) : sheet;
 }
 
-/** The props of `Popover`: a div's, with the edge and side it hangs from, its width, and whether it opens without growing. */
-export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
-  /** Which edge of the anchor it hangs from. */
+export interface PopoverProps extends Omit<HTMLAttributes<HTMLDivElement>, "role"> {
+  trigger: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  role: "dialog" | "menu";
+  "aria-label": string;
   anchor?: "left" | "right";
-  /** Below the anchor line (the default) or above it, for chips along a panel's bottom. */
   side?: "below" | "above";
   width?: number;
-  /** Appears at once, never grows: a palette that opens as you type. */
-  instant?: boolean;
+  initialFocus?: () => HTMLElement | null | undefined;
+  touch?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
-/**
- * A small panel hung from a line of chips: the model picker, the mode menu. Stacks inside its component.
- * Opened by a click it grows out of the corner it hangs from, quickly (components.css); opened by a key it
- * is simply there, as anything a key starts is.
- */
-export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover(
-  { anchor = "left", side = "below", width = 320, instant = false, className, style, onPointerDown, ...rest },
+export function Popover({
+  trigger,
+  open,
+  onOpenChange,
+  anchor = "left",
+  side = "below",
+  width = 320,
+  initialFocus,
+  touch,
   ref,
-) {
-  const [grows] = useState(() => !instant && lastInput() === "pointer");
+  className,
+  style,
+  ...rest
+}: PopoverProps) {
+  const grows = open && lastInput() === "pointer";
+  if (inLan || touch)
+    return (
+      <PhonePopover
+        trigger={trigger}
+        open={open}
+        onOpenChange={onOpenChange}
+        anchor={anchor}
+        side={side}
+        width={width}
+        initialFocus={initialFocus}
+        ref={ref}
+        className={className}
+        style={style}
+        grows={grows}
+        {...rest}
+      />
+    );
   return (
-    <div
-      ref={ref}
-      className={cx("loki-popover", side === "above" && "loki-popover--above", className)}
-      data-grow={grows || undefined}
-      style={{ [anchor]: 8, width, transformOrigin: `${side === "above" ? "bottom" : "top"} ${anchor}`, ...style }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        onPointerDown?.(e);
-      }}
-      {...rest}
-    />
+    <UiPopover open={open} onOpenChange={(next) => onOpenChange(next)}>
+      <PopoverTrigger render={trigger} aria-haspopup={rest.role} />
+      <PopoverContent
+        ref={ref}
+        side={side === "above" ? "top" : "bottom"}
+        align={anchor === "right" ? "end" : "start"}
+        sideOffset={6}
+        initialFocus={initialFocus ? () => initialFocus() ?? true : true}
+        className={cx("loki-popover loki-popover--anchored gap-0 p-0", !grows && "data-open:animate-none", className)}
+        style={{ width, ...style }}
+        {...rest}
+      />
+    </UiPopover>
   );
-});
+}
 
-/** A shortcut hint: mono (keys are data), muted, hairlined. */
 export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLSpanElement>) {
   return (
     <span aria-hidden className={cx("loki-kbd", className)} {...rest}>
@@ -422,17 +385,14 @@ export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLSpanEle
   );
 }
 
-/** Meta: agent, time, model — sans 12, muted. `brass` (kept name) tints it the accent blue, `negative` the red ink for a small error; `wrap` for a sentence. */
 export function Meta({ brass, negative, wrap, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { brass?: boolean; negative?: boolean; wrap?: boolean }) {
   return <span className={cx("loki-meta", brass && "loki-meta--brass", negative && "loki-meta--negative", wrap && "loki-meta--wrap", className)} {...rest} />;
 }
 
-/** A section's title: sans bold 17; `page` for the one title on a view (22). */
 export function Title({ page, className, ...rest }: HTMLAttributes<HTMLDivElement> & { page?: boolean }) {
   return <div className={cx("loki-title", page && "loki-title--page", className)} {...rest} />;
 }
 
-/** The status dot, coloured by the caller: attention red filled waits on you, a ring finished unread, muted ring running, negative failed. */
 export function Dot({
   size = 6,
   color,
@@ -447,7 +407,7 @@ export function Dot({
   color: string;
   ring?: boolean;
   pulse?: boolean;
-  /** A panel-coloured ring, to sit on an icon. */ halo?: boolean;
+  halo?: boolean;
 }) {
   return (
     <span
@@ -458,7 +418,6 @@ export function Dot({
   );
 }
 
-/** Nothing here yet, said usefully: a title, a line that says what would put something here, an action. */
 export function Empty({ title, children, card, className, ...rest }: HTMLAttributes<HTMLDivElement> & { title: ReactNode; card?: boolean }) {
   return (
     <div className={cx("loki-empty", card && "loki-empty--card", className)} {...rest}>
@@ -468,7 +427,6 @@ export function Empty({ title, children, card, className, ...rest }: HTMLAttribu
   );
 }
 
-/** On the phone a banner slides back up where it came from as it goes (it slides down as it comes, phone.css); the desktop's just goes. */
 const bannerLeave = (el: HTMLElement) =>
   el.closest(".loki-phone")
     ? [
@@ -477,7 +435,6 @@ const bannerLeave = (el: HTMLElement) =>
       ]
     : null;
 
-/** A line across the top of a surface: the Mac is unreachable, an update is ready. Tone is a dot, not a stripe. */
 export function Banner({ tone = "var(--loki-negative)", children, className, ...rest }: HTMLAttributes<HTMLDivElement> & { tone?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useLeave(ref, bannerLeave, 220);
@@ -489,12 +446,6 @@ export function Banner({ tone = "var(--loki-negative)", children, className, ...
   );
 }
 
-/**
- * The window's notices (Sonner): one stack at the top right, under the window's top bar, in loki's colours
- * (components.css .loki-notices),
- * over everything but a sheet. Mounted once, by the shell; `notify` shows one from anywhere: a line that goes after
- * four seconds, or one that stays with its buttons (`duration: Infinity`, `action`, `cancel`).
- */
 export function Notices() {
   return (
     <Toaster
@@ -509,13 +460,8 @@ export function Notices() {
   );
 }
 
-/** Show a notice (Sonner's `toast`): see `Notices`. */
 export const notify = toast;
 
-/**
- * An on/off switch with its label: Preferences › Phone (the listener), Preferences › Keyboard shortcuts (⌥Space). `hideLabel` keeps the
- * label for a screen reader only, where the setting's name already stands beside it.
- */
 export function Switch({
   on,
   onToggle,
@@ -529,66 +475,18 @@ export function Switch({
   small?: boolean;
   hideLabel?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={hideLabel ? label : undefined}
-      onClick={onToggle}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        background: "transparent",
-        border: "none",
-        padding: 0,
-        cursor: "pointer",
-        color: on ? "var(--loki-fg)" : "var(--loki-muted)",
-        fontSize: small ? "var(--text-xs)" : "var(--text-sm)",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 28,
-          height: 16,
-          borderRadius: "var(--loki-radius-pill)",
-          background: on ? "var(--loki-accent)" : "var(--loki-control-border)",
-          position: "relative",
-          transition: "background 160ms ease-out",
-          flex: "0 0 auto",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 2,
-            left: 2,
-            width: 12,
-            height: 12,
-            borderRadius: "var(--radius-md)",
-            background: on ? "var(--loki-bg)" : "var(--loki-muted)",
-            transform: on ? "translateX(12px)" : "none",
-            transition: "transform 160ms ease-out, background-color 160ms ease-out",
-          }}
-        />
-      </span>
-      {!hideLabel && label}
-    </button>
-  );
+  if (!inLan)
+    return (
+      <label className={cx("inline-flex cursor-pointer items-center gap-2", small ? "text-xs" : "text-sm", on ? "text-foreground" : "text-muted-foreground")}>
+        <UiSwitch checked={on} onCheckedChange={() => onToggle()} aria-label={hideLabel ? label : undefined} size={small ? "sm" : "default"} />
+        {!hideLabel && label}
+      </label>
+    );
+  return <PhoneSwitch on={on} onToggle={onToggle} label={label} small={small} hideLabel={hideLabel} />;
 }
 
-// ---- Slack building blocks (plan 013) ---------------------------------------------------------------
-
-/** "99+" past two digits, as the rail's and the phone's badges do. */
 export const countText = (n: number): string => (n > 99 ? "99+" : String(n));
 
-/**
- * A row's state in words, for the screen reader and for anyone who cannot tell the red badge or the bold
- * title apart: "unread, 3 waiting, working". A `note` says more than "unread" and takes its place ("viewed, not done").
- * Empty when there is nothing to say.
- */
 export function rowStatus({
   unread,
   badge,
@@ -605,7 +503,6 @@ export function rowStatus({
   return [note || (unread && "unread"), badge != null && badge > 0 && `${countText(badge)} ${badgeNoun}`, live && "working"].filter(Boolean).join(", ");
 }
 
-/** An icon in the avatar's place: the # before a desk, the archive box. */
 export function ListIcon({ name }: { name: IconName }) {
   return (
     <span aria-hidden className="loki-list-icon">
@@ -614,62 +511,30 @@ export function ListIcon({ name }: { name: IconName }) {
   );
 }
 
-/**
- * The props of `ListRow`, the one row the sidebars and list-and-detail lists draw: its lead, title and preview, the
- * badge and status marks, and its open, menu and row actions.
- */
 export interface ListRowProps {
-  /** The start: an agent's face (AgentFace at 20) or a ListIcon. */
   lead?: ReactNode;
   title: ReactNode;
-  /** One muted line under the title. Sidebar rows leave it out; list-and-detail lists (agents, learn) use it. */
   preview?: ReactNode;
-  /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
   time?: string | null;
-  /** Needs you: a red count pill when above zero. */
   badge?: number | null;
-  /** What the count counts, in words ("3 waiting"). */
   badgeNoun?: string;
-  /** Bold title in full ink: something in it is new. */
   unread?: boolean;
-  /** Words for the row's reading that say more than "unread" and replace it (the desk sidebar: "viewed, not done"). */
   note?: string;
-  /** The agent is working: a green dot at the lead's corner (or before the title) and "working" in words. */
   live?: boolean;
-  /**
-   * The working dot sits on the right, in the badge's place (a badge outranks it), rather than on the lead: rows whose
-   * marks line up in one column (the Chats sidebar).
-   */
   liveAtEnd?: boolean;
-  /** The row whose detail is open (aria-current="page"). */
   current?: boolean;
-  /** Drawn quieter: an archived desk. */
   dim?: boolean;
-  /** Small marks after the title, e.g. the pin. */
   flags?: ReactNode;
-  /** The row button's accessible name; the visible text and the status words when omitted. */
   label?: string;
   onOpen: () => void;
-  /** A right-click or the context-menu key: the row's menu (pin, archive…). */
   onMenu?: (e: MouseEvent<HTMLButtonElement>) => void;
-  /** Buttons at the right edge, shown while the row is hovered or holds focus (Slack's row actions). */
   actions?: ReactNode;
-  /** `data-launch`, so a caller can hand focus back to this row. */
   launch?: string;
-  /** `data-row`: the item's id, so a list with a roving tab stop can find the row to focus (shell/content-list.tsx). */
   rowId?: string;
-  /** The row button's tab stop: -1 on every row of a roving list but the one Tab lands on. */
   tabIndex?: number;
-  /** Keys on the row button itself, for a list that takes its own arrows (shell/content-list.tsx). */
   onKeyDown?: (e: KeyboardEvent<HTMLButtonElement>) => void;
 }
 
-/**
- * One row of a desktop list, Slack's anatomy: the lead, the title (bold when unread) over an optional
- * preview, and on the right the time (on the title's line) or the red badge. The whole row is one button;
- * `actions` sit beside it, not inside, so they are their own tab stops. Goes inside a ListSection or a
- * `<ul className="loki-list">`.
- */
 export function ListRow({
   lead,
   title,
@@ -695,7 +560,6 @@ export function ListRow({
 }: ListRowProps) {
   const count = badge != null && badge > 0 ? badge : null;
   const status = rowStatus({ unread, badge: count, badgeNoun, live, note });
-  // The badge springs in when something new needs you (its count goes up), not when the list first draws.
   const [shown, setShown] = useState(count);
   const [pops, setPops] = useState(0);
   if (shown !== count) {
@@ -703,8 +567,6 @@ export function ListRow({
     if (count !== null && (shown === null || count > shown)) setPops((n) => n + 1);
   }
   const liveDot = live && !liveAtEnd ? <span aria-hidden className="loki-list-row-live" /> : null;
-  // The time sits on the name line, so a row with a preview shows it at the top as Mail does; a badge or the live
-  // mark at the end takes its place at the row's right edge instead.
   const showTime = count === null && !(live && liveAtEnd) && !!time;
   return (
     <li className="loki-list-item" data-dim={dim || undefined} data-current={current || undefined}>
@@ -757,11 +619,6 @@ export function ListRow({
   );
 }
 
-/**
- * A sidebar section, Slack's: a chevron that folds it (`open` + `onToggle`), an optional icon, the title, a
- * quiet count, and header actions on the right (new desk, a section menu). Folded, the list is not rendered
- * and the toggle says so with aria-expanded. Without `onToggle` the heading is plain text.
- */
 export function ListSection({
   title,
   icon,
@@ -775,10 +632,8 @@ export function ListSection({
 }: {
   title: string;
   icon?: IconName;
-  /** A face before the title in place of an icon (an agent's, on its section). */
   face?: ReactNode;
   count?: number | null;
-  /** Quiet words at the head's right, before the actions (the Mac an agent lives on). */
   aside?: ReactNode;
   open?: boolean;
   onToggle?: () => void;
@@ -813,20 +668,13 @@ export function ListSection({
   );
 }
 
-/** One tab of a TabRow. */
 export interface Tab<T extends string = string> {
   id: T;
   label: string;
   icon?: IconName;
-  /** A quiet count after the label (files, cards). */
   count?: number | null;
 }
 
-/**
- * A row of tabs under a pane header, Slack's Messages | Canvas | Files: the chosen one in full ink over a
- * 2px rule. An ARIA tablist with a roving tab stop: Tab lands on the chosen tab, the arrow keys, Home and
- * End move and choose. `panelId` names the panel each tab controls, when the host gives it an id.
- */
 export function TabRow<T extends string>({
   label,
   tabs,
@@ -840,75 +688,53 @@ export function TabRow<T extends string>({
   onChange: (id: T) => void;
   panelId?: (id: T) => string;
 }) {
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const at = tabs.findIndex((t) => t.id === current);
-    const to = e.key === "ArrowRight" ? at + 1 : e.key === "ArrowLeft" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
-    if (to === null || tabs.length === 0) return;
-    e.preventDefault();
-    const next = tabs[(to + tabs.length) % tabs.length];
-    onChange(next.id);
-    e.currentTarget.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus();
-  };
   return (
-    <div role="tablist" aria-label={label} className="loki-tabs" onKeyDown={onKeyDown}>
-      {tabs.map((t) => {
-        const on = t.id === current;
-        return (
-          <button
+    <Tabs
+      value={current}
+      onValueChange={(value: unknown) => {
+        const next = tabs.find((t) => t.id === value);
+        if (next) onChange(next.id);
+      }}
+      className="contents"
+    >
+      <TabsList aria-label={label} activateOnFocus className="loki-tabs h-auto gap-0.5 rounded-full p-0.5">
+        {tabs.map((t) => (
+          <TabsTrigger
             key={t.id}
-            type="button"
-            role="tab"
-            data-tab={t.id}
-            aria-selected={on}
-            tabIndex={on ? 0 : -1}
+            value={t.id}
             aria-controls={panelId?.(t.id)}
-            className="loki-tab"
-            onClick={() => onChange(t.id)}
+            className="loki-tab flex-none gap-2 rounded-full px-3 dark:data-active:border-transparent"
           >
             {t.icon && <Icon name={t.icon} size={14} />}
             {t.label}
             {t.count != null && t.count > 0 && <span className="loki-tab-count">{countText(t.count)}</span>}
-          </button>
-        );
-      })}
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
 
-/** The props of `PaneHeader`: the title line's parts, optional tab views and the trailing symbols. */
 export interface PaneHeaderProps<T extends string = string> {
   title: ReactNode;
-  /** Before the title: a # icon or the agent's face. */
   lead?: ReactNode;
-  /** A quiet line beside the title: the agent and its live state. */
   aside?: ReactNode;
-  /** A quiet line under the title, such as the chat's purpose; omitted, there is none. */
   subtitle?: ReactNode;
-  /** On the right: the pane's actions (IconButtons, a menu). */
   actions?: ReactNode;
-  /**
-   * The tab views, centred in the toolbar between the title and the trailing symbols (plan 2026-11-14-1330, KTD11);
-   * omitted, the title has the line to itself.
-   */
   tabs?: ReadonlyArray<Tab<T>>;
   tab?: T;
   onTab?: (id: T) => void;
-  /** The tablist's name, e.g. "Desk views". */
   tabsLabel?: string;
   panelId?: (id: T) => string;
-  /** The title's id, so the pane can be labelled by it. */
   titleId?: string;
-  /** A whole line drawn in place of the lead, title, aside and actions: the chat pane's item header (plan 097). */
   line?: ReactNode;
-  /** At the trailing edge, after the tabs: Liquid Glass's toolbar items (plan 2026-11-12-1505, U13). */
   trailing?: ReactNode;
 }
 
-/**
- * The detail's toolbar, one band as Mail's: the name over its grey line, the tab views centred, the symbols at the
- * trailing edge. The trailing side is always there, even empty, so it can leave room for the Update button the shell
- * lays over the detail's top right (plan 2026-11-14-1330, U4).
- */
+export function LeadRoom() {
+  return <span aria-hidden className="loki-lead-room" />;
+}
+
 export function PaneHeader<T extends string>({
   title,
   lead,
@@ -926,8 +752,8 @@ export function PaneHeader<T extends string>({
 }: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
-      {/* The name line drags the window in the app (the native title bar is hidden); its buttons still click. */}
       <div className="loki-pane-header-line" data-tauri-drag-region="deep">
+        <LeadRoom />
         {line ?? (
           <>
             {lead && <span className="loki-pane-header-lead">{lead}</span>}
@@ -946,7 +772,6 @@ export function PaneHeader<T extends string>({
   );
 }
 
-/** A pane with nothing chosen or nothing in it: centred in the space, an optional icon over the Empty title and line. */
 export function EmptyPane({ icon, title, children, className, ...rest }: HTMLAttributes<HTMLDivElement> & { icon?: IconName; title: ReactNode }) {
   return (
     <div className={cx("loki-empty-pane", className)} {...rest}>

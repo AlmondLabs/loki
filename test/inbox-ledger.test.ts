@@ -8,8 +8,6 @@ import { accountFrames } from "../mod/frames/accounts.ts";
 import { InboxLedger } from "../mod/inbox-ledger.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
-/** The ledger of the person's moves on outside cards (plan 069): what they did, with what each thread was. */
-
 const MAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";
 const JIRA = "jira:acme.atlassian.net:acc-me";
@@ -58,7 +56,6 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   ...over,
 });
 
-/** A ledger in a fresh folder over the given accounts and threads, on a fixed clock. */
 function ledgerWith(records: Array<[string, ThreadRecord]>, maxBytes?: number) {
   const dir = mkdtempSync(join(tmpdir(), "loki-ledger-"));
   dirs.push(dir);
@@ -179,7 +176,6 @@ describe("the ledger of moves", () => {
 });
 
 describe("the move frame", () => {
-  /** The account frames on a bridge with a ledger that records what it is given; each frame's last answer. */
   function ask(withLedger = true) {
     const kept: unknown[] = [];
     const ledger = {
@@ -203,7 +199,6 @@ describe("the move frame", () => {
     await send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", action: "next", via: "key", dwell_ms: 1200.4 });
     await send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", action: "handoff", via: "elbow", dwell_ms: -3 });
     const bare = { return_at: null, labels: null, picked: false, after_reply: null };
-    // A move from before plan 070 (Next, no return time, labels or pick) still reads.
     expect(kept).toEqual([
       { accountId: MAIL, threadId: "t1", move: { action: "next", via: "key", dwell_ms: 1200, ...bare } },
       { accountId: MAIL, threadId: "t1", move: { action: "handoff", via: null, dwell_ms: null, ...bare } },

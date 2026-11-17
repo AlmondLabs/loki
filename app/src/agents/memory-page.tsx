@@ -6,11 +6,6 @@ import type { AgentDetails } from "./types";
 import type { ReadingState } from "./use-reading";
 import type { MemoryFile } from "../../../core/frame-types.ts";
 
-/**
- * The Memory page's items, the list's rows (plan 2026-11-14-1330, KTD9): the agent's memory files, flat, each under the
- * folder it sits in and named by the rest of its path, with when it last changed. The skills have their own page and
- * the face is the profile's, so both are left out. An outline of the folders is for later.
- */
 export function memoryRows(files: readonly MemoryFile[]): ContentRow[] {
   return files
     .filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")
@@ -26,10 +21,6 @@ export function memoryRows(files: readonly MemoryFile[]): ContentRow[] {
     });
 }
 
-/**
- * The Memory page's detail: the file chosen in the list, read. Memory is read-only here: to change a fact you hand the
- * request to the agent in its own chat.
- */
 export function MemoryPage({
   d,
   selected,
@@ -54,7 +45,7 @@ export function MemoryPage({
         <span className="flex-1" />
         <Button
           size="sm"
-          tone="brass"
+          tone="paper"
           onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)}
           title="Opens the agent's main chat with the request started"
         >

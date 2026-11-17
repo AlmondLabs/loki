@@ -1,11 +1,10 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
 import { RemoteChats, peerChatsReply } from "../mod/remote-chats.ts";
 
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-/** A desk as a Mac lists its own. */
 const desk = (conversationId: string, title: string, agentId = "agent-ira"): DeskSummary => ({
   scope: conversationId,
   title,
@@ -32,13 +31,11 @@ const row = (id: string): InboxRow => ({
   last_ask: null,
 });
 
-/** The mini as its link answers `peer_chats_get`: whatever `lists` holds now, or out of reach. */
 function fixture() {
   const state = {
     lists: { desks: [desk("conv-1", "plan the week"), desk(SHARED_SCOPE, "shared")], inbox: [row("conv-1")] },
     reachable: true,
     changes: 0,
-    /** What each fetch handed the chat directory, as scopes. */
     listed: [] as string[][],
   };
   const link = {
@@ -107,6 +104,65 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(remote.desks().map((d) => d.reachable)).toEqual([false]);
   });
 
+  test("a failed fetch over a link that is still up keeps the chats in reach and tries again until it answers", async () => {
+    const { remote, state } = fixture();
+    const link = {
+      status: "reachable",
+      fails: 2,
+      request: () =>
+        link.fails-- > 0 ? Promise.reject(new Error("that Mac did not answer in time")) : Promise.resolve({ type: "peer_chats", ...state.lists }),
+    };
+    const retrying = new RemoteChats({ link: () => link as never, name: () => "Mac mini", onChange: () => state.changes++, debounceMs: 5, retryMs: 5 });
+    try {
+      retrying.setReachable(MINI, true);
+      await until(() => retrying.desks().length === 1);
+      expect(retrying.desks()[0].reachable).toBe(true);
+      link.fails = 1;
+      state.lists.desks = [desk("conv-1", "plan the month")];
+      await retrying.refresh(MINI);
+      expect(retrying.desks().map((d) => [d.title, d.reachable])).toEqual([["plan the week", true]]);
+      await until(() => retrying.desks()[0]?.title === "plan the month");
+    } finally {
+      retrying.stop();
+      remote.stop();
+    }
+  });
+
+  test("a fetch that keeps failing over a link still up waits 1 s, doubling to 30 s, and stops when the Mac goes", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const link = {
+        status: "reachable",
+        request: () => {
+          calls++;
+          return Promise.reject(new Error("that Mac did not answer in time"));
+        },
+      };
+      const remote = new RemoteChats({ link: () => link as never, name: () => "Mac mini", onChange: () => {} });
+      remote.setReachable(MINI, true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toBe(1);
+      for (const wait of [1000, 2000, 4000, 8000, 16000, 30_000, 30_000]) {
+        const before = calls;
+        await vi.advanceTimersByTimeAsync(wait - 1);
+        expect(calls).toBe(before);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(calls).toBe(before + 1);
+      }
+      for (const going of [() => remote.setReachable(MINI, false), () => remote.sync([]), () => remote.stop()]) {
+        remote.setReachable(MINI, true);
+        await vi.advanceTimersByTimeAsync(0);
+        const before = calls;
+        going();
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(calls).toBe(before);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("unpairing a Mac takes its chats off every list", async () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);
@@ -122,7 +178,6 @@ describe("another Mac's chats in this Mac's lists", () => {
     await remote.refresh(MINI);
     state.lists.desks = [desk("conv-1", "renamed")];
     remote.heard(MINI, { type: "peers" });
-    // A piece of a reply as it streams changes nothing listed.
     remote.heard(MINI, { type: "chat_event", events: [{ kind: "step", step: { kind: "assistant", text: "hel" } }] });
     await new Promise((r) => setTimeout(r, 20));
     expect(remote.desks()[0].title).toBe("plan the week");
@@ -147,7 +202,7 @@ describe("another Mac's chats in this Mac's lists", () => {
   test("an agent's chats on a Mac out of reach block its delete; a Mac out of reach without them does not", async () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);
-    expect(remote.awayWith("agent-ira")).toBeNull(); // in reach
+    expect(remote.awayWith("agent-ira")).toBeNull();
     remote.setReachable(MINI, false);
     expect(remote.awayWith("agent-ira")).toBe(MINI);
     expect(remote.awayWith("agent-friday")).toBeNull();

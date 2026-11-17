@@ -1,10 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { afterScroll, keepReading, putBackAfterReveal } from "../app/src/chat/use-transcript-scroll.ts";
 
-/**
- * A thread and its rows as layout numbers: each row's top in the content, its height, and the thread's offset. The
- * rows' screen positions follow from the offset, as the browser's would.
- */
 function thread(heights: number[], scrollTop: number) {
   const view = { top: 100 };
   const rows = heights.map((h) => ({ h, isConnected: true }));
@@ -25,8 +21,8 @@ describe("the chat keeps the row being read in place (WebKit has no scroll ancho
   test("a picture loading above the row being read moves the offset by its height", () => {
     const t = thread([100, 100, 100, 100], 250);
     const was = keepReading(t.el, null);
-    expect(was?.offset).toBe(-50); // the third row, half above the top
-    t.rows[0].h += 160; // the first row's picture loads
+    expect(was?.offset).toBe(-50);
+    t.rows[0].h += 160;
     const now = keepReading(t.el, was);
     expect(t.raw.scrollTop).toBe(410);
     expect(now?.offset).toBe(-50);
@@ -35,10 +31,10 @@ describe("the chat keeps the row being read in place (WebKit has no scroll ancho
   test("the reader's own scroll is not undone, even when a picture loads in the same moment", () => {
     const t = thread([100, 100, 100, 100], 250);
     const was = keepReading(t.el, null);
-    t.raw.scrollTop = 200; // the reader scrolls up 50
-    t.rows[0].h += 160; // and a picture above loads before the scroll is handled
+    t.raw.scrollTop = 200;
+    t.rows[0].h += 160;
     keepReading(t.el, was);
-    expect(t.raw.scrollTop).toBe(360); // the 50 kept, the 160 put back
+    expect(t.raw.scrollTop).toBe(360);
   });
 
   test("a row that grows below the one being read changes nothing", () => {
@@ -53,12 +49,12 @@ describe("the chat keeps the row being read in place (WebKit has no scroll ancho
 describe("the phone's thread keeps your place once when older rows come in above", () => {
   test("the scroll the reveal makes is not taken for content moving, so the offset moves once", () => {
     const t = thread([100, 100, 100, 100], 250);
-    const reading = keepReading(t.el, null); // the last scroll's look
-    t.rows.unshift({ h: 400, isConnected: true }); // the reveal mounts an older row above
+    const reading = keepReading(t.el, null);
+    t.rows.unshift({ h: 400, isConnected: true });
     Object.defineProperty(t.raw, "scrollHeight", { get: () => t.rows.reduce((n, r) => n + r.h, 0), configurable: true });
     const now = putBackAfterReveal(t.el, { top: 250, height: 400 });
     expect(t.raw.scrollTop).toBe(650);
-    keepReading(t.el, now); // the scroll event the new offset fires
+    keepReading(t.el, now);
     expect(t.raw.scrollTop).toBe(650);
     expect(reading?.offset).toBe(now?.offset);
   });

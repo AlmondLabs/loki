@@ -1,8 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { htmlToText, tidyMail } from "../core/mail-text.ts";
 
-/** Email bodies as text a card can show (plan 068): laid out as a browser would, not as the source is spaced. */
-
 describe("HTML mail as text", () => {
   test("a layout-table statement reads as paragraphs, without its source indentation or empty rows", () => {
     const html = `<html><head><style>td { color: red }</style><title>Statement</title></head><body>
@@ -42,7 +40,6 @@ describe("HTML mail as text", () => {
     for (const unit of ["<!--", "<style>", '<div style="display:none">', "<li", "<", "<!-- x --><style>a"]) {
       const started = performance.now();
       htmlToText(unit.repeat(Math.ceil(400_000 / unit.length)));
-      // The old patterns took over a minute here; a second leaves room for the slowest runner.
       expect(performance.now() - started).toBeLessThan(1000);
     }
   });

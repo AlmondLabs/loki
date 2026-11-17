@@ -19,13 +19,6 @@ import { Reactions } from "./reactions";
 
 const REMARK_PLUGINS = [remarkGfm];
 
-/**
- * A message from a person, or from you, in an outside item (plan 097, MessageEntry): a person's has their picture (or
- * initial), name and time beside it, and so does yours in Slack and Jira; yours in mail is the block across the column
- * with where it went. Under the words, its
- * reactions where the source has them. A Slack message that brought the card, or a Jira comment naming the person, is
- * marked with the accent bar.
- */
 export function MessageEntry({
   entry: m,
   source,
@@ -37,19 +30,14 @@ export function MessageEntry({
 }: {
   entry: Extract<ItemEntry, { kind: "message" }>;
   source: ItemSource;
-  /** Where your message went, said in its label line: "in thread", "to billing@…", "internal comment". */
   status?: string | null;
   onReact?: (r: SlackReaction) => void;
-  /** The first of a run from one sender, which shows their picture and name; the rest of the run sits under it. */
   first?: boolean;
-  /** The day beside the time, when the run moved to a new one. */
   note?: string | null;
-  /** What follows the reactions: a post's replies, the emoji picker. */
   children?: ReactNode;
 }) {
   const time = clockLabel(m.at);
   const parts = <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />;
-  // In a Slack channel or on a Jira ticket you are one voice among the others, so yours sits in the run with your picture.
   if (m.from === "you" && source !== "slack" && source !== "jira")
     return (
       <Message from="user" data-row="user" className="max-w-full">
@@ -88,7 +76,6 @@ export function MessageEntry({
   );
 }
 
-/** Someone's picture as their source gave it, else their initial on the panel's tone. */
 function Avatar({ who, src }: { who: string; src: string | null }) {
   if (src) return <img src={src} alt="" className="size-8 rounded-md object-cover" />;
   return (
@@ -98,13 +85,6 @@ function Avatar({ who, src }: { who: string; src: string | null }) {
   );
 }
 
-/**
- * One message in the new thread (plan 096), on AI Elements' Message, laid out as Turns: yours is a block across the
- * column, "You" and its time over your words; the agent's words are MessageResponse (streamdown, which fades words in
- * while a reply streams) inside its turn, whose header names it, with its copy button (as markdown, once a reply has
- * finished) and time under them. A queued message says so in its label line and offers its take-back. Memoised like
- * today's rows: a long thread is not parsed again on every keystroke.
- */
 export const ChatMessage = memo(function ChatMessage({
   row: m,
   last,
@@ -114,7 +94,6 @@ export const ChatMessage = memo(function ChatMessage({
 }: {
   row: TranscriptRow;
   last: boolean;
-  /** The agent is writing this reply now (only ever the last row). */
   streaming: boolean;
   arrived: boolean;
   onCancelQueued?: (row: TranscriptRow) => void;
@@ -123,12 +102,9 @@ export const ChatMessage = memo(function ChatMessage({
   const text = shownText(m);
   const writing = last && streaming;
   const copyable = !!text && !writing;
-  // The thread reads as ChatGPT's and Claude's do on the Mac (plan 2026-11-12-1505, U14): your message is a bubble at
-  // the trailing edge with no label, its time in its tooltip; time is told at gaps (entries.ts).
   if (m.role === "user")
     return (
       <Message from="user" data-row="user" data-queued={m.queued ? "true" : undefined} data-arrived={arrived || undefined} className="group/row max-w-[75%]">
-        {/* Copy floats beside the bubble on hover and takes no room, so the thread keeps its rhythm. */}
         <div className="relative ml-auto w-fit max-w-full">
           {copyable && (
             <span className="absolute top-1/2 right-full mr-1 -translate-y-1/2">
@@ -164,10 +140,6 @@ export const ChatMessage = memo(function ChatMessage({
   );
 });
 
-/**
- * The message's words as written (markdown, not the rendering) onto the clipboard; a check for a beat after. Out of
- * sight until the row is hovered or the button has focus, as the Mac's chat apps do.
- */
 function CopyAsMarkdown({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -179,9 +151,7 @@ function CopyAsMarkdown({ text }: { text: string }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-    } catch {
-      // The clipboard refused (no permission here): nothing else to say.
-    }
+    } catch {}
   };
   return (
     <Button
@@ -198,7 +168,6 @@ function CopyAsMarkdown({ text }: { text: string }) {
   );
 }
 
-/** Your message: the pictures and files it carried, then your words with the same markdown as the agent's. */
 function UserContent({ row: m }: { row: TranscriptRow }) {
   return (
     <div className="flex flex-col gap-2">
@@ -227,7 +196,6 @@ function UserContent({ row: m }: { row: TranscriptRow }) {
   );
 }
 
-/** A file the message carried: its name and size; in the desktop app pressing it shows the file in its folder. */
 function FileAttachment({ file }: { file: FileRef }) {
   const reveal = () =>
     void import("@tauri-apps/plugin-opener")

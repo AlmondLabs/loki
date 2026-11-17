@@ -217,7 +217,6 @@ describe("the frame table", () => {
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
     expect(FRAMES.history_get.parse({ agent_id: "a" })).toBe("conversation_id required");
-    // A payload never names its own `request_id`: the app spreads it after the frame's, and its reply would go unmatched.
     const approve = { request_id: "frame-1", agent_id: "agent-local-a", conversation_id: "c", approval_id: "approval-t1", allow: true };
     expect(FRAMES.chat_approve.parse(approve)).toEqual({
       agent_id: "agent-local-a",
@@ -254,7 +253,7 @@ describe("the app's side is typed by the table", () => {
     // @ts-expect-error a grade is required
     request("recall_grade", { id: "c1" });
     request("recall_grade", { id: "c1", grade: 3 });
-    request("history_get", { conversation_id: "c" }); // agent_id and limit may be left out
+    request("history_get", { conversation_id: "c" });
     const more: boolean | undefined = request("history_get", { conversation_id: "c" })?.more;
     // @ts-expect-error a focus engagement the mod does not take from the app
     send({ type: "focus_add", conversation_id: "c", action: "open" });
@@ -263,7 +262,6 @@ describe("the app's side is typed by the table", () => {
   });
 });
 
-/** The requests and sends no module answers: what the table promises and nothing serves (the b334e02 class). */
 function unhandled(modules: FrameHandlers[]): FrameName[] {
   const served = new Set(modules.flatMap((m) => Object.keys(m)));
   return parsed.filter((n) => !served.has(n));
@@ -343,7 +341,6 @@ describe("every frame in the table, through the real router", () => {
       memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
     },
   };
-  /** The smallest frame each entry accepts. */
   const sample: Partial<Record<FrameName, Record<string, unknown>>> = {
     gesture: { gesture: { id: "d1/w", kind: "focus" } },
     measure: { id: "d1/w", size: { w: 1, h: 1 } },
@@ -388,7 +385,7 @@ describe("every frame in the table, through the real router", () => {
   test("every request and send is answered by exactly one module, and a missing one is caught", () => {
     const modules = frameModules(deps);
     expect(unhandled(modules)).toEqual([]);
-    expect(() => bridgeOf({ ...deps, modules })).not.toThrow(); // the router refuses two handlers for one frame
+    expect(() => bridgeOf({ ...deps, modules })).not.toThrow();
     const withoutFolders = modules.filter((m) => !("folder_pick" in m));
     expect(unhandled(withoutFolders)).toEqual(["folders_get", "folder_complete", "folder_check", "folder_pick"]);
   });
@@ -454,7 +451,6 @@ describe("a parser that throws", () => {
   test("is answered like any failure: the request still gets error with its request_id", () => {
     const bridge = bridgeOf();
     const c = client("d1");
-    // A field that throws when the parser reads it.
     const frame = Object.defineProperty({ type: "history_get", request_id: "r1" }, "conversation_id", {
       get: () => {
         throw new Error("a field that cannot be read");
@@ -485,7 +481,6 @@ describe("frames: suggestions (plan 049)", () => {
       files: ["a.pdf"],
       mentions: null,
     });
-    // A client from before Send still sends `replace`, which goes nowhere now.
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", replace: true })).toEqual({
       ...chat,
       proposal_id: "reply-1",

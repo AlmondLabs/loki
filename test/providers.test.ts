@@ -13,7 +13,6 @@ import { must } from "./fixtures/must.ts";
 function setup() {
   const secrets = memorySecrets();
   const credentials = new KeychainCredentials(secrets);
-  // No environment: a provider is connected only by what is kept here.
   const models = builtinModels({ credentials });
   return { secrets, providers: new Providers(models, credentials) };
 }
@@ -38,7 +37,7 @@ describe("providers on the daemon", () => {
       (await providers.list()).find((p) => p.id === "anthropic"),
       "the anthropic provider",
     );
-    if (before.connected.is_connected) return; // an ANTHROPIC_API_KEY in this environment connects it already
+    if (before.connected.is_connected) return;
     await providers.connectKey("anthropic", "  sk-ant-test  ");
     expect(JSON.parse(must(secrets.entries.get("provider:anthropic"), "the kept key"))).toEqual({ type: "api_key", key: "sk-ant-test" });
     expect((await providers.list()).find((p) => p.id === "anthropic")?.connected).toMatchObject({ is_connected: true, auth_type: "api_key" });
@@ -84,7 +83,6 @@ describe("providers on the daemon", () => {
 });
 
 describe("signing in through the browser", () => {
-  /** A provider whose sign-in goes as ChatGPT's do: a choice of method, the page, then the browser or a pasted address. */
   function signInSetup() {
     const secrets = memorySecrets();
     const credentials = new KeychainCredentials(secrets);

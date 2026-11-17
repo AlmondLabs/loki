@@ -11,10 +11,6 @@ import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, MailOpenIcon, PencilIcon, 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
 
-// Plan 2026-11-12-1505, U19 and U22: under Liquid Glass in the Mac app, menus and pickers are the system's, drawn by
-// AppKit (src-tauri popup.rs), each action with the Lucide icon it has everywhere else. A browser cannot pop one up, so
-// these read what each menu offers, as data, and the shape it reaches the shell in.
-
 const ROOT = join(import.meta.dirname, "..");
 const noop = () => {};
 const labels = (entries: MenuEntry[]): string[] =>
@@ -45,7 +41,6 @@ describe("a menu as data", () => {
         { type: "item", id: "open", label: "Open", run, keys: "cmd+o", icon: ArchiveIcon },
         { type: "separator" },
         { type: "item", id: "work", label: "Work", detail: "2", checked: true, run },
-        // An icon not drawn (its picture failed) leaves the item without one.
         { type: "submenu", id: "more", label: "More", items: [{ type: "item", id: "x", label: "X", disabled: true, run, icon: TagIcon }] },
       ],
       (icon) => (icon === ArchiveIcon ? png : undefined),
@@ -76,7 +71,9 @@ describe("a menu as data", () => {
   test("the menu bar's handler takes every click it hears: pop-up menus answer the page directly", () => {
     const keys = readFileSync(join(ROOT, "app", "src", "shell", "use-shell-keys.ts"), "utf8");
     expect(keys).not.toContain("POPUP");
-    expect(readFileSync(join(ROOT, "src-tauri", "src", "menu.rs"), "utf8")).toContain('"Settings…"');
+    const menu = readFileSync(join(ROOT, "src-tauri", "src", "menu.rs"), "utf8");
+    expect(menu).not.toContain('"Settings…"');
+    expect(menu).toContain('const APP_MENU: &str = "loki";');
     expect(readFileSync(join(ROOT, "src-tauri", "src", "lib.rs"), "utf8")).toContain("popup::popup_menu");
   });
 });

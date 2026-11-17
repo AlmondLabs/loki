@@ -6,18 +6,10 @@ import type { Suggestion } from "../../core/frame-types.ts";
 import type { TranscriptRow } from "../../core/attention/transcript.ts";
 import { DEMO_AGENTS, DemoChats } from "./demo-chats";
 
-/** The chat the suggestions were made in. */
 const FROM = { agent_id: "wren", conversation_id: "checkout-test" };
 
-/** What a settled suggestion's line says happened, by its status. */
 const SETTLED: Partial<Record<Suggestion["status"], string>> = { sent: "sent to", drafted: "saved as a draft in", rejected: "rejected" };
 
-/**
- * The suggestions section's live demo: a chat whose agent suggests messages for other chats, drawn with loki's own
- * suggestion cards over the made-up chats of demo-chats.ts. Send now puts the message in its chat and that chat's
- * agent answers; save as draft leaves it in that chat's box; change chat points it elsewhere; reject drops it. The
- * right side shows the chat it went to.
- */
 export function SuggestionsDemo() {
   const [chats] = useState(() => new DemoChats());
   useEffect(() => () => chats.dispose(), [chats]);
@@ -31,7 +23,6 @@ export function SuggestionsDemo() {
   };
   const all = chats.conversation(FROM.agent_id, FROM.conversation_id).suggestions;
   const [openId, setOpenId] = useState<string | null>("notes");
-  /** The chat the last action went to, shown on the right. */
   const [landed, setLanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -142,7 +133,6 @@ export function SuggestionsDemo() {
   );
 }
 
-/** One message, as a short bubble: who wrote it and its text as markdown. */
 function Bubble({ row, who }: { row: TranscriptRow; who: string }) {
   const mine = row.role === "user";
   return (
@@ -155,7 +145,6 @@ function Bubble({ row, who }: { row: TranscriptRow; who: string }) {
   );
 }
 
-/** Change chat, cut down for the demo: the app's own choices (the latest chats, then a new chat with each agent), no search. */
 function Picker({
   source,
   suggestion,

@@ -1,5 +1,3 @@
-# Prettier formats code, CSS, JSON and YAML (docs/style.md §1). Markdown is hand-written; generated and vendored
-# files are left as their tools write them. Everything in .gitignore is skipped as well.
 *.md
 package-lock.json
 src-tauri/target/

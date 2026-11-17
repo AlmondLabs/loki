@@ -1,7 +1,5 @@
-/** The geometry `scrollWithin` reads: an element's box on screen. */
 type Placed = Pick<HTMLElement, "getBoundingClientRect">;
 
-/** The geometry and offset `scrollWithin` reads and sets on the scrolling box. */
 type ScrollBox = Placed & Pick<HTMLElement, "scrollTop" | "clientHeight" | "clientTop">;
 
 /**

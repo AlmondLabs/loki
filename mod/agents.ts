@@ -6,23 +6,8 @@ import { backendName } from "../core/desk-core.ts";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
 import { isAgentId } from "../core/frames.ts";
 
-/**
- * What the daemon keeps per agent on this machine, read for the Agents page:
- *   <backend>/agents/<b64 id>.json          the record: name, description, model, settings, tags
- *   <backend>/memfs/<id>/memory/            the memory filesystem — a git repo: system/{persona,human}.md,
- *                                           reference/**, skills/<name>/SKILL.md, profile.png
- * Everything here is read-only. Changing the record goes through the daemon (chat_agent_update);
- * changing memory is the agent's job, which the page hands over to the chat.
- */
-
-/** The local backend's folder: backend/ in the loki folder (lokiDir), unless LOKI_BACKEND_DIR points elsewhere. */
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
 
-/**
- * An agent's record as the Agents page shows it, read from <backend>/agents/<b64 id>.json; null for an invalid id or a
- * missing or unreadable record. The name falls back to the id, and system_head is the system prompt's first line, cut to
- * 200 characters.
- */
 export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent | null {
   if (!isAgentId(agentId)) return null;
   try {
@@ -45,19 +30,11 @@ export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent 
   }
 }
 
-/**
- * The folder of an agent's memory filesystem, whether or not it exists yet. Throws on an invalid agent id, so a crafted
- * id never becomes a path.
- */
 export function memoryRoot(agentId: string, dir = backendDir()): string {
   if (!isAgentId(agentId)) throw new Error("invalid agent id");
   return join(dir, "memfs", agentId, "memory");
 }
 
-/**
- * The real path of the agent's profile.png in its memory, or null when there is none, the id is invalid, or the file
- * resolves outside the memory root.
- */
 export function profilePath(agentId: string, dir = backendDir()): string | null {
   if (!isAgentId(agentId)) return null;
   return containedFile(memoryRoot(agentId, dir), "profile.png")?.path ?? null;
@@ -65,7 +42,6 @@ export function profilePath(agentId: string, dir = backendDir()): string | null 
 
 const SKIP = new Set([".git", "node_modules"]);
 
-/** Every file under the memory root except git internals, relative paths with forward slashes, system files first. */
 export function memoryTree(agentId: string, dir = backendDir()): MemoryFile[] {
   const root = memoryRoot(agentId, dir);
   if (!existsSync(root)) return [];
@@ -86,7 +62,6 @@ export function memoryTree(agentId: string, dir = backendDir()): MemoryFile[] {
   return out.sort((a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path));
 }
 
-/** Skills the agent keeps in its memory: skills/<name>/SKILL.md, with the frontmatter description. */
 export function memorySkills(agentId: string, dir = backendDir()): MemorySkill[] {
   return memoryTree(agentId, dir)
     .filter((f) => /^skills\/[^/]+\/SKILL\.md$/.test(f.path))
@@ -98,20 +73,17 @@ export function memorySkills(agentId: string, dir = backendDir()): MemorySkill[]
         const fm = /^---\n([\s\S]*?)\n---/.exec(text);
         const d = fm?.[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
         description = d ? d.replace(/^["']|["']$/g, "") : (/^#+\s*(.+)$/m.exec(text.replace(/^---[\s\S]*?---/, ""))?.[1]?.trim() ?? null);
-      } catch {
-        // unreadable: name only
-      }
+      } catch {}
       return { name, path: f.path, description };
     });
 }
 
-/** A memory file's text, or null when the path escapes the root, is not a file, or is too large or binary. */
 export function readMemoryFile(agentId: string, path: string, dir = backendDir(), limit = 512 * 1024): string | null {
   try {
     const file = containedFile(memoryRoot(agentId, dir), path);
     if (!file || file.bytes > limit) return null;
     const buf = readFileSync(file.path);
-    if (buf.subarray(0, 512).includes(0)) return null; // binary
+    if (buf.subarray(0, 512).includes(0)) return null;
     return buf.toString("utf8");
   } catch {
     return null;
@@ -141,7 +113,6 @@ function git(args: string[], cwd: string): Promise<string> {
   });
 }
 
-/** `git log` on the memory repo: what the agent learned, newest first, with the files each commit touched. */
 export async function memoryLog(agentId: string, opts: { path?: string; limit?: number } = {}, dir = backendDir()): Promise<MemoryCommit[]> {
   const root = memoryRoot(agentId, dir);
   if (!existsSync(join(root, ".git"))) return [];
@@ -151,7 +122,6 @@ export async function memoryLog(agentId: string, opts: { path?: string; limit?: 
   return parseGitLog(out);
 }
 
-/** Parses the --format=%x1e%H%x1f%s%x1f%cI --name-only output. Exported for tests. */
 export function parseGitLog(out: string): MemoryCommit[] {
   return out
     .split("\x1e")
@@ -164,7 +134,6 @@ export function parseGitLog(out: string): MemoryCommit[] {
     });
 }
 
-/** One commit's diff, without colour, capped so a runaway reflection cannot flood the page. */
 export async function memoryDiff(agentId: string, sha: string, dir = backendDir()): Promise<string> {
   if (!/^[0-9a-f]{6,40}$/i.test(sha)) throw new Error("not a commit sha");
   const out = await git(["show", sha, "--format=%s%n%cI%n", "--no-color", "--stat=80", "-p"], memoryRoot(agentId, dir));

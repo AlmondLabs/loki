@@ -1,24 +1,15 @@
-/**
- * FSRS-4.5, the scheduler modern Anki uses, as pure functions over a small state. A card is a pair of
- * numbers — stability (the days until recall drops to 90%) and difficulty (1–10) — plus its due time.
- * Four grades per review: 1 again · 2 hard · 3 good · 4 easy. Nothing here reads a clock or a file;
- * the caller passes `now` and keeps the state.
- */
 export type Grade = 1 | 2 | 3 | 4;
-/** The four grades the scheduler knows, with their FSRS names. */
 export const GRADES: Array<{ grade: Grade; label: string }> = [
   { grade: 1, label: "Again" },
   { grade: 2, label: "hard" },
   { grade: 3, label: "good" },
   { grade: 4, label: "easy" },
 ];
-/** What the deck offers: two answers, on the arrow keys. "again" is grade 1, "got it" is grade 3; the scheduler keeps its four internally. */
 export const ANSWERS: Array<{ grade: Grade; label: string; key: string }> = [
   { grade: 1, label: "Again", key: "←" },
   { grade: 3, label: "Got It", key: "→" },
 ];
 
-/** A card's scheduling state, kept by the caller and passed back on every review. */
 export interface Schedule {
   /** Days until retrievability falls to 90%. 0 until the first review. */
   stability: number;
@@ -39,27 +30,21 @@ export interface Schedule {
 export const W = [0.4872, 1.4003, 3.7145, 13.8206, 5.1618, 1.2298, 0.8975, 0.031, 1.6474, 0.1367, 1.0461, 2.1072, 0.0793, 0.3246, 1.587, 0.2272, 2.8755];
 const DECAY = -0.5;
 const FACTOR = 19 / 81;
-/** The retention the intervals aim for. */
 export const REQUESTED_RETENTION = 0.9;
-/** The longest a card is put off between reviews, in days. */
 export const MAX_INTERVAL_DAYS = 365;
-/** A forgotten card comes back within the sitting rather than tomorrow. */
 export const RELEARN_MINUTES = 10;
 const DAY = 86_400_000;
 
-/** The schedule of a card never reviewed: due at `now`, with stability and difficulty 0. */
 export function newSchedule(now = Date.now()): Schedule {
   return { stability: 0, difficulty: 0, due: new Date(now).toISOString(), last_review: null, reps: 0, lapses: 0, recent: [] };
 }
 
-/** Probability of recall after `elapsedDays` at stability `s`. */
 export function retrievability(s: Schedule, now = Date.now()): number {
   if (!s.last_review || s.stability <= 0) return 0;
   const days = Math.max(0, (now - new Date(s.last_review).getTime()) / DAY);
   return Math.pow(1 + (FACTOR * days) / s.stability, DECAY);
 }
 
-/** Days until recall falls to the requested retention, at stability `stability`. Whole days, at least one. */
 export function intervalDays(stability: number, retention = REQUESTED_RETENTION): number {
   const days = (stability / FACTOR) * (Math.pow(retention, 1 / DECAY) - 1);
   return Math.min(MAX_INTERVAL_DAYS, Math.max(1, Math.round(days)));
@@ -71,7 +56,7 @@ const initialDifficulty = (g: Grade) => clampD(W[4] - (g - 3) * W[5]);
 
 function nextDifficulty(d: number, g: Grade): number {
   const moved = d - W[6] * (g - 3);
-  return clampD(W[7] * initialDifficulty(3) + (1 - W[7]) * moved); // mean reversion toward a "good" first answer
+  return clampD(W[7] * initialDifficulty(3) + (1 - W[7]) * moved);
 }
 function nextRecallStability(d: number, s: number, r: number, g: Grade): number {
   const hard = g === 2 ? W[15] : 1;
@@ -82,7 +67,6 @@ function nextForgetStability(d: number, s: number, r: number): number {
   return Math.min(s, W[11] * Math.pow(d, -W[12]) * (Math.pow(s + 1, W[13]) - 1) * Math.exp(W[14] * (1 - r)));
 }
 
-/** The state after grading the card now. */
 export function review(s: Schedule, grade: Grade, now = Date.now()): Schedule {
   const at = new Date(now).toISOString();
   const recent = [...s.recent, grade].slice(-5);
@@ -107,14 +91,12 @@ export function review(s: Schedule, grade: Grade, now = Date.now()): Schedule {
   return { stability, difficulty, due, last_review: at, reps: s.reps + 1, lapses, recent };
 }
 
-/** What each grade would schedule from here — for showing "1d · 4d · 10d" under the buttons. */
 export function previews(s: Schedule, now = Date.now()): Record<Grade, string> {
   const out = {} as Record<Grade, string>;
   for (const { grade } of GRADES) out[grade] = describeGap(new Date(review(s, grade, now).due).getTime() - now);
   return out;
 }
 
-/** "10m", "1d", "3w", "4mo". */
 export function describeGap(ms: number): string {
   const m = Math.round(ms / 60_000);
   if (m < 60) return `${Math.max(1, m)}m`;
@@ -125,12 +107,9 @@ export function describeGap(ms: number): string {
   return `${Math.round(d / 30)}mo`;
 }
 
-/** Whether a card is due for review at `now`. */
 export const isDue = (s: Schedule, now = Date.now()) => new Date(s.due).getTime() <= now;
-/** Whether a card has never been reviewed. */
 export const isNew = (s: Schedule) => s.last_review === null;
 
-/** A card the scheduler cannot hold: three of the last four answers were "again". The worker rewrites or splits it. */
 export function keepsFailing(s: Schedule): boolean {
   const last = s.recent.slice(-4);
   return last.length >= 3 && last.filter((g) => g === 1).length >= 3;

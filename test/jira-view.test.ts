@@ -5,20 +5,15 @@ import { jiraCardView, jiraThreadText } from "../mod/jira-view.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
 import { JIRA_ADA, JIRA_BOB, fakeJira, type FakeJiraChange, type FakeJiraPerson } from "./fixtures/jira.ts";
 
-/** Reading a Jira ticket on its card and for a hand-off (plan 2026-11-10-1451, U5, KTD14; plan 089). */
-
 const MIN = 60_000;
 const START = Date.parse("2026-11-10T09:00:00.000Z");
 /** The person, with an Atlassian id that holds a colon, as real ones do. */
 const ME: FakeJiraPerson = { account_id: "557058:6f1c2d3e-acme", display_name: "Mina Example" };
 const ID = `jira:acme.atlassian.net:${ME.account_id}`;
 
-/** A time, in minutes from the start. */
 const at = (minutes: number) => new Date(START + minutes * MIN);
-/** The id an event is known by on a card: its creation time, `c` or `h`, then Jira's id padded (KTD8). */
 const eid = (when: Date, kind: "c" | "h", jiraId: string) => `${when.toISOString()}:${kind}${jiraId.padStart(12, "0")}`;
 
-/** One site with one ticket, OPS-7, and the readers over it; `link_host` stands for a custom domain kept at connect. */
 function site(over: { link_host?: string } = {}, preview?: (accountId: string, attachmentId: string) => Promise<string | null>) {
   const clock = () => at(1000);
   const jira = fakeJira({ now: clock, me: ME });
@@ -44,14 +39,10 @@ function site(over: { link_host?: string } = {}, preview?: (accountId: string, a
     preview,
   );
   const facts = (f: Partial<CardFacts> = {}): CardFacts => ({ dealt_message_id: null, brought_ids: [], newest_message_id: null, place: "OPS-7", ...f });
-  /** A read as an app on plan 089 asks it, with the ticket. */
   const read = (f: Partial<CardFacts> = {}, ask: OutsideWindowAsk = {}) => view(ID, ticket, facts(f), { ticket: true, ...ask });
-  /** A read as an older app asks it, without the ticket. */
   const plain = (f: Partial<CardFacts> = {}, ask: OutsideWindowAsk = {}) => view(ID, ticket, facts(f), ask);
-  /** Someone comments at a minute; returns the comment's id on the card. */
   const comment = (minute: number, author: FakeJiraPerson = JIRA_ADA): string =>
     eid(at(minute), "c", jira.comment("OPS-7", { at: at(minute), author, text: `comment at ${String(minute)}` }));
-  /** Someone changes fields at a minute; returns the history entry's id on the card. */
   const change = (minute: number, items: FakeJiraChange[], author: FakeJiraPerson = JIRA_ADA): string =>
     eid(at(minute), "h", jira.change("OPS-7", { at: at(minute), author, items }));
   return { jira, ticket, read, plain, comment, change, text: jiraThreadText(() => client) };
@@ -113,7 +104,6 @@ describe("a Jira card's window of comments (KTD14)", () => {
     const s = site();
     const before = [s.comment(0), s.comment(1), s.comment(2)];
     const after = [s.comment(4), s.comment(5)];
-    // The comment the person last read, at minute 3, is gone from Jira: its id is no longer among the events.
     const gone = eid(at(3), "c", "39999");
     const { messages } = await s.read({ dealt_message_id: gone });
     expect(messages.map((m) => m.id)).toEqual([...before, ...after]);
@@ -352,7 +342,6 @@ describe("a Jira card's ticket (plan 089)", () => {
 });
 
 describe("a Jira card read by an older app, or when the ticket cannot be read (plan 089)", () => {
-  /** A comment, someone else's status change that brought the card, and a later comment. */
   const ticketWithChange = () => {
     const s = site();
     const c1 = s.comment(0);
@@ -360,7 +349,6 @@ describe("a Jira card read by an older app, or when the ticket cannot be read (p
     const c2 = s.comment(2);
     return { s, c1, h, c2 };
   };
-  /** What a merged log shows: each event's id, its text, and whether it is unread and brought. */
   const lines = (messages: ReadonlyArray<{ id?: string; text: string; unread?: boolean; brought?: boolean }>) =>
     messages.map((m) => [m.id, m.text, m.unread === true, m.brought === true]);
 
@@ -453,7 +441,6 @@ describe("a Jira ticket read whole, for a hand-off", () => {
 describe("a Jira comment's files on its card (plan 093)", () => {
   const SHOT = { id: "10042", filename: "shot.png", mime_type: "image/png", size: 48_000 };
   const REPORT = { id: "10043", filename: "report.pdf", mime_type: "application/pdf", size: 2048 };
-  /** A comment whose document is words and then a picture of `alt`, sized as Jira's editor sizes one. */
   const picture = (alt: string | null, words = "Here it is") => ({
     version: 1,
     type: "doc",
@@ -465,13 +452,11 @@ describe("a Jira comment's files on its card (plan 093)", () => {
       },
     ],
   });
-  /** A comment of only a file of `alt`, as a group of files holds one. */
   const file = (alt: string) => ({
     version: 1,
     type: "doc",
     content: [{ type: "mediaGroup", content: [{ type: "media", attrs: { id: "uuid-2", type: "file", collection: "", alt } }] }],
   });
-  /** A site whose previews are recorded and named after the attachment. */
   function withPreviews(over: { link_host?: string } = {}, gives = true) {
     const asked: string[] = [];
     const s = site(over, (accountId, attachmentId) => {
@@ -539,7 +524,6 @@ describe("a Jira comment's files on its card (plan 093)", () => {
     const content = (id: string) => `https://${s.jira.host}/rest/api/3/attachment/content/${id}`;
     expect(files(noThumb)).toEqual([{ name: "shot.png", kind: "PNG", size: 48_000, link: content("10042") }]);
     expect(files(noSize)).toEqual([{ name: "plain.png", kind: "PNG", size: 48_000, link: content("10045") }]);
-    // Only the picture with a size is asked for; the one without is never fetched.
     expect(s.asked).toEqual([`${ID}|10042`]);
   });
 
@@ -572,7 +556,6 @@ describe("a Jira comment's files on its card (plan 093)", () => {
     const s = withPreviews();
     s.jira.edit("OPS-7", { attachments: [SHOT] });
     const id = s.say(1, picture("shot.png"));
-    // A failed issue read fails the attachment list, which is read from the issue; the card falls back to its log.
     s.jira.state.broken = { read: "issue", status: 500 };
     const { messages } = await s.read({ brought_ids: [id] });
     expect(messages.find((x) => x.id === id)?.slack_files).toEqual([{ name: "shot.png", kind: null, size: null, link: `https://${s.jira.host}/browse/OPS-7` }]);

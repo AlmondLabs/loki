@@ -8,63 +8,33 @@ import { filePlain, slackFiles } from "./slack-markup.ts";
 import { slackReach } from "../core/outside-reach.ts";
 import { SLACK_ACTIVITY_TYPES, SlackError, type SlackActivityItem, type SlackClient, type SlackCount, type SlackMessage } from "./slack.ts";
 
-/**
- * Watching one connected Slack workspace (plan 067, U7, KTD3, KTD11, KTD13). Each tick reads Slack's own unread
- * state: `client.counts` for DMs and group DMs, and the unread Activity feed for mentions, replies in the person's
- * threads, @channel and @here, and user-group mentions (R6). A DM is one card, its thread id the channel id, and a
- * reply in a thread inside it folds into that card; an Activity item is one card per thread, `<channel>:<thread_ts>`,
- * or per message when it has no thread, `<channel>:<ts>` (R7). What Slack no longer shows unread leaves the Inbox (R13).
- *
- * Archive marks a DM read up to the card's last message and never later; it never moves a channel's read marker (R12).
- * Read and archive also mark the card's Activity items read in Slack, up to its last message, and an undo marks them
- * unread again (plan 092).
- *
- * Items from before the account was connected fill it up to 20 open cards (R8, plan 078): while it has fewer, the
- * newest older items take the room left, stepping back through 3, 7, 14 and 30 days and then older, until none remain.
- * New items come whatever the count.
- */
-
-/** What SlackSync is built from: the account it watches, its client, and where cards are kept. */
 export interface SlackSyncOptions {
   accounts: Pick<Accounts, "get" | "setBackfill">;
   threads: AccountThreads;
   account: AccountRecord;
   client: SlackClient;
-  /** Whether a card rests in the Inbox now, so the past's cap leaves it out (plan 078); none rest when not given. */
   resting?: (record: ThreadRecord) => boolean;
-  /** The clock, for when the whole Activity feed is walked next; the system's when not given. */
   now?: () => Date;
 }
 
-/**
- * How many unread DM messages one read fetches, and how many Activity pages one walk of the feed reads at most: 10,000
- * items, far past any real feed, so the whole past is seen (plan 078) while a feed that never ends cannot loop forever.
- */
 const DM_MESSAGES = 20;
 const FEED_PAGE = 50;
 const FEED_PAGES = 200;
-/**
- * How often the whole unread Activity feed is walked. Slack allows few `activity.feed` calls a minute, and walking every
- * page each minute kept it refusing (2026-11-05); between walks a tick reads only the newest page, which is where a new
- * mention arrives. What the walk alone finds, an older item or one read in Slack, waits for the next walk.
- */
+/** A thread is read 200 replies a page, up to 10,000, so a cursor that never ends cannot loop forever. */
+const THREAD_PAGE = 200;
+const THREAD_PAGES = 50;
 const FULL_WALK_MS = 15 * 60_000;
-/** The refill rule (KTD13): the windows back from the connection, in days, then everything older. */
 const REFILL_DAYS = [3, 7, 14, 30];
 const DAY_MS = 86_400_000;
-/** Slack errors that are the whole account's, not one item's: the watcher backs off on them. */
 const ACCOUNT_ERRORS = ["signed_out", "ratelimited"];
 
-/** One thread a tick found unread: a DM (with any replies folded into it) or an Activity thread. */
 interface Candidate {
   thread_id: string;
-  /** The newest unread message's ts. */
   ts: string;
   dm: SlackCount | null;
   items: SlackActivityItem[];
 }
 
-/** Where the batches of older items stand, kept on the account (`AccountRecord.backfill`). */
 interface RefillState {
   step: number;
   exhausted: boolean;
@@ -78,35 +48,24 @@ export const tsKey = (ts: string): string => {
   const [s = "", f = ""] = ts.split(".");
   return `${s.padStart(12, "0")}.${f.padEnd(6, "0")}`;
 };
-/** Whether Slack ts `a` is later than `b`. */
 export const tsAfter = (a: string, b: string): boolean => tsKey(a) > tsKey(b);
 
-/** A ts as ISO time, or null when it is not one. */
 function tsIso(ts: string): string | null {
   const [s = "", f = "0"] = ts.split(".");
   const ms = Number(s) * 1000 + Math.floor(Number(f.padEnd(6, "0").slice(0, 6)) / 1000);
   return s && Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
-/** The first non-empty line of a text. */
 const firstLine = (text: string): string =>
   text
     .split("\n")
     .find((l) => l.trim())
     ?.trim() ?? "";
 
-/** Each AccountThreads' Slack syncs by account: one write-back serves every workspace, since it is registered per provider. */
 const syncsByThreads = new WeakMap<AccountThreads, Map<string, SlackSync>>();
 
-/** Why a label move on a Slack card is refused. */
 const NO_LABELS = "Slack has no labels: labels are for email";
 
-/**
- * The one Slack write-back for an AccountThreads, handing each move to the sync of the card's account (plan 070,
- * KTD3). Read and archive are the same mark in Slack, and both end the card. Unread writes nothing: a Slack card is
- * unread until it ends. An undo marks the card's Activity items unread again (plan 092); a DM stays read, since Slack
- * cannot mark one unread from here, and the card opens again in loki.
- */
 function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
   const mark = async (accountId: string, record: ThreadRecord, move: "archive" | "read"): Promise<OutsideChange> => {
     const sync = syncs.get(accountId);
@@ -126,24 +85,14 @@ function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
   };
 }
 
-/** The watcher of one Slack workspace: its `tick` turns Slack's unread state into cards. */
 export class SlackSync {
   private readonly opts: SlackSyncOptions;
   private readonly accountId: string;
-  /** People's names and photos by user id, so each is asked for once. */
   private readonly names = new Map<string, { name: string; image: string | null }>();
-  /** Channels' names by id, `#name`, so each is asked for once; null when Slack would not say. */
   private readonly places = new Map<string, string | null>();
-  /**
-   * The unread Activity items the feed showed, by the card they make (plan 092): what read and archive mark read. A
-   * whole read of the feed replaces them; a read of its newest page adds to them.
-   */
   private activity = new Map<string, SlackActivityItem[]>();
-  /** The items the last read or archive of each card marked read, so an undo can mark them unread again. */
   private readonly marked = new Map<string, SlackActivityItem[]>();
-  /** When the next whole walk of the Activity feed is due, in ms since the epoch: at once, at first. */
   private nextFullWalk = 0;
-  /** A walk Slack stopped part way with a rate limit: it goes on from here on a later tick, not from the start. */
   private walk: { cursor: string; items: SlackActivityItem[]; pages: number } | null = null;
 
   constructor(opts: SlackSyncOptions) {
@@ -158,16 +107,11 @@ export class SlackSync {
     syncs.set(this.accountId, this);
   }
 
-  /** Stop handling this workspace's archives; the watcher calls it when the account goes. */
   stop(): void {
     const syncs = syncsByThreads.get(this.opts.threads);
     if (syncs?.get(this.accountId) === this) syncs.delete(this.accountId);
   }
 
-  /**
-   * One poll: new unread items since the connection become or update cards, cards Slack no longer shows unread leave,
-   * and while the account has fewer than 20 open cards, older items fill it up to 20 (plan 078).
-   */
   async tick(): Promise<void> {
     const { client, threads } = this.opts;
     const counts = await client.clientCounts();
@@ -199,28 +143,21 @@ export class SlackSync {
     }
 
     for (const r of threads.list(this.accountId)) {
-      // A card whose reply waits for an answer (plan 070, KTD7) is not ended by the read marker the person's own post
-      // moved; it waits for the other side to write, which clears the wait, or for the person to finish it. A card an
-      // undo brought back (R14) is the same: Slack keeps the read the undo could not take back, so it waits too.
       if (r.state !== "open" || r.waiting || r.kept_open || candidates.has(r.thread_id)) continue;
       if (r.thread_id.includes(":")) {
         if (feed.complete) threads.markGoneOutThere(this.accountId, r.thread_id);
         continue;
       }
       const dm = dms.get(r.thread_id);
-      if (dm && (!dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read))))
-        threads.markGoneOutThere(this.accountId, r.thread_id);
+      // A DM closed in Slack drops out of client.counts, so Slack is asked about it alone, else its card never ends.
+      const ended = dm ? !dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read)) : await this.closedDmEnded(r);
+      if (ended) threads.markGoneOutThere(this.accountId, r.thread_id);
     }
 
     const open = threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
     if (open < PAST_CAP) await this.refill(older, feed.complete, PAST_CAP - open);
   }
 
-  /**
-   * Write a read or archive back to Slack (R12): a DM is marked read up to the card's last message, and the card's
-   * Activity items up to it are marked read (plan 092); no channel's read marker moves. Marking the items is a courtesy
-   * to Slack's own Activity view: when Slack refuses it, the card still ends in loki and the refusal is logged.
-   */
   async archive(record: ThreadRecord): Promise<void> {
     if (!record.thread_id.includes(":")) await this.opts.client.markDm(record.thread_id, record.newest_message_id);
     const items = (this.activity.get(record.thread_id) ?? []).filter((i) => !i.ts || !tsAfter(i.ts, record.newest_message_id));
@@ -238,10 +175,6 @@ export class SlackSync {
     this.marked.set(record.thread_id, items);
   }
 
-  /**
-   * Undo a read or archive in Slack (plan 092): the Activity items it marked read are marked unread again. A DM stays
-   * read. When Slack refuses, the card still opens again in loki and the refusal is logged.
-   */
   async restore(record: ThreadRecord): Promise<void> {
     const items = this.marked.get(record.thread_id);
     if (!items) return;
@@ -252,12 +185,10 @@ export class SlackSync {
       log("slack:activity-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, read: false, error: messageOf(err) });
       return;
     }
-    // Unread again, they are the card's to mark read once more, whether or not the next tick's page shows them.
     const keys = new Set(items.map((i) => i.key));
     this.activity.set(record.thread_id, [...(this.activity.get(record.thread_id) ?? []).filter((i) => !keys.has(i.key)), ...items]);
   }
 
-  /** The tick's unread Activity items by card: in place of those known when the whole feed was read, else beside them. */
   private remember(candidates: ReadonlyMap<string, Candidate>, complete: boolean): void {
     const next = complete ? new Map<string, SlackActivityItem[]>() : new Map(this.activity);
     for (const c of candidates.values()) {
@@ -268,11 +199,6 @@ export class SlackSync {
     this.activity = next;
   }
 
-  /**
-   * The unread Activity items of a card's kinds, newest first, and whether they are all of them. A tick reads the
-   * newest page; every FULL_WALK_MS it walks the whole feed instead, and a walk a rate limit stops goes on from where it
-   * stopped on a later tick, so a long feed is still read to its end.
-   */
   private async unreadActivity(): Promise<{ items: SlackActivityItem[]; complete: boolean }> {
     const now = (this.opts.now?.() ?? new Date()).getTime();
     const page = async (cursor: string | undefined) => {
@@ -300,19 +226,12 @@ export class SlackSync {
       this.nextFullWalk = now + FULL_WALK_MS;
       return { items: walk.items, complete: false };
     } catch (err) {
-      // Stopped part way: keep what was read and go on later. Stopped before any page, the tick fails as before.
       if (!(err instanceof SlackError && err.code === "ratelimited") || walk.pages === 0) throw err;
       this.walk = walk;
       return { items: walk.items, complete: false };
     }
   }
 
-  /**
-   * Older items into the room left (KTD13, plan 078): the newest unread items not already shown, within the current
-   * window back from the connection, then the next window back, until `room` cards came or nothing is left anywhere,
-   * which ends the refill. The end is recorded only when the whole feed was read, so items past a cut-short walk still
-   * come later.
-   */
   private async refill(older: Candidate[], complete: boolean, room: number): Promise<void> {
     const raw = this.opts.accounts.get(this.accountId)?.backfill ?? {};
     const state: RefillState = { step: typeof raw.step === "number" ? raw.step : 0, exhausted: raw.exhausted === true };
@@ -344,11 +263,9 @@ export class SlackSync {
     if (state.step !== start.step || state.exhausted !== start.exhausted) this.opts.accounts.setBackfill(this.accountId, { ...state });
   }
 
-  /** Read a candidate's messages and show its newest on its card; one that cannot be read is skipped, not the tick. */
   private async observe(c: Candidate, fromBackfill: boolean): Promise<void> {
     const r = this.opts.threads.get(this.accountId, c.thread_id);
     if (r && !tsAfter(c.ts, r.newest_message_id)) {
-      // A card from before its header knew where it is (plan 073) learns it now, though no newer message came.
       if (r.reach === null || (r.place === null && !c.dm)) {
         const reach = slackReach(
           c.dm !== null,
@@ -368,7 +285,6 @@ export class SlackSync {
     }
   }
 
-  /** A candidate as a card shows it: its unread messages, the newest last, with who wrote it. */
   private async message(c: Candidate): Promise<ObservedMessage | null> {
     const { client } = this.opts;
     const found = new Map<string, SlackMessage>();
@@ -376,18 +292,32 @@ export class SlackSync {
       const page = await client.conversationsHistory({ channel: c.dm.id, oldest: c.dm.last_read ?? undefined, limit: DM_MESSAGES });
       for (const m of page.messages) if (!c.dm.last_read || tsAfter(m.ts, c.dm.last_read)) found.set(m.ts, m);
     }
-    // What brought the card (plan 077, KTD2): kept from before when still after the person's dealt-with mark, then each
-    // item's own message. A DM brings none, since its unread run is marked by the New line alone (R13).
     const record = this.opts.threads.get(this.accountId, c.thread_id);
     const mark = record?.dealt_message_id ?? null;
     const isNew = (ts: string, from: string | null) => !from || tsAfter(ts, from);
     const brought = new Set((record?.brought_ids ?? []).filter((id) => isNew(id, mark)));
     const me = this.accountId.split(":").at(2) ?? "";
+    // A card's items in one thread share a single read of it, up to the newest of them, since a long thread takes pages.
+    const newestIn = new Map<string, string>();
+    for (const { channel, ts, thread_ts } of c.items) {
+      if (!channel || !ts || !thread_ts) continue;
+      const was = newestIn.get(`${channel}:${thread_ts}`);
+      if (!was || tsAfter(ts, was)) newestIn.set(`${channel}:${thread_ts}`, ts);
+    }
+    const threadsRead = new Map<string, SlackMessage[]>();
+    const thread = async (channel: string, threadTs: string, ts: string) => {
+      const key = `${channel}:${threadTs}`;
+      const known = threadsRead.get(key);
+      if (known) return known;
+      const messages = await this.threadUpTo(channel, threadTs, newestIn.get(key) ?? ts);
+      threadsRead.set(key, messages);
+      return messages;
+    };
     for (const item of c.items) {
       const { channel, ts } = item;
       if (!channel || !ts) continue;
       const page = item.thread_ts
-        ? await client.conversationsReplies({ channel, ts: item.thread_ts, limit: 200 })
+        ? { messages: await thread(channel, item.thread_ts, ts) }
         : await client.conversationsHistory({ channel, latest: ts, inclusive: true, limit: 1 });
       for (const m of page.messages) if (m.ts && !tsAfter(m.ts, ts)) found.set(m.ts, m);
       if (c.dm) continue;
@@ -406,7 +336,6 @@ export class SlackSync {
     const at = newest ? tsIso(newest.ts) : null;
     if (!newest || !at) return null;
     const lines: string[] = [];
-    // A message of only a file has no words, so its files name it (plan 080).
     for (const m of list.slice(-3)) lines.push([await this.plain(m.text), ...slackFiles(m).map(filePlain)].filter(Boolean).join("\n"));
     return {
       thread_id: c.thread_id,
@@ -425,7 +354,38 @@ export class SlackSync {
     };
   }
 
-  /** Who wrote a message, by the name Slack shows. */
+  /**
+   * A thread's parent and its replies up to `ts`. Slack gives replies oldest first, so the pages are followed until one
+   * reaches `ts`: one page alone misses the newest reply of a long thread.
+   */
+  private async threadUpTo(channel: string, threadTs: string, ts: string): Promise<SlackMessage[]> {
+    const messages: SlackMessage[] = [];
+    let cursor: string | undefined;
+    for (let n = 0; n < THREAD_PAGES; n++) {
+      const page = await this.opts.client.conversationsReplies({ channel, ts: threadTs, limit: THREAD_PAGE, cursor });
+      messages.push(...page.messages);
+      if (!page.has_more || !page.next_cursor || page.messages.some((m) => !tsAfter(ts, m.ts))) break;
+      cursor = page.next_cursor;
+    }
+    return messages;
+  }
+
+  /**
+   * Whether a DM card that client.counts no longer lists has ended: the DM is read past the card's newest message, or
+   * Slack no longer has it for the person (a group DM they left). When Slack will not say now, the card waits a tick.
+   */
+  private async closedDmEnded(r: ThreadRecord): Promise<boolean> {
+    try {
+      const { last_read } = await this.opts.client.conversationsInfo(r.thread_id);
+      return last_read !== null && !tsAfter(r.newest_message_id, last_read);
+    } catch (err) {
+      if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
+      if (err instanceof SlackError && err.code === "channel_not_found") return true;
+      log("slack:dm-unreadable", { account_id: this.accountId, thread_id: r.thread_id, error: messageOf(err) });
+      return false;
+    }
+  }
+
   private async sender(m: SlackMessage): Promise<string> {
     if (m.user) return this.name(m.user);
     const username = m.raw.username;
@@ -436,7 +396,6 @@ export class SlackSync {
     return (await this.person(user)).name;
   }
 
-  /** A person's name, as Slack shows it, and photo. */
   private async person(user: string): Promise<{ name: string; image: string | null }> {
     const known = this.names.get(user);
     if (known !== undefined) return known;
@@ -446,10 +405,6 @@ export class SlackSync {
     return person;
   }
 
-  /**
-   * A channel's name for a card, `#name`, asked of Slack once. A channel Slack will not describe (gone, or one the
-   * person left) has none, and the card says nothing of where; that never stops the card.
-   */
   private async place(channel: string): Promise<string | null> {
     if (this.places.has(channel)) return this.places.get(channel) ?? null;
     const info = await this.opts.client.conversationsInfo(channel).catch((err: unknown) => {
@@ -461,7 +416,6 @@ export class SlackSync {
     return place;
   }
 
-  /** Slack's message markup as plain text: links by their label, people by name, broadcasts as @channel, entities decoded. */
   private async plain(text: string): Promise<string> {
     const parts: string[] = [];
     let last = 0;

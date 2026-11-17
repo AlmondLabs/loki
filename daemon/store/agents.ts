@@ -7,26 +7,17 @@ import { backendName } from "../../core/desk-core.ts";
 import { readLocalAgent } from "../../mod/agents.ts";
 import { writeJsonAtomic } from "../../mod/json-file.ts";
 
-/**
- * The daemon's agents (plan 017, U6), under the daemon's own backend folder: `agents/<base64 id>.json` for the
- * record and `memfs/<id>/memory/` for the memory, a git repo. The mod's readers (mod/agents.ts: the Agents page,
- * memory, skills) read it by its folder.
- */
-
 const run = promisify(execFile);
 
-/** `persona`: who the agent is and how it works, in the person's words, its memory's system/persona.md to start with. */
 export interface NewAgent {
   name: string;
   description?: string;
   persona?: string;
   system?: string;
   model?: string;
-  /** The Mac the agent lives on (plan 023); a record without one lives on whichever Mac has it. */
   home_mac?: string;
 }
 
-/** A new agent's record and its memory repo, with a first commit; returns its id. */
 export async function createAgent(backendDir: string, agent: NewAgent): Promise<string> {
   const id = `agent-local-${randomUUID()}`;
   const memory = join(backendDir, "memfs", id, "memory");
@@ -50,12 +41,10 @@ export async function createAgent(backendDir: string, agent: NewAgent): Promise<
   return id;
 }
 
-/** Write an agent's record atomically. */
 export function writeRecord(backendDir: string, id: string, record: Record<string, unknown>): void {
   writeJsonAtomic(join(backendDir, "agents", `${backendName(id)}.json`), record, { pretty: true });
 }
 
-/** The person's agents: those with a record and a memory folder, helper agents left out. */
 export function listAgents(backendDir: string): string[] {
   let ids: string[];
   try {

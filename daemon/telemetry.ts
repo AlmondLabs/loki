@@ -11,23 +11,12 @@ import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { turnTimings, type Span } from "./timing.ts";
 
-/**
- * One `turn_finished` event per agent turn (core/analytics.ts), so a change to the harness can be measured: the
- * daemon follows every store's commits, and when a chat's run ends it reads what the run saved (each response's
- * usage, cost and time, each tool's result and time; daemon/timing.ts) and captures one line into events.jsonl. The
- * clock is the daemon's: a turn starts when pi-durable starts its run, its first output is the first commit carrying
- * the answer in flight, and it ends when the run ends. Ids, counts and fixed words only, never what was said.
- */
-
-/** Where a turn came from: you, a scheduled prompt, a background task's notice, a helper, Learn's writer, reflection, a memory review. */
 export type TurnOrigin = "message" | "schedule" | "background" | "subagent" | "recall" | "reflection" | "doctor";
 
-/** The turn's id: its agent and the submission that opened its run. The app gets the same id on the chat's events. */
 export function turnIdOf(agentId: string, inputs: readonly unknown[]): string | null {
   return inputs.length ? `${agentId}:${String(inputs[0])}` : null;
 }
 
-/** The harness this daemon runs: a checkout's commit (marked when its tracked files have changes), else loki's version. */
 export function harnessVersion(root: string): string | null {
   if (existsSync(join(root, ".git"))) {
     try {
@@ -35,14 +24,11 @@ export function harnessVersion(root: string): string | null {
         execFileSync("git", ["describe", "--always", "--dirty", "--exclude=*"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() ||
         null
       );
-    } catch {
-      // no git on PATH: the version below
-    }
+    } catch {}
   }
   return appVersion(root);
 }
 
-/** A short code, or "other": pi-durable's reasons and statuses are words, but nothing free-form reaches the file. */
 const code = (word: unknown): string => (typeof word === "string" && /^[a-z][a-z_]{0,31}$/.test(word) ? word : "other");
 
 interface Message {
@@ -57,32 +43,24 @@ interface Message {
   usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; reasoning?: number; cost?: { total?: number } };
 }
 
-/** One turn as the telemetry reads it once its run ends: the chat, the entries it wrote and the daemon's clock times (milliseconds since the epoch), from which the `turn_finished` event is made. */
 export interface FinishedTurn {
   agentId: string;
-  /** loki's chat id, and what loki keeps about the chat. */
   chatId: string;
   hidden: boolean;
   title: string | null;
   turnId: string | null;
-  /** The first input's request id (a helper's starts `subagent:`). */
   requestId: string | null;
-  /** The entries the run wrote, the person's message among them. */
   entries: ReadonlyArray<Pick<EntryRecord, "kind" | "model">>;
   startedAt: number;
   firstOutputAt: number | null;
   endedAt: number;
-  /** An input's reason for going unanswered, else the run task's outcome when it was not `completed`. */
   failure: string | null;
   harnessVersion: string | null;
-  /** The chat's model, for a turn that wrote no response. */
   model: string | null;
 }
 
-/** Where a turn came from, judged by its request id, its chat and its first message, checked in that order. */
 export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "requestId" | "entries">): TurnOrigin {
   if (t.requestId?.startsWith("subagent:")) return "subagent";
-  // A background pass's run (daemon/passes.ts) says which job it is in its request id.
   if (t.requestId?.startsWith("pass:learn:")) return "recall";
   if (t.requestId?.startsWith("pass:reflection:")) return "reflection";
   if (t.requestId?.startsWith("pass:doctor:") || t.chatId.startsWith("doctor-")) return "doctor";
@@ -97,7 +75,6 @@ export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "
 
 const round = (n: number) => Math.round(n);
 
-/** The event's properties for one finished turn. */
 export function turnProperties(t: FinishedTurn): Record<string, unknown> {
   const messages = t.entries.flatMap((e) => (e.model ?? []) as Message[]);
   const answers = messages.filter((m) => m.role === "assistant");
@@ -121,7 +98,6 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
     harness_version: t.harnessVersion,
     turn_id: t.turnId,
     origin: originOf(t),
-    // A background pass's request id, which its pass_finished line carries too.
     ...(t.requestId?.startsWith("pass:") ? { request_id: t.requestId } : {}),
     input_tokens: input,
     output_tokens: sum((u) => u.output),
@@ -144,18 +120,11 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
   };
 }
 
-/**
- * One turn on an ACP agent (plan 020), as daemon/acp/chats.ts saw it: the agent reports the turn's tokens and cost
- * and loki watches its replies and tool calls go by, but not how long the model or each tool took. Times are
- * milliseconds since the epoch.
- */
 export interface AcpTurn {
   agentId: string;
   chatId: string;
   turnId: string;
-  /** The usage ledger's name for it, `acp:<agent>/<model>`. */
   model: string;
-  /** The ACP agent's id, which stands in for the harness version: its turns are not loki's harness at work. */
   agent: string;
   startedAt: number;
   firstOutputAt: number | null;
@@ -165,15 +134,10 @@ export interface AcpTurn {
   responses: number;
   toolCalls: number;
   toolFailures: number;
-  /** ACP's stop reason (`end_turn`, `cancelled`, `refusal`…), null when the prompt failed. */
   stopReason: string | null;
   failed: boolean;
 }
 
-/**
- * The `turn_finished` properties for an ACP turn: the same fields as loki's own turns, with `harness_version` naming
- * the agent (`acp:<agent>`) so its turns form their own row, and null for the times the agent does not report.
- */
 export function acpTurnProperties(t: AcpTurn): Record<string, unknown> {
   const u = t.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 };
   const prompt = u.input + u.cacheRead + u.cacheWrite;
@@ -207,7 +171,6 @@ export function acpTurnProperties(t: AcpTurn): Record<string, unknown> {
   };
 }
 
-/** A run in flight; `taskId` is the task running it now. */
 interface Running {
   taskId: unknown;
   inputs: unknown[];
@@ -224,14 +187,11 @@ interface Deps {
   now?: () => number;
 }
 
-/** Follows every store's commits and captures `turn_finished` as each run ends. */
 export class TurnTelemetry {
   private readonly deps: Deps;
   private readonly now: () => number;
   private readonly unsubscribe = new Map<string, () => void>();
-  /** In-flight runs, by agent and pi-durable conversation. */
   private readonly running = new Map<string, Running>();
-  /** Submissions' request ids, kept while their run runs. */
   private readonly requests = new Map<string, string>();
 
   constructor(deps: Deps) {
@@ -294,12 +254,10 @@ export class TurnTelemetry {
         run = { taskId: live.run.taskId, inputs: [...live.run.inputs], startedAt: at, firstOutputAt: null, entries: [] };
         this.running.set(key, run);
         for (const id of run.inputs) inRuns.add(String(id));
-        // The run's own entries in this commit (the person's message, placed as the run starts).
         for (const c of publication.changes) if (c.type === "entry" && c.value.conversationId === change.conversationId) run.entries.push(c.value);
       }
       if (run && ((live.generation?.message?.content?.length ?? 0) > 0 || (live.tools?.length ?? 0) > 0)) run.firstOutputAt ??= at;
     }
-    // A message the agent could not take up at all (no model, a provider with no sign-in): a turn that ended at once.
     for (const [id, { conversationId, reason }] of unanswered) {
       if (inRuns.has(id) || [...this.running.values()].some((r) => r.inputs.some((i) => String(i) === id))) continue;
       void this.finish(agentId, store, conversationId, { taskId: null, inputs: [id], startedAt: at, firstOutputAt: null, entries: [] }, at, reason);
@@ -313,7 +271,7 @@ export class TurnTelemetry {
         store.chatInfo(conversationId as ConversationId, context),
         store.agentSettings(conversationId as ConversationId, context),
       ]);
-      if (!info?.id) return; // not a chat of loki's
+      if (!info?.id) return;
       const model = (settings as { model?: { provider?: string; modelId?: string } } | undefined)?.model;
       const requestKey = `${agentId}\u0000${String(run.inputs[0])}`;
       const requestId = this.requests.get(requestKey) ?? null;

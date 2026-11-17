@@ -8,8 +8,6 @@ import { replyEdit, replySend } from "../app/src/desk/use-reply-card.ts";
 import { kickerOf, quotedSubject, replyPeopleSource, sendNote } from "../app/src/desk/reply-proposal-card.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 
-// Plan 097, U5: what the agent asks the person to decide, as one Proposal frame. Pressing is checked in the app.
-
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const approval = (toolName = "write_file"): PendingApproval => ({
   requestId: "r1",
@@ -34,7 +32,6 @@ const reply = (over: Partial<ReplyProposal> = {}): ReplyProposal => ({
   ...over,
 });
 const decide = () => Promise.resolve({ done: true, message: null, proposal: null });
-/** A value the test needs, or a failure naming it. */
 function must<T>(v: T | undefined, what: string): T {
   if (v === undefined) throw new Error(`no ${what}`);
   return v;
@@ -47,7 +44,6 @@ describe("an approval", () => {
     expect(out).toContain("Allow the agent to run “write_file”?");
     expect(out).toContain("reports/weekly-signups.md");
     expect([...out.matchAll(/data-action="(\w+)"/g)].map((m) => m[1])).toEqual(["deny", "always", "approve"]);
-    // Flow's keys are in the buttons' tooltips, not on their faces.
     expect(out).toContain('title="Allow (A)"');
     expect(out).toContain('title="Deny (D)"');
     expect(out).not.toContain("<kbd");
@@ -139,7 +135,6 @@ describe("a reply proposal", () => {
     expect(notes({ provider: "gmail", place: null, to: ["Bo <bo@x.com>"], text: "cc @Ana Ruiz", mentions: [ana] })).toEqual([
       "Adds Ana Ruiz (ana@example.com) to cc.",
     ]);
-    // Already on the thread, or deleted from the text: no line.
     expect(notes({ provider: "gmail", place: null, cc: ["Ana Ruiz <ana@example.com>"], text: "cc @Ana Ruiz", mentions: [ana] })).toEqual([]);
     expect(notes({ provider: "gmail", place: null, text: "cc Ana", mentions: [ana] })).toEqual([]);
     expect(notes({ text: "@Ravi Kumar look", mentions: [{ display: "Ravi Kumar", id: "U9", address: null, not_member: true }] })).toEqual([
@@ -160,7 +155,6 @@ describe("a reply proposal", () => {
 
 describe("sending a reply proposal", () => {
   test("sends no edit unless the person changed the text, whatever the agent wrote since the card opened", () => {
-    // Opened while drafting, finished since: approving untouched sends the agent's text, not the early draft.
     expect(replyEdit(null, "Thursday at 3pm works.")).toBeNull();
     expect(replyEdit("Thursday at 3pm works.", "Thursday at 3pm works.")).toBeNull();
     expect(replyEdit("Friday instead.", "Thursday at 3pm works.")).toBe("Friday instead.");

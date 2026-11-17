@@ -16,10 +16,6 @@ const NEW_FRIDAY: SuggestionTarget = { agent_id: FRIDAY, folder: "/work/loki" };
 const NEW_IRA: SuggestionTarget = { agent_id: IRA, folder: "/work/site" };
 const key = (c: { agent_id: string; conversation_id: string }) => `${c.agent_id}/${c.conversation_id}`;
 
-/**
- * A Mac holding the source chat, with chats it can see (here or on paired Macs), the agents it knows, and a fake
- * that answers each chat frame the way the Mac it goes to would. `refuse` makes that frame fail with the message.
- */
 function world(
   opts: { archived?: boolean; chats?: Record<string, TargetChat>; agents?: string[]; refuse?: (f: ChatCall) => string | null; older?: boolean } = {},
 ) {
@@ -43,7 +39,6 @@ function world(
       return Promise.resolve({ ok: true, reply: { type: "chat_created", agent_id: f.agent_id, conversation_id: `conv-made-${++made}` } });
     if (f.type === "chat_send") return Promise.resolve({ ok: true, reply: { type: "chat_accepted", accepted: true } });
     if (f.archived === false) must(records.get(key(f)), "the chat un-archived").archived = false;
-    // A Mac on an older loki drops the draft without a word and replies as it always did.
     const saved = f.draft && !opts.older ? { draft_suggestion_id: f.draft.suggestion_id } : {};
     return Promise.resolve({ ok: true, reply: { type: "chat_done", ...saved } });
   };
@@ -143,7 +138,6 @@ describe("sending a suggestion", () => {
     expect(sent).not.toHaveProperty("steer");
     expect((sent as { context: string }).context).toContain('a suggestion an agent made in the chat "suggestions plan"');
     expect(w.stored()[0].status).toBe("sent");
-    // The card went from pending to sending to gone.
     expect(w.pushes.map((p) => (p.events[0] as { suggestions: Suggestion[] }).suggestions.map((x) => x.status))).toEqual([["pending"], ["sending"], []]);
   });
 
@@ -352,7 +346,6 @@ describe("sending across three Macs (KTD3)", () => {
   const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
   const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-  /** This Mac's router and caller, with the target chat on the mini, whose link answers with `answer`. */
   const caller = (answer: (f: Record<string, unknown>) => Promise<Record<string, unknown>>, reachable = true) => {
     const directory = new ChatDirectory({
       here: BOOK,

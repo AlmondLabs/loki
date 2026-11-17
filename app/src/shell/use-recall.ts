@@ -5,22 +5,13 @@ import { dueCount, learnTitle, type CardWithSchedule, type RecallSnapshot } from
 import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
-/**
- * Recall as the window sees it: the snapshot from the mod (cards with their schedules, the deleted pile,
- * the worker's state), the count due for the rail, and the moves — grade, delete and its undo, edit,
- * restore, the worker's knobs, a run now, an export. Refreshes when the mod says the cards changed, when
- * the segment opens, and once a minute while it shows (cards come due with the clock).
- */
 export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => void) {
   const [snap, setSnap] = useState<RecallSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-  /** The last card deleted here, for Z. */
   const lastDeleted = useRef<string | null>(null);
-  /** A lead whose lesson is being created (the harness takes a moment). */
   const [starting, setStarting] = useState<string | null>(null);
 
-  // `refresh` changes with the link only; desk.recall is a fresh object every render.
   const recallApi = useRef(desk.recall);
   useEffect(() => {
     recallApi.current = desk.recall;
@@ -47,7 +38,6 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     return () => clearInterval(t);
   }, [segment, refresh]);
 
-  /** One card changed (or went): update in place so the deck does not wait for the refetch. */
   const patch = (id: string, card: CardWithSchedule | null) =>
     setSnap((s) => (s ? { ...s, cards: card ? s.cards.map((c) => (c.card.id === id ? card : c)) : s.cards.filter((c) => c.card.id !== id) } : s));
 
@@ -112,10 +102,6 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     }
   };
 
-  /**
-   * Start a lesson from a lead: the mod makes the [Learn] conversation and furnishes its desk; the caller opens the
-   * desk and sends the brief (the person's first message) over the app's live socket. Null when the mod refused.
-   */
   const startLead = async (id: string): Promise<{ agentId: string; conversationId: string; brief: string; title: string } | null> => {
     const lead = snap?.leads.find((l) => l.id === id);
     if (!lead) return null;
@@ -163,5 +149,4 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
   };
 }
 
-/** Learn's state and moves for the window, as `useRecall` returns them. */
 export type Recall = ReturnType<typeof useRecall>;

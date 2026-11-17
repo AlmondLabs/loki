@@ -45,7 +45,8 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
     └── children: bash commands, background tasks, git, ripgrep
 ```
 
-1. **The shell starts the daemon and keeps it alive.** At launch it finds Node 22.19 or newer (`node.rs`), stops a
+1. **The shell starts the daemon and keeps it alive.** At launch, beside the window rather than before it, it makes sure
+   of the daemon's Node and of git (`runtime.rs`; see "Finding Node and other programs" below), stops a
    daemon an earlier loki left behind (`procs.rs`, matched by its command line and start time), and starts a new one
    (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build runs the
    checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to `~/.loki/logs/daemon.log`. A
@@ -71,6 +72,42 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    one runs as long as the daemon does, restarted with backoff if it exits.
 
 The model is a remote service, not a process on your machine.
+
+## How loki updates itself
+
+The shell replaces the whole app, with the daemon and mod bundles inside it, through Tauri's updater (`update.rs`,
+plan 2026-11-15-2319). Nothing updates the daemon apart from the app, so the two are never out of step.
+
+1. **The channel is the shell's.** `~/.loki/updates.json` holds `stable` or `nightly`. The first run takes the running
+   version's channel (a nightly's version carries `-nightly.`, as `core/version.ts` reads it), and
+   `set_update_channel` writes it for the next check. Stable reads `releases/latest/download/latest.json`, Nightly
+   `releases/download/nightly/latest.json`, and `LOKI_UPDATE_URL` overrides both. The plugin's own comparison stands:
+   only a version newer by semver, which the nightly numbering makes right for both channels.
+2. **Checks run in the background, in a release build.** At launch and every six hours, on a thread of their own, by
+   the wall clock so a sleeping laptop's hours count; never while a check or a download is under way or an update is
+   ready. `check_for_updates` runs one now. A development build never checks, and neither does a Linux install from
+   the `.deb`: only the AppImage replaces itself, as the bundle type the bundler stamps into the binary says
+   (`tauri::utils::platform::bundle_type`; not `APPIMAGE`, which every program an AppImage starts inherits). Neither
+   writes `updates.json`.
+3. **Only a verified download is ready.** The plugin downloads the system's update file, within 30 minutes, and checks
+   its signature against the public key in `tauri.conf.json`; the bytes then wait in memory. On the Mac, when this user
+   cannot change the folder holding `loki.app`, nothing is downloaded: the state is Failed at Install, asking them to
+   move loki, since the plugin would otherwise ask for an administrator's password as loki quits. A failed check, download or signature
+   is a state the page shows, never a dialog, and the running version stays.
+4. **It installs on quit, or on Restart to Update.** The `RunEvent` handler in `lib.rs` stops the daemon, then installs
+   a ready update without relaunching (`Updates::quit`): on Windows the NSIS installer gets `/P /UPDATE` and no `/R`,
+   and it ends loki. `restart_to_update` installs and relaunches; on the Mac and Linux the swap comes before the daemon
+   stops, so a failed swap leaves it running. The page decides whether a chat is working before it calls it, since the
+   shell has no daemon client. A crash or force-quit loses the download, and the next launch fetches it again. An
+   install that fails as loki quits is kept in `updates.json` (`failed_install`: `version`, `message`); the next launch
+   starts Failed at Install and holds its first check for six hours, so the same download does not repeat at every
+   launch, and the record goes once that version or a newer one runs.
+5. **The page sees one status.** `update_status` and `loki:update` events carry `{ channel, current, state }`, where
+   `state.kind` is `idle`, `checking`, `downloading` (`done`, and `total` once known), `ready` (`version`), `failed`
+   (`stage`: `check`, `download`, `signature` or `install`, and `message`) or `unsupported` (`reason`: `development`
+   or `package`). The page never calls the plugin: no capability grants its commands. In the page,
+   `shell/use-loki-update.ts` mirrors the status, and `shell/update-notice.tsx` holds the Restart to Update notice and
+   the menu item's action, judging from the window's attention items whether a chat is mid-turn.
 
 ## Inside the daemon
 
@@ -430,6 +467,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
    to notice changes), and in each agent's memory `conflicts/sync.md` while a clash waits for reflection.
 13. `logs/`: `daemon.log` (the daemon's output, appended across restarts, and set aside as `daemon.log.1` once past
     10 MB) and `events.jsonl` (the local usage events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
+14. `updates.json`: the update channel, Stable or Nightly, and the last install that failed as loki quit, which the
+    shell keeps (`update.rs`).
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the
@@ -524,14 +563,15 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel, `pi-steps.ts` reads Pi's messages
    as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
    `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
-   `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the batches of older items).
+   `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the most older items an account keeps open).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (the sidebar with its places, ⌘K,
    keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames) and the
    Inbox deck, whose `deck-moves.ts` makes read, later, archive, label and undo the same on every card and sends a
    typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
    phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
-   primitives; `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night) and the widget kit
+   primitives (on the desktop, wrappers over `ui/`'s shadcn components, plan 2026-11-15-1035; the phone keeps their own
+   markup); `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night) and the widget kit
    (`@loki/kit`). The desktop's chat pane and Flow's cards (plans 096 and 097) add three: `ui/` holds shadcn's components on Base UI and, in
    `ui/ai-elements/`, Vercel's AI Elements, both copied in and bent to loki's rules, imported as `@/ui/…`; `lib/utils.ts`
    is the one `cn`, which knows loki's type sizes and shadows; `item/` draws one item (a chat, a Slack thread, an email,
@@ -540,14 +580,16 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `desk/outside-card.tsx`
    draws an outside thread with the item components only when asked (`items`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
-   `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
+   `runtime.rs` fetches a release's Node (and PortableGit on Windows) and checks for git; `update.rs` checks for a newer
+   release, downloads it and installs it on quit; `node.rs` finds a development build's Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus, built in AppKit so an
    action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight
    (the page sends the menu as data, `shell/native-menu.ts`, and gets back the index of the item chosen).
 6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),
    `trial.ts` (the timing trial), `smoke.ts` (the built bundle in a scratch home), `check-pr-title.ts` (a PR title
-   against the commit rules, run by `pr-title.yml`), `shrink-images.ts` (the pictures already in the stores),
+   against the commit rules, run by `pr-title.yml`), `check-update-key.ts` (a release build's update signatures
+   against the compiled-in key, run by `release.yml`), `shrink-images.ts` (the pictures already in the stores),
    `springs.ts` (the kit's springs into `tokens.css`), `cask.ts`, `release.ts` and `analytics.ts`.
 7. `test/` (vitest, on Node) and `test-node/` (Node's own runner, for what needs real SQLite, sockets or processes:
    resuming after a crash, store backup, migration and images, mods from a folder, the LAN socket, and paired Macs'
@@ -574,10 +616,17 @@ place, and the Mac's side of it is what shipped first.
    set).
 5. **Finding a leftover daemon.** `procs.rs` reads the process list through `sysinfo` on every system and matches
    the daemon's command line (`--loki-daemon` and loki's token file).
-6. **Finding Node and other programs.** `node.rs` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
+6. **Finding Node and other programs.** A release build fetches its own Node (`runtime.rs`, plan 2026-11-15-2319): the
+   version `src-tauri/runtime.json` names, downloaded from nodejs.org into `~/.loki/runtime/<name>-<version>-<target>/`,
+   checked against the SHA-256 pinned there and renamed into place whole; on Windows PortableGit too, when git or Git
+   Bash is missing. Then git: on the Mac `xcode-select -p` and that its folder holds `usr/bin/git` (never running
+   `/usr/bin/git`, which raises the system's install dialog), on Linux `git` on PATH. The sequence runs off the main
+   thread, so the window opens at once; `DaemonStatus` carries the download's progress (`preparing`) or the missing
+   tools (`tools_missing`), sent to the page as `loki:runtime` events, and Welcome shows them; `retry_daemon` runs the
+   sequence again and `install_tools` runs `xcode-select --install`. A development build runs the machine's Node:
+   `node.rs` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
    does not see on its short PATH: Homebrew's prefixes, volta, nvm, fnm and npm's global bin, and on Windows the
-   nodejs.org installer's folder, nvm-windows, fnm and scoop. Nothing new enough becomes Welcome's Node step, with
-   this system's usual install line. The mod finds `tailscale` (and `bd`, for the one-time move of open tasks)
+   nodejs.org installer's folder, nvm-windows, fnm and scoop; nothing new enough is the reason Welcome shows. The mod finds `tailscale` (and `bd`, for the one-time move of open tasks)
    through `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.

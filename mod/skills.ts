@@ -5,16 +5,8 @@ import { execProgram } from "./programs.ts";
 import { memoryRoot } from "./agents.ts";
 import type { GlobalSkill } from "../core/frame-types.ts";
 
-/**
- * Skills outside an agent's memory: the global folder every agent reads (~/.agents/skills, the folder agent tools
- * share; entries are usually links made by skill_enable), and installing a skill into an agent. Per-agent skills
- * themselves are files in the memory repo (agents.ts).
- */
-
-/** The global skills folder, ~/.agents/skills unless LOKI_SKILLS_DIR says otherwise. */
 export const globalSkillsDir = (): string => process.env.LOKI_SKILLS_DIR ?? join(homedir(), ".agents", "skills");
 
-/** The first line worth showing from a SKILL.md: its frontmatter description, else its first heading. */
 export function skillDescription(text: string): string | null {
   const fm = /^---\n([\s\S]*?)\n---/.exec(text);
   const d = fm?.[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
@@ -22,13 +14,8 @@ export function skillDescription(text: string): string | null {
   return /^#+\s*(.+)$/m.exec(text.replace(/^---[\s\S]*?---/, ""))?.[1]?.trim() ?? null;
 }
 
-/** The most of a description the prompt's lists show (plan 034): skills, and memory notes beyond the core. */
 const BRIEF_LIMIT = 200;
 
-/**
- * A skill's or a note's description as the prompt lists it: cut at a word to BRIEF_LIMIT characters. Not at its first sentence:
- * many descriptions say what the skill is first and when to use it after, and the when is what the agent decides by.
- */
 export function briefDescription(description: string): string {
   const text = description.trim().replace(/\s+/g, " ");
   if (text.length <= BRIEF_LIMIT) return text;
@@ -36,10 +23,6 @@ export function briefDescription(description: string): string {
   return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : cut.length).trimEnd()}…`;
 }
 
-/**
- * The skills in the global folder, by name: each entry (a link is followed) that holds a SKILL.md, with its description.
- * Empty when the folder cannot be read.
- */
 export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
   let names: string[];
   try {
@@ -65,18 +48,12 @@ export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
     let description: string | null = null;
     try {
       description = skillDescription(readFileSync(md, "utf8"));
-    } catch {
-      // name only
-    }
+    } catch {}
     out.push({ name, path: target, is_link: isLink, description });
   }
   return out;
 }
 
-/**
- * Why a source cannot be installed from, or null when it may be. A source is a GitHub path (`owner/repo[/path]`), a
- * GitHub or git URL, or a folder on this machine; here it is only checked to be present, without spaces, and not an option.
- */
 export function validSkillSource(source: string): string | null {
   const s = source.trim();
   if (!s) return "a source is required";
@@ -85,14 +62,8 @@ export function validSkillSource(source: string): string | null {
   return null;
 }
 
-/** Where a source's files come from: a folder here, or a repository to clone (at a branch) and the folder in it. */
 export type SkillOrigin = { kind: "folder"; path: string } | { kind: "git"; url: string; ref: string | null; path: string };
 
-/**
- * Where a source's files come from. A path starting with /, ~, . or a drive letter is a folder; a GitHub web URL is
- * split into its repository, branch and folder; any other URL is cloned whole; anything else is read as
- * owner/repo[/path] on GitHub, and throws when it has no repo.
- */
 export function skillOrigin(source: string, home = homedir()): SkillOrigin {
   const s = source.trim();
   if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".") || /^[A-Za-z]:[\\/]/.test(s))
@@ -106,7 +77,6 @@ export function skillOrigin(source: string, home = homedir()): SkillOrigin {
   return { kind: "git", url: `https://github.com/${owner}/${repo}.git`, ref: null, path: rest.join("/") };
 }
 
-/** Runs a program and resolves to its trimmed output; installSkill takes one, and tests pass their own. */
 export type Runner = (program: string, args: string[], cwd?: string) => Promise<string>;
 
 const runProgram: Runner = (program, args, cwd) =>
@@ -117,11 +87,6 @@ const runProgram: Runner = (program, args, cwd) =>
     });
   });
 
-/**
- * Install a skill into an agent's memory: its folder (one with a SKILL.md) copied to `skills/<name>` in the memory repo
- * and committed, where the agent's skills section finds it. A skill of that name already there is replaced only with
- * `force`. Resolves to a line saying what was installed.
- */
 export async function installSkill(source: string, agentId: string, opts: { force?: boolean; run?: Runner; memory?: string } = {}): Promise<string> {
   const bad = validSkillSource(source);
   if (bad) throw new Error(bad);
@@ -142,7 +107,6 @@ export async function installSkill(source: string, agentId: string, opts: { forc
     mkdirSync(dirname(target), { recursive: true });
     cpSync(folder, target, { recursive: true, filter: (p) => basename(p) !== ".git" });
     await run("git", ["add", "--all", join("skills", name)], memory);
-    // The same skill installed again changes nothing, and is not a commit.
     if (!(await run("git", ["status", "--porcelain", "--", join("skills", name)], memory)).trim())
       return `${name} is already installed as it is at ${source.trim()}`;
     await run("git", ["commit", "--quiet", "-m", `Install skill: ${name}`, "--", join("skills", name)], memory);

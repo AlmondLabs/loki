@@ -23,11 +23,6 @@ afterEach(() => {
 
 const ALL = ["gmail", "drive", "sheets", "docs", "calendar"] as const;
 
-/**
- * The Google tools over a fake Workspace: WORK owns ada@acme.com with every service, HOME owns bo@acme.com, OLD owns a
- * mailbox signed in before loki asked for more than Gmail, and far@acme.com lives on a paired Mac. Each tool is called
- * as a chat of an agent, in a chat folder of its own.
- */
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-google-tools-"));
   dirs.push(dir);
@@ -59,7 +54,6 @@ async function fixture() {
         },
       ),
   });
-  /** A tool's answer as a chat of `agentId`; a refusal comes back as `refused: <why>`. */
   const call = async (agentId: string, name: string, args: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
     const tool = must(tools.get(name), name);
     try {
@@ -148,7 +142,6 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
     const file = String(r.file);
     expect(file.startsWith(join(f.dir, "tool-results", "local-conv-x"))).toBe(true);
     expect((JSON.parse(readFileSync(file, "utf8")) as unknown[]).length).toBe(120);
-    // One page by default, with where the next one starts.
     expect(await f.call(WORK, "google_gmail_search", { query: "invoice" })).toMatchObject({ next_page: "50" });
   });
 
@@ -180,7 +173,6 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
     f.ws.state.freshAttachmentIds = true;
     const byPart = await f.call(WORK, "google_gmail_attachment", { message: "m1", attachment: "att1", part: "1", drive_folder: "root" });
     expect(byPart).toMatchObject({ name: "invoice.pdf", drive_file: { name: "invoice.pdf" } });
-    // Without `part`, the message's only attachment is the one meant.
     expect(await f.call(WORK, "google_gmail_attachment", { message: "m1", attachment: "att1", drive_folder: "root" })).toMatchObject({ name: "invoice.pdf" });
   });
 
@@ -219,8 +211,6 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
       removed: ["INBOX", "UNREAD"],
     });
     expect(f.ws.state.modified).toEqual([{ ids: ["m1"], addLabelIds: ["Label_7"], removeLabelIds: ["INBOX", "UNREAD"] }]);
-    // Flow sees the change as one made in Gmail (mod/gmail-sync.ts): no Google tool reaches the threads, the moves'
-    // ledger, focus learning or the card's waiting mark, which only the person's own actions write.
     const dir = join(import.meta.dirname, "..", "mod", "google-tools");
     for (const file of readdirSync(dir))
       expect(readFileSync(join(dir, file), "utf8"), file).not.toMatch(/from "\.\.\/(account-threads|inbox-ledger|seen|outside-threads|frames\/)/);
@@ -314,7 +304,6 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
     expect(r.stored).toEqual([{ range: "Sheet1!A4", values: [["6"]], formulas: [["=SUM(A1:A3)"]] }]);
     const around = await f.call(WORK, "google_sheets_read", { spreadsheet: "s1", ranges: ["Sheet1!A1:A4"], formulas: true });
     expect(around.ranges).toEqual([{ range: "Sheet1!A1:A4", values: [["1"], ["2"], ["3"], ["6"]], formulas: [["1"], ["2"], ["3"], ["=SUM(A1:A3)"]] }]);
-    // One write; the read-backs ask for the values as shown and as typed.
     expect(f.ws.requests.filter((q) => q.method === "POST")).toHaveLength(1);
   });
 
@@ -379,8 +368,6 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
       "/gmail/v1/users/me/drafts/r123/send",
       "/gmail/v1/users/me/messages/SEND?alt=json",
       "/gmail/v1/users/me/messages%2Fsend",
-      // As the URL parser reads them (review of plan 2026-11-14-1530): a tab or newline inside the word, an escaped
-      // letter, a trailing slash or dot segment.
       "/gmail/v1/users/me/messages/se\tnd",
       "/gmail/v1/users/me/messages/se\nnd",
       "/gmail/v1/users/me/messages/%73end",
@@ -390,12 +377,18 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
       "/gmail/v1/users/me/drafts/send/.",
       "/gmail/v1/users/me/messages/x/./send",
       "/gmail/v1/users/me/messages /send",
+      "/gmail/v1/users/me/messages/send//",
+      "/gmail/v1/users/me/messages/send///",
+      "/gmail/v1/users/me/drafts/send//",
+      "/gmail/v1/users/me/messages//send",
     ])
       expect((await f.call(WORK, "google_api", { service: "gmail", method: "POST", path, body: { raw: "x" } })).refused, path).toMatch(
         /^scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose/,
       );
     expect(f.ws.requests.length).toBe(before);
     expect(f.ws.state.sent).toEqual([]);
+    for (const path of ["/gmail/v1/users/me/labels", "/gmail/v1/users/me/messages/m1", "/gmail/v1/users/me/drafts"])
+      expect(JSON.stringify(await f.call(WORK, "google_api", { service: "gmail", method: "GET", path })), path).not.toContain("scripts do not send mail");
   });
 
   test("a Google error rejects with Google's own words", async () => {

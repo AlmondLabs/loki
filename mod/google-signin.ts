@@ -17,62 +17,36 @@ import {
 } from "./google-app.ts";
 import { DEFAULT_MOD_PORT } from "./paths.ts";
 
-/**
- * Connecting a Gmail account (plan 067, U4, KTD5): loki's loopback OAuth, as MCP's sign-in has it (daemon/mcp/oauth.ts),
- * with Google as the one authorization server. `start` keeps a pending sign-in under a one-time `state` and returns
- * Google's page to open; the browser comes back to GOOGLE_OAUTH_CALLBACK on the loopback server, where `finish`
- * matches the state, redeems the code with the PKCE verifier, reads the mailbox's address and connects the account
- * with the owner picked at the start. The tokens go to the keychain through Accounts, never to a file.
- */
-
-/** Where the browser comes back after a Google sign-in, on the loopback server only (mod/server.ts). */
 export const GOOGLE_OAUTH_CALLBACK = "/accounts/google/callback";
 
-/** The redirect a sign-in names: the loopback server's port, as MCP's callbackUrl works it out. */
 export const googleCallbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT)): string => `http://127.0.0.1:${port}${GOOGLE_OAUTH_CALLBACK}`;
 
-/**
- * What loki asks Google for: Gmail, Drive, Sheets, Docs and Calendar for scripts (plan 2026-11-11 scripts, R16), read-only
- * contacts, other contacts and directory to find people by name (plan 2026-11-14-1530, KTD7), and who the person is.
- * Google may let the person untick any of them; what was granted is kept (grantedServices, grantedContacts).
- */
 export const GOOGLE_SCOPES = [...Object.values(SERVICE_SCOPES), ...Object.values(CONTACT_SCOPES), "openid", "https://www.googleapis.com/auth/userinfo.email"];
 
-/** How long a sign-in may take between opening Google's page and coming back. */
 export const PENDING_SIGN_IN_MS = 10 * 60 * 1000;
 
 /** Who signed in, from Google's own account service: it answers whichever services were ticked. */
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const START_AGAIN = "Start it again from Preferences › Accounts.";
 
-/**
- * What starting a sign-in takes: the agent that will own the account, and the person's own Google app when they use
- * one. `account_id` signs in an account already here again, for more services or fresh tokens (R18): the sign-in must
- * then come back as that same address, and the account keeps its owner.
- */
 export interface GoogleSignInStart {
   owner_agent_id: string;
   own_app?: GoogleApp;
   account_id?: string;
 }
 
-/** How a sign-in ended, as the page the browser shows says it; the account when one was connected. */
 export interface GoogleSignInResult {
   ok: boolean;
   message: string;
   account?: AccountRecord;
 }
 
-/** What GoogleSignIn is built from; fetch, the clock and the redirect are injected so tests own them. */
 export interface GoogleSignInOptions {
   accounts: Accounts;
   fetch?: typeof fetch;
   now?: () => Date;
-  /** The callback address Google sends the browser back to (googleCallbackUrl). */
   redirect?: string;
-  /** The app a sign-in uses when the person brings none (SHARED_GOOGLE_APP). */
   sharedApp?: GoogleApp;
-  /** A fresh signal for each call, aborted when the call has run too long; tests pass one they abort themselves. */
   timeout?: () => AbortSignal;
 }
 
@@ -85,7 +59,6 @@ interface Pending {
   started: number;
 }
 
-/** Gmail sign-ins under way, by state, and how each one ends. */
 export class GoogleSignIn {
   private readonly opts: GoogleSignInOptions;
   private readonly pending = new Map<string, Pending>();
@@ -106,10 +79,6 @@ export class GoogleSignIn {
     return this.opts.redirect ?? googleCallbackUrl();
   }
 
-  /**
-   * Begin a sign-in for an account the given agent will own: Google's authorization page to open. Refused before
-   * Google is involved when there is no owner, or no app to sign in with.
-   */
   start(input: GoogleSignInStart): string {
     if (!input.owner_agent_id) throw new Error("an account needs an owner: pick the agent it belongs to");
     const own = input.own_app !== undefined;
@@ -132,7 +101,6 @@ export class GoogleSignIn {
       redirect_uri: this.redirect,
       response_type: "code",
       scope: GOOGLE_SCOPES.join(" "),
-      // What the person granted before stays granted, so a sign-in for more never takes back Gmail (R18).
       include_granted_scopes: "true",
       // A refresh token, every time: Google gives one only on a consent, and the watcher needs it to keep reading.
       access_type: "offline",
@@ -144,10 +112,6 @@ export class GoogleSignIn {
     return url.href;
   }
 
-  /**
-   * The browser came back (GOOGLE_OAUTH_CALLBACK): match the state, redeem the code and connect the account. Every
-   * outcome is a line for the page the browser shows; nothing is kept unless the account was connected.
-   */
   async finish(params: Record<string, string>): Promise<GoogleSignInResult> {
     const pending = params.state ? this.pending.get(params.state) : undefined;
     if (!pending) return { ok: false, message: `This sign-in is not one loki started, or it was already used. ${START_AGAIN}` };
@@ -159,7 +123,6 @@ export class GoogleSignIn {
       const tokens = await this.redeem(params.code, pending);
       const address = await this.address(tokens.access_token);
       const secret: GmailSecret = { ...tokens, ...(pending.own ? { own_app: pending.app } : {}) };
-      // An answer without its scopes is read as Gmail alone, never as more than was asked for.
       const grants: GoogleGrants =
         tokens.scopes === undefined
           ? { services: ["gmail"], contacts: [] }
@@ -171,7 +134,6 @@ export class GoogleSignIn {
     }
   }
 
-  /** Sign-ins started more than 10 minutes ago go, owner choice and verifier with them. */
   private prune(): void {
     const now = this.now();
     for (const [state, p] of this.pending) if (now - p.started > PENDING_SIGN_IN_MS) this.pending.delete(state);
@@ -217,12 +179,6 @@ export class GoogleSignIn {
     return body.email;
   }
 
-  /**
-   * A new mailbox is added with its owner; Accounts refuses one connected already. A mailbox here that lost its
-   * sign-in (R22), or one signed in again on purpose (`account_id`, R18), takes the new tokens and grants and is
-   * connected, keeping its owner and where its watcher stands. Nothing is written when the sign-in came back as another
-   * address than the account it was for, or without Gmail, which loki needs to read the mailbox at all.
-   */
   private async connect(address: string, pending: Pending, secret: string, grants: GoogleGrants): Promise<AccountRecord> {
     const accountId = accountIdOf({ provider: "gmail", address });
     const wanted = pending.account_id;

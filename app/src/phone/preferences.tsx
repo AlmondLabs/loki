@@ -9,17 +9,8 @@ import { BackButton, ConfirmSheet, Scroll, TopBar } from "./ui";
 import { messageOf } from "../../../core/errors.ts";
 import { standalone } from "./edge-swipe";
 
-/**
- * The pages behind More's utility rows, in Slack's Preferences grammar — groups of rows on hairlines:
- *   Preferences         appearance: System, Light or Dark
- *   Connection details  the paired Mac, its system, its two links and route, this phone, and unpairing
- *   About loki          the builds and versions, this screen, and what stays on the Mac
- * and the reload sheet More's Updates row opens. What used to be one Settings page, sorted by what it is for.
- */
-
 type ModLink = "connecting" | "open" | "closed";
 
-/** A page under More: the back control, the title, the banner, then its groups. */
 function Page({
   title,
   backLabel,
@@ -44,7 +35,6 @@ function Page({
   );
 }
 
-/** Appearance, kept on this phone: the choice applies at once, and the line under it says what it resolved to. */
 export function Preferences({ banner, backLabel = "more", onBack }: { banner?: ReactNode; backLabel?: string; onBack: () => void }) {
   const theme = useTheme();
   return (
@@ -67,21 +57,15 @@ export function Preferences({ banner, backLabel = "more", onBack }: { banner?: R
   );
 }
 
-/** The socket's state in words: linked, connecting, reconnecting. */
 function LinkFact({ state }: { state: ModLink }) {
   const word = state === "open" ? "Linked" : state === "closed" ? "Reconnecting" : "Connecting";
   return <StateWord state={state === "open" ? "on" : state === "closed" ? "off" : "wait"}>{word}</StateWord>;
 }
 
-/** The system loki runs on, as the mod told this page (`__LOKI__.os`): the phone's own is not it. */
 export function HostSystemRow({ os = platform }: { os?: Platform }) {
   return <FactRow label="System" value={systemName(os)} />;
 }
 
-/**
- * The paired Mac and this phone. Unpairing is the one destructive action on the phone: a named row, then
- * a sheet that says what follows and how to pair again; a failure keeps the sheet open with the error.
- */
 export function ConnectionPage({
   me,
   link,
@@ -111,8 +95,7 @@ export function ConnectionPage({
       onUnpaired();
     } catch (err) {
       setError(messageOf(err));
-      // A failure frees the button here; on success this screen is left for pairing, so busy stays set rather than offering a second unpair.
-      // react-doctor-disable-next-line react-doctor/no-loading-flag-reset-outside-finally
+    } finally {
       setBusy(false);
     }
   };
@@ -151,7 +134,6 @@ export function ConnectionPage({
   );
 }
 
-/** What loki is on this phone: the build it runs against the one the Mac serves, the screen. */
 export function AboutPage({
   servedBuild,
   banner,
@@ -189,10 +171,6 @@ export function AboutPage({
 
 const UPDATE_WORD: Record<UpdateState, string | null> = { ready: "Update ready", current: "Up to date", unknown: null };
 
-/**
- * Reload, from More's Updates row or About: a home-screen app has no reload button, so this is it. It is
- * confirmed because it drops what only lives in this page — a reply not yet sent.
- */
 export function ReloadSheet({ state, onClose }: { state: UpdateState; onClose: () => void }) {
   return (
     <ConfirmSheet
@@ -208,7 +186,6 @@ export function ReloadSheet({ state, onClose }: { state: UpdateState; onClose: (
   );
 }
 
-/** The safe-area insets as the page receives them, read off a probe element padded with env(). */
 function safeInsets(): { top: number; bottom: number } {
   const probe = document.createElement("div");
   probe.style.cssText = "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
@@ -219,12 +196,6 @@ function safeInsets(): { top: number; bottom: number } {
   return out;
 }
 
-/**
- * How the page is running, for telling a Safari home-screen app from a Chrome one or a browser tab:
- * the viewport the web view got against the screen (a shorter viewport is a host keeping a strip for
- * its own toolbar — nothing the page can paint), the insets, the visual viewport, the document height
- * and the display mode. Read at mount; a rotation re-reads it.
- */
 function readViewport(): string {
   const insets = safeInsets();
   const visual = window.visualViewport ? Math.round(window.visualViewport.height) : null;

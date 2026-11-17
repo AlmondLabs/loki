@@ -13,7 +13,6 @@ import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
-/** Two Macs' stores for one agent, on one faux model. */
 async function stores() {
   const faux = fauxProvider();
   const models = createModels();
@@ -23,7 +22,6 @@ async function stores() {
   return { faux, model: { provider: faux.provider.id, modelId: faux.getModel().id }, book: await open(), mini: await open() };
 }
 
-/** What a chat's log says, in order: each entry's kind and its text. */
 async function said(store: AgentStore, id: string): Promise<string[]> {
   const chat = must(await store.chat(id, ctx), "the chat");
   return (await store.entries(chat, ctx)).map((e) => `${e.kind}:${JSON.stringify(e.model ?? null).slice(0, 80)}`);
@@ -38,8 +36,6 @@ describe("a chat moving to another Mac", () => {
     await (await chat.submit({ type: "input", content: "remember the gym" }, ctx)).wait(ctx);
     await s.book.updateChat("conv-1", { labels: ["health"], mode: "plan" }, ctx);
     const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: { reflection: 3 } }, ctx), "the export");
-    // Through the wire as JSON, as the peer link carries it.
-    // Through JSON, not structuredClone, as the move travels between Macs: what the wire drops is dropped here too.
     // react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone
     expect(await importChat(s.mini, JSON.parse(JSON.stringify(moved)) as typeof moved, ctx)).toBe(true);
     expect(await said(s.mini, "conv-1")).toEqual(await said(s.book, "conv-1"));
@@ -68,7 +64,6 @@ describe("a chat moving to another Mac", () => {
     ];
     await s.book.updateChat("conv-1", { purpose: "the website", draft, suggestions }, ctx);
     const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
-    // Through JSON, not structuredClone, as the move travels between Macs: what the wire drops is dropped here too.
     // react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone
     expect(await importChat(s.mini, JSON.parse(JSON.stringify(moved)) as typeof moved, ctx)).toBe(true);
     const info = must(await s.mini.chatInfo(must(await s.mini.chat("conv-1", ctx), "chat").id, ctx), "info");
@@ -82,7 +77,6 @@ describe("a chat moving to another Mac", () => {
     await (await chat.submit({ type: "input", content: "hi" }, ctx)).wait(ctx);
     await (await chat.submit({ type: "input", content: "remember the gym" }, ctx)).wait(ctx);
     const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
-    // The disk fills while the log is written.
     const failing = Object.create(s.mini) as AgentStore;
     failing.importEntries = () => Promise.reject(new Error("disk full"));
     await expect(importChat(failing, moved, ctx)).rejects.toThrow("disk full");
@@ -108,13 +102,11 @@ describe("a chat moved there and back", () => {
     s.faux.setResponses([fauxAssistantMessage("hello"), fauxAssistantMessage("on the mini"), fauxAssistantMessage("back")]);
     const chat = await s.book.createChat("conv-1", { agent: { model: s.model } }, ctx);
     await (await chat.submit({ type: "input", content: "hi" }, ctx)).wait(ctx);
-    // There: placed on purpose, and the MacBook lets go of its copy.
     const there = must(await exportChat(s.book, "agent-friday", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
     expect(await importChat(s.mini, { ...there, info: { ...there.info, placed: true } }, ctx)).toBe(true);
     await s.book.updateChat("conv-1", { hidden: true }, ctx);
     const onMini = must(await s.mini.chat("conv-1", ctx), "on the mini");
     await (await onMini.submit({ type: "input", content: "more" }, ctx)).wait(ctx);
-    // And back.
     const back = must(await exportChat(s.mini, "agent-friday", "conv-1", { schedules: [], cursors: {} }, ctx), "the export back");
     expect(back.info.placed).toBe(true);
     expect(await importChat(s.book, back, ctx)).toBe(true);
@@ -123,7 +115,6 @@ describe("a chat moved there and back", () => {
     expect(info).toMatchObject({ hidden: false, placed: true });
     const all = await s.book.chats(ctx);
     expect(all.filter((c) => c.id.startsWith("conv-1~moved-")).map((c) => c.hidden)).toEqual([true]);
-    // A chat still here and in use is never written over.
     expect(await importChat(s.book, back, ctx)).toBe(false);
   });
 });

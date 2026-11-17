@@ -33,21 +33,12 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** A dependency the measurement registers but never calls. */
 const unused = (): never => {
   throw new Error("not called");
 };
 
-/** Tokens, estimated as Code Mode estimates them: four characters each. */
 const tokens = (text: string): number => Math.ceil(text.length / 4);
 
-/**
- * What one model request costs an agent, in tokens, and what it carries: the system prompt as a provider gets it (its
- * text and sections, replayed) and each tool definition once. Every chat's built-in tools, the canvas and chat tools,
- * the Google tools and the account reads are registered, as the daemon registers them; `reply_propose` and MCP are left
- * out, since nothing here changes them. The leading system message also lists the tools (`toolsAdded`), so the
- * messages' JSON must not be counted as well: that counted every definition twice before plan 099.
- */
 async function request(owns: "gmail" | "slack" | null): Promise<{ prompt: string; tools: string[]; total: number }> {
   const dir = mkdtempSync(join(tmpdir(), "loki-scripts-prompt-"));
   dirs.push(dir);
@@ -110,20 +101,11 @@ async function request(owns: "gmail" | "slack" | null): Promise<{ prompt: string
   }
 }
 
-/**
- * What each kind of agent paid a turn on main before plan 099 (3823bf66), measured on 2026-11-14 with `request`. No
- * agent may pay more than this (plan 099, R7).
- */
 const BEFORE = { none: 3927, gmail: 4533, slack: 4486 } as const;
 
-/**
- * What each pays with plan 099, measured on 2026-11-14: 506, 949 and 949 fewer. A change that adds more than
- * `SLACK` tokens a turn to any of them fails here, so the person can weigh it.
- */
 const AFTER = { none: 3421, gmail: 3584, slack: 3537 } as const;
 const SLACK = 50;
 
-/** The tools plan 099 made scripts' only; no agent's model is offered them. */
 const MOVED = ["history_search", "history_read", "schedule_create", "schedule_list", "schedule_delete", "canvas_read", "canvas_focus", "chat_list"];
 
 describe("what an agent's prompt costs a turn (plan 099, R7)", () => {
@@ -143,7 +125,6 @@ describe("what an agent's prompt costs a turn (plan 099, R7)", () => {
     expect(tools.filter((t) => MOVED.includes(t))).toEqual([]);
     for (const namespace of ["## history", "## schedule", "## canvas", "## chat"]) expect(prompt).toContain(namespace);
     expect(prompt).not.toContain("## google");
-    // How to make a widget, which canvas_read's description used to say (plan 099, KTD5).
     expect(prompt).toContain("writing files, never through a tool");
   });
 

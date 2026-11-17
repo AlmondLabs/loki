@@ -46,9 +46,7 @@ function thread(heights: number[], scrollTop: number, away = true) {
     el: el as unknown as HTMLElement,
     raw: el,
     rows,
-    /** Older rows mounted above the first one. */
     reveal: (added: number[]) => rows.unshift(...added.map(make)),
-    /** The row at `at` drawn again as a new element of `h` (a turn whose key changed when its earlier parts came in). */
     remount: (at: number, h: number) => {
       rows[at].node.isConnected = false;
       rows[at] = make(h);
@@ -73,15 +71,15 @@ describe("the desktop thread keeps your place when older rows come in above (Web
     const before = { top: t.raw.scrollTop, height: t.raw.scrollHeight };
     t.reveal([400]);
     const now = placeAfterReveal(t.el, before, reading);
-    holdPlace(t.el, now); // the scroll event the new offset fires
+    holdPlace(t.el, now);
     expect(t.raw.scrollTop).toBe(650);
   });
 
   test("a row being read that is drawn again under a new key falls back to how much the thread grew", () => {
     const t = thread([300, 100, 100], 50);
-    const reading = holdPlace(t.el, null); // inside the first row, a turn whose earlier parts are above the window
+    const reading = holdPlace(t.el, null);
     const before = { top: t.raw.scrollTop, height: t.raw.scrollHeight };
-    t.remount(0, 500); // its earlier 200 come in, inside the same turn
+    t.remount(0, 500);
     placeAfterReveal(t.el, before, reading);
     expect(t.raw.scrollTop).toBe(250);
   });
@@ -89,11 +87,11 @@ describe("the desktop thread keeps your place when older rows come in above (Web
   test("rows find mounts above are not put back, so find's own scroll to the match stays where find put it", () => {
     const t = thread([100, 100, 100, 100], 250);
     const reading = holdPlace(t.el, null);
-    t.reveal([400]); // find mounts the older row holding its text; no reveal was asked for
+    t.reveal([400]);
     const now = placeAfterReveal(t.el, null, reading);
     expect(t.raw.scrollTop).toBe(250);
-    t.raw.scrollTop = 0; // find scrolls the match into view
-    holdPlace(t.el, now); // the scroll event that fires
+    t.raw.scrollTop = 0;
+    holdPlace(t.el, now);
     expect(t.raw.scrollTop).toBe(0);
   });
 

@@ -21,7 +21,6 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** A task as `bd list --json` prints it, from the chat it was filed in. */
 const task = (id: string, chat: ChatKey, extra: Record<string, unknown> = {}, metadata: Record<string, unknown> = {}) => ({
   id,
   title: `task ${id}`,
@@ -32,13 +31,11 @@ const task = (id: string, chat: ChatKey, extra: Record<string, unknown> = {}, me
   ...extra,
 });
 
-/** One chat's record, as the Mac it lives on keeps it. */
 interface Chat {
   suggestions: Suggestion[];
   archived: boolean;
 }
 
-/** The suggestions of one Mac: its chats' records in memory, and its chat_update answered by un-archiving. */
 function mac(chats: Record<string, Chat>) {
   let n = 0;
   const s = new Suggestions({
@@ -64,10 +61,6 @@ function mac(chats: Record<string, Chat>) {
   return s;
 }
 
-/**
- * This Mac with an archived and a live chat, a paired Mac (the mini) holding Ira's chat, bd answering with `listed`
- * (or failing when it is null), and a router that sends the mini's chat there while `miniOn` holds.
- */
 function world(listed: () => unknown[] | null) {
   const root = mkdtempSync(join(tmpdir(), "loki-task-migration-"));
   dirs.push(root);
@@ -86,12 +79,9 @@ function world(listed: () => unknown[] | null) {
     target: (msg: Record<string, unknown>): Target => (msg.conversation_id === ON_MINI.conversation_id ? { mac: "mac-mini", reachable: state.miniOn } : null),
     forward: async (home: RemoteHome, msg: Record<string, unknown>): Promise<Forwarded> => {
       if (!home.reachable) return { ok: false, message: "waiting for mini: this chat lives there" };
-      // The mini answers the frame as its table parses it.
       const p = FRAMES.suggestion_add.parse(msg);
       if (typeof p === "string") return { ok: false, message: p };
-      // As mod/frames/suggestions.ts does: the frame's suggestion_id is the id the suggestion is kept under.
       const suggestion = await miniSuggestions.add(p, { title: p.title, text: p.text, target: p.target }, p.suggestion_id ? { id: p.suggestion_id } : {});
-      // The mini stored it, but its answer never came back in time.
       if (state.miniTimesOut) return { ok: false, message: "mac-mini did not answer in time" };
       return { ok: true, reply: { type: "suggestion_added", suggestion } };
     },
@@ -123,7 +113,6 @@ describe("open tasks become suggestions in the chats they were filed from (plan 
       }),
     ]);
     expect(w.recorded()).toEqual({ tasks_moved: ["lk-1"] });
-    // Only read: the beads store is never written.
     expect(w.state.bdCalls.every((a) => a[0] === "--readonly" && a[1] === "list")).toBe(true);
   });
 
@@ -188,14 +177,12 @@ describe("open tasks become suggestions in the chats they were filed from (plan 
     writeFileSync(w.stateFile, JSON.stringify({ agents: 1, tasks_moved: ["lk-0"] }));
     await moveTasks(w.deps);
     expect(w.recorded()).toEqual({ agents: 1, tasks_moved: ["lk-0", "lk-2"] });
-    // Written through a file beside it and renamed over it, so no half-written file or temp file is left.
     expect(readdirSync(join(w.root, "state"))).toEqual(["migrations.json"]);
   });
 
   test("a task added but not recorded (a crash between the two) is not added twice on the next run", async () => {
     const w = world(() => [task("lk-1", LIVE)]);
     await moveTasks(w.deps);
-    // The crash: the suggestion is kept in the chat, but its task was never noted as moved.
     rmSync(w.stateFile);
     await moveTasks(w.deps);
     expect(must(w.here[key(LIVE)], "live").suggestions).toEqual([expect.objectContaining({ id: "task-lk-1", title: "task lk-1" })]);

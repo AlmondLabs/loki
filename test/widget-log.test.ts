@@ -59,7 +59,6 @@ describe("WidgetLog", () => {
       ["d1/other", "added", "other", t + 1],
       ["d1/trip", "changed", "three", t + 20_000],
     ]);
-    // The broadcast carries the same entry id, so the app replaces its row instead of adding one.
     expect(second[0].id).toBe(third[0].id);
     expect(third[0].id).toBe(rows[1].id);
   });
@@ -117,7 +116,6 @@ describe("WidgetLog", () => {
       ["d1/other", "added", "agent"],
       ["d1/trip", "removed", "you"],
     ]);
-    // Used once: the same change again is the agent's.
     log.record(diff({ removed: ["d1/lesson"], removedEntries: [entry("d1", "lesson")] }), t + 600);
     log.record(diff({ added: [entry("d1", "trip")] }), t + 700);
     expect(

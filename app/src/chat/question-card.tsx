@@ -2,20 +2,7 @@ import { useState } from "react";
 import type { PendingQuestion } from "../../../core/attention/model.ts";
 import { Button, Chip, Dot, Field } from "../components";
 
-/**
- * The agent asked (AskUserQuestion). Compact by design — the thread above is
- * the context you need to answer, so the card takes as little of it as it can:
- * one line per question with its options as pills, the chosen option's
- * description on one line beneath. A free-text line appears per question only
- * when there are several; with one question the host's message box is the
- * "in your own words" path.
- */
-export function QuestionCard(props: {
-  question: PendingQuestion;
-  onAnswer: (answers: Record<string, string | string[]>) => void;
-  /** A touch screen: there is no hover, so the hint says tap. */ touch?: boolean;
-}) {
-  // A new request is a new card: picks and typed answers start empty with it.
+export function QuestionCard(props: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void; touch?: boolean }) {
   return <QuestionCardFor key={props.question.requestId} {...props} />;
 }
 
@@ -30,7 +17,7 @@ function QuestionCardFor({
 }) {
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [other, setOther] = useState<Partial<Record<string, string>>>({});
-  const [peek, setPeek] = useState<string | null>(null); // hovered option label, for its description
+  const [peek, setPeek] = useState<string | null>(null);
 
   const many = question.questions.length > 1;
   const answerFor = (q: PendingQuestion["questions"][number]): string | string[] | null => {
@@ -98,12 +85,12 @@ function QuestionCardFor({
                           width: 8,
                           height: 8,
                           borderRadius: 2,
-                          border: `1px solid ${on ? "var(--loki-accent)" : "var(--loki-muted)"}`,
-                          background: on ? "var(--loki-accent)" : "transparent",
+                          border: `1px solid ${on ? "var(--loki-on-affirm)" : "var(--loki-muted)"}`,
+                          background: on ? "var(--loki-on-affirm)" : "transparent",
                         }}
                       />
                     ) : (
-                      <Dot size={8} color={on ? "var(--loki-accent)" : "var(--loki-muted)"} ring={!on} aria-hidden />
+                      <Dot size={8} color={on ? "var(--loki-on-affirm)" : "var(--loki-muted)"} ring={!on} aria-hidden />
                     )}
                     {o.label}
                   </Chip>
@@ -145,7 +132,6 @@ function QuestionCardFor({
               )}
             </div>
             {q.options.some((o) => o.description) && (
-              // Always one line tall, so hovering the pills never moves the thread above.
               <div className="loki-meta" style={{ lineHeight: 1.4, marginLeft: 2, minHeight: "1.4em" }} aria-live="polite">
                 {shown?.description ?? (sel.length ? "" : touch ? "Tap an option for details" : "Hover over an option for details")}
               </div>

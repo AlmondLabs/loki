@@ -1,10 +1,11 @@
 name: shell
-# The Rust shell's tests (src-tauri), on the three systems, for a PR that changes it. It needs nothing of the app's
-# build: tauri::generate_context!() only wants frontendDist (app/dist) and the bundle's resources to exist when it
-# compiles, so a placeholder of each stands in for them (the release builds bundle the real ones). Once a week on main
-# too, as ci.yml is: a shell no PR touched still meets each new runner image.
 on:
   pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/shell.yml"
+  push:
+    branches: [main]
     paths:
       - "src-tauri/**"
       - ".github/workflows/shell.yml"
@@ -30,8 +31,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      # Tauri 2's Linux build prerequisites, the Ubuntu 22.04 names (KTD11). No appindicator library: the tray is
-      # Mac-only (KTD3). patchelf is for the AppImage bundler, kept so this list matches the release leg's.
       - name: linux build packages
         if: runner.os == 'Linux'
         run: |
@@ -45,13 +44,14 @@ jobs:
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
+          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
+          # repository's 10 GB, leaving the next release build cold.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: stand-ins for the app build and the bundled resources
         run: |
           mkdir -p app/dist src-tauri/resources
           printf '<!doctype html>' > app/dist/index.html
           touch src-tauri/resources/.placeholder
-      # The layout once (it is the same everywhere); clippy on each system, since much of the shell is per-system code.
-      # --locked: Cargo.lock is what ships, and a build must not quietly resolve something else.
       - if: runner.os == 'Linux'
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - if: ${{ !cancelled() }}

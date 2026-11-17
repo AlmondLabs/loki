@@ -1,9 +1,3 @@
-/**
- * A daemon stand-in that is killed mid-turn: it opens an agent store on SQLite, starts a turn, and reports when the
- * turn is under way, so the parent test can SIGKILL it there. Run by test-node/resume.test.ts, never on its own.
- *
- * argv: <sqlite file> <"generation" | "tool">
- */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxToolCall, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
@@ -23,7 +17,6 @@ else faux.setResponses([fauxAssistantMessage("a long answer that streams slowly 
 const store = await AgentStore.open({ file }, { models, registry: trialRegistry() }, ctx);
 const chat = await store.createChat("c", { agent: { model } }, ctx);
 await chat.submit({ type: "input", content: "go", requestId: "r1" }, ctx);
-// A tool reports itself from inside its call (trial-registry.ts); a generation once some of its answer is committed.
 if (phase === "generation") {
   const view = await chat.viewState(ctx);
   view.subscribe((value) => {

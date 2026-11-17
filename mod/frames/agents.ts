@@ -10,12 +10,7 @@ import type {
 } from "../../core/frame-types.ts";
 import { fail, reply, type FrameHandlers } from "./context.ts";
 
-/**
- * What the Agents pages' frame handler needs from its host; without `agents` every request answers that agents are
- * not available.
- */
 export interface AgentsDeps {
-  /** The Agents page: the local record and the memory filesystem (mod/agents.ts), read-only. */
   agents?: {
     get: (agentId: string) => LocalAgent | null;
     tree: (agentId: string) => MemoryFile[];
@@ -24,19 +19,14 @@ export interface AgentsDeps {
     read: (agentId: string, path: string) => string | null;
     log: (agentId: string, opts: { path?: string; limit?: number }) => Promise<MemoryCommit[]>;
     diff: (agentId: string, sha: string) => Promise<string>;
-    /** The daemon's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
     reflection?: (agentId: string) => Promise<ReflectionState>;
-    /** Skills outside memory (mod/skills.ts). */
     globalSkills?: () => GlobalSkill[];
     install?: (agentId: string, source: string, force: boolean) => Promise<string>;
-    /** Memory skills with origin (self/other), edited, and source (mod/skill-sources.ts); agent_get prefers this over `skills`. */
     skillsInfo?: (agentId: string) => Promise<MemorySkillInfo[]>;
-    /** Fetch an other skill's upstream and replace, stage for reconciliation, or report current. */
     refreshSkill?: (agentId: string, name: string, spec?: string) => Promise<RefreshOutcome>;
   };
 }
 
-/** The Agents pages: an agent's record, its memory files, history and diffs, reflection, and its skills. */
 export function agentsFrames({ agents: ag }: AgentsDeps): FrameHandlers {
   const off = () => fail("agents are not available in this mod");
   return {

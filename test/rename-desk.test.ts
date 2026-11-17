@@ -1,11 +1,12 @@
-// The rename dialog and sheet (plan 049, U5): beside the name, a one-line purpose agents read to know what a chat is for.
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RenameDesk, cleanPurpose, saveRename } from "../app/src/desk/rename-desk.tsx";
 import { RenameSheet } from "../app/src/phone/rename-sheet.tsx";
 
-/** The calls a save made, with the answers each gives. */
+// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
+vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
+
 function calls(answers: { rename?: string | null; purpose?: string | null } = {}) {
   const made: string[] = [];
   return {

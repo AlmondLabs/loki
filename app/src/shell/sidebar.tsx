@@ -10,67 +10,76 @@ import { Glyph, Icon, type IconName } from "../shared/icons";
 import { columnsStore } from "./columns";
 import { loadSidebar, saveSidebar, toggleFold, type SidebarPref } from "./sidebar-model";
 
-/**
- * The native title bar is hidden (src-tauri/src/lib.rs: overlay style on the Mac, undecorated on Windows and Linux),
- * so loki draws the top edge: a strip across the window, the sidebar and the views under it. On the Mac it is the
- * traffic lights' standard height; elsewhere it carries loki's own window buttons, at the height Windows gives its
- * caption buttons. A browser tab has its own chrome, so there it is nothing.
- */
 export function titlebarHeight(shell: boolean = inTauri, os: Platform = platform): number {
   return !shell ? 0 : os === "macos" ? 28 : 32;
 }
-/** The top strip's height in px on this system (see `titlebarHeight`); 0 in a browser tab. */
 export const TITLEBAR_HEIGHT = titlebarHeight();
 
-/** Liquid Glass's sidebar (U12): its gap from the window's edges, in px. */
 export const GLASS_INSET = 8;
-/** Liquid Glass's sidebar: the height of its top row, where the traffic lights and the sidebar toggle sit, in px. */
 export const GLASS_HEAD = 44;
 /**
- * The Mac window's traffic lights (src-tauri lib.rs traffic_light_position): the close button's top-left, in points.
- * They sit inside Liquid Glass's inset sidebar, and its toggle is centred on them.
+ * The Mac window's traffic lights, in px from its top-left corner: the close button's left edge, the zoom button's
+ * right edge and the buttons' centre line. AppKit lays them out itself in the window's toolbar (src-tauri native.rs
+ * add_unified_toolbar), and the page puts its toolbar row on them, read at boot (`adoptTrafficLights`); until then
+ * these are where a 52 pt unified title bar has them.
  */
-export const GLASS_LIGHTS = { x: 20, y: 22 };
-/** Where Liquid Glass's sidebar toggle sits from the window's left edge: past the traffic lights on the Mac's window, else near the edge. */
+export const GLASS_LIGHTS = { left: 20, right: 74, middle: 26 };
+export async function adoptTrafficLights(): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  const said: unknown = await invoke("traffic_lights").catch(() => null);
+  if (typeof said !== "object" || said === null) return;
+  const { left, right, middle } = said as Record<string, unknown>;
+  if (typeof left === "number" && typeof right === "number" && typeof middle === "number" && right > left && middle > 0) {
+    Object.assign(GLASS_LIGHTS, { left: Math.round(left), right: Math.round(right), middle: Math.round(middle) });
+  }
+}
+const LIGHTS_GAP = 18;
 export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
-  return shell && os === "macos" ? 92 : 16;
+  return shell && os === "macos" ? GLASS_LIGHTS.right + LIGHTS_GAP : 16;
 }
-/** Where the list starts while the sidebar is folded, in px: past the toggle (28 px and a gap), so 128 on the Mac and 52 elsewhere (columns.ts). */
+export const PLACES_INSET = 12;
+export const PLACE_PADDING = 8;
+const TOGGLE = { box: 28, symbolInset: 5 };
+export function sidebarToggleLeftShown(sidebarWidth: number, shell: boolean = inTauri, os: Platform = platform): number {
+  if (!(shell && os === "macos")) return sidebarToggleLeft(shell, os);
+  return GLASS_INSET + sidebarWidth - (PLACES_INSET + PLACE_PADDING - TOGGLE.symbolInset) - TOGGLE.box;
+}
 export function sidebarClearance(shell: boolean = inTauri, os: Platform = platform): number {
-  return sidebarToggleLeft(shell, os) + 36;
+  if (shell && os === "macos") return GLASS_INSET - LIST_BOX_INSET;
+  return sidebarToggleLeft(shell, os) + 36 + (shell ? 0 : 32);
 }
-/** The toggle's top, in px: its 28 px box centred on the lights' row (14 pt buttons), or near the panel's top elsewhere. */
+const LIST_BOX_INSET = 4;
+export const LIST_BAR = { padding: 16, gap: 8 };
+export function sidebarLeadRoom(shell: boolean = inTauri, os: Platform = platform): number {
+  if (!(shell && os === "macos")) return 0;
+  return sidebarToggleLeft(shell, os) + TOGGLE.box + 8 - sidebarClearance(shell, os) - LIST_BAR.padding - LIST_BAR.gap;
+}
+export function paneTop(shell: boolean = inTauri, os: Platform = platform): number {
+  return shell && os === "macos" ? Math.max(0, GLASS_LIGHTS.middle - 26) : titlebarHeight(shell, os);
+}
 export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
-  return shell && os === "macos" ? GLASS_LIGHTS.y + 7 - 14 : GLASS_INSET + 8;
+  return shell && os === "macos" ? GLASS_LIGHTS.middle - 14 : GLASS_INSET + 8;
 }
 
-/**
- * The window's top edge, Slack style, and it drags the window (a double click zooms, or maximises). On the Mac the
- * lights float at its left and nothing interactive goes in it. On Windows and Linux (plan 014 KTD4) it is Slack's
- * there: ☰ at the left with the menus the Mac's menu bar shows, minimise, maximise and close at the right. The
- * attribute is bare so only the strip itself drags, never its buttons.
- */
-export function TitleStrip({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
+export function TitleStrip({ os = platform, shell = inTauri, menuLabels = {} }: { os?: Platform; shell?: boolean; menuLabels?: Record<string, string> }) {
   const height = titlebarHeight(shell, os);
   if (!height) return null;
   if (os === "macos") return <div data-tauri-drag-region aria-hidden className="loki-title-strip" style={{ height, zIndex: LAYER.rail }} />;
-  return <OwnTitleStrip os={os} height={height} />;
+  return <OwnTitleStrip os={os} height={height} menuLabels={menuLabels} />;
 }
 
-function OwnTitleStrip({ os, height }: { os: Platform; height: number }) {
+function OwnTitleStrip({ os, height, menuLabels }: { os: Platform; height: number; menuLabels: Record<string, string> }) {
   const maximized = useMaximized();
   return (
     <div data-tauri-drag-region className="loki-title-strip loki-title-strip--own" style={{ height, zIndex: LAYER.strip }}>
-      <TitleMenu os={os} />
+      <TitleMenu os={os} labels={menuLabels} />
       <WindowControls maximized={maximized} onAction={windowAction} />
     </div>
   );
 }
 
-/** What loki's own window buttons do on Windows and Linux. */
 export type WindowAction = "minimize" | "toggleMaximize" | "close";
 
-/** The shell's window, its module loaded on first use; out here because an import() inside a hook keeps the React Compiler off it. */
 const currentWindow = () => import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow());
 
 function windowAction(action: WindowAction) {
@@ -79,7 +88,6 @@ function windowAction(action: WindowAction) {
     .catch((e: unknown) => console.warn(`loki: window ${action}`, e));
 }
 
-/** Whether the window is maximised, read at mount and again on every resize (maximising, restoring, a snap). */
 function useMaximized(): boolean {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
@@ -104,7 +112,6 @@ function useMaximized(): boolean {
 
 const glyph = { width: 10, height: 10, viewBox: "0 0 10 10", fill: "none", stroke: "currentColor", strokeWidth: 1 } as const;
 
-/** Minimise, maximise (Restore while maximised) and close, the Windows way: flat, full strip height, close turns red. */
 export function WindowControls({ maximized, onAction }: { maximized: boolean; onAction: (action: WindowAction) => void }) {
   const max = maximized ? "Restore" : "Maximise";
   return (
@@ -128,45 +135,28 @@ export function WindowControls({ maximized, onAction }: { maximized: boolean; on
   );
 }
 
-/** Each place's icon, by loki's icon names: the same as ⌘K and the menus use. */
 const PLACE_ICON: Record<Segment, IconName> = { desk: "desk", inbox: "inbox", agents: "agents", learn: "learn", settings: "settings" };
 
-/** One source under a place in the sidebar: its id, its name, its symbol or face, and the grey count of what waits in it. */
 export interface PlaceSource {
   id: string;
   title: string;
   icon?: IconName;
-  /** A face in place of the symbol: an agent's. */
   face?: ReactNode;
   count: number;
-  /** An agent at work: Slack's green dot at the face's corner. */
   live?: boolean;
 }
 
-/** A place's sources under its row (plan 2026-11-14-1330, R1): Chats' Pinned, one per agent, and Archived; Flow's lanes; the agents. */
 export interface PlaceSources {
   items: readonly PlaceSource[];
-  /** The source showing in the list. */
   selected: string;
-  /** The source the place's own row stands for: every chat, for Chats (R4). */
-  all: string;
   onSelect: (id: string) => void;
 }
 
-/** The sidebar's folds as saved; fresh when the page may not keep them. */
 function savedFolds(): SidebarPref {
   const store = columnsStore();
   return store ? loadSidebar(store) : { collapsed: [] };
 }
 
-/**
- * The sidebar's head (plan 2026-11-12-1505, U12): the window's places as the source list's first rows, as Mail lists
- * its mailboxes. Each row is a symbol in the accent, the place's name and a grey count
- * (what waits in Flow, the cards due in Learn); the place showing is filled, never bold. Preferences is not a row: it is
- * ⌘, and the menu bar's, as on every Mac app. A place with sources lists them under its row, one level down, with a
- * disclosure chevron at the row's trailing edge that folds them; the rows are the same in every place, and choosing a
- * source moves only the selection (plan 2026-11-14-1330, R1). The folds outlive restarts.
- */
 export function Places({
   segment,
   onSelect,
@@ -188,42 +178,43 @@ export function Places({
     if (store) saveSidebar(store, next);
   };
   return (
-    // Inside the sidebar's own navigation landmark (list-column.tsx), so not a second one.
     <div className="loki-places">
       {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
         const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
         const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
         const own = sources[s.id];
         const here = segment === s.id;
-        const row = (
-          <button
-            key={s.id}
-            type="button"
-            className="loki-place"
-            // With sources, the place's row is current only while it stands for the source showing (every chat).
-            aria-current={here && (!own || own.selected === own.all) ? "page" : undefined}
-            aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
-            title={`${s.label} (${s.key})`}
-            aria-keyshortcuts={ariaShortcut(s.key)}
-            onClick={() => (own ? own.onSelect(own.all) : onSelect(s.id))}
-          >
-            <span className="loki-place-icon">
-              <Icon name={PLACE_ICON[s.id]} size={18} />
-            </span>
-            <span className="loki-place-label">{s.label}</span>
-            {count > 0 && (
-              <span aria-hidden className="loki-place-count">
-                {countText(count)}
+        if (!own)
+          return (
+            <button
+              key={s.id}
+              type="button"
+              className="loki-place"
+              aria-current={here ? "page" : undefined}
+              aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
+              title={`${s.label} (${s.key})`}
+              aria-keyshortcuts={ariaShortcut(s.key)}
+              onClick={() => onSelect(s.id)}
+            >
+              <span className="loki-place-icon">
+                <Icon name={PLACE_ICON[s.id]} size={18} />
               </span>
-            )}
-          </button>
-        );
-        if (!own) return row;
+              <span className="loki-place-label">{s.label}</span>
+              {count > 0 && (
+                <span aria-hidden className="loki-place-count">
+                  {countText(count)}
+                </span>
+              )}
+            </button>
+          );
         const folded = folds.collapsed.includes(s.id);
+        const headingId = `loki-place-heading-${s.id}`;
         return (
           <div key={s.id} className="loki-place-group">
             <div className="loki-place-head">
-              {row}
+              <span id={headingId} className="loki-place-heading">
+                {s.label}
+              </span>
               <button
                 type="button"
                 className="loki-place-fold"
@@ -236,14 +227,15 @@ export function Places({
               </button>
             </div>
             {!folded && (
-              <ul className="loki-place-sources" aria-label={`${s.label} sources`}>
-                {own.items.map((it) => (
+              <ul className="loki-place-sources" aria-labelledby={headingId}>
+                {own.items.map((it, i) => (
                   <li key={it.id}>
                     <button
                       type="button"
-                      className="loki-place loki-place--source"
+                      className="loki-place"
                       aria-current={here && own.selected === it.id ? "page" : undefined}
                       aria-label={[it.title, it.live && "working", it.count > 0 && `${it.count} waiting`].filter(Boolean).join(", ")}
+                      title={i === 0 ? `${s.label} (${s.key})` : undefined}
                       onClick={() => own.onSelect(it.id)}
                     >
                       <span className="loki-place-icon">
@@ -268,7 +260,6 @@ export function Places({
   );
 }
 
-/** Show / hide the sidebar (⌃⌘S), floating beside the traffic lights, where it stays while the sidebar is hidden, as Mail's does. */
 export function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button

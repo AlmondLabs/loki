@@ -1,47 +1,57 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { inTauri } from "../desk/env";
+import { welcomeStep } from "../settings/provider-model";
 
-/** Mirrors the shell's `daemon_status`: the Node loki's daemon runs on, why it could not start, and the Node it wants when none is new enough. */
+/**
+ * Mirrors the shell's `daemon_status` (lib.rs `DaemonStatus`): the Node loki's daemon runs on, why it could not start,
+ * and what comes before it starts (plan 2026-11-15-2319, KTD7).
+ */
 export interface DaemonStatus {
   node: string | null;
   error: string | null;
-  nodeMissing: NodeMissing | null;
+  /** The runtime download under way, or the one that failed when `error` is set beside it. */
+  preparing: Preparing | null;
+  /** The system whose git is missing: the Mac's command line tools, or Linux's package. */
+  toolsMissing: "macos" | "linux" | null;
 }
 
-/** Mirrors node.rs `NodeMissing`: no Node new enough anywhere loki looks, on this system. */
-export interface NodeMissing {
-  os: "macos" | "windows" | "linux";
-  /** The newest older Node found ("20.11.1") and where, if any. */
-  found: string | null;
-  at: string | null;
-  /** "22.19": the oldest Node loki's daemon runs on. */
-  needed: string;
+/** Mirrors lib.rs `Preparing`: what the shell is fetching (Node, or PortableGit on Windows) and how far along it is. */
+export interface Preparing {
+  name: "node" | "git";
+  version: string;
+  done: number;
+  /** The download's size, once its server has said it. */
+  total: number | null;
 }
 
-/** The usual way to get Node on each system, for Welcome: one command where there is one, and a line around it. */
-export function nodeHelp(os: NodeMissing["os"]): { command: string; also?: string; note: string } {
-  if (os === "windows") return { command: "winget install OpenJS.NodeJS.LTS", note: "in PowerShell or Windows Terminal." };
-  if (os === "linux")
-    return {
-      command: "sudo apt install nodejs npm",
-      also: "sudo dnf install nodejs",
-      note: "on Debian or Ubuntu, or on Fedora, when the distribution's Node is 22 or newer.",
-    };
-  return { command: "brew install node", note: "with Homebrew (the loki cask brings it)." };
-}
+/** The event the shell sends each change of the status on (lib.rs `RUNTIME_EVENT`), carrying the whole status. */
+const RUNTIME_EVENT = "loki:runtime";
 
-/** How often the status is asked again while the daemon could not start: it may yet, once Node is installed. */
+/** How often the status is asked again until the daemon runs: the fallback for an event sent before the page listened. */
 const RECHECK_MS = 4000;
 
-/**
- * loki's daemon as the shell sees it: the Node it runs on, or why it could not start. Outside the shell (a
- * browser tab) there is nothing to report and `status` stays null. While `error` is set the status is asked
- * again every few seconds; `retry` (Welcome's "check again") has the shell look for Node afresh and start the
- * daemon when nothing runs it yet.
- */
-export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => Promise<void> } {
+const settled = (s: DaemonStatus | null) => !!s?.node && !s.error;
+
+export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => Promise<void>; installTools: () => Promise<string | null> } {
   const [status, setStatus] = useState<DaemonStatus | null>(null);
-  const failing = !!status?.error;
+  const waiting = inTauri && !settled(status);
+  useEffect(() => {
+    if (!inTauri) return;
+    let off: (() => void) | null = null;
+    let live = true;
+    void import("@tauri-apps/api/event")
+      .then(async ({ listen }) => {
+        const unlisten = await listen<DaemonStatus>(RUNTIME_EVENT, (e) => setStatus(e.payload));
+        if (live) off = unlisten;
+        else unlisten();
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      off?.();
+    };
+  }, []);
   useEffect(() => {
     if (!inTauri) return;
     let cancelled = false;
@@ -51,20 +61,44 @@ export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => P
         .then((s) => !cancelled && setStatus(s))
         .catch(() => {});
     refresh();
-    const timer = failing ? setInterval(refresh, RECHECK_MS) : null;
+    const timer = waiting ? setInterval(refresh, RECHECK_MS) : null;
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [failing]);
+  }, [waiting]);
   const retry = useCallback(async () => {
     if (!inTauri) return;
     const { invoke } = await import("@tauri-apps/api/core");
     try {
       setStatus(await invoke<DaemonStatus>("retry_daemon"));
     } catch (e) {
-      setStatus((s) => ({ node: s?.node ?? null, nodeMissing: s?.nodeMissing ?? null, error: String(e) }));
+      setStatus((s) => ({ node: s?.node ?? null, preparing: null, toolsMissing: null, error: String(e) }));
     }
   }, []);
-  return { status, retry };
+  const installTools = useCallback(async () => {
+    if (!inTauri) return null;
+    const { invoke } = await import("@tauri-apps/api/core");
+    try {
+      await invoke("install_tools");
+      return null;
+    } catch (e) {
+      return String(e);
+    }
+  }, []);
+  return { status, retry, installTools };
+}
+
+export type WelcomeStep = "prepare" | "provider" | "agent";
+
+export interface DaemonLink {
+  status: string;
+  agentsLoaded: boolean;
+  agents: readonly unknown[];
+  providers: ConnectProvider[] | null;
+}
+
+export function welcomeFor(daemon: DaemonStatus | null, link: DaemonLink): WelcomeStep | null {
+  if (link.status !== "open") return daemon && (daemon.error ?? daemon.preparing ?? daemon.toolsMissing) ? "prepare" : null;
+  return link.agentsLoaded ? welcomeStep({ agents: link.agents.length, providers: link.providers }) : null;
 }

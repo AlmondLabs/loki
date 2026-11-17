@@ -44,7 +44,6 @@ describe("attention model (browser)", () => {
     applyChatEvent(run, { kind: "loop", state: "running" });
     live.set(keyOf("a", "run"), run);
     const items = buildItems(convs, digests, live, { [keyOf("a", "seen")]: "2026-09-05T09:00:00Z" }, new Date("2026-09-05T10:00:00Z").getTime());
-    // by score (priority.ts): the two blocked cards first, the one waiting longest (the question, from 07:00) ahead; then the finished one; the rest by age
     expect(items.map((i) => `${i.id}:${i.status}`)).toEqual(["q:question", "appr:approval", "done:done", "seen:idle", "run:running"]);
     expect(
       must(
@@ -100,7 +99,7 @@ describe("a finished reply re-queues a decided card", () => {
     applyChatEvent(l, { kind: "loop", state: "idle" });
     expect(l.lastAssistantText).toBe("here is the answer");
     expect(must(l.thread.rows(), "the thread's rows").at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
-    applyChatEvent(l, { kind: "turn_end" }); // arrives late, with nothing left to settle
+    applyChatEvent(l, { kind: "turn_end" });
     expect(l.lastAssistantText).toBe("here is the answer");
     expect(must(l.thread.rows(), "the thread's rows").length).toBe(1);
   });
@@ -114,7 +113,7 @@ describe("a turn that ends in a tool call still counts as new", () => {
     expect(l.turns).toBe(0);
     applyChatEvent(l, { kind: "loop", state: "idle" });
     expect(l.turns).toBe(1);
-    applyChatEvent(l, { kind: "turn_end" }); // same turn, reported again: no double count
+    applyChatEvent(l, { kind: "turn_end" });
     expect(l.turns).toBe(1);
     applyChatEvent(l, { kind: "loop", state: "running" });
     applyChatEvent(l, { kind: "turn_end" });
@@ -137,7 +136,7 @@ describe("messages typed mid-turn", () => {
       ["second", true],
     ]);
     expect(l.queued.map((q) => q.text)).toEqual(["second"]);
-    expect(takeQueued(l)).toEqual({ text: "second", images: [] }); // the caller marks inTurn again before the next; here the turn is over
+    expect(takeQueued(l)).toEqual({ text: "second", images: [] });
     expect(takeQueued(l)).toBeNull();
   });
   test("on loki's own engine a message sent during a turn joins it; on an agent it waits for the turn's end", () => {
@@ -175,7 +174,6 @@ describe("viewed, apart from done", () => {
   });
 
   test("a card's stamp is the same on every device: a rest made on the phone holds on the Mac, and after a reload", () => {
-    // The phone has followed the chat live through three turns; the Mac, or the phone after a reload, has not.
     const watched = { ...emptyLive(), turns: 3, lastAssistantText: "Finished.", lastRole: "assistant" as const };
     const [onPhone] = buildItems([conv], digests, new Map([[keyOf("a", "c"), watched]]), {}, now);
     const [onMac] = buildItems([conv], digests, new Map(), {}, now);
@@ -187,9 +185,9 @@ describe("viewed, apart from done", () => {
     expect(unviewed(base)).toBe(true);
     expect(unviewed({ ...base, viewedAt: "2026-09-05T07:59:59Z" })).toBe(true);
     expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00Z" })).toBe(false);
-    expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00.000+00:00" })).toBe(false); // times compared as instants
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00.000+00:00" })).toBe(false);
     expect(unviewed({ ...base, unread: false })).toBe(false);
-    expect(unviewed({ ...base, last_message_at: null, viewedAt: "2026-09-05T08:00:00Z" })).toBe(true); // nothing to compare: still new
+    expect(unviewed({ ...base, last_message_at: null, viewedAt: "2026-09-05T08:00:00Z" })).toBe(true);
   });
 
   test("viewStamp: one look per new last message, only while it is unread and unviewed", () => {
@@ -209,7 +207,7 @@ describe("a loop status that repeats changes nothing", () => {
     const l = emptyLive();
     applyChatEvent(l, loop("running"));
     push(l, piece("Done."));
-    expect(applyChatEvent(l, loop("idle")).changed).toBe(true); // the turn ends: the reply settles, the turn counts
+    expect(applyChatEvent(l, loop("idle")).changed).toBe(true);
     expect(l.turns).toBe(1);
     expect(applyChatEvent(l, loop("idle")).changed).toBe(false);
     expect(applyChatEvent(l, loop("idle")).changed).toBe(false);
@@ -218,11 +216,11 @@ describe("a loop status that repeats changes nothing", () => {
 
   test("the first status on a fresh conversation, a new status, and a repeat that still clears something all count", () => {
     const l = emptyLive();
-    expect(applyChatEvent(l, loop("idle")).changed).toBe(true); // unknown → idle
+    expect(applyChatEvent(l, loop("idle")).changed).toBe(true);
     expect(applyChatEvent(l, loop("running")).changed).toBe(true);
     expect(applyChatEvent(l, loop("running")).changed).toBe(false);
     l.error = "the turn failed";
-    expect(applyChatEvent(l, loop("running")).changed).toBe(true); // a running status clears the error
+    expect(applyChatEvent(l, loop("running")).changed).toBe(true);
     expect(l.error).toBeNull();
   });
 });
@@ -283,7 +281,6 @@ describe("a reply that only reads like a question", () => {
     const looked = buildItems(conv, digest, new Map(), {}, Date.parse(at), { [keyOf("a", "c")]: "2026-10-19T09:05:00Z" })[0];
     expect(looked.status).toBe("done");
     expect(looked.unread).toBe(true);
-    // A look from before the reply does not count.
     expect(buildItems(conv, digest, new Map(), {}, Date.parse(at), { [keyOf("a", "c")]: "2026-10-19T08:00:00Z" })[0].status).toBe("question");
   });
 });
@@ -340,7 +337,6 @@ describe("a chat's reply proposals (plan 067, U10)", () => {
 
   test("a waiting one on the list's row makes the card an approval that ranks above a fresher chat", () => {
     expect(statuses([chat("fresh"), chat("asks", { reply_proposals: [proposal] })])).toEqual(["asks:approval", "fresh:idle"]);
-    // One being sent is decided already: it blocks no one.
     expect(statuses([chat("asks", { reply_proposals: [{ ...proposal, status: "sending" }] })])).toEqual(["asks:idle"]);
   });
 
@@ -358,7 +354,6 @@ describe("a chat's reply proposals (plan 067, U10)", () => {
 describe("outside cards (plan 067, U3)", () => {
   const NOW = Date.parse("2026-11-04T10:00:00Z");
   const AT = "2026-11-04T09:00:00Z";
-  /** An outside row as the mod lists it: one Gmail thread of the work agent's mailbox. */
   const outside = (
     more: {
       generation?: number;
@@ -456,7 +451,6 @@ describe("outside cards (plan 067, U3)", () => {
     expect(one(outside({ provider: "jira" }), { seen }).unread).toBe(false);
     expect(one(seeded("2026-11-04T09:05:00Z"), { seen }).unread).toBe(false);
     expect(one(seeded("2026-11-04T09:20:00Z"), { seen }).unread).toBe(true);
-    // Rested with ⌘[ at 09:15: a comment approved after it ends the rest; one approved before it does not.
     const first = one(outside({ provider: "jira" }));
     const rests = {
       [keyOf(first.agent_id, first.id)]: { n: 1, until: "2026-11-05T00:00:00Z", stamp: stampOf(first), at: "2026-11-04T09:15:00Z", kind: "later" as const },

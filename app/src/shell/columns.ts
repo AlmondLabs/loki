@@ -1,32 +1,12 @@
-/**
- * The window's columns, as Mail's (plan 2026-11-14-1330, KTD1): the sidebar of places and sources, the list of the
- * source's items, and the detail in the space they leave. Pure, so the rules are tested without a window: both
- * widths and their ranges, what is kept across reloads, and the fold, which is computed from the widths rather than
- * a fixed breakpoint. A window that cannot keep the detail at DETAIL_MIN beside both columns folds the sidebar away
- * on its own; the toggle then shows it over the window for now ("peek") without touching the saved fold, so
- * widening the window again brings back what the person chose. The list never folds on its own: it narrows to
- * LIST_MIN first, and only then does the detail give way, which only a browser tab is narrow enough to reach. The
- * person can hide the list (View › Hide List) for a wider detail; it keeps its width for when it shows again.
- */
-
-/** The sidebar's narrowest width in px. */
 export const SIDEBAR_MIN = 200;
-/** The sidebar's widest width in px. */
 export const SIDEBAR_MAX = 300;
-/** The sidebar's width in px until the person drags it. */
 export const SIDEBAR_DEFAULT = 220;
-/** The list's narrowest width in px; a narrow window narrows it this far before the detail gives way. */
 export const LIST_MIN = 260;
-/** The list's widest width in px. */
 export const LIST_MAX = 420;
-/** The list's width in px until the person changes it. */
 export const LIST_DEFAULT = 300;
-/** The detail's narrowest width in px that a thread or a page still reads in; the sidebar folds to keep it. */
 export const DETAIL_MIN = 480;
-/** The localStorage key both columns are kept under; its name predates the list, whose width it gained. */
 export const COLUMNS_KEY = "loki.desktop.column";
 
-/** The columns as the person left them: both widths in px, whether they folded the sidebar away, and whether they hid the list. */
 export interface ColumnsPref {
   sidebar: number;
   list: number;
@@ -34,29 +14,19 @@ export interface ColumnsPref {
   listHidden: boolean;
 }
 
-/** What the window gives the columns: its width, and what the place and the platform take from it, in px. */
 export interface ColumnsFrame {
   windowWidth: number;
-  /** The glass sidebar's gap from the window's edge; it leaves the same gap again before the list. */
   inset: number;
-  /** Where the list starts with the sidebar folded: past the traffic lights and the toggle on the Mac, the toggle elsewhere. */
   clearance: number;
-  /** Whether the showing place has a list column; a place without one gives the detail that room. */
   hasList: boolean;
-  /** Whether the person asked for the folded sidebar this time. */
   peek: boolean;
 }
 
-/** Where each column goes, in px from the window's left edge. */
 export interface ColumnsLayout {
-  /** The sidebar is on screen. */
   sidebarShown: boolean;
-  /** The sidebar shows over the list and the detail rather than beside them: a peek at a folded sidebar. */
   sidebarOver: boolean;
-  /** The list column is on screen: the place has one and the person has not hidden it. */
   listShown: boolean;
   listLeft: number;
-  /** The list's width, 0 for a place without one or with it hidden. */
   list: number;
   detailLeft: number;
 }
@@ -66,12 +36,10 @@ const DEFAULTS: ColumnsPref = { sidebar: SIDEBAR_DEFAULT, list: LIST_DEFAULT, co
 const clampTo = (min: number, max: number, fallback: number, w: unknown): number =>
   typeof w === "number" && Number.isFinite(w) ? Math.min(max, Math.max(min, Math.round(w))) : fallback;
 
-/** A width the sidebar may take, in px: rounded and kept within its range; anything not a number is the default. */
 export function clampSidebar(w: unknown): number {
   return clampTo(SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_DEFAULT, w);
 }
 
-/** A width the list may take, in px: rounded and kept within its range; anything not a number is the default. */
 export function clampList(w: unknown): number {
   return clampTo(LIST_MIN, LIST_MAX, LIST_DEFAULT, w);
 }
@@ -87,11 +55,6 @@ export function columnsStore(): Store | null {
   }
 }
 
-/**
- * The columns as saved in `store`; the defaults when nothing is saved or it cannot be read. The saved shape is the
- * one-column window's `{width, collapsed}`, its width now the sidebar's, plus `list` and `list_hidden`: an old width
- * up to 420 is clamped into the sidebar's range rather than trusted, and a save without `list_hidden` shows the list.
- */
 export function loadColumns(store: Store | null): ColumnsPref {
   try {
     const raw = store?.getItem(COLUMNS_KEY);
@@ -110,25 +73,20 @@ export function loadColumns(store: Store | null): ColumnsPref {
   }
 }
 
-/** Save the columns to `store`, their widths clamped; a blocked store saves nothing and does not throw. */
 export function saveColumns(store: Store | null, pref: ColumnsPref): void {
   try {
     store?.setItem(
       COLUMNS_KEY,
       JSON.stringify({ width: clampSidebar(pref.sidebar), collapsed: pref.collapsed, list: clampList(pref.list), list_hidden: pref.listHidden }),
     );
-  } catch {
-    // a blocked store only costs the preference across reloads
-  }
+  } catch {}
 }
 
-/** Does the window keep the detail at DETAIL_MIN beside the sidebar, and the list where the place has one showing? */
 export function sidebarFits(pref: ColumnsPref, frame: Pick<ColumnsFrame, "windowWidth" | "inset" | "hasList">): boolean {
   const list = frame.hasList && !pref.listHidden ? pref.list : 0;
   return frame.windowWidth >= frame.inset * 2 + pref.sidebar + list + DETAIL_MIN;
 }
 
-/** Where the columns go: the sidebar beside the rest when it fits and is not folded, else the list from the clearance, narrowed to keep the detail. */
 export function columnsLayout(pref: ColumnsPref, frame: ColumnsFrame): ColumnsLayout {
   const fits = sidebarFits(pref, frame);
   const beside = fits && !pref.collapsed;
@@ -139,21 +97,15 @@ export function columnsLayout(pref: ColumnsPref, frame: ColumnsFrame): ColumnsLa
   return { sidebarShown: beside || sidebarOver, sidebarOver, listShown, listLeft, list, detailLeft: listLeft + list };
 }
 
-/** View › Hide List (⌃⌘L): hides or shows the list in every place, its width kept for when it shows again. */
 export function toggleList(pref: ColumnsPref): ColumnsPref {
   return { ...pref, listHidden: !pref.listHidden };
 }
 
-/** The toggle (the toolbar button, ⌃⌘S): a folded sidebar peeks; one that fits flips the saved fold and drops any peek. */
 export function toggleSidebar(pref: ColumnsPref, fits: boolean, peek: boolean): { pref: ColumnsPref; peek: boolean } {
   if (!fits) return { pref, peek: !peek };
   return { pref: { ...pref, collapsed: !pref.collapsed }, peek: false };
 }
 
-/**
- * A folded sidebar's peek, kept only while the sidebar does not fit: once the window widens to fit it the peek is
- * spent, so narrowing the window again does not bring the sidebar back over the content unasked.
- */
 export function keptPeek(peek: boolean, fits: boolean): boolean {
   return peek && !fits;
 }

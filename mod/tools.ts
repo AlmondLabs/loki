@@ -12,31 +12,17 @@ import type { Suggestions } from "./suggestions.ts";
 import { linkLines, type ChatMessages } from "./chat-links.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * Two canvas tools, and chat_list with the suggestion tools (and chat_message, plan 067) when the daemon keeps suggestions. Rendering and authoring are file writes, not tool calls — the
- * agent uses its own Write/Edit on <widgetsDir>/<desk>/. The desk tools exist for
- * reading back and for directing attention.
- */
-
-/**
- * What the agent's tools need from the mod: the desk state, widget files and gestures, how to find a call's desk, the
- * broadcast, and the chat list with the suggestions.
- */
 export interface ToolDeps {
   store: DeskStore;
   widgets: WidgetsWatcher;
   gestures: GestureLog;
   widgetsDir: string;
-  /** Fallback only: the last conversation that started a turn. Tool calls know their own conversation. */
   activeScope: () => Scope;
-  /** Bind a conversation to its desk and return the scope. */
   remember?: (conversationId: string, agentId?: string | null) => Scope;
   broadcast(msg: object, scope?: Scope): void;
-  /** The chat list and the suggestions (plan 049, U3), when this daemon keeps suggestions. */
   chats?: ChatToolDeps;
 }
 
-/** An agent as chat_list names it: the Mac it lives on, by name, and whether that Mac is in reach now. */
 export interface ListedAgent {
   id: string;
   name: string;
@@ -44,26 +30,14 @@ export interface ListedAgent {
   reachable: boolean;
 }
 
-/** What chat_list and the suggestion tools read and change. */
 export interface ChatToolDeps {
   suggestions: Pick<Suggestions, "add">;
-  /** The person's agents, each with its Mac. */
   agents(): ListedAgent[] | Promise<ListedAgent[]>;
-  /** Every chat in the lists, this Mac's and the paired Macs', archived ones included (they are left out here). */
   chats(): DeskSummary[];
-  /** A background pass's own chat (reflection, Learn), which has no chat screen for a suggestion to show in (KTD12). */
   passChat(conversationId: string): boolean;
-  /** Chat links and their messages (plan 067), when this daemon keeps them. */
   messages?: Pick<ChatMessages, "send" | "linksOf">;
 }
 
-/**
- * The desk a tool call is about: the explicit `desk` argument, else the desk of
- * the conversation making the call, else the mod's active desk. Never the
- * active desk when the call's own conversation is known — other conversations
- * (schedules, subagents, another chat) move the active desk under our feet.
- * The calling agent counts: every agent's main chat is `default`, and its desk is `default-<agent>`.
- */
 export function scopeForCall(
   deps: ToolDeps,
   ctx: { args?: Record<string, unknown>; conversation?: { id: string | null } | null; agent?: { id: string } | null } | undefined,
@@ -76,10 +50,6 @@ export function scopeForCall(
   return deps.activeScope();
 }
 
-/**
- * A desk's widgets as canvas_read answers: each one's file, kind, title and data with the person's edits merged in, its
- * place on the desk when it has one, and any error.
- */
 export function deskSnapshot(deps: ToolDeps, scope: Scope) {
   const state = deps.store.get(scope);
   return deps.widgets.entries(scope).map((w) => {
@@ -97,41 +67,29 @@ export function deskSnapshot(deps: ToolDeps, scope: Scope) {
   });
 }
 
-/** What a tool's body is told about its call: the arguments, and the chat and agent making it. */
 export interface Call {
   args: Record<string, unknown>;
   conversation: { id: string };
   agent: { id: string; name: string };
-  /** The turn's stop: a call waiting on the person ends with it. */
   signal?: AbortSignal;
-  /** The chat's folder, where a tool finds the chat's files; absent when it has none (ToolContext.cwd). */
   cwd?: string;
 }
-/** One of loki's own tools as this mod writes it; `run` returning `{ status: "error", content }` fails the call. */
 export interface LokiTool {
   name: string;
   description: string;
   parameters: object;
   annotations?: { readOnly?: boolean };
-  /** The agents whose chats are offered the tool (plan 067, KTD10); absent, every agent's. */
   forAgent?: (agentId: string) => boolean;
-  /** Who may call it (ModTool.callers); `["tools"]` is for scripts only (plan 099). */
   callers?: ReadonlyArray<"model" | "tools">;
-  /** JSON Schema of the value scripts get, for a tool whose result is JSON text (ModTool.outputSchema). */
   outputSchema?: object;
   run(ctx: Call): unknown;
 }
 
-/** Who calls the canvas tools and chat_list: scripts only (plan 099). The model reaches them with one. */
 const SCRIPTS_ONLY = ["tools"] as const;
 
 /** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
 export const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
-/**
- * Registers loki's own tools through the mod API, each returning the function that unregisters it. A result of
- * `{ status: "error", content }` is a failed call with that message.
- */
 export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () => void } {
   return {
     register: (tool: LokiTool) =>
@@ -161,10 +119,6 @@ export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () =
   };
 }
 
-/**
- * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and chat_list with the suggestion tools when
- * the daemon keeps suggestions, with chat_message when it keeps chat links); returns the functions that unregister them.
- */
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   const tools = toolRegistrar(api);
   const kitLine = Object.entries(KIT)
@@ -173,8 +127,6 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
 
   const disposers: Array<() => void> = [];
 
-  // How to make a widget reaches every chat as a section (plan 099, KTD5): canvas_read, which said it before, is a
-  // script's now, and the model would not see its description.
   disposers.push(
     api.prompt.section(
       "canvas",
@@ -207,7 +159,6 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       async run(ctx) {
         const args = ctx.args;
         log("tool:canvas_read:start", args);
-        // A scan must never hold a turn hostage; the manifest is at most one scan stale.
         await withTimeout(deps.widgets.rescan(), 2000, "canvas_read rescan", undefined);
         const scope = scopeForCall(deps, ctx);
         const out: Record<string, unknown> = {
@@ -258,7 +209,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         const missing = ids.filter((id) => !deps.widgets.get(id));
         if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check canvas_read` };
         const scopes = new Set(ids.map(scopeOfId));
-        const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE; // mixed desks: every tab may have them
+        const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE;
         deps.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, scope === SHARED_SCOPE ? undefined : scope);
         const dwell = Math.max(0, Math.min(8000, Number(args.dwell) || 0));
         if (dwell) await new Promise((r) => setTimeout(r, dwell));
@@ -274,11 +225,9 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   return disposers;
 }
 
-/** A chat the lists show as open: live, with a conversation behind it. */
 type OpenChat = DeskSummary & { conversation_id: string; agent_id: string };
 const openChats = (rows: DeskSummary[]): OpenChat[] => rows.filter((d): d is OpenChat => d.status === "live" && !!d.conversation_id && !!d.agent_id);
 
-/** One chat as chat_list prints it: ids first, then what tells the agent what the chat is for. */
 function chatLine(d: OpenChat, calling: string): string {
   return [
     d.conversation_id,
@@ -296,12 +245,6 @@ function chatLine(d: OpenChat, calling: string): string {
     .join(" · ");
 }
 
-/**
- * chat_list and suggestion_create (plan 049, U3), and chat_message (plan 067). The agent hears what became of each
- * suggestion when the person acts on it, so there is no tool to list or take one back (plan 094).
- * All are marked read-only (KTD4): a suggestion is the person's decision when they act on it, so making one never stops
- * a turn for approval, and a chat message asks on its own link card, which no mode stands in for.
- */
 function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, deps: ChatToolDeps): Array<() => void> {
   const failed = (content: string) => ({ status: "error", content });
   const passError = failed("a background pass has no chat screen to show suggestions in, so it cannot list chats or suggest");
@@ -379,7 +322,6 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       if (deps.passChat(ctx.conversation.id)) return passError;
       const target = parseSuggestionTarget(ctx.args.target);
       if (!target) return failed("suggestion_create needs a target: { agent_id, conversation_id } for an open chat, or { agent_id, folder } for a new one");
-      // Checked against the lists the agent reads in chat_list, so a made-up target is refused before anything is stored.
       const agents = await deps.agents();
       if (!agents.some((a) => a.id === target.agent_id))
         return failed(`no agent ${target.agent_id}: the agents are ${agents.map((a) => `${a.id} (${a.name})`).join(", ") || "none"}`);

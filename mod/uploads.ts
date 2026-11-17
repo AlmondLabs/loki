@@ -5,18 +5,6 @@ import type { Authorize } from "./server.ts";
 import { log } from "./log.ts";
 import { messageOf } from "../core/errors.ts";
 
-/**
- * Files you attach to a message (anything but an image, which rides inside the message): the app uploads each
- * one here as soon as it is picked, and the message then carries its path in an attachment tag
- * (core/attention/content.ts). The agent
- * reads it with its own tools. Files land in <uploads>/<yyyy-mm-dd>/<name> (the day it was attached), a number added
- * when the name is taken; nothing outside that folder can be written or removed.
- *
- *   POST   /uploads?name=<file>&type=<mime>   the body is the file   → {path, name, size, mime}
- *   DELETE /uploads?path=<path>               a chip taken off before sending
- */
-
-/** 25 MB: enough for a deck or a report, not a video. */
 export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 /** An attached file once it is on disk, as the upload route answers: its path for the agent, name, size in bytes and type. */
@@ -27,7 +15,6 @@ export interface Uploaded {
   mime: string;
 }
 
-/** A name that stays one file inside its folder: no directories, no leading dots, nothing the shell trips on. */
 export function safeName(raw: string): string {
   const base = basename(raw.replace(/\\/g, "/"))
     .replace(/[\u0000-\u001f<>:"|?*]/g, "")
@@ -36,13 +23,11 @@ export function safeName(raw: string): string {
   return base.slice(0, 180) || "file";
 }
 
-/** The day's folder name, in the Mac's local time: 2026-09-30. */
 export function dayFolder(now = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-/** The first free path for `name` in `dir`: q3.pdf, then q3 (2).pdf, q3 (3).pdf … */
 export function freePath(dir: string, name: string, exists: (p: string) => boolean = existsSync): string {
   const ext = extname(name);
   const stem = ext ? name.slice(0, -ext.length) : name;
@@ -61,10 +46,6 @@ export function insideDir(root: string, p: string): boolean {
   return !!rel && !rel.startsWith("..") && !isAbsolute(rel) && rel !== ".";
 }
 
-/**
- * The upload route, for both listeners (loopback with the desktop token, the LAN with a paired device). Returns
- * false when the URL is not this route. `guard` refuses cross-site posts where a cookie is the credential.
- */
 export function uploadRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -125,7 +106,6 @@ export function uploadRoute(
   out.on("finish", () => {
     if (failed) return;
     if (!req.complete) return fail(400, "the upload broke off");
-    // Taken while this one streamed? Pick the next free name rather than overwrite.
     const final = existsSync(target) ? freePath(folder, name) : target;
     // Inside a stream's event, a throw nobody catches ends the daemon: a name Windows keeps (CON, nul.txt) fails here.
     try {

@@ -5,17 +5,8 @@ import { KIT_COMPONENTS } from "../kit";
 import { ModuleWidget, WidgetError, WidgetErrorBoundary } from "../desk/module-widget";
 import { Icon } from "../shared/icons";
 
-/** Errors are the canvas copy's to report: two copies reporting would clear each other's. Also the read-only gesture. */
 const quiet = () => {};
 
-/**
- * A widget drawn inside the thread, live, where the agent made it: the same kit component or module the canvas
- * draws, without the canvas's frame (no drag, resize or close), in a card as wide as the thread allows. Using it
- * here is using it there: a slider moved here is the same edit (a `set` gesture on the widget's own desk), and the
- * canvas shows it. Errors are the canvas's to report; a broken widget here shows its error and nothing else breaks.
- * On the phone a custom (module) widget cannot load yet, so the card says where it runs; kit widgets draw there,
- * but read only: the phone may not change a desk.
- */
 export function InlineWidget({
   entry,
   overlay,
@@ -47,7 +38,7 @@ export function InlineWidget({
         <span className="loki-inline-widget-title">{entry.title}</span>
         {onOpen && (
           <button type="button" className="loki-inline-widget-open" onClick={onOpen}>
-            Show on canvas
+            Show on Canvas
           </button>
         )}
       </div>

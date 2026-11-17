@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import type { SlackNames } from "../mod/slack-markup.ts";
 import { messageMarkup, reactionEmoji, readSlackMessage, searchEmoji, slackAttachments, slackBlocks, slackFileParts } from "../mod/slack-markup.ts";
 
-/** A Slack message read the way Slack draws it (plan 075). */
-
 const names: SlackNames = {
   person: (user) => Promise.resolve(user === "U1" ? "Vedansh Kapoor" : user),
   channel: (id) => Promise.resolve(id === "C9" ? "deploys" : null),
@@ -157,7 +155,6 @@ describe("the files shared in a message (plan 080)", () => {
       { name: "", kind: null, size: null, link: null, gone: "deleted" },
       { name: "", kind: null, size: null, link: null, gone: "hidden" },
     ]);
-    // A message of only files is not empty as plain text, for the phone and a hand-off.
     expect(read.text).toBe("file: Invoice March\nfile: photo.png\nfile: deleted\nfile: hidden by the workspace's plan");
   });
 

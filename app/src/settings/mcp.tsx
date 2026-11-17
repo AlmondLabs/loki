@@ -5,24 +5,17 @@ import { openExternal } from "../desk/env";
 import { Block, Segmented, Setting } from "./layout";
 import { messageOf } from "../../../core/errors.ts";
 
-/** What Preferences › MCP servers asks of the daemon; each call resolves to the servers as they now are, or an error message. */
 export interface McpApi {
   get: () => Promise<McpView | string>;
   server: (entry: string, edit: McpEdit | null, rename?: string) => Promise<McpView | string>;
   alwaysLoad: (entry: string, tools: string[]) => Promise<McpView | string>;
   restart: (name: string) => Promise<McpView | string>;
-  /** Forget a remote server's OAuth sign-in; it then asks for one again. */
   signOut: (name: string) => Promise<McpView | string>;
   agent: (agentId: string, server: string, on: boolean) => Promise<McpView | string>;
-  /** The `${keychain:…}` reference to write in place of the value, or an error message. */
   secret: (name: string, value: string) => Promise<{ ref: string } | string>;
   approvals: { list: () => Promise<string[] | string>; set: (tool: string, on: boolean) => Promise<string[] | string> };
 }
 
-/**
- * A server's entry as the MCP page writes it to ~/.loki/mcp.json: a local server's command, arguments, environment and
- * folder, or a remote server's URL and headers.
- */
 export type McpEdit = { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
 
 const STATE_TONE: Record<McpServerView["state"], string> = {
@@ -33,10 +26,8 @@ const STATE_TONE: Record<McpServerView["state"], string> = {
 };
 const KEYCHAIN = /^\$\{keychain:[A-Za-z0-9_.-]+\}$/;
 
-/** "about 9k tokens": a cost as the list shows it. */
 export const tokenLabel = (n: number): string => (n >= 1000 ? `~${Math.round(n / 100) / 10}k tokens` : `~${n} tokens`);
 
-/** `KEY=value` lines (env) or `Name: value` lines (headers) as a map, and back. */
 export function parsePairs(text: string, sep: "=" | ":"): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of text.split("\n")) {
@@ -47,17 +38,11 @@ export function parsePairs(text: string, sep: "=" | ":"): Record<string, string>
   }
   return out;
 }
-/** A map as `KEY=value` lines (env) or `Name: value` lines (headers), the reverse of `parsePairs`. */
 export const pairsText = (pairs: Record<string, string>, sep: "=" | ":"): string =>
   Object.entries(pairs)
     .map(([k, v]) => `${k}${sep === ":" ? ": " : "="}${v}`)
     .join("\n");
 
-/**
- * Preferences › MCP servers: the servers in ~/.loki/mcp.json, each with its state, its tools and what loading them all would
- * cost. A server's tools wait behind the agent's search; the ones checked "always loaded" skip it. Add, edit, restart
- * and remove write the file the daemon follows. Values can be kept in the keychain, and the file names them instead.
- */
 export function Mcp({ api }: { api: McpApi }) {
   const [view, setView] = useState<McpView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +53,6 @@ export function Mcp({ api }: { api: McpApi }) {
     setError(null);
     setView(r);
   };
-  // The list follows the servers while the page shows: a server connecting or going down changes it.
   const read = useEffectEvent(() => api.get());
   useEffect(() => {
     let live = true;
@@ -84,17 +68,17 @@ export function Mcp({ api }: { api: McpApi }) {
   if (!view) return <Setting label="Servers" help={error ?? "Asking loki…"} />;
   return (
     <>
-      <Block
-        help={
-          'Servers your agents can use. An agent sees each server and its tools\' names; a tool loads only when the agent searches for it, unless it is "always loaded".'
-        }
-      >
+      <Block help={'Servers your agents can use, each tool loading only when an agent searches for it unless it is "always loaded".'}>
         {view.problems.map((p) => (
           <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">
             {p}
           </div>
         ))}
-        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+        {error && (
+          <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+            {error}
+          </div>
+        )}
         {view.servers.map((s) => (
           <ServerRow
             key={s.name}
@@ -237,11 +221,6 @@ function ServerRow({
   );
 }
 
-/**
- * A remote server's OAuth sign-in: "sign in" opens its authorization page in the browser, which comes back to loki
- * and connects the server; "sign out" forgets the tokens and loki's registration, so the next sign-in registers anew (a
- * server that forgot loki's registration says so on its own page). A page that went stale is made again by restart.
- */
 function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullable<McpServerView["sign_in"]>; onSignOut: () => void }) {
   const url = signIn.url;
   if (s.state === "signin")
@@ -271,7 +250,6 @@ function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullabl
   return null;
 }
 
-/** The add/edit form's fields, as text; `kind` picks which half is saved. */
 interface Form {
   kind: "local" | "remote";
   name: string;
@@ -284,7 +262,6 @@ interface Form {
 }
 type SetField = <K extends keyof Form>(key: K, value: Form[K]) => void;
 
-/** A server's config as the form's text (a new server: an empty local one). */
 export function formOf(server: McpServerView | null): Form {
   const local = server && "command" in server.config ? server.config : null;
   const remote = server && "url" in server.config ? server.config : null;
@@ -300,10 +277,6 @@ export function formOf(server: McpServerView | null): Form {
   };
 }
 
-/**
- * Each value not already a keychain reference is stored in the keychain (all at once: they do not depend on each
- * other), and the reference takes its place; a value that cannot be stored stops the save, saying which.
- */
 export async function secureValues(pairs: Record<string, string>, prefix: string, secret: McpApi["secret"]): Promise<Record<string, string>> {
   const entries = await Promise.all(
     Object.entries(pairs).map(async ([k, v]): Promise<[string, string]> => {
@@ -316,7 +289,6 @@ export async function secureValues(pairs: Record<string, string>, prefix: string
   return Object.fromEntries(entries);
 }
 
-/** The form as the edit Settings sends; `secure` turns values into keychain references when asked. */
 export async function editOf(form: Form, secure: (pairs: Record<string, string>) => Promise<Record<string, string>>): Promise<McpEdit> {
   if (form.kind === "remote") return { url: form.url.trim(), headers: await secure(parsePairs(form.headers, ":")) };
   return {
@@ -330,7 +302,6 @@ export async function editOf(form: Form, secure: (pairs: Record<string, string>)
   };
 }
 
-/** Add or edit one server: local (a command loki starts) or remote (a URL), its env or headers as lines. */
 function ServerForm({
   server,
   configPath,
@@ -396,7 +367,11 @@ function ServerForm({
           Keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them
         </span>
       </label>
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2">
         <Button size="sm" tone="positive" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save"}
@@ -412,7 +387,6 @@ function ServerForm({
   );
 }
 
-/** A local server's fields: the command, its arguments, its environment and folder. */
 function LocalFields({ uid, form, set }: { uid: string; form: Form; set: SetField }) {
   return (
     <>
@@ -452,7 +426,6 @@ function LocalFields({ uid, form, set }: { uid: string; form: Form; set: SetFiel
   );
 }
 
-/** A remote server's fields: its URL and headers. */
 function RemoteFields({ uid, form, set }: { uid: string; form: Form; set: SetField }) {
   return (
     <>
@@ -484,7 +457,6 @@ function RemoteFields({ uid, form, set }: { uid: string; form: Form; set: SetFie
   );
 }
 
-/** Preferences › Chat: the tools answered "always allow", to take back one by one. */
 export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
   const [tools, setTools] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -502,7 +474,11 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
           </Button>
         </Setting>
       ))}
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
     </>
   );
 }

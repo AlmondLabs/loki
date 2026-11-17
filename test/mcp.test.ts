@@ -24,7 +24,6 @@ const until = async (check: () => boolean, ms = 3000) => {
   while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
 };
 
-/** Servers that connect in memory to the fake; `drop(name)` closes a server's end, as a crash would. */
 function inMemory(opts: { tools?: unknown[] } = {}) {
   const ends = new Map<string, Transport>();
   const connect: Connector = async (config, client) => {
@@ -91,7 +90,7 @@ describe("MCP tool names, search and results", () => {
     const long = toolKey("server", "a".repeat(80));
     expect(long.length).toBe(64);
     expect(long).toMatch(/^mcp__server__a+_[0-9a-f]{6}$/);
-    expect(toolKey("s", "get.thing")).toMatch(/^mcp__s__get_thing_[0-9a-f]{6}$/); // changed names keep a hash, never clash
+    expect(toolKey("s", "get.thing")).toMatch(/^mcp__s__get_thing_[0-9a-f]{6}$/);
     expect(toolKey("s", "get.thing")).not.toBe(toolKey("s", "get_thing"));
   });
 
@@ -181,7 +180,7 @@ describe("MCP servers", () => {
       expect(servers.status()[0].error).toMatch(/stopped/);
       expect(servers.tools()).toEqual([]);
       await expect(servers.call("mcp__fake__list_issues", {})).rejects.toThrow(/not available/);
-      await until(() => servers.status()[0]?.state === "connected", 4000); // the first retry waits a second
+      await until(() => servers.status()[0]?.state === "connected", 4000);
       expect(servers.tools()).toHaveLength(TOOLS.length);
     } finally {
       await servers.close();
@@ -197,7 +196,6 @@ describe("MCP servers", () => {
       await until(() => servers.status()[0]?.state === "connected");
       servers.restart("fake");
       servers.restart("fake");
-      // Each start goes through "starting" before it connects; the one that won ends "connected".
       await until(() => connects.length >= 2 && servers.status()[0]?.state === "connected");
       await Promise.all(connects);
       expect(connects).toHaveLength(2);
@@ -226,7 +224,6 @@ describe("MCP servers", () => {
       expect((await servers.call("mcp__fake__create_issue", { repo: "loki", title: "t" })).content).toEqual([
         { type: "text", text: 'create_issue {"repo":"loki","title":"t"}' },
       ]);
-      // A crash mid-call: the server is down, the call fails, and the stderr it printed is in the reason.
       await expect(servers.call("mcp__fake__crash", {})).rejects.toThrow();
       await until(() => servers.status()[0].state === "down", 5000);
       expect(servers.status()[0].error).toMatch(/fake mcp server ready/);
@@ -290,7 +287,6 @@ describe("loki.mcp in a chat", () => {
         s.reply(fauxAssistantMessage("two open issues")),
       ]);
       await (await s.chat.submit({ type: "input", content: "what's open on loki?" }, ctx)).wait(ctx);
-      // The first request offered the search and no fake tool; the next one offered what it found.
       expect(s.asked[0]).toContain("mcp_search");
       expect(s.asked[0]).not.toContain("mcp__fake__");
       expect(s.asked[1]).toContain("mcp__fake__list_issues");
@@ -300,12 +296,10 @@ describe("loki.mcp in a chat", () => {
       expect(r[1]).toContain('list_issues {\\"repo\\":\\"loki\\"}');
       expect(s.captured.map(([e]) => e)).toEqual(["mcp_search", "mcp_call"]);
       expect(s.captured[1][1]).toMatchObject({ server: "fake", tool: "list_issues", error: false, spilled: false });
-      // Loaded tools stay for the chat: the next turn offers it from the start, and the filter keeps it after a prepare.
       await s.mcp.prepare(s.store, s.chat, ctx);
       s.faux.setResponses([s.reply(fauxAssistantMessage("still here"))]);
       await (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
       expect(s.asked[3]).toContain("mcp__fake__list_issues");
-      // /clear (and a compaction) unload them.
       await s.mcp.forget(s.chat, ctx);
       await s.mcp.prepare(s.store, s.chat, ctx);
       s.faux.setResponses([s.reply(fauxAssistantMessage("gone"))]);
@@ -342,7 +336,6 @@ describe("loki.mcp in a chat", () => {
       await (await s.chat.submit({ type: "input", content: "hi" }, ctx)).wait(ctx);
       expect(s.asked[0]).toContain("mcp__fake__list_issues");
       expect(s.asked[0]).not.toContain("mcp__fake__create_issue");
-      // Known tools stay known: a prepare with nothing new writes nothing.
       const before = await s.store.chatInfo(s.chat.id, ctx);
       expect(before?.mcpKnown).toHaveLength(6);
     } finally {
@@ -363,7 +356,6 @@ describe("loki.mcp in a chat", () => {
       const [dump, fail] = await s.results();
       expect(dump).toContain("too large for the conversation");
       // The saved file is the one file in the chat's folder, and the result names it (in JSON, a Windows path's
-      // backslashes are doubled, so it is looked for by its name).
       const folder = join(s.dir, "tool-results", "c");
       const files = readdirSync(folder);
       expect(files).toHaveLength(1);
@@ -406,7 +398,7 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600);
       writeFileSync(path, "{broken");
       expect(() => editServer(path, "x", null)).toThrow();
-      expect(readFileSync(path, "utf8")).toBe("{broken"); // left for you to fix, not overwritten
+      expect(readFileSync(path, "utf8")).toBe("{broken");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -436,7 +428,7 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       servers.configure([config]);
       await until(() => servers.status()[0]?.state === "connected");
       expect(seen[0].TOKEN).toBe("Bearer s3cret");
-      expect(servers.configs()[0]).toMatchObject({ env: { TOKEN: "Bearer ${keychain:gh.TOKEN}" } }); // the file's form is what is kept
+      expect(servers.configs()[0]).toMatchObject({ env: { TOKEN: "Bearer ${keychain:gh.TOKEN}" } });
     } finally {
       await servers.close();
     }
@@ -473,13 +465,11 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       await until(() => mcp.view().servers[0]?.tools[0]?.always_load);
       expect(await mcp.storeSecret("fake.TOKEN", "s3cret")).toBe("${keychain:fake.TOKEN}");
       expect(secrets.get("mcp.fake.TOKEN")).toBe("s3cret");
-      // Switched off for one agent: out of that agent's section, while another agent still sees it.
       mcp.setAgentServer("agent-local-a", "fake", false);
       expect(mcp.view().servers[0].off_for).toEqual(["agent-local-a"]);
       expect(mcp.sectionText("agent-local-a")).toBeUndefined();
       expect(mcp.sectionText("agent-local-b")).toContain("- fake");
       expect(JSON.parse(readFileSync(join(dir, "state", "mcp-agents.json"), "utf8"))).toEqual({ off: { "agent-local-a": ["fake"] } });
-      // …and out of that agent's chats: hidden by the filter, always-load tools too.
       const faux = fauxProvider();
       const models = createModels();
       models.setProvider(faux.provider);
@@ -492,7 +482,7 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       mcp.setAgentServer("agent-local-a", "fake", true);
       await mcp.prepare(store, chat, ctx);
       const after = ((await store.agentSettings(chat.id, ctx)) as { tools: { remove: string[] } }).tools.remove;
-      expect(after).not.toContain("mcp__fake__list_issues"); // always loaded again
+      expect(after).not.toContain("mcp__fake__list_issues");
       expect(after).toContain("mcp__fake__create_issue");
       await store.close(ctx);
       mcp.setServer("fake", null);
@@ -541,14 +531,12 @@ describe("the servers an agent has on, for its chats on an ACP agent (plan 044)"
       expect(servers).toEqual([
         { name: "tracker", command: process.execPath, args: ["server.js"], env: [{ name: "TOKEN", value: "t0ken" }] },
         { type: "http", name: "notion", url: "https://mcp.example.com/mcp", headers: [{ name: "Authorization", value: "Bearer n0tion" }] },
-        // No header of its own: the agent signs in to it itself.
         { type: "http", name: "signin", url: "https://signin.example.com/mcp", headers: [] },
       ]);
       expect(reported.filter((m) => m.includes("left out of ACP chats"))).toEqual([
         "MCP server folder left out of ACP chats: it runs in its own folder, which an ACP agent cannot be told",
         "MCP server missing left out of ACP chats: no-such-command-anywhere is not on the PATH",
       ]);
-      // Its read-only tools run without asking, under the names the agent gives them; a switched-off server's do not.
       expect(mcp.acpReadOnly("agent-local-a")).toContain("mcp__tracker__list_issues");
       expect(mcp.acpReadOnly("agent-local-a").some((t) => t.startsWith("mcp__quiet__"))).toBe(false);
     } finally {

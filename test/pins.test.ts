@@ -23,7 +23,7 @@ describe("pins: Desktop's pinned-conversations.json", () => {
     writeFileSync(f, JSON.stringify({ version: 1, agents: { "agent-2": ["c9"] } }));
     const at = () => "2026-10-18T10:00:00.000Z";
     expect(setPin("agent-1", "c1", true, f, at)).toBe(true);
-    expect(setPin("agent-1", "c1", true, f, at)).toBe(true); // idempotent
+    expect(setPin("agent-1", "c1", true, f, at)).toBe(true);
     expect(JSON.parse(readFileSync(f, "utf8"))).toEqual({
       version: 1,
       agents: { "agent-2": ["c9"], "agent-1": ["c1"] },
@@ -44,10 +44,8 @@ describe("pins: Desktop's pinned-conversations.json", () => {
     const mini = join(dir, "mini-pins.json");
     writeFileSync(book, JSON.stringify({ version: 1, agents: { "agent-1": ["old"] } }));
     setPin("agent-1", "c1", true, book, () => "2026-10-18T10:00:00.000Z");
-    // A pin from before pins had times reaches a Mac that has never seen it.
     expect(applyPinChanges(pinChanges(book), mini)).toBe(true);
     expect(readPins(mini)).toEqual(new Set(["agent-1/old", "agent-1/c1"]));
-    // Unpinned on the mini later: it beats the MacBook's older pin, and not the other way round.
     setPin("agent-1", "c1", false, mini, () => "2026-10-18T11:00:00.000Z");
     expect(applyPinChanges(pinChanges(mini), book)).toBe(true);
     expect(readPins(book).has("agent-1/c1")).toBe(false);

@@ -2,43 +2,28 @@ import { useEffect, useEffectEvent, useState } from "react";
 import type { Lane, LaneSide } from "../../../core/attention/lanes.ts";
 import type { AccountProvider, AccountView } from "../../../core/frame-types.ts";
 import type { MacAccountView } from "../../../core/frames.ts";
-import { Button, Field } from "../components";
+import { Button, Field, Sheet } from "../components";
 import type { AgentName } from "./accounts";
 import { Block, Segmented, Setting } from "./layout";
 
-/**
- * Preferences › Flow's lane editor (plan 087, U8): the lanes the person made, and one lane's name and two sides, chats
- * from all agents, picked ones or none, then mail and Slack from all accounts, picked ones or none (R9). Saving sends
- * the whole list to the mod, which shares it with every paired Mac and the phone (KTD1).
- */
-
-/** The lanes as the mod keeps them, null until it says, and a new whole list to keep (useDesk's lanes and setLanes). */
 export interface LanesApi {
   lanes: Lane[] | null;
   set: (lanes: Lane[]) => void;
 }
 
-/** The accounts a lane can pick: this Mac's and every paired Mac's (core/daemon-calls.ts accounts.everywhere, KTD9). */
 export interface LaneAccountsApi {
   everywhere: () => Promise<{ accounts: AccountView[]; other_macs: MacAccountView[] } | string>;
 }
 
-/** What the lane editor needs: the lanes, the accounts to pick from, the agents by name, and how a new lane's id is made. */
 export interface LanesProps {
   lanes: LanesApi;
   accounts: LaneAccountsApi;
   agents: readonly AgentName[];
-  /** A new lane's id; a random one unless a test gives its own. */
   newId?: () => string;
 }
 
-/** How one side of a lane is chosen in the editor: everything, the ticked ones, or nothing. */
 export type SideChoice = "all" | "pick" | "none";
 
-/**
- * A lane as the editor holds it while the person changes it. The ticked ids stay when the side is set to all or none,
- * so going back to pick finds them as they were, and ids this Mac does not know stay too (KTD2).
- */
 export interface LaneDraft {
   id: string;
   name: string;
@@ -48,13 +33,11 @@ export interface LaneDraft {
   accountIds: string[];
 }
 
-/** An account as the editor lists it to pick: what it is, the agent that owns it, and the Mac it lives on when not this one. */
 export interface LaneAccount {
   account_id: string;
   label: string;
   service: string;
   owner: string;
-  /** The paired Mac's name; null for this Mac's own accounts. */
   mac: string | null;
 }
 
@@ -62,7 +45,6 @@ const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack
 
 const SIDE_CHOICES: readonly SideChoice[] = ["all", "pick", "none"];
 
-/** How often the accounts are asked again while the page shows, as Preferences › Accounts does: one may connect meanwhile. */
 const POLL_MS = 3000;
 
 const newLaneId = () => `lane-${crypto.randomUUID()}`;
@@ -70,7 +52,6 @@ const newLaneId = () => `lane-${crypto.randomUUID()}`;
 const choiceOf = (side: LaneSide): SideChoice => (side === "all" ? "all" : side.length ? "pick" : "none");
 const sideOf = (choice: SideChoice, ids: string[]): LaneSide => (choice === "all" ? "all" : choice === "pick" ? ids : []);
 
-/** A saved lane as the editor holds it: an empty list reads as none, and a list as the ticked ids. */
 export function draftOf(lane: Lane): LaneDraft {
   return {
     id: lane.id,
@@ -82,15 +63,10 @@ export function draftOf(lane: Lane): LaneDraft {
   };
 }
 
-/** A new lane before anything is chosen: no name, and both sides on pick with nothing ticked. */
 export function newDraft(id: string): LaneDraft {
   return { id, name: "", chats: "pick", chatIds: [], accounts: "pick", accountIds: [] };
 }
 
-/**
- * The whole list to send once a draft is saved, the lane replaced where it was or added at the end; or why it cannot be
- * saved: a name must be there and no other lane may have it, case aside. A pick with nothing ticked is none.
- */
 export function saveLane(lanes: readonly Lane[], draft: LaneDraft): Lane[] | string {
   const name = draft.name.trim();
   if (!name) return "A lane needs a name";
@@ -100,18 +76,15 @@ export function saveLane(lanes: readonly Lane[], draft: LaneDraft): Lane[] | str
   return lanes.some((l) => l.id === draft.id) ? lanes.map((l) => (l.id === draft.id ? lane : l)) : [...lanes, lane];
 }
 
-/** The whole list to send once a lane is deleted: every other lane, as it was. */
 export function withoutLane(lanes: readonly Lane[], id: string): Lane[] {
   return lanes.filter((l) => l.id !== id);
 }
 
-/** The ticked ids once one box is ticked or cleared, the rest kept in their order. */
 export function ticked(ids: readonly string[], id: string, on: boolean): string[] {
   const rest = ids.filter((i) => i !== id);
   return on ? [...rest, id] : rest;
 }
 
-/** Every account a lane can pick, this Mac's first: its owner by name, and the Mac it lives on for a paired Mac's. */
 export function laneAccounts(r: { accounts: readonly AccountView[]; other_macs: readonly MacAccountView[] }, agents: readonly AgentName[]): LaneAccount[] {
   const row = (a: AccountView, mac: string | null): LaneAccount => ({
     account_id: a.account_id,
@@ -123,10 +96,6 @@ export function laneAccounts(r: { accounts: readonly AccountView[]; other_macs: 
   return [...r.accounts.map((a) => row(a, null)), ...r.other_macs.map((a) => row(a, a.mac_name))];
 }
 
-/**
- * The accounts to pick from, asked again every few seconds while a lane is open in the editor (`open`), and not at all
- * otherwise; null until the first answer, or why not.
- */
 function useLaneAccounts(api: LaneAccountsApi, agents: readonly AgentName[], open: boolean): LaneAccount[] | string | null {
   const [answer, setAnswer] = useState<{ accounts: AccountView[]; other_macs: MacAccountView[] } | string | null>(null);
   const read = useEffectEvent(() => api.everywhere());
@@ -144,45 +113,62 @@ function useLaneAccounts(api: LaneAccountsApi, agents: readonly AgentName[], ope
   return answer === null || typeof answer === "string" ? answer : laneAccounts(answer, agents);
 }
 
-/**
- * The lane list with "new lane", and the editor of the lane opened from it. Nothing is sent until save; a name that is
- * missing or taken says so in the editor and sends nothing.
- */
+const inWords = (names: readonly string[]) => (names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
+export function laneSummary(lane: Lane, agents: readonly AgentName[]): string {
+  const names = lane.chats === "all" ? [] : lane.chats.flatMap((id) => agents.find((g) => g.id === id)?.name ?? []);
+  const elsewhere = lane.chats === "all" ? 0 : lane.chats.length - names.length;
+  const from = [...names, ...(elsewhere ? [elsewhere === 1 ? "an agent on another Mac" : `${elsewhere} agents on other Macs`] : [])];
+  const chats = lane.chats === "all" ? "All chats" : from.length ? `Chats from ${inWords(from)}` : "No chats";
+  const n = lane.accounts === "all" ? 0 : lane.accounts.length;
+  const mail = lane.accounts === "all" ? "all mail and Slack" : n ? `mail and Slack from ${n === 1 ? "one account" : `${n} accounts`}` : "no mail or Slack";
+  return `${chats}, ${mail}`;
+}
+
 export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: LanesProps) {
   const [draft, setDraft] = useState<LaneDraft | null>(null);
   const choices = useLaneAccounts(accounts, agents, draft !== null);
   const [error, setError] = useState<string | null>(null);
   const { lanes, set } = api;
-  if (!lanes) return <Setting label="Lanes" help="Asking loki…" />;
+  const help = "A lane shows Flow only some agents' chats and some accounts' mail and Slack, and you switch lanes from Flow's title.";
+  if (!lanes)
+    return (
+      <Block title="Lanes" help={help}>
+        <Setting label="Lanes" help="Asking loki…" />
+      </Block>
+    );
   const open = (d: LaneDraft) => {
     setDraft(d);
+    setError(null);
+  };
+  const close = () => {
+    setDraft(null);
     setError(null);
   };
   const save = (d: LaneDraft) => {
     const next = saveLane(lanes, d);
     if (typeof next === "string") return setError(next);
-    setError(null);
     set(next);
+    close();
   };
   const saved = draft !== null && lanes.some((l) => l.id === draft.id);
   return (
-    <Block
-      title="Lanes"
-      help="A lane is the part of your work Flow shows while you are in it: chats from some agents, mail and Slack from some accounts. Switch lanes from Flow's title, on each device on its own."
-    >
-      <div className="grid grid-cols-[minmax(120px,180px)_1fr] items-start gap-6" style={{ padding: "12px 0" }}>
-        <div role="group" aria-label="Lanes" className="grid justify-items-start gap-1">
-          {lanes.length === 0 && <span className="loki-meta loki-meta--wrap">No lanes yet</span>}
-          {lanes.map((l) => (
-            <Button key={l.id} size="sm" bare={draft?.id !== l.id} aria-pressed={draft?.id === l.id} onClick={() => open(draftOf(l))}>
-              {l.name}
-            </Button>
-          ))}
-          <Button size="sm" tone="positive" onClick={() => open(newDraft(newId()))}>
-            New Lane
+    <Block title="Lanes" help={help}>
+      {lanes.length === 0 && <Setting label="No lanes yet" help="Flow shows all your work until you add one." />}
+      {lanes.map((l) => (
+        <Setting key={l.id} label={l.name} help={laneSummary(l, agents)}>
+          <Button size="sm" aria-label={`Edit ${l.name}`} onClick={() => open(draftOf(l))}>
+            Edit…
           </Button>
-        </div>
-        {draft ? (
+        </Setting>
+      ))}
+      <div className="flex justify-end" style={{ padding: "12px 0" }}>
+        <Button size="sm" onClick={() => open(newDraft(newId()))}>
+          Add Lane…
+        </Button>
+      </div>
+      {draft && (
+        <Sheet label={saved ? `Edit ${lanes.find((l) => l.id === draft.id)?.name ?? "lane"}` : "New lane"} onClose={close} width={520} top="12vh">
           <LaneEditor
             key={draft.id}
             draft={draft}
@@ -192,27 +178,22 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
             error={error}
             onDraft={open}
             onSave={() => save(draft)}
+            onCancel={close}
             onDelete={
               saved
                 ? () => {
                     set(withoutLane(lanes, draft.id));
-                    setDraft(null);
+                    close();
                   }
                 : null
             }
           />
-        ) : (
-          <span className="loki-meta loki-meta--wrap">Open a lane to change it, or make a new one.</span>
-        )}
-      </div>
+        </Sheet>
+      )}
     </Block>
   );
 }
 
-/**
- * One lane's editor: its name, then its chats and its accounts, each all, pick or none, with a box for each agent or
- * account under pick. Each account names its owner agent, and its Mac when it lives on another (R9).
- */
 export function LaneEditor({
   draft,
   lanes,
@@ -221,31 +202,33 @@ export function LaneEditor({
   error,
   onDraft,
   onSave,
+  onCancel,
   onDelete,
 }: {
   draft: LaneDraft;
   lanes: readonly Lane[];
   agents: readonly AgentName[];
-  /** The accounts to pick from; null while loki is asked, or why they could not be read. */
   accounts: LaneAccount[] | string | null;
-  /** Why the last save was refused, shown under the name. */
   error: string | null;
   onDraft: (d: LaneDraft) => void;
   onSave: () => void;
-  /** Deletes the lane; null for a lane not saved yet. */
+  onCancel: () => void;
   onDelete: (() => void) | null;
 }) {
   const [confirm, setConfirm] = useState(false);
-  const title = lanes.find((l) => l.id === draft.id)?.name ?? "the new lane";
+  const saved = lanes.find((l) => l.id === draft.id)?.name;
+  const title = saved ?? "the new lane";
   return (
     <form
-      aria-label={`Edit ${title}`}
-      className="grid gap-2"
+      aria-label={saved ? `Edit ${saved}` : "New lane"}
+      className="grid gap-3"
+      style={{ padding: 16 }}
       onSubmit={(e) => {
         e.preventDefault();
         onSave();
       }}
     >
+      <div style={{ fontSize: "var(--text-base)", fontWeight: 700, color: "var(--loki-fg)" }}>{saved ? `Edit ${saved}` : "New lane"}</div>
       <Field
         size="sm"
         name="lane-name"
@@ -253,6 +236,7 @@ export function LaneEditor({
         placeholder="Name, like Work"
         autoComplete="off"
         value={draft.name}
+        aria-invalid={error ? true : undefined}
         onChange={(e) => onDraft({ ...draft, name: e.target.value })}
       />
       {error && (
@@ -260,51 +244,54 @@ export function LaneEditor({
           {error}
         </div>
       )}
-      <Setting label="Chats" help="All takes in agents added later; picked ones stay as picked.">
-        <Segmented
-          label={`Chats in ${title}`}
-          options={SIDE_CHOICES}
-          value={draft.chats}
-          onPick={(chats) => onDraft({ ...draft, chats })}
-          labels={{ all: "All Agents", pick: "Pick", none: "None" }}
-        />
-      </Setting>
-      {draft.chats === "pick" && (
-        <Picks
-          label={`Agents in ${title}`}
-          items={agents.map((g) => ({ id: g.id, label: g.name, detail: null }))}
-          ids={draft.chatIds}
-          onTick={(id, on) => onDraft({ ...draft, chatIds: ticked(draft.chatIds, id, on) })}
-          empty="No agents yet."
-        />
-      )}
-      <Setting label="Mail and Slack" help="All takes in accounts connected later, on every Mac.">
-        <Segmented
-          label={`Mail and Slack in ${title}`}
-          options={SIDE_CHOICES}
-          value={draft.accounts}
-          onPick={(side) => onDraft({ ...draft, accounts: side })}
-          labels={{ all: "All Accounts", pick: "Pick", none: "None" }}
-        />
-      </Setting>
-      {draft.accounts === "pick" &&
-        (typeof accounts === "string" ? (
-          <div className="loki-meta loki-meta--negative loki-meta--wrap">{accounts}</div>
-        ) : accounts === null ? (
-          <span className="loki-meta">Asking loki…</span>
-        ) : (
-          <Picks
-            label={`Accounts in ${title}`}
-            items={accounts.map((a) => ({ id: a.account_id, label: a.label, detail: [a.service, a.owner, a.mac].filter(Boolean).join(" · ") }))}
-            ids={draft.accountIds}
-            onTick={(id, on) => onDraft({ ...draft, accountIds: ticked(draft.accountIds, id, on) })}
-            empty="No accounts yet: connect one in Preferences › Accounts."
+      <div className="loki-settings-block">
+        <Setting label="Chats" help="All takes in agents added later.">
+          <Segmented
+            label={`Chats in ${title}`}
+            options={SIDE_CHOICES}
+            value={draft.chats}
+            onPick={(chats) => onDraft({ ...draft, chats })}
+            labels={{ all: "All Agents", pick: "Pick", none: "None" }}
           />
-        ))}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" tone="positive" type="submit">
-          Save
-        </Button>
+        </Setting>
+        {draft.chats === "pick" && (
+          <Picks
+            label={`Agents in ${title}`}
+            items={agents.map((g) => ({ id: g.id, label: g.name, detail: null }))}
+            ids={draft.chatIds}
+            onTick={(id, on) => onDraft({ ...draft, chatIds: ticked(draft.chatIds, id, on) })}
+            empty="No agents yet."
+          />
+        )}
+        <Setting label="Mail and Slack" help="All takes in accounts connected later, on every Mac.">
+          <Segmented
+            label={`Mail and Slack in ${title}`}
+            options={SIDE_CHOICES}
+            value={draft.accounts}
+            onPick={(side) => onDraft({ ...draft, accounts: side })}
+            labels={{ all: "All Accounts", pick: "Pick", none: "None" }}
+          />
+        </Setting>
+        {draft.accounts === "pick" &&
+          (typeof accounts === "string" ? (
+            <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ paddingBottom: 12 }}>
+              {accounts}
+            </div>
+          ) : accounts === null ? (
+            <span className="loki-meta" style={{ paddingBottom: 12 }}>
+              Asking loki…
+            </span>
+          ) : (
+            <Picks
+              label={`Accounts in ${title}`}
+              items={accounts.map((a) => ({ id: a.account_id, label: a.label, detail: [a.service, a.owner, a.mac].filter(Boolean).join(" · ") }))}
+              ids={draft.accountIds}
+              onTick={(id, on) => onDraft({ ...draft, accountIds: ticked(draft.accountIds, id, on) })}
+              empty="No accounts yet: connect one in Preferences › Accounts."
+            />
+          ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2" style={{ paddingTop: 4 }}>
         {onDelete &&
           (confirm ? (
             <>
@@ -317,15 +304,21 @@ export function LaneEditor({
             </>
           ) : (
             <Button size="sm" onClick={() => setConfirm(true)}>
-              Delete…
+              Delete Lane…
             </Button>
           ))}
+        <span className="flex-1" />
+        <Button size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" tone="positive" type="submit">
+          Save
+        </Button>
       </div>
     </form>
   );
 }
 
-/** A box for each agent or account under pick, ticked when its id is picked. */
 function Picks({
   label,
   items,
@@ -339,9 +332,14 @@ function Picks({
   onTick: (id: string, on: boolean) => void;
   empty: string;
 }) {
-  if (!items.length) return <span className="loki-meta loki-meta--wrap">{empty}</span>;
+  if (!items.length)
+    return (
+      <span className="loki-meta loki-meta--wrap" style={{ paddingBottom: 12 }}>
+        {empty}
+      </span>
+    );
   return (
-    <div role="group" aria-label={label} className="grid gap-1">
+    <div role="group" aria-label={label} className="grid gap-1" style={{ paddingBottom: 12 }}>
       {items.map((i) => (
         <label key={i.id} className="grid grid-cols-[auto_1fr] items-baseline gap-2" style={{ cursor: "pointer" }}>
           <input type="checkbox" checked={ids.includes(i.id)} onChange={(e) => onTick(i.id, e.target.checked)} aria-label={`Pick ${i.label}`} />

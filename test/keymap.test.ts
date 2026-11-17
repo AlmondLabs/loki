@@ -83,7 +83,6 @@ describe("keymap: Hide List", () => {
       expect(resolve(ev("l", { meta: true, ctrl: true }), s, "macos")?.id).toBe("list.toggle");
       expect(resolve(ev("l", { meta: true, ctrl: true }, true), s, "macos")?.id).toBe("list.toggle");
     }
-    // ⌘L alone stays Focus Message Box in Chats
     expect(resolve(ev("l", { meta: true }), "desk", "macos")?.id).toBe("chat.focus");
     const view = must(
       menuSpec(KEYMAP, "macos").find((m) => m.title === "View"),
@@ -160,28 +159,26 @@ describe("keymap: resolution", () => {
     const next = (segment: Parameters<typeof resolve>[1]) => resolve(ev("]", { meta: true }), segment)?.id;
     const prev = (segment: Parameters<typeof resolve>[1]) => resolve(ev("[", { meta: true }), segment)?.id;
     expect([next("desk"), prev("desk")]).toEqual(["desk.next", "desk.prev"]);
-    // In the Inbox ⌘] reads the card and ⌘[ puts it off till later (plan 070): the same two keys on every kind of card.
     expect([next("inbox"), prev("inbox")]).toEqual(["inbox.next", "inbox.later"]);
     expect([resolve(ev("ArrowRight"), "inbox")?.id, resolve(ev("ArrowLeft"), "inbox")?.id]).toEqual(["inbox.next", "inbox.later"]);
-    expect(resolve(ev("[", { meta: true }, true), "inbox")?.id).toBe("inbox.later"); // from inside the reply box too
-    expect(resolve(ev("ArrowLeft", {}, true), "inbox")).toBeNull(); // the caret's
+    expect(resolve(ev("[", { meta: true }, true), "inbox")?.id).toBe("inbox.later");
+    expect(resolve(ev("ArrowLeft", {}, true), "inbox")).toBeNull();
     expect(resolve(ev("e"), "inbox")?.id).toBe("inbox.archive");
     expect(resolve(ev("l"), "inbox")?.id).toBe("inbox.label");
     expect(resolve(ev("l", {}, true), "inbox")).toBeNull();
     expect([next("learn"), prev("learn")]).toEqual(["learn.nextView", "learn.prevView"]);
     expect([next("agents"), prev("agents")]).toEqual(["agents.next", "agents.prev"]);
     expect([next("settings"), prev("settings")]).toEqual(["settings.nextPage", "settings.prevPage"]);
-    // and while typing in the section's own box (Learn's answer, the reply box)
     expect(resolve(ev("]", { meta: true }, true), "learn")?.id).toBe("learn.nextView");
   });
   test("plain letters never fire inside a text box; chords marked typing do", () => {
     expect(resolve(ev("a"), "inbox")?.id).toBe("inbox.approve");
     expect(resolve(ev("a", {}, true), "inbox")).toBeNull();
     expect(resolve(ev("Enter", { meta: true }, true), "inbox")?.id).toBe("inbox.approve");
-    expect(resolve(ev("z", { meta: true }, true), "inbox")).toBeNull(); // the text's undo
+    expect(resolve(ev("z", { meta: true }, true), "inbox")).toBeNull();
     expect(resolve(ev("d", { meta: true, shift: true }, true), "inbox")?.id).toBe("inbox.deny");
-    expect(resolve(ev("Backspace", { meta: true }, true), "inbox")).toBeNull(); // the text's delete-to-line-start
-    expect(resolve(ev("ArrowLeft", { meta: true }, true), "desk")).toBeNull(); // the caret's
+    expect(resolve(ev("Backspace", { meta: true }, true), "inbox")).toBeNull();
+    expect(resolve(ev("ArrowLeft", { meta: true }, true), "desk")).toBeNull();
     expect(resolve(ev("ArrowLeft", { meta: true, alt: true }, true), "desk")?.id).toBe("chat.left");
   });
   test("? opens the cheat sheet anywhere, never from inside a text box", () => {
@@ -195,7 +192,6 @@ describe("keymap: resolution", () => {
     expect(sidebar("desk", true)).toBe("column.toggle");
     const shiftD = (segment: Parameters<typeof resolve>[1]) => resolve(ev("d", { meta: true, shift: true }), segment, "macos")?.id ?? null;
     expect([shiftD("desk"), shiftD("agents"), shiftD("learn"), shiftD("inbox")]).toEqual([null, null, null, "inbox.deny"]);
-    // ⌘S alone is not the sidebar; off the Mac it is Ctrl B
     expect(resolve(ev("s", { meta: true }), "desk", "macos")?.id).not.toBe("column.toggle");
     expect(resolve(ev("b", { ctrl: true }, true), "desk", "windows")?.id).toBe("column.toggle");
   });
@@ -212,7 +208,6 @@ describe("keymap: resolution", () => {
     }
     expect(KEYMAP.filter((b) => b.keys.includes("cmd+3"))).toEqual([]);
     expect(KEYMAP.filter((b) => b.id.startsWith("task"))).toEqual([]);
-    // The rail: no Tasks between Flow and Agents. Flow was the Inbox (plan 087); its id stays segment.inbox.
     expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Agents", "Learn", "Preferences"]);
     expect(SEGMENTS.map((s) => s.id)).toContain("inbox");
     expect(KEYMAP.find((b) => b.id === "segment.inbox")?.label).toBe("Flow");
@@ -228,7 +223,6 @@ describe("keymap: presentation", () => {
       const taken = KEYMAP.filter((b) => b.where === "anywhere").flatMap((b) => takenBy(b, KEYMAP, os).map((t) => `${b.id} ${t.key} ${t.id}`));
       expect(taken, os).toEqual([]);
     }
-    // The message box's keys (the chat scope) sit inside Chats (the desk scope): neither takes the other's.
     const desk = new Set(KEYMAP.filter((b) => b.where === "desk").flatMap((b) => b.keys));
     expect(KEYMAP.filter((b) => b.where === "chat" && b.keys.some((k) => desk.has(k))).map((b) => b.id)).toEqual([]);
     const everywhere = (segment: Parameters<typeof keysFor>[0]) =>
@@ -265,7 +259,7 @@ describe("keymap: presentation", () => {
     );
     expect(inbox.items.some((i) => "separator" in i)).toBe(true);
     const undo = inbox.items.find((i) => "id" in i && i.id === "inbox.undo") as { accelerator: string | null };
-    expect(undo.accelerator).toBeNull(); // ⌘Z is the text's while typing; the menu must not steal it
+    expect(undo.accelerator).toBeNull();
     const approve = inbox.items.find((i) => "id" in i && i.id === "inbox.approve") as { accelerator: string | null };
     expect(approve.accelerator).toBe("CmdOrCtrl+Enter");
   });
@@ -278,7 +272,7 @@ describe("keymap: presentation", () => {
 describe("keymap: ⌘K is search (plan 013 U9)", () => {
   test("⌘K opens search from anywhere, the message box included, and the native menu lists it as Search", () => {
     expect(resolve(ev("k", { meta: true }), "desk")?.id).toBe("search.open");
-    expect(resolve(ev("k", { meta: true }, true), "desk")?.id).toBe("search.open"); // typing in the composer
+    expect(resolve(ev("k", { meta: true }, true), "desk")?.id).toBe("search.open");
     expect(resolve(ev("k", { meta: true }, true), "agents")?.id).toBe("search.open");
     expect(KEYMAP.some((b) => b.id === "tree.toggle")).toBe(false);
     const item = menuSpec()
@@ -304,7 +298,7 @@ describe("keymap: Preferences over the shell (KTD11)", () => {
     expect(dialogState(root())).toBe("none");
     expect(dialogState(root(["data-preferences"]))).toBe("preferences");
     expect(dialogState(root([]))).toBe("other");
-    expect(dialogState(root(["data-preferences"], []))).toBe("other"); // a confirmation sheet over Preferences
+    expect(dialogState(root(["data-preferences"], []))).toBe("other");
   });
   test("Preferences lets ⌘, ⌘1-6 and ⌘[ ⌘] through; every other dialog blocks every shell key", () => {
     for (const id of ["segment.desk", "segment.inbox", "segment.agents", "segment.learn", "segment.settings", "settings.prevPage", "settings.nextPage"]) {
@@ -334,7 +328,7 @@ describe("keymap: Mark as done", () => {
     expect(resolve(ev("Enter", { meta: true, shift: true }, true), "desk")?.id).toBe("desk.done");
     expect(resolve(ev("Enter", { meta: true, shift: true }, true), "inbox")).toBeNull();
     expect(resolve(ev("Enter", { meta: true }, true), "inbox")?.id).toBe("inbox.approve");
-    expect(resolve(ev("Enter", { shift: true }, true), "desk")).toBeNull(); // the box's new line
+    expect(resolve(ev("Enter", { shift: true }, true), "desk")).toBeNull();
     expect(tauriAccelerator("cmd+shift+enter")).toBe("CmdOrCtrl+Shift+Enter");
   });
 });
@@ -342,7 +336,6 @@ describe("keymap: Mark as done", () => {
 describe("keymap: each system's keys (plan 014 U2)", () => {
   const PC: Platform[] = ["windows", "linux"];
   const MAC_KEYS = /[⌘⌥⇧⌃⌫↵⏎⇥]/;
-  /** formatKeys as it was before per-system keys: the Mac's rendering must not move by a byte. */
   const MAC_BEFORE: Record<string, string> = {
     cmd: "⌘",
     shift: "⇧",
@@ -369,7 +362,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(formatKeys("cmd+k", "windows")).toBe("Ctrl K");
     expect(formatKeys("cmd+shift+enter", "linux")).toBe("Ctrl Shift Enter");
     expect(formatKeys("cmd+k", "macos")).toBe("⌘K");
-    expect(platform).toBe("macos"); // the tests run as the Mac: no shell, no browser
+    expect(platform).toBe("macos");
     expect(formatKeys("cmd+k")).toBe("⌘K");
   });
   test("every named key has a word off the Mac; arrows and the one shifted chord read the same everywhere", () => {
@@ -418,12 +411,10 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(resolve(ev("n", { ctrl: true }, true), "desk", "macos")).toBeNull();
     expect(resolve(ev("e", { ctrl: true }, true), "inbox", "macos")).toBeNull();
     expect(resolve(ev("k", { meta: true }, true), "desk", "macos")?.id).toBe("search.open");
-    // Out of a text box Ctrl edits nothing, and it still stands in for ⌘.
     expect(resolve(ev("k", { ctrl: true }), "desk", "macos")?.id).toBe("search.open");
   });
   test("off the Mac no binding takes a key the system keeps, nor any Ctrl+Alt chord (AltGr on Windows, workspaces on Linux)", () => {
     // Windows: Ctrl+Alt+arrows rotate the screen (Intel graphics), Alt+Space is the window menu, Ctrl+Esc the Start menu.
-    // Linux (GNOME and friends): Ctrl+Alt+arrows switch workspaces, Alt+Space is the window menu, Ctrl+Alt+T a terminal.
     const RESERVED: Record<"windows" | "linux", string[]> = {
       windows: ["alt+cmd+left", "alt+cmd+right", "alt+cmd+up", "alt+cmd+down", "alt+space", "cmd+escape", "cmd+shift+escape"],
       linux: ["alt+cmd+left", "alt+cmd+right", "alt+cmd+up", "alt+cmd+down", "alt+space", "alt+cmd+t", "alt+cmd+backspace"],
@@ -442,21 +433,17 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       expect(keysOf(left, os)).toEqual(["cmd+left", "cmd+shift+["]);
       expect(keysOf(right, os)).toEqual(["cmd+right", "cmd+shift+]"]);
     }
-    // in the message box, where the plain chord is the caret's
     expect(resolve(ev("{", { ctrl: true, shift: true }, true), "desk", "windows")?.id).toBe("chat.left");
     expect(resolve(ev("}", { ctrl: true, shift: true }, true), "desk", "linux")?.id).toBe("chat.right");
-    expect(resolve(ev("[", { ctrl: true, shift: true }, true), "desk", "linux")?.id).toBe("chat.left"); // a layout that reports the unshifted key
+    expect(resolve(ev("[", { ctrl: true, shift: true }, true), "desk", "linux")?.id).toBe("chat.left");
     expect(resolve(ev("ArrowLeft", { ctrl: true, alt: true }, true), "desk", "windows")).toBeNull();
     expect(resolve(ev("ArrowLeft", { ctrl: true, alt: true }, true), "desk", "linux")).toBeNull();
-    expect(resolve(ev("ArrowLeft", { ctrl: true }, true), "desk", "windows")).toBeNull(); // the caret's word jump
+    expect(resolve(ev("ArrowLeft", { ctrl: true }, true), "desk", "windows")).toBeNull();
     expect(resolve(ev("ArrowLeft", { ctrl: true }), "desk", "windows")?.id).toBe("chat.left");
-    // the Mac keeps its own and does not take the new one
     expect(resolve(ev("ArrowLeft", { meta: true, alt: true }, true), "desk", "macos")?.id).toBe("chat.left");
     expect(resolve(ev("{", { meta: true, shift: true }, true), "desk", "macos")).toBeNull();
-    // the shifted bracket is nothing else's, and ⌘[ still wants no Shift
     expect(chordIds(ev("{", { ctrl: true, shift: true }), KEYMAP, "windows")).toEqual(["chat.left"]);
     expect(resolve(ev("[", { ctrl: true }), "desk", "windows")?.id).toBe("desk.prev");
-    // listed under the new key: the keys sheet and Preferences › keys
     const rows = must(
       keysFor("desk", KEYMAP, "windows").find((g) => g.where === "desk"),
       "the desk group",
@@ -488,7 +475,6 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       expect(keyRows(os).map((b) => b.id)).not.toContain("global.inbox");
     }
     expect(keyRows("macos").map((b) => b.id)).toContain("global.inbox");
-    // the table's order is WHERE_ORDER's, the same on every system, less the Mac's extras (U3: dictation too)
     const macOnly = ["global.inbox", "chat.dictate"];
     expect(keyRows("windows").map((b) => b.id)).toEqual(
       keyRows("macos")
@@ -508,7 +494,6 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     const everywhere: Binding = { id: "e", keys: ["cmd+9"], keysOn: { linux: ["cmd+1"] }, where: "anywhere", label: "E" };
     expect(takenBy(everywhere, [...planted, everywhere], "macos")).toEqual([]);
     expect(takenBy(everywhere, [...planted, everywhere], "linux")).toEqual([{ where: "desk", key: "cmd+1", id: "a", label: "A" }]);
-    // the sidebar's key is free on every system: ⌃⌘S on the Mac, Ctrl B elsewhere
     const toggle = bindingOf("column.toggle");
     for (const os of PC) expect(takenBy(toggle, KEYMAP, os)).toEqual([]);
     expect([keyFor("column.toggle", "macos"), keyFor("column.toggle", "windows"), keyFor("column.toggle", "linux")]).toEqual(["⌃⌘S", "Ctrl B", "Ctrl B"]);
@@ -528,7 +513,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(keyFor("segment.settings", "windows")).toBe("Ctrl 6");
     expect(keyFor("segment.settings", "windows", 1)).toBe("Ctrl ,");
     expect(() => keyFor("no.such")).toThrow();
-    expect(() => keyFor("global.inbox", "windows")).toThrow(); // no key there
+    expect(() => keyFor("global.inbox", "windows")).toThrow();
   });
   test("a was line names the key it points to on each system", () => {
     const search = { ...bindingOf("search.open"), was: "moved ({column.toggle} shows the sidebar)" };
@@ -553,7 +538,6 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(desks.description).not.toMatch(MAC_KEYS);
     expect(commandText(desks, "macos")).toBe("search chats, agents and pages (⌘K)");
     expect(commandText(desks, "windows")).toBe("search chats, agents and pages (Ctrl K)");
-    // the others read as before: no key appended
     for (const c of LOKI_COMMANDS.filter((c) => c.id !== "chats")) expect(commandText(c, "windows")).toBe(c.description);
   });
 });
@@ -571,7 +555,7 @@ describe("the page's system (plan 014 U2, KTD1)", () => {
     expect(platformFrom(undefined, LINUX)).toBe("linux");
   });
   test("anything unknown is the Mac, loki's home: an odd word from the shell, a phone, a test runner", () => {
-    expect(platformFrom("beos", WIN)).toBe("windows"); // an unknown word falls through to the user agent
+    expect(platformFrom("beos", WIN)).toBe("windows");
     expect(platformFrom(undefined, "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)")).toBe("macos");
     expect(platformFrom(undefined, "Bun/1.2.0")).toBe("macos");
     expect(platformFrom(undefined, "")).toBe("macos");

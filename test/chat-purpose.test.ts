@@ -27,10 +27,8 @@ afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
 });
 
-/** A draft saved from a suggestion made in another chat. */
 const draft: SavedDraft = { text: "look at the flaky upload test", suggestion_id: "sug-1", source: { agent_id: "agent-local-b", conversation_id: "conv-src" } };
 
-/** One agent's daemon chats in a temporary folder, read through the projection and listed as the mod lists them. */
 async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "loki-purpose-"));
   const models = createModels();
@@ -89,7 +87,6 @@ describe("a chat's purpose line and saved draft (plan 049, U1)", () => {
     await s.update(id, parsed(FRAMES.chat_update.parse({ agent_id: s.ada, conversation_id: id, purpose: "  the website:\n deploys and copy " })));
     expect(s.row(id)?.purpose).toBe("the website: deploys and copy");
     expect(s.desk(id)?.purpose).toBe("the website: deploys and copy");
-    // An update without a purpose leaves it.
     await s.update(id, { title: "site work" });
     expect(s.row(id)?.purpose).toBe("the website: deploys and copy");
     await s.update(id, parsed(FRAMES.chat_update.parse({ agent_id: s.ada, conversation_id: id, purpose: " " })));
@@ -115,7 +112,6 @@ describe("a chat's purpose line and saved draft (plan 049, U1)", () => {
     expect(await s.update(id, { draft })).toEqual({ draft_suggestion_id: "sug-1" });
     await expect(s.update(id, { draft: { ...draft, suggestion_id: "sug-2", text: "another" } })).rejects.toThrow("that chat already holds a saved draft");
     expect(s.row(id)?.draft_text).toBe("look at the flaky upload test");
-    // The same suggestion again (a retry) is no conflict.
     expect(await s.update(id, { draft })).toEqual({ draft_suggestion_id: "sug-1" });
     expect(await s.update(id, { title: "renamed" })).toEqual({});
   });
@@ -138,7 +134,6 @@ describe("a chat's purpose line and saved draft (plan 049, U1)", () => {
     const info = (await (await s.stores.get(s.ada)).chats(ctx)).find((c) => c.id === id);
     expect(info?.draft).toBeNull();
     expect(s.row(id)).toMatchObject({ has_draft: false, draft_text: null });
-    // The turn ends before the store closes.
     await until(() => s.pushed.some((e) => e.kind === "turn_end"));
   });
 
@@ -197,7 +192,6 @@ describe("chat_update's purpose and draft at the frame edge", () => {
   });
 });
 
-/** Wait for a condition, failing after a deadline rather than sleeping a fixed time. */
 async function until(check: () => boolean, ms = 5000): Promise<void> {
   const end = Date.now() + ms;
   while (!check()) {
@@ -206,7 +200,6 @@ async function until(check: () => boolean, ms = 5000): Promise<void> {
   }
 }
 
-/** A parsed frame, or the test fails with the frame's complaint. */
 function parsed<T>(frame: T | string): T {
   if (typeof frame === "string") throw new Error(frame);
   return frame;

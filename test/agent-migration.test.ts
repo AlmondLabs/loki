@@ -123,7 +123,6 @@ describe("the agents' migration (plan 045)", () => {
     expect((await settingsOf(store, "local-conv-claude")).model?.provider).toBe("chatgpt-plus-pro");
     expect(reports.length).toBeGreaterThan(0);
 
-    // A second start reads nothing.
     expect(await migrateAgents(deps)).toBe(false);
   });
 });

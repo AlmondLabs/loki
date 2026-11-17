@@ -16,12 +16,9 @@ import { ApprovalProposal } from "../item/proposal";
 import { Thought } from "../item/thought";
 import { Work } from "../item/work";
 import type { TurnPart } from "../item/entries";
-
-/*
- * The workbench (plan 2026-11-12-1505, U2): every piece of the Liquid Glass look on one page, in day and night, glass
- * and solid, with made-up data, so the foundation is approved by looking before any screen moves. Development only:
- * `?workbench` on the dev server's URL (main.tsx); production builds never load it.
- */
+import { Lanes } from "../settings/lanes";
+import { TitleMenu } from "../shell/title-menu";
+import type { Lane } from "../../../core/attention/lanes.ts";
 
 const noop = () => {};
 
@@ -75,7 +72,6 @@ const PARTS: TurnPart[] = [
   { kind: "message", key: "m1", row: ANSWER, last: true, first: true, arrived: false },
 ];
 
-/** Made-up outside threads, one per source, for Flow's cards. */
 const OUTSIDE: Array<{ name: string; facts: OutsideFacts }> = [
   [
     "Gmail",
@@ -134,12 +130,10 @@ const LOREM = Array.from(
     `Week ${i + 1}: signups held between 300 and 360 until the pricing page went live; the content scrolls under the toolbar and the composer, which is where the glass shows what it is made of.`,
 );
 
-/** The whole page, mounted by main.tsx when the dev server's URL carries `?workbench`. */
 export function Workbench() {
   const [night, setNight] = useState(() => typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches);
   const [solid, setSolid] = useState(false);
 
-  // The page drives the root's look itself, as the theme provider does in the app, and puts it back on the way out.
   useEffect(() => {
     const root = document.documentElement;
     const before = { theme: root.getAttribute("data-theme"), glass: root.getAttribute("data-glass") };
@@ -316,6 +310,24 @@ export function Workbench() {
             ))}
           </div>
         </Section>
+
+        <Section
+          title="☰ menu"
+          note="The Mac's menu bar on Windows, Linux and in a browser tab: each menu a submenu, keys in Ctrl words (plan 2026-11-15-1930)."
+        >
+          <div className="flex">
+            <TitleMenu os="windows" className="loki-browser-menu" />
+          </div>
+        </Section>
+
+        <Section
+          title="Preferences › Flow: lanes"
+          note="A row per lane with what it shows and Edit…, then Add Lane…; the editor is a sheet (plan 2026-11-15-2359)."
+        >
+          <div className="max-w-2xl">
+            <LanesBench />
+          </div>
+        </Section>
       </main>
     </div>
   );
@@ -330,7 +342,6 @@ const CHATS: ContentRow[] = [
   { id: "c6", title: "Hiring plan", time: "Sun", section: "Earlier" },
 ];
 
-/** ContentList beside a stand-in detail, with what it committed, what took focus, and the last key the window saw. */
 function ListBench() {
   const [rows, setRows] = useState(CHATS);
   const [selected, setSelected] = useState<string | null>("c2");
@@ -380,6 +391,41 @@ function ListBench() {
       </div>
     </div>
   );
+}
+
+const LANE_AGENTS = [
+  { id: "agent-work", name: "Work" },
+  { id: "agent-ops", name: "Ops" },
+  { id: "agent-home", name: "Home" },
+];
+
+const LANES: Lane[] = [
+  { id: "lane-work", name: "Work", chats: ["agent-work", "agent-ops"], accounts: ["gmail:ada@example.com"] },
+  { id: "lane-home", name: "Home", chats: ["agent-home", "agent-elsewhere"], accounts: "all" },
+];
+
+const LANE_ACCOUNTS = {
+  everywhere: () =>
+    Promise.resolve({
+      accounts: [
+        { provider: "gmail" as const, address: "ada@example.com", owner: "agent-work" },
+        { provider: "slack" as const, address: "acme", owner: "agent-ops" },
+        { provider: "jira" as const, address: "acme.atlassian.net", owner: "agent-work" },
+      ].map((a) => ({
+        account_id: `${a.provider}:${a.address}`,
+        provider: a.provider,
+        address: a.address,
+        owner_agent_id: a.owner,
+        status: "connected" as const,
+        connected_at: "2026-11-01T09:00:00.000Z",
+      })),
+      other_macs: [],
+    }),
+};
+
+function LanesBench() {
+  const [lanes, setLanes] = useState<Lane[]>(LANES);
+  return <Lanes lanes={{ lanes, set: setLanes }} accounts={LANE_ACCOUNTS} agents={LANE_AGENTS} />;
 }
 
 function Section({ title, note, children }: { title: string; note: string; children: ReactNode }) {

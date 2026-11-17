@@ -1,11 +1,8 @@
 @import "tailwindcss";
-/* shadcn's overlay animations and its variants and utilities (data-open, shimmer, scroll-fade), plan 096. */
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-/* AI Elements' MessageResponse draws markdown with streamdown: its word fade-in, and the classes its blocks use. */
 @import "streamdown/styles.css";
 @source "../../node_modules/streamdown/dist/*.js";
-/* The agent's widget files live outside the repo; the loki:desks Vite plugin fills in the path. */
 @source "__LOKI_WIDGETS_DIR__";
 /* Tailwind writes a theme variable only when its sources use it. chat.css, shell/*.css and phone.css are imported from
    JS, outside those sources, and say var(--text-xs) … var(--text-2xl), so the four sizes are always generated. */
@@ -14,7 +11,6 @@
 @import "./kit/tokens.css";
 @import "./components/components.css";
 
-/* Tailwind utilities that resolve to the loki tokens: bg-loki-panel, text-loki-muted, … */
 @theme inline {
   --color-loki-bg: var(--loki-bg);
   --color-loki-panel: var(--loki-panel);
@@ -33,15 +29,15 @@
   --color-loki-on-attention: var(--loki-on-attention);
   --color-loki-affirm: var(--loki-affirm);
   --color-loki-on-affirm: var(--loki-on-affirm);
+  --color-loki-segment: var(--loki-segment);
+  --color-loki-glass-edge: var(--loki-glass-edge);
+  --color-loki-well: var(--loki-well);
   --font-loki: var(--loki-font);
   --font-loki-display: var(--loki-display);
   --font-loki-label: var(--loki-label);
   --font-loki-mono: var(--loki-mono);
 }
 
-/* shadcn's utilities (plan 096): its colour names read the roles in tokens.css, and loki's radii and shadows get names
-   of their own. Text sizes and the spacing step are Tailwind's own, unchanged (plan 2026-11-15-0030), the same ones the
-   agents' widgets are told work; tokens.test.ts holds loki's source to text-xs, text-sm, text-base and text-2xl. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -91,13 +87,8 @@
   }
 }
 
-/* Night is the bare :root and day is data-theme="light" (theme.tsx), so shadcn's dark: classes key on that, not on a
-   .dark class. */
 @custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
 
-/* Liquid Glass (plan 2026-11-12-1505, KTD3): the one material every floating control layer uses, never its own blur.
-   glass for bars and groups, glass-strong for menus, sheets, the approval and the composer. Outside the apple family
-   the tokens are the solid panel and its hairline (tokens.css). */
 @utility glass {
   background: var(--loki-glass);
   -webkit-backdrop-filter: var(--loki-glass-blur);
@@ -117,7 +108,6 @@
     var(--loki-shadow-float);
 }
 
-/* Window-level stacking for shadcn's overlays, from LAYER (kit/layers.ts) by way of tokens.css: z-modal, never z-50. */
 @utility z-panel {
   z-index: var(--loki-layer-panel);
 }

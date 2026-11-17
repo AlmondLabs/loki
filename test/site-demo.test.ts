@@ -3,11 +3,8 @@ import { DemoChats, type Schedule } from "../site/src/demo-chats.ts";
 import { dismissLead, gradeCard, removeCard, restoreCard, startingLearn } from "../site/src/demo-learn.ts";
 import { dueCount } from "../core/recall/model.ts";
 
-/** The website's made-up chats (site/src/demo-chats.ts, plan 066): what the Inbox demo reads and how its agents answer. */
-
 const NOW = Date.parse("2026-11-02T10:00:00Z");
 
-/** Timers held until `flush` runs them all, so the agent's streamed answer arrives at once. */
 function heldTimers() {
   let queue: Array<() => void> = [];
   const schedule: Schedule = (run) => {

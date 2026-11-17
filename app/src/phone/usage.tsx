@@ -7,11 +7,6 @@ import { sentence } from "../components";
 import { FactRow, MenuRow, RowGroup } from "./rows";
 import { BackButton, Scroll, TopBar } from "./ui";
 
-/**
- * Usage, under More: the desktop's Preferences › Usage in the phone's grammar, one column of groups on hairlines. The
- * period, the estimate with its tokens and a bar a day, then what each origin, agent and model spent; tapping a line
- * narrows the screen to it. The figures are estimates at each provider's API prices.
- */
 export function UsageScreen({ usage, banner, backLabel = "more", onBack }: { usage: UsageApi; banner?: ReactNode; backLabel?: string; onBack: () => void }) {
   const { period, pick, setFilter, failed, summary, priced, agentName, narrowed } = useUsage(usage);
   return (
@@ -61,7 +56,6 @@ export function UsageScreen({ usage, banner, backLabel = "more", onBack }: { usa
   );
 }
 
-/** One breakdown as a group of rows, costliest first; a line of tokens with no cost was spent on unpriced models. */
 function Lines({
   title,
   lines,

@@ -5,26 +5,18 @@ import { keyFor } from "../shell/keymap";
 import { LABEL_COLORS, LABEL_MAX, labelName, type LabelView } from "../../../core/labels.ts";
 import { Block, Setting } from "./layout";
 
-/** What Preferences › Labels asks of use-attention's labels: the list, and a rename, recolour or delete (an error, or null). */
 export interface LabelsApi {
   list: LabelView[] | null;
   edit: (change: { name: string; rename?: string; color?: number } | { name: string; remove: true }) => Promise<string | null>;
 }
 
-/** What one row is doing: showing, renaming, choosing a colour, or asking before a delete. */
 type RowMode = "show" | "rename" | "color" | "remove";
 
-/**
- * Preferences › Labels (plan 022, R6): every label on a chat with its colour and how many chats carry it. Rename and
- * delete reach every chat that carries the label; a delete asks first, naming how many. The list loads with the link.
- */
 export function Labels({ api }: { api: LabelsApi }) {
   const [error, setError] = useState<string | null>(null);
   if (!api.list) return <Setting label="Labels" help="Asking loki…" />;
   return (
-    <Block
-      help={`Labels gather related chats across agents. Add them from a chat's row, its header, or /label in the message box; find a label's chats with label:name in the sidebar's filter or ${keyFor("search.open")}.`}
-    >
+    <Block help={`Labels gather related chats across agents, and label:name in the list's Search or ${keyFor("search.open")} finds them.`}>
       {error && (
         <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
           {error}
@@ -39,7 +31,6 @@ export function Labels({ api }: { api: LabelsApi }) {
   );
 }
 
-/** One label: its dot, name and count, and rename, colour and delete. */
 function LabelRow({ label, list, api, onError }: { label: LabelView; list: LabelView[] | null; api: LabelsApi; onError: (e: string | null) => void }) {
   const [mode, setMode] = useState<RowMode>("show");
   const [name, setName] = useState(label.name);

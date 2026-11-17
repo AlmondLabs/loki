@@ -36,7 +36,6 @@ describe("sent replies (plan 086)", () => {
     const second = s.add(KEY, "two", AT);
     const third = s.add(KEY, "three", AT);
     s.went(third);
-    // A read made after one had gone: the second is still on its way, the third went after the read began.
     s.settle(KEY, 1);
     expect(s.get(KEY).replies.map((r) => r.id)).toEqual([second, third]);
     s.went(second);

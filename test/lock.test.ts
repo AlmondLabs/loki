@@ -17,7 +17,6 @@ describe("daemon lock", () => {
       const first = acquire(file);
       expect("release" in first).toBe(true);
       expect(readFileSync(file, "utf8")).toBe(String(process.pid));
-      // Another process asking: our pid is alive, so it is held.
       expect(acquire(file, process.pid + 1_000_000)).toEqual({ heldBy: process.pid });
       (first as { release(): void }).release();
       expect(existsSync(file)).toBe(false);
@@ -70,8 +69,7 @@ describe("daemon lock", () => {
       // A file: URL, not a path: Windows' C:\\… is no import specifier.
       const lock = new URL("../daemon/lock.ts", import.meta.url).href;
       for (let round = 0; round < 3; round++) {
-        writeFileSync(file, "999999999"); // a crashed daemon's
-        // All of them reach acquire in the same millisecond, past their start-up, where the race is.
+        writeFileSync(file, "999999999");
         const at = Date.now() + 1500;
         const script = `import { acquire } from ${JSON.stringify(lock)}; while (Date.now() < ${at}); const l = acquire(${JSON.stringify(file)}); console.log("release" in l ? "won" : "held"); setTimeout(() => {}, 3000);`;
         const children: Array<ReturnType<typeof spawn>> = [];
@@ -84,7 +82,6 @@ describe("daemon lock", () => {
               let out = "";
               let err = "";
               c.stderr.on("data", (b: Buffer) => (err += b.toString()));
-              // Each stays alive until all have answered: a winner that exited would leave a leftover to take over.
               c.stdout.on("data", (b: Buffer) => {
                 out += b.toString();
                 if (out.includes("\n")) resolve(out.trim());

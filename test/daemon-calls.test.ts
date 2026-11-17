@@ -3,7 +3,6 @@ import type { FrameRequest } from "../core/attention/chat-client.ts";
 import { daemonCalls } from "../core/daemon-calls.ts";
 import type { RequestResult } from "../core/frames.ts";
 
-/** A mod socket that records each request and answers from `replies` by its type; a type with none is refused. */
 function fakeRequest(replies: Record<string, unknown>) {
   const sent: Array<{ type: string; payload: unknown }> = [];
   const request = ((type: string, payload: unknown) => {
@@ -36,7 +35,6 @@ describe("the daemon's settings calls (plan 052)", () => {
     expect(await calls.mcp.get()).toEqual(view);
     expect(await calls.mcp.secret("notes", "s3cret")).toEqual({ ref: "${keychain:notes}" });
     expect(await calls.mcp.approvals.list()).toEqual(["read"]);
-    // Refused, each says why rather than throwing.
     expect(await calls.mcp.restart("notes")).toBe("no chat_mcp_restart here");
     expect(await calls.engines.check("fake")).toBe("no chat_engine_check here");
     expect(await calls.mcp.approvals.set("read", false)).toBe("no chat_approvals_set here");

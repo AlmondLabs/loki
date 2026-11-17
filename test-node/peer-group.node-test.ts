@@ -1,9 +1,3 @@
-/**
- * Three Macs over real sockets (plan 023, addendum D), under Node's own test runner: `npm run test:node`. Each "Mac" is
- * a tailnet listener with its own pairing, its frame answers and its links to the Macs it is paired with. The MacBook
- * and the mini pair by code, the mini and a third Mac pair by code, and the MacBook then joins the third Mac through
- * the mini, with no code of its own.
- */
 import { strict as assert } from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,7 +25,6 @@ async function until(check: () => boolean, ms = 5000): Promise<void> {
   }
 }
 
-/** One Mac: its listener on an ephemeral port, its pairing, its group and its links. */
 async function mac(name: string, macId: string) {
   const dir = mkdtempSync(join(tmpdir(), `loki-group-${name}-`));
   const store = new PeerStore(join(dir, "peers.json"));
@@ -98,7 +91,6 @@ async function mac(name: string, macId: string) {
     codes,
     links,
     group,
-    /** Pair with `other` by a code it shows, as the person would. */
     pairWith: (other: { host: string; codes: PairingCodes }) => peers.join(other.host, other.codes.mint().code),
     done: async () => {
       links.stop();
@@ -116,11 +108,9 @@ void test("a Mac joins the Mac its paired Mac is paired with, through it, with n
     await book.pairWith(mini);
     await third.pairWith(mini);
     await until(() => book.links.reachable(MINI) && mini.links.reachable(BOOK) && mini.links.reachable(THIRD) && third.links.reachable(MINI));
-    // The third Mac has the higher id: it waits to be joined.
     assert.deepEqual(await third.group.meshWith(MINI), []);
     assert.deepEqual(await book.group.meshWith(MINI), [THIRD]);
     assert.ok(book.store.get(THIRD) && third.store.get(BOOK));
-    // The new pairing works both ways: each Mac's link to the other opens with its own token.
     await until(() => book.links.reachable(THIRD) && third.links.reachable(BOOK));
     assert.deepEqual(await book.group.meshWith(MINI), []);
   } finally {
@@ -138,7 +128,7 @@ void test("a Mac the third forgot on purpose is not invited back through the min
     await book.pairWith(third);
     await until(() => book.links.reachable(MINI) && third.store.get(BOOK) !== null);
     await third.peers.forget(BOOK);
-    assert.equal(book.store.get(THIRD), null); // told, and forgotten there too
+    assert.equal(book.store.get(THIRD), null);
     assert.deepEqual(await book.group.meshWith(MINI), []);
     assert.equal(book.store.get(THIRD), null);
   } finally {

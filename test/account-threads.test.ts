@@ -15,7 +15,6 @@ afterEach(() => {
 
 const MAIL = "gmail:ada@acme.com";
 
-/** Accounts with one Gmail mailbox of the work agent, and the thread records in the same state folder. */
 async function fixture(source?: OutsideSource) {
   const dir = mkdtempSync(join(tmpdir(), "loki-account-threads-"));
   dirs.push(dir);
@@ -34,7 +33,6 @@ async function fixture(source?: OutsideSource) {
   return { dir, accounts, threads: make(), again: make };
 }
 
-/** What a fake write-back says it changed: nothing on any message. */
 const changeOf = (move: OutsideChange["move"], ended: boolean, record: ThreadRecord): OutsideChange => ({
   move,
   messages: [],
@@ -42,7 +40,6 @@ const changeOf = (move: OutsideChange["move"], ended: boolean, record: ThreadRec
   was_unread: record.unread_out_there,
 });
 
-/** A write-back that changes nothing out there, with any of its writes replaced. */
 const fakeSource = (more: Partial<OutsideSource> = {}): OutsideSource => ({
   archive: (_a, r) => Promise.resolve(changeOf("archive", true, r)),
   markRead: (_a, r) => Promise.resolve(changeOf("read", false, r)),
@@ -206,7 +203,6 @@ describe("the thread records of an account", () => {
     const rows = threads.rows();
     expect(rows.map((r) => r.id)).toEqual(["t1#1"]);
     expect(must(rows[0].outside, "outside").newest_message_id).toBe("m2");
-    // The card shows the last few messages only.
     expect(must(rows[0].outside, "outside").lines).toEqual(["b", "c", "d"]);
   });
 
@@ -236,7 +232,6 @@ describe("the thread records of an account", () => {
   test("a message that came while a hand-off ran keeps the card open as the next generation, naming the chat", async () => {
     const { threads } = await fixture();
     threads.observe(MAIL, message());
-    // The hand-off read m1; m2 arrived before it finished.
     threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
     threads.handedOff(MAIL, "t1", "conv-7", "m1");
     const [row] = threads.rows();
@@ -366,7 +361,6 @@ describe("the thread records of an account", () => {
     const files = readdirSync(join(dir, "account-threads"));
     expect(files).toHaveLength(1);
     expect(files[0]).not.toMatch(/[<>:"/\\|?*]/);
-    // Read again, the archived thread still keeps an old message from making a card.
     const next = again();
     expect(next.observe(MAIL, message())).toBe(false);
     expect(next.rows()).toEqual([]);

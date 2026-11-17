@@ -4,16 +4,16 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { must } from "./fixtures/must.ts";
 
-/** The CI workflows' shape (docs/CONTRIBUTING.md, Checks): each check once, where the system matters, and only when it can say something. */
-
 interface Step {
   id?: string;
   uses?: string;
   run?: string;
   with?: Record<string, unknown>;
+  env?: Record<string, string>;
 }
 interface Job {
   "runs-on": string;
+  env?: Record<string, string>;
   strategy?: { matrix?: { os?: string[] } };
   steps: Step[];
 }
@@ -33,9 +33,10 @@ describe("ci: a PR's checks", () => {
     expect(ci.concurrency).toEqual({ group: "ci-${{ github.event.pull_request.number || github.ref }}", "cancel-in-progress": true });
   });
 
-  test("starts nothing for a PR of docs or the release PRs' markers, but runs for the skill the app ships", () => {
+  test("starts nothing for a PR of docs alone, but runs for the skill the app ships", () => {
     const ignored = ci.on.pull_request?.["paths-ignore"] ?? [];
-    for (const p of ["docs/**", "*.md", ".github/release.txt", ".github/preview.txt"]) expect(ignored).toContain(p);
+    for (const p of ["docs/**", "*.md"]) expect(ignored).toContain(p);
+    for (const p of [".github/release.txt", ".github/preview.txt"]) expect(ignored).not.toContain(p);
     expect(ignored.some((p) => p.startsWith("skills"))).toBe(false);
   });
 
@@ -47,13 +48,12 @@ describe("ci: a PR's checks", () => {
     const tests = runs(ci.jobs.tests);
     expect(tests).toContain("npm test");
     for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
-    expect(tests).toContain("npm run smoke"); // the bundle on each system: the keychain module, paths, processes
-    expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]); // the Rust shell is shell.yml's
+    expect(tests).toContain("npm run smoke");
+    expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]);
   });
 });
 
 describe("main between PRs", () => {
-  // Nothing ran on main after a merge, so a refused runner went unseen for four days (macos-14, 2026-11-06).
   test("ci and the shell's tests run on main once a week, on a fixed weekday and hour", () => {
     for (const name of ["ci", "shell"]) {
       const schedule = (workflow(name).on as unknown as { schedule?: Array<{ cron: string }> }).schedule ?? [];
@@ -111,29 +111,75 @@ describe("supply chain", () => {
     expect([...macs]).toEqual(["macos-15"]);
   });
 
-  test("release grants nothing by default; only the jobs that publish or open PRs can write", () => {
+  test("release grants nothing by default; only the jobs that draft or publish can write", () => {
     const rel = workflow("release") as Workflow & { permissions?: unknown; jobs: Record<string, Job & { permissions?: Record<string, string> }> };
     expect(rel.permissions).toEqual({});
     const writers = Object.entries(rel.jobs)
       .filter(([, j]) => Object.values(j.permissions ?? {}).includes("write"))
       .map(([k]) => k)
       .sort();
-    expect(writers).toEqual(["attach", "build", "preview-pr-after-stable", "release-prs"]);
+    expect(writers).toEqual(["publish", "version"]);
     for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
   });
 
   test("a release job that installs dependencies keeps no token in its checkout, and no Apple secret past the build", () => {
     const rel = workflow("release");
     const installers = Object.entries(rel.jobs).filter(([, j]) => /\bnpm ci\b/.test(runs(j)));
-    expect(installers.map(([k]) => k).sort()).toEqual(["build", "linux", "windows"]);
+    expect(installers.map(([k]) => k).sort()).toEqual(["linux", "macos", "windows"]);
     for (const [k, j] of installers) {
       const checkout = j.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
       expect(checkout?.with?.["persist-credentials"], k).toBe(false);
     }
-    const steps = must(rel.jobs.build, "the build job").steps;
+    const steps = must(rel.jobs.macos, "the macos job").steps;
     const built = steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@"));
     const dropped = steps.findIndex((s) => /APPLE_CERTIFICATE[^\n]*\n\s*echo "\$v=" >> "\$GITHUB_ENV"/.test(s.run ?? ""));
     expect(built).toBeGreaterThan(-1);
     expect(dropped).toBe(built + 1);
+  });
+
+  test("the update key reaches only the steps that build the app, as each step's own env", () => {
+    const holders: string[] = [];
+    for (const { name, wf } of all)
+      for (const [job, j] of Object.entries(wf.jobs)) {
+        expect(JSON.stringify(j.env ?? {}), `${name}/${job}`).not.toContain("TAURI_SIGNING");
+        j.steps.forEach((s, i) => {
+          if (JSON.stringify(s).includes("TAURI_SIGNING")) holders.push(`${name}/${job}/${s.uses?.split("@")[0] ?? String(i)}`);
+        });
+      }
+    const release = workflow("release").jobs;
+    const builds = [
+      must(release.macos, "the macos job").steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@")),
+      must(release.windows, "the windows job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
+      must(release.linux, "the linux job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
+    ];
+    expect(holders).toEqual([`release/macos/tauri-apps/tauri-action`, `release/windows/${builds[1]}`, `release/linux/${builds[2]}`]);
+    for (const [job, i] of [
+      ["macos", builds[0]],
+      ["windows", builds[1]],
+      ["linux", builds[2]],
+    ] as const)
+      expect(must(release[job], job).steps[i]?.env, job).toEqual({
+        TAURI_SIGNING_PRIVATE_KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
+      });
+  });
+
+  // tauri-cli only warns when the signing key and tauri.conf.json's pubkey are not one pair, and a loki built that way
+  test("each build checks its update signatures against the compiled-in key before it ships them", () => {
+    const release = workflow("release").jobs;
+    for (const [job, isBuild, isShip] of [
+      ["macos", (s: Step) => s.uses?.startsWith("tauri-apps/tauri-action@"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+      ["windows", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+      ["linux", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+    ] as const) {
+      const steps = must(release[job], job).steps;
+      const built = steps.findIndex(isBuild);
+      const checked = steps.findIndex((s) => s.run?.includes("scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')"));
+      const shipped = steps.findIndex(isShip);
+      expect(built, job).toBeGreaterThan(-1);
+      expect(checked, job).toBeGreaterThan(built);
+      expect(shipped, job).toBeGreaterThan(checked);
+      expect(JSON.stringify(steps[checked]), job).not.toContain("TAURI_SIGNING");
+    }
   });
 });

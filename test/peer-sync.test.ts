@@ -3,7 +3,6 @@ import { PeerSync, type PeerSyncer } from "../mod/peer-sync.ts";
 
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
-/** A step that logs its start, waits for `release`, then logs its end (or fails, when `fail`). */
 function gate(log: string[], name: string, fail = false) {
   let release = () => {};
   const done = new Promise<void>((r) => (release = r));

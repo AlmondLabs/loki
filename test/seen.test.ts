@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
 import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 
-/** The attention file as the store wrote it. */
 const written = (path: string) =>
   JSON.parse(readFileSync(path, "utf8")) as { seen?: Record<string, string>; viewed?: Record<string, string>; snooze?: unknown; ladder?: unknown };
 
@@ -18,7 +17,7 @@ describe("seen store", () => {
       const store = new SeenStore(path);
       expect(store.all()).toEqual({ "a/c1": "2026-09-05T10:00:00Z" });
       store.mark("a", "c2");
-      store.flush(); // writes are coalesced; flush is what the mod's shutdown calls
+      store.flush();
       const file = written(path);
       expect(Object.keys(file)).toEqual(["seen"]);
       expect(file.seen?.["a/c1"]).toBe("2026-09-05T10:00:00Z");
@@ -72,7 +71,6 @@ describe("viewed markers", () => {
       expect(Number.isFinite(Date.parse(at))).toBe(true);
       store.flush();
       expect(written(path).viewed).toEqual({ "a/c1": at });
-      // "not done" undoes done, never the look
       store.unmark("a", "c1");
       store.flush();
       const again = new SeenStore(path);
@@ -100,10 +98,10 @@ describe("a mark that changes nothing, and the coalesced write", () => {
       expect(store.view("a", "c1")).toBe(true);
       expect(store.mark("a", "c1")).toBe(true);
       store.flush();
-      writeFileSync(path, "untouched"); // any write from here on would replace this
-      expect(store.view("a", "c1")).toBe(false); // the same instant again
+      writeFileSync(path, "untouched");
+      expect(store.view("a", "c1")).toBe(false);
       expect(store.mark("a", "c1")).toBe(false);
-      expect(store.unmark("a", "c2")).toBe(false); // not done already
+      expect(store.unmark("a", "c2")).toBe(false);
       store.flush();
       expect(readFileSync(path, "utf8")).toBe("untouched");
     }));
@@ -115,11 +113,11 @@ describe("a mark that changes nothing, and the coalesced write", () => {
       store.view("a", "c1");
       store.view("a", "c1");
       store.view("a", "c1");
-      expect(() => readFileSync(path, "utf8")).toThrow(); // nothing on disk yet
+      expect(() => readFileSync(path, "utf8")).toThrow();
       await new Promise((r) => setTimeout(r, 80));
-      expect(written(path).viewed).toEqual({ "a/c1": "2026-09-25T10:00:02.000Z" }); // the last of the burst
+      expect(written(path).viewed).toEqual({ "a/c1": "2026-09-25T10:00:02.000Z" });
       store.mark("a", "c1");
-      store.flush(); // the mod's shutdown
+      store.flush();
       expect(written(path).seen).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
       expect(new SeenStore(path).all()).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
     }));
@@ -136,7 +134,7 @@ describe("return times (plan 070, U4)", () => {
       expect(store.returnTimes()).toBeNull();
       const times = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, email: "2d" as const } };
       expect(store.setReturnTimes(times)).toBe(true);
-      expect(store.setReturnTimes(times)).toBe(false); // the same again moves nothing
+      expect(store.setReturnTimes(times)).toBe(false);
       expect(store.restsAll()).toEqual({ "a/c1": rest });
       store.flush();
       const again = new SeenStore(path);

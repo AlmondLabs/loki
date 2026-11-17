@@ -12,12 +12,10 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-/** Let the ticks already started finish what they can. */
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const GMAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T01:U02";
 
-/** Two accounts and a watcher whose syncs record each tick; a sync's tick runs `step`, which a test may hold or fail. */
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-watcher-"));
   dirs.push(dir);

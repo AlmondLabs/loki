@@ -1,25 +1,3 @@
-// A stand-in ACP agent for tests: just enough of the Agent Client Protocol over stdio (initialize, session/new,
-// session/load, session/prompt, session/cancel, session/set_mode, session/set_config_option) to be a real agent to
-// @agentclientprotocol/sdk. What it does with a prompt depends on the prompt's words:
-//   "hello"   streams "Hi " then "there", reports usage and its cost so far
-//   "write"   opens a call with no arguments yet (as Claude's adapter does), fills them in, and writes a file
-//   "edit"    asks permission to edit a file, then edits it (a diff) or reports the edit refused
-//   "plan"    reports a plan, then a reply
-//   "think"   thinks in two pieces, runs a call, thinks again, then replies
-//   "wait"    streams a word and waits for session/cancel
-//   "deaf"    streams a word and never answers, whatever loki sends
-//   "crash"   exits mid-turn
-//   "auth"    fails the prompt the way an agent that is not signed in does
-//   "prompt?" answers with the system prompt and the first prompt's words it was given
-//   "mode?"   answers with its current mode and model
-//   "effort?" answers with its current model and effort
-//   "signin"  asks the client to open an MCP server's sign-in page (a URL elicitation) and says how it was answered
-//   "mcp?"    answers with the MCP servers its session opened with and the tools it may run without asking
-// With FAKE_ACP_HANG_FIRST_SESSION set, its first session/new is never answered (it says so on stderr), as an agent
-// stuck opening a session.
-// With FAKE_ACP_AUTH set to a method id, it lists that sign-in method and opens no session until the client calls
-// authenticate with it, as Cursor's CLI does.
-// Plain JavaScript, so a test starts it with `node` and nothing else.
 import { createInterface } from "node:readline";
 
 const sessions = new Map();
@@ -61,7 +39,6 @@ const modelOption = (value) => ({
 });
 
 // Each model's effort levels, as Claude's adapter offers them: they change with the model, and "ultra" is a level
-// loki has no word for.
 const LEVELS = { default: ["low", "medium", "high"], sonnet: ["low", "high", "max", "ultra"] };
 const effortOption = (s) => ({
   id: "effort",

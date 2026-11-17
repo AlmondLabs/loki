@@ -2,9 +2,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Plan 2026-11-12-1505, U18: Settings in a window of its own on the Mac. The window itself is the
-// shell's (a browser cannot open one), so these read what opens it, what it loads and how the two windows keep step.
-
 const ROOT = join(import.meta.dirname, "..");
 const APP = join(ROOT, "app", "src");
 const read = (...p: string[]) => readFileSync(join(...p), "utf8");
@@ -22,9 +19,9 @@ describe("the Settings window", () => {
   });
 
   test("the page boots the settings-only root in that window, and the shell sends Preferences there on the Mac", () => {
-    expect(read(APP, "boot.tsx")).toMatch(/window\.__LOKI__\?\.window === "settings"\s*\? \(await import\("\.\/shell\/settings-window"\)\)\.SettingsWindow/);
+    expect(read(APP, "boot.tsx")).toMatch(/settingsWindow\s*\? \(await import\("\.\/shell\/settings-window"\)\)\.SettingsWindow/);
+    expect(read(APP, "shell", "open-settings.ts")).toContain('export const SETTINGS_WINDOW = inTauri && platform === "macos";');
     const win = read(APP, "shell", "settings-window.tsx");
-    expect(win).toContain('export const SETTINGS_WINDOW = inTauri && platform === "macos";');
     expect(win).toContain("<Settings key={opening.n} {...preferencesProps(sources)} windowed initialPage={opening.page} />");
     const shell = read(APP, "shell", "shell.tsx");
     expect(shell).toContain("const settingsWindow = SETTINGS_WINDOW;");
@@ -37,6 +34,16 @@ describe("the Settings window", () => {
     const views = read(APP, "shell", "views.tsx");
     expect(views).toContain("export function preferencesProps(");
     expect(views).toContain("<Preferences onClose={onClose} {...preferencesProps(sources)} />");
+  });
+
+  test("About in either window hears the shell's update status, and knows from its own chats whether one is working", () => {
+    expect(read(APP, "shell", "settings-window.tsx")).toContain("const update = useLokiUpdate();");
+    expect(read(APP, "shell", "shell.tsx")).toContain("const update = useLokiUpdate();");
+    const hook = read(APP, "shell", "use-loki-update.ts");
+    expect(hook).toContain('export const UPDATE_EVENT = "loki:update";');
+    expect(hook).toContain("return followStatus(");
+    expect(hook).not.toContain("api.github.com");
+    expect(read(APP, "shell", "views.tsx")).toContain("working: chatWorking(catchUp.items),");
   });
 
   test("the chat layout, the system-wide key and the models follow the other window's storage", () => {
@@ -75,5 +82,25 @@ describe("a session value kept in localStorage follows another window", () => {
     expect([value.get(), told]).toEqual(["off", 0]);
     for (const fn of heard) fn({ key: "loki.thread-preview", storageArea: area, newValue: "on" });
     expect([value.get(), told]).toEqual(["on", 1]);
+  });
+});
+
+describe("which page is the Settings window", () => {
+  test("the Mac app's start-up script says so, with the page it opens on", async () => {
+    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    expect(settingsWindowFrom({ window: "settings", page: "providers" }, "", true, false)).toEqual({ page: "providers" });
+    expect(settingsWindowFrom({}, "?window=settings", true, false)).toBeNull();
+  });
+
+  test("a browser tab asks with ?window=settings and &page=, so it draws the window as the Mac does", async () => {
+    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    expect(settingsWindowFrom(undefined, "?t=abc&window=settings&page=inbox", false, false)).toEqual({ page: "inbox" });
+    expect(settingsWindowFrom(undefined, "?window=settings", false, false)).toEqual({ page: null });
+    expect(settingsWindowFrom(undefined, "?t=abc", false, false)).toBeNull();
+  });
+
+  test("the phone has no Settings window, whatever the address says", async () => {
+    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    expect(settingsWindowFrom({ lan: true }, "?window=settings", false, true)).toBeNull();
   });
 });

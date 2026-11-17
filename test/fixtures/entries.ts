@@ -1,12 +1,7 @@
 import type { ImportedEntry } from "../../daemon/kernel/index.ts";
 
-/**
- * Entries written straight into a chat (`AgentStore.importEntries`, as a chat moving from another Mac writes them): a
- * question, a tool call and its result, an answer, a compaction that keeps from the answer, and a later turn.
- */
 export const sampleEntries = (): ImportedEntry[] => structuredClone(SAMPLE);
 
-/** A first try, an answer the person saw but the model never did (a branch entry), and the answer that was kept. */
 export const branchEntries = (): ImportedEntry[] => structuredClone(BRANCH);
 
 const SAMPLE: ImportedEntry[] = [

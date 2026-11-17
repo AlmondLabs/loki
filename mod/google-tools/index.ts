@@ -10,11 +10,6 @@ import { sheetsTools } from "./sheets.ts";
 
 export type { GoogleToolDeps } from "./core.ts";
 
-/**
- * The Google tools (plan 2026-11-11 scripts, U7, U9): Gmail, Drive, Sheets, Docs and Calendar for the Google accounts
- * an agent owns on this Mac, as script-only tools in the `google` namespace (daemon/scripts.ts). An agent without such
- * an account is offered none of them, and so no script tool either. Each call is checked as it runs (core.ts).
- */
 export function registerGoogleTools(api: ModApi, deps: GoogleToolDeps): Array<() => void> {
   const accounts = api.tools.register({
     name: "google_accounts",

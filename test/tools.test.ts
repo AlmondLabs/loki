@@ -34,7 +34,6 @@ const welcome: WidgetManifestEntry = {
   error: undefined,
 };
 
-/** Each tool as the test calls it: a call's args and, when it has one, its chat and agent. A failed call throws. */
 interface Called {
   name: string;
   description: string;
@@ -97,7 +96,6 @@ function harness(deps?: Partial<ToolDeps>) {
   return { tools, broadcasts, sections };
 }
 
-/** What canvas_read answers, as the tests read it. */
 interface DeskState {
   desk: string;
   widgets_dir: string;
@@ -131,7 +129,7 @@ describe("canvas_read", () => {
     const remembered: string[] = [];
     const { tools } = harness({ remember: (id) => (remembered.push(id), id.replace(/[^a-zA-Z0-9_-]/g, "_")) });
     const out = await deskState(tools, { args: {}, conversation: { id: "local-conv-1291" } });
-    expect(out.desk).toBe("local-conv-1291"); // not "c1", the active desk in this harness
+    expect(out.desk).toBe("local-conv-1291");
     expect(remembered).toEqual(["local-conv-1291"]);
     const explicit = await deskState(tools, { args: { desk: "shared" }, conversation: { id: "local-conv-1291" } });
     expect(explicit.desk).toBe("shared");
@@ -177,7 +175,6 @@ describe("canvas_focus", () => {
     expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep"] }, "c1"]);
     await cam.run({ args: { widget_id: "shared/welcome" } });
     expect(broadcasts[1][1]).toBeUndefined();
-    // A bad call fails, with what to do about it.
     await expect(cam.run({ args: { widget_id: "nope" } })).rejects.toThrow('no widget "nope" — check canvas_read');
     await expect(cam.run({ args: {} })).rejects.toThrow("give widget_id or widget_ids");
   });
@@ -193,7 +190,6 @@ describe("canvas_focus", () => {
   });
 });
 
-/** Plan 049, U3: chat_list and the suggestion tools, on a Mac with one paired Mac. */
 describe("chat_list and the suggestion tools", () => {
   const FRIDAY = "agent-local-friday";
   const IRA = "agent-local-ira";
@@ -321,7 +317,6 @@ describe("chat_list and the suggestion tools", () => {
     expect(records.get(`${FRIDAY}/conv-source`)).toMatchObject([
       { id: "sugg-1", title: "Fix the runner's disk", status: "pending", target: { agent_id: FRIDAY, conversation_id: "conv-infra" } },
     ]);
-    // A new chat: a listed agent, in a folder one of the chats works in.
     await run("suggestion_create", { title: "Redo the site", text: "Rebuild /work/site.", target: { agent_id: IRA, folder: "/work/site" } });
     expect(records.get(`${FRIDAY}/conv-source`)?.[1]).toMatchObject({ target: { agent_id: IRA, folder: "/work/site" } });
   });
@@ -345,7 +340,6 @@ describe("chat_list and the suggestion tools", () => {
       );
   });
 
-  /** The same, with chat links kept (plan 067): what chat_message was asked to send, and one link this chat has. */
   function messaging() {
     const sent: Array<{ source: unknown; target: unknown; text: string }> = [];
     const messages = {

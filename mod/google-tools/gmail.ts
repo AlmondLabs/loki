@@ -20,24 +20,13 @@ import {
   type GoogleToolDef,
 } from "./core.ts";
 
-/**
- * Gmail for scripts (plan 2026-11-11 scripts, U7): search, read, change labels, save drafts, and save attachments, to the
- * chat's folder or straight to Drive (R20), whose bytes never pass through the script. These go to Gmail directly,
- * never through Flow's own moves (mod/account-threads.ts): Flow sees what they change as it sees a change made in
- * Gmail, and nothing a script does is taken for the person's own pick (R22). A script sends no mail (plan
- * 2026-11-14-1530, R21): it saves drafts, and an agent's mail goes only through a card the person sends from.
- */
-
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
-/** How many threads google_gmail_modify reads at once when it is named whole threads. */
 const THREAD_READS_AT_ONCE = 10;
 
-/** Every part of a message's MIME tree, depth first. */
 function partsOf(part: GmailMessagePart | null): GmailMessagePart[] {
   return part ? [part, ...part.parts.flatMap(partsOf)] : [];
 }
 
-/** A message as a script reads it: who, when, its labels, its text, and its attachments by id. */
 function messageOf(m: GmailMessage): Record<string, unknown> {
   return {
     id: m.id,
@@ -48,7 +37,6 @@ function messageOf(m: GmailMessage): Record<string, unknown> {
     subject: mailHeader(m, "Subject"),
     date: mailHeader(m, "Date"),
     labels: m.labelIds,
-    // The same text a hand-off and a card give (mod/account-ops/gmail.ts): plain part tidied, else HTML as text, else the snippet.
     text: mailParts(m).text,
     attachments: partsOf(m.payload)
       .filter((p) => p.filename && p.body.attachmentId)
@@ -126,7 +114,6 @@ const modify: GoogleToolDef = {
     if (call.args.read === true) remove.push("UNREAD");
     if (call.args.read === false) add.push("UNREAD");
     const ids = [...textList(call.args, "messages")];
-    // The threads' messages, read ten at a time: independent reads, kept within what one account's quota takes at once.
     const threads = textList(call.args, "threads");
     for (let i = 0; i < threads.length; i += THREAD_READS_AT_ONCE) {
       // react-doctor-disable-next-line react-doctor/async-await-in-loop
@@ -144,10 +131,6 @@ const modify: GoogleToolDef = {
   },
 };
 
-/**
- * A draft in the person's Gmail (plan 2026-11-14-1530, U9, KTD15): scripts write mail but never send it. An agent's
- * mail goes only through a card the person sends from (message_propose, reply_propose), so no script path sends.
- */
 const draft: GoogleToolDef = {
   name: "google_gmail_draft",
   description:
@@ -235,7 +218,6 @@ const attachment: GoogleToolDef = {
     const out: Record<string, unknown> = { name, size: data.byteLength, md5: md5(data) };
     if (path) out.path = await writeInChat(call.ctx, path, data);
     if (folder) {
-      // Drive must be granted too: the account is checked again for it.
       accountFor(call.deps, call.ctx, call.account.address, "drive");
       out.drive_file = await uploadToDrive(call.auth, {
         data,
@@ -248,5 +230,4 @@ const attachment: GoogleToolDef = {
   },
 };
 
-/** The Gmail tools. */
 export const gmailTools: GoogleToolDef[] = [search, read, modify, draft, attachment];
