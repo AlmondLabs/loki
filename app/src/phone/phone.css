@@ -1993,6 +1993,11 @@ span.loki-phone-section-btn {
   scroll-padding-top: var(--phone-top-clearance);
   scroll-padding-bottom: var(--loki-dock-height);
 }
+/* Scrolled up, the chip back to the newest message rides above the floating dock rather than under it (its inline
+   12px is from the thread's foot, which the dock covers). */
+.loki-phone-convo-body .loki-latest-chip {
+  bottom: calc(var(--loki-dock-height) + var(--phone-space-3)) !important;
+}
 /* The box is the phone's strong glass, stated here rather than left to the desktop's dock rule matching it. */
 .loki-phone .loki-dock [data-slot="input-group"] {
   border-color: transparent;
