@@ -20,10 +20,12 @@ export function replySend(
   p: Pick<ReplyProposal, "text" | "attachments">,
   removed: ReadonlySet<string>,
   picked: readonly ReplyMention[] = [],
+  title: string | null = null,
 ): ReplyDecideOptions {
   const mentions = liveMentions(edited ?? p.text, lastByName(picked));
   return {
     text: replyEdit(edited, p.text),
+    ...(title?.trim() ? { title } : {}),
     files: (p.attachments ?? []).filter((f) => !removed.has(f.name)).map((f) => f.name),
     ...(mentions.length ? { mentions } : {}),
   };
@@ -56,6 +58,8 @@ export function cardReason(p: Pick<ReplyProposal, "status" | "reason">, failed: 
 export interface ReplyCard {
   text: string;
   setText: (text: string) => void;
+  title: string;
+  setTitle: (title: string) => void;
   kept: ReplyAttachment[];
   toggleFile: (name: string) => void;
   mentions: ReplyMention[];
@@ -71,6 +75,7 @@ export interface ReplyCard {
 
 export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard {
   const [edited, setEdited] = useState<string | null>(null);
+  const [title, setTitle] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
   const [picked, setPicked] = useState<readonly ReplyMention[]>([]);
   const [busy, setBusy] = useState(false);
@@ -98,6 +103,8 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
   return {
     text,
     setText: setEdited,
+    title: title ?? p.subject,
+    setTitle,
     kept: (p.attachments ?? []).filter((f) => !removed.has(f.name)),
     toggleFile: (name) =>
       setRemoved((was) => {
@@ -112,7 +119,7 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
     reason: cardReason(p, failed),
     send: () => {
       setFocusUndo(true);
-      void act("approve", replySend(edited, p, removed, picked));
+      void act("approve", replySend(edited, p, removed, picked, title !== null && title !== p.subject ? title : null));
     },
     undo: () => {
       setFocusUndo(false);

@@ -263,11 +263,14 @@ agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
   with `redirect=false` and with redirects not followed, so the token goes only to the site and never to Jira's media
   host; a refused thumbnail is none and never marks the account as wanting a new token. The thumbnail is kept with your
   chats' pictures in `~/.loki/chat-images/`, as Slack's are (plan 093, `mod/jira.ts`, `mod/outside-previews.ts`).
-  It writes two things, both only when you send: a comment, and files attached to the ticket with it. Your own
-  comment on a Jira card goes through `account_thread_reply`, and an agent's proposed comment, with its files,
-  through your Send on its card; both reach `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` and
-  `JiraClient.attachFiles` (a test checks there is no other). Read, later, undo and a hand-off write nothing to Jira,
-  and nothing changes a ticket's status, fields, watchers or other comments.
+  For an agent's new ticket it also reads the projects you can create in, with their issue types, the site's
+  priorities, and the fields a type's create form requires (plan 2026-11-14-1530). It writes three things, all only
+  when you send: a comment, files attached to the ticket with it, and a new ticket an agent proposed. Your own comment
+  on a Jira card goes through `account_thread_reply`, and an agent's proposed comment, with its files, or its new
+  ticket, through your Send on its card; all reach `mod/outside-threads.ts`, the one caller of
+  `JiraClient.postComment`, `JiraClient.attachFiles` and `JiraClient.createIssue` (a test checks there is no other,
+  and that these three are the client's only requests that are not reads). Read, later, undo and a hand-off write
+  nothing to Jira, and nothing changes an existing ticket's status, fields, watchers or other comments.
 - **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
   owner (`mod/handoff.ts`), or when an owner's script returns or prints what it read from Google, Slack, Jira or Flow
   with the script-only reads, which only the owner's chats are offered and which check ownership on every call. Names,
@@ -320,7 +323,8 @@ agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
   that sends. Words read from the service (a subject, a first line) are quoted on the card, apart from loki's own
   lines, so a stranger cannot write one that passes for loki's. Mail can also steer an owner to propose a new email,
   DM or post to anyone it resolves, or any address it writes (`message_propose`, a top-level post with
-  `reply_propose`); the card's recipient lines and your Send are the gate there too. Mail can also steer an owner to attach any file it
+  `reply_propose`), or a new Jira ticket, assigned to anyone the project can assign (`ticket_propose`); the card's
+  recipient and field lines and your Send are the gate there too. Mail can also steer an owner to attach any file it
   can read, under any name, so a private file could ride a reply as `invoice.pdf`: show a file in Finder from the
   card before you send a reply that carries it. Account
   secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain

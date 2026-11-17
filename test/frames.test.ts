@@ -480,7 +480,12 @@ describe("frames: suggestions (plan 049)", () => {
       text: "edited",
       files: ["a.pdf"],
       mentions: null,
+      title: null,
     });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", title: "Rotate the keys" })).toMatchObject({ title: "Rotate the keys" });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", title: "x".repeat(256) })).toBe(
+      "title must be text of 255 characters at most",
+    );
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", replace: true })).toEqual({
       ...chat,
       proposal_id: "reply-1",
@@ -488,6 +493,7 @@ describe("frames: suggestions (plan 049)", () => {
       text: null,
       files: null,
       mentions: null,
+      title: null,
     });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "undo" })).toMatchObject({ action: "undo", files: null });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "reject" })).toEqual({
@@ -497,6 +503,7 @@ describe("frames: suggestions (plan 049)", () => {
       text: null,
       files: null,
       mentions: null,
+      title: null,
     });
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "send" })).toBe("action must be approve, undo or reject");
     expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", files: [1] })).toBe("files must be a list of file names");

@@ -157,6 +157,7 @@ function threads(
                 attachedFiles.push([ticket, files.map((f) => [f.name, Buffer.from(f.data).toString("utf8")])]);
                 return Promise.resolve(files.map((f) => f.name));
               },
+              createIssue: () => Promise.reject(new Error("not used")),
             },
           }
         : a.provider === "gmail"

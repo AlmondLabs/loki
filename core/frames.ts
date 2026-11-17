@@ -193,6 +193,8 @@ export interface ReplyDecideOptions {
   text?: string | null;
   files?: readonly string[] | null;
   mentions?: readonly ReplyMention[] | null;
+  /** A new ticket's title as the person edited it on the card; its only field besides the words they may change. */
+  title?: string | null;
 }
 export const replyMentionOf = (v: unknown): ReplyMention | null => {
   const m = typeof v === "object" && v !== null ? (v as Raw) : {};
@@ -839,7 +841,9 @@ export const FRAMES = {
       if (m.mentions !== undefined && m.mentions !== null && !(Array.isArray(m.mentions) && m.mentions.every((x) => replyMentionOf(x) !== null)))
         return "mentions must be a list of people, each with a display name and an id or address";
       const mentions = Array.isArray(m.mentions) ? m.mentions.flatMap((x) => replyMentionOf(x) ?? []) : null;
-      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, files, mentions };
+      if (m.title !== undefined && m.title !== null && (!str(m.title) || m.title.length > 255)) return "title must be text of 255 characters at most";
+      const title = str(m.title) && m.title.trim() ? m.title : null;
+      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, files, mentions, title };
     },
     PHONE,
     BY_CHAT,

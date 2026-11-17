@@ -37,7 +37,7 @@ export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" |
 
 export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji" | "openDm">;
 
-export type SendJira = Pick<JiraClient, "postComment" | "attachFiles">;
+export type SendJira = Pick<JiraClient, "postComment" | "attachFiles" | "createIssue">;
 
 export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: "slack"; client: SendSlack } | { provider: "jira"; client: SendJira };
 
@@ -140,13 +140,14 @@ export class OutsideThreads {
   holdAgentReply(reply: AgentReply): void {
     if (!this.outbox) throw new Error("replies are not held on this Mac");
     const body = reply.text.trim();
-    if (!body && reply.files.length + reply.attached.length === 0) throw new Error("the reply is empty");
+    if (!body && reply.files.length + reply.attached.length === 0 && reply.target?.kind !== "ticket") throw new Error("the reply is empty");
     if (body.length > MAX_REPLY) throw new Error("that reply is too long to send");
     const account = this.need(reply.account_id);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     if (account.provider === "gmail" && !reply.people) throw new Error("a mail reply needs the people its card showed");
     if (reply.target?.kind === "email" && account.provider !== "gmail") throw new Error("only a Gmail account sends a new email");
     if (reply.target?.kind === "dm" && account.provider !== "slack") throw new Error("only a Slack account opens a DM");
+    if (reply.target?.kind === "ticket" && account.provider !== "jira") throw new Error("only a Jira site takes a new ticket");
     const named = [...reply.attached, ...reply.files.map((f) => f.name)];
     const text = account.provider === "jira" && named.length ? [body, `Attached: ${named.join(", ")}`].filter(Boolean).join("\n\n") : body;
     const mail: MailAddressing | null =
@@ -393,6 +394,27 @@ export class OutsideThreads {
         break;
       }
       case "jira":
+        if (target?.kind === "ticket") {
+          try {
+            const made = await sender.client.createIssue({
+              project: target.project,
+              type_id: target.type_id,
+              title: target.title,
+              description: body,
+              mentions: held.mentions ?? [],
+              assignee: target.assignee,
+              priority_id: target.priority_id,
+              labels: target.labels,
+              parent: target.parent,
+            });
+            created = made.key || null;
+          } catch (err) {
+            if (agent) throw unclearPost(err, "Jira");
+            throw err;
+          }
+          deals = false;
+          break;
+        }
         if (files.length) {
           await sender.client.attachFiles(threadId, files);
           if (held.proposal)
