@@ -5,6 +5,7 @@ import { accountLabel, type AccountRecord, type Accounts } from "../accounts.ts"
 import type { JiraClient } from "../jira.ts";
 import { jiraThreadText } from "../jira-view.ts";
 import type { People } from "../people.ts";
+import type { SlackPeople } from "../slack-people.ts";
 import type { SlackClient } from "../slack.ts";
 import { inert } from "./fence.ts";
 import { slackThreadText } from "./slack.ts";
@@ -16,6 +17,7 @@ export interface AccountScriptDeps {
   slack: (accountId: string) => Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "usersInfo" | "usersConversations">;
   jira: (accountId: string) => Pick<JiraClient, "ticket" | "issue" | "comments" | "history">;
   people?: Pick<People, "find">;
+  slackPeople?: Pick<SlackPeople, "members">;
 }
 
 export const CONVERSATIONS_CAP = 50;
@@ -154,16 +156,8 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
       const account = scriptAccount(deps.accounts, ctx, args.account, "slack");
       const slack = deps.slack(account.account_id);
       const query = typeof args.query === "string" ? args.query.trim().replace(/^#/, "").toLowerCase() : "";
-      const names = new Map<string, string>();
-      const person = async (user: string) => {
-        const known = names.get(user);
-        if (known !== undefined) return known;
-        const u = await slack.usersInfo(user).catch(() => null);
-        if (!u) return user;
-        const name = u.real_name || u.display_name || u.name || user;
-        names.set(user, name);
-        return name;
-      };
+      const members = deps.slackPeople ? await deps.slackPeople.members(account.account_id).catch(() => []) : [];
+      const names = new Map(members.map((m) => [m.id, m.real_name || m.display_name || m.name || m.id]));
       const found: Array<{ id: string; kind: string; name: string }> = [];
       let cursor: string | null = null;
       for (let page = 0; page < CONVERSATION_PAGES; page++) {
@@ -172,7 +166,7 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
           if (found.length > CONVERSATIONS_CAP) break;
           const kind = c.is_im ? "dm" : c.is_mpim ? "group_dm" : "channel";
           if (kind === "channel" && query && !(c.name ?? "").toLowerCase().includes(query)) continue;
-          const name = c.is_im && c.user ? await person(c.user) : kind === "channel" ? `#${c.name ?? c.id}` : (c.name ?? c.id);
+          const name = c.is_im && c.user ? (names.get(c.user) ?? c.user) : kind === "channel" ? `#${c.name ?? c.id}` : (c.name ?? c.id);
           if (!query || name.toLowerCase().includes(query)) found.push({ id: c.id, kind, name });
         }
         cursor = r.next_cursor;

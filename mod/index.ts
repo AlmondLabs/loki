@@ -697,7 +697,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       : undefined,
   });
   toolDisposers.push(
-    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of, people }),
+    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of, people, slackPeople }),
     ...registerReplyTools(api, { accounts, replies }),
     ...registerGoogleTools(api, {
       accounts,
