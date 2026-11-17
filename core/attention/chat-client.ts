@@ -478,7 +478,7 @@ export class FrameChatClient {
         conversation_id: rt.conversation_id,
         proposal_id: proposalId,
         action,
-        ...(opts.text ? { text: opts.text } : {}),
+        ...(opts.text != null ? { text: opts.text } : {}),
         ...(opts.files ? { files: [...opts.files] } : {}),
         ...(opts.mentions?.length ? { mentions: [...opts.mentions] } : {}),
         ...(opts.title ? { title: opts.title } : {}),

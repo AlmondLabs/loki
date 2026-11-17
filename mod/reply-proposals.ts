@@ -705,11 +705,12 @@ export class ReplyProposals implements AgentReplyReports {
           : null;
       if (refused || !account) return put({ ...p, reason: refused }, false, refused);
       const kept = (p.attachments ?? []).filter((f) => !opts.files || opts.files.includes(f.name));
-      const text = edited ?? p.text;
+      const words = p.kind === "ticket" && opts.text != null ? opts.text : edited;
+      const text = words ?? p.text;
       const title = p.kind === "ticket" && opts.title?.trim() ? opts.title.replace(/\s+/g, " ").trim() : null;
       const mentions = liveMentions(text, lastByName(uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])])));
       const edits = withMentionList(
-        withoutPeopleMarks(withFiles({ ...p, ...(edited ? { text: edited } : {}), ...(title ? { subject: title } : {}) }, kept)),
+        withoutPeopleMarks(withFiles({ ...p, ...(words !== null ? { text: words } : {}), ...(title ? { subject: title } : {}) }, kept)),
         mentions,
       );
       try {

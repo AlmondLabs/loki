@@ -1398,6 +1398,16 @@ describe("new tickets (plan 2026-11-14-1530, U11)", () => {
     expect(c.sent.at(-1)).toMatchObject({ type: "reply_decided", done: true, proposal: { status: "sending", subject: "Rotate the API keys" } });
   });
 
+  test("a description the person cleared goes empty; a title sent with a reply that is not a ticket changes nothing", async () => {
+    const f = await fixture();
+    await f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "Rotate keys", description: "Before Friday." });
+    await f.sendAndWait(f.only().id, { text: "" });
+    expect(f.jira.created[0]?.fields).not.toHaveProperty("description");
+    await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Done." });
+    await f.sendAndWait(f.only().id, { title: "Wire the money" });
+    expect(f.only()).toMatchObject({ status: "sent", subject: "Rotate the keys" });
+  });
+
   test("Jira failing with a 5xx while creating it counts as may have gone, so it is not created again", async () => {
     const f = await fixture();
     await f.call("ticket_propose", { account: SITE, project: "OPS", type: "Task", title: "Rotate keys", description: "x" });
