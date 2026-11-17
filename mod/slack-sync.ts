@@ -20,6 +20,9 @@ export interface SlackSyncOptions {
 const DM_MESSAGES = 20;
 const FEED_PAGE = 50;
 const FEED_PAGES = 200;
+/** A thread is read 200 replies a page, up to 10,000, so a cursor that never ends cannot loop forever. */
+const THREAD_PAGE = 200;
+const THREAD_PAGES = 50;
 const FULL_WALK_MS = 15 * 60_000;
 const REFILL_DAYS = [3, 7, 14, 30];
 const DAY_MS = 86_400_000;
@@ -146,8 +149,9 @@ export class SlackSync {
         continue;
       }
       const dm = dms.get(r.thread_id);
-      if (dm && (!dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read))))
-        threads.markGoneOutThere(this.accountId, r.thread_id);
+      // A DM closed in Slack drops out of client.counts, so Slack is asked about it alone, else its card never ends.
+      const ended = dm ? !dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read)) : await this.closedDmEnded(r);
+      if (ended) threads.markGoneOutThere(this.accountId, r.thread_id);
     }
 
     const open = threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
@@ -293,11 +297,27 @@ export class SlackSync {
     const isNew = (ts: string, from: string | null) => !from || tsAfter(ts, from);
     const brought = new Set((record?.brought_ids ?? []).filter((id) => isNew(id, mark)));
     const me = this.accountId.split(":").at(2) ?? "";
+    // A card's items in one thread share a single read of it, up to the newest of them, since a long thread takes pages.
+    const newestIn = new Map<string, string>();
+    for (const { channel, ts, thread_ts } of c.items) {
+      if (!channel || !ts || !thread_ts) continue;
+      const was = newestIn.get(`${channel}:${thread_ts}`);
+      if (!was || tsAfter(ts, was)) newestIn.set(`${channel}:${thread_ts}`, ts);
+    }
+    const threadsRead = new Map<string, SlackMessage[]>();
+    const thread = async (channel: string, threadTs: string, ts: string) => {
+      const key = `${channel}:${threadTs}`;
+      const known = threadsRead.get(key);
+      if (known) return known;
+      const messages = await this.threadUpTo(channel, threadTs, newestIn.get(key) ?? ts);
+      threadsRead.set(key, messages);
+      return messages;
+    };
     for (const item of c.items) {
       const { channel, ts } = item;
       if (!channel || !ts) continue;
       const page = item.thread_ts
-        ? await client.conversationsReplies({ channel, ts: item.thread_ts, limit: 200 })
+        ? { messages: await thread(channel, item.thread_ts, ts) }
         : await client.conversationsHistory({ channel, latest: ts, inclusive: true, limit: 1 });
       for (const m of page.messages) if (m.ts && !tsAfter(m.ts, ts)) found.set(m.ts, m);
       if (c.dm) continue;
@@ -332,6 +352,38 @@ export class SlackSync {
       sender_avatar: newest.user ? ((await this.person(newest.user)).image ?? null) : null,
       brought_ids: [...brought].sort((x, y) => tsKey(x).localeCompare(tsKey(y))),
     };
+  }
+
+  /**
+   * A thread's parent and its replies up to `ts`. Slack gives replies oldest first, so the pages are followed until one
+   * reaches `ts`: one page alone misses the newest reply of a long thread.
+   */
+  private async threadUpTo(channel: string, threadTs: string, ts: string): Promise<SlackMessage[]> {
+    const messages: SlackMessage[] = [];
+    let cursor: string | undefined;
+    for (let n = 0; n < THREAD_PAGES; n++) {
+      const page = await this.opts.client.conversationsReplies({ channel, ts: threadTs, limit: THREAD_PAGE, cursor });
+      messages.push(...page.messages);
+      if (!page.has_more || !page.next_cursor || page.messages.some((m) => !tsAfter(ts, m.ts))) break;
+      cursor = page.next_cursor;
+    }
+    return messages;
+  }
+
+  /**
+   * Whether a DM card that client.counts no longer lists has ended: the DM is read past the card's newest message, or
+   * Slack no longer has it for the person (a group DM they left). When Slack will not say now, the card waits a tick.
+   */
+  private async closedDmEnded(r: ThreadRecord): Promise<boolean> {
+    try {
+      const { last_read } = await this.opts.client.conversationsInfo(r.thread_id);
+      return last_read !== null && !tsAfter(r.newest_message_id, last_read);
+    } catch (err) {
+      if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
+      if (err instanceof SlackError && err.code === "channel_not_found") return true;
+      log("slack:dm-unreadable", { account_id: this.accountId, thread_id: r.thread_id, error: messageOf(err) });
+      return false;
+    }
   }
 
   private async sender(m: SlackMessage): Promise<string> {
