@@ -408,6 +408,9 @@ export function stageRelease({
 const publicStables = (gh: (...args: string[]) => string): string[] =>
   gh("release", "list", "--exclude-drafts", "--exclude-pre-releases", "--limit", "100", "--json", "tagName", "--jq", ".[].tagName").split("\n").filter(Boolean);
 
+const stableOf = (nightly: string): string => nightly.replace(/-nightly\..*$/, "");
+const nameOlderInstallsRead = (stable: string, sha: string): string => `${stable}-nightly.${sha.slice(0, 7)}`;
+const nightlyTitle = (version: string, sha: string): string => `loki ${version} (${nameOlderInstallsRead(stableOf(version), sha)})`;
 const nightlyAnnounced = (title: string): string | null => /\d+\.\d+\.\d+-nightly\.\d+(?![0-9A-Za-z])/.exec(title)?.[0] ?? null;
 
 export function publish({
@@ -452,7 +455,7 @@ export function publish({
   }
   if (kind === "nightly") {
     if (!isNightlyVersion(version)) throw new Error(`a nightly version looks like 2026.1011.1-nightly.4821, not ${version}`);
-    const title = `loki ${version} (${version.replace(/-nightly\..*$/, "")}-nightly.${sha.slice(0, 7)})`;
+    const title = nightlyTitle(version, sha);
     const state = releaseState(NIGHTLY_TAG, gh);
     if (!state) {
       // A tag left without its release (the old delete-then-create, cancelled between the two) would pin the new

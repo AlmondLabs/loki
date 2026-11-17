@@ -3,8 +3,8 @@ import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
-import { entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
-import { foldSteps, ThreadModel, type Step } from "../core/attention/thread.ts";
+import { COMPACTION, entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
+import { foldSteps, ThreadModel, type StoredStep } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
@@ -16,7 +16,7 @@ import { Listeners } from "../core/listeners.ts";
 import { messageOf } from "../core/errors.ts";
 
 interface Kept {
-  steps: Step[];
+  steps: StoredStep[];
   role: "user" | "assistant" | null;
   text: string;
   at: string | null;
@@ -47,7 +47,7 @@ function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMe
 }
 
 function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: ImageNamer): Kept {
-  if (entry.kind === "pi.compaction") return { steps: entrySteps(entry), role: null, text: "", at: null, compaction: true };
+  if (entry.kind === COMPACTION) return { steps: entrySteps(entry), role: null, text: "", at: null, compaction: true };
   const steps = entrySteps(entry, nameImage);
   const message = shownMessage(entry);
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
@@ -194,7 +194,7 @@ export class ChatProjection implements ChatSource {
       const kept = keep(entry, this.nameImage);
       chat.entries.push(kept);
       chat.lastId = entry.id;
-      const kind = entry.kind === "pi.compaction" ? "compaction" : kept.role === "assistant" ? "answer" : null;
+      const kind = entry.kind === COMPACTION ? "compaction" : kept.role === "assistant" ? "answer" : null;
       if (kind) this.listeners.emit(agentId, chat.chatId, kind);
     }
   }
@@ -270,7 +270,7 @@ export class ChatProjection implements ChatSource {
   private folded(chat: Chat): readonly TranscriptRow[] {
     const fold = (chat.fold ??= { thread: new ThreadModel(), entries: 0 });
     for (; fold.entries < chat.entries.length; fold.entries++) for (const step of chat.entries[fold.entries].steps) fold.thread.apply(step);
-    return fold.thread.streaming ? foldSteps(chat.entries.flatMap((e) => e.steps)) : fold.thread.folded();
+    return fold.thread.folded();
   }
 
   since(conversationId: string, agentId: string | null, from: number, to?: number, steps = false): { rows: TranscriptRow[]; lines: number } {

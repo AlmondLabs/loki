@@ -29,6 +29,8 @@ export type Step =
    */
   | { kind: "compaction"; state: "running" | "done" | "failed" | "ended"; detail: string | null; at: string | null };
 
+export type StoredStep = Step & { chunk?: false };
+
 /** A row as a history page carries it (the mod's history_get, from the daemon's projection): times may be null. */
 export type HistoryRow = Omit<TranscriptRow, "at"> & { at?: string | null };
 

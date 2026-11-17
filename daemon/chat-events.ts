@@ -1,6 +1,6 @@
 import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
+import { COMPACTION, compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { turnIdOf } from "./telemetry.ts";
 
@@ -147,7 +147,7 @@ export class ChatEventConverter {
   private answered(entry: EntryRecord, now: string): ChatEvent[] {
     const message = entry.model?.[0] as PiMessage | undefined;
     const steps =
-      entry.kind === "pi.compaction"
+      entry.kind === COMPACTION
         ? compactionSteps(entry, now)
         : (entry.kind === "pi.assistant" && message?.role === "assistant") || (entry.kind === "pi.user" && message?.role === "user")
           ? messageSteps(message, messageAt(message) ?? now, message.role === "user" ? this.nameImage : undefined)

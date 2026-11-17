@@ -562,7 +562,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel, `pi-steps.ts` reads Pi's messages
    as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
    `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
-   `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the batches of older items).
+   `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the most older items an account keeps open).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (the sidebar with its places, ⌘K,
    keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames) and the
    Inbox deck, whose `deck-moves.ts` makes read, later, archive, label and undo the same on every card and sends a

@@ -30,17 +30,6 @@ export function withAttachments(text: string, files: Array<{ path: string; name:
   return text.trim() ? `${text}\n\n${tags}` : tags;
 }
 
-export type UserContent = string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
-
-export function buildUserContent(text: string, images: ImageAttachment[] = [], context?: string): UserContent {
-  if (!images.length && !context) return text;
-  const parts: Exclude<UserContent, string> = [];
-  if (context) parts.push({ type: "text", text: context });
-  if (text.trim()) parts.push({ type: "text", text });
-  for (const img of images) parts.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } });
-  return parts;
-}
-
 export function environmentReminder(opts: { now?: Date; desk?: string | null; labels?: readonly string[] | null; locale?: string } = {}): string {
   const now = opts.now ?? new Date();
   const when = localTime(now, opts.locale);
