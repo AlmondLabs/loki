@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactElement } from "react";
 import { Chip, Meta, Popover, Row } from "../components";
 import type { ChatEngineView } from "../../../core/models.ts";
-import { DEFAULT_MODE, isPermissionMode, type PermissionMode } from "../../../core/chat-links.ts";
+import { DEFAULT_MODE, isPermissionMode, PERMISSION_MODES, type PermissionMode } from "../../../core/chat-links.ts";
 import type { ModelAndMode } from "./use-model-and-mode";
 import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
 
@@ -13,12 +13,14 @@ export interface ModeChoice {
   fill: number;
 }
 
-export const MODES: Array<ModeChoice & { id: PermissionMode }> = [
-  { id: "strict", label: "Strict", short: "strict", description: "asks before every tool, reads included", fill: 1 },
-  { id: "standard", label: "Standard", short: "standard", description: "asks before edits and commands; reads run freely", fill: 0.6 },
-  { id: "acceptEdits", label: "Accept Edits", short: "edits ok", description: "file edits run without asking; commands still ask", fill: 0.3 },
-  { id: "unrestricted", label: "Unrestricted", short: "no asking", description: "nothing asks — every tool runs", fill: 0 },
-];
+const CHOICES: { [M in PermissionMode]: ModeChoice & { id: M } } = {
+  strict: { id: "strict", label: "Strict", short: "strict", description: "asks before every tool, reads included", fill: 1 },
+  standard: { id: "standard", label: "Standard", short: "standard", description: "asks before edits and commands; reads run freely", fill: 0.6 },
+  acceptEdits: { id: "acceptEdits", label: "Accept Edits", short: "edits ok", description: "file edits run without asking; commands still ask", fill: 0.3 },
+  unrestricted: { id: "unrestricted", label: "Unrestricted", short: "no asking", description: "nothing asks — every tool runs", fill: 0 },
+};
+
+export const MODES: Array<ModeChoice & { id: PermissionMode }> = PERMISSION_MODES.map((m) => CHOICES[m]);
 
 const isOpenDoor = (id: string) => id === "unrestricted" || /bypass/i.test(id);
 
@@ -32,7 +34,7 @@ export function agentModes(engine: ChatEngineView): ModeChoice[] {
   }));
 }
 
-export const modeInfo = (m: PermissionMode | null | undefined) => MODES.find((x) => x.id === m) ?? MODES[3];
+export const modeInfo = (m: PermissionMode | null | undefined) => CHOICES[m ?? DEFAULT_MODE];
 
 function choiceOf(mode: string | null, modes: ModeChoice[] | undefined): ModeChoice {
   if (!modes) return modeInfo(isPermissionMode(mode) ? mode : null);
