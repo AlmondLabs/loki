@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,6 +119,7 @@ function mail(opts: { outbox?: string; key?: string | null; now?: () => Date; af
         getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages: [PINKU] }),
         sendAs: () => Promise.resolve(SEND_AS),
         attachment: (messageId, attachmentId) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
+        listMessages: () => Promise.resolve({ messages: [] }),
         sendReply: (r) => {
           if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
           sent.push(r);
@@ -430,6 +432,66 @@ describe("undo send", () => {
     expect(again.pending()).toEqual([]);
     expect(third.sent).toEqual([]);
   });
+  test("a held new email's target is sealed: one whose subject was changed in the file is dropped unsent (plan 2026-11-14-1530, KTD10)", async () => {
+    const file = join(scratch(), "outbox.json");
+    const first = mail({ outbox: file, after: timers().after });
+    const outbox = (first.t as unknown as { outbox: { hold: (h: Record<string, unknown>) => Promise<unknown> } }).outbox;
+    void outbox
+      .hold({
+        outbox_id: "o1-abcdefgh",
+        account_id: MAIL,
+        thread_id: "",
+        text: "Hello.",
+        then: "stay",
+        mail: { mode: "reply_all", to: ["ana@example.com"], cc: [], bcc: [], from: null, signature: true },
+        target: { kind: "email", subject: "Hi", message_id: "<o1-abcdefgh@acme.com>" },
+      })
+      .catch(() => undefined);
+    await settle();
+    const kept = JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> };
+    expect(kept.held[0]?.target).toEqual({ kind: "email", subject: "Hi", message_id: "<o1-abcdefgh@acme.com>" });
+    const tm = timers();
+    mail({ outbox: file, after: tm.after }).t.resume();
+    await settle();
+    expect(tm.pending()).toHaveLength(1);
+    writeFileSync(
+      file,
+      JSON.stringify({ version: 1, held: [{ ...kept.held[0], target: { kind: "email", subject: "Wire the money", message_id: "<o1-abcdefgh@acme.com>" } }] }),
+    );
+    const again = timers();
+    const third = mail({ outbox: file, after: again.after });
+    third.t.resume();
+    await settle();
+    expect([again.pending(), third.sent]).toEqual([[], []]);
+  });
+
+  test("entries sealed before new conversations, by the formula of their day, still verify and go after a restart (plan 2026-11-14-1530, KTD10)", async () => {
+    const file = join(scratch(), "outbox.json");
+    const seal = (fields: unknown[]) => createHmac("sha256", "the daemon's key").update(JSON.stringify(fields)).digest("hex");
+    const at = "2026-11-08T00:00:00.000Z";
+    const base = (id: string) => ({ outbox_id: id, account_id: MAIL, thread_id: "t1", text: "ok", then: "stay", mail: null, send_at: at });
+    const plain = base("o1-abcdefgh");
+    const proposal = { ...base("o2-abcdefgh"), proposal: { agent_id: "agent-local-a", conversation_id: "c1", proposal_id: "p1" } };
+    const mentions = [{ display: "Ana Ruiz", id: null, address: "ana@example.com" }];
+    const mentioned = { ...base("o3-abcdefgh"), mentions };
+    const fieldsOf = (h: ReturnType<typeof base>) => [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
+    writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        held: [
+          { ...plain, seal: seal(fieldsOf(plain)) },
+          { ...proposal, seal: seal([...fieldsOf(proposal), null, null, proposal.proposal]) },
+          { ...mentioned, seal: seal([...fieldsOf(mentioned), null, null, null, mentions]) },
+        ],
+      }),
+    );
+    const tm = timers();
+    mail({ outbox: file, now: () => new Date(at), after: tm.after }).t.resume();
+    await settle();
+    expect(tm.pending()).toEqual([0, 0, 0]);
+  });
+
   test("without a keychain a held reply still goes after its wait, and nothing is sent after a restart", async () => {
     const file = join(scratch(), "outbox.json");
     const tm = timers();

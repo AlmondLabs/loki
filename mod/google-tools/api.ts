@@ -1,6 +1,19 @@
 import type { GoogleService } from "../../core/frame-types.ts";
 import { accountFor, rec, textArg, type GoogleToolDef } from "./core.ts";
 
+const GMAIL_SEND = /\/(messages|drafts)(\/[^/]+)?\/send$/i;
+
+function sendsMail(origin: string, path: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(`${origin}${path}`);
+  } catch {
+    return true;
+  }
+  const bare = (p: string) => p.replace(/\/+$/, "");
+  return url.origin !== origin || GMAIL_SEND.test(bare(url.pathname)) || GMAIL_SEND.test(bare(path.split(/[?#]/)[0] ?? ""));
+}
+
 const HOSTS: Record<GoogleService, { origin: string; paths: RegExp }> = {
   gmail: { origin: "https://gmail.googleapis.com", paths: /^\/gmail\/v1\// },
   drive: { origin: "https://www.googleapis.com", paths: /^\/(upload\/)?drive\/v3\// },
@@ -39,6 +52,9 @@ const api: GoogleToolDef = {
     // Encoded dots and backslashes are refused too: URL parsing would turn them into a step out of the service's path.
     if (!path.startsWith("/") || path.includes("://") || /%2e|%5c|\\/i.test(path) || path.split(/[/?#]/).includes("..") || !host.paths.test(path))
       throw new Error(`${path} is not a path of the ${service} API: start it as ${String(host.paths).slice(2, -2).replace(/\\\//g, "/")}`);
+    // Google routes an empty segment or a trailing slash to the method it follows, so neither may reach it here.
+    if (service === "gmail" && (/[\x00-\x20\x7f%]/.test(path) || path.includes("//") || sendsMail(host.origin, path)))
+      throw new Error("scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose");
     const query = Object.fromEntries(Object.entries(rec(call.args.query)).filter((e): e is [string, string] => typeof e[1] === "string"));
     accountFor(call.deps, call.ctx, call.account.address, service);
     const answer = await call.auth.json({

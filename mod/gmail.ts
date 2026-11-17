@@ -7,6 +7,7 @@ import { GOOGLE_TIMEOUT_MS, GoogleAuth, GoogleError } from "./google-auth.ts";
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** Gmail's upload route for a send, which takes a message up to Gmail's 25 MB where the JSON route stops far sooner. */
 const UPLOAD_SEND = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send";
+const UPLOAD_DRAFT = "https://gmail.googleapis.com/upload/gmail/v1/users/me/drafts";
 const UPLOAD_CAP_BYTES = 17 * 1024 * 1024;
 
 const uploadTimeoutMs = (bytes: number): number => Math.max(GOOGLE_TIMEOUT_MS, Math.ceil((120_000 * bytes) / UPLOAD_CAP_BYTES));
@@ -100,6 +101,7 @@ export interface GmailDraftInput {
   html?: string;
   attachments?: GmailAttachment[];
   outboxId?: string;
+  messageId?: string;
 }
 
 export const OUTBOX_HEADER = "X-Loki-Outbox";
@@ -213,6 +215,7 @@ export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
     d.inReplyTo ? `In-Reply-To: ${oneLine(d.inReplyTo)}` : "",
     references.length ? `References: ${[...new Set(references)].join(" ")}` : "",
     d.outboxId ? `${OUTBOX_HEADER}: ${oneLine(d.outboxId)}` : "",
+    d.messageId ? `Message-ID: ${oneLine(d.messageId)}` : "",
     "MIME-Version: 1.0",
   ].filter(Boolean);
   const plain = part(["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.body));
@@ -371,18 +374,29 @@ export class GmailClient {
     const thread = reply.threadId ? { threadId: reply.threadId } : {};
     const r = rec(
       reply.attachments?.length
-        ? await this.upload(rfc2822(reply), thread)
+        ? await this.upload(rfc2822(reply), thread, UPLOAD_SEND)
         : await this.call("POST", "/messages/send", undefined, { raw: Buffer.from(rfc2822(reply), "utf8").toString("base64url"), ...thread }),
     );
     return { id: str(r.id), ...(typeof r.threadId === "string" ? { threadId: r.threadId } : {}) };
   }
 
-  private upload(message: string, thread: { threadId?: string }): Promise<unknown> {
+  async createDraft(draft: GmailDraftInput): Promise<{ id: string; message_id: string; threadId?: string }> {
+    const thread = draft.threadId ? { threadId: draft.threadId } : {};
+    const r = rec(
+      draft.attachments?.length
+        ? await this.upload(rfc2822(draft), { message: thread }, UPLOAD_DRAFT)
+        : await this.call("POST", "/drafts", undefined, { message: { raw: Buffer.from(rfc2822(draft), "utf8").toString("base64url"), ...thread } }),
+    );
+    const message = rec(r.message);
+    return { id: str(r.id), message_id: str(message.id), ...(typeof message.threadId === "string" ? { threadId: message.threadId } : {}) };
+  }
+
+  private upload(message: string, meta: Record<string, unknown>, url: string): Promise<unknown> {
     // The boundary must not occur in the message, whose own boundaries start "loki-" and whose files are base64.
     const boundary = `upload-${randomUUID()}`;
     const body = Buffer.from(
       [
-        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(thread)}`,
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}`,
         `--${boundary}\r\nContent-Type: message/rfc822\r\n\r\n${message}`,
         `--${boundary}--\r\n`,
       ].join("\r\n"),
@@ -391,7 +405,7 @@ export class GmailClient {
     return this.auth.json({
       service: "gmail",
       method: "POST",
-      url: UPLOAD_SEND,
+      url,
       query: { uploadType: "multipart" },
       body: { data: new Uint8Array(body), type: `multipart/related; boundary=${boundary}` },
       timeoutMs: uploadTimeoutMs(body.length),

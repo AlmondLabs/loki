@@ -86,7 +86,12 @@ export const REPLY_WORDS: Record<ReplyProposal["provider"], { kicker: string }> 
   jira: { kicker: "comment" },
 };
 
-export function sendNote(p: Pick<ReplyProposal, "provider" | "attachments">): string {
+export const kickerOf = (p: Pick<ReplyProposal, "provider" | "kind">): string =>
+  p.kind === "email" ? "new email" : p.kind === "dm" ? "new DM" : REPLY_WORDS[p.provider].kicker;
+
+export function sendNote(p: Pick<ReplyProposal, "provider" | "attachments" | "kind">): string {
+  if (p.kind === "email") return "Sends a new email from your account with your signature, held 10 seconds so you can undo";
+  if (p.kind === "dm") return "Opens the DM and sends from your account, held 10 seconds so you can undo";
   switch (p.provider) {
     case "gmail":
       return "Sends from your account with your signature, held 10 seconds so you can undo";
@@ -120,9 +125,9 @@ export function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" |
 
 const SUBJECT_MAX = 100;
 
-export function quotedSubject(p: Pick<ReplyProposal, "subject">): string {
+export function quotedSubject(p: Pick<ReplyProposal, "subject" | "kind">): string {
   const line = p.subject.replace(/\s+/g, " ").trim();
-  if (!line) return "a thread";
+  if (!line) return p.kind === "dm" ? "a new DM" : "a thread";
   return `“${line.length > SUBJECT_MAX ? `${line.slice(0, SUBJECT_MAX - 1)}…` : line}”`;
 }
 
@@ -288,7 +293,7 @@ function ReplyProposalCard({
   return (
     <div className="loki-suggestion" data-reply={p.id} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent}>
       <div className="loki-suggestion-head" style={{ cursor: "default" }}>
-        <span className="loki-suggestion-kicker">{sentence(REPLY_WORDS[p.provider].kicker)}</span>
+        <span className="loki-suggestion-kicker">{sentence(kickerOf(p))}</span>
         <span className="loki-suggestion-title">
           {quotedSubject(p)} · {p.account_label}
         </span>

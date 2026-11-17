@@ -518,8 +518,9 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    in the Inbox (plan 067): `accounts.ts` keeps the connected accounts and their owners (and asks paired Macs which they
    hold, so one account lives on one Mac), and `frames/accounts.ts` serves them to Preferences; `account-watcher.ts`
    is the one watcher, ticking every account's sync once a minute, each on its own; `gmail-sync.ts` and
-   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose one send call each only the
-   person's reply and the scripts' Gmail tool reach;
+   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose send calls only
+   `outside-threads.ts` reaches, for the person's own reply and their Send on an agent's proposal (the scripts' Gmail
+   tool saves drafts, plan 2026-11-14-1530);
    `google-signin.ts` and `google-app.ts` are the Google loopback sign-in (for Gmail, Drive, Sheets, Docs and Calendar)
    and the shared Google app; `google-auth.ts` is one Google account's tokens, refreshed once for every caller, and its
    request layer, shared by the Gmail client and the Google tools; `google-tools/` holds the script-only `google_*`

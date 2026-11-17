@@ -272,6 +272,15 @@ describe("the workspace's people and mentions in a reply (plan 082)", () => {
     expect(sent[1]?.params.cursor).toBe("dXNlcjpVMg==");
   });
 
+  test("a new DM is opened with its people, one to eight, and answers with its channel (plan 2026-11-14-1530, KTD12)", async () => {
+    const { c, sent } = client(() => ({ body: { ok: true, channel: { id: "D9" } } }));
+    expect(await c.openDm(["U1", "U2"])).toBe("D9");
+    expect(sent[0]?.params).toMatchObject({ users: "U1,U2" });
+    await expect(c.openDm([])).rejects.toThrow("a DM is with one to eight people");
+    await expect(c.openDm(["1", "2", "3", "4", "5", "6", "7", "8", "9"])).rejects.toThrow("a DM is with one to eight people");
+    expect(sent).toHaveLength(1);
+  });
+
   test("a reply's stored mentions go as Slack's, every other @ and the rest of its words escaped as typed", async () => {
     const { c, sent } = client(() => ({ body: { ok: true, ts: "1.0" } }));
     await c.postReply({

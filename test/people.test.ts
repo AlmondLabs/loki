@@ -260,6 +260,7 @@ describe("people_find (KTD14)", () => {
         conversationsReplies: () => Promise.reject(new Error("not used")),
         conversationsHistory: () => Promise.reject(new Error("not used")),
         usersInfo: () => Promise.reject(new Error("not used")),
+        usersConversations: () => Promise.reject(new Error("not used")),
       }),
       jira: () => jiraAccountClient(f.accounts, SITE, { fetch: f.jira.fetch, now: NOW }),
       people: f.people,

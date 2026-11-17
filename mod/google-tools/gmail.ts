@@ -131,10 +131,10 @@ const modify: GoogleToolDef = {
   },
 };
 
-const send: GoogleToolDef = {
-  name: "google_gmail_send",
+const draft: GoogleToolDef = {
+  name: "google_gmail_draft",
   description:
-    "Send mail now: `to` (and `cc`, `bcc`), `subject`, `body` (plain text) or `html`, `attachments` (paths in this chat's folder). With `reply_to` (a thread id) it answers that thread's last message, in the thread. Answers with the sent message's id and thread.",
+    "Save a draft in Gmail, sending nothing: `to` (and `cc`, `bcc`), `subject`, `body` (plain text) or `html`, `attachments` (paths in this chat's folder). With `reply_to` (a thread id) it answers that thread's last message, in the thread. The person sends it from Gmail; to have them send it from a card instead, use message_propose or reply_propose. Answers with the draft's id and thread.",
   properties: {
     to: { type: "array", items: { type: "string" } },
     cc: { type: "array", items: { type: "string" } },
@@ -165,7 +165,7 @@ const send: GoogleToolDef = {
       }),
     );
     const html = optText(call.args, "html");
-    const sent = await client.sendReply({
+    const saved = await client.createDraft({
       threadId: last?.threadId ?? "",
       inReplyTo: last ? mailHeader(last, "Message-ID") : "",
       references: last ? mailHeader(last, "References").split(/\s+/).filter(Boolean) : [],
@@ -177,7 +177,7 @@ const send: GoogleToolDef = {
       ...(html ? { html } : {}),
       ...(files.length ? { attachments: files } : {}),
     });
-    return { id: sent.id, thread_id: sent.threadId || last?.threadId || null, to, subject };
+    return { id: saved.id, message_id: saved.message_id, thread_id: saved.threadId || last?.threadId || null, to, subject };
   },
 };
 
@@ -230,4 +230,4 @@ const attachment: GoogleToolDef = {
   },
 };
 
-export const gmailTools: GoogleToolDef[] = [search, read, modify, send, attachment];
+export const gmailTools: GoogleToolDef[] = [search, read, modify, draft, attachment];

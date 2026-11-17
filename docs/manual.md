@@ -1405,7 +1405,8 @@ Google account the `google_*` tools (Gmail search and read among them; Slack and
 prompt lists its accounts. No other agent has these, and each call checks the account is still the caller's, so a
 chat with a different agent cannot read or draft there even if you ask it to. Until plan 097 (November 2026) these
 reads were three tools of their own, `account_list`, `account_read` and `account_search`; old chats show those calls as
-they were. For a Google account the owner's scripts can do more, sending included.
+they were. For a Google account the owner's scripts can do more, though they send no mail: they save drafts, and an
+agent's mail goes through a card you send from.
 
 **You send an agent's reply from its card.** The owner may propose a reply in any thread of its accounts, whether
 or not it ever had a card in Flow: one you handed to its chat, one it found or read with a script, or one you name to
@@ -1440,6 +1441,16 @@ you edit, type @ to pick someone from the account as in your own reply box; dele
 neither mentioned nor, on Gmail, added to cc. A Gmail account signed in before loki asked for your contacts finds
 people only by address until you sign it in again from Preferences › Accounts, which says so on its row. Words like
 `@channel`, an address, or someone's handle quoted from a message are never mentions unless the owner resolved them.
+
+**New emails, DMs and posts.** The owner can start a conversation too, through a card like a reply's: a new email
+from a Gmail account ("email Ana the Q3 numbers"), a new Slack DM with one to eight people of your workspace, or a new
+message at the top of a Slack channel you are in ("post in #ops that the deploy is at 9"). Each person is found as a
+mention is, so a name that fits several people is never guessed. The card says what it starts ("New email", "a DM
+with Grace Lee and Ravi Kumar") and to whom; you edit its words and press **Send**, and it goes after the same
+10-second hold. A DM is opened only when you send, so rejecting one makes nothing in Slack. The owner then hears the
+new thread, so it can follow up in it. If loki stops while a new email is going, it looks for that mail by its
+Message-ID before trying again, so it never goes twice; a new DM that may have gone is not sent again from its card:
+look in Slack, and reject it if it went. Nothing new shows in Flow until someone answers.
 
 A reply can carry files from the chat's folder, up to 10 and 17 MB together, on all three: attached to the mail,
 posted with the Slack message, or attached to the Jira ticket with the comment naming them. The card names each file
@@ -1495,7 +1506,8 @@ and a value one script stores is not kept for the next.
    "always allow" is never offered for a script: each one is new code.
 2. **Limits.** A script runs for at most 10 minutes and 64 MB, four at once across every chat; the agent is told which
    limit it reached, and the daemon's log notes each script refused because four were running. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
-3. **What it can do with Google.** Read, label, archive and send mail, and save attachments; list, download, upload,
+3. **What it can do with Google.** Read, label and archive mail, save drafts (`google_gmail_draft`; a script sends
+   no mail, and `google_api` refuses Gmail's send methods), and save attachments; list, download, upload,
    move, copy, trash and delete Drive files; read and write Sheets; read Docs and edit them; list, create, change and
    delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
    use the chat's folder, and transfers report a checksum. Every call checks that the account is the agent's, on this
@@ -1503,8 +1515,9 @@ and a value one script stores is not kept for the next.
 4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `jira_read` a ticket with its comments and field
    changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
    subject, time and the chat it went to. `people_find` finds people in one of the agent's accounts by name, with the
-   address, Slack handle or Jira account id that names each one, so the agent can mention the right person. They only
-   read; a reply to Slack or Jira still goes through `reply_propose`. Each checks that the account is the agent's, and
+   address, Slack handle or Jira account id that names each one, so the agent can mention the right person, and
+   `slack_conversations` lists the channels and DMs you are in, with the ids to post in them. They only read; a reply
+   or a new message still goes through `reply_propose` or `message_propose`. Each checks that the account is the agent's, and
    names none that is not.
    A script that read any account's content (mail, messages, tickets, files, Flow's list) answers fenced: the agent
    is told it is content from other people, not instructions, as with a thread you hand it.

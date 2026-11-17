@@ -22,7 +22,7 @@ import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
 import { forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
-import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type MailOutboxOptions } from "./mail-outbox.ts";
+import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type HeldTarget, type MailOutboxOptions } from "./mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
@@ -33,9 +33,9 @@ import { SlackError, type SlackClient } from "./slack.ts";
 import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
 import type { SlackPeople } from "./slack-people.ts";
 
-export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment">;
+export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment" | "listMessages">;
 
-export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji">;
+export type SendSlack = Pick<SlackClient, "postReply" | "postWithFiles" | "react" | "emojiList" | "frequentEmoji" | "openDm">;
 
 export type SendJira = Pick<JiraClient, "postComment" | "attachFiles">;
 
@@ -51,6 +51,7 @@ export interface AgentReply {
   people: { to: string[]; cc: string[] } | null;
   proposal: HeldProposal;
   mentions: ReplyMention[];
+  target?: HeldTarget;
 }
 
 export interface PeopleChanged {
@@ -61,7 +62,7 @@ export interface PeopleChanged {
 }
 
 export interface AgentReplyReports {
-  sent(held: HeldReply): void;
+  sent(held: HeldReply, result: string | null): void;
   notSent(held: HeldReply, note: { reason: string; at: string }, people: PeopleChanged | null): void;
   attached(proposal: HeldProposal, names: string[]): void;
 }
@@ -121,8 +122,8 @@ export class OutsideThreads {
             this.changedPeople.delete(held.outbox_id);
             if (note) this.reports?.notSent(held, note, people);
           },
-          onSent: (held) => {
-            if (held.proposal) this.reports?.sent(held);
+          onSent: (held, result) => {
+            if (held.proposal) this.reports?.sent(held, result);
           },
         })
       : null;
@@ -144,6 +145,8 @@ export class OutsideThreads {
     const account = this.need(reply.account_id);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     if (account.provider === "gmail" && !reply.people) throw new Error("a mail reply needs the people its card showed");
+    if (reply.target?.kind === "email" && account.provider !== "gmail") throw new Error("only a Gmail account sends a new email");
+    if (reply.target?.kind === "dm" && account.provider !== "slack") throw new Error("only a Slack account opens a DM");
     const named = [...reply.attached, ...reply.files.map((f) => f.name)];
     const text = account.provider === "jira" && named.length ? [body, `Attached: ${named.join(", ")}`].filter(Boolean).join("\n\n") : body;
     const mail: MailAddressing | null =
@@ -161,6 +164,7 @@ export class OutsideThreads {
       files: reply.files,
       proposal: reply.proposal,
       ...(reply.mentions.length ? { mentions: reply.mentions } : {}),
+      ...(reply.target ? { target: reply.target } : {}),
     });
     void held.catch(() => undefined);
   }
@@ -173,8 +177,8 @@ export class OutsideThreads {
     this.outbox?.acknowledge(outboxId);
   }
 
-  wentOutIn(accountId: string, threadId: string, outboxId: string): Promise<boolean | null> {
-    return this.wentOut({ outbox_id: outboxId, account_id: accountId, thread_id: threadId });
+  wentOutIn(accountId: string, threadId: string, outboxId: string, target?: HeldTarget): Promise<boolean | null> {
+    return this.wentOut({ outbox_id: outboxId, account_id: accountId, thread_id: threadId, ...(target ? { target } : {}) });
   }
 
   async compose(accountId: string, threadId: string): Promise<MailCompose> {
@@ -265,9 +269,10 @@ export class OutsideThreads {
     return this.outbox?.discard(accountId, outboxId) ?? false;
   }
 
-  private async wentOut(held: Pick<HeldReply, "outbox_id" | "account_id" | "thread_id">): Promise<boolean | null> {
+  private async wentOut(held: Pick<HeldReply, "outbox_id" | "account_id" | "thread_id" | "target">): Promise<boolean | null> {
     const sender = this.opts.clientFor(this.need(held.account_id));
     if (sender.provider !== "gmail") return null;
+    if (held.target?.kind === "email") return (await sender.client.listMessages(`rfc822msgid:${held.target.message_id}`)).messages.length > 0;
     const thread = await sender.client.getThread(held.thread_id, "metadata");
     return thread.messages.some((m) => headerOf(m, OUTBOX_HEADER) === held.outbox_id);
   }
@@ -357,18 +362,30 @@ export class OutsideThreads {
     const agent = held.proposal != null;
     const files = held.files?.length ? await checkedFiles(held.files) : [];
     let deals = !agent;
+    let created: string | null = null;
+    const target = held.target;
     switch (sender.provider) {
       case "gmail":
-        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files, held.mentions ?? []);
+        if (target?.kind === "email") {
+          created = await this.sendNewMail(account, sender.client, body, mail, target, held.outbox_id, files, held.mentions ?? []);
+          deals = false;
+        } else await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null, agent, files, held.mentions ?? []);
         break;
       case "slack": {
-        const place = slackPlace(threadId);
+        const place = target?.kind === "dm" ? { channel: await sender.client.openDm(target.people), ts: null } : slackPlace(threadId);
+        if (target) deals = false;
         const { channel } = place;
         const ts = held.thread_ts ?? place.ts;
         const where = { channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions: held.mentions ?? [] };
         try {
-          if (files.length) await sender.client.postWithFiles({ ...where, files });
-          else await sender.client.postReply(where);
+          const dm = target?.kind === "dm" || channel.startsWith("D");
+          if (files.length) {
+            await sender.client.postWithFiles({ ...where, files });
+            created = ts ? `${channel}:${ts}` : dm ? channel : null;
+          } else {
+            const posted = await sender.client.postReply(where);
+            created = ts ? `${channel}:${ts}` : dm || !posted.ts ? channel : `${channel}:${posted.ts}`;
+          }
         } catch (err) {
           if (agent) throw unclearPost(err, "Slack");
           throw err;
@@ -394,13 +411,49 @@ export class OutsideThreads {
         if (!agent) this.opts.threads.clearSeeds(accountId, threadId);
         break;
     }
-    log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null, agent });
+    log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null, agent, target: target?.kind ?? null });
     if (deals) this.opts.threads.markDealt(accountId, threadId);
+    const made = created && agent ? { created } : {};
+    if (target) return { sent: true, then_error: null, change: null, ...made };
     try {
-      return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then) };
+      return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then), ...made };
     } catch (err) {
-      return { sent: true, then_error: messageOf(err), change: null };
+      return { sent: true, then_error: messageOf(err), change: null, ...made };
     }
+  }
+
+  private async sendNewMail(
+    account: AccountRecord,
+    client: SendGmail,
+    body: string,
+    mail: MailAddressing | null,
+    target: { subject: string; message_id: string },
+    outboxId: string,
+    files: ReadonlyArray<{ name: string; data: Buffer }>,
+    mentions: readonly ReplyMention[],
+  ): Promise<string | null> {
+    if (!mail) throw new Error("a new email needs the people its card showed");
+    const sendAs = await client.sendAs();
+    const from = sendAs.find((s) => s.isDefault) ?? sendAs.at(0);
+    const added = mentionCc([...mail.to, ...mail.cc], mentions);
+    if (mail.to.length + mail.cc.length + added.length === 0) throw new Error("a new email needs someone to send it to");
+    const out = mailBody({ text: body, signature: from?.signature || null, quoted: null, forward: false, ...(this.opts.zone ? { zone: this.opts.zone } : {}) });
+    const sent = await client.sendReply({
+      threadId: "",
+      inReplyTo: "",
+      references: [],
+      from: from ? fromHeader(from.address, from.name) : account.address,
+      to: mail.to,
+      cc: [...mail.cc, ...added],
+      subject: target.subject,
+      body: out.text,
+      html: out.html,
+      messageId: target.message_id,
+      outboxId,
+      ...(files.length ? { attachments: files.map((f) => ({ filename: f.name, mimeType: fileTypeOf(f.name), data: f.data })) } : {}),
+    });
+    log("outside:new-mail", { files: files.length });
+    return sent.threadId ?? null;
   }
 
   private async sendMail(
@@ -430,14 +483,7 @@ export class OutsideThreads {
     if (!from) throw new Error("that is not an address you send from in Gmail");
     const forward = mail?.mode === "forward";
     const people = mail ?? replyAllOf(newest, own);
-    const on = new Set([...people.to, ...people.cc, ...(mail?.bcc ?? [])].flatMap((p) => bareAddresses([p])));
-    const added: string[] = [];
-    for (const m of mentions) {
-      const address = m.address?.toLowerCase();
-      if (!address || on.has(address)) continue;
-      on.add(address);
-      added.push(fromHeader(m.address ?? address, m.display));
-    }
+    const added = mentionCc([...people.to, ...people.cc, ...(mail?.bcc ?? [])], mentions);
     const { to } = people;
     const cc = [...people.cc, ...added];
     const bcc = mail?.bcc ?? [];
@@ -498,7 +544,21 @@ function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
   if (timedOut) return new Error(`${service} did not answer in time: ${MAY_HAVE_GONE}`);
   // fetch throws a TypeError when the connection fails, which may be after the request reached the service.
   if (err instanceof TypeError) return new Error(`the connection to ${service} was lost: ${MAY_HAVE_GONE}`);
+  // Slack answering 200 with a body it would not let us read, or failing on its side, may still have posted.
+  if (err instanceof SlackError && /^http_(200|5\d\d)$/.test(err.code)) return new Error(`Slack did not answer clearly: ${MAY_HAVE_GONE}`);
   return err instanceof Error ? err : new Error(messageOf(err));
+}
+
+function mentionCc(already: readonly string[], mentions: readonly ReplyMention[]): string[] {
+  const on = new Set(already.flatMap((p) => bareAddresses([p])));
+  const added: string[] = [];
+  for (const m of mentions) {
+    const address = m.address?.toLowerCase();
+    if (!address || on.has(address)) continue;
+    on.add(address);
+    added.push(fromHeader(m.address ?? address, m.display));
+  }
+  return added;
 }
 
 function peopleWords(change: { added: string[]; removed: string[] }): string {

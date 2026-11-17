@@ -172,6 +172,8 @@ function threads(
                     ],
                   ),
                 attachment: (messageId: string, attachmentId: string) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
+                listMessages: (q: string) =>
+                  Promise.resolve({ messages: sentMail.some((m) => q === `rfc822msgid:${m.messageId ?? ""}`) ? [{ id: "s1", threadId: "t-new" }] : [] }),
                 sendReply: (r) => {
                   calls.push(`sendReply ${r.threadId}`);
                   if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
@@ -183,6 +185,10 @@ function threads(
           : {
               provider: "slack",
               client: {
+                openDm: (people: readonly string[]) => {
+                  calls.push(`openDm ${people.join(",")}`);
+                  return Promise.resolve("D9");
+                },
                 postReply: (r) => {
                   calls.push(`postReply ${r.channel}`);
                   if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
@@ -373,6 +379,7 @@ describe("reading a card's whole thread", () => {
         client: {
           postReply: () => Promise.resolve({ ts: "1" }),
           postWithFiles: () => Promise.resolve(),
+          openDm: () => Promise.resolve("D9"),
           react: () => Promise.resolve(),
           emojiList: () => Promise.resolve({}),
           frequentEmoji: () => Promise.resolve([]),
@@ -1131,19 +1138,19 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
   });
 });
 
-describe("only the person's reply, their Send on an agent's reply, and a script's Gmail tool send (plan 2026-11-11 scripts, KTD15)", () => {
+describe("only the person's reply and their Send on an agent's proposal send (plan 2026-11-14-1530, KTD15)", () => {
   test("the person's Jira comment is posted from the reply module alone (plan 2026-11-10-1451, U7)", () => {
     expect(readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8")).toMatch(/\.postComment\(/);
   });
-  test("the send calls are called from the person's reply module and the scripts' Gmail tool, nowhere else in the mod", () => {
+  test("the send calls, opening a DM among them, are called from the reply module alone; the scripts' Gmail tool only drafts (plan 2026-11-14-1530, R21)", () => {
     const dir = join(import.meta.dirname, "..", "mod");
     const callers = readdirSync(dir, { recursive: true, encoding: "utf8" })
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /\.(sendReply|postReply|postWithFiles|postComment|attachFiles)\(/.test(readFileSync(join(dir, f), "utf8")))
+      .filter((f) => /\.(sendReply|postReply|postWithFiles|postComment|attachFiles|openDm)\(/.test(readFileSync(join(dir, f), "utf8")))
       .map((f) => f.split("\\").join("/"))
       .sort();
-    expect(callers).toEqual(["google-tools/gmail.ts", "outside-threads.ts"]);
-    expect(readFileSync(join(dir, "google-tools", "gmail.ts"), "utf8")).not.toMatch(/\.(postReply|postWithFiles|postComment|attachFiles)\(/);
+    expect(callers).toEqual(["outside-threads.ts"]);
+    expect(readFileSync(join(dir, "google-tools", "gmail.ts"), "utf8")).toMatch(/\.createDraft\(/);
   });
   test("an agent's reply reaches a send only through the outbox: its hold calls no send, and the proposals only hold and undo", () => {
     const src = readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8");

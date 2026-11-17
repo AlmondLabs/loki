@@ -14,6 +14,8 @@ import { log } from "./log.ts";
 import type { SlackSession } from "./slack-session.ts";
 import { writeMentions } from "../core/mentions.ts";
 
+export const MAX_DM_PEOPLE = 8;
+
 export const SLACK_METHODS = [
   "auth.test",
   "client.counts",
@@ -24,6 +26,7 @@ export const SLACK_METHODS = [
   "conversations.replies",
   "conversations.info",
   "conversations.members",
+  "conversations.open",
   "users.conversations",
   "users.info",
   "users.list",
@@ -331,6 +334,14 @@ export class SlackClient {
       return { id: str(c.id), name: strOrNull(c.name), is_im: c.is_im === true, is_mpim: c.is_mpim === true, user: strOrNull(c.user) };
     });
     return { conversations: conversations.filter((c) => c.id), next_cursor: strOrNull(rec(r.response_metadata).next_cursor) };
+  }
+
+  async openDm(people: readonly string[]): Promise<string> {
+    if (people.length === 0 || people.length > MAX_DM_PEOPLE) throw new Error("a DM is with one to eight people");
+    const r = await this.call("conversations.open", { users: people.join(","), return_im: false });
+    const id = str(rec(r.channel).id);
+    if (!id) throw new SlackError("Slack opened no DM", "no_channel");
+    return id;
   }
 
   async conversationsMembers(channel: string, cursor: string | null): Promise<{ members: string[]; next_cursor: string | null }> {

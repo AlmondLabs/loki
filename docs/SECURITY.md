@@ -188,8 +188,9 @@ mode would not have asked.
   run: after a restart a later call of the same script may ask once more, and a call already answered never does.
 - **Google tools.** The `google_*` tools (`mod/google-tools/`) act for the Google accounts the chat's agent owns on
   this Mac, checked at every call: the owner, this Mac, connected, and the service granted. They read and change mail,
-  Drive, Sheets, Docs and Calendar, send mail and invites, and delete Drive files; `google_api` reaches any method of
-  those five services on their own hosts, never a URL the script names. No tool returns a token. Files are read and
+  Drive, Sheets, Docs and Calendar, save mail drafts, send calendar invites, and delete Drive files; they send no mail
+  (plan 2026-11-14-1530, R21). `google_api` reaches any method of those five services on their own hosts, never a URL
+  the script names, except Gmail's `messages/send` and `drafts/send`, which it refuses. No tool returns a token. Files are read and
   written only inside the chat's folder.
 - **Slack, Jira and Flow.** `slack_read`, `jira_read`, `flow_list` and `people_find` (`mod/account-ops/script-tools.ts`,
   plans 097 and 2026-11-14-1530) only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
@@ -204,15 +205,16 @@ mode would not have asked.
 
 
 The Inbox can show the mail, Slack threads and Jira tickets waiting for you (plan 067, plan 2026-11-10-1451). An account is connected in Preferences ›
-Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Only you and the owner's scripts
-send.** Your own reply on an outside card (plan 068) goes through the `account_thread_reply` frame, which only your
+Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Only you send.** Your own reply on an outside card (plan 068) goes through the `account_thread_reply` frame, which only your
 own devices send, to `mod/outside-threads.ts`. An agent's reply proposal goes only when you press Send on its card
 (plan 2026-11-14-1134): `reply_decide`, which your devices send, hands it to the same `mod/outside-threads.ts`
-through its outbox, and it goes as you after a 10-second hold you can undo. The owner's scripts may send mail and
-calendar invites from a Google account (plan 2026-11-11 scripts, see Scripts below), through
-`mod/google-tools/gmail.ts`. Those are the only callers of each client's send calls (`GmailClient.sendReply`,
-`SlackClient.postReply` and `postWithFiles`, `JiraClient.postComment` and `attachFiles`; tests check there is no
-other). No tool the model calls directly sends: an agent's reply reaches Gmail, Slack or Jira only by your Send.
+through its outbox, and it goes as you after a 10-second hold you can undo. So does a new email or Slack DM an
+agent proposes with `message_propose` (plan 2026-11-14-1530). The owner's scripts save Gmail drafts
+(`google_gmail_draft`) but send no mail, and `google_api` refuses Gmail's send and draft-send methods; scripts may still
+send calendar invites (plan 2026-11-11 scripts, see Scripts below). `mod/outside-threads.ts` is the only caller of each
+client's send calls (`GmailClient.sendReply`, `SlackClient.postReply`, `postWithFiles` and `openDm`,
+`JiraClient.postComment` and `attachFiles`; tests check there is no other). No tool the model calls directly sends: an
+agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
 
 - **Google sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
@@ -241,7 +243,8 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
   when Slack refuses it.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
   activity and counts, the conversations you are in (`users.conversations`, to find a `#channel` an agent names) and
-  who is in one (`conversations.members`, to say on a card when someone mentioned is not), marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), and `chat.postMessage` and the file upload
+  who is in one (`conversations.members`, to say on a card when someone mentioned is not), opening a DM
+  (`conversations.open`, only at your Send on an agent's new DM, so a rejected one opens nothing), marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), and `chat.postMessage` and the file upload
   (`files.getUploadURLExternal`, `files.completeUploadExternal`) for a reply you send, your own or an agent's on your
   Send; no agent tool reaches them, and nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, and a file's bytes only to the
@@ -315,7 +318,9 @@ other). No tool the model calls directly sends: an agent's reply reaches Gmail, 
   in it, which on Gmail adds them to cc. Its card, which names the thread as the service reads it, who the reply goes
   to and whom it adds to cc, who Jira usually tells, and its files, is the gate, and your Send on it is the only thing
   that sends. Words read from the service (a subject, a first line) are quoted on the card, apart from loki's own
-  lines, so a stranger cannot write one that passes for loki's. Mail can also steer an owner to attach any file it
+  lines, so a stranger cannot write one that passes for loki's. Mail can also steer an owner to propose a new email,
+  DM or post to anyone it resolves, or any address it writes (`message_propose`, a top-level post with
+  `reply_propose`); the card's recipient lines and your Send are the gate there too. Mail can also steer an owner to attach any file it
   can read, under any name, so a private file could ride a reply as `invoice.pdf`: show a file in Finder from the
   card before you send a reply that carries it. Account
   secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain
