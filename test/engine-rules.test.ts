@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DEFAULT_MODE, modeOf } from "../daemon/approvals.ts";
+import { DEFAULT_MODE, modeOf } from "../core/chat-links.ts";
 import { engineMoveRefused } from "../daemon/engine.ts";
 import type { ChatEngine } from "../daemon/kernel/index.ts";
 
@@ -10,6 +10,7 @@ describe("a chat's engine rules (plan 052)", () => {
     expect(modeOf("strict")).toBe("strict");
     expect(modeOf("acceptEdits")).toBe("acceptEdits");
     expect(modeOf(undefined)).toBe(DEFAULT_MODE);
+    expect(modeOf(null)).toBe(DEFAULT_MODE);
     expect(modeOf("plan")).toBe(DEFAULT_MODE);
   });
 

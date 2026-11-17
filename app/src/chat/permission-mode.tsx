@@ -1,10 +1,9 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactElement } from "react";
 import { Chip, Meta, Popover, Row } from "../components";
 import type { ChatEngineView } from "../../../core/models.ts";
+import { DEFAULT_MODE, isPermissionMode, type PermissionMode } from "../../../core/chat-links.ts";
 import type { ModelAndMode } from "./use-model-and-mode";
 import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
-
-export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
 
 export interface ModeChoice {
   id: string;
@@ -31,10 +30,6 @@ export function agentModes(engine: ChatEngineView): ModeChoice[] {
     description: m.description ?? `${engine.name}'s ${m.name.toLowerCase()} mode`,
     fill: isOpenDoor(m.id) ? 0 : 0.5,
   }));
-}
-
-export function isPermissionMode(v: unknown): v is PermissionMode {
-  return v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted";
 }
 
 export const modeInfo = (m: PermissionMode | null | undefined) => MODES.find((x) => x.id === m) ?? MODES[3];
@@ -101,7 +96,7 @@ export function ModeMenu({
   side?: "below" | "above";
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const selected = current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
+  const selected = current ?? (modes === MODES ? DEFAULT_MODE : modes.length ? modes[0].id : null);
   const at = Math.max(
     0,
     modes.findIndex((m) => m.id === selected),
@@ -161,7 +156,7 @@ export function ModeMenu({
 export const titleCase = (label: string) => label.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
 
 export function selectedMode(current: string | null, modes: ModeChoice[]): string | null {
-  return current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
+  return current ?? (modes === MODES ? DEFAULT_MODE : modes.length ? modes[0].id : null);
 }
 
 export function modeMenuEntries(current: string | null, modes: ModeChoice[], onPick: (m: string) => void): MenuEntry[] {

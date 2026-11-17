@@ -21,6 +21,7 @@ let desks: DeskRegistry;
 let layouts: Scope[];
 let canvases: Scope[];
 let passChats: Set<string>;
+let modes: Map<string, string>;
 
 function agent(id: string, opts: { tags?: string[]; record?: boolean; memory?: boolean } = {}) {
   if (opts.record !== false)
@@ -47,7 +48,7 @@ const source: ChatSource = {
           archived: c.archived,
           model: null,
           reasoningEffort: null,
-          mode: "unrestricted",
+          mode: modes.get(c.conversationId) ?? "unrestricted",
           labels: [],
           purpose: null,
           hasDraft: false,
@@ -85,6 +86,7 @@ beforeEach(() => {
   layouts = [];
   canvases = [];
   passChats = new Set();
+  modes = new Map();
   agent(IRA);
   agent(OTTO);
   agent(GONE, { record: false });
@@ -190,6 +192,15 @@ describe("listing tidies the desks an older loki kept", () => {
         .map((d) => d.scope),
     ).toEqual([SHARED_SCOPE]);
     expect(desks.all()).toEqual([]);
+  });
+});
+
+describe("a chat's permission mode", () => {
+  test("an ACP chat's own mode is listed as it is, not as loki's default", () => {
+    rows = [chat("conv-acp", IRA)];
+    modes.set("conv-acp", "plan");
+    const scope = desks.remember("conv-acp", IRA);
+    expect(listing().titleFrame(scope)?.mode).toBe("plan");
   });
 });
 

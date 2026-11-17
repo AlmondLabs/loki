@@ -1,5 +1,6 @@
 import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
 import type { DeskInfo, DeskSummary, InboxRow, LocalAgent, ReplyProposal } from "../core/frame-types.ts";
+import { DEFAULT_MODE } from "../core/chat-links.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { backendDir, readLocalAgent } from "./agents.ts";
@@ -126,7 +127,7 @@ export class ChatListing {
     const agentModel = agent?.model ?? null;
     const agentEffort = reasoningEffortFromSettings(agent?.model_settings);
     const info = this.opts.chats.info(rt.conversation_id, rt.agent_id);
-    const facts = { agent_name: nameOf(agent), agent_id: rt.agent_id, mode: info?.mode ?? "unrestricted" };
+    const facts = { agent_name: nameOf(agent), agent_id: rt.agent_id, mode: info?.mode ?? DEFAULT_MODE };
     if (!info) return { ...facts, title: null, status: "deleted", model: agentModel, reasoning_effort: agentEffort, last_active: null };
     return {
       ...facts,

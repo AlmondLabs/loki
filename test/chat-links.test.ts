@@ -17,7 +17,7 @@ import {
   type ChatLink,
   type LinkAnswer,
   type LinkAsk,
-  type LokiMode,
+  type PermissionMode,
 } from "../core/chat-links.ts";
 import { chatMessageBlock, chatMessageOf, extractHarnessEvents, stripHarnessMarkup } from "../core/harness.ts";
 import { FRAMES } from "../core/frames.ts";
@@ -154,13 +154,13 @@ describe("the links file", () => {
   });
 });
 
-function setup(opts: { remote?: ChatKey[]; power?: LokiMode | null; answers?: LinkAnswer[]; refuse?: string; forwardFails?: boolean } = {}) {
+function setup(opts: { remote?: ChatKey[]; power?: PermissionMode | null; answers?: LinkAnswer[]; refuse?: string; forwardFails?: boolean } = {}) {
   const f = folder();
   const clock = { now: T0 };
   const links = new LinkStore(f.file, () => clock.now);
   const asked: LinkAsk[] = [];
   const answers = [...(opts.answers ?? [])];
-  const delivered: Array<{ ref: ChatKey; text: string; context: string; cap: LokiMode | null }> = [];
+  const delivered: Array<{ ref: ChatKey; text: string; context: string; cap: PermissionMode | null }> = [];
   const forwarded: LinkCall[] = [];
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   const remote = (ref: ChatKey) => (opts.remote ?? []).some((r) => r.conversation_id === ref.conversation_id);

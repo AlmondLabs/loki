@@ -6,7 +6,7 @@ import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
 import type { UsageReply } from "./usage.ts";
-import { isLinkDuration, parseLink, type ChatLink, type LinkDuration, type LokiMode } from "./chat-links.ts";
+import { isLinkDuration, isPermissionMode, parseLink, type ChatLink, type LinkDuration, type PermissionMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import { parseLanes, type Lane } from "./attention/lanes.ts";
@@ -209,7 +209,7 @@ const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title
     : null;
 };
 /** A permission mode as a chat message's cap names it; anything else is no cap known, which the receiver treats as strict. */
-const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
+const lokiMode = (v: unknown): PermissionMode | null => (isPermissionMode(v) ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 export interface MacAccountView extends AccountView {

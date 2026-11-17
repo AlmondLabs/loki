@@ -4,15 +4,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
-import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
+import { lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
 import { SCRIPT_TOOL } from "./scripts.ts";
 import { CODING_TOOL_KINDS, isOldTool, renamedTools, type ToolKind } from "./tool-kinds.ts";
-
-export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
-export const DEFAULT_MODE: PermissionMode = "unrestricted";
-export const isPermissionMode = (m: unknown): m is PermissionMode => m === "strict" || m === "standard" || m === "acceptEdits" || m === "unrestricted";
-export const modeOf = (stored: unknown): PermissionMode => (isPermissionMode(stored) ? stored : DEFAULT_MODE);
 
 export type { ToolKind } from "./tool-kinds.ts";
 

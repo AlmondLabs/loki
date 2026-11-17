@@ -17,7 +17,7 @@ import {
   type LinkAsk,
   type LinkDuration,
   type LinkEnd,
-  type LokiMode,
+  type PermissionMode,
 } from "../core/chat-links.ts";
 import { chatMessageBlock } from "../core/harness.ts";
 import { messageOf } from "../core/errors.ts";
@@ -114,7 +114,7 @@ export type LinkCall =
       from: LinkEnd;
       text: string;
       send_id: string;
-      cap: LokiMode | null;
+      cap: PermissionMode | null;
     }
   | { type: "chat_link_put"; agent_id: string; conversation_id: string; link: ChatLink }
   | { type: "chat_link_close"; agent_id: string; conversation_id: string; link_id: string };
@@ -127,8 +127,8 @@ export interface ChatMessagesOptions {
   here(ref: ChatKey): Promise<boolean>;
   ask(source: ChatKey, ask: LinkAsk, signal: AbortSignal): Promise<LinkAnswer>;
   forward(frame: LinkCall): Promise<LinkOutcome>;
-  power(ref: ChatKey): Promise<LokiMode | null>;
-  deliver(ref: ChatKey, text: string, context: string, sendId: string, cap: LokiMode | null): Promise<string | null>;
+  power(ref: ChatKey): Promise<PermissionMode | null>;
+  deliver(ref: ChatKey, text: string, context: string, sendId: string, cap: PermissionMode | null): Promise<string | null>;
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
   track?(event: string, properties: Record<string, unknown>): void;
   now?(): Date;

@@ -1,4 +1,4 @@
-import type { LokiMode } from "../../core/chat-links.ts";
+import type { PermissionMode } from "../../core/chat-links.ts";
 import type { MovedChat } from "../../daemon/chat-move.ts";
 import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
@@ -17,8 +17,8 @@ export interface ChatBackend {
   answer(p: PayloadOf<"chat_answer">): Promise<boolean>;
   create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
-  power(agentId: string, conversationId: string): Promise<LokiMode | null>;
-  sendHeld(p: PayloadOf<"chat_send">, cap: LokiMode | null): Promise<string | null>;
+  power(agentId: string, conversationId: string): Promise<PermissionMode | null>;
+  sendHeld(p: PayloadOf<"chat_send">, cap: PermissionMode | null): Promise<string | null>;
   abort(agentId: string, conversationId: string): Promise<void>;
   /** Its reply names the saved draft's suggestion when it saved one. */
   update(p: PayloadOf<"chat_update">): Promise<Replies["chat_done"]>;
