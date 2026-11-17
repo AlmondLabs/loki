@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { MailAddressing, OutsideReplied, ReplyMention, ReplyThen } from "../core/frame-types.ts";
-import { replyMentionOf } from "../core/frames.ts";
+import { MAIL_HOLD_MS, replyMentionOf } from "../core/frames.ts";
 import { messageOf } from "../core/errors.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
@@ -48,8 +48,6 @@ export interface MailOutboxOptions {
 }
 
 export const RESUME_MAX_MS = 10 * 60_000;
-
-export const HOLD_MS = 10_000;
 
 interface Waiting {
   held: HeldReply;
@@ -262,7 +260,7 @@ export class MailOutbox {
   }
 
   private holdMs(): number {
-    return this.opts.holdMs ?? HOLD_MS;
+    return this.opts.holdMs ?? MAIL_HOLD_MS;
   }
 
   private read(): Stored[] {

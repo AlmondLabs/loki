@@ -516,6 +516,11 @@ export interface PushPeerMeaning {
 }
 
 export const MOVE_TIMEOUT_MS = 180_000;
+export const PASS_RUN_TIMEOUT_MS = 10 * 60_000;
+export const DOCTOR_WAIT_MS = PASS_RUN_TIMEOUT_MS + 60_000;
+export const MAIL_HOLD_MS = 10_000;
+export const REPLY_WAIT_MS = 60_000;
+export const HANDOFF_WAIT_MS = 60_000;
 /**
  * What a chat says while it is held for a move to a Mac out of reach (plan 096); the app finds it in the error line and
  * offers **keep it here** there.
@@ -1366,7 +1371,7 @@ export const FRAMES = {
       };
     },
     PHONE,
-    { route: "home", relists: true, timeout_ms: 60_000 },
+    { route: "home", relists: true, timeout_ms: REPLY_WAIT_MS },
   ),
   account_thread_compose: request(
     "account_compose",
@@ -1488,7 +1493,7 @@ export const FRAMES = {
           }
         : "account_id and thread_id required",
     PHONE,
-    { route: "home", relists: true, timeout_ms: 60_000 },
+    { route: "home", relists: true, timeout_ms: HANDOFF_WAIT_MS },
   ),
   account_connect_gmail: request(
     "account_signin",

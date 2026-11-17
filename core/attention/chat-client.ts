@@ -1,4 +1,5 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
+import { DOCTOR_WAIT_MS, HANDOFF_WAIT_MS, REPLY_WAIT_MS } from "../frames.ts";
 import type { InputOf, ReplyAction, ReplyDecideOptions, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type {
   AccountLabel,
@@ -296,7 +297,7 @@ export class FrameChatClient {
         ...(extra.thread_ts ? { thread_ts: extra.thread_ts } : {}),
         mentions: [...(extra.mentions ?? [])],
       },
-      60_000,
+      REPLY_WAIT_MS,
     );
     return r.sent ? { sent: true, then_error: r.then_error, change: r.change } : { sent: false, undone: true };
   }
@@ -326,7 +327,7 @@ export class FrameChatClient {
   }
 
   async resendOutside(accountId: string, threadId: string, outboxId: string, home: string | null): Promise<OutsideReplied> {
-    const r = await this.call("account_thread_resend", { account_id: accountId, thread_id: threadId, outbox_id: outboxId, home }, 60_000);
+    const r = await this.call("account_thread_resend", { account_id: accountId, thread_id: threadId, outbox_id: outboxId, home }, REPLY_WAIT_MS);
     return r.sent ? { sent: true, then_error: r.then_error, change: r.change } : { sent: false, undone: true };
   }
 
@@ -350,7 +351,7 @@ export class FrameChatClient {
     conversationId: string | null,
     home: string | null,
   ): Promise<{ agent_id: string; conversation_id: string }> {
-    const r = await this.call("account_thread_handoff", { account_id: accountId, thread_id: threadId, conversation_id: conversationId, home }, 60_000);
+    const r = await this.call("account_thread_handoff", { account_id: accountId, thread_id: threadId, conversation_id: conversationId, home }, HANDOFF_WAIT_MS);
     return { agent_id: r.agent_id, conversation_id: r.conversation_id };
   }
 
@@ -498,7 +499,7 @@ export class FrameChatClient {
     const r = await this.call(
       "chat_command",
       { agent_id: rt.agent_id, conversation_id: rt.conversation_id, command: commandId, args: args ?? null },
-      commandId === "doctor" ? 11 * 60_000 : 180_000,
+      commandId === "doctor" ? DOCTOR_WAIT_MS : 180_000,
     ).catch((err: unknown) => ({ success: false, output: messageOf(err) }));
     this.emit(rt, [{ kind: "command", phase: "end", input, success: r.success, output: r.output }]);
     return r;
