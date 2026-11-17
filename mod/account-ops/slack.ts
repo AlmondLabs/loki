@@ -4,6 +4,22 @@ import { readSlackMessage } from "../slack-markup.ts";
 import type { FlowRecord, ReplyDestination, ThreadMessage, ThreadText } from "./thread.ts";
 
 const DM_MESSAGES = 50;
+/** A thread is read 200 replies a page, up to 10,000, so a cursor that never ends cannot loop forever. */
+const THREAD_PAGE = 200;
+const THREAD_PAGES = 50;
+
+/** A thread's parent and every reply. Slack gives replies oldest first, so one page alone misses a long thread's newest. */
+async function wholeThread(slack: Pick<SlackClient, "conversationsReplies">, channel: string, ts: string): Promise<SlackMessage[]> {
+  const messages: SlackMessage[] = [];
+  let cursor: string | undefined;
+  for (let n = 0; n < THREAD_PAGES; n++) {
+    const page = await slack.conversationsReplies({ channel, ts, limit: THREAD_PAGE, cursor });
+    messages.push(...page.messages);
+    if (!page.has_more || !page.next_cursor) break;
+    cursor = page.next_cursor;
+  }
+  return messages;
+}
 
 export function slackThreadText(client: (accountId: string) => Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "usersInfo">): ThreadText {
   return async (accountId, threadId) => {
@@ -19,11 +35,11 @@ export function slackThreadText(client: (accountId: string) => Pick<SlackClient,
       return known;
     };
     const at = threadId.indexOf(":");
-    const page =
+    const read =
       at < 0
-        ? await slack.conversationsHistory({ channel: threadId, limit: DM_MESSAGES })
-        : await slack.conversationsReplies({ channel: threadId.slice(0, at), ts: threadId.slice(at + 1), limit: 200 });
-    const messages = [...page.messages].sort((a, b) => Number(a.ts) - Number(b.ts));
+        ? (await slack.conversationsHistory({ channel: threadId, limit: DM_MESSAGES })).messages
+        : await wholeThread(slack, threadId.slice(0, at), threadId.slice(at + 1));
+    const messages = [...read].sort((a, b) => Number(a.ts) - Number(b.ts));
     const me = accountId.split(":").at(2) ?? "";
     const out: ThreadMessage[] = [];
     for (const m of messages)

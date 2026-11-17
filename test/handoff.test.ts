@@ -538,6 +538,26 @@ describe("reading a whole thread for a hand-off", () => {
     expect(calls).toEqual(["replies C9 1762243200.000100", "history D7"]);
   });
 
+  test("Slack: a thread longer than one page of replies is read to its newest reply", async () => {
+    const thread = Array.from({ length: 450 }, (_, i) => slackMessage(`${String(1762243200 + i)}.000100`, "U1", `message ${String(i)}`));
+    const cursors: Array<string | undefined> = [];
+    const read = slackThreadText(() => ({
+      conversationsReplies: (o) => {
+        cursors.push(o.cursor);
+        const from = Number(o.cursor ?? "0");
+        const to = from + (o.limit ?? 1000);
+        const more = to < thread.length;
+        return Promise.resolve({ messages: thread.slice(from, to), has_more: more, next_cursor: more ? String(to) : null });
+      },
+      conversationsHistory: () => Promise.reject(new Error("a thread is not read by its channel's history")),
+      usersInfo: () => Promise.resolve({ id: "U1", name: "grace", real_name: "Grace Hopper", display_name: "Grace", is_bot: false }),
+    }));
+    const messages = await read("slack:T01:U2", "C9:1762243200.000100");
+    expect(messages).toHaveLength(450);
+    expect(messages.at(-1)?.text).toBe("message 449");
+    expect(cursors).toEqual([undefined, "200", "400"]);
+  });
+
   test("Jira: the ticket's summary, fields and description first, then its comments, then its field history (plan 089)", async () => {
     const now = () => new Date("2026-11-10T12:00:00.000Z");
     const site = fakeJira({ now });
