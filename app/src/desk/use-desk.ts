@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
+import { applyGesture, MAIN_CHAT_ID, mainChatAgent, emptyDesk, scopeFor, scopeOfId, SHARED_SCOPE } from "../../../core/desk-core.ts";
 import { inTauri } from "./env";
 import { useDeskSocket } from "./use-desk-socket";
 import { PHONE_DEMO, phoneDemo, withReasoningEffort } from "./desk-pushes";
@@ -413,7 +413,7 @@ export function useDesk() {
   };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
   const agentId = agentIds[scope] ?? listed?.agent_id ?? null;
-  const conversationId = scope === SHARED_SCOPE ? null : scope.startsWith("default-") ? "default" : scope;
+  const conversationId = scope === SHARED_SCOPE ? null : mainChatAgent(scope) !== null ? MAIN_CHAT_ID : scope;
 
   return {
     scope,

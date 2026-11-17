@@ -1,3 +1,4 @@
+import { isMainChat } from "../desk-core.ts";
 import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
 import { ThreadModel, type Step } from "./thread.ts";
@@ -112,7 +113,7 @@ export const OUTSIDE_ENDS: Record<AccountProvider, { archive: boolean; handoff: 
 };
 
 export const archivable = (item: Pick<AttentionItem, "id" | "outside">): boolean =>
-  item.outside ? OUTSIDE_ENDS[item.outside.provider].archive : item.id !== "default";
+  item.outside ? OUTSIDE_ENDS[item.outside.provider].archive : !isMainChat(item.id);
 
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
 

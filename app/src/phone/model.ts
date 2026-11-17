@@ -9,6 +9,7 @@ import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
 import type { DeskSummary, DeviceSummary, LanStatus, LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 export type PairedDevice = DeviceSummary;
 
@@ -165,7 +166,7 @@ export function threadFor(
     agentId: conv.agentId,
     conversationId: conv.conversationId,
     title:
-      convDesk?.title ?? convItem?.title ?? (conv.conversationId === "default" ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat` : null),
+      convDesk?.title ?? convItem?.title ?? (isMainChat(conv.conversationId) ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat` : null),
     agentName: convDesk?.agent_name ?? convItem?.agent_name ?? agentNameOf(agents, desks, conv.agentId),
   };
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
-import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, isMainChat, MAIN_CHAT_ID, scopeFor, SHARED_SCOPE } from "../../../core/desk-core.ts";
 import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { DeskPane } from "../desk/desk-pane";
@@ -149,7 +149,7 @@ export function Shell() {
     desk.models.used(applied.handle);
     const effort = applied.reasoning_effort ? ` · effort ${effortLabel(applied.reasoning_effort)}` : "";
     notice(
-      `${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${modelName(modelList ?? null, applied.handle)}${effort}`,
+      `${isMainChat(rt.conversation_id) ? "the agent now runs on" : "this conversation now runs on"} ${modelName(modelList ?? null, applied.handle)}${effort}`,
     );
   };
   const [modelPickerTick, setModelPickerTick] = useState(0);
@@ -288,7 +288,7 @@ export function Shell() {
         catchUp={catchUp}
         onOpenDesk={openDesk}
         onAskToUpdate={(agentId, text) => {
-          openDesk(agentId, "default", { chat: true });
+          openDesk(agentId, MAIN_CHAT_ID, { chat: true });
           setChatPrefill({ text, tick: Date.now() });
         }}
         onShowDesks={() => setSegment("desk")}
@@ -650,7 +650,7 @@ export function Shell() {
               models={modelList}
               onLoadModels={loadModels}
               onModelsChanged={forgetModels}
-              onDone={(agentId) => openDesk(agentId, "default", { chat: true })}
+              onDone={(agentId) => openDesk(agentId, MAIN_CHAT_ID, { chat: true })}
             />
           )}
         </main>

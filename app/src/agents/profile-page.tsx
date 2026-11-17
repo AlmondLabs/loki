@@ -12,6 +12,7 @@ import { Head } from "./bits";
 import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit } from "./types";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import { MAIN_CHAT_ID } from "../../../core/desk-core.ts";
 
 export function ProfilePage({
   d,
@@ -80,14 +81,14 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       )}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
         {myDesks.map((x) => (
-          <Row dense key={x.scope} onClick={() => onOpen(x.conversation_id ?? "default")} className="justify-between" style={{ fontSize: "var(--text-sm)" }}>
+          <Row dense key={x.scope} onClick={() => onOpen(x.conversation_id ?? MAIN_CHAT_ID)} className="justify-between" style={{ fontSize: "var(--text-sm)" }}>
             <span className="loki-truncate">{x.title ?? "Main chat"}</span>
             <span className="loki-meta loki-meta--wrap flex-none">{x.active ? "Active" : x.last_active ? ago(x.last_active) : ""}</span>
           </Row>
         ))}
       </div>
       <div className="flex gap-2" style={{ padding: "8px 8px 0" }}>
-        <Button tone="brass" onClick={() => onOpen("default")}>
+        <Button tone="brass" onClick={() => onOpen(MAIN_CHAT_ID)}>
           Main Chat
         </Button>
         <Button onClick={onShowDesks} kbd={keyFor("segment.desk")}>

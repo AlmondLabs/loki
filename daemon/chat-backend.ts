@@ -8,7 +8,7 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
-import { backendName } from "../core/desk-core.ts";
+import { backendName, MAIN_CHAT_ID } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
@@ -380,7 +380,7 @@ export class DaemonChats implements ChatBackend {
     const store = await this.deps.stores.get(id);
     await store.setAgent({ id, name: p.name }, this.deps.context);
     const model = p.model ? modelRef(p.model) : undefined;
-    await store.createChat("default", { agent: model ? { model } : {} }, this.deps.context);
+    await store.createChat(MAIN_CHAT_ID, { agent: model ? { model } : {} }, this.deps.context);
     return { id, name: p.name };
   }
 

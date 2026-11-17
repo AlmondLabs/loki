@@ -1,7 +1,7 @@
 import { linkAnswerWords, linkAskOf, parseLinkAnswer, type ChatLink, type LinkDuration } from "../chat-links.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { LabelView } from "../labels.ts";
-import { scopeFor } from "../desk-core.ts";
+import { isMainChat, scopeFor } from "../desk-core.ts";
 import { keepSame } from "../same-data.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold, type ImageAttachment } from "./content.ts";
@@ -708,7 +708,7 @@ export class ChatStore {
   };
 
   archiveConversation = async (conversationId: string, archived: boolean, origin?: ArchiveOrigin, agentId?: string): Promise<string | null> => {
-    if (this.client && conversationId === "default") return "a main chat cannot be archived";
+    if (this.client && isMainChat(conversationId)) return "a main chat cannot be archived";
     const err = await this.tried((c) => c.updateConversation(conversationId, { archived }, agentId));
     if (err) return err;
     if (origin)
@@ -874,7 +874,7 @@ export class ChatStore {
   };
 
   renameConversation = async (conversationId: string, name: string): Promise<string | null> => {
-    if (this.client && conversationId === "default") return "a main chat cannot be renamed";
+    if (this.client && isMainChat(conversationId)) return "a main chat cannot be renamed";
     return this.tried((c) => c.renameConversation(conversationId, name));
   };
 

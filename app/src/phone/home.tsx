@@ -25,6 +25,7 @@ import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-fo
 import { canRename } from "../shell/sidebar-model";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import { messageOf } from "../../../core/errors.ts";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 export function openDesk(d: DeskSummary) {
   if (d.agent_id && d.conversation_id) openConversation(d.agent_id, d.conversation_id);
@@ -475,7 +476,7 @@ export function DeskRow({
   );
 }
 
-const canArchive = (d: DeskSummary) => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
+const canArchive = (d: DeskSummary) => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
 
 export function DeskActions({
   desk: d,
