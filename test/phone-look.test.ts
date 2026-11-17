@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { must } from "./fixtures/must.ts";
 
 const APP = join(import.meta.dirname, "..", "app", "src");
-const phone = readFileSync(join(APP, "phone", "phone.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const phone = "\n" + readFileSync(join(APP, "phone", "phone.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 const blockOf = (selector: string) => {
   const start = phone.indexOf(`\n${selector} {`);
