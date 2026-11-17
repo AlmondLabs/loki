@@ -1,7 +1,7 @@
 import { modeOf } from "./approvals.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
-import { conversationDirName } from "../core/desk-core.ts";
+import { conversationDirName, isMainChat } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
 import { COMPACTION, entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, ThreadModel, type StoredStep } from "../core/attention/thread.ts";
@@ -201,7 +201,7 @@ export class ChatProjection implements ChatSource {
 
   private find(conversationId: string, agentId?: string | null): Chat | undefined {
     if (agentId) return this.chats.get(this.key(agentId, conversationId));
-    if (conversationId === "default") return undefined;
+    if (isMainChat(conversationId)) return undefined;
     for (const chat of this.chats.values()) if (chat.chatId === conversationId) return chat;
     return undefined;
   }
@@ -227,7 +227,7 @@ export class ChatProjection implements ChatSource {
     const engine = chat.info?.engine?.kind === "acp" ? chat.info.engine : null;
     const piModel = chat.settings.model?.provider && chat.settings.model.modelId ? `${chat.settings.model.provider}/${chat.settings.model.modelId}` : null;
     const model = engine ? `acp:${engine.agent}/${engine.model}` : piModel;
-    const fallback = chat.chatId === "default" ? `${this.agentName(chat.agentId) ?? "agent"} · main chat` : null;
+    const fallback = isMainChat(chat.chatId) ? `${this.agentName(chat.agentId) ?? "agent"} · main chat` : null;
     return {
       agentId: chat.agentId,
       title: chat.info?.title?.trim() || fallback,

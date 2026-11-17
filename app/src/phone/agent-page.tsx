@@ -18,6 +18,7 @@ import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
 import { Button } from "../components";
 import { BackButton, Scroll, TopBar } from "./ui";
 import type { DeskSummary, MemoryCommit } from "../../../core/frame-types.ts";
+import { isMainChat, MAIN_CHAT_ID } from "../../../core/desk-core.ts";
 
 function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
   const [commits, setCommits] = useState<MemoryCommit[] | null>(null);
@@ -41,7 +42,7 @@ function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
 
 const foldedByAgent = new Map<string, Record<string, boolean>>();
 
-const mainChat = (agentId: string, prefill: string | null = null) => navigate({ kind: "conversation", agentId, conversationId: "default", prefill });
+const mainChat = (agentId: string, prefill: string | null = null) => navigate({ kind: "conversation", agentId, conversationId: MAIN_CHAT_ID, prefill });
 
 export function AgentPage({
   agentId,
@@ -117,7 +118,7 @@ function Hero({
   running: boolean;
 }) {
   const live = liveDeskCount(desks, agentId);
-  const main = desks.find((x) => x.agent_id === agentId && x.conversation_id === "default");
+  const main = desks.find((x) => x.agent_id === agentId && isMainChat(x.conversation_id));
   const bits = d ? modelBits(d.agent.model, d.agent.model_settings) : [];
   return (
     <section className="loki-phone-hero" aria-label={`${name}'s profile`}>

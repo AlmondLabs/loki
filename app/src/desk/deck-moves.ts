@@ -5,6 +5,7 @@ import { idOf, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
 import { newId } from "../shared/new-id";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 export type PickerKind = "handoff" | "later" | "label";
 
@@ -266,7 +267,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   const archive = () => {
     const item = host.selected();
     if (!item || replyOf(item).busy) return;
-    if (!item.outside && item.id === "default") return host.say("Main chats stay");
+    if (!item.outside && isMainChat(item.id)) return host.say("Main chats stay");
     if (item.outside && !OUTSIDE_ENDS[item.outside.provider].archive) return host.say("A Jira card ends with read");
     if (hasReply(item)) return void sendThen(item, "archive");
     const at = decide(item, "archive");

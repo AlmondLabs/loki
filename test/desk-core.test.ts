@@ -3,11 +3,16 @@ import {
   applyGesture,
   applyMeasure,
   arrangeLayout,
+  backendName,
   clearOverlay,
+  conversationDirName,
   emptyDesk,
   ensureLayout,
   findFreeSpot,
   forgetWidget,
+  isMainChat,
+  MAIN_CHAT_ID,
+  mainChatAgent,
   mergeData,
   occupiedRects,
   reveal,
@@ -132,6 +137,18 @@ describe("desk-core reducer", () => {
     expect(scopeFor("default", "agent-local-1")).toBe("default-agent-local-1");
     expect(scopeFor("default", "agent-local-2")).not.toBe(scopeFor("default", "agent-local-1"));
     expect(scopeFor("default")).toBe("default");
+  });
+
+  test('the main chat has one name: stored as "default", its scope leads back to its agent, its folder is keyed by agent', () => {
+    expect(MAIN_CHAT_ID).toBe("default");
+    expect(isMainChat(MAIN_CHAT_ID)).toBe(true);
+    expect(isMainChat("conv-1")).toBe(false);
+    expect(isMainChat(null)).toBe(false);
+    expect(mainChatAgent(scopeFor(MAIN_CHAT_ID, "a1"))).toBe("a1");
+    expect(mainChatAgent("conv-1")).toBeNull();
+    expect(mainChatAgent("shared")).toBeNull();
+    expect(conversationDirName(MAIN_CHAT_ID, "a1")).toBe(backendName("default:a1"));
+    expect(conversationDirName("conv-1", "a1")).toBe(backendName("conversation:conv-1"));
   });
 });
 

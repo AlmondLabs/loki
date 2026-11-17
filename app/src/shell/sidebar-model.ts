@@ -1,6 +1,7 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
 import { labelQuery } from "../../../core/labels.ts";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
 
@@ -27,8 +28,8 @@ export function deskMark(
   return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };
 }
 
-export const canArchive = (d: DeskSummary): boolean => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
-export const canRename = (d: DeskSummary): boolean => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
+export const canArchive = (d: DeskSummary): boolean => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
+export const canRename = (d: DeskSummary): boolean => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
 
 export const DESK_NAME_MAX = 80;
 
@@ -109,7 +110,7 @@ export function sidebarModel(
   const row = (d: DeskSummary): SidebarRow => ({
     desk: d,
     ...deskRowState(itemOf.get(`${d.agent_id}/${d.conversation_id}`), d),
-    main: d.conversation_id === "default",
+    main: isMainChat(d.conversation_id),
     current: d.scope === opts.current,
   });
 
@@ -130,7 +131,7 @@ export function sidebarModel(
     ([a, listA], [b, listB]) => (latest.get(b) ?? "").localeCompare(latest.get(a) ?? "") || agentName(listA[0]).localeCompare(agentName(listB[0])),
   );
   for (const [k, desksOfAgent] of order) {
-    const list = desksOfAgent.sort((a, b) => Number(b.conversation_id === "default") - Number(a.conversation_id === "default") || byRecent(a, b));
+    const list = desksOfAgent.sort((a, b) => Number(isMainChat(b.conversation_id)) - Number(isMainChat(a.conversation_id)) || byRecent(a, b));
     sections.push(section(`agent:${k}`, agentName(list[0]), k || null, list.map(row)));
   }
   const archived = desks.filter((d) => isArchived(d.status) && matches(d)).map(row);
@@ -282,7 +283,7 @@ export function moveTargets(
   d: Pick<DeskSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
   macs: { me: MacIdentity; peers: Array<MacIdentity & { reachable: boolean }> } | null,
 ): MoveTarget[] {
-  if (!macs?.peers.length || !d.agent_id || !d.conversation_id || d.conversation_id === "default" || d.reachable === false) return [];
+  if (!macs?.peers.length || !d.agent_id || !d.conversation_id || isMainChat(d.conversation_id) || d.reachable === false) return [];
   const all = [
     { mac_id: macs.me.mac_id, name: macs.me.name, reachable: true },
     ...macs.peers.map((p) => ({ mac_id: p.mac_id, name: p.name, reachable: p.reachable })),

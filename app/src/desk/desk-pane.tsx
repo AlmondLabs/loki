@@ -40,6 +40,7 @@ import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
 import { chatItem } from "../item/item-view";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "messages", label: "Messages" },
@@ -157,8 +158,8 @@ export function DeskPane(props: DeskPaneProps) {
           {
             label: "Archive",
             icon: <ArchiveIcon aria-hidden />,
-            title: item.id === "default" ? "A main chat cannot be archived" : "Archive",
-            disabled: item.id === "default",
+            title: isMainChat(item.id) ? "A main chat cannot be archived" : "Archive",
+            disabled: isMainChat(item.id),
             run: () => void catchUp.archive(item, "click"),
           },
         ]}

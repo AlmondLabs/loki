@@ -47,7 +47,7 @@ import { nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./sess
 import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
-import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, isMainChat, scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
@@ -488,7 +488,7 @@ function ConversationPage({
           : null
       }
       archive={
-        thread.conversationId !== "default" && convDesk?.status !== "deleted"
+        !isMainChat(thread.conversationId) && convDesk?.status !== "deleted"
           ? {
               archived: convDesk?.status === "archived",
               onArchive: onArchive

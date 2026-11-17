@@ -1,6 +1,6 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { isMainChat, scopeFor } from "../../../core/desk-core.ts";
 
 import {
   GROUP_MAX,
@@ -119,7 +119,7 @@ export const recentPlaces = createRecents({ key: PLACES_KEY, max: 8 });
 type OpenableDesk = DeskSummary & { agent_id: string; conversation_id: string };
 const openable = (d: DeskSummary): d is OpenableDesk => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
-const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversation_id === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
+const deskTitle = (d: DeskSummary): string => d.title ?? (isMainChat(d.conversation_id) ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
 
 const agentNamer = (src: SearchSources) => {
   const names = new Map(src.agents.map((a) => [a.id, a.name]));

@@ -13,6 +13,7 @@ import { Button, Chip, Field, IconButton, Meta, Row, Sheet, sentence } from "../
 import { Icon } from "../shared/icons";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
 import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 export interface SuggestionSource {
   conversation: (agentId: string, conversationId: string) => Pick<ChatFace, "suggestions" | "cwd">;
@@ -50,7 +51,7 @@ const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?
 
 function chatTitle(c: Pick<ConversationInfo, "id" | "title">, agentName: string): string {
   if (c.title) return c.title;
-  return c.id === "default" ? `${agentName}'s main chat` : "untitled chat";
+  return isMainChat(c.id) ? `${agentName}'s main chat` : "untitled chat";
 }
 
 export interface TargetView {

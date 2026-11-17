@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
-import { scopeFor } from "../core/desk-core.ts";
+import { MAIN_CHAT_ID, mainChatAgent, scopeFor, SHARED_SCOPE } from "../core/desk-core.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
 import type { ReasoningEffort } from "../core/models.ts";
@@ -53,9 +53,10 @@ export class DeskRegistry {
   get(scope: Scope): Runtime | undefined {
     const known = this.byScope.get(scope);
     if (known) return known;
-    if (scope === "shared") return undefined;
+    if (scope === SHARED_SCOPE) return undefined;
     let rt: Runtime | null = null;
-    if (scope.startsWith("default-")) rt = { agent_id: scope.slice("default-".length), conversation_id: "default" };
+    const mainAgent = mainChatAgent(scope);
+    if (mainAgent !== null) rt = { agent_id: mainAgent, conversation_id: MAIN_CHAT_ID };
     else {
       const agent = this.agentOf(scope);
       if (agent) rt = { agent_id: agent, conversation_id: scope };

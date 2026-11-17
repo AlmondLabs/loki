@@ -9,6 +9,7 @@ import { chipText } from "../chat/suggestion-card";
 import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
 import { chatItem } from "../item/item-view";
+import { isMainChat } from "../../../core/desk-core.ts";
 
 export const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
   approval: { label: "needs approval", color: "var(--loki-attention)" },
@@ -150,7 +151,7 @@ export function ChatItemHeader({
   moves: ChatMoves;
 }) {
   const view = chatItem({ item: current, live: null, turns: [] }).header;
-  const main = current.id === "default";
+  const main = isMainChat(current.id);
   const off = moves.off ?? false;
   const open = () => (moves.onOpenDesk(current.agent_id, current.id), moves.onClose());
   const { approve } = moves;
