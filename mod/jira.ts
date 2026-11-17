@@ -46,6 +46,8 @@ const SEARCH_PAGE = 50;
 const EVENT_PAGE = 50;
 /** The fields a search asks for by name: Jira returns only the id otherwise. */
 const SEARCH_FIELDS = "summary,updated,assignee";
+const META_PAGE = 50;
+const MAX_META_PAGES = 20;
 const ISSUE_FIELDS = "summary,issuetype,project,status,assignee,reporter,priority,labels,description,created";
 /** The name a Jira site gives its sprint field, whose id differs from site to site. */
 const SPRINT_NAME = "Sprint";
@@ -64,14 +66,53 @@ export class JiraError extends Error {
   readonly code: string;
   readonly status: number;
   readonly retryAfterMs: number | null;
+  readonly fields: Readonly<Record<string, string>>;
 
-  constructor(message: string, code: string, status: number, retryAfterMs: number | null = null) {
+  constructor(message: string, code: string, status: number, retryAfterMs: number | null = null, fields: Readonly<Record<string, string>> = {}) {
     super(message);
     this.name = "JiraError";
     this.code = code;
     this.status = status;
     this.retryAfterMs = retryAfterMs;
+    this.fields = fields;
   }
+}
+
+export interface JiraIssueType {
+  id: string;
+  name: string;
+  subtask: boolean;
+}
+
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+  types: JiraIssueType[];
+}
+
+export interface JiraPriority {
+  id: string;
+  name: string;
+}
+
+export interface JiraCreateField {
+  id: string;
+  name: string;
+  required: boolean;
+  has_default: boolean;
+}
+
+export interface JiraNewIssue {
+  project: string;
+  type_id: string;
+  title: string;
+  description: string;
+  mentions?: ReadonlyArray<{ display: string; id: string | null }>;
+  assignee?: string | null;
+  priority_id?: string | null;
+  labels?: readonly string[];
+  parent?: string | null;
 }
 
 export interface JiraClientOptions {
@@ -436,6 +477,69 @@ export class JiraClient {
     }
   }
 
+  async projects(): Promise<JiraProject[]> {
+    const out: JiraProject[] = [];
+    for (let startAt = 0, page = 0; page < MAX_META_PAGES; page++) {
+      const r = await this.call("GET", "/rest/api/3/project/search", {
+        action: "create",
+        expand: "issueTypes",
+        startAt: String(startAt),
+        maxResults: String(META_PAGE),
+      });
+      const values = list(r.values).map(rec);
+      for (const p of values)
+        out.push({
+          id: str(p.id),
+          key: str(p.key),
+          name: str(p.name),
+          types: list(p.issueTypes)
+            .map(rec)
+            .map((t) => ({ id: str(t.id), name: str(t.name), subtask: t.subtask === true })),
+        });
+      startAt += values.length;
+      if (r.isLast === true || values.length === 0) break;
+    }
+    return out;
+  }
+
+  async priorities(): Promise<JiraPriority[]> {
+    const r = await this.request("GET", "/rest/api/3/priority");
+    return list(r)
+      .map(rec)
+      .map((p) => ({ id: str(p.id), name: str(p.name) }))
+      .filter((p) => p.id && p.name);
+  }
+
+  async formFields(project: string, typeId: string): Promise<JiraCreateField[]> {
+    const out: JiraCreateField[] = [];
+    const path = `/rest/api/3/issue/createmeta/${encodeURIComponent(project)}/issuetypes/${encodeURIComponent(typeId)}`;
+    for (let startAt = 0, page = 0; page < MAX_META_PAGES; page++) {
+      const r = await this.call("GET", path, { startAt: String(startAt), maxResults: String(META_PAGE) });
+      const values = list(r.fields ?? r.values).map(rec);
+      for (const f of values)
+        out.push({ id: str(f.fieldId) || str(f.key), name: str(f.name), required: f.required === true, has_default: f.hasDefaultValue === true });
+      startAt += values.length;
+      const total = num(r.total);
+      if (values.length === 0 || r.isLast === true || (total > 0 && startAt >= total)) break;
+    }
+    return out;
+  }
+
+  async createIssue(issue: JiraNewIssue): Promise<{ id: string; key: string }> {
+    const fields: Record<string, unknown> = {
+      project: { key: issue.project },
+      issuetype: { id: issue.type_id },
+      summary: issue.title,
+      ...(issue.description.trim() ? { description: textToAdf(issue.description, issue.mentions ?? []) } : {}),
+      ...(issue.assignee ? { assignee: { accountId: issue.assignee } } : {}),
+      ...(issue.priority_id ? { priority: { id: issue.priority_id } } : {}),
+      ...(issue.labels?.length ? { labels: [...issue.labels] } : {}),
+      ...(issue.parent ? { parent: { key: issue.parent } } : {}),
+    };
+    const r = await this.call("POST", "/rest/api/3/issue", undefined, { fields });
+    return { id: str(r.id), key: str(r.key) };
+  }
+
   async postComment(ticket: string, text: string, mentions: ReadonlyArray<{ display: string; id: string | null }> = []): Promise<{ id: string }> {
     const r = await this.call("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, undefined, { body: textToAdf(text, mentions) });
     return { id: str(r.id) };
@@ -533,9 +637,10 @@ export class JiraClient {
     if (res.status === 401 || (res.headers.get(LOGIN_REASON_HEADER) ?? "").includes(LOGIN_FAILED)) return this.rejected(`answered ${res.status}`, res.status);
     const answer: unknown = await res.json().catch(() => ({}));
     if (res.ok) return answer;
-    const said = str(list(rec(answer).errorMessages)[0]) || `Jira answered ${res.status}`;
+    const fields = Object.fromEntries(Object.entries(rec(rec(answer).errors)).filter((e): e is [string, string] => typeof e[1] === "string"));
+    const said = str(list(rec(answer).errorMessages)[0]) || Object.values(fields)[0] || `Jira answered ${res.status}`;
     // Jira hides a ticket the person may not see behind "not found": that says nothing about the account.
-    throw new JiraError(said, res.status === 404 ? "not_found" : `http_${res.status}`, res.status);
+    throw new JiraError(said, res.status === 404 ? "not_found" : `http_${res.status}`, res.status, null, fields);
   }
 
   private rejected(why: string, status: number): never {
