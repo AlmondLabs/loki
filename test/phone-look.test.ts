@@ -165,6 +165,10 @@ describe("the phone's glass (U1)", () => {
     }
   });
 
+  test("covers U4: the jump-to-latest chip sits above the floating dock, where it can be seen and tapped", () => {
+    expect(ruleOf(".loki-phone-convo-body .loki-latest-chip")).toMatch(/bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-3\)\) !important;/);
+  });
+
   test("the old navigation material is gone from the app", () => {
     const files = (dir: string): string[] =>
       readdirSync(dir).flatMap((name) => {

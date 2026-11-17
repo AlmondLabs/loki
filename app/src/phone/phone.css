@@ -1868,6 +1868,9 @@ span.loki-phone-section-btn {
   scroll-padding-top: var(--phone-top-clearance);
   scroll-padding-bottom: var(--loki-dock-height);
 }
+.loki-phone-convo-body .loki-latest-chip {
+  bottom: calc(var(--loki-dock-height) + var(--phone-space-3)) !important;
+}
 .loki-phone .loki-dock [data-slot="input-group"] {
   border-color: transparent;
   background: var(--loki-glass-strong);
