@@ -34,8 +34,8 @@ export function Archive({
         left={<BackButton onClick={onBack} label={backLabel} />}
         title="Archived chats"
         sub={all.length ? <span>{all.length === 1 ? "1 chat" : `${all.length} chats`}</span> : undefined}
+        banner={banner}
       />
-      {banner}
       <Scroll memory="archive" flush>
         {all.length > 0 && (
           <div className="loki-phone-filter">

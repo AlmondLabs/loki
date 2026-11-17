@@ -489,7 +489,7 @@ describe("phone tokens: one system under the phone root", () => {
     if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
     return hit;
   };
-  const DESKTOP_ONLY = /^(glass|monogram|on-monogram|segment)/;
+  const DESKTOP_ONLY = /^(monogram|on-monogram|segment)/;
   const desktopColours = [...themeBlock("dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
     .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t) && !DESKTOP_ONLY.test(t));

@@ -514,6 +514,7 @@ export function Inbox({
             : undefined
         }
         right={undo ? <UndoButton key={idOf(undo.item)} via={undo.via} onUndo={undoLast} /> : undefined}
+        banner={current ? undefined : banner}
       />
       <div className="loki-phone-sr-only" role="status" aria-live="polite">
         {said}
@@ -657,7 +658,6 @@ function EmptyDeck({
   const done = loaded && !macProblem;
   return (
     <>
-      {banner}
       <div className="loki-phone-scroll loki-phone-scroll--flush">
         <div className="loki-phone-empty" role="status" data-done={done || undefined}>
           <Icon name={macProblem ? "laptop" : "check"} size={32} className="loki-phone-empty-mark" />

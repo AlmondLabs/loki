@@ -34,8 +34,7 @@ export function More({
   const sections = moreSections({ link, agents, running, due, archived, appearance, update });
   return (
     <div className="loki-phone-page">
-      <TopBar title="More" />
-      {banner}
+      <TopBar title="More" banner={banner} />
       <Scroll memory="more" flush>
         <section className="loki-phone-me" aria-label="This phone">
           <span className="loki-phone-avatar">

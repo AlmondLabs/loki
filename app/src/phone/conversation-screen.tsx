@@ -28,6 +28,7 @@ import { threadLine } from "./model";
 import { navigate, openConversation } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "../shared/drafts";
+import { useTopClearance } from "./ui";
 
 const noop = () => {};
 
@@ -159,12 +160,14 @@ export function ConversationScreen({
         backLabel={backLabel}
         onBack={onBack}
         onActions={() => setActionsOpen(true)}
+        links={
+          view.links?.length ? (
+            <div className="loki-phone-links">
+              <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
+            </div>
+          ) : null
+        }
       />
-      {view.links?.length ? (
-        <div className="loki-phone-links">
-          <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
-        </div>
-      ) : null}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
           <ScreenThread
@@ -310,6 +313,7 @@ function ThreadHeader({
   backLabel,
   onBack,
   onActions,
+  links,
 }: {
   thread: Thread;
   view: ThreadView;
@@ -318,33 +322,38 @@ function ThreadHeader({
   backLabel: string;
   onBack: () => void;
   onActions: () => void;
+  links?: ReactNode;
 }) {
+  const top = useTopClearance<HTMLElement>();
   const name = thread.agentName ?? "agent";
   const line = threadLine({ status: view.status, approval: view.pending, question: view.question, waiting, desk: thread.title });
   const working = view.status !== "idle";
   return (
-    <header className="loki-phone-convo-head">
-      <button type="button" className="loki-phone-circle" onClick={onBack} aria-label={`Back to ${backLabel}`}>
-        <Icon name="back" size={22} />
-      </button>
-      <h1 className="loki-phone-convo-heading" data-phone-heading tabIndex={-1}>
-        <button
-          type="button"
-          className="loki-phone-convo-who"
-          onClick={() => navigate({ kind: "agent", agentId: thread.agentId })}
-          aria-label={`${name}${line ? `, ${line}` : ""}. Open profile`}
-        >
-          <Avatar name={thread.agentName} src={avatarUrl(thread.agentId)} size={32} presence={working} />
-          <span className="loki-phone-convo-copy">
-            <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>
-            {line && <span className="loki-phone-convo-line loki-phone-ellipsis">{line}</span>}
-            {purpose && <span className="loki-phone-convo-line loki-phone-ellipsis">{purpose}</span>}
-          </span>
+    <header ref={top} className="loki-phone-topbar loki-phone-convo-head">
+      <div className="loki-phone-convo-row">
+        <button type="button" className="loki-phone-circle" onClick={onBack} aria-label={`Back to ${backLabel}`}>
+          <Icon name="back" size={22} />
         </button>
-      </h1>
-      <button type="button" className="loki-phone-circle" onClick={onActions} aria-label="Conversation actions" aria-haspopup="dialog">
-        <Icon name="more" size={22} />
-      </button>
+        <h1 className="loki-phone-convo-heading" data-phone-heading tabIndex={-1}>
+          <button
+            type="button"
+            className="loki-phone-convo-who"
+            onClick={() => navigate({ kind: "agent", agentId: thread.agentId })}
+            aria-label={`${name}${line ? `, ${line}` : ""}. Open profile`}
+          >
+            <Avatar name={thread.agentName} src={avatarUrl(thread.agentId)} size={32} presence={working} />
+            <span className="loki-phone-convo-copy">
+              <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>
+              {line && <span className="loki-phone-convo-line loki-phone-ellipsis">{line}</span>}
+              {purpose && <span className="loki-phone-convo-line loki-phone-ellipsis">{purpose}</span>}
+            </span>
+          </button>
+        </h1>
+        <button type="button" className="loki-phone-circle" onClick={onActions} aria-label="Conversation actions" aria-haspopup="dialog">
+          <Icon name="more" size={22} />
+        </button>
+      </div>
+      {links}
     </header>
   );
 }

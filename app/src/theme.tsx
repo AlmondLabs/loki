@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { inTauri, platform, type Platform } from "./desk/env";
+import { inLan, inTauri, platform, type Platform } from "./desk/env";
 
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
@@ -46,7 +46,7 @@ function applyTheme(preference: ThemePreference): void {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.dataset.themePreference = preference;
-  if (GLASS_ON[platform] === "solid") root.dataset.glass = "solid";
+  if (GLASS_ON[platform] === "solid" && !inLan) root.dataset.glass = "solid";
   if (VIBRANT) root.dataset.vibrant = "on";
   root.style.colorScheme = theme;
   requestAnimationFrame(() => {

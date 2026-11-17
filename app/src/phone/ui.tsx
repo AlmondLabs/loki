@@ -1,14 +1,25 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useRef, type CSSProperties, type ReactNode } from "react";
 import { useFlip } from "../kit/use-flip";
 import { Button, Sheet } from "../components";
 import { Icon } from "./icons";
+import { useHeightVar } from "../shared/use-height-var";
 import { useScrollMemory } from "./session";
+
+export function useTopClearance<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useHeightVar(
+    useCallback(() => ref.current, []),
+    "--phone-top-clearance",
+  );
+  return ref;
+}
 
 export function TopBar({
   left,
   title,
   sub,
   right,
+  banner,
   progress = null,
   height = 48,
 }: {
@@ -16,21 +27,24 @@ export function TopBar({
   title: ReactNode;
   sub?: ReactNode;
   right?: ReactNode;
+  banner?: ReactNode;
   progress?: number | null;
   height?: number;
 }) {
+  const ref = useTopClearance<HTMLElement>();
   return (
-    <header className={progress === null ? "loki-phone-topbar" : "loki-phone-topbar loki-phone-topbar--progress"}>
+    <header ref={ref} className="loki-phone-topbar">
       <div className="loki-phone-topbar-row" style={{ minHeight: height }}>
-        {left}
+        {left && <div className="loki-phone-topbar-group">{left}</div>}
         <div className="loki-phone-topbar-copy">
           <h1 className="loki-phone-title loki-phone-topbar-title" data-phone-heading tabIndex={-1}>
             {title}
           </h1>
           {sub && <div className="loki-phone-topbar-sub">{sub}</div>}
         </div>
-        {right && <div className="loki-phone-topbar-actions">{right}</div>}
+        {right && <div className="loki-phone-topbar-group loki-phone-topbar-actions">{right}</div>}
       </div>
+      {banner}
       {progress !== null && (
         <div aria-hidden className="loki-phone-progress">
           <div className="loki-phone-progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progress)).toFixed(3)})` }} />

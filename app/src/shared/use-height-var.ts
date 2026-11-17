@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
 
-export type HeightVar = "--loki-header-height" | "--loki-dock-height";
+export type HeightVar = "--loki-header-height" | "--loki-dock-height" | "--phone-top-clearance";
 
 export function useHeightVar(get: () => HTMLElement | null, name: HeightVar): void {
   useLayoutEffect(() => {

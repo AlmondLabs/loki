@@ -78,8 +78,7 @@ export function AgentPage({
 
   return (
     <div className="loki-phone-page">
-      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title={title} />
-      {banner}
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title={title} banner={banner} />
       <Scroll memory={`agent:${agentId}`} flush>
         <Hero agentId={agentId} name={title} details={d} desks={desks} running={running} />
         <Conversations agentId={agentId} desks={desks} items={items} />
@@ -301,8 +300,7 @@ export function FilePage({
   const dir = path.slice(0, Math.max(0, path.length - file.length - 1));
   return (
     <div className="loki-phone-page">
-      <TopBar left={<BackButton onClick={onBack} label={agentName} />} title={file} sub={dir ? <span>{dir}/</span> : undefined} />
-      {banner}
+      <TopBar left={<BackButton onClick={onBack} label={agentName} />} title={file} sub={dir ? <span>{dir}/</span> : undefined} banner={banner} />
       <Scroll>
         <div className="loki-phone-file">
           {content === undefined && <p className="loki-phone-meta">Reading…</p>}
