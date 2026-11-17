@@ -10,6 +10,20 @@ import { accountFor, rec, textArg, type GoogleToolDef } from "./core.ts";
 /** Gmail's methods that send: a message's, a draft's, and any draft by its id. */
 const GMAIL_SEND = /\/(messages|drafts)(\/[^/]+)?\/send\/?$/i;
 
+/**
+ * Whether a Gmail path names a send method once parsed as fetch will parse it (plan 2026-11-14-1530, KTD15): the
+ * resolved path is tested, and a path that resolves off Gmail's own host or cannot be parsed counts as one.
+ */
+function sendsMail(origin: string, path: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(`${origin}${path}`);
+  } catch {
+    return true;
+  }
+  return url.origin !== origin || GMAIL_SEND.test(url.pathname) || GMAIL_SEND.test(path.split(/[?#]/)[0] ?? "");
+}
+
 /** Each service's API host, and the paths on it that are that service's. */
 const HOSTS: Record<GoogleService, { origin: string; paths: RegExp }> = {
   gmail: { origin: "https://gmail.googleapis.com", paths: /^\/gmail\/v1\// },
@@ -50,9 +64,11 @@ const api: GoogleToolDef = {
     // Encoded dots and backslashes are refused too: URL parsing would turn them into a step out of the service's path.
     if (!path.startsWith("/") || path.includes("://") || /%2e|%5c|\\/i.test(path) || path.split(/[/?#]/).includes("..") || !host.paths.test(path))
       throw new Error(`${path} is not a path of the ${service} API: start it as ${String(host.paths).slice(2, -2).replace(/\\\//g, "/")}`);
-    // No script path sends mail (plan 2026-11-14-1530, KTD15): Gmail's send and draft-send methods are refused here,
-    // as is any encoded slash that could spell them, so an agent's mail goes only through a card's Send.
-    if (service === "gmail" && (/%2f/i.test(path) || GMAIL_SEND.test(path.split(/[?#]/)[0] ?? "")))
+    // No script path sends mail (plan 2026-11-14-1530, KTD15): Gmail's send and draft-send methods are refused here.
+    // The path is judged as the request will reach Google, after the URL parser has dropped tabs and newlines and
+    // folded `.` segments, and a Gmail path may hold no whitespace, control character or percent escape at all, so
+    // no spelling of `send` slips past the check and is sent anyway.
+    if (service === "gmail" && (/[\x00-\x20\x7f%]/.test(path) || sendsMail(host.origin, path)))
       throw new Error("scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose");
     const query = Object.fromEntries(Object.entries(rec(call.args.query)).filter((e): e is [string, string] => typeof e[1] === "string"));
     accountFor(call.deps, call.ctx, call.account.address, service);

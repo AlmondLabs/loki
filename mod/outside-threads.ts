@@ -518,12 +518,15 @@ export class OutsideThreads {
         try {
           // What an agent's notice names as the thread to answer later, as Flow keys threads: the thread it went in, a
           // DM by its channel, or the new thread a top-level post in a channel starts.
+          // A new DM, group DMs included, is keyed by its channel whatever id Slack gives it; a post with files gives no
+          // ts back, so a top-level one in a channel names no thread rather than the whole channel.
+          const dm = target?.kind === "dm" || channel.startsWith("D");
           if (files.length) {
             await sender.client.postWithFiles({ ...where, files });
-            created = ts ? `${channel}:${ts}` : channel;
+            created = ts ? `${channel}:${ts}` : dm ? channel : null;
           } else {
             const posted = await sender.client.postReply(where);
-            created = ts ? `${channel}:${ts}` : channel.startsWith("D") || !posted.ts ? channel : `${channel}:${posted.ts}`;
+            created = ts ? `${channel}:${ts}` : dm || !posted.ts ? channel : `${channel}:${posted.ts}`;
           }
         } catch (err) {
           if (agent) throw unclearPost(err, "Slack");
@@ -587,14 +590,7 @@ export class OutsideThreads {
     if (!mail) throw new Error("a new email needs the people its card showed");
     const sendAs = await client.sendAs();
     const from = sendAs.find((s) => s.isDefault) ?? sendAs.at(0);
-    const on = new Set([...mail.to, ...mail.cc].flatMap((p) => bareAddresses([p])));
-    const added: string[] = [];
-    for (const m of mentions) {
-      const address = m.address?.toLowerCase();
-      if (!address || on.has(address)) continue;
-      on.add(address);
-      added.push(fromHeader(m.address ?? address, m.display));
-    }
+    const added = mentionCc([...mail.to, ...mail.cc], mentions);
     if (mail.to.length + mail.cc.length + added.length === 0) throw new Error("a new email needs someone to send it to");
     const out = mailBody({ text: body, signature: from?.signature || null, quoted: null, forward: false, ...(this.opts.zone ? { zone: this.opts.zone } : {}) });
     const sent = await client.sendReply({
@@ -650,14 +646,7 @@ export class OutsideThreads {
     const people = mail ?? replyAllOf(newest, own);
     // A mention adds its person to cc after the people check, so mentioning someone is never a change of the thread's
     // people (plan 2026-11-14-1530, KTD5); one already on the thread is not added twice.
-    const on = new Set([...people.to, ...people.cc, ...(mail?.bcc ?? [])].flatMap((p) => bareAddresses([p])));
-    const added: string[] = [];
-    for (const m of mentions) {
-      const address = m.address?.toLowerCase();
-      if (!address || on.has(address)) continue;
-      on.add(address);
-      added.push(fromHeader(m.address ?? address, m.display));
-    }
+    const added = mentionCc([...people.to, ...people.cc, ...(mail?.bcc ?? [])], mentions);
     const { to } = people;
     const cc = [...people.cc, ...added];
     const bcc = mail?.bcc ?? [];
@@ -729,6 +718,22 @@ function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
   // fetch throws a TypeError when the connection fails, which may be after the request reached the service.
   if (err instanceof TypeError) return new Error(`the connection to ${service} was lost: ${MAY_HAVE_GONE}`);
   return err instanceof Error ? err : new Error(messageOf(err));
+}
+
+/**
+ * The people a mail's mentions add to cc (plan 2026-11-14-1530, KTD5): each mention's address not already among
+ * `already` (the mail's To, Cc and Bcc), once each, as "Full Name <address>".
+ */
+function mentionCc(already: readonly string[], mentions: readonly ReplyMention[]): string[] {
+  const on = new Set(already.flatMap((p) => bareAddresses([p])));
+  const added: string[] = [];
+  for (const m of mentions) {
+    const address = m.address?.toLowerCase();
+    if (!address || on.has(address)) continue;
+    on.add(address);
+    added.push(fromHeader(m.address ?? address, m.display));
+  }
+  return added;
 }
 
 /** Why an agent's Gmail reply did not go when its thread's people changed, in the person's words. */

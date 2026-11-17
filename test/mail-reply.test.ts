@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -471,6 +472,34 @@ describe("undo send", () => {
     third.t.resume();
     await settle();
     expect([again.pending(), third.sent]).toEqual([[], []]);
+  });
+
+  test("entries sealed before new conversations, by the formula of their day, still verify and go after a restart (plan 2026-11-14-1530, KTD10)", async () => {
+    const file = join(scratch(), "outbox.json");
+    // The seal as each earlier loki wrote it: the base fields alone, then the thread, files and proposal, then mentions.
+    const seal = (fields: unknown[]) => createHmac("sha256", "the daemon's key").update(JSON.stringify(fields)).digest("hex");
+    const at = "2026-11-08T00:00:00.000Z";
+    const base = (id: string) => ({ outbox_id: id, account_id: MAIL, thread_id: "t1", text: "ok", then: "stay", mail: null, send_at: at });
+    const plain = base("o1-abcdefgh");
+    const proposal = { ...base("o2-abcdefgh"), proposal: { agent_id: "agent-local-a", conversation_id: "c1", proposal_id: "p1" } };
+    const mentions = [{ display: "Ana Ruiz", id: null, address: "ana@example.com" }];
+    const mentioned = { ...base("o3-abcdefgh"), mentions };
+    const fieldsOf = (h: ReturnType<typeof base>) => [h.outbox_id, h.account_id, h.thread_id, h.text, h.then, h.mail, h.send_at];
+    writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        held: [
+          { ...plain, seal: seal(fieldsOf(plain)) },
+          { ...proposal, seal: seal([...fieldsOf(proposal), null, null, proposal.proposal]) },
+          { ...mentioned, seal: seal([...fieldsOf(mentioned), null, null, null, mentions]) },
+        ],
+      }),
+    );
+    const tm = timers();
+    mail({ outbox: file, now: () => new Date(at), after: tm.after }).t.resume();
+    await settle();
+    expect(tm.pending()).toEqual([0, 0, 0]);
   });
 
   test("without a keychain a held reply still goes after its wait, and nothing is sent after a restart", async () => {

@@ -18,6 +18,7 @@ import { causeWords } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 import { bareAddresses, slackPlace } from "./reply-addressing.ts";
+import { MAX_DM_PEOPLE } from "./slack.ts";
 import type { People } from "./people.ts";
 import type { HeldProposal, HeldReply, HeldTarget } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
@@ -28,13 +29,15 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
  * Reply proposals (plan 067, U10, KTD9; plan 071; plan 2026-11-14-1134): a reply the owning agent writes in a thread of
  * its own account reaches the person as a card, in every permission mode, and only their Send sends it: held 10
  * seconds with Undo in the outbox the person's own replies use (mod/outside-threads.ts, KTD1), then sent in that same
- * thread as the person. The agent has no way to send (R14). It names the thread, the text and files from its chat's
+ * thread as the person. The agent has no way to send (R14). A reply names the thread, the text and files from its chat's
  * folder, never who it goes to: a Gmail reply goes to all of the newest message's people but the person, exactly as
  * the card showed them (a change stops it, KTD4), a Slack reply into the same conversation and thread, a Jira comment
  * onto the ticket. Beyond them, only the people it mentions are told, each resolved in the account and named on the
  * card (plan 2026-11-14-1530): Slack and Jira notify them, and Gmail adds them to cc. So a stranger's mail that asks the
  * agent to send something elsewhere yields at most a reply in a thread of the account, to its own people and anyone the
- * card names as mentioned, which the person reads before their Send.
+ * card names as mentioned, which the person reads before their Send. A new email or Slack DM (`message_propose`, plan
+ * 2026-11-14-1530, U8) does name its people, each resolved to one person in the account and shown on the card, and it
+ * goes, as a new thread or DM, only on the person's Send too.
  *
  * Each chat's proposals live in `state/reply-proposals.json`, beside the notices its agent has yet to read. A proposal
  * moves from pending to sending, and from there to sent, or back to pending on Undo or a send that did not go; or from
@@ -177,8 +180,17 @@ function settledWords(p: ReplyProposal): string {
 }
 
 /** What the agent is told when its reply goes because the account moved to another agent (U10, step 7). */
-const movedNotice = (p: ReplyProposal): string =>
-  `${p.account_label} moved to another agent, so your reply in thread ${p.thread_id} was withdrawn: nothing was sent.`;
+const movedNotice = (p: ReplyProposal): string => `${p.account_label} moved to another agent, so ${whatWords(p)} was withdrawn: nothing was sent.`;
+
+/**
+ * A proposal as a notice names it to the agent (plan 2026-11-14-1530): a reply by its thread, or a new email by its
+ * subject and a new DM by its people, which have no thread until they are sent.
+ */
+function whatWords(p: ReplyProposal): string {
+  if (p.kind === "email") return `your new email "${inert(p.subject)}"`;
+  if (p.kind === "dm") return `your new ${inert(p.place ?? "DM")}`;
+  return `your reply in thread ${p.thread_id}`;
+}
 /** What the person is told when they send a reply whose account moved since. */
 const MOVED = "that account moved to another agent: this reply was withdrawn";
 
@@ -280,8 +292,11 @@ function targetOf(p: ReplyProposal, account: AccountRecord, outboxId: string): H
   return undefined;
 }
 
-/** The most people one new Slack DM is opened with, as Slack's own limit is. */
-const MAX_DM_PEOPLE = 8;
+/**
+ * Whether why a send did not go leaves open that it reached the service anyway: a post that timed out or lost its
+ * connection, or a send loki stopped in the middle of. Anything else is a clear refusal, and nothing went.
+ */
+const mayHaveGone = (reason: string): boolean => reason.includes(MAY_HAVE_GONE) || reason.startsWith("loki stopped while sending it: look");
 
 /** A proposal with its files as given: the field left out when there are none, as a proposal without files is stored. */
 function withFiles(p: ReplyProposal, files: readonly ReplyAttachment[]): ReplyProposal {
@@ -431,6 +446,8 @@ export class ReplyProposals implements AgentReplyReports {
       if (wanted.length > MAX_DM_PEOPLE) throw new Error(`a DM is with ${String(MAX_DM_PEOPLE)} people at most`);
       const resolved = await Promise.all(wanted.map(resolve));
       const dm = resolved.filter((m, i) => resolved.findIndex((x) => x.id === m.id) === i);
+      // The account is `slack:<team>:<user>`: the person is in every DM of theirs already, and opening one with them alone fails.
+      if (dm.some((m) => m.id === account.account_id.split(":").at(2))) throw new Error("a DM is with other people: leave yourself out of `people`");
       proposal = { ...base, kind: "dm", people: dm, subject: "", to: [], cc: [], place: `a DM with ${andList(dm.map((m) => m.display))}` };
     }
     await this.locked(chat, () => {
@@ -539,7 +556,11 @@ export class ReplyProposals implements AgentReplyReports {
   decide(chat: ChatKey, id: string, action: ReplyAction, by: string, opts: ReplyDecideOptions = {}): Promise<ReplyDecided> {
     switch (action) {
       case "reject":
-        return this.settle(chat, id, "rejected", by, (p) => `The person rejected your reply in ${p.account_label}, thread ${p.thread_id}: nothing was sent.`);
+        return this.settle(chat, id, "rejected", by, (p) => {
+          // A new DM whose last send may have gone could be in Slack all the same (KTD10): the agent is told so.
+          const maybe = p.kind === "dm" && p.outbox_id ? " It may have reached Slack before: the person was asked to look." : "";
+          return `The person rejected ${whatWords(p)} in ${p.account_label}: nothing was sent.${maybe}`;
+        });
       case "undo":
         return this.undo(chat, id);
       case "approve":
@@ -583,7 +604,16 @@ export class ReplyProposals implements AgentReplyReports {
       if (p.status !== "sending" || p.outbox_id !== held.outbox_id) return null;
       // A comment that failed after its files went leaves them on the ticket, and the card says so (KTD8).
       const onTicket = p.provider === "jira" && p.attached?.length ? `; ${p.attached.join(", ")} already on the ticket` : "";
-      const next: ReplyProposal = { ...p, status: "pending", reason: `${note.reason}${onTicket}`, decided_by: null, decided_at: null };
+      const next: ReplyProposal = {
+        ...p,
+        status: "pending",
+        reason: `${note.reason}${onTicket}`,
+        decided_by: null,
+        decided_at: null,
+        // A new DM that clearly did not go (Slack refused it, or the DM could not be opened) may be sent again, so it
+        // forgets the send; one that may have gone keeps it, and its Send stays refused (KTD10).
+        ...(p.kind === "dm" && !mayHaveGone(note.reason) ? { outbox_id: null } : {}),
+      };
       log("replies:not-sent", { provider: p.provider, people: people !== null });
       return { next: people ? { ...next, to: people.to, cc: people.cc, people_added: people.added, people_removed: people.removed } : next, notice: null };
     });
@@ -863,9 +893,9 @@ function sentNotice(p: ReplyProposal): string {
 function proposalLine(p: ReplyProposal): string {
   const who = whoWords(p);
   const files = p.attachments?.length ? `with ${filesWords(p.attachments)}` : "";
-  const line = [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, files, p.status, p.reason && inert(p.reason)]
-    .filter(Boolean)
-    .join(" · ");
+  // A new conversation has no thread yet, and a new DM no subject: it is named by what it starts instead.
+  const what = p.kind === "email" ? `new email "${inert(p.subject)}"` : p.kind === "dm" ? "new DM" : `thread ${p.thread_id} · "${inert(p.subject)}"`;
+  const line = [p.id, p.account_label, what, who, files, p.status, p.reason && inert(p.reason)].filter(Boolean).join(" · ");
   return p.mentions?.length ? `${line}\nMentions: ${inert(p.mentions.map(mentionWords).join("; "))}` : line;
 }
 
@@ -896,7 +926,8 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person reviews it on a card, may edit " +
       "it or take its files off, and sends it from there as themselves; you cannot send it, and nothing goes before their " +
       "Send. It goes to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
-      "Slack: the same conversation and thread, or a new message in a conversation you are in), and to no one else but " +
+      "Slack: the same conversation and thread; a channel or DM id, or #channel, posts a new message at the top of it, and " +
+      "you then hear its `channel:ts` to answer in its thread), and to no one else but " +
       "the people in `mentions`. On a Jira site it is a comment on any ticket you can see, its files attached to the ticket. The thread " +
       "need not be in Flow. " +
       "You hear what became of it with the next message.",

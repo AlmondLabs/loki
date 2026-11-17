@@ -379,6 +379,17 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
       "/gmail/v1/users/me/drafts/r123/send",
       "/gmail/v1/users/me/messages/SEND?alt=json",
       "/gmail/v1/users/me/messages%2Fsend",
+      // As the URL parser reads them (review of plan 2026-11-14-1530): a tab or newline inside the word, an escaped
+      // letter, a trailing slash or dot segment.
+      "/gmail/v1/users/me/messages/se\tnd",
+      "/gmail/v1/users/me/messages/se\nnd",
+      "/gmail/v1/users/me/messages/%73end",
+      "/gmail/v1/users/me/drafts/%73end",
+      "/gmail/v1/users/me/messages/send/",
+      "/gmail/v1/users/me/messages/send/.",
+      "/gmail/v1/users/me/drafts/send/.",
+      "/gmail/v1/users/me/messages/x/./send",
+      "/gmail/v1/users/me/messages /send",
     ])
       expect((await f.call(WORK, "google_api", { service: "gmail", method: "POST", path, body: { raw: "x" } })).refused, path).toMatch(
         /^scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose/,

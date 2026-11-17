@@ -94,7 +94,7 @@ function mailOf(raw: string): { headers: Partial<Record<string, string>>; text: 
  */
 function fakeSlack() {
   const posted: Array<{ channel: string; thread_ts?: string; text: string; files: string[] }> = [];
-  const answers = { timesOut: false };
+  const answers = { timesOut: false, openFails: false };
   /** The Slack ids each post mentions, in order. */
   const mentioned: string[][] = [];
   /** The people of each DM opened, in order. */
@@ -102,7 +102,9 @@ function fakeSlack() {
   const client: SendSlack & ReplySlackReads = {
     openDm: (people) => {
       opened.push([...people]);
-      return Promise.resolve(`D-${people.join("-")}`);
+      if (answers.openFails) return Promise.reject(new Error("Slack would not open that DM: user_disabled"));
+      // Slack gives a group DM a C or G id, not a D one.
+      return Promise.resolve(people.length > 1 ? `G-${people.join("-")}` : `D-${people.join("-")}`);
     },
     postReply: (r) => {
       posted.push({ channel: r.channel, ...(r.thread_ts ? { thread_ts: r.thread_ts } : {}), text: r.text, files: [] });
@@ -263,12 +265,14 @@ async function fixture() {
   // or never answer, as one loki stopped in the middle of, and makes reading a thread fail.
   const requests: Array<{ method: string; path: string }> = [];
   const sentMail: Array<{ threadId: string; raw: string }> = [];
-  const gmailAnswers = { status: 200, hangs: false, threadReadFails: false };
+  const gmailAnswers = { status: 200, hangs: false, threadReadFails: false, lostBefore: false };
   const fetchFn = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const method = init?.method ?? "GET";
     const path = url.pathname.replace(/^\/(upload\/)?gmail\/v1\/users\/me/, "");
     requests.push({ method, path });
+    // A send loki stopped in the middle of before Gmail took it: nothing lands, and no answer comes.
+    if (method === "POST" && path === "/messages/send" && gmailAnswers.lostBefore) return new Promise<Response>(() => {});
     if (method === "POST" && path === "/messages/send") {
       const body = init?.body;
       let sent: { threadId: string; raw: string };
@@ -1292,8 +1296,9 @@ describe("new conversations (plan 2026-11-14-1530, U7, U8)", () => {
     f.tm.fire();
     await until(() => f.replies.list(f.chat).at(-1)?.status === "sent");
     expect(f.slack.opened).toEqual([["U5", "U9"]]);
-    expect(f.slack.posted.at(-1)).toMatchObject({ channel: "D-U5-U9", text: "Standup moved to 10." });
-    expect(f.replies.list(f.chat).at(-1)?.result).toBe("D-U5-U9");
+    expect(f.slack.posted.at(-1)).toMatchObject({ channel: "G-U5-U9", text: "Standup moved to 10." });
+    // A group DM is keyed by its channel, as a DM is, whatever id Slack gave it.
+    expect(f.replies.list(f.chat).at(-1)?.result).toBe("G-U5-U9");
   });
 
   test("a new DM whose post may have gone is never sent again from its card", async () => {
@@ -1306,6 +1311,56 @@ describe("new conversations (plan 2026-11-14-1530, U7, U8)", () => {
     const again = await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
     expect(again).toMatchObject({ done: false, message: "it may have gone: look in Slack, and reject this and ask again if it did not" });
     expect(f.slack.posted).toHaveLength(1);
+  });
+
+  test("a new DM that clearly did not go, the DM not opened, may be sent again from its card", async () => {
+    const f = await fixture();
+    await f.call("message_propose", { account: SLACK, people: ["Grace Lee"], text: "Hi." });
+    f.slack.answers.openFails = true;
+    await f.sendAndWait(f.only().id);
+    expect(f.only()).toMatchObject({ status: "pending", reason: "Slack would not open that DM: user_disabled", outbox_id: null });
+    f.slack.answers.openFails = false;
+    await f.sendAndWait(f.only().id);
+    expect(f.only().status).toBe("sent");
+    expect(f.slack.posted).toHaveLength(1);
+  });
+
+  test("a rejected new email or DM is named to the agent by its subject or people, and a DM that may have gone says so", async () => {
+    const f = await fixture();
+    await f.call("message_propose", { account: MAIL, to: ["Ana Ruiz"], subject: "Q3 numbers", text: "Here." });
+    await f.replies.decide(f.chat, f.only().id, "reject", "desktop");
+    expect(f.nextMessage()).toContain('The person rejected your new email "Q3 numbers" in ada@acme.com: nothing was sent.');
+    await f.call("message_propose", { account: SLACK, people: ["Grace Lee"], text: "Hi." });
+    f.slack.answers.timesOut = true;
+    await f.sendAndWait(f.only().id);
+    f.slack.answers.timesOut = false;
+    await f.replies.decide(f.chat, f.only().id, "reject", "desktop");
+    expect(f.nextMessage()).toContain("nothing was sent. It may have reached Slack before: the person was asked to look.");
+  });
+
+  test("a new email cut short before Gmail took it is not found after the restart, and its next Send sends it once", async () => {
+    const f = await fixture();
+    await f.call("message_propose", { account: MAIL, to: ["Ana Ruiz"], subject: "Hi", text: "Hello." });
+    f.gmailAnswers.lostBefore = true;
+    await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
+    await until(() => f.tm.pending().length === 1);
+    f.tm.fire();
+    await settled();
+    f.gmailAnswers.lostBefore = false;
+    f.restart();
+    await until(() => f.only().status === "pending");
+    expect(f.only().reason).toBe("loki stopped while sending it, and it is not in the thread");
+    await f.sendAndWait(f.only().id);
+    expect([f.only().status, f.sentMail.length]).toEqual(["sent", 1]);
+  });
+
+  test("a top-level channel post with files names no thread, since Slack gives its files' message no ts back", async () => {
+    const f = await fixture();
+    writeFileSync(join(f.folder, "plan.txt"), "the plan");
+    await f.call("reply_propose", { account: SLACK, thread: "C9", text: "The plan.", attachments: ["plan.txt"] });
+    await f.sendAndWait(f.only().id);
+    expect(f.only().status).toBe("sent");
+    expect(f.only().result).toBeUndefined();
   });
 
   test("a top-level post in a channel the person is in tells the agent the new thread, and adds no card to Flow (AE8)", async () => {

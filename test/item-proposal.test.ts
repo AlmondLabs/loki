@@ -5,7 +5,7 @@ import type { PendingApproval } from "../core/attention/model.ts";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView } from "../app/src/item/proposal.tsx";
 import { replyEdit, replySend } from "../app/src/desk/use-reply-card.ts";
-import { replyPeopleSource } from "../app/src/desk/reply-proposal-card.tsx";
+import { kickerOf, quotedSubject, replyPeopleSource, sendNote } from "../app/src/desk/reply-proposal-card.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 
 // Plan 097, U5: what the agent asks the person to decide, as one Proposal frame. Pressing is checked in the app.
@@ -164,6 +164,19 @@ describe("sending a reply proposal", () => {
     expect(replyEdit(null, "Thursday at 3pm works.")).toBeNull();
     expect(replyEdit("Thursday at 3pm works.", "Thursday at 3pm works.")).toBeNull();
     expect(replyEdit("Friday instead.", "Thursday at 3pm works.")).toBe("Friday instead.");
+  });
+});
+
+describe("a card that starts a conversation (plan 2026-11-14-1530, U8)", () => {
+  test("says what it starts, how it goes, and names a DM by its people", () => {
+    const email = reply({ provider: "gmail", kind: "email", thread_id: "", subject: "Q3 numbers", place: null, to: ["Ana Ruiz <ana@example.com>"] });
+    const dm = reply({ kind: "dm", thread_id: "", subject: "", place: "a DM with Grace Lee and Ravi Kumar" });
+    expect([kickerOf(email), kickerOf(dm), kickerOf(reply())]).toEqual(["new email", "new DM", "reply"]);
+    expect(sendNote(email)).toBe("Sends a new email from your account with your signature, held 10 seconds so you can undo");
+    expect(sendNote(dm)).toBe("Opens the DM and sends from your account, held 10 seconds so you can undo");
+    expect([quotedSubject(email), quotedSubject(dm), quotedSubject(reply({ subject: "" }))]).toEqual(["“Q3 numbers”", "a new DM", "a thread"]);
+    const out = html(createElement(ReplyProposalView, { proposal: dm, blocked: null, onDecide: decide }));
+    expect(out).toContain("in a DM with Grace Lee and Ravi Kumar");
   });
 });
 

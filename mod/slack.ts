@@ -26,6 +26,9 @@ import { writeMentions } from "../core/mentions.ts";
  * says "Slack signed out" (R22). A rate limit holds calls back for as long as Slack asks and never counts as a sign-out.
  */
 
+/** The most people besides the person a DM is opened with, as Slack's `conversations.open` takes (plan 2026-11-14-1530). */
+export const MAX_DM_PEOPLE = 8;
+
 /** Every Slack method this client calls, and the only ones a request can name. */
 export const SLACK_METHODS = [
   "auth.test",
@@ -407,7 +410,7 @@ export class SlackClient {
    * Only the person's Send on an agent's new DM reaches this, so a rejected proposal opens nothing.
    */
   async openDm(people: readonly string[]): Promise<string> {
-    if (people.length === 0 || people.length > 8) throw new Error("a DM is with one to eight people");
+    if (people.length === 0 || people.length > MAX_DM_PEOPLE) throw new Error("a DM is with one to eight people");
     const r = await this.call("conversations.open", { users: people.join(","), return_im: false });
     const id = str(rec(r.channel).id);
     if (!id) throw new SlackError("Slack opened no DM", "no_channel");

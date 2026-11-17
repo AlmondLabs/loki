@@ -24,7 +24,7 @@ import {
  * Gmail for scripts (plan 2026-11-11 scripts, U7): search, read, change labels, save drafts, and save attachments, to the
  * chat's folder or straight to Drive (R20), whose bytes never pass through the script. These go to Gmail directly,
  * never through Flow's own moves (mod/account-threads.ts): Flow sees what they change as it sees a change made in
- * Gmail, and nothing a script does is taken for the person's own pick (R22). A script no longer sends (plan
+ * Gmail, and nothing a script does is taken for the person's own pick (R22). A script sends no mail (plan
  * 2026-11-14-1530, R21): it saves drafts, and an agent's mail goes only through a card the person sends from.
  */
 

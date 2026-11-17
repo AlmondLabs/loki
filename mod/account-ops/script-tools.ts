@@ -172,7 +172,7 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
     });
   const slackConversations = scriptTool(deps, "slack", {
     name: "slack_conversations",
-    description: `The Slack conversations you are in (plan 2026-11-14-1530, KTD14), channels and DMs, each with its id to give reply_propose and its name: a channel's, or a DM's people. With \`query\`, those whose name holds it. At most ${String(CONVERSATIONS_CAP)}, with how many more matched.`,
+    description: `The Slack conversations you are in (plan 2026-11-14-1530, KTD14), channels and DMs, each with its id to give reply_propose and its name: a channel's, or a DM's people. With \`query\`, those whose name holds it, a DM by its person's name. At most ${String(CONVERSATIONS_CAP)}, with \`more\` when others matched.`,
     parameters: { type: "object", properties: { account: ACCOUNT_PROPERTY, query: { type: "string" } } },
     run: async (args, ctx) => {
       const account = scriptAccount(deps.accounts, ctx, args.account, "slack");
@@ -180,19 +180,21 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
       const query = typeof args.query === "string" ? args.query.trim().replace(/^#/, "").toLowerCase() : "";
       const names = new Map<string, string>();
       const person = async (user: string) => {
-        let known = names.get(user);
-        if (known === undefined) {
-          const u = await slack.usersInfo(user).catch(() => null);
-          known = u ? u.real_name || u.display_name || u.name || user : user;
-          names.set(user, known);
-        }
-        return known;
+        const known = names.get(user);
+        if (known !== undefined) return known;
+        // A profile Slack would not give is shown by its id and asked again next time, rather than kept as the id.
+        const u = await slack.usersInfo(user).catch(() => null);
+        if (!u) return user;
+        const name = u.real_name || u.display_name || u.name || user;
+        names.set(user, name);
+        return name;
       };
       const found: Array<{ id: string; kind: string; name: string }> = [];
       let cursor: string | null = null;
       for (let page = 0; page < CONVERSATION_PAGES; page++) {
         const r = await slack.usersConversations(cursor);
         for (const c of r.conversations) {
+          if (found.length > CONVERSATIONS_CAP) break;
           const kind = c.is_im ? "dm" : c.is_mpim ? "group_dm" : "channel";
           // A channel is matched by its name before any person is looked up, so a search reads few profiles.
           if (kind === "channel" && query && !(c.name ?? "").toLowerCase().includes(query)) continue;
@@ -200,7 +202,8 @@ export function registerAccountScriptTools(api: ModApi, deps: AccountScriptDeps)
           if (!query || name.toLowerCase().includes(query)) found.push({ id: c.id, kind, name });
         }
         cursor = r.next_cursor;
-        if (!cursor) break;
+        // Past the cap, more pages and profiles change nothing shown but `more`, which is then a lower bound.
+        if (!cursor || found.length > CONVERSATIONS_CAP) break;
       }
       // Channel names and people's names are what others chose, so none of them can pass for loki's own words.
       const shown = found.slice(0, CONVERSATIONS_CAP).map((c) => ({ ...c, name: inert(c.name) }));
