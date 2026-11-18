@@ -111,7 +111,7 @@ export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped"
 
 export class PassRunner {
   private readonly deps: Deps;
-  private readonly queue: Array<{ keys: string[]; work: () => Promise<void> }> = [];
+  private readonly queue: Array<{ keys: string[]; place: "last" | "next"; work: () => Promise<void> }> = [];
   private readonly queued = new Set<string>();
   private readonly failedAt = new Map<string, number>();
   private readonly lastBatch = new Map<string, number>();
@@ -202,9 +202,14 @@ export class PassRunner {
     );
   }
 
-  private schedule<T>(keys: string[], work: () => Promise<T>): Promise<T> {
+  private schedule<T>(keys: string[], work: () => Promise<T>, place: "last" | "next" = "last"): Promise<T> {
     for (const k of keys) this.queued.add(k);
-    return new Promise<T>((resolve, reject) => this.queue.push({ keys, work: () => work().then(resolve, reject) }));
+    return new Promise<T>((resolve, reject) => {
+      const item = { keys, place, work: () => work().then(resolve, reject) };
+      const at = place === "next" ? this.queue.findIndex((q) => q.place === "last") : -1;
+      if (at === -1) this.queue.push(item);
+      else this.queue.splice(at, 0, item);
+    });
   }
 
   private drain(): Promise<void> {
@@ -360,8 +365,11 @@ export class PassRunner {
     return engine ? { kind: "acp", engine } : null;
   }
 
-  private async ask(agentId: string, agentModel: string, on: PassEngine, spec: PassSpec): Promise<PassAnswer> {
-    const timeoutMs = this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS;
+  private runLimitMs(): number {
+    return this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS;
+  }
+
+  private async ask(agentId: string, agentModel: string, on: PassEngine, spec: PassSpec, timeoutMs = this.runLimitMs()): Promise<PassAnswer> {
     const content = `${spec.prompt}\n\n${daemonTimeReminder(this.now())}`;
     if (on.kind === "acp" && this.deps.acp)
       return this.deps.acp.ask(agentId, on.engine, { ...spec, prompt: content, chatId: `${spec.chatId}${ACP_PASS_SUFFIX}`, timeoutMs });
@@ -388,14 +396,14 @@ export class PassRunner {
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const submission = await chat.submit({ type: "input", content, requestId: spec.requestId }, context);
     const limited = withCancel(context);
-    const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS);
+    const timer = setTimeout(() => limited.cancel(new Error("timed out")), timeoutMs);
     let settled: Awaited<ReturnType<typeof submission.wait>>;
     try {
       settled = await submission.wait(limited.context);
     } catch (error) {
       if (!limited.context.abortSignal?.aborted) throw error;
       await chat.abort(context).catch(() => {});
-      throw new Error(`the pass did not finish within ${Math.round((this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS) / 1000)}s`);
+      throw new Error(`the pass did not finish within ${Math.round(timeoutMs / 1000)}s`);
     } finally {
       clearTimeout(timer);
     }
@@ -420,12 +428,13 @@ export class PassRunner {
   async runDoctor(agentId: string): Promise<DoctorResult> {
     const key = `doctor\u0000${agentId}`;
     if (this.queued.has(key)) return { outcome: "skipped", changes: 0, report: "a memory review of this agent is already running" };
-    const result = this.schedule([key], () => this.doctor(agentId));
-    await this.drain();
+    const deadline = this.now().getTime() + this.runLimitMs();
+    const result = this.schedule([key], () => this.doctor(agentId, deadline), "next");
+    void this.drain();
     return result;
   }
 
-  private async doctor(agentId: string): Promise<DoctorResult> {
+  private async doctor(agentId: string, deadline: number): Promise<DoctorResult> {
     const started = this.now();
     const requestId = `pass:doctor:${agentId}:${started.getTime().toString(36)}`;
     const finish = (result: DoctorResult, extra: Record<string, unknown> = {}) => {
@@ -453,14 +462,23 @@ export class PassRunner {
       const root = memoryRoot(this.deps.backendDir, agentId);
       const dump = memoryDump(root);
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
-      const answer = await this.ask(agentId, record?.model ?? "", on, {
-        chatId: doctorChatId(agentId),
-        title: "doctor",
-        instructions: DOCTOR_INSTRUCTIONS,
-        tools: DOCTOR_TOOLS,
-        prompt: doctorPrompt(dump, started, overBudget(root)),
-        requestId,
-      });
+      const left = deadline - this.now().getTime();
+      if (left <= 0)
+        return finish({ outcome: "skipped", changes: 0, report: "the other memory passes ran long, so the review did not start; run /doctor again" });
+      const answer = await this.ask(
+        agentId,
+        record?.model ?? "",
+        on,
+        {
+          chatId: doctorChatId(agentId),
+          title: "doctor",
+          instructions: DOCTOR_INSTRUCTIONS,
+          tools: DOCTOR_TOOLS,
+          prompt: doctorPrompt(dump, started, overBudget(root)),
+          requestId,
+        },
+        left,
+      );
       const changes = answer.toolCalls.filter((t) => t !== "memory_read" && MEMORY_TOOLS.includes(t)).length;
       const report = answer.text || (changes ? `${changes} change${changes === 1 ? "" : "s"} to memory` : "memory looks healthy");
       return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars, engine: engineName(on) });

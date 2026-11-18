@@ -15,6 +15,7 @@ import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
 import { editMemoryFile, memoryExtension, memoryRoot } from "../daemon/memory.ts";
 import { DOCTOR_INSTRUCTIONS } from "../daemon/doctor.ts";
+import { PASS_RUN_TIMEOUT_MS } from "../core/frames.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const log = (root: string) => execFileSync("git", ["-C", root, "log", "--format=%an|%s"], { encoding: "utf8" }).trim().split("\n");
@@ -105,6 +106,53 @@ describe("the memory review (/doctor)", () => {
       expect(a).toEqual({ outcome: "nothing", changes: 0, report: "Memory looks healthy." });
       expect(b).toEqual({ outcome: "skipped", changes: 0, report: "a memory review of this agent is already running" });
       expect(s.asked).toHaveLength(1);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a review asked for while passes wait runs next, after only the pass already running and earlier reviews, and answers without waiting for the rest", async () => {
+    const s = await setup();
+    try {
+      await editMemoryFile(s.dir, s.agentId, "reference/deploys.md", "Deploys go out on Fridays.\n");
+      const order: string[] = [];
+      s.faux.setResponses([() => (order.push("doctor"), fauxAssistantMessage("Memory looks healthy."))]);
+      const gate: { started?: () => void; open?: () => void; openSecond?: () => void } = {};
+      const started = new Promise<void>((r) => (gate.started = r));
+      const first = s.runner["schedule"](["first"], () => {
+        order.push("first");
+        gate.started?.();
+        return new Promise<void>((r) => (gate.open = r));
+      });
+      void s.runner["drain"]();
+      await started;
+      const secondHeld = new Promise<void>((r) => (gate.openSecond = r));
+      const second = s.runner["schedule"](["second"], () => (order.push("second"), secondHeld));
+      const review = s.runner.runDoctor(s.agentId);
+      const later = s.runner["schedule"](["later"], () => (order.push("later"), Promise.resolve()), "next");
+      gate.open?.();
+      expect(await review).toEqual({ outcome: "nothing", changes: 0, report: "Memory looks healthy." });
+      gate.openSecond?.();
+      await Promise.all([first, second, later]);
+      expect(order).toEqual(["first", "doctor", "later", "second"]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a review whose time ran out while it waited is not started, and says to run it again", async () => {
+    const s = await setup();
+    try {
+      await editMemoryFile(s.dir, s.agentId, "reference/deploys.md", "Deploys go out on Fridays.\n");
+      const t0 = Date.parse("2026-11-18T09:00:00Z");
+      let reads = 0;
+      s.runner["deps"].now = () => new Date(reads++ === 0 ? t0 : t0 + PASS_RUN_TIMEOUT_MS);
+      expect(await s.runner.runDoctor(s.agentId)).toEqual({
+        outcome: "skipped",
+        changes: 0,
+        report: "the other memory passes ran long, so the review did not start; run /doctor again",
+      });
+      expect(s.asked).toHaveLength(0);
     } finally {
       await s.cleanup();
     }
