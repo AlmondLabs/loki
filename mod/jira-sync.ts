@@ -12,12 +12,11 @@ import { log } from "./log.ts";
 const OVERLAP_MS = 10 * 60_000;
 const TICKETS_PER_TICK = 40;
 const TICKETS_AT_A_TIME = 4;
-const FAILURES_BEFORE_STATUS = 3;
 
 export type JiraSyncClient = Pick<JiraClient, "searchWatched" | "comments" | "history">;
 
 export interface JiraSyncOptions {
-  accounts: Pick<Accounts, "get" | "setBackfill" | "setStatus">;
+  accounts: Pick<Accounts, "get" | "setBackfill">;
   threads: Pick<AccountThreads, "observe" | "get" | "list">;
   account: AccountRecord;
   client: JiraSyncClient;
@@ -66,7 +65,6 @@ export class JiraSync implements AccountSync {
   private readonly accountId: string;
   /** The person's Atlassian account id: what follows the host in `jira:<host>:<account id>`, colons of its own included. */
   private readonly me: string;
-  private failures = 0;
 
   constructor(opts: JiraSyncOptions) {
     this.opts = opts;
@@ -74,19 +72,8 @@ export class JiraSync implements AccountSync {
     this.me = jiraPersonOf(this.accountId);
   }
 
-  async tick(): Promise<void> {
-    try {
-      await this.run();
-    } catch (error) {
-      if (error instanceof JiraError && error.code === "rate_limited") return;
-      this.failures++;
-      if (this.failures >= FAILURES_BEFORE_STATUS && this.opts.accounts.get(this.accountId)?.status === "connected")
-        this.opts.accounts.setStatus(this.accountId, { disconnected: "temporarily_failing" });
-      throw error;
-    }
-    this.failures = 0;
-    const status = this.opts.accounts.get(this.accountId)?.status;
-    if (typeof status === "object" && status.disconnected === "temporarily_failing") this.opts.accounts.setStatus(this.accountId, "connected");
+  askedToWait(error: unknown): boolean {
+    return error instanceof JiraError && error.code === "rate_limited";
   }
 
   private now(): Date {
@@ -102,7 +89,7 @@ export class JiraSync implements AccountSync {
     this.opts.accounts.setBackfill(this.accountId, { watermark: cursor.watermark, seen: cursor.seen, past: cursor.past });
   }
 
-  private async run(): Promise<void> {
+  async tick(): Promise<void> {
     const started = this.now();
     const cursor = this.cursor();
     if (!cursor) this.save({ watermark: started.toISOString(), seen: {}, past: { page_token: null, done: false } });

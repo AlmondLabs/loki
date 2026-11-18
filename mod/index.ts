@@ -59,7 +59,7 @@ import { GmailSync, gmailOutsideSource } from "./gmail-sync.ts";
 import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
-import { SlackSync } from "./slack-sync.ts";
+import { SlackSync, slackOutsideSource } from "./slack-sync.ts";
 import { jiraAccountClient, parseJiraSecret, type JiraClient } from "./jira.ts";
 import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
 import { OutsideThreads, type SendClient } from "./outside-threads.ts";
@@ -306,6 +306,13 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
     report: log,
   });
+  threads.register(
+    "slack",
+    slackOutsideSource((accountId) => {
+      const sync = watcher.syncOf(accountId);
+      return sync instanceof SlackSync ? sync : null;
+    }),
+  );
   watcher.start();
   const suggestions = host.suggestions
     ? new Suggestions({

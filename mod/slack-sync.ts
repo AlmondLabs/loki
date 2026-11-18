@@ -2,6 +2,7 @@ import { PAST_CAP } from "../core/account-refill.ts";
 import { messageOf } from "../core/errors.ts";
 import type { OutsideChange } from "../core/frame-types.ts";
 import type { AccountThreads, ObservedMessage, OutsideSource, ThreadRecord } from "./account-threads.ts";
+import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { log } from "./log.ts";
 import { filePlain, slackFiles } from "./slack-markup.ts";
@@ -10,7 +11,7 @@ import { SLACK_ACTIVITY_TYPES, SlackError, type SlackActivityItem, type SlackCli
 
 export interface SlackSyncOptions {
   accounts: Pick<Accounts, "get" | "setBackfill">;
-  threads: AccountThreads;
+  threads: Pick<AccountThreads, "observe" | "describe" | "markGoneOutThere" | "get" | "list">;
   account: AccountRecord;
   client: SlackClient;
   resting?: (record: ThreadRecord) => boolean;
@@ -62,13 +63,12 @@ const firstLine = (text: string): string =>
     .find((l) => l.trim())
     ?.trim() ?? "";
 
-const syncsByThreads = new WeakMap<AccountThreads, Map<string, SlackSync>>();
-
 const NO_LABELS = "Slack has no labels: labels are for email";
 
-function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
+/** Slack's write-backs: archive and read mark the activity the sync last saw for the card, so they go through the account's live sync. */
+export function slackOutsideSource(syncOf: (accountId: string) => SlackSync | null): OutsideSource {
   const mark = async (accountId: string, record: ThreadRecord, move: "archive" | "read"): Promise<OutsideChange> => {
-    const sync = syncs.get(accountId);
+    const sync = syncOf(accountId);
     if (!sync) throw new Error("loki is not watching that Slack workspace right now");
     await sync.archive(record);
     return { move, messages: [], ended: true, was_unread: record.unread_out_there };
@@ -79,13 +79,13 @@ function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
     markUnread: (_accountId, record) => Promise.resolve({ move: "unread", messages: [], ended: false, was_unread: record.unread_out_there }),
     addLabels: () => Promise.reject(new Error(NO_LABELS)),
     restore: async (accountId, record, change) => {
-      if (change.ended) await syncs.get(accountId)?.restore(record);
+      if (change.ended) await syncOf(accountId)?.restore(record);
     },
     labels: () => Promise.reject(new Error(NO_LABELS)),
   };
 }
 
-export class SlackSync {
+export class SlackSync implements AccountSync {
   private readonly opts: SlackSyncOptions;
   private readonly accountId: string;
   private readonly names = new Map<string, { name: string; image: string | null }>();
@@ -98,18 +98,10 @@ export class SlackSync {
   constructor(opts: SlackSyncOptions) {
     this.opts = opts;
     this.accountId = opts.account.account_id;
-    let syncs = syncsByThreads.get(opts.threads);
-    if (!syncs) {
-      syncs = new Map();
-      syncsByThreads.set(opts.threads, syncs);
-      opts.threads.register("slack", slackSource(syncs));
-    }
-    syncs.set(this.accountId, this);
   }
 
-  stop(): void {
-    const syncs = syncsByThreads.get(this.opts.threads);
-    if (syncs?.get(this.accountId) === this) syncs.delete(this.accountId);
+  askedToWait(error: unknown): boolean {
+    return error instanceof SlackError && error.code === "ratelimited";
   }
 
   async tick(): Promise<void> {
