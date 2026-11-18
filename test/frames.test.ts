@@ -38,6 +38,7 @@ describe("waits that must outlast what they wait on", () => {
     expect(REPLY_WAIT_MS).toBeGreaterThan(MAIL_HOLD_MS);
     expect([DOCTOR_WAIT_MS, REPLY_WAIT_MS, HANDOFF_WAIT_MS, MAIL_HOLD_MS, PASS_RUN_TIMEOUT_MS]).toEqual([11 * 60_000, 60_000, 60_000, 10_000, 10 * 60_000]);
     expect(peerMeaning("account_thread_reply")?.timeout_ms).toBe(REPLY_WAIT_MS);
+    expect(peerMeaning("account_thread_resend")).toEqual(peerMeaning("account_thread_reply"));
     expect(peerMeaning("account_thread_handoff")?.timeout_ms).toBe(HANDOFF_WAIT_MS);
   });
 });
