@@ -2,17 +2,21 @@ name: pr title
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+  # A required check, so it reports in the merge queue too, where it passes by being skipped: the title was checked on
+  # the PR.
+  merge_group:
 
 permissions:
   contents: read
 
 concurrency:
-  group: pr-title-${{ github.event.pull_request.number }}
+  group: pr-title-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   title:
     name: pr title
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0

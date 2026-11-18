@@ -1,11 +1,8 @@
 name: ci
 on:
+  # Every PR, docs alone included: the checks are required, so each job reports. On a PR that changes only docs, each
+  # job passes after its checkout (the scope step) without installing or checking anything.
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "*.md"
-      - "LICENSE"
-      - ".github/ISSUE_TEMPLATE/**"
   # The queue runs everything before a PR reaches main; a PR's own run narrows the suite to what its diff reaches.
   merge_group:
   schedule:
@@ -30,8 +27,19 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - uses: ./.github/actions/install
-      - run: npm run typecheck
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: install
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: ./.github/actions/install
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
 
   format:
     name: format
@@ -41,8 +49,19 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - uses: ./.github/actions/install
-      - run: npm run format:check
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: install
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: ./.github/actions/install
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run format:check
 
   lint:
     name: lint
@@ -52,8 +71,19 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - uses: ./.github/actions/install
-      - run: npm run lint
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: install
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: ./.github/actions/install
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
 
   test:
     name: tests (ubuntu-22.04)
@@ -63,7 +93,16 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
       - id: install
+        if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
@@ -78,7 +117,16 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
       - id: install
+        if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:app
@@ -102,7 +150,16 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
       - id: install
+        if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
