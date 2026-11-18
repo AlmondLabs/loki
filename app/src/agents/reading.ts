@@ -8,7 +8,7 @@ export function firstAgentId(agents: ReadonlyArray<{ id: string }>): string | nu
   return agents[0]?.id ?? null;
 }
 
-export function shownSkillOf(d: AgentDetails | null | undefined, skillName: string | null): AgentSkill | null {
+export function shownSkillOf(d: AgentDetails | null, skillName: string | null): AgentSkill | null {
   return d ? (d.skills.find((x) => x.name === skillName) ?? d.skills.at(0) ?? null) : null;
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 
+import { READING, answered, valueOf, type Fetched } from "../shared/fetched";
 import type { AgentDetails, AgentEdit, AgentSkill, AgentsApi, AgentsWrite } from "./types";
 import type { MemoryCommit, MemorySkill } from "../../../core/frame-types.ts";
 
@@ -20,7 +21,7 @@ export function useAgentDetails({
   onDeleted: () => void;
   onSkillAdded: (name: string) => void;
 }) {
-  const [details, setDetails] = useState<Record<string, AgentDetails | null | undefined>>({});
+  const [details, setDetails] = useState<Record<string, Fetched<AgentDetails>>>({});
   const [commits, setCommits] = useState<Record<string, MemoryCommit[]>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -28,18 +29,19 @@ export function useAgentDetails({
     api
       .get(id)
       .then((d) => {
-        setDetails((x) => ({ ...x, [id]: d }));
+        setDetails((x) => ({ ...x, [id]: answered(d) }));
         return api.log(id, undefined, 40);
       })
       .then((log) => setCommits((x) => ({ ...x, [id]: log })));
   const loadIfUnseen = useEffectEvent((id: string) => {
-    if (!details[id]) void load(id);
+    if (details[id]?.kind !== "read") void load(id);
   });
   useEffect(() => {
     if (selected) loadIfUnseen(selected);
   }, [selected]);
 
-  const d = selected ? details[selected] : undefined;
+  const fetched = selected ? (details[selected] ?? READING) : READING;
+  const d = valueOf(fetched);
   const log = selected ? (commits[selected] ?? []) : [];
   const flash = (m: string) => {
     setNotice(m);
@@ -59,7 +61,7 @@ export function useAgentDetails({
     const err = await write.deleteAgent(selected);
     if (err) return flash(err);
     setConfirmDelete(false);
-    setDetails((x) => ({ ...x, [selected]: undefined }));
+    setDetails((x) => ({ ...x, [selected]: READING }));
     onDeleted();
     flash(`${name} deleted`);
   };
@@ -127,6 +129,7 @@ export function useAgentDetails({
     void load(selected);
   };
   return {
+    fetched,
     d,
     log,
     notice,
