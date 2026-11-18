@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 160,
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "*.md",
+    "package-lock.json",
+    "src-tauri/target/",
+    "src-tauri/gen/",
+    "src-tauri/resources/",
+    ".claude/",
+    ".impeccable/",
+    ".loki-build/",
+    "*.html"
+  ]
+}

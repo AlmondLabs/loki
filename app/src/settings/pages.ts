@@ -1,6 +1,20 @@
 import type { IconName } from "../shared/icons";
 export type SettingsPage =
-  "loki" | "usage" | "inbox" | "accounts" | "providers" | "engines" | "mcp" | "phone" | "macs" | "skills" | "learn" | "appearance" | "chat" | "labels" | "keys";
+  | "loki"
+  | "usage"
+  | "inbox"
+  | "accounts"
+  | "providers"
+  | "engines"
+  | "mcp"
+  | "phone"
+  | "macs"
+  | "skills"
+  | "learn"
+  | "appearance"
+  | "chat"
+  | "labels"
+  | "keys";
 
 export interface SettingsGroup {
   title: string;

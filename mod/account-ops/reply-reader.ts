@@ -5,7 +5,9 @@ import { slackReplyDestination, type ReplySlackReads } from "./slack.ts";
 import type { FlowRecord, ReplyDestination } from "./thread.ts";
 
 export type ReplyReads =
-  { provider: "gmail"; client: ReplyGmailReads } | { provider: "slack"; client: ReplySlackReads } | { provider: "jira"; client: ReplyJiraReads };
+  | { provider: "gmail"; client: ReplyGmailReads }
+  | { provider: "slack"; client: ReplySlackReads }
+  | { provider: "jira"; client: ReplyJiraReads };
 
 export function readReplyDestination(account: AccountRecord, reads: ReplyReads, reference: string, flow: FlowRecord): Promise<ReplyDestination> {
   switch (reads.provider) {

@@ -1,9 +1,0 @@
-*.md
-package-lock.json
-src-tauri/target/
-src-tauri/gen/
-src-tauri/resources/
-.claude/
-.impeccable/
-.loki-build/
-*.html
