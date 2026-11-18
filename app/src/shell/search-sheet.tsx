@@ -30,7 +30,10 @@ export interface CommandHit {
 }
 
 type Row =
-  { kind: "hit"; hit: SearchHit } | { kind: "command"; command: CommandHit } | { kind: "model"; model: SwitchRow } | { kind: "mode"; mode: SharedMode };
+  | { kind: "hit"; hit: SearchHit }
+  | { kind: "command"; command: CommandHit }
+  | { kind: "model"; model: SwitchRow }
+  | { kind: "mode"; mode: SharedMode };
 const rowKey = (r: Row) =>
   r.kind === "hit" ? r.hit.key : r.kind === "command" ? `command:${r.command.id}` : r.kind === "model" ? `model:${r.model.key}` : `mode:${r.mode.id}`;
 

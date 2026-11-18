@@ -38,7 +38,7 @@ How code, comments, docs, tests and commits are written is [style.md](style.md);
 npm test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
 npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
 npm run typecheck                                 # bun check: TypeScript 7's checker, the whole project in about a second
-npm run format:check                              # Prettier; npm run format fixes it
+npm run format:check                              # oxfmt; npm run format fixes it
 npm run lint                                      # uncached; npm run lint:fast caches results while you work
 npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
 npm run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart
@@ -48,7 +48,7 @@ npm run doctor                                    # optional: react-doctor's rep
 ```
 
 CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
-say something: `.github/workflows/ci.yml` runs types, Prettier, lint, the suite, the Node runner's tests, both bundles and the
+say something: `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
 smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
 macOS 15 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches

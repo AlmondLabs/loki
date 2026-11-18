@@ -99,7 +99,8 @@ describe("tool results", () => {
       faux.setResponses([fauxAssistantMessage(fauxToolCall("bash", { command }), { stopReason: "toolUse" }), fauxAssistantMessage("done")]);
       await (await chat.submit({ type: "input", content: "fail" }, ctx)).wait(ctx);
       const result = (await store.entries(chat, ctx)).find((e) => e.kind === "pi.tool-result")?.model?.[0] as
-        { isError?: boolean; content?: Array<{ type: string; text?: string }> } | undefined;
+        | { isError?: boolean; content?: Array<{ type: string; text?: string }> }
+        | undefined;
       const text = (result?.content ?? []).map((p) => p.text ?? "").join("\n");
       expect(result?.isError).toBe(true);
       expect(text).toMatch(/<harness>\n\[error\] Command exited with code 3\n<\/harness>$/);
