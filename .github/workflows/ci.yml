@@ -19,8 +19,45 @@ defaults:
     shell: bash
 
 jobs:
-  checks:
-    name: types, lint, tests and bundles
+  # Side by side, not one after another: the run takes as long as its slowest check.
+  typecheck:
+    name: types
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  format:
+    name: format
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+
+  lint:
+    name: lint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: tests (ubuntu-22.04)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -31,15 +68,21 @@ jobs:
       - id: install
         run: npm ci
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run typecheck
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run format:check
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run lint
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:node
+
+  build:
+    name: bundles
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - id: install
+        run: npm ci
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:app
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}

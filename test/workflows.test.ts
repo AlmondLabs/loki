@@ -13,6 +13,7 @@ interface Step {
 }
 interface Job {
   "runs-on": string;
+  needs?: string | string[];
   env?: Record<string, string>;
   strategy?: { matrix?: { os?: string[] } };
   steps: Step[];
@@ -40,16 +41,26 @@ describe("ci: a PR's checks", () => {
     expect(ignored.some((p) => p.startsWith("skills"))).toBe(false);
   });
 
-  test("types, lint, the Node runner's tests and both bundles once, on Linux; the suite on all three systems", () => {
-    const checks = runs(ci.jobs.checks);
-    for (const c of ["npm run typecheck", "npm run lint", "npm test", "npm run test:node", "npm run build:app", "npm run build:mod", "npm run smoke"])
-      expect(checks).toContain(c);
+  test("types, format, lint, the suite and the bundles in jobs of their own on Linux, side by side; the suite on all three systems", () => {
+    const linux: Record<string, string[]> = {
+      typecheck: ["npm run typecheck"],
+      format: ["npm run format:check"],
+      lint: ["npm run lint"],
+      test: ["npm test", "npm run test:node"],
+      build: ["npm run build:app", "npm run build:site", "npm run build:mod", "npm run smoke"],
+    };
+    for (const [name, commands] of Object.entries(linux)) {
+      const job = must(ci.jobs[name], name);
+      expect(job["runs-on"], name).toBe("ubuntu-22.04");
+      expect(job.needs, name).toBeUndefined();
+      for (const c of commands) expect(runs(job), name).toContain(c);
+    }
     expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "windows-latest"]);
     const tests = runs(ci.jobs.tests);
     expect(tests).toContain("npm test");
     for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
     expect(tests).toContain("npm run smoke");
-    expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]);
+    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "test", "tests", "typecheck"]);
   });
 });
 

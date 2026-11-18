@@ -49,7 +49,7 @@ npm run doctor                                    # optional: react-doctor's rep
 
 CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
 say something: `.github/workflows/ci.yml` runs types, Prettier, lint, the suite, the Node runner's tests, both bundles and the
-smoke test on Ubuntu 22.04, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
+smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
 macOS 15 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
 `app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). A PR of docs alone starts only the title check. A change to the shell or the mod that works on the Mac
