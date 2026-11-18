@@ -1503,6 +1503,11 @@ span.loki-phone-section-btn {
 }
 .loki-phone-card [data-thread-scroll] {
   touch-action: pan-y;
+  padding-bottom: calc(var(--loki-dock-height) + var(--phone-space-4)) !important;
+  scroll-padding-bottom: var(--loki-dock-height);
+}
+.loki-phone-card .loki-latest-chip {
+  bottom: calc(var(--loki-dock-height) + var(--phone-space-3)) !important;
 }
 .loki-phone-card .loki-banner {
   flex: none;
