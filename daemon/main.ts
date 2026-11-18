@@ -59,6 +59,7 @@ export const EXIT_HELD = 3;
  */
 const DAEMON_MARKER = "loki-daemon";
 
+throw new Error("planted for the selection check: the daemon no longer starts");
 const { values: args } = parseArgs({
   options: {
     [DAEMON_MARKER]: { type: "boolean" },
