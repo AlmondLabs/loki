@@ -1,7 +1,8 @@
 import { engineCommands, type SlashCommand } from "../../../core/attention/commands.ts";
 import type { ChatEngineView } from "../../../core/models.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
-import { agentModes, isPermissionMode, type ModeChoice } from "./permission-mode";
+import { isPermissionMode } from "../../../core/chat-links.ts";
+import { agentModes, type ModeChoice } from "./permission-mode";
 
 export function engineControls(
   view: { engine?: ChatEngineView | null; mode?: string | null; rows: TranscriptRow[] | undefined },

@@ -233,7 +233,11 @@ describe("an email's own words, without the thread quoted under them", () => {
   });
   test("cut at Outlook's From: and Sent: block, and trailing > lines go", () => {
     expect(withoutQuoted("Done.\n\nFrom: Bob <bob@acme.com>\nSent: Tuesday\nSubject: x")).toBe("Done.");
+    expect(withoutQuoted("Done.\n\nFrom: Bob <bob@acme.com>\nDate: Tuesday\nSubject: x")).toBe("Done.");
     expect(withoutQuoted("ok\n> earlier\n> more")).toBe("ok");
+  });
+  test("cut at an -----Original Message----- line", () => {
+    expect(withoutQuoted("Agreed.\n\n-----Original Message-----\nFrom: Bob\nThe plan.")).toBe("Agreed.");
   });
   test("a forward is kept whole, with the forwarded mail's header, but a reply quoting an earlier forward is cut", () => {
     const gmail = "See below.\n\n---------- Forwarded message ---------\nFrom: Bob <bob@acme.com>\nDate: Tue\n\nThe plan.";

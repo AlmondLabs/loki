@@ -16,6 +16,7 @@ import { modelRef } from "./loki-engine.ts";
 import { createHash } from "node:crypto";
 import type { JobName, PassSettings, PassState } from "./passes-state.ts";
 import { messageOf } from "../core/errors.ts";
+import { PASS_RUN_TIMEOUT_MS } from "../core/frames.ts";
 
 export interface DoctorResult {
   outcome: RunOutcome;
@@ -29,7 +30,6 @@ export const MIN_NEW_CHARS = 300;
 export const MAX_MATERIAL_CHARS = 24_000;
 export const MAX_BATCH_CHARS = 80_000;
 export const BATCH_EVERY_MS = 2 * 60 * 60_000;
-export const RUN_TIMEOUT_MS = 10 * 60_000;
 
 export interface PassPart {
   chatId: string;
@@ -361,7 +361,7 @@ export class PassRunner {
   }
 
   private async ask(agentId: string, agentModel: string, on: PassEngine, spec: PassSpec): Promise<PassAnswer> {
-    const timeoutMs = this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS;
+    const timeoutMs = this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS;
     const content = `${spec.prompt}\n\n${daemonTimeReminder(this.now())}`;
     if (on.kind === "acp" && this.deps.acp)
       return this.deps.acp.ask(agentId, on.engine, { ...spec, prompt: content, chatId: `${spec.chatId}${ACP_PASS_SUFFIX}`, timeoutMs });
@@ -388,14 +388,14 @@ export class PassRunner {
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const submission = await chat.submit({ type: "input", content, requestId: spec.requestId }, context);
     const limited = withCancel(context);
-    const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS);
+    const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS);
     let settled: Awaited<ReturnType<typeof submission.wait>>;
     try {
       settled = await submission.wait(limited.context);
     } catch (error) {
       if (!limited.context.abortSignal?.aborted) throw error;
       await chat.abort(context).catch(() => {});
-      throw new Error(`the pass did not finish within ${Math.round((this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS) / 1000)}s`);
+      throw new Error(`the pass did not finish within ${Math.round((this.deps.runTimeoutMs ?? PASS_RUN_TIMEOUT_MS) / 1000)}s`);
     } finally {
       clearTimeout(timer);
     }

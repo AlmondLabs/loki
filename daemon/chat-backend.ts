@@ -14,12 +14,12 @@ import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
-import { modeOf, type Approvals } from "./approvals.ts";
+import type { Approvals } from "./approvals.ts";
 import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { messageOf } from "../core/errors.ts";
-import { looserThan, lokiModeOf, stricterMode, type LokiMode } from "../core/chat-links.ts";
+import { looserThan, lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
 import { AcpEngine } from "./acp/engine.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
@@ -207,7 +207,7 @@ export class DaemonChats implements ChatBackend {
     return { ref: await this.mcpTools.storeSecret(p.name, p.value) };
   }
 
-  async power(agentId: string, conversationId: string): Promise<LokiMode | null> {
+  async power(agentId: string, conversationId: string): Promise<PermissionMode | null> {
     const { c } = await this.resolve(agentId, conversationId);
     if (c.engine) return lokiModeOf((await this.acp.state(agentId, conversationId)).mode, true);
     const info = await c.store.chatInfo(c.chat.id, this.deps.context);
@@ -215,7 +215,7 @@ export class DaemonChats implements ChatBackend {
     return info?.turn_cap ? stricterMode(own, lokiModeOf(info.turn_cap, false)) : own;
   }
 
-  async sendHeld(p: PayloadOf<"chat_send">, cap: LokiMode | null): Promise<string | null> {
+  async sendHeld(p: PayloadOf<"chat_send">, cap: PermissionMode | null): Promise<string | null> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
     if (c.engine) {
       // loki cannot lower an ACP agent's mode for one turn, so a chat whose mode has more power is refused instead.

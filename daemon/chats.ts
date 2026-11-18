@@ -1,4 +1,4 @@
-import { modeOf } from "./approvals.ts";
+import { modeOf } from "../core/chat-links.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName, isMainChat } from "../core/desk-core.ts";

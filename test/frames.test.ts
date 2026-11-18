@@ -11,7 +11,12 @@ import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import { bridgeOf, client, fakeWidgets, settled } from "./fixtures/frames.ts";
 import {
+  DOCTOR_WAIT_MS,
   FRAMES,
+  HANDOFF_WAIT_MS,
+  MAIL_HOLD_MS,
+  PASS_RUN_TIMEOUT_MS,
+  REPLY_WAIT_MS,
   PEER_FRAMES,
   PHONE_FRAMES,
   frameEntry,
@@ -26,6 +31,16 @@ import {
 
 const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
+
+describe("waits that must outlast what they wait on", () => {
+  test("/doctor waits past the pass run limit, and a mail reply past its undo hold, at the same lengths as before", () => {
+    expect(DOCTOR_WAIT_MS).toBeGreaterThan(PASS_RUN_TIMEOUT_MS);
+    expect(REPLY_WAIT_MS).toBeGreaterThan(MAIL_HOLD_MS);
+    expect([DOCTOR_WAIT_MS, REPLY_WAIT_MS, HANDOFF_WAIT_MS, MAIL_HOLD_MS, PASS_RUN_TIMEOUT_MS]).toEqual([11 * 60_000, 60_000, 60_000, 10_000, 10 * 60_000]);
+    expect(peerMeaning("account_thread_reply")?.timeout_ms).toBe(REPLY_WAIT_MS);
+    expect(peerMeaning("account_thread_handoff")?.timeout_ms).toBe(HANDOFF_WAIT_MS);
+  });
+});
 
 describe("the frame table", () => {
   test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, the usage page's read, the labels' list, the decisions on a suggestion, and closing a chat link", () => {

@@ -1,7 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
-import { modeOf } from "../approvals.ts";
+import { modeOf } from "../../core/chat-links.ts";
 import type { Engine, EngineChat } from "../engine.ts";
 import type { ChatEngine } from "../kernel/index.ts";
 import { acpHandle } from "./agents.ts";

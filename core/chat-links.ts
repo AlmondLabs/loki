@@ -155,10 +155,13 @@ export function timeLeft(link: Pick<ChatLink, "expires_at">, now: Date): string 
   return min < 60 ? `${min} min left` : `${Math.round(min / 60)} h left`;
 }
 
-const MODE_RANK = ["strict", "standard", "acceptEdits", "unrestricted"] as const;
-export type LokiMode = (typeof MODE_RANK)[number];
+export const PERMISSION_MODES = ["strict", "standard", "acceptEdits", "unrestricted"] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+export const DEFAULT_MODE: PermissionMode = "unrestricted";
+export const isPermissionMode = (m: unknown): m is PermissionMode => (PERMISSION_MODES as readonly unknown[]).includes(m);
+export const modeOf = (stored: unknown): PermissionMode => (isPermissionMode(stored) ? stored : DEFAULT_MODE);
 
-const ACP_MODES: Record<string, LokiMode> = {
+const ACP_MODES: Record<string, PermissionMode> = {
   plan: "strict",
   default: "standard",
   "read-only": "strict",
@@ -168,19 +171,19 @@ const ACP_MODES: Record<string, LokiMode> = {
   bypassPermissions: "unrestricted",
 };
 
-export function lokiModeOf(mode: string | null | undefined, acp: boolean): LokiMode | null {
-  if (!mode) return acp ? null : "unrestricted";
-  if ((MODE_RANK as readonly string[]).includes(mode)) return mode as LokiMode;
-  return acp ? (ACP_MODES[mode] ?? null) : "unrestricted";
+export function lokiModeOf(mode: string | null | undefined, acp: boolean): PermissionMode | null {
+  if (!mode) return acp ? null : DEFAULT_MODE;
+  if (isPermissionMode(mode)) return mode;
+  return acp ? (ACP_MODES[mode] ?? null) : DEFAULT_MODE;
 }
 
-export function stricterMode(a: LokiMode | null, b: LokiMode | null): LokiMode {
-  const rank = (m: LokiMode | null) => (m ? MODE_RANK.indexOf(m) : 0);
+export function stricterMode(a: PermissionMode | null, b: PermissionMode | null): PermissionMode {
+  const rank = (m: PermissionMode | null) => (m ? PERMISSION_MODES.indexOf(m) : 0);
   return rank(a) <= rank(b) ? (a ?? "strict") : (b ?? "strict");
 }
 
-export function looserThan(a: LokiMode | null, b: LokiMode): boolean {
-  return (a ? MODE_RANK.indexOf(a) : MODE_RANK.length) > MODE_RANK.indexOf(b);
+export function looserThan(a: PermissionMode | null, b: PermissionMode): boolean {
+  return (a ? PERMISSION_MODES.indexOf(a) : PERMISSION_MODES.length) > PERMISSION_MODES.indexOf(b);
 }
 
 export interface LinkSeen {

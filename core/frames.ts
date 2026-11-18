@@ -6,7 +6,7 @@ import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
 import type { UsageReply } from "./usage.ts";
-import { isLinkDuration, parseLink, type ChatLink, type LinkDuration, type LokiMode } from "./chat-links.ts";
+import { isLinkDuration, isPermissionMode, parseLink, type ChatLink, type LinkDuration, type PermissionMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import { parseLanes, type Lane } from "./attention/lanes.ts";
@@ -211,7 +211,7 @@ const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title
     : null;
 };
 /** A permission mode as a chat message's cap names it; anything else is no cap known, which the receiver treats as strict. */
-const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
+const lokiMode = (v: unknown): PermissionMode | null => (isPermissionMode(v) ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 export interface MacAccountView extends AccountView {
@@ -518,6 +518,11 @@ export interface PushPeerMeaning {
 }
 
 export const MOVE_TIMEOUT_MS = 180_000;
+export const PASS_RUN_TIMEOUT_MS = 10 * 60_000;
+export const DOCTOR_WAIT_MS = PASS_RUN_TIMEOUT_MS + 60_000;
+export const MAIL_HOLD_MS = 10_000;
+export const REPLY_WAIT_MS = 60_000;
+export const HANDOFF_WAIT_MS = 60_000;
 /**
  * What a chat says while it is held for a move to a Mac out of reach (plan 096); the app finds it in the error line and
  * offers **keep it here** there.
@@ -1370,7 +1375,7 @@ export const FRAMES = {
       };
     },
     PHONE,
-    { route: "home", relists: true, timeout_ms: 60_000 },
+    { route: "home", relists: true, timeout_ms: REPLY_WAIT_MS },
   ),
   account_thread_compose: request(
     "account_compose",
@@ -1492,7 +1497,7 @@ export const FRAMES = {
           }
         : "account_id and thread_id required",
     PHONE,
-    { route: "home", relists: true, timeout_ms: 60_000 },
+    { route: "home", relists: true, timeout_ms: HANDOFF_WAIT_MS },
   ),
   account_connect_gmail: request(
     "account_signin",
