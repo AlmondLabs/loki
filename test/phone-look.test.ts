@@ -169,6 +169,13 @@ describe("the phone's glass (U1)", () => {
     expect(ruleOf(".loki-phone-convo-body .loki-latest-chip")).toMatch(/bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-3\)\) !important;/);
   });
 
+  test("a Flow card's thread ends above the card's floating dock, and its jump-to-latest chip rides above it", () => {
+    const thread = ruleOf(".loki-phone-card [data-thread-scroll]");
+    expect(thread).toMatch(/padding-bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-4\)\) !important;/);
+    expect(thread).toContain("scroll-padding-bottom: var(--loki-dock-height);");
+    expect(ruleOf(".loki-phone-card .loki-latest-chip")).toMatch(/bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-3\)\) !important;/);
+  });
+
   test("the old navigation material is gone from the app", () => {
     const files = (dir: string): string[] =>
       readdirSync(dir).flatMap((name) => {
