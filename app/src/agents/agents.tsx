@@ -113,7 +113,7 @@ export function useAgentsPlace({
       pick("skills");
     },
   });
-  const { d, log, notice, flash } = store;
+  const { fetched, d, log, notice, flash } = store;
   const shownSkill = shownSkillOf(d, skillName);
   const shownSha = shownShaOf(sha, log);
   const runs = reflectionRuns(log);
@@ -136,7 +136,7 @@ export function useAgentsPlace({
     !selected || !agentsHasList(sel, agents.length)
       ? null
       : !d
-        ? { rows: [], selectedId: null, onSelect: () => {}, empty: d === null ? "No local record" : "Reading the agent…", noun: "Item" }
+        ? { rows: [], selectedId: null, onSelect: () => {}, empty: fetched.kind === "unanswered" ? "No local record" : "Reading the agent…", noun: "Item" }
         : page === "memory"
           ? { rows: memoryRows(d.files), selectedId: filePath, onSelect: setFilePath, empty: `${name} has no memory files yet.`, noun: "File" }
           : page === "changes"
@@ -222,7 +222,7 @@ export function useAgentsPlace({
       );
     }
     if (!selected) return null;
-    if (d === undefined) {
+    if (fetched.kind === "reading") {
       return (
         <>
           {header(false)}
@@ -230,7 +230,7 @@ export function useAgentsPlace({
         </>
       );
     }
-    if (d === null) {
+    if (fetched.kind === "unanswered") {
       return (
         <>
           {header(false)}

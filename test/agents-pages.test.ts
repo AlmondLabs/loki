@@ -38,7 +38,7 @@ describe("agent reading pane", () => {
     expect(shownSkillOf(d, "stocks")?.name).toBe("stocks");
     expect(shownSkillOf(d, "gone")?.name).toBe("notes");
     expect(shownSkillOf(d, null)?.name).toBe("notes");
-    expect(shownSkillOf(undefined, "notes")).toBeNull();
+    expect(shownSkillOf(null, "notes")).toBeNull();
     expect(shownSkillOf({ skills: [] } as unknown as typeof d, null)).toBeNull();
   });
   test("the commit picked, else the newest; null with no commits", () => {

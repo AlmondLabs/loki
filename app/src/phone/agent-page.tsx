@@ -7,6 +7,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails } from "../agents/agents";
 import { Diff } from "../agents/changes-page";
 import { ago } from "../shared/ago";
+import { READING, answered, valueOf, type Fetched } from "../shared/fetched";
 import { avatarUrl } from "../desk/env";
 
 import { useAgentDetails, type PhoneAgentsApi } from "./agents";
@@ -63,7 +64,8 @@ export function AgentPage({
   backLabel?: string;
   onBack: () => void;
 }) {
-  const d = useAgentDetails(api, agentId);
+  const fetched = useAgentDetails(api, agentId);
+  const d = valueOf(fetched);
   const log = useMemoryLog(api, agentId);
   const [folded, setFoldedState] = useState<Record<string, boolean>>(() => foldedByAgent.get(agentId) ?? {});
   // Kept outside the updater (React may run updaters twice).
@@ -83,8 +85,8 @@ export function AgentPage({
       <Scroll memory={`agent:${agentId}`} flush>
         <Hero agentId={agentId} name={title} details={d} desks={desks} running={running} />
         <Conversations agentId={agentId} desks={desks} items={items} />
-        {d === undefined && <p className="loki-phone-empty">Reading the agent…</p>}
-        {d === null && (
+        {fetched.kind === "reading" && <p className="loki-phone-empty">Reading the agent…</p>}
+        {fetched.kind === "unanswered" && (
           <p className="loki-phone-empty">
             This agent has no local record on the Mac (a remote or hidden agent), so its memory and skills are not readable here. Its conversations still work.
           </p>
@@ -112,7 +114,7 @@ function Hero({
 }: {
   agentId: string;
   name: string;
-  details: AgentDetails | null | undefined;
+  details: AgentDetails | null;
   desks: DeskSummary[];
   running: boolean;
 }) {
@@ -280,17 +282,17 @@ export function FilePage({
   banner?: ReactNode;
   onBack: () => void;
 }) {
-  const d = useAgentDetails(api, agentId);
-  const [content, setContent] = useState<string | null | undefined>(undefined);
+  const d = valueOf(useAgentDetails(api, agentId));
+  const [content, setContent] = useState<Fetched<string>>(READING);
   const [shownFile, setShownFile] = useState({ agentId, path });
   if (shownFile.agentId !== agentId || shownFile.path !== path) {
     setShownFile({ agentId, path });
-    setContent(undefined);
+    setContent(READING);
   }
   const readFile = useEffectEvent((id: string, file: string) => api.read(id, file));
   useEffect(() => {
     let live = true;
-    void readFile(agentId, path).then((c) => live && setContent(c));
+    void readFile(agentId, path).then((c) => live && setContent(answered(c)));
     return () => {
       live = false;
     };
@@ -304,16 +306,16 @@ export function FilePage({
       <TopBar left={<BackButton onClick={onBack} label={agentName} />} title={file} sub={dir ? <span>{dir}/</span> : undefined} banner={banner} />
       <Scroll>
         <div className="loki-phone-file">
-          {content === undefined && <p className="loki-phone-meta">Reading…</p>}
-          {content === null && <p className="loki-phone-meta">Nothing to show here (binary, too large, or gone).</p>}
-          {typeof content === "string" && markdown && (
+          {content.kind === "reading" && <p className="loki-phone-meta">Reading…</p>}
+          {content.kind === "unanswered" && <p className="loki-phone-meta">Nothing to show here (binary, too large, or gone).</p>}
+          {content.kind === "read" && markdown && (
             <div className="loki-phone-md loki-phone-body">
               <Markdown remarkPlugins={[remarkGfm]} components={SHIFTED_HEADINGS}>
-                {stripFrontmatter(content)}
+                {stripFrontmatter(content.value)}
               </Markdown>
             </div>
           )}
-          {typeof content === "string" && !markdown && <pre className="loki-phone-file-code">{content}</pre>}
+          {content.kind === "read" && !markdown && <pre className="loki-phone-file-code">{content.value}</pre>}
         </div>
       </Scroll>
       <div className="loki-phone-file-bar">

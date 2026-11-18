@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "re
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails, AgentsApi } from "../agents/agents";
 import { ago } from "../shared/ago";
+import { READING, answered, valueOf, type Fetched } from "../shared/fetched";
 import { avatarUrl } from "../desk/env";
 
 import { AGENT_FILTERS, agentLine, agentRows, agentsShown, type AgentFilter, type AgentRowModel, type LinkState } from "./model";
@@ -16,8 +17,8 @@ export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
 const cache = new Map<string, AgentDetails>();
 const inflight = new Map<string, Promise<AgentDetails | null>>();
 export const knownDescription = (agentId: string): string | null => cache.get(agentId)?.agent.description ?? null;
-export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): AgentDetails | null | undefined {
-  const [d, setD] = useState<AgentDetails | null | undefined>(() => (agentId ? cache.get(agentId) : undefined));
+export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Fetched<AgentDetails> {
+  const [d, setD] = useState<Fetched<AgentDetails>>(READING);
   const fetchDetails = useEffectEvent((id: string) => api.get(id));
   useEffect(() => {
     if (!agentId || cache.get(agentId) !== undefined) return;
@@ -31,13 +32,13 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
       });
       inflight.set(agentId, p);
     }
-    void p.then((r) => live && setD(r));
+    void p.then((r) => live && setD(answered(r)));
     return () => {
       live = false;
     };
   }, [agentId]);
   const hit = agentId ? cache.get(agentId) : undefined;
-  return hit ?? d;
+  return hit ? { kind: "read", value: hit } : d;
 }
 
 const kept = new Map<"filter", AgentFilter>();
@@ -125,9 +126,10 @@ export function Agents({
 }
 
 function AgentRow({ row, api }: { row: AgentRowModel; api: PhoneAgentsApi }) {
-  const d = useAgentDetails(api, row.id);
+  const fetched = useAgentDetails(api, row.id);
+  const d = valueOf(fetched);
   const name = d?.agent.name ?? row.name;
-  const line = d === null ? agentLine(row, "No local record on this Mac") : agentLine(row, d?.agent.description);
+  const line = fetched.kind === "unanswered" ? agentLine(row, "No local record on this Mac") : agentLine(row, d?.agent.description);
   return (
     <PhoneRow
       lead={<Avatar name={name} src={avatarUrl(row.id)} presence={row.running} />}

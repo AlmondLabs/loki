@@ -577,6 +577,7 @@ const BY_CHAT: PeerMeaning = { route: "chat" };
 const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
 const BY_SCOPE: PeerMeaning = { route: "scope" };
 const BY_HOME: PeerMeaning = { route: "home" };
+const SENDS_REPLY: PeerMeaning = { route: "home", relists: true, timeout_ms: REPLY_WAIT_MS };
 const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["read", "later", "archive", "label", "reply", "handoff", "undo", "next"];
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
@@ -1000,7 +1001,7 @@ export const FRAMES = {
   }),
   chat_command: request(
     "chat_command_done",
-    "run a slash command in a chat: compact, clear, remember or reflect",
+    "run a slash command in a chat: compact, clear, remember, reflect or doctor",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
@@ -1375,7 +1376,7 @@ export const FRAMES = {
       };
     },
     PHONE,
-    { route: "home", relists: true, timeout_ms: REPLY_WAIT_MS },
+    SENDS_REPLY,
   ),
   account_thread_compose: request(
     "account_compose",
@@ -1439,7 +1440,7 @@ export const FRAMES = {
         ? { account_id: m.account_id, thread_id: m.thread_id, outbox_id: m.outbox_id, home: strOr(m.home, null) }
         : "account_id, thread_id and outbox_id required",
     PHONE,
-    BY_HOME,
+    SENDS_REPLY,
   ),
   account_thread_discard: request(
     "account_thread_discarded",

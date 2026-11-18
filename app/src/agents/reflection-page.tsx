@@ -3,15 +3,12 @@ import type { PassSettings } from "../../../core/attention/protocol.ts";
 
 import { Chip, Meta } from "../components";
 import { ago } from "../shared/ago";
+import { READING, answered, type Fetched } from "../shared/fetched";
 import { Pane } from "./bits";
 import { CommitView, passAuthor } from "./changes-page";
 import type { AgentsApi, ReflectionControls } from "./types";
 import type { ReadingState } from "./use-reading";
 import type { MemoryCommit, ReflectionState } from "../../../core/frame-types.ts";
-
-type Reading<T> = { kind: "reading" } | { kind: "unanswered" } | { kind: "read"; value: T };
-
-const answered = <T,>(v: T | null): Reading<T> => (v === null ? { kind: "unanswered" } : { kind: "read", value: v });
 
 export function reflectionRuns(log: readonly MemoryCommit[]): MemoryCommit[] {
   return log.filter((c) => passAuthor(c.author) === "reflection");
@@ -34,8 +31,8 @@ export function ReflectionPage({
   reading: ReadingState;
   onRevert: (sha: string) => void;
 }) {
-  const [settings, setSettings] = useState<Reading<PassSettings>>({ kind: "reading" });
-  const [state, setState] = useState<Reading<ReflectionState>>({ kind: "reading" });
+  const [settings, setSettings] = useState<Fetched<PassSettings>>(READING);
+  const [state, setState] = useState<Fetched<ReflectionState>>(READING);
   const [notice, setNotice] = useState<string | null>(null);
 
   const readState = useEffectEvent((id: string) => api.reflection(id));

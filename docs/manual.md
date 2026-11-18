@@ -933,7 +933,9 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/flow` (`/inbox`
   from the rest of memory). It also keeps the core notes (`system/`) under their 12 KB, moving what not every chat
   needs into described notes, all in one review where reflection takes a few runs. It edits directly, each change a commit by "Doctor"; the command's row shows its report,
   one line per change, and Agents › Changes lists the commits, each with revert. It runs in the agent's hidden
-  `doctor-<agent>` chat, in the same queue as reflection and Learn, and only when you ask.
+  `doctor-<agent>` chat, in the same queue as reflection and Learn but ahead of the passes waiting there, and only when
+  you ask. It has ten minutes in all; when the pass already running uses them up, it says so without starting, and you
+  run it again.
 
 ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away. A command lands
 in the transcript as one quiet row: the command line, then its outcome. `core/attention/commands.ts` is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
