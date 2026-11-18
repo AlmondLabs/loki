@@ -150,12 +150,19 @@ export function chipText(count: number, touch: boolean): string {
 
 export type SuggestionChipProps = SuggestionsProps & { touch?: boolean; tick?: number };
 
+export type OpenCard = { kind: "newest" } | { kind: "picked"; id: string } | { kind: "none" };
+
+export const openCardId = (card: OpenCard, newestFirst: ReadonlyArray<{ id: string }>): string | null =>
+  card.kind === "newest" ? (newestFirst[0]?.id ?? null) : card.kind === "picked" ? card.id : null;
+
+export const toggledCard = (shownId: string | null, id: string): OpenCard => (shownId === id ? { kind: "none" } : { kind: "picked", id });
+
 export function SuggestionChip({ source, rt, blocked = null, touch = false, tick = 0 }: SuggestionChipProps) {
   const face = source.conversation(rt.agent_id, rt.conversation_id);
   const list = face.suggestions.filter(isOpen).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const [open, setOpen] = useState(false);
-  const [openId, setOpenId] = useState<string | null | undefined>(undefined);
-  const shownId = openId === undefined ? (list[0]?.id ?? null) : openId;
+  const [openCard, setOpenCard] = useState<OpenCard>({ kind: "newest" });
+  const shownId = openCardId(openCard, list);
   const [notes, setNotes] = useState<Partial<Record<string, string>>>({});
   const [told, setTold] = useState<Partial<Record<string, Told>>>({});
   const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
@@ -225,7 +232,7 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
                 suggestion={s}
                 target={targetOf(source, s)}
                 open={shownId === s.id}
-                onToggle={() => setOpenId(shownId === s.id ? null : s.id)}
+                onToggle={() => setOpenCard(toggledCard(shownId, s.id))}
                 note={notes[s.id] ?? null}
                 busy={busy.has(s.id)}
                 blocked={blocked}

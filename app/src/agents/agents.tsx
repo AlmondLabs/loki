@@ -107,7 +107,7 @@ export function useAgentsPlace({
     write,
     onUpdateAgent,
     onAskToUpdate,
-    onDeleted: () => setSelected(null),
+    onDeleted: selection.agentDeleted,
     onSkillAdded: (name) => {
       setSkillName(name);
       pick("skills");
