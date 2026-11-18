@@ -77,6 +77,18 @@ describe("the link rules", () => {
     expect(looserThan(null, "unrestricted")).toBe(true);
   });
 
+  test("an unknown mode is strict as a cap and looser than every mode as a sender; known modes keep their order", () => {
+    expect(stricterMode("unrestricted", null)).toBe("strict");
+    expect(stricterMode(null, null)).toBe("strict");
+    for (const m of PERMISSION_MODES) expect(looserThan(null, m)).toBe(true);
+    for (const a of PERMISSION_MODES)
+      for (const b of PERMISSION_MODES) {
+        const loosest = PERMISSION_MODES.indexOf(a) >= PERMISSION_MODES.indexOf(b) ? a : b;
+        expect(stricterMode(a, b)).toBe(loosest === a ? b : a);
+        expect(looserThan(a, b)).toBe(PERMISSION_MODES.indexOf(a) > PERMISSION_MODES.indexOf(b));
+      }
+  });
+
   test("the card's answers go out and come back as the person picked them; anything else is a deny", () => {
     const answer: LinkAnswer = { allow: true, direction: "both_ways", duration: "day" };
     expect(parseLinkAnswer(linkAnswers(answer))).toEqual(answer);

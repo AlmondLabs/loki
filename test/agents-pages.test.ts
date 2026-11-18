@@ -65,13 +65,23 @@ describe("agents selection", () => {
     const { createAgentsSelection, AGENT_ID_KEY } = await import("../app/src/agents/selection.ts");
     const store = memory();
     const a = createAgentsSelection(store);
-    expect(a.get()).toEqual({ agent: undefined, page: "memory", creating: false });
+    expect(a.get()).toEqual({ agent: { kind: "none" }, page: "memory", creating: false });
     a.pickPage("skills");
     a.pickAgent("a2");
     expect(store.m.get(AGENT_PAGE_KEY)).toBe("skills");
     expect(store.m.get(AGENT_ID_KEY)).toBe("a2");
-    expect(createAgentsSelection(store).get()).toMatchObject({ agent: "a2", page: "skills" });
+    expect(createAgentsSelection(store).get()).toMatchObject({ agent: { kind: "agent", id: "a2" }, page: "skills" });
     expect(AGENT_ID_KEY).not.toBe(AGENT_PAGE_KEY);
+  });
+  test("a deleted pick forgets the saved agent, so a reload starts with no pick", async () => {
+    const { createAgentsSelection, AGENT_ID_KEY } = await import("../app/src/agents/selection.ts");
+    const store = memory();
+    const a = createAgentsSelection(store);
+    a.pickAgent("a2");
+    a.agentDeleted();
+    expect(a.get().agent).toEqual({ kind: "deleted" });
+    expect(store.m.has(AGENT_ID_KEY)).toBe(false);
+    expect(createAgentsSelection(store).get().agent).toEqual({ kind: "none" });
   });
   test("a junk page in storage falls back; a blocked storage still works in memory", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
@@ -100,7 +110,7 @@ describe("agents selection", () => {
     s.setCreating(true);
     expect(s.get().creating).toBe(true);
     s.pickAgent("a1");
-    expect(s.get()).toMatchObject({ agent: "a1", creating: false });
+    expect(s.get()).toMatchObject({ agent: { kind: "agent", id: "a1" }, creating: false });
     off();
     s.pickPage("profile");
     expect(heard).toBe(2);
@@ -108,18 +118,19 @@ describe("agents selection", () => {
   test("the agent shown: the picked one, else the desk's agent before any pick, else the first", async () => {
     const { shownAgent } = await import("../app/src/agents/selection.ts");
     const agents = [{ id: "a1" }, { id: "a2" }];
-    expect(shownAgent("a2", "a1", agents)).toBe("a2");
-    expect(shownAgent(undefined, "a2", agents)).toBe("a2");
-    expect(shownAgent(undefined, null, agents)).toBe("a1");
-    expect(shownAgent(null, "a2", agents)).toBe("a1");
-    expect(shownAgent(null, null, [])).toBeNull();
+    expect(shownAgent({ kind: "agent", id: "a2" }, "a1", agents)).toBe("a2");
+    expect(shownAgent({ kind: "none" }, "a2", agents)).toBe("a2");
+    expect(shownAgent({ kind: "none" }, null, agents)).toBe("a1");
+    expect(shownAgent({ kind: "deleted" }, "a2", agents)).toBe("a1");
+    expect(shownAgent({ kind: "deleted" }, null, [])).toBeNull();
   });
   test("a remembered pick that is no longer in the list (deleted elsewhere, then a reload) falls back; while the list loads it stands", async () => {
     const { shownAgent } = await import("../app/src/agents/selection.ts");
     const agents = [{ id: "a1" }, { id: "a2" }];
-    expect(shownAgent("gone", "a2", agents)).toBe("a2");
-    expect(shownAgent("gone", null, agents)).toBe("a1");
-    expect(shownAgent("gone", "a2", [])).toBe("gone");
+    const gone = { kind: "agent", id: "gone" } as const;
+    expect(shownAgent(gone, "a2", agents)).toBe("a2");
+    expect(shownAgent(gone, null, agents)).toBe("a1");
+    expect(shownAgent(gone, "a2", [])).toBe("gone");
   });
 });
 
@@ -160,7 +171,7 @@ describe("agents as sources", () => {
     const selection = createAgentsSelection(null);
     selection.pickPage("skills");
     agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null }).onSelect("a2");
-    expect(selection.get()).toMatchObject({ agent: "a2", page: "skills" });
+    expect(selection.get()).toMatchObject({ agent: { kind: "agent", id: "a2" }, page: "skills" });
     const after = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null });
     expect(after.selected).toBe("a2");
   });
@@ -170,7 +181,7 @@ describe("agents as sources", () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
     selection.pickAgent("a1");
-    selection.pickAgent(null);
+    selection.agentDeleted();
     const left = [{ id: "a2", name: "friday" }];
     expect(agentSources({ agents: left, desks, items, initialAgentId: "a1", state: selection.get(), selection, face: () => null }).selected).toBe("a2");
   });
@@ -204,13 +215,14 @@ describe("agents as sources", () => {
 describe("agents list column", () => {
   test("Profile spans the list and detail; the list returns on Memory and the other pages", async () => {
     const { agentsHasList } = await import("../app/src/agents/selection.ts");
-    expect(agentsHasList({ agent: "a1", page: "profile", creating: false }, 2)).toBe(false);
-    for (const page of ["memory", "changes", "reflection", "skills"] as const) expect(agentsHasList({ agent: "a1", page, creating: false }, 2)).toBe(true);
+    expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page: "profile", creating: false }, 2)).toBe(false);
+    for (const page of ["memory", "changes", "reflection", "skills"] as const)
+      expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page, creating: false }, 2)).toBe(true);
   });
   test("the new-agent form and the invitation before the first agent span them too", async () => {
     const { agentsHasList } = await import("../app/src/agents/selection.ts");
-    expect(agentsHasList({ agent: "a1", page: "memory", creating: true }, 2)).toBe(false);
-    expect(agentsHasList({ agent: undefined, page: "memory", creating: false }, 0)).toBe(false);
+    expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page: "memory", creating: true }, 2)).toBe(false);
+    expect(agentsHasList({ agent: { kind: "none" }, page: "memory", creating: false }, 0)).toBe(false);
   });
 });
 
@@ -231,6 +243,26 @@ describe("agents page lists", () => {
       ["notes.md", "notes.md", undefined],
     ]);
     expect(readingFor("memory", rows[1].id, null, null)).toEqual({ kind: "file", path: "system/human.md" });
+  });
+  test("Reflection says it is reading its settings and its last change before either answers", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { ReflectionPage } = await import("../app/src/agents/reflection-page.tsx");
+    const never = () => new Promise<never>(() => {});
+    const html = renderToStaticMarkup(
+      createElement(ReflectionPage, {
+        agentId: "a1",
+        agentName: "ira",
+        api: { reflection: never } as never,
+        reflect: { get: never, set: never, run: never },
+        run: null,
+        reading: {} as never,
+        onRevert: () => {},
+      }),
+    );
+    expect(html).toContain("Reading the settings…");
+    expect(html).toContain("Reading…");
+    expect(html).not.toContain("did not answer");
   });
   test("Changes lists the commits newest first, a pass's marked; Reflection lists only reflection's", async () => {
     const { changeRows } = await import("../app/src/agents/changes-page.tsx");

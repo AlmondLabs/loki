@@ -19,7 +19,7 @@ import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "
 import { LokiEngine, modelRef } from "./loki-engine.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { messageOf } from "../core/errors.ts";
-import { looserThan, lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
+import { looserThan, lokiModeOf, modeOf, stricterMode, UNKNOWN_CAP, type PermissionMode } from "../core/chat-links.ts";
 import { AcpEngine } from "./acp/engine.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
@@ -220,13 +220,14 @@ export class DaemonChats implements ChatBackend {
     if (c.engine) {
       // loki cannot lower an ACP agent's mode for one turn, so a chat whose mode has more power is refused instead.
       const mode = lokiModeOf((await this.acp.state(p.agent_id, p.conversation_id)).mode, true);
-      if (looserThan(mode, cap ?? "strict")) return "that chat runs in a mode with more power than the chat that sent this: lower its mode, or ask the person";
+      if (looserThan(mode, cap ?? UNKNOWN_CAP))
+        return "that chat runs in a mode with more power than the chat that sent this: lower its mode, or ask the person";
       await engine.send(c, p);
       return null;
     }
     await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
       const held = (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap;
-      const next = held ? stricterMode(lokiModeOf(held, false), cap) : (cap ?? "strict");
+      const next = held ? stricterMode(lokiModeOf(held, false), cap) : (cap ?? UNKNOWN_CAP);
       await c.store.updateChat(p.conversation_id, { turn_cap: next }, this.deps.context);
       await engine.send(c, p);
     });

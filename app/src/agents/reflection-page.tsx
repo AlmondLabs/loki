@@ -9,6 +9,10 @@ import type { AgentsApi, ReflectionControls } from "./types";
 import type { ReadingState } from "./use-reading";
 import type { MemoryCommit, ReflectionState } from "../../../core/frame-types.ts";
 
+type Reading<T> = { kind: "reading" } | { kind: "unanswered" } | { kind: "read"; value: T };
+
+const answered = <T,>(v: T | null): Reading<T> => (v === null ? { kind: "unanswered" } : { kind: "read", value: v });
+
 export function reflectionRuns(log: readonly MemoryCommit[]): MemoryCommit[] {
   return log.filter((c) => passAuthor(c.author) === "reflection");
 }
@@ -30,48 +34,48 @@ export function ReflectionPage({
   reading: ReadingState;
   onRevert: (sha: string) => void;
 }) {
-  const [settings, setSettings] = useState<PassSettings | null | undefined>(undefined);
-  const [state, setState] = useState<ReflectionState | null | undefined>(undefined);
+  const [settings, setSettings] = useState<Reading<PassSettings>>({ kind: "reading" });
+  const [state, setState] = useState<Reading<ReflectionState>>({ kind: "reading" });
   const [notice, setNotice] = useState<string | null>(null);
 
   const readState = useEffectEvent((id: string) => api.reflection(id));
   const readSettings = useEffectEvent(() => reflect.get());
   useEffect(() => {
     let gone = false;
-    void readState(agentId).then((s) => !gone && setState(s));
-    void readSettings().then((s) => !gone && setSettings(s));
+    void readState(agentId).then((s) => !gone && setState(answered(s)));
+    void readSettings().then((s) => !gone && setSettings(answered(s)));
     return () => {
       gone = true;
     };
   }, [agentId]);
 
   const toggle = async (enabled: boolean) => {
-    if (!settings) return;
+    if (settings.kind !== "read") return;
     const err = await reflect.set({ reflection: { enabled } });
     if (err) setNotice(err);
-    else setSettings({ ...settings, reflection: { enabled } });
+    else setSettings({ kind: "read", value: { ...settings.value, reflection: { enabled } } });
   };
   const toggleAcp = async (enabled: boolean) => {
-    if (!settings) return;
+    if (settings.kind !== "read") return;
     const err = await reflect.set({ acp: { enabled } });
     if (err) setNotice(err);
-    else setSettings({ ...settings, acp: { enabled } });
+    else setSettings({ kind: "read", value: { ...settings.value, acp: { enabled } } });
   };
 
   return (
     <Pane>
       <div className="grid gap-4" style={{ maxWidth: 760, marginBottom: 24 }}>
         <div className="loki-label">Reflection</div>
-        {settings === undefined ? (
+        {settings.kind === "reading" ? (
           <Meta>Reading the settings…</Meta>
-        ) : settings === null ? (
+        ) : settings.kind === "unanswered" ? (
           <Meta wrap>loki's daemon did not answer for this setting — it has to be running.</Meta>
         ) : (
           <span className="inline-flex gap-2">
-            <Chip label active={settings.reflection.enabled} aria-pressed={settings.reflection.enabled} onClick={() => void toggle(true)}>
+            <Chip label active={settings.value.reflection.enabled} aria-pressed={settings.value.reflection.enabled} onClick={() => void toggle(true)}>
               On
             </Chip>
-            <Chip label active={!settings.reflection.enabled} aria-pressed={!settings.reflection.enabled} onClick={() => void toggle(false)}>
+            <Chip label active={!settings.value.reflection.enabled} aria-pressed={!settings.value.reflection.enabled} onClick={() => void toggle(false)}>
               Off
             </Chip>
           </span>
@@ -82,12 +86,12 @@ export function ReflectionPage({
           every two hours, and keeps in memory what will matter in later chats, what recurs across them most of all. /reflect in a chat does it now.
         </Meta>
         <div className="loki-label">Without a provider</div>
-        {settings && (
+        {settings.kind === "read" && (
           <span className="inline-flex gap-2">
-            <Chip label active={settings.acp.enabled} aria-pressed={settings.acp.enabled} onClick={() => void toggleAcp(true)}>
+            <Chip label active={settings.value.acp.enabled} aria-pressed={settings.value.acp.enabled} onClick={() => void toggleAcp(true)}>
               Use Claude Code or Cursor
             </Chip>
-            <Chip label active={!settings.acp.enabled} aria-pressed={!settings.acp.enabled} onClick={() => void toggleAcp(false)}>
+            <Chip label active={!settings.value.acp.enabled} aria-pressed={!settings.value.acp.enabled} onClick={() => void toggleAcp(false)}>
               Wait
             </Chip>
           </span>
@@ -104,11 +108,11 @@ export function ReflectionPage({
           <div className="loki-label" style={{ marginBottom: 12 }}>
             Last change
           </div>
-          {state === undefined ? (
+          {state.kind === "reading" ? (
             <Meta>Reading…</Meta>
-          ) : state?.last_commit ? (
+          ) : state.kind === "read" && state.value.last_commit ? (
             <Meta wrap>
-              {ago(state.last_commit.at)} · {state.last_commit.message}
+              {ago(state.value.last_commit.at)} · {state.value.last_commit.message}
             </Meta>
           ) : (
             <Meta wrap>Reflection has not changed {agentName}'s memory yet</Meta>

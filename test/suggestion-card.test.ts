@@ -9,6 +9,8 @@ import {
   busyWith,
   chatChoices,
   chipText,
+  openCardId,
+  toggledCard,
   tickOf,
   waitingCount,
   pickerKey,
@@ -173,6 +175,19 @@ describe("the chip's words and the host's bumps (plan 052)", () => {
     expect(tickOf(one, "x")).toBe(2);
     expect(tickOf(one, "y")).toBe(0);
     expect(bumpTick(one, "y")).toEqual({ id: "y", n: 1 });
+  });
+});
+
+describe("which suggestion is open", () => {
+  test("the newest is open until one is picked; picking another opens it; closing the open one leaves none", () => {
+    const newestFirst = [{ id: "s3" }, { id: "s2" }, { id: "s1" }];
+    const newest = openCardId({ kind: "newest" }, newestFirst);
+    expect(newest).toBe("s3");
+    const picked = toggledCard(newest, "s1");
+    expect(openCardId(picked, newestFirst)).toBe("s1");
+    const closed = toggledCard(openCardId(picked, newestFirst), "s1");
+    expect(openCardId(closed, newestFirst)).toBeNull();
+    expect(openCardId({ kind: "newest" }, [])).toBeNull();
   });
 });
 
