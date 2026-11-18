@@ -32,8 +32,8 @@ const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
 describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
 
-  test("runs on a PR (and by hand), not again on its merge, and a newer push cancels the run before it", () => {
-    expect(Object.keys(ci.on).sort()).toEqual(["pull_request", "schedule", "workflow_dispatch"]);
+  test("runs on a PR, in the merge queue, weekly and by hand, and a newer push cancels the run before it", () => {
+    expect(Object.keys(ci.on).sort()).toEqual(["merge_group", "pull_request", "schedule", "workflow_dispatch"]);
     expect(ci.concurrency).toEqual({ group: "ci-${{ github.event.pull_request.number || github.ref }}", "cancel-in-progress": true });
   });
 
@@ -101,6 +101,23 @@ describe("install: node_modules from a cache main seeds", () => {
       const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
       expect(checkout?.with, name).toEqual({ "fetch-depth": 0, filter: "blob:none" });
     }
+  });
+});
+
+describe("selection: a PR runs what its diff reaches, the merge queue runs everything", () => {
+  const ci = workflow("ci");
+
+  test("each suite step runs the selection on a pull_request and the whole suite otherwise (the queue, the weekly run, by hand)", () => {
+    for (const name of ["test", "tests"]) {
+      const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("npm test"));
+      expect(step?.run, name).toBe("${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}");
+    }
+  });
+
+  test("the Node runner's tests, the bundles and the smoke test are never narrowed", () => {
+    for (const [name, job] of Object.entries(ci.jobs))
+      for (const s of job.steps)
+        for (const cmd of ["test:node", "build:mod", "smoke"]) if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`npm run ${cmd}`);
   });
 });
 

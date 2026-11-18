@@ -6,6 +6,8 @@ on:
       - "*.md"
       - "LICENSE"
       - ".github/ISSUE_TEMPLATE/**"
+  # The queue runs everything before a PR reaches main; a PR's own run narrows the suite to what its diff reaches.
+  merge_group:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
@@ -64,7 +66,7 @@ jobs:
       - id: install
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm test
+        run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:node
 
@@ -103,7 +105,7 @@ jobs:
       - id: install
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm test
+        run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:node
       - id: bundle

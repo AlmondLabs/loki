@@ -47,8 +47,11 @@ cargo fmt --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path s
 npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
-CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
-say something: `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
+CI runs these on a PR (a newer push cancels the run before it) and again in the merge queue, each check where it can
+say something. On a PR the suite runs only what the diff reaches (`npm run test:pr`, `scripts/select-tests.ts`): the
+tests the module graph links to the changed TypeScript, plus every test that reads the tree from disk; any other change
+(a stylesheet, a config, the lockfile, a workflow, a doc, a deletion) runs it all. The merge queue always runs it all,
+so nothing reaches main on a narrowed run. `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
 smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
 macOS 15 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
