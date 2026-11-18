@@ -8,7 +8,9 @@ export interface ChatRef {
 export type Location = { at: "here" } | { at: "mac"; mac: string; reachable: boolean } | { at: "nowhere" };
 
 export type AddressNews =
-  { kind: "holds"; scopes: Scope[] } | { kind: "left"; scope: Scope; to: string } | { kind: "answer"; scope: Scope; held: boolean; moved_to: string | null };
+  | { kind: "holds"; scopes: Scope[] }
+  | { kind: "left"; scope: Scope; to: string }
+  | { kind: "answer"; scope: Scope; held: boolean; moved_to: string | null };
 
 export interface ChatDirectoryOptions {
   here: string;

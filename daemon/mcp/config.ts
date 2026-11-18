@@ -106,7 +106,8 @@ export function readConfig(path: string): McpConfig {
 export const sameServer = (a: ServerConfig, b: ServerConfig): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 export type ServerEdit =
-  { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
+  | { command: string; args: string[]; env: Record<string, string>; cwd: string | null }
+  | { url: string; headers: Record<string, string> };
 
 function readRaw(path: string): Record<string, unknown> {
   if (!existsSync(path)) return { mcpServers: {} };

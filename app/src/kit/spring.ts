@@ -49,7 +49,7 @@ export function springTokens(): string {
   return (Object.keys(SPRINGS) as SpringName[])
     .map((name) => {
       const { easing, ms } = spring(name);
-      // Generated data, kept on one line: Prettier would put each of the curve's points on a line of its own.
+      // Generated data, kept on one line: the formatter would put each of the curve's points on a line of its own.
       return `  /* prettier-ignore */\n  --spring-${name}: ${easing};\n  --spring-${name}-ms: ${ms}ms;`;
     })
     .join("\n");

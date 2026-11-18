@@ -77,8 +77,7 @@ describe("recall extraction parsing", () => {
     expect(labelled.cards[0].slice).toBe("s2");
     expect(labelled.revisions[0].slice).toBe("s1");
     expect(labelled.leads[0].slice).toBe("s2");
-    {
-    }
+    {}
   });
   test("drops cards missing a side, revisions for unknown ids or with no change, and garbage", () => {
     const e = parseExtraction(

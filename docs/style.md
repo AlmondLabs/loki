@@ -11,7 +11,7 @@ rules, checked by `test/tokens.test.ts`); what its words mean is [glossary.md](.
 The checks, all in CI and all to run before pushing:
 
 ```bash
-npm run format:check   # Prettier; npm run format fixes it
+npm run format:check   # oxfmt; npm run format fixes it
 npm run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
 npm run typecheck      # tsc, strict; repeat runs reuse node_modules/.cache/tsc and re-check only what changed
 npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
@@ -26,8 +26,8 @@ there says why, and the ones that still fire somewhere carry their count until a
 
 ## 1. Formatting
 
-- **Prettier formats** TypeScript, JavaScript, CSS, JSON and YAML. Print width 160, double quotes, semicolons,
-  trailing commas everywhere. Nobody formats by hand and nobody argues about it. **checked**: `npm run format:check`.
+- **oxfmt formats** TypeScript, JavaScript, CSS, JSON and YAML (`.oxfmtrc.json`). Print width 160, double quotes,
+  semicolons, trailing commas everywhere. A `prettier-ignore` comment keeps a line as written; oxfmt reads that name. Nobody formats by hand and nobody argues about it. **checked**: `npm run format:check`.
 - **Markdown is hand-written**: wrap prose near 120 characters, keep tables aligned enough to read in a terminal.
   **review**.
 - The commit that reformatted the whole tree is listed in `.git-blame-ignore-revs`; run
