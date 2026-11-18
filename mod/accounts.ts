@@ -344,3 +344,21 @@ export function ownedAccount(accounts: Pick<Accounts, "ownedBy">, agentId: strin
   if (!wanted) return null;
   return accounts.ownedBy(agentId).find((a) => [a.account_id, a.address, accountLabel(a)].some((n) => n.toLowerCase() === wanted)) ?? null;
 }
+
+export function perAccount<T>(
+  accounts: Pick<Accounts, "onChange">,
+  make: (accountId: string) => T,
+  keepThrough: (change: AccountChange) => boolean = () => false,
+): (accountId: string) => T {
+  const made = new Map<string, T>();
+  accounts.onChange((change) => {
+    if (!keepThrough(change)) made.delete(change.account_id);
+  });
+  return (accountId) => {
+    const known = made.get(accountId);
+    if (known !== undefined) return known;
+    const fresh = make(accountId);
+    made.set(accountId, fresh);
+    return fresh;
+  };
+}

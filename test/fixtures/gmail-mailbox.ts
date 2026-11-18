@@ -47,6 +47,7 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
     oldestHistoryId: 0,
     seq: 0,
     failing: false,
+    limited: null as { status: number; reason: string } | null,
     unreadable: new Set<string>(),
     refuseModify: null as string | null,
     inboxListings: 0,
@@ -109,6 +110,10 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
 
   const answer = (method: string, url: URL, body: string): Response => {
     if (state.failing) return json(503, { error: { code: 503, message: "Backend Error" } });
+    if (state.limited) {
+      const { status, reason } = state.limited;
+      return json(status, { error: { code: status, message: "Quota exceeded", errors: [{ reason }] } });
+    }
     const path = url.pathname.replace("/gmail/v1/users/me", "");
     const q = url.searchParams;
     if (path === "/profile") return json(200, { emailAddress: email, historyId: String(state.historyId) });
