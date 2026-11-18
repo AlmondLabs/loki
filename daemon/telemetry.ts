@@ -272,6 +272,7 @@ export class TurnTelemetry {
         store.agentSettings(conversationId as ConversationId, context),
       ]);
       if (!info?.id) return;
+      // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
       const model = (settings as { model?: { provider?: string; modelId?: string } } | undefined)?.model;
       const requestKey = `${agentId}\u0000${String(run.inputs[0])}`;
       const requestId = this.requests.get(requestKey) ?? null;

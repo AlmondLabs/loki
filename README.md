@@ -234,7 +234,7 @@ npm start                                         # the Tauri window on the buil
 npm run dev                                       # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
 npm run dev:vite                                  # Vite alone, for a browser tab
 npm run desktop:dev                               # the Tauri window against a Vite already running
-npm test && npm run typecheck && npm run lint     # vitest, tsc, eslint (typescript-eslint + React compiler rules)
+npm test && npm run typecheck && npm run lint     # vitest, tsc, oxlint (typescript-eslint + React compiler rules) and eslint
 npm run test:node                                 # the tests that need Node: SQLite stores, resuming after a crash, mod reloads
 npm run build:mod                                 # the daemon and mod bundles the app ships (tauri runs it before dev and build)
 cargo test --manifest-path src-tauri/Cargo.toml   # the shell

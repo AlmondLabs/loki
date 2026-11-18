@@ -130,6 +130,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
   );
 }
 
+// oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
 export function MailThread({ messages, own, now = new Date() }: { messages: readonly OutsideMessage[]; own: readonly string[]; now?: Date }) {
   return (
     <div className="loki-mail-thread">

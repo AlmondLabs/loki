@@ -93,7 +93,7 @@ export function ContentList({
     }));
   useEffect(() => () => selectionRef.current?.stop(), []);
 
-  const current = highlight !== null && highlight.over === selectedId ? highlight.id : selectedId;
+  const current = highlight?.over === selectedId ? highlight.id : selectedId;
   const searching = query.trim() !== "";
   const shown = useHeldRows(rows, current, searching);
   const ids = shown.map((r) => r.id);

@@ -275,6 +275,7 @@ export class McpTools {
         .filter((t) => !off.has(t.server))
         .map((t) => t.key),
     );
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
     const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
     if (Array.isArray(settings?.tools)) return;
     const removed = settings?.tools?.remove ?? [];
