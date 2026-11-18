@@ -47,9 +47,9 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 
 ## Before you push
 
-While you work, check with `npm run lint:fast`: it reuses earlier results and takes seconds where `npm run lint`
-takes over a minute, and `npm run typecheck` reuses its own. The cache can miss an error a type change in another
-file causes, so before pushing run the uncached `npm run lint` below.
+While you work, check with `npm run lint:fast`: it reuses ESLint's earlier results. The cache can miss an error a
+type change in another file causes, so before pushing run the uncached `npm run lint` below. `npm run typecheck`
+checks the whole project in about a second and keeps no cache.
 
 Run every check, with CI's toolchain (the newest Node 22 and its npm 10, `SHELL=/bin/bash`), and push only when all pass:
 

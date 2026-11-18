@@ -6,7 +6,7 @@ afterEach(() => void vi.unstubAllGlobals());
 
 describe("an id a tab makes", () => {
   test("is made on a page with no randomUUID, as a phone on plain http is, and is one the mod takes for a held reply", () => {
-    vi.stubGlobal("crypto", { getRandomValues: (a: Uint8Array) => realCrypto.getRandomValues(a) });
+    vi.stubGlobal("crypto", { getRandomValues: (a: Uint8Array<ArrayBuffer>) => realCrypto.getRandomValues(a) });
     const id = newId();
     expect(id).toMatch(/^[0-9a-f]{32}$/);
     expect(newId()).not.toBe(id);

@@ -13,7 +13,7 @@ The checks, all in CI and all to run before pushing:
 ```bash
 npm run format:check   # oxfmt; npm run format fixes it
 npm run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
-npm run typecheck      # tsc, strict; repeat runs reuse node_modules/.cache/tsc and re-check only what changed
+npm run typecheck      # bun check: TypeScript 7's checker on tsconfig.json, strict; the whole project in about a second
 npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
 npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
@@ -106,8 +106,9 @@ there says why, and the ones that still fire somewhere carry their count until a
 
 ## 3. TypeScript
 
-**checked** by tsc (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`) and oxlint, type-aware (typescript-eslint's
-`strictTypeChecked` and `stylisticTypeChecked` rules, tuned as below):
+**checked** by `bun check`, TypeScript 7 (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`) and oxlint, type-aware
+(typescript-eslint's `strictTypeChecked` and `stylisticTypeChecked` rules, tuned as below). The `typescript` package
+stays on 5.x for the parser in `eslint.config.mjs`, which needs its API; TypeScript 7 has none yet.
 
 - **No `any`**, explicit or leaked (`no-explicit-any`, `no-unsafe-*`). Data from outside (a frame, a file, JSON,
   a tool's arguments) comes in as `unknown` and is parsed into a type at the edge, the way `core/frames.ts` parses
