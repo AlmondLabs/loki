@@ -25,11 +25,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/install
       - run: npm run typecheck
 
   format:
@@ -37,11 +36,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/install
       - run: npm run format:check
 
   lint:
@@ -49,11 +47,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/install
       - run: npm run lint
 
   test:
@@ -61,12 +58,11 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
-          cache: npm
+          fetch-depth: 0
+          filter: blob:none
       - id: install
-        run: npm ci
+        uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -77,12 +73,11 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
-          cache: npm
+          fetch-depth: 0
+          filter: blob:none
       - id: install
-        run: npm ci
+        uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:app
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -102,12 +97,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
-          cache: npm
+          fetch-depth: 0
+          filter: blob:none
       - id: install
-        run: npm ci
+        uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}

@@ -1,0 +1,33 @@
+name: cache
+# Installs on main, so a PR finds node_modules saved from its base branch: a cache saved on a PR is visible to that PR
+# alone. A run on a key already saved restores it, which also keeps it from expiring after seven days unused.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - ".github/actions/install/**"
+      - ".github/workflows/cache.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node-modules:
+    name: node_modules (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: ./.github/actions/install

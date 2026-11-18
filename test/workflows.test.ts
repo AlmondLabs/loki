@@ -24,6 +24,9 @@ interface Workflow {
   jobs: Record<string, Job>;
 }
 const workflow = (name: string) => parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", `${name}.yml`), "utf8")) as Workflow;
+const install = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "actions", "install", "action.yml"), "utf8")) as {
+  runs: { steps: Step[] };
+};
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
 
 describe("ci: a PR's checks", () => {
@@ -61,6 +64,43 @@ describe("ci: a PR's checks", () => {
     for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
     expect(tests).toContain("npm run smoke");
     expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "test", "tests", "typecheck"]);
+  });
+});
+
+describe("install: node_modules from a cache main seeds", () => {
+  const ci = workflow("ci");
+  const cache = workflow("cache");
+  const steps = install.runs.steps;
+
+  test("every ci job installs through it, and none runs npm ci itself", () => {
+    for (const [name, job] of Object.entries(ci.jobs)) {
+      expect(
+        job.steps.some((s) => s.uses === "./.github/actions/install"),
+        name,
+      ).toBe(true);
+      expect(runs(job), name).not.toMatch(/\bnpm ci\b/);
+    }
+  });
+
+  test("keys on the lockfile, package.json's dependency fields, Node's major and the system, and runs npm ci on a miss", () => {
+    const key = steps.find((s) => s.id === "key")?.run ?? "";
+    for (const part of ["package-lock.json", "dependencies", "devDependencies", "overrides", "RUNNER_OS", "RUNNER_ARCH", "process.versions.node"])
+      expect(key).toContain(part);
+    const ci = steps.find((s) => s.run === "npm ci") as Step & { if?: string };
+    expect(ci.if).toBe("steps.cache.outputs.cache-hit != 'true'");
+  });
+
+  test("is seeded on main for all three systems when the dependencies change, and daily so it never expires", () => {
+    expect((cache.on.push as { branches?: string[] } | null)?.branches).toEqual(["main"]);
+    expect(cache.on.push?.paths).toContain("package-lock.json");
+    expect(must(cache.jobs["node-modules"], "the seed job").strategy?.matrix?.os?.sort()).toEqual(["macos-15", "ubuntu-22.04", "windows-latest"]);
+  });
+
+  test("checks out a blobless clone with the whole history, so the merge base is there without every file's every version", () => {
+    for (const [name, job] of Object.entries(ci.jobs)) {
+      const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
+      expect(checkout?.with, name).toEqual({ "fetch-depth": 0, filter: "blob:none" });
+    }
   });
 });
 
@@ -103,12 +143,14 @@ describe("React Doctor", () => {
 });
 
 describe("supply chain", () => {
-  const all = ["ci", "shell", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
+  const all = ["ci", "cache", "shell", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
 
-  test("every action is pinned to a commit, not a tag that can move (the build holds the signing secrets)", () => {
+  test("every action is pinned to a commit, not a tag that can move (the build holds the signing secrets), or is this repository's own", () => {
+    const pinned = /^[\w.-]+\/[\w.-]+(\/[\w.-]+)?@[0-9a-f]{40}$/;
     for (const { name, wf } of all)
       for (const [job, j] of Object.entries(wf.jobs))
-        for (const s of j.steps) if (s.uses) expect(s.uses, `${name}/${job}`).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
+        for (const s of j.steps) if (s.uses && !s.uses.startsWith("./.github/actions/")) expect(s.uses, `${name}/${job}`).toMatch(pinned);
+    for (const s of install.runs.steps) if (s.uses) expect(s.uses, "the install action").toMatch(pinned);
   });
 
   test("no runner image that moves under us (ubuntu-latest became Ubuntu 26 on 2026-10-19)", () => {
