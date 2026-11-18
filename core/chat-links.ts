@@ -177,13 +177,18 @@ export function lokiModeOf(mode: string | null | undefined, acp: boolean): Permi
   return acp ? (ACP_MODES[mode] ?? null) : DEFAULT_MODE;
 }
 
+const looseness = (m: PermissionMode): number => PERMISSION_MODES.indexOf(m);
+export const UNKNOWN_CAP: PermissionMode = "strict";
+const UNKNOWN_SENDER_LOOSENESS = PERMISSION_MODES.length;
+
 export function stricterMode(a: PermissionMode | null, b: PermissionMode | null): PermissionMode {
-  const rank = (m: PermissionMode | null) => (m ? PERMISSION_MODES.indexOf(m) : 0);
-  return rank(a) <= rank(b) ? (a ?? "strict") : (b ?? "strict");
+  const x = a ?? UNKNOWN_CAP;
+  const y = b ?? UNKNOWN_CAP;
+  return looseness(x) <= looseness(y) ? x : y;
 }
 
 export function looserThan(a: PermissionMode | null, b: PermissionMode): boolean {
-  return (a ? PERMISSION_MODES.indexOf(a) : PERMISSION_MODES.length) > PERMISSION_MODES.indexOf(b);
+  return (a === null ? UNKNOWN_SENDER_LOOSENESS : looseness(a)) > looseness(b);
 }
 
 export interface LinkSeen {
