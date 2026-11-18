@@ -242,6 +242,11 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
   that needs one keeps a small `until`). **review**.
 - **Portable**: paths through `node:path`, never a hard-coded `/`; tests pass on macOS, Linux and Windows (CI runs
   all three). **checked**: CI.
+- **Leave nothing behind**: test files share a worker's process and loaded modules, and run in a random order.
+  `test/fixtures/reset-after-file.ts` puts back mocks, stubbed globals and env, timers, mocked modules, the working
+  folder and `process.env` after each file; a file undoes anything else it changes in `afterAll` (servers, children,
+  temp folders, module-level state through the module's own API). An order-dependent failure is a leak in the file
+  that ran before: rerun with the printed seed (`npx vitest run --sequence.seed=<seed>`). **checked**: the random order.
 - A bug fix comes with the test that would have caught it. **review**.
 
 ## 9. Commits and pull requests
