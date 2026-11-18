@@ -328,6 +328,7 @@ export class AcpChats {
   async state(agentId: string, conversationId: string): Promise<ChatState> {
     const { store, chat, info } = await this.chat(agentId, conversationId);
     const live = this.live.get(key(agentId, conversationId));
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
     const settings = (await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined;
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
     const turn = live?.turn ?? null;
@@ -487,6 +488,7 @@ export class AcpChats {
     const proc = this.process(live.agent);
     const caps = await proc.capabilities();
     if (live.sessionId && live.epoch === proc.epoch()) return live.sessionId;
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
     const settings = (await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined;
     const cwd = settings?.cwd ?? this.deps.homeDir;
     const takesPrompt = Boolean(caps.sessionCapabilities?.systemPrompt);

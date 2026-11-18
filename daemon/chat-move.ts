@@ -39,6 +39,7 @@ export async function exportChat(
   const chat = await store.chat(chatId, context);
   if (!chat) return null;
   const info = await store.chatInfo(chat.id, context);
+  // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
   const settings = (await store.agentSettings(chat.id, context)) as { model?: { provider?: unknown; modelId?: unknown }; cwd?: unknown } | undefined;
   const entries = await store.entries(chat, context);
   const model =

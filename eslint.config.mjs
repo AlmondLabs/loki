@@ -1,29 +1,16 @@
+// The two rules oxlint (.oxlintrc.json) has no version of: identifiers' case (docs/style.md) and the few patterns that
+// have a helper of their own. Neither needs type information, so this runs in seconds.
 import tseslint from "typescript-eslint";
-import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
   { ignores: ["node_modules/**", "**/dist/**", ".loki-build/**", "src-tauri/**", ".impeccable/**", "docs/**", ".claude/**"] },
-  ...tseslint.configs.strictTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
-  reactHooks.configs.flat.recommended,
   {
-    languageOptions: {
-      parserOptions: {
-        projectService: { allowDefaultProject: ["vitest.config.ts"] },
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
+    files: ["**/*.{ts,tsx,mts,cts,js,mjs,cjs}"],
+    languageOptions: { parser: tseslint.parser },
+    plugins: { "@typescript-eslint": tseslint.plugin },
+    // The code's disable comments are oxlint's to judge, for its rules.
+    linterOptions: { reportUnusedDisableDirectives: "off" },
     rules: {
-      "@typescript-eslint/no-confusing-void-expression": "off",
-      "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true, allowBoolean: true }],
-      "@typescript-eslint/no-empty-function": ["error", { allow: ["arrowFunctions"] }],
-      "@typescript-eslint/array-type": ["error", { default: "array-simple" }],
-      "@typescript-eslint/prefer-nullish-coalescing": ["error", { ignorePrimitives: { string: true, boolean: true } }],
-      "@typescript-eslint/consistent-type-imports": "error",
-      "@typescript-eslint/dot-notation": ["error", { allowPrivateClassPropertyAccess: true, allowProtectedClassPropertyAccess: true }],
-      "react-hooks/exhaustive-deps": "error",
-      "react-hooks/set-state-in-effect": "error",
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none", ignoreRestSiblings: true }],
       "@typescript-eslint/naming-convention": [
         "error",
         { selector: "default", format: ["strictCamelCase"], leadingUnderscore: "allow" },
@@ -38,12 +25,7 @@ export default tseslint.config(
         { selector: ["objectLiteralProperty", "typeProperty", "objectLiteralMethod", "typeMethod"], format: null },
         { selector: "import", format: null },
       ],
-      "no-restricted-exports": ["error", { restrictDefaultExports: { direct: true, named: true, defaultFrom: true, namedFrom: true, namespaceFrom: true } }],
     },
-  },
-  {
-    files: ["**/*.config.{ts,mts,js,mjs}", "mod/index.ts", "mod/boot.ts"],
-    rules: { "no-restricted-exports": "off" },
   },
   {
     files: ["core/**/*.ts", "daemon/**/*.ts", "mod/**/*.ts", "app/src/**/*.{ts,tsx}", "site/src/**/*.{ts,tsx}"],
@@ -61,9 +43,5 @@ export default tseslint.config(
         },
       ],
     },
-  },
-  {
-    files: ["**/*.{js,mjs,cjs}"],
-    ...tseslint.configs.disableTypeChecked,
   },
 );

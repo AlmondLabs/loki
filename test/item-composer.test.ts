@@ -34,6 +34,7 @@ const key = (k: string, mods: { shift?: boolean; composing?: boolean; meta?: boo
 function boxOf(p: MessageBoxProps) {
   const got: { box?: ReturnType<typeof useMessageBox> } = {};
   function Probe() {
+    // oxlint-disable-next-line react/immutability -- the test component hands the hook's result out to the test; it never renders it.
     got.box = useMessageBox(p, null);
     return null;
   }

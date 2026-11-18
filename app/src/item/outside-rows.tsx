@@ -19,6 +19,7 @@ export function itemSlackRow(provider: AccountProvider) {
   };
 }
 
+// oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
 export function ItemMailThread({ messages, own, now = new Date() }: { messages: readonly OutsideMessage[]; own: readonly string[]; now?: Date }) {
   return (
     <div className="flex flex-col gap-3" data-mail-thread>

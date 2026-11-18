@@ -12,16 +12,17 @@ The checks, all in CI and all to run before pushing:
 
 ```bash
 npm run format:check   # Prettier; npm run format fixes it
-npm run lint           # ESLint: typescript-eslint strict + stylistic (type-checked), React hooks and Compiler rules
+npm run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
 npm run typecheck      # tsc, strict; repeat runs reuse node_modules/.cache/tsc and re-check only what changed
 npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
 npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
 ```
 
-`npm run lint:fast` is the same lint with ESLint's cache, for while you work: it skips files whose text has not
-changed, so it can miss an error a type change in another file causes. `npm run lint` never uses the cache, and it is
-the one to run before pushing.
+`.oxlintrc.json` turns on every oxlint category that finds bugs (correctness, suspicious, perf); a rule that is off
+there says why, and the ones that still fire somewhere carry their count until a PR fixes them and turns them on.
+`eslint.config.mjs` keeps the two rules oxlint has no version of: `naming-convention` and `no-restricted-syntax`. `npm run lint:fast` runs the same with ESLint's cache, for while you work;
+`npm run lint` never uses the cache, and it is the one to run before pushing.
 
 ## 1. Formatting
 
@@ -78,7 +79,7 @@ the one to run before pushing.
 **Modules**:
 
 - **Named exports only**; no `export default`. Excepted: tools' config files, and `mod/index.ts` and `mod/boot.ts`,
-  which the mod loader imports by default. **checked**: ESLint (`no-restricted-exports`).
+  which the mod loader imports by default. **checked**: oxlint (`no-restricted-exports`).
 - **`import type`** for types. **checked**: `verbatimModuleSyntax` and `consistent-type-imports`.
 - `core/`, `mod/` and `daemon/` import each other with the `.ts` extension (Node runs them unbundled); `app/` imports
   `core/` with it too, and its own files without. **review**: tsc accepts either form (`allowImportingTsExtensions`
@@ -105,8 +106,8 @@ the one to run before pushing.
 
 ## 3. TypeScript
 
-**checked** by tsc (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`) and ESLint (`strictTypeChecked` and
-`stylisticTypeChecked`, tuned as below):
+**checked** by tsc (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`) and oxlint, type-aware (typescript-eslint's
+`strictTypeChecked` and `stylisticTypeChecked` rules, tuned as below):
 
 - **No `any`**, explicit or leaked (`no-explicit-any`, `no-unsafe-*`). Data from outside (a frame, a file, JSON,
   a tool's arguments) comes in as `unknown` and is parsed into a type at the edge, the way `core/frames.ts` parses
@@ -148,7 +149,7 @@ Patterns the rules lead to:
 
 ## 4. React
 
-**checked** by `eslint-plugin-react-hooks`: the hooks rules and the React Compiler's rules are errors, except
+**checked** by oxlint's `react` plugin: the hooks rules and the React Compiler's rules are errors, except
 `incompatible-library` and `unsupported-syntax`, which stay warnings. React Doctor posts an advisory comment on a PR
 that touches `app/` (new findings against `main`); it does not fail CI, so it is **review**:
 

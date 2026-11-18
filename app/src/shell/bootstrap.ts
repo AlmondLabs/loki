@@ -99,6 +99,6 @@ export interface DaemonLink {
 }
 
 export function welcomeFor(daemon: DaemonStatus | null, link: DaemonLink): WelcomeStep | null {
-  if (link.status !== "open") return daemon && (daemon.error ?? daemon.preparing ?? daemon.toolsMissing) ? "prepare" : null;
+  if (link.status !== "open") return (daemon?.error ?? daemon?.preparing ?? daemon?.toolsMissing) ? "prepare" : null;
   return link.agentsLoaded ? welcomeStep({ agents: link.agents.length, providers: link.providers }) : null;
 }

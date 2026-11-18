@@ -195,6 +195,7 @@ export class LokiEngine implements Engine {
       loop: waiting ? "approval" : view?.run ? "running" : "idle",
       turn_id: view?.run ? turnIdOf(agentId, view.run.inputs) : null,
       mode: modeOf(info?.mode),
+      // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
       cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null,
       ...(streaming ? { streaming } : {}),
     };
@@ -205,6 +206,7 @@ export class LokiEngine implements Engine {
     if (!info?.moved) return null;
     const { from, to, files_left: filesLeft } = info.moved;
     await store.updateChat(info.id, { moved: null }, this.deps.context);
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
     const cwd = ((await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined)?.cwd;
     const lines = [`This chat moved from ${from} to ${to}: you now run on ${to}, with its files, tools and sign-ins.`];
     if (filesLeft > 0) lines.push(`${filesLeft === 1 ? "A file" : `${filesLeft} files`} attached before the move stayed on ${from} and cannot be read here.`);

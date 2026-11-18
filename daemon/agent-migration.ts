@@ -123,6 +123,7 @@ async function migrateChats(d: AgentMigrationDeps, agentId: string): Promise<voi
       if (info?.engine?.kind === "acp") return [];
       const conversation = await store.harness.conversation(conversationId as ConversationId, d.context);
       if (!conversation) return [];
+      // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
       const settings = (await store.agentSettings(conversation.id, d.context)) as { model?: { provider?: string; modelId?: string }; cwd?: string } | undefined;
       const change: { model?: { provider: string; modelId: string }; cwd?: string } = {};
       const model = settings?.model;

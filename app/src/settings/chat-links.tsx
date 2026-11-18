@@ -19,6 +19,7 @@ export function ChatLinks({ api }: { api: ChatLinksApi }) {
   const load = useEffectEvent(reload);
   useEffect(() => load(), []);
   if (view === null) return <Setting label="Links" help={error ?? "Asking loki…"} />;
+  // oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
   const now = new Date();
   const close = async (l: ChatLink) => {
     const err = (await api.close(l.to, l.id)) && (await api.close(l.from, l.id));
