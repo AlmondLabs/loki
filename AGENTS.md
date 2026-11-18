@@ -38,6 +38,12 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 - **Styles** stay on the scales in [docs/design.md](docs/design.md) (`test/tokens.test.ts` checks).
 - **Tests** inject the clock, the file root, runners and fetch; no real network, home or keychain; no sleeps; paths
   through `node:path` so they pass on Windows.
+- **Tests share a process.** Test files run in one worker after another, with the app's modules loaded once, and in a
+  random order. `test/fixtures/reset-after-file.ts` puts back mocks, stubbed globals and env, timers, mocked modules,
+  the working folder and `process.env` after each file. Anything else a file changes, it undoes in `afterAll`: servers
+  closed, children killed, temp folders removed, module-level state (a registry, a cache, a listener) reset through
+  the module's own API. A failure that depends on the order is a leak: rerun with the seed vitest printed
+  (`npx vitest run --sequence.seed=<seed>`) and fix the file that leaked, not the one that failed.
 
 ## Before you push
 
