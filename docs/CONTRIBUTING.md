@@ -61,12 +61,15 @@ cargo fmt --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path s
 npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
-CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
-say something: `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
+CI runs these on a PR (a newer push cancels the run before it) and again in the merge queue, each check where it can
+say something. On a PR the suite runs only what the diff reaches (`npm run test:pr`, `scripts/select-tests.ts`): the
+tests the module graph links to the changed TypeScript, plus every test that reads the tree from disk; any other change
+(a stylesheet, a config, the lockfile, a workflow, a doc, a deletion) runs it all. The merge queue always runs it all,
+so nothing reaches main on a narrowed run. `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
 smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
 macOS 15 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
-`app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). A PR of docs alone starts only the title check. A change to the shell or the mod that works on the Mac
+`app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). On a PR of docs alone each `ci` job passes after its checkout without installing anything: the checks are required, and a PR reaches main through the merge queue only once they pass. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
 

@@ -6,6 +6,7 @@ import { must } from "./fixtures/must.ts";
 
 interface Step {
   id?: string;
+  if?: string;
   uses?: string;
   run?: string;
   with?: Record<string, unknown>;
@@ -32,16 +33,23 @@ const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
 describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
 
-  test("runs on a PR (and by hand), not again on its merge, and a newer push cancels the run before it", () => {
-    expect(Object.keys(ci.on).sort()).toEqual(["pull_request", "schedule", "workflow_dispatch"]);
+  test("runs on a PR, in the merge queue, weekly and by hand, and a newer push cancels the run before it", () => {
+    expect(Object.keys(ci.on).sort()).toEqual(["merge_group", "pull_request", "schedule", "workflow_dispatch"]);
     expect(ci.concurrency).toEqual({ group: "ci-${{ github.event.pull_request.number || github.ref }}", "cancel-in-progress": true });
   });
 
-  test("starts nothing for a PR of docs alone, but runs for the skill the app ships", () => {
-    const ignored = ci.on.pull_request?.["paths-ignore"] ?? [];
-    for (const p of ["docs/**", "*.md"]) expect(ignored).toContain(p);
-    for (const p of [".github/release.txt", ".github/preview.txt"]) expect(ignored).not.toContain(p);
-    expect(ignored.some((p) => p.startsWith("skills"))).toBe(false);
+  test("runs on every PR, docs alone included, so each required check reports; a docs-only PR passes each job before installing", () => {
+    expect(ci.on.pull_request).toBeNull();
+    for (const [name, job] of Object.entries(ci.jobs)) {
+      const scope = job.steps.find((s) => s.id === "scope");
+      expect(scope?.run, name).toContain("git diff --name-only HEAD^1 HEAD");
+      // The skill the app ships is not a doc: skills/ is not in the list.
+      expect(scope?.run, name).toContain("^(docs/|LICENSE$|\\.github/ISSUE_TEMPLATE/|[^/]+\\.md$)");
+      const install = job.steps.find((s) => s.id === "install");
+      expect(install?.if, name).toBe("steps.scope.outputs.docs_only != 'true'");
+      const checks = job.steps.filter((s) => s.run && s.id !== "scope");
+      for (const c of checks) expect(c.if, `${name}: ${c.run ?? ""}`).toMatch(/steps\.(install|bundle)\.outcome == 'success'/);
+    }
   });
 
   test("types, format, lint, the suite and the bundles in jobs of their own on Linux, side by side; the suite on all three systems", () => {
@@ -101,6 +109,32 @@ describe("install: node_modules from a cache main seeds", () => {
       const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
       expect(checkout?.with, name).toEqual({ "fetch-depth": 0, filter: "blob:none" });
     }
+  });
+});
+
+describe("selection: a PR runs what its diff reaches, the merge queue runs everything", () => {
+  const ci = workflow("ci");
+
+  test("each suite step runs the selection on a pull_request and the whole suite otherwise (the queue, the weekly run, by hand)", () => {
+    for (const name of ["test", "tests"]) {
+      const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("npm test"));
+      expect(step?.run, name).toBe("${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}");
+    }
+  });
+
+  test("the Node runner's tests, the bundles and the smoke test are never narrowed", () => {
+    for (const [name, job] of Object.entries(ci.jobs))
+      for (const s of job.steps)
+        for (const cmd of ["test:node", "build:mod", "smoke"]) if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`npm run ${cmd}`);
+  });
+});
+
+describe("pr title: a required check", () => {
+  const title = workflow("pr-title");
+
+  test("reports in the merge queue too, skipped there: the title was checked on the PR", () => {
+    expect(Object.keys(title.on).sort()).toEqual(["merge_group", "pull_request"]);
+    expect((title.jobs.title as Job & { if?: string }).if).toBe("github.event_name == 'pull_request'");
   });
 });
 

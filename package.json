@@ -16,6 +16,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "vitest run",
+    "test:pr": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/select-tests.ts",
     "test:node": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test-node/*.node-test.ts",
     "build:app": "vite build --config app/vite.config.ts",
     "dev:site": "vite --config site/vite.config.ts",
