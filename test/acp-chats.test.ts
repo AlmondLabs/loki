@@ -187,6 +187,13 @@ describe("ACP agents (plan 020)", () => {
     expect(await s.chats.busy("ada", id)).toBe(false);
   });
 
+  test("asked for the long story, the made-up agent answers in many paragraphs, for threads that scroll", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "tell me the long story");
+    expect(s.words().split("\n\n").filter(Boolean).length).toBeGreaterThanOrEqual(10);
+  });
+
   test("a permission request is a loki approval card; always allow picks the agent's own, and stays off loki's list", async () => {
     const s = setup();
     const id = await s.chat();

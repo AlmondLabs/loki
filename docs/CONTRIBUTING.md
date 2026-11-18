@@ -18,6 +18,20 @@ npm run desktop:dev    # the Tauri window against a Vite already running (in a s
 A browser tab shows Preferences as a sheet. To check the Mac app's Settings window instead, open the Vite tab with
 `&window=settings` after its `?t=` token, and `&page=<id>` (an id from `app/src/settings/pages.ts`) to open on a page.
 
+**The phone, in a browser.** `npm run phone-preview` shows the phone's real screens with made-up data, with no phone, no Simulator, and nothing of `~/.loki` or your running daemon touched:
+
+- It starts a throwaway daemon on a scratch folder, with its own ports, no keychain and no provider keys, and switches its phone listener on. It builds `app/dist` first if there is none.
+- It seeds three made-up agents and seven chats through `test/fixtures/fake-acp.mjs`. One chat is long, so threads scroll under the floating bars, and two wait on an approval, so Flow has cards and a conversation shows its dock.
+- It then prints a `localhost` link that pairs a browser as a phone. A link pairs once within ten minutes; press Enter for another. A paired browser stays paired for the run.
+
+Open the link at 390 × 844 (Chromium's device toolbar, or the in-app browser's mobile size). Switch day and night with the browser's colour-scheme emulation, and Increase Contrast with DevTools › Rendering › `prefers-contrast: more`.
+
+- An edit under `app/` rebuilds the page; reload to see it.
+- An edit under `core/`, `daemon/` or `mod/` is picked up as under `npm start`. A daemon change waits while a chat is busy, and the seeded approvals keep two busy. Once the daemon does restart, the script starts it again and re-seeds the approvals.
+- Ctrl-C stops it and deletes the scratch folder; `--keep` leaves the folder.
+
+It is Chromium, not Safari: blur, safe areas and text size are near, not exact. There are no Gmail, Slack or Jira cards.
+
 **Windows and Linux** (the preview builds): Node and Rust as above; in place of Xcode's tools, Windows needs the
 Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
 Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in

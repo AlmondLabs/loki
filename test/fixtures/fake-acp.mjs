@@ -152,6 +152,14 @@ async function prompt(params) {
     say(id, "planned");
     return { stopReason: "end_turn" };
   }
+  if (text.includes("long story")) {
+    for (let i = 1; i <= 12; i++)
+      say(
+        id,
+        `Part ${i}. The seed swap began with a shoebox of envelopes on a folding table, and each spring it grew by another table, another town and another dozen kinds of bean.\n\n`,
+      );
+    return { stopReason: "end_turn" };
+  }
   if (text.includes("edit")) {
     say(id, "Let me edit it.");
     const toolCall = { toolCallId: "call-1", title: "Edit notes.txt", kind: "edit", status: "pending", rawInput: { path: "notes.txt" } };
