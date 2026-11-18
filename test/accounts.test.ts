@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import type { AccountView } from "../core/frame-types.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
-import { Accounts, PeerAccounts, accountIdOf, accountLabel, type AccountChange } from "../mod/accounts.ts";
+import { Accounts, PeerAccounts, accountIdOf, accountLabel, perAccount, type AccountChange } from "../mod/accounts.ts";
 
 const NOW = new Date("2026-11-04T09:00:00Z");
 const AGENTS = new Set(["agent-work", "agent-home"]);
@@ -207,5 +207,25 @@ describe("disconnecting and secrets", () => {
     expect(text).not.toContain("refresh-token-text");
     expect(text).toContain("sign_in_again");
     if (process.platform !== "win32") expect(statSync(file).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe("one of a thing per account", () => {
+  test("is made once and kept; any change to the account makes it again, except the changes it keeps through", async () => {
+    const { accounts } = fixture();
+    await accounts.add(WORK_MAIL);
+    await accounts.add(WORK_SLACK);
+    let made = 0;
+    const make = (accountId: string) => ({ accountId, n: ++made });
+    const dropped = perAccount(accounts, make);
+    const kept = perAccount(accounts, make, (change) => change.kind === "status");
+    const before = { dropped: dropped(WORK_SLACK.account_id), kept: kept(WORK_SLACK.account_id), other: kept(WORK_MAIL.account_id) };
+    expect(dropped(WORK_SLACK.account_id)).toBe(before.dropped);
+    accounts.setStatus(WORK_SLACK.account_id, { disconnected: "temporarily_failing" });
+    expect(dropped(WORK_SLACK.account_id)).not.toBe(before.dropped);
+    expect(kept(WORK_SLACK.account_id)).toBe(before.kept);
+    accounts.moveOwner(WORK_SLACK.account_id, "agent-home");
+    expect(kept(WORK_SLACK.account_id)).not.toBe(before.kept);
+    expect(kept(WORK_MAIL.account_id)).toBe(before.other);
   });
 });

@@ -32,6 +32,7 @@ interface GmailCursor {
 const CURSOR_VERSION = 3;
 /** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
 const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
+const WAITS = ["rateLimitExceeded", "userRateLimitExceeded"];
 
 const NEVER_MOVED: ReadonlySet<string> = new Set(["TRASH", "SPAM", "SENT", "DRAFT", "CHAT"]);
 
@@ -158,6 +159,12 @@ export class GmailSync implements AccountSync {
 
   private save(cursor: GmailCursor): void {
     this.opts.accounts.setBackfill(this.accountId, { history_id: cursor.history_id, more: cursor.more, version: CURSOR_VERSION });
+  }
+
+  askedToWait(error: unknown): boolean {
+    if (!(error instanceof GoogleError) || !(error.status === 429 || (error.reason !== null && WAITS.includes(error.reason)))) return false;
+    log("gmail:rate-limited", { account_id: this.accountId, status: error.status, reason: error.reason });
+    return true;
   }
 
   async tick(): Promise<void> {

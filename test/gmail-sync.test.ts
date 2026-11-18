@@ -486,4 +486,27 @@ describe("a Gmail account that fails (R22)", () => {
     expect(must(accounts.get(id(0)), "ada").status).toBe("connected");
     expect(cards(0)).toEqual(["t-ada"]);
   });
+
+  test("Gmail asking loki to slow down is a wait, not a failure; a day's quota spent is a failure", async () => {
+    const { box, sync, cards, ago, accounts, id } = await setup();
+    const reports: unknown[] = [];
+    const watcher = new AccountWatcher({ accounts, factories: { gmail: () => sync() }, report: (_event, detail) => reports.push(detail) });
+    await watcher.tick();
+    for (const limited of [
+      { status: 429, reason: "rateLimitExceeded" },
+      { status: 403, reason: "userRateLimitExceeded" },
+    ]) {
+      box.state.limited = limited;
+      for (let i = 0; i < 3; i++) await watcher.tick();
+    }
+    expect(must(accounts.get(id()), "ada").status).toBe("connected");
+    expect(reports).toEqual([]);
+    box.state.limited = null;
+    box.deliver({ thread: "t-later", at: ago(0), from: GRACE, to: "ada@acme.com" });
+    await watcher.tick();
+    expect(cards()).toEqual(["t-later"]);
+    box.state.limited = { status: 403, reason: "dailyLimitExceeded" };
+    for (let i = 0; i < 3; i++) await watcher.tick();
+    expect(must(accounts.get(id()), "ada").status).toEqual({ disconnected: "temporarily_failing" });
+  });
 });

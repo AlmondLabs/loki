@@ -48,7 +48,7 @@ import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
-import { Accounts } from "./accounts.ts";
+import { Accounts, perAccount, type AccountChange } from "./accounts.ts";
 import { AccountThreads, outsideCardId, type ThreadRecord } from "./account-threads.ts";
 import { outsideResting } from "../core/attention/rest.ts";
 import { keyOf } from "../core/attention/model.ts";
@@ -60,7 +60,7 @@ import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync, slackOutsideSource } from "./slack-sync.ts";
-import { jiraAccountClient, parseJiraSecret, type JiraClient } from "./jira.ts";
+import { jiraAccountClient, parseJiraSecret } from "./jira.ts";
 import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
 import { OutsideThreads, type SendClient } from "./outside-threads.ts";
 import { outboxKey } from "./mail-outbox.ts";
@@ -240,54 +240,21 @@ export default function activate(api: ModApi, host: Host): () => void {
   threads.onChange(() => broadcast({ type: "chat_changed" }));
   const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
   const slackSessions = new SlackSessions({ home: homedir() });
-  const googleAuths = new Map<string, GoogleAuth>();
-  const googleAuth = (accountId: string): GoogleAuth => {
-    let auth = googleAuths.get(accountId);
-    if (!auth) {
-      auth = new GoogleAuth({ accounts, account_id: accountId });
-      googleAuths.set(accountId, auth);
-    }
-    return auth;
-  };
-  const gmailClients = new Map<string, GmailClient>();
-  const gmailClient = (accountId: string): GmailClient => {
-    let client = gmailClients.get(accountId);
-    if (!client) {
-      client = new GmailClient({ accounts, account_id: accountId, auth: googleAuth(accountId) });
-      gmailClients.set(accountId, client);
-    }
-    return client;
-  };
-  const slackClients = new Map<string, SlackClient>();
-  const slackClient = (accountId: string): SlackClient => {
-    let client = slackClients.get(accountId);
-    if (!client) {
+  const googleAuth = perAccount(accounts, (accountId) => new GoogleAuth({ accounts, account_id: accountId }));
+  const gmailClient = perAccount(accounts, (accountId) => new GmailClient({ accounts, account_id: accountId, auth: googleAuth(accountId) }));
+  const statusOnly = (change: AccountChange) => change.kind === "status";
+  const slackClient = perAccount(
+    accounts,
+    (accountId) => {
       const teamId = accountId.split(":")[1] ?? "";
-      client = new SlackClient({
+      return new SlackClient({
         session: (fresh) => slackSessions.get(teamId, fresh),
         setStatus: (status) => accounts.setStatus(accountId, status),
       });
-      slackClients.set(accountId, client);
-    }
-    return client;
-  };
-  const jiraClients = {
-    made: new Map<string, JiraClient>(),
-    of: (accountId: string): JiraClient => {
-      let client = jiraClients.made.get(accountId);
-      if (!client) {
-        client = jiraAccountClient(accounts, accountId);
-        jiraClients.made.set(accountId, client);
-      }
-      return client;
     },
-  };
-  accounts.onChange((change) => {
-    googleAuths.delete(change.account_id);
-    gmailClients.delete(change.account_id);
-    slackClients.delete(change.account_id);
-    jiraClients.made.delete(change.account_id);
-  });
+    statusOnly,
+  );
+  const jiraClient = perAccount(accounts, (accountId) => jiraAccountClient(accounts, accountId), statusOnly);
   threads.register("gmail", gmailOutsideSource(gmailClient));
   threads.register("jira", jiraOutsideSource());
   const mailPeople = new MailPeople({ file: join(paths.state, "mail-people.json") });
@@ -302,7 +269,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       gmail: (account) =>
         new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople, resting: restingIn(account.account_id) }),
       slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id), resting: restingIn(account.account_id) }),
-      jira: (account) => new JiraSync({ accounts, threads, account, client: jiraClients.of(account.account_id), resting: restingIn(account.account_id) }),
+      jira: (account) => new JiraSync({ accounts, threads, account, client: jiraClient(account.account_id), resting: restingIn(account.account_id) }),
     },
     report: log,
   });
@@ -328,7 +295,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
-  const jiraText = jiraThreadText(jiraClients.of);
+  const jiraText = jiraThreadText(jiraClient);
   const handoff = new Handoff({
     file: join(paths.state, "handoffs.json"),
     accounts,
@@ -346,7 +313,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const people = new People({
     accounts,
     slack: slackPeople,
-    jira: (accountId) => jiraClients.of(accountId),
+    jira: (accountId) => jiraClient(accountId),
     google: (accountId) => {
       let client = googlePeople.get(accountId);
       if (!client) {
@@ -369,9 +336,9 @@ export default function activate(api: ModApi, host: Host): () => void {
         slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),
       ),
       jira: jiraCardView(
-        jiraClients.of,
+        jiraClient,
         async (accountId) => parseJiraSecret(await accounts.getSecret(accountId)),
-        (accountId, attachmentId) => previews.preview(`jira:${accountId}:${attachmentId}`, () => jiraClients.of(accountId).thumbnail(attachmentId)),
+        (accountId, attachmentId) => previews.preview(`jira:${accountId}:${attachmentId}`, () => jiraClient(accountId).thumbnail(attachmentId)),
       ),
     },
     clientFor: (account): SendClient => {
@@ -381,7 +348,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         case "slack":
           return { provider: "slack", client: slackClient(account.account_id) };
         case "jira":
-          return { provider: "jira", client: jiraClients.of(account.account_id) };
+          return { provider: "jira", client: jiraClient(account.account_id) };
       }
     },
   });
@@ -392,7 +359,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     threads,
     outside,
     people,
-    jira: (accountId) => jiraClients.of(accountId),
+    jira: (accountId) => jiraClient(accountId),
     members: (accountId, channel) => channelMembers.of(accountId, channel),
     clientFor: (account): ReplyReads => {
       switch (account.provider) {
@@ -401,7 +368,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         case "slack":
           return { provider: "slack", client: slackClient(account.account_id) };
         case "jira": {
-          const jira = jiraClients.of(account.account_id);
+          const jira = jiraClient(account.account_id);
           return {
             provider: "jira",
             client: {
@@ -705,7 +672,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       : undefined,
   });
   toolDisposers.push(
-    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of, people, slackPeople }),
+    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClient, people, slackPeople }),
     ...registerReplyTools(api, { accounts, replies }),
     ...registerGoogleTools(api, {
       accounts,
