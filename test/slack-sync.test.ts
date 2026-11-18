@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
+import { AccountWatcher } from "../mod/account-watcher.ts";
 import { Accounts, accountIdOf } from "../mod/accounts.ts";
 import { initLog } from "../mod/log.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
 import { SlackClient } from "../mod/slack.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
-import { SlackSync } from "../mod/slack-sync.ts";
+import { SlackSync, slackOutsideSource } from "../mod/slack-sync.ts";
 import { must } from "./fixtures/must.ts";
 
 const dirs: string[] = [];
@@ -227,6 +228,10 @@ async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
   const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch, now });
   const resting = new Set<string>();
   const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client, now, resting: (r) => resting.has(r.thread_id) });
+  threads.register(
+    "slack",
+    slackOutsideSource((accountId) => (accountId === ACCOUNT ? sync : null)),
+  );
   const open = () => threads.list(ACCOUNT).filter((r) => r.state === "open");
   const outside = new OutsideThreads({
     accounts,
@@ -465,6 +470,25 @@ describe("walking the Activity feed", () => {
     clock.t += 61_000;
     await sync.tick();
     expect(feedCalls(slack)).toEqual(["0", "50", "50", "100"]);
+  });
+
+  test("a rate limit before anything is read ends the tick quietly and never counts toward failing for now", async () => {
+    const { slack, sync, accounts, open, clock } = await fixture();
+    busy(slack);
+    slack.refuse.feedAt = "0";
+    const reports: string[] = [];
+    const watcher = new AccountWatcher({ accounts, factories: { slack: () => sync }, report: (event) => reports.push(event) });
+    for (let i = 0; i < 4; i++) {
+      await watcher.tick();
+      clock.t += 61_000;
+    }
+    expect(reports).toEqual([]);
+    expect(accounts.get(ACCOUNT)?.status).toBe("connected");
+    expect(open()).toEqual([]);
+    slack.refuse.feedAt = null;
+    clock.t += 10 * 60_000;
+    await watcher.tick();
+    expect(open().length).toBeGreaterThan(0);
   });
 });
 

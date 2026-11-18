@@ -412,7 +412,9 @@ describe("the watermark, the overlap and the memo (KTD6)", () => {
 
 describe("when Jira refuses, limits or fails (KTD5, R3)", () => {
   test("a 429 skips ticks until the wait ends and does not count toward failing for now", async () => {
-    const { jira, accounts, tick, record, advance } = await connected();
+    const { jira, accounts, sync, record, advance } = await connected();
+    const watcher = new AccountWatcher({ accounts, factories: { jira: () => sync() } });
+    const tick = () => watcher.tick();
     const ticket = jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", at: at(0.5) });
     jira.comment("OPS-1", { at: at(0.5), author: JIRA_ADA, text: "Can you look at this?" });
     jira.state.retry_after = 300;
@@ -432,14 +434,18 @@ describe("when Jira refuses, limits or fails (KTD5, R3)", () => {
   });
 
   test("three failed ticks set failing for now; a good tick clears it", async () => {
-    const { accounts, faults, tick, advance } = await connected();
+    const { accounts, faults, sync, advance } = await connected();
+    const reports: unknown[] = [];
+    const watcher = new AccountWatcher({ accounts, factories: { jira: () => sync() }, report: (_event, detail) => reports.push(detail) });
+    const tick = () => watcher.tick();
     faults.search = true;
     for (let i = 0; i < 2; i++) {
-      await expect(tick()).rejects.toThrow("Jira answered 500");
+      await tick();
       advance(MIN);
     }
     expect(accounts.get(ID)?.status).toBe("connected");
-    await expect(tick()).rejects.toThrow("Jira answered 500");
+    await tick();
+    expect(reports).toEqual(Array.from({ length: 3 }, () => ({ account_id: ID, error: "Jira answered 500" })));
     expect(accounts.get(ID)?.status).toEqual({ disconnected: "temporarily_failing" });
     faults.search = false;
     advance(MIN);

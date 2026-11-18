@@ -15,6 +15,7 @@ afterEach(() => {
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const GMAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T01:U02";
+const WAIT = "Slack asked loki to wait 30 s";
 
 async function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "loki-watcher-"));
@@ -35,6 +36,7 @@ async function fixture() {
         return (step[account.account_id] ?? (() => Promise.resolve()))();
       },
       stop: () => void stopped.push(account.account_id),
+      askedToWait: (error) => error instanceof Error && error.message === WAIT,
     };
   };
   const watcher = new AccountWatcher({ accounts, factories: { gmail: factory, slack: factory }, report: (event, detail) => reports.push({ event, detail }) });
@@ -79,6 +81,65 @@ describe("the account watcher (KTD3)", () => {
     await watcher.tick();
     expect(ticks).toEqual([GMAIL, SLACK, GMAIL, SLACK]);
     expect(reports).toContainEqual({ event: "account:sync-failed", detail: { account_id: GMAIL, error: "Gmail is out of reach" } });
+  });
+
+  test("three failed ticks in a row mark an account failing for now, whatever its provider; a good tick mends it", async () => {
+    const { watcher, accounts, step } = await fixture();
+    step[SLACK] = () => Promise.reject(new Error("Slack is out of reach"));
+    for (let i = 0; i < 2; i++) await watcher.tick();
+    expect(accounts.get(SLACK)?.status).toBe("connected");
+    await watcher.tick();
+    expect(accounts.get(SLACK)?.status).toEqual({ disconnected: "temporarily_failing" });
+    expect(accounts.get(GMAIL)?.status).toBe("connected");
+    step[SLACK] = () => Promise.resolve();
+    await watcher.tick();
+    expect(accounts.get(SLACK)?.status).toBe("connected");
+  });
+
+  test("a good tick between failures starts the count again, and a sign-in a sync asked for is left as it is", async () => {
+    const { watcher, accounts, step } = await fixture();
+    const fail = () => Promise.reject(new Error("Slack is out of reach"));
+    step[SLACK] = fail;
+    for (let i = 0; i < 2; i++) await watcher.tick();
+    step[SLACK] = () => Promise.resolve();
+    await watcher.tick();
+    step[SLACK] = fail;
+    for (let i = 0; i < 2; i++) await watcher.tick();
+    expect(accounts.get(SLACK)?.status).toBe("connected");
+    step[SLACK] = () => {
+      accounts.setStatus(SLACK, { disconnected: "slack_signed_out" });
+      return fail();
+    };
+    await watcher.tick();
+    expect(accounts.get(SLACK)?.status).toEqual({ disconnected: "slack_signed_out" });
+  });
+
+  test("a tick the service only asked to wait neither fails nor mends the account, and is not reported", async () => {
+    const { watcher, accounts, step, reports } = await fixture();
+    const fail = () => Promise.reject(new Error("Slack is out of reach"));
+    const wait = () => Promise.reject(new Error(WAIT));
+    for (const s of [fail, fail, wait, fail]) {
+      step[SLACK] = s;
+      await watcher.tick();
+    }
+    expect(accounts.get(SLACK)?.status).toEqual({ disconnected: "temporarily_failing" });
+    step[SLACK] = wait;
+    await watcher.tick();
+    expect(accounts.get(SLACK)?.status).toEqual({ disconnected: "temporarily_failing" });
+    expect(reports.filter((r) => JSON.stringify(r.detail).includes("wait"))).toEqual([]);
+  });
+
+  test("the watcher's own failing and connected marks keep the account's sync, so what it remembers stays", async () => {
+    const { watcher, built, stopped, step } = await fixture();
+    watcher.start();
+    await flush();
+    step[SLACK] = () => Promise.reject(new Error("Slack is out of reach"));
+    for (let i = 0; i < 3; i++) await watcher.tick();
+    step[SLACK] = () => Promise.resolve();
+    await watcher.tick();
+    expect(built).toEqual([GMAIL, SLACK]);
+    expect(stopped).toEqual([]);
+    watcher.stop();
   });
 
   test("an account disconnected for a sign-in is skipped until it is connected again; a temporarily failing one keeps ticking", async () => {

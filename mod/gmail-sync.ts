@@ -14,7 +14,7 @@ import type { MailPeople } from "./mail-people.ts";
 export type GmailSyncClient = Pick<GmailClient, "profile" | "sendAsAddresses" | "historySince" | "listInbox" | "getThread">;
 
 export interface GmailSyncOptions {
-  accounts: Pick<Accounts, "get" | "setBackfill" | "setStatus">;
+  accounts: Pick<Accounts, "get" | "setBackfill">;
   threads: Pick<AccountThreads, "observe" | "markGoneOutThere" | "reopen" | "get" | "list">;
   account: AccountRecord;
   client: GmailSyncClient;
@@ -29,7 +29,6 @@ interface GmailCursor {
   version: number;
 }
 
-const FAILURES_BEFORE_STATUS = 3;
 const CURSOR_VERSION = 3;
 /** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
 const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
@@ -142,25 +141,10 @@ export class GmailSync implements AccountSync {
   private readonly opts: GmailSyncOptions;
   private readonly accountId: string;
   private own: string[] | null = null;
-  private failures = 0;
 
   constructor(opts: GmailSyncOptions) {
     this.opts = opts;
     this.accountId = opts.account.account_id;
-  }
-
-  async tick(): Promise<void> {
-    try {
-      await this.run();
-    } catch (error) {
-      this.failures++;
-      if (this.failures >= FAILURES_BEFORE_STATUS && this.opts.accounts.get(this.accountId)?.status === "connected")
-        this.opts.accounts.setStatus(this.accountId, { disconnected: "temporarily_failing" });
-      throw error;
-    }
-    this.failures = 0;
-    const status = this.opts.accounts.get(this.accountId)?.status;
-    if (typeof status === "object" && status.disconnected === "temporarily_failing") this.opts.accounts.setStatus(this.accountId, "connected");
   }
 
   private now(): Date {
@@ -176,7 +160,7 @@ export class GmailSync implements AccountSync {
     this.opts.accounts.setBackfill(this.accountId, { history_id: cursor.history_id, more: cursor.more, version: CURSOR_VERSION });
   }
 
-  private async run(): Promise<void> {
+  async tick(): Promise<void> {
     const own = (this.own ??= [...new Set([...(await this.opts.client.sendAsAddresses()), this.opts.account.address].map((a) => a.trim().toLowerCase()))]);
     const cursor = this.cursor();
     if (!cursor) {
