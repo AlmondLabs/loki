@@ -73,6 +73,16 @@ describe("agents selection", () => {
     expect(createAgentsSelection(store).get()).toMatchObject({ agent: { kind: "agent", id: "a2" }, page: "skills" });
     expect(AGENT_ID_KEY).not.toBe(AGENT_PAGE_KEY);
   });
+  test("a deleted pick forgets the saved agent, so a reload starts with no pick", async () => {
+    const { createAgentsSelection, AGENT_ID_KEY } = await import("../app/src/agents/selection.ts");
+    const store = memory();
+    const a = createAgentsSelection(store);
+    a.pickAgent("a2");
+    a.agentDeleted();
+    expect(a.get().agent).toEqual({ kind: "deleted" });
+    expect(store.m.has(AGENT_ID_KEY)).toBe(false);
+    expect(createAgentsSelection(store).get().agent).toEqual({ kind: "none" });
+  });
   test("a junk page in storage falls back; a blocked storage still works in memory", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     expect(createAgentsSelection(memory({ [AGENT_PAGE_KEY]: "global skills" })).get().page).toBe("memory");
