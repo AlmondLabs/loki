@@ -27,6 +27,26 @@ describe("an ACP agent's process", () => {
     }
   });
 
+  test("each process has its own epoch from the moment it is made, before it has started", () => {
+    expect(new AcpProcess(FAKE, handlers).epoch()).not.toBe(new AcpProcess(FAKE, handlers).epoch());
+  });
+
+  test("closing a process and starting it again each give it an epoch it never had", async () => {
+    const proc = new AcpProcess(FAKE, handlers);
+    try {
+      const made = proc.epoch();
+      await proc.capabilities();
+      const started = proc.epoch();
+      await proc.close();
+      const closed = proc.epoch();
+      await proc.capabilities();
+      const again = proc.epoch();
+      expect(new Set([made, started, closed, again]).size).toBe(4);
+    } finally {
+      await proc.close();
+    }
+  });
+
   test("an agent that never answers initialize is stopped by close, and gives up after its start time", async () => {
     const silent: AcpAgentConfig = { id: "silent", name: "Silent", command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] };
     const closed = new AcpProcess(silent, handlers);

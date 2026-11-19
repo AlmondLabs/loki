@@ -21,8 +21,6 @@ interface Running {
   kill: () => void;
 }
 
-let starts = 0;
-
 export const START_TIMEOUT_MS = 180_000;
 
 export class AcpProcess {
@@ -30,7 +28,7 @@ export class AcpProcess {
   private readonly handlers: AcpHandlers;
   private running: Promise<Running> | null = null;
   private stderrTail = "";
-  private generation = 0;
+  private generation: symbol;
   private kill: (() => void) | null = null;
   private readonly startTimeoutMs: number;
 
@@ -38,6 +36,7 @@ export class AcpProcess {
     this.config = config;
     this.handlers = handlers;
     this.startTimeoutMs = startTimeoutMs;
+    this.generation = Symbol(config.name);
   }
 
   stderr(): string {
@@ -49,7 +48,7 @@ export class AcpProcess {
     return this.running;
   }
 
-  epoch(): number {
+  epoch(): symbol {
     return this.generation;
   }
 
@@ -58,7 +57,7 @@ export class AcpProcess {
   }
 
   private async start(): Promise<Running> {
-    const generation = (this.generation = ++starts);
+    const generation = (this.generation = Symbol(this.config.name));
     this.stderrTail = "";
     // npx and other .cmd shims run only through a shell on Windows; a program named by its .exe runs as it is.
     const child = spawn(this.config.command, this.config.args, {
@@ -166,7 +165,7 @@ export class AcpProcess {
     const kill = this.kill;
     this.running = null;
     this.kill = null;
-    this.generation++;
+    this.generation = Symbol(this.config.name);
     kill?.();
     await running?.catch(() => null);
   }
