@@ -47,7 +47,7 @@ export class PeerLink {
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
-    void this.open();
+    this.open();
   }
 
   stop(): void {
@@ -88,13 +88,11 @@ export class PeerLink {
     });
   }
 
-  private async open(): Promise<void> {
-    try {
-      await this.connect();
-    } catch (err) {
+  private open(): void {
+    this.connect().catch((err: unknown) => {
       this.failed(messageOf(err));
       if (!this.stopped) this.closed();
-    }
+    });
   }
 
   private async connect(): Promise<void> {
@@ -171,7 +169,7 @@ export class PeerLink {
     this.backoff = Math.min(this.backoff * 2, this.opts.maxBackoffMs ?? 30_000);
     this.retry = setTimeout(() => {
       this.retry = null;
-      void this.open();
+      this.open();
     }, wait);
     this.retry.unref();
   }
@@ -199,7 +197,11 @@ export class PeerLink {
     if (status === this.current) return;
     this.current = status;
     log("peers:link", { mac: this.opts.macId, status });
-    this.opts.onStatus?.(status);
+    try {
+      this.opts.onStatus?.(status);
+    } catch (err) {
+      log("peers:status_listener_failed", { mac: this.opts.macId, status, reason: messageOf(err) });
+    }
   }
 }
 

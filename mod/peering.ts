@@ -177,7 +177,7 @@ export function startPeering(deps: PeeringDeps): Peering {
           chat_left: (id, f) => {
             if (typeof f.conversation_id !== "string" || typeof f.to !== "string") return;
             directory.heard(id, { kind: "left", scope: scopeFor(f.conversation_id, typeof f.agent_id === "string" ? f.agent_id : null), to: f.to });
-            if (f.to !== macId) void remoteChats.refresh(f.to);
+            if (f.to !== macId) remoteChats.startRefresh(f.to);
           },
         },
       },
@@ -227,7 +227,7 @@ export function startPeering(deps: PeeringDeps): Peering {
     done: (id) => peerStore.get(id)?.moves_done === true,
     markDone: (id) => peerStore.markMovesDone(id),
     onMoved: (id) => {
-      void remoteChats.refresh(id);
+      remoteChats.startRefresh(id);
       broadcast({ type: "lists_changed" });
     },
     onLeft: (chat, to) => {

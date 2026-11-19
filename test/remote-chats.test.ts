@@ -163,6 +163,36 @@ describe("another Mac's chats in this Mac's lists", () => {
     }
   });
 
+  test("a list listener that throws during a fetch a returning Mac started leaves no unhandled rejection, and the fetch runs again", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const escaped: unknown[] = [];
+    const record = (error: unknown) => void escaped.push(error);
+    process.on("unhandledRejection", record);
+    let changes = 0;
+    const link = { status: "reachable", request: () => Promise.resolve({ type: "peer_chats", desks: [desk("conv-1", "plan the week")], inbox: [] }) };
+    const remote = new RemoteChats({
+      link: () => link as never,
+      name: () => "Mac mini",
+      onChange: () => {
+        if (++changes === 1) throw new Error("the list listener broke");
+      },
+      retryMs: 50,
+    });
+    try {
+      remote.setReachable(MINI, true);
+      await vi.advanceTimersByTimeAsync(0);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(escaped).toEqual([]);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(changes).toBe(2);
+      expect(remote.desks().map((d) => d.title)).toEqual(["plan the week"]);
+    } finally {
+      remote.stop();
+      process.off("unhandledRejection", record);
+      vi.useRealTimers();
+    }
+  });
+
   test("unpairing a Mac takes its chats off every list", async () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);
