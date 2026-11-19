@@ -67,7 +67,7 @@ tests the module graph links to the changed TypeScript, plus every test that rea
 (a stylesheet, a config, the lockfile, a workflow, a doc, a deletion) runs it all. The merge queue always runs it all,
 so nothing reaches main on a narrowed run. `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
 smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
-macOS 15 and Windows, where paths, shells and processes differ;
+macOS 15 and Windows, where paths, shells and processes differ. GitHub's Mac runners can queue for minutes, so on a PR the Mac job runs only when the diff can reach what differs there (`scripts/mac-scope.ts`: anything but the app, the site, docs and tests of the app); skipped, it counts as passed, and the merge queue always runs it;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
 `app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). On a PR of docs alone each `ci` job passes after its checkout without installing anything: the checks are required, and a PR reaches main through the merge queue only once they pass. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in

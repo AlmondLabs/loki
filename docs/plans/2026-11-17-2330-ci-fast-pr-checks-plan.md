@@ -43,3 +43,7 @@ then the macOS queue at p95.
 
 Moving runners off GitHub's hosted ones, the merge queue's ruleset and anything else that needs an account, a secret
 or a bill are listed for the owner rather than done here.
+
+The owner chose to stay on GitHub's hosted runners (2026-11-19), so the Mac runner's queue stays. Instead a PR waits
+for a Mac only when its diff can reach what differs there: not for the app, the site, docs or tests of the app. Over
+the last 150 merged PRs that skips the Mac job on 35, and still runs it on all 5 where it alone went red.
