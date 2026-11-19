@@ -8,7 +8,8 @@ This guide covers how things are written. How loki looks is [design.md](design.m
 rules, checked by `test/tokens.test.ts`); what its words mean is [glossary.md](../glossary.md); where code lives is
 [architecture.md](architecture.md).
 
-The checks, all in CI and all to run before pushing:
+The checks, all in CI and all to run before pushing. A pre-push hook (`scripts/pre-push.ts`) runs the first three on
+the files a push changes, so a push never carries a format, lint or type error:
 
 ```bash
 npm run format:check   # oxfmt; npm run format fixes it

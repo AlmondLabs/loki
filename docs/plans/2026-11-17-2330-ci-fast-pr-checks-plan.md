@@ -38,7 +38,9 @@ then the macOS queue at p95.
    order, shard by measured duration.
 5. **Selection and the merge queue.** On a PR, run what the diff can reach; the full suite runs in a merge queue before
    anything reaches main. Hide a change from the selection on purpose and confirm CI goes red.
-6. **Local.** A pre-push hook that checks format, lint and types on the changed files.
+6. **Local.** A pre-push hook that checks format, lint and types on the changed files. Done: `npm install` points git at
+   `.githooks/`; the hook takes about 1s on a usual branch and 2s on one that changes 150 files, and catches a planted
+   format, lint, naming and type error each.
 7. **Budgets.** Each job fails when it runs past its budget.
 
 Moving runners off GitHub's hosted ones, the merge queue's ruleset and anything else that needs an account, a secret
