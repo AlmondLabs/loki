@@ -120,7 +120,7 @@ export class McpServers {
     for (const [name, entry] of this.entries) {
       const next = wanted.get(name);
       if (!next) {
-        void this.stop(entry);
+        void this.retire(entry).closed;
         this.entries.delete(name);
       } else if (!sameServer(entry.config, next)) {
         entry.config = next;
@@ -147,19 +147,18 @@ export class McpServers {
     this.changed();
   }
 
-  private async stop(entry: Entry): Promise<void> {
-    entry.generation++;
+  private retire(entry: Entry): { generation: number; closed: Promise<void> } {
+    const generation = ++entry.generation;
     if (entry.retry) clearTimeout(entry.retry);
     entry.retry = null;
     const client = entry.client;
     entry.client = null;
-    await client?.close().catch(() => {});
+    return { generation, closed: client ? client.close().catch(() => {}) : Promise.resolve() };
   }
 
   private async start(entry: Entry): Promise<void> {
-    const stopping = this.stop(entry);
-    const generation = entry.generation;
-    await stopping;
+    const { generation, closed } = this.retire(entry);
+    await closed;
     if (this.closed || generation !== entry.generation) return;
     if (entry.state !== "down") entry.error = null;
     entry.state = "starting";
@@ -289,7 +288,7 @@ export class McpServers {
 
   async close(): Promise<void> {
     this.closed = true;
-    await Promise.all([...this.entries.values()].map((e) => this.stop(e)));
+    await Promise.all([...this.entries.values()].map((e) => this.retire(e).closed));
   }
 }
 

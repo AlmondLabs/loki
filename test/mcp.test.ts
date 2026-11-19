@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
-import { editServer, parseConfig, readConfig, serverKey, setAlwaysLoad, withSecrets } from "../daemon/mcp/config.ts";
+import { editServer, parseConfig, readConfig, serverKey, setAlwaysLoad, withSecrets, type ServerConfig } from "../daemon/mcp/config.ts";
 import { backoffMs, McpServers, toolKey, type Connector, type McpTool } from "../daemon/mcp/servers.ts";
 import { rank, selected, words } from "../daemon/mcp/search.ts";
 import { ERROR_KEEP, mapResult, START_CHARS } from "../daemon/mcp/results.ts";
@@ -158,6 +158,58 @@ describe("MCP tool names, search and results", () => {
   });
 });
 
+const fakeServer: ServerConfig = { kind: "local", name: "fake", entry: "fake", command: "x", args: [], env: {}, cwd: null, alwaysLoad: [] };
+
+const stateOf = (servers: McpServers, state: string) =>
+  new Promise<void>((resolve) => {
+    const reached = () => servers.status()[0]?.state === state;
+    if (reached()) return resolve();
+    const off = servers.onChange(() => {
+      if (!reached()) return;
+      off();
+      resolve();
+    });
+  });
+
+function heldConnects() {
+  const gates: Array<() => void> = [];
+  const made: Array<() => boolean> = [];
+  const ended: Array<() => boolean> = [];
+  let open = 0;
+  let closed = 0;
+  const count = (n: () => number, waiters: Array<() => boolean>) => (want: number) =>
+    new Promise<void>((resolve) => {
+      const check = () => {
+        if (n() < want) return false;
+        resolve();
+        return true;
+      };
+      if (!check()) waiters.push(check);
+    });
+  const wake = (waiters: Array<() => boolean>) => waiters.push(...waiters.splice(0).filter((check) => !check()));
+  const connect: Connector = async (_config, client) => {
+    const [mine, theirs] = InMemoryTransport.createLinkedPair();
+    await serve(theirs);
+    theirs.onclose = () => {
+      open--;
+      closed++;
+      wake(ended);
+    };
+    await client.connect(mine);
+    open++;
+    const gate = new Promise<void>((r) => gates.push(r));
+    wake(made);
+    await gate;
+  };
+  return {
+    connect,
+    connected: count(() => gates.length, made),
+    closed: count(() => closed, ended),
+    open: () => open,
+    release: (n: number) => gates[n]?.(),
+  };
+}
+
 describe("MCP servers", () => {
   test("a server connects, lists its tools with their hints, is called, and comes back after it drops", async () => {
     const mem = inMemory();
@@ -201,6 +253,62 @@ describe("MCP servers", () => {
       expect(connects).toHaveLength(2);
     } finally {
       await servers.close();
+    }
+  });
+
+  test("two starts of one server, the first connecting late, end with one connection open", async () => {
+    const held = heldConnects();
+    const servers = new McpServers({ connect: held.connect });
+    try {
+      servers.configure([fakeServer]);
+      await held.connected(1);
+      servers.restart("fake");
+      await held.connected(2);
+      held.release(1);
+      await stateOf(servers, "connected");
+      held.release(0);
+      await held.closed(1);
+      expect(held.open()).toBe(1);
+      expect(servers.tools()).toHaveLength(TOOLS.length);
+    } finally {
+      await servers.close();
+    }
+  });
+
+  test("a server removed while it connects closes the connection it just made", async () => {
+    const held = heldConnects();
+    const servers = new McpServers({ connect: held.connect });
+    try {
+      servers.configure([fakeServer]);
+      await held.connected(1);
+      servers.configure([]);
+      held.release(0);
+      await held.closed(1);
+      expect(held.open()).toBe(0);
+      expect(servers.status()).toEqual([]);
+    } finally {
+      await servers.close();
+    }
+  });
+
+  test("the retry a failed start set does nothing once a newer start has run", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mem = inMemory();
+    let connects = 0;
+    const servers = new McpServers({
+      connect: (config, client, stderr) => (++connects === 1 ? Promise.reject(new Error("refused")) : mem.connect(config, client, stderr)),
+    });
+    try {
+      servers.configure([fakeServer]);
+      await stateOf(servers, "down");
+      servers.restart("fake");
+      await stateOf(servers, "connected");
+      await vi.advanceTimersByTimeAsync(backoffMs(1) * 2);
+      expect(connects).toBe(2);
+      expect(servers.status()[0]?.state).toBe("connected");
+    } finally {
+      await servers.close();
+      vi.useRealTimers();
     }
   });
 
