@@ -518,7 +518,9 @@ export function OutsideReply({
   inThread = false,
   items = false,
   onUnsent,
+  folded = false,
 }: {
+  folded?: boolean;
   inThread?: boolean;
   items?: boolean;
   onUnsent?: (outboxId: string, action: "resend" | "discard") => Promise<string | null>;
@@ -692,8 +694,8 @@ export function OutsideReply({
       className={framed ? "loki-mail-compose" : undefined}
       style={framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
     >
-      {notSent}
-      {isMail && (
+      {!folded && notSent}
+      {isMail && !folded && (
         <div className={framed ? "loki-mail-compose-head" : undefined}>
           <MailAddressLine
             compose={compose}
@@ -719,7 +721,7 @@ export function OutsideReply({
           bare={framed}
           className={framed ? "loki-mail-compose-text" : undefined}
           value={text}
-          rows={touch ? 4 : 3}
+          rows={folded ? 1 : touch ? 4 : 3}
           disabled={off}
           placeholder={hint}
           aria-label={hint}
@@ -737,7 +739,7 @@ export function OutsideReply({
           }}
         />
       </div>
-      {isMail && compose && (hasSignature || quote) && (
+      {isMail && compose && !folded && (hasSignature || quote) && (
         <div className={cn(framed && "loki-mail-compose-extra", "flex flex-col gap-1")}>
           {hasSignature && (
             <div className="flex min-w-0 items-baseline gap-2">
@@ -785,43 +787,45 @@ export function OutsideReply({
           )}
         </div>
       )}
-      <div className={cn(framed && "loki-mail-compose-foot", "flex items-center gap-2")}>
-        <Button
-          size={touch ? "touch" : "sm"}
-          tone="positive"
-          disabled={off || !text.trim()}
-          onClick={() => void send()}
-          kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
-          title={touch ? "Send it as you; the card stays" : nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider]}
-        >
-          {busy ? "Sending…" : "Send"}
-        </Button>
-        {touch && busy && onUndo && (
-          <Button size="touch" onClick={onUndo}>
-            Undo
-          </Button>
-        )}
-        {touch && !error && !busy && <Meta wrap>{SEND_NOTE[facts.provider]}</Meta>}
-        {framed && error && (
-          <Meta negative wrap className="flex-1">
-            {error}
-          </Meta>
-        )}
-        {framed ? (
+      {(!folded || busy) && (
+        <div className={cn(framed && "loki-mail-compose-foot", "flex items-center gap-2")}>
           <Button
-            size="sm"
-            bare
-            disabled={off || (!text && mail === null)}
-            onClick={discard}
-            style={{ marginLeft: "auto" }}
-            title="Clear the reply and its recipients"
+            size={touch ? "touch" : "sm"}
+            tone="positive"
+            disabled={off || !text.trim()}
+            onClick={() => void send()}
+            kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
+            title={touch ? "Send it as you; the card stays" : nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider]}
           >
-            Discard
+            {busy ? "Sending…" : "Send"}
           </Button>
-        ) : (
-          actions
-        )}
-      </div>
+          {touch && busy && onUndo && (
+            <Button size="touch" onClick={onUndo}>
+              Undo
+            </Button>
+          )}
+          {touch && !error && !busy && <Meta wrap>{SEND_NOTE[facts.provider]}</Meta>}
+          {framed && error && (
+            <Meta negative wrap className="flex-1">
+              {error}
+            </Meta>
+          )}
+          {framed ? (
+            <Button
+              size="sm"
+              bare
+              disabled={off || (!text && mail === null)}
+              onClick={discard}
+              style={{ marginLeft: "auto" }}
+              title="Clear the reply and its recipients"
+            >
+              Discard
+            </Button>
+          ) : (
+            actions
+          )}
+        </div>
+      )}
       {!framed && error && (
         <Meta negative wrap>
           {error}

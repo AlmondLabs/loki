@@ -13,18 +13,19 @@ import {
   deckQueue,
   dismiss,
   holdCard,
-  isHorizontalDrag,
   passTotal,
   pruneDismissed,
   reconcileDeck,
-  refusedOffset,
   restore,
   reviewAnnouncement,
   revealOpacity,
   rotationFor,
   stackPose,
   summaryLine,
-  swipeDecision,
+  releaseDirection,
+  dragAxis,
+  gestureFor,
+  cardActions,
   tally,
   toFront,
   undoCard,
@@ -68,55 +69,104 @@ const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => (
 });
 
 const W = 366;
-const plain = { approval: false };
-const approval = { approval: true };
+const ask = item("q", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } });
+const right = (dx: number, v = 0) => releaseDirection(dx, 0, W, v, 0, "body");
 
-describe("swipe decision", () => {
-  test("past 40 % of the width, right is seen (read) and left is later, on every card; archiving has its button alone", () => {
-    expect(swipeDecision(W * COMMIT_FRACTION, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBe("later");
-    expect(swipeDecision(200, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-W, W, 0, plain)).toBe("later");
+describe("a release's direction", () => {
+  test("past 40 % of the width, a body swipe goes right or left", () => {
+    expect(right(W * COMMIT_FRACTION)).toBe("right");
+    expect(right(-W * COMMIT_FRACTION)).toBe("left");
+    expect(right(-W)).toBe("left");
+    expect(right(-(W * COMMIT_FRACTION - 1))).toBeNull();
+    expect(right(60, 0.2)).toBeNull();
+    expect(right(0)).toBeNull();
   });
-  test("a left swipe short of the distance springs back", () => {
-    expect(swipeDecision(-(W * COMMIT_FRACTION - 1), W, 0, plain)).toBeNull();
-    expect(swipeDecision(-60, W, 0, plain)).toBeNull();
+  test("a quick flick commits short of the distance, but not one flicked back", () => {
+    expect(right(40, 0.6)).toBe("right");
+    expect(right(-40, -0.6)).toBe("left");
+    expect(right(-40, 1.5)).toBeNull();
+    expect(right(DRAG_SLOP, 2)).toBeNull();
   });
-  test("with text in the reply box, a swipe either way springs back, so nothing is sent", () => {
-    expect(swipeDecision(W, W, 3, { approval: false, typed: true })).toBeNull();
-    expect(swipeDecision(-W, W, -3, { approval: false, typed: true })).toBeNull();
+  test("a body swipe never goes up: the thread scrolls (R5)", () => {
+    expect(releaseDirection(0, -W, W, 0, -3, "body")).toBeNull();
   });
-  test("short of the distance and slow: springs back", () => {
-    expect(swipeDecision(W * COMMIT_FRACTION - 1, W, 0, plain)).toBeNull();
-    expect(swipeDecision(60, W, 0.2, plain)).toBeNull();
-    expect(swipeDecision(-60, W, -0.2, plain)).toBeNull();
-    expect(swipeDecision(0, W, 0, plain)).toBeNull();
-  });
-  test("a fast flick commits short of the distance, in the drag's own direction", () => {
-    expect(swipeDecision(40, W, 0.6, plain)).toBe("seen");
-    expect(swipeDecision(-40, W, -0.6, plain)).toBe("later");
-    expect(swipeDecision(-40, W, 1.5, plain)).toBeNull();
-    expect(swipeDecision(40, W, -1.5, plain)).toBeNull();
-    expect(swipeDecision(DRAG_SLOP, W, 2, plain)).toBeNull();
-  });
-  test("approvals never commit, either way, however far or fast", () => {
-    expect(swipeDecision(W, W, 3, approval)).toBeNull();
-    expect(swipeDecision(-W, W, -3, approval)).toBeNull();
-    expect(swipeDecision(W * COMMIT_FRACTION, W, 0, approval)).toBeNull();
+  test("the reply box goes up as well, on its longer axis, and never down (R3)", () => {
+    expect(releaseDirection(10, -W * COMMIT_FRACTION, W, 0, 0, "box")).toBe("up");
+    expect(releaseDirection(W * COMMIT_FRACTION, -20, W, 0, 0, "box")).toBe("right");
+    expect(releaseDirection(0, W, W, 0, 3, "box")).toBeNull();
+    expect(releaseDirection(0, -40, W, 0, -0.6, "box")).toBe("up");
   });
   test("a missing width cannot commit", () => {
-    expect(swipeDecision(500, 0, 0, plain)).toBeNull();
-    expect(swipeDecision(500, Number.NaN, 0, plain)).toBeNull();
+    expect(releaseDirection(500, 0, 0, 0, 0, "body")).toBeNull();
+    expect(releaseDirection(500, 0, Number.NaN, 0, 0, "box")).toBeNull();
   });
 });
 
-describe("drag start", () => {
-  test("sideways past the slop is a drag; up-and-down or tiny moves are not", () => {
-    expect(isHorizontalDrag(9, 2)).toBe(true);
-    expect(isHorizontalDrag(-9, 2)).toBe(true);
-    expect(isHorizontalDrag(8, 0)).toBe(false);
-    expect(isHorizontalDrag(20, 25)).toBe(false);
-    expect(isHorizontalDrag(3, 1)).toBe(false);
+describe("a drag's axis", () => {
+  test("the body takes only sideways drags past the slop", () => {
+    expect(dragAxis(9, 2, "body")).toBe("x");
+    expect(dragAxis(20, -25, "body")).toBeNull();
+    expect(dragAxis(3, 1, "body")).toBeNull();
+  });
+  test("the box takes sideways drags and upward ones", () => {
+    expect(dragAxis(9, 2, "box")).toBe("x");
+    expect(dragAxis(2, -9, "box")).toBe("y");
+    expect(dragAxis(2, 9, "box")).toBeNull();
+  });
+});
+
+describe("the gesture table (U1)", () => {
+  const none = { typed: false, sending: false };
+  const typed = { typed: true, sending: false };
+  const via = (g: ReturnType<typeof gestureFor>) => ("via" in g ? g.via : `refused:${g.refused}`);
+  const row = (it: AttentionItem, o = none) => (["right", "left", "up"] as const).map((d) => via(gestureFor(it, d, o)));
+
+  test("a chat: Read, Later, Archive; with a reply in the box, Read is refused (R2, R3, R20)", () => {
+    expect(row(item("c1"))).toEqual(["seen", "later", "archive"]);
+    expect(row(item("c1"), typed)).toEqual(["refused:typed", "later", "archive"]);
+  });
+  test("a main chat cannot be archived (R4, AE1)", () => {
+    expect(row(item("default"))).toEqual(["seen", "later", "refused:main"]);
+    expect(row(item("default"), typed)).toEqual(["refused:typed", "later", "refused:main"]);
+  });
+  test("Gmail archives; a proposed reply still lets it go up (AE5)", () => {
+    expect(row(outsideItem("Lunch"))).toEqual(["seen", "later", "archive"]);
+    expect(row(outsideItem("Lunch"), typed)).toEqual(["refused:typed", "later", "archive"]);
+  });
+  test("Jira ends with Read: up is refused", () => {
+    expect(row(jiraItem())).toEqual(["seen", "later", "refused:jira"]);
+  });
+  test("an approval: right approves, left denies, up is refused; a reply in the box refuses both (R6, R20)", () => {
+    expect(row(ask)).toEqual(["approve", "deny", "refused:decide"]);
+    expect(row(ask, typed)).toEqual(["refused:typed", "refused:typed", "refused:decide"]);
+  });
+  test("a reply still sending refuses every gesture", () => {
+    expect(row(item("c1"), { typed: false, sending: true })).toEqual(["refused:sending", "refused:sending", "refused:sending"]);
+  });
+});
+
+describe("the card's actions for the ⋯ (R9, R10)", () => {
+  const opts = { typed: false, sending: false, always: false, handoff: true };
+  const list = (it: AttentionItem, o = opts) => cardActions(it, o).map((a) => `${a.via}${a.gesture ? `:${a.gesture}` : ""}${a.refused ? "!" : ""}`);
+
+  test("a chat lists Read, Later and Archive with their gestures", () => {
+    expect(list(item("c1"))).toEqual(["seen:right", "later:left", "archive:up"]);
+  });
+  test("a main chat has no Archive (AE1)", () => {
+    expect(list(item("default"))).toEqual(["seen:right", "later:left"]);
+  });
+  test("Gmail adds Label and Hand Off; Jira has Hand Off but no Archive or Label (AE3)", () => {
+    expect(list(outsideItem("Lunch"))).toEqual(["seen:right", "later:left", "archive:up", "label", "handoff"]);
+    expect(list(jiraItem())).toEqual(["seen:right", "later:left", "handoff"]);
+    expect(list(jiraItem(), { ...opts, handoff: false })).toEqual(["seen:right", "later:left"]);
+  });
+  test("an approval lists Approve, Deny, Always Allow when offered, and Later", () => {
+    expect(list(ask)).toEqual(["approve:right", "deny:left", "later"]);
+    expect(list(ask, { ...opts, always: true })).toEqual(["approve:right", "deny:left", "always", "later"]);
+  });
+  test("with a reply in the box, Read, Approve and Deny show refused", () => {
+    expect(list(item("c1"), { ...opts, typed: true })).toEqual(["seen:right!", "later:left", "archive:up"]);
+    expect(list(ask, { ...opts, typed: true })).toEqual(["approve:right!", "deny:left!", "later"]);
   });
 });
 
@@ -138,24 +188,11 @@ describe("lean and reveal", () => {
     expect(revealOpacity(W, W)).toBe(1);
     expect(revealOpacity(100, 0)).toBe(0);
   });
-  test("an approval follows the finger a quarter of the way, at most 40px", () => {
-    expect(refusedOffset(40)).toBe(10);
-    expect(refusedOffset(-40)).toBe(-10);
-    expect(refusedOffset(400)).toBe(40);
-    expect(refusedOffset(-400)).toBe(-40);
-  });
-  test("the stack behind: 0.96 / 8px / dimmer, then 0.92 / 16px / dimmer still", () => {
+  test("one card shows behind the top one: 0.97 / 6px / dimmer (R16)", () => {
     expect(stackPose(0)).toEqual({ scale: 1, offsetY: 0, opacity: 1 });
     expect(stackPose(1)).toEqual({ scale: 0.97, offsetY: 6, opacity: 0.7 });
-    expect(stackPose(2)).toEqual({ scale: 0.94, offsetY: 12, opacity: 0.45 });
-    expect(stackPose(5)).toEqual(stackPose(2));
-  });
-});
-
-describe("a release that turns back", () => {
-  test("past the distance but flicked back left before letting go: springs back", () => {
-    expect(swipeDecision(W * COMMIT_FRACTION + 20, W, -1.5, plain)).toBeNull();
-    expect(swipeDecision(W * COMMIT_FRACTION + 20, W, -0.05, plain)).toBe("seen");
+    expect(stackPose(2)).toEqual(stackPose(1));
+    expect(stackPose(5)).toEqual(stackPose(1));
   });
 });
 
@@ -236,7 +273,6 @@ describe("the top card stays on top", () => {
 
 describe("the review pass: Next, Archive, undo, approvals", () => {
   const three = () => [item("a"), item("b"), item("c")];
-  const ask = item("q", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } });
 
   test("Archive advances once: the next card is on top and one fewer is left", () => {
     const items = three();
@@ -295,8 +331,9 @@ describe("the review pass: Next, Archive, undo, approvals", () => {
     expect(deckQueue([ask], s)).toEqual([]);
     expect(s.pass.approved).toBe(1);
   });
-  test("an approval's swipe never becomes a decision, however far", () => {
-    expect(swipeDecision(W, W, 3, { approval: !canCommit(ask, "seen") })).toBeNull();
+  test("Later takes an approval only from the ⋯ (R10)", () => {
+    expect(canCommit(ask, "later", "menu")).toBe(true);
+    expect(canCommit(ask, "seen", "menu")).toBe(false);
   });
   test("a card replied to stays on top until you decide it, even as the reply takes it out of the queue", () => {
     const [a, b, c] = three();
@@ -414,10 +451,9 @@ describe("the phone's moves (plan 070, U8)", () => {
 
   test("a right swipe on an email card marks it read out there, through the read move", async () => {
     const t = movesHost();
-    const way = swipeDecision(W, W, 0, plain);
-    expect(way).toBe("seen");
-    if (!way) return;
-    expect(await makeMove(t.moves, mail, way, "swipe")).toEqual({ error: null, ask: false });
+    const way = gestureFor(mail, "right", { typed: false, sending: false });
+    if (!("via" in way) || way.via !== "seen") throw new Error("a right swipe should read");
+    expect(await makeMove(t.moves, mail, way.via, "swipe")).toEqual({ error: null, ask: false });
     expect(t.calls).toEqual(["read t1#1"]);
     expect(t.marks).toEqual(["seen t1#1"]);
   });

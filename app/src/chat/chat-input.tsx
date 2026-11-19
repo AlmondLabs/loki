@@ -47,6 +47,8 @@ export interface MessageBoxProps {
   sendTitle?: string;
   onStop?: () => void;
   stopping?: boolean;
+  folded?: boolean;
+  "aria-describedby"?: string;
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
   "aria-expanded"?: boolean;
@@ -235,6 +237,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
     sendTitle,
     onStop,
     stopping = false,
+    folded = false,
     onKeyDown: _k,
     onChange: _c,
     onSubmit: _s,
@@ -247,8 +250,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
   const box = useMessageBox(props, ref);
   const { images, uploads, uploading, failedUpload, remove, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
   return (
-    <div className="loki-composer-box" data-listening={listening || undefined}>
-      {(images.length > 0 || uploads.length > 0) && (
+    <div className="loki-composer-box" data-listening={listening || undefined} data-folded={folded || undefined}>
+      {!folded && (images.length > 0 || uploads.length > 0) && (
         <div data-attachments className="loki-composer-images">
           {images.map((a, i) =>
             isFileAttachment(a) ? (
@@ -327,20 +330,24 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
         {...aria}
         {...field}
       />
-      <ComposerBar
-        touch={touch}
-        attach={onImages ? { onClick: () => picker.current?.click() } : null}
-        tools={tools}
-        dictation={
-          dictation.supported ? { listening, pending: dictation.pending, title: listening ? "stop dictating" : dictateTitle(), onToggle: startDictation } : null
-        }
-        canSend={canSend && !uploading}
-        sendLabel={uploading ? "Uploading…" : sendLabel}
-        sendTitle={sendTitle}
-        onSend={send}
-        stop={onStop && !canSend ? { onStop, stopping } : null}
-        disabled={disabled}
-      />
+      {!folded && (
+        <ComposerBar
+          touch={touch}
+          attach={onImages ? { onClick: () => picker.current?.click() } : null}
+          tools={tools}
+          dictation={
+            dictation.supported
+              ? { listening, pending: dictation.pending, title: listening ? "stop dictating" : dictateTitle(), onToggle: startDictation }
+              : null
+          }
+          canSend={canSend && !uploading}
+          sendLabel={uploading ? "Uploading…" : sendLabel}
+          sendTitle={sendTitle}
+          onSend={send}
+          stop={onStop && !canSend ? { onStop, stopping } : null}
+          disabled={disabled}
+        />
+      )}
       {onImages && <input ref={picker} type="file" multiple hidden onChange={onPicked} />}
       {dictation.error && (
         <span

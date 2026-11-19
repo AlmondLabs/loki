@@ -22,7 +22,9 @@ export function TopBar({
   banner,
   progress = null,
   height = 48,
+  inline = false,
 }: {
+  inline?: boolean;
   left?: ReactNode;
   title: ReactNode;
   sub?: ReactNode;
@@ -36,7 +38,7 @@ export function TopBar({
     <header ref={ref} className="loki-phone-topbar">
       <div className="loki-phone-topbar-row" style={{ minHeight: height }}>
         {left && <div className="loki-phone-topbar-group">{left}</div>}
-        <div className="loki-phone-topbar-copy">
+        <div className="loki-phone-topbar-copy" data-inline={inline || undefined}>
           <h1 className="loki-phone-title loki-phone-topbar-title" data-phone-heading tabIndex={-1}>
             {title}
           </h1>

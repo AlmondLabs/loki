@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useId,
   useImperativeHandle,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import {
 } from "react";
 import "./chat.css";
 import { useHeightVar } from "../shared/use-height-var";
+import { useFold } from "../shared/use-fold";
 import { offersAlways, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -121,7 +123,11 @@ export function Conversation({
   placeholder,
   composer = true,
   suggestions = null,
+  fold = false,
+  describe,
 }: {
+  fold?: boolean;
+  describe?: string;
   view: ConversationView;
   actions: ConversationActions;
   models?: ModelEntry[] | null;
@@ -162,6 +168,8 @@ export function Conversation({
 
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
+  const folding = useFold(fold, suggestionsTick);
+  const describedBy = useId();
   const threadRef = useRef<ThreadHandle>(null);
   const [dockEl, setDockEl] = useState<HTMLDivElement | null>(null);
   const dock = useCallback(() => dockEl, [dockEl]);
@@ -348,9 +356,15 @@ export function Conversation({
           {notice}
 
           <div
+            {...folding.props}
             className={proposals ? "relative" : "loki-composer"}
             style={proposals ? undefined : { padding: `8px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(12px + ${g.bottom})`} calc(12px + ${g.left})` }}
           >
+            {describe && (
+              <span id={describedBy} className="sr-only">
+                {describe}
+              </span>
+            )}
             {palette.open &&
               (() => {
                 const list = (
@@ -377,6 +391,7 @@ export function Conversation({
                   onImages={setImages}
                   placeholder={placeholder ?? boxPlaceholder({ status, approval, question }, agentName, touch)}
                   touch={touch}
+                  {...(proposals ? {} : { folded: folding.folded, ...(describe ? { "aria-describedby": describedBy } : {}) })}
                   tools={
                     touch &&
                     (hasModelPicker || hasModeMenu || suggestions) && (
