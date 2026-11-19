@@ -686,6 +686,12 @@ html:has(.loki-phone-shell) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.loki-phone-menu-row-detail {
+  display: block;
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .loki-phone-menu-row-aside {
   color: var(--loki-muted);
   font-size: var(--phone-text-body);
