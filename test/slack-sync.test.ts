@@ -58,7 +58,13 @@ function fakeWorkspace() {
   const activity: FakeItem[] = [];
   const users: Partial<Record<string, string>> = { U0GRACE: "Grace Hopper", U0ALAN: "Alan Turing", U0ME: "Ada" };
   const sent: Array<{ method: string; params: Record<string, string> }> = [];
-  const refuse = { mark: null as string | null, feedAt: null as string | null, activityMark: null as string | null, info: null as string | null };
+  const refuse = {
+    mark: null as string | null,
+    feedAt: null as string | null,
+    activityMark: null as string | null,
+    info: null as string | null,
+    history: null as string | null,
+  };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
   const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts, files: m.files });
@@ -97,6 +103,7 @@ function fakeWorkspace() {
         return { ok: true, items: all.slice(from, from + limit).map(toItem), response_metadata: { next_cursor: next } };
       }
       case "conversations.history": {
+        if (refuse.history) return { ok: false, error: refuse.history };
         let list = mainStream(p.channel ?? "");
         if (p.oldest) list = list.filter((m) => m.ts > (p.oldest ?? ""));
         if (p.latest) list = list.filter((m) => (p.inclusive === "true" ? m.ts <= (p.latest ?? "") : m.ts < (p.latest ?? "")));
@@ -452,6 +459,62 @@ describe("walking the Activity feed", () => {
     expect(feedCalls(slack)).toEqual(["0", "50", "100", "0", "0", "50", "100"]);
   });
 
+  test("a refill the newest page cannot fill reads the whole feed at the next tick, not 15 minutes later", async () => {
+    const { slack, threads, sync, open, resting, clock } = await fixture();
+    const mention = (key: string, seconds: number) => {
+      slack.post("C0GEN", { ts: at(seconds), user: "U0GRACE", text: `<@U0ME> ${key}` });
+      slack.item({ key, type: "at_user", channel: "C0GEN", ts: at(seconds) });
+    };
+    for (let i = 0; i < 60; i++) mention(`new-${String(i)}`, 10 + i);
+    for (let i = 0; i < 30; i++) mention(`old-${String(i)}`, -DAY + i);
+    const backlog = () => open().filter((r) => r.from_backfill && !resting.has(r.thread_id));
+    const minute = async () => {
+      clock.t += 60_000;
+      await sync.tick();
+    };
+
+    await sync.tick();
+    for (const r of open()) resting.add(r.thread_id);
+    await minute();
+    expect(backlog()).toEqual([]);
+    await minute();
+    expect(backlog()).toHaveLength(20);
+
+    for (const r of backlog()) await threads.markRead(ACCOUNT, r.thread_id);
+    await minute();
+    await minute();
+    expect(backlog()).toHaveLength(10);
+
+    for (const r of backlog()) await threads.markRead(ACCOUNT, r.thread_id);
+    const walks = () => slack.sent.filter((c) => c.method === "activity.feed" && c.params.cursor === "50").length;
+    const before = walks();
+    for (let i = 0; i < 3; i++) await minute();
+    expect(walks()).toBe(before);
+  });
+
+  test("a walk whose refill Slack fails does not walk again before 15 minutes", async () => {
+    const { slack, sync, open, resting, clock } = await fixture();
+    for (let i = 0; i < 60; i++) {
+      slack.post("C0GEN", { ts: at(10 + i), user: "U0GRACE", text: `<@U0ME> new-${String(i)}` });
+      slack.item({ key: `new-${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(10 + i) });
+    }
+    slack.item({ key: "old", type: "at_user", channel: "C0GEN", ts: at(-DAY) });
+    const walks = () => slack.sent.filter((c) => c.method === "activity.feed" && c.params.cursor === "50").length;
+    await sync.tick();
+    for (const r of open()) resting.add(r.thread_id);
+    slack.refuse.history = "fatal_error";
+    for (let i = 0; i < 2; i++) {
+      clock.t += 60_000;
+      await sync.tick();
+    }
+    const after = walks();
+    for (let i = 0; i < 5; i++) {
+      clock.t += 60_000;
+      await sync.tick();
+    }
+    expect(walks()).toBe(after);
+  });
+
   test("a walk reads past 1,000 items, so the oldest unread mention is seen (plan 078)", async () => {
     const { slack, sync } = await fixture();
     for (let i = 1; i <= 1100; i++) slack.item({ key: `k${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(i) });
@@ -639,6 +702,51 @@ describe("older unread items", () => {
     await clear();
     await sync.tick();
     expect(open()).toEqual([]);
+  });
+  test("an item Slack no longer shows takes no room: the next batch fills past it, and it is not asked for again", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    const mention = (key: string, seconds: number, posted = true) => {
+      if (posted) slack.post("C0GEN", { ts: at(seconds), user: "U0GRACE", text: `<@U0ME> ${key}` });
+      slack.item({ key, type: "at_user", channel: "C0GEN", ts: at(seconds) });
+    };
+    for (let i = 0; i < 20; i++) mention(`first-${String(i)}`, -DAY + 100 + i);
+    for (let i = 0; i < 20; i++) mention(`deleted-${String(i)}`, -DAY + 50 + i, false);
+    for (let i = 0; i < 5; i++) mention(`next-${String(i)}`, -DAY + i);
+
+    await sync.tick();
+    expect(open()).toHaveLength(20);
+    for (const r of open()) await threads.markRead(ACCOUNT, r.thread_id);
+    await sync.tick();
+    expect(
+      open()
+        .map((r) => r.subject_or_first_line)
+        .sort(),
+    ).toEqual(["@Ada next-0", "@Ada next-1", "@Ada next-2", "@Ada next-3", "@Ada next-4"]);
+
+    const asked = slack.sent.filter((s) => s.method === "conversations.history").length;
+    await sync.tick();
+    expect(slack.sent.filter((s) => s.method === "conversations.history")).toHaveLength(asked);
+  });
+
+  test("a Slack failure that passes leaves the backlog where it was, and the items come at the next good tick", async () => {
+    const { slack, accounts, sync, open } = await fixture();
+    for (let i = 0; i < 3; i++) {
+      slack.post("C0GEN", { ts: at(-DAY + i), user: "U0GRACE", text: `<@U0ME> old-${String(i)}` });
+      slack.item({ key: `old-${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(-DAY + i) });
+    }
+    slack.post("C0GEN", { ts: at(30), user: "U0GRACE", text: "<@U0ME> live" });
+    slack.item({ key: "live", type: "at_user", channel: "C0GEN", ts: at(30) });
+    slack.refuse.history = "internal_error";
+    await sync.tick();
+    expect(open()).toEqual([]);
+    expect(must(accounts.get(ACCOUNT)).backfill).toEqual({});
+    slack.refuse.history = null;
+    await sync.tick();
+    expect(
+      open()
+        .map((r) => r.subject_or_first_line)
+        .sort(),
+    ).toEqual(["@Ada live", "@Ada old-0", "@Ada old-1", "@Ada old-2"]);
   });
 });
 

@@ -77,7 +77,7 @@ interface Live {
   model: string;
   effort: string | null;
   sessionId: string | null;
-  epoch: number;
+  epoch: symbol | null;
   loading: boolean;
   preamble: string | null;
   turn: Turn | null;
@@ -295,7 +295,7 @@ export class AcpChats {
         model: engine.model,
         effort: engine.effort ?? null,
         sessionId: null,
-        epoch: -1,
+        epoch: null,
         loading: false,
         preamble: null,
         turn: null,

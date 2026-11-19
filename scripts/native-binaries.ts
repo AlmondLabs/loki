@@ -1,5 +1,5 @@
 // Which of a native package's prebuilt binaries (`@napi-rs/keyring-linux-x64-gnu`, `…-linux-x64-musl`, …) the app
-// bundle carries. npm installs both of Linux's C library builds, and linuxdeploy runs `ldd` on every binary in the
+// bundle carries. An installer may put both of Linux's C library builds in node_modules (npm does), and linuxdeploy runs `ldd` on every binary in the
 // AppImage: `ldd` on a glibc system cannot read a musl binary and linuxdeploy stops the build, so a bundle keeps only
 // the build for the C library this system runs on.
 

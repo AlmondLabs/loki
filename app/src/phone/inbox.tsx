@@ -1,8 +1,18 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import type { AccountProvider, OutsideSeed } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
-import { archivable, offersAlways, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
+import { offersAlways, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type FlowLane, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -33,7 +43,6 @@ import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
 import { onScreenOffset, releaseVelocity, type Sample } from "../kit/let-go";
 import {
-  DRAG_SLOP,
   EMPTY_DECK,
   FLY_PAST,
   UNDO_MS,
@@ -45,16 +54,18 @@ import {
   deckQueue,
   flingVelocity,
   holdCard,
-  isHorizontalDrag,
+  dragAxis,
+  gestureFor,
+  cardActions,
+  releaseDirection,
+  REFUSED,
   moveLedger,
   reconcileDeck,
-  refusedOffset,
   revealOpacity,
   reviewAnnouncement,
   rotationFor,
   stackPose,
   summaryLine,
-  swipeDecision,
   throughResting,
   undoCard,
   makeMove,
@@ -64,8 +75,11 @@ import {
   type DeckState,
   type Move,
   type PassSummary,
+  type CardActionKind,
+  type Direction,
+  type Origin,
+  type Refusal,
   type Role,
-  type Swipe,
   type Via,
 } from "./deck";
 import type { CardVia } from "../../../core/attention/use-attention.ts";
@@ -74,6 +88,10 @@ import { ReturnTimeSheet } from "./return-time-sheet";
 import { MailLabelsSheet } from "./mail-labels-sheet";
 import { LaneSheet, LaneTitle } from "./lane-sheet";
 import { newId } from "../shared/new-id";
+import { useFold } from "../shared/use-fold";
+import { Sheet } from "../components";
+import { CardActionsSheet } from "./card-actions";
+import { FlowHint, useFlowHint } from "./flow-hint";
 
 export interface InboxMoves extends CardMoves {
   laterAsks: (item: AttentionItem) => boolean;
@@ -98,7 +116,7 @@ export interface Deck {
   currentId: string | null;
   pass: PassSummary;
   heldId: string | null;
-  commit: (item: AttentionItem, via: Via) => boolean;
+  commit: (item: AttentionItem, via: Via, from?: "gesture" | "menu") => boolean;
   undo: (item: AttentionItem, via: Via, wasHeld: boolean) => void;
   hold: (item: AttentionItem) => void;
   again: () => void;
@@ -118,9 +136,9 @@ export function useDeck(items: AttentionItem[], all: AttentionItem[] = items): D
     currentId: current ? idOf(current) : null,
     pass: state.pass,
     heldId: state.held ? idOf(state.held) : null,
-    commit: (item, via) => {
-      if (!canCommit(item, via)) return false;
-      setState((s) => commitCard(s, item, via));
+    commit: (item, via, from = "gesture") => {
+      if (!canCommit(item, via, from)) return false;
+      setState((s) => commitCard(s, item, via, from));
       return true;
     },
     undo: (item, via, wasHeld) => setState((s) => undoCard(s, item, via, wasHeld)),
@@ -171,7 +189,7 @@ interface Undo {
 }
 interface Leaving {
   item: AttentionItem;
-  dir: 1 | -1;
+  dir: Direction;
 }
 
 const UNDO_NAME: Record<Move, string> = { seen: "Undo Read", later: "Undo Later", archive: "Undo Archive" };
@@ -188,15 +206,6 @@ function UndoButton({ via, onUndo }: { via: Move; onUndo: () => void }) {
 const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(0.8)" }];
 
 const isMove = (via: Via): via is Move => via === "seen" || via === "later" || via === "archive";
-
-type Refusal = "approval" | "main" | "jira" | "typed" | "sending";
-const REFUSED: Record<Refusal, string> = {
-  approval: "This one needs Approve or Deny.",
-  main: "A main chat cannot be archived.",
-  jira: "A Jira card ends only with Read.",
-  typed: "Send the reply first, or use the buttons.",
-  sending: "The reply is still sending.",
-};
 
 function usePass({
   deck,
@@ -233,11 +242,11 @@ function usePass({
     setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l));
     setUndo((u) => (u && idOf(u.item) === idOf(item) ? null : u));
   };
-  const commit = (item: AttentionItem, via: Via, how: "swipe" | "tap" = "tap", opts: { until?: string; done?: boolean } = {}) => {
+  const commit = (item: AttentionItem, via: Via, how: "swipe" | "tap" = "tap", opts: { until?: string; done?: boolean; from?: "gesture" | "menu" } = {}) => {
     const held = deck.heldId === idOf(item);
     onCommit(item);
-    if (!deck.commit(item, via)) {
-      flashRefused(item.pendingApproval ? "approval" : item.outside ? "jira" : "main");
+    if (!deck.commit(item, via, opts.from)) {
+      flashRefused(item.pendingApproval ? "decide" : item.outside ? "jira" : "main");
       return;
     }
     const move = ledger.made(idOf(item));
@@ -251,7 +260,7 @@ function usePass({
     const rest = deck.visible.filter((i) => idOf(i) !== idOf(item));
     setSaid(reviewAnnouncement(via, rest[0], rest.length));
     if (!reduced) {
-      setLeaving({ item, dir: via === "later" || via === "archive" || via === "deny" ? -1 : 1 });
+      setLeaving({ item, dir: via === "archive" ? "up" : via === "later" || via === "deny" ? "left" : "right" });
       leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), spring("smooth").ms + 30);
     }
     undoTimer.clear();
@@ -279,16 +288,21 @@ function usePass({
 }
 
 const OWN_GESTURE = "textarea, input, select, button, a, pre, summary, [data-attachments], [data-question]";
+const HANDLE = "[data-reply-handle]";
+
+interface Drag {
+  dx: number;
+  dy: number;
+}
 
 /**
- * Pointer Events on the top card (touch and mouse alike). A drag starts only once the finger has
- * moved more sideways than up and past the slop, so the thread inside still scrolls (pan-y hands
- * vertical pans to the browser, which then cancels our pointer), and never from the message box or a
- * control. Owns the drag offset and the velocity samples.
+ * Pointer Events on the top card (touch and mouse alike). The body takes only sideways drags past the
+ * slop, so the thread inside still scrolls (pan-y hands vertical pans to the browser, which then
+ * cancels our pointer). The folded reply box is a handle that also drags up; it is checked before the
+ * controls that otherwise keep their own gestures. Owns the drag offset and the velocity samples.
  */
 function useSwipe({
   width,
-  approval,
   typed,
   sending,
   current,
@@ -296,20 +310,32 @@ function useSwipe({
   onRefuse,
 }: {
   width: number;
-  approval: boolean;
   typed: boolean;
   sending: boolean;
   current: AttentionItem | undefined;
-  onCommit: (item: AttentionItem, via: Swipe) => void;
+  onCommit: (item: AttentionItem, via: Via) => void;
   onRefuse: (why: Refusal) => void;
 }) {
-  const [drag, setDrag] = useState<{ dx: number } | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
   const [release, setRelease] = useState<Release | null>(null);
-  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; base: number; samples: Sample[] } | null>(null);
+  const start = useRef<{ x: number; y: number; id: number; origin: Origin; dragging: boolean; base: Drag; xs: Sample[]; ys: Sample[] } | null>(null);
+  const dragged = useRef(false);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    if ((e.target as Element).closest(OWN_GESTURE)) return;
-    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, dragging: false, base: 0, samples: [{ at: e.clientX, t: e.timeStamp }] };
+    dragged.current = false;
+    const target = e.target as Element;
+    const origin: Origin = target.closest(HANDLE) ? "box" : "body";
+    if (origin === "body" && target.closest(OWN_GESTURE)) return;
+    start.current = {
+      x: e.clientX,
+      y: e.clientY,
+      id: e.pointerId,
+      origin,
+      dragging: false,
+      base: { dx: 0, dy: 0 },
+      xs: [{ at: e.clientX, t: e.timeStamp }],
+      ys: [{ at: e.clientY, t: e.timeStamp }],
+    };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
     const s = start.current;
@@ -317,39 +343,60 @@ function useSwipe({
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
     if (!s.dragging) {
-      if (!isHorizontalDrag(dx, dy)) return;
+      if (!dragAxis(dx, dy, s.origin)) return;
       s.dragging = true;
-      s.base = onScreenOffset(e.currentTarget, "x");
+      s.base = { dx: onScreenOffset(e.currentTarget, "x"), dy: onScreenOffset(e.currentTarget, "y") };
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
         /* a pointer that already left */
       }
     }
-    s.samples.push({ at: e.clientX, t: e.timeStamp });
-    if (s.samples.length > 12) s.samples.shift();
-    setDrag({ dx: dx + s.base });
+    s.xs.push({ at: e.clientX, t: e.timeStamp });
+    s.ys.push({ at: e.clientY, t: e.timeStamp });
+    if (s.xs.length > 12) s.xs.shift();
+    if (s.ys.length > 12) s.ys.shift();
+    setDrag({ dx: dx + s.base.dx, dy: s.origin === "box" ? Math.min(0, dy + s.base.dy) : 0 });
   };
   const finish = (e: ReactPointerEvent<HTMLElement>, cancelled: boolean) => {
     const s = start.current;
     if (s?.id !== e.pointerId) return;
     start.current = null;
     if (!s.dragging) return;
-    const dx = e.clientX - s.x + s.base;
-    const v = cancelled ? 0 : releaseVelocity(s.samples, e.timeStamp) / 1000;
-    const decision = cancelled || !current ? null : swipeDecision(dx, width, v, { approval, typed: typed || sending });
-    if (current) setRelease({ id: idOf(current), committed: !!decision, dx: approval ? refusedOffset(dx) : dx, v: approval ? 0 : v });
+    dragged.current = true;
+    setTimeout(() => {
+      dragged.current = false;
+    }, 0);
+    const dx = e.clientX - s.x + s.base.dx;
+    const dy = s.origin === "box" ? Math.min(0, e.clientY - s.y + s.base.dy) : 0;
+    const vx = cancelled ? 0 : releaseVelocity(s.xs, e.timeStamp) / 1000;
+    const vy = cancelled || s.origin !== "box" ? 0 : releaseVelocity(s.ys, e.timeStamp) / 1000;
+    const dir = cancelled || !current ? null : releaseDirection(dx, dy, width, vx, vy, s.origin);
+    const gesture = dir && current ? gestureFor(current, dir, { typed, sending }) : null;
+    const via = gesture && "via" in gesture ? gesture.via : null;
+    if (current) setRelease({ id: idOf(current), committed: !!via, dx, dy, v: dir === "up" ? vy : vx });
     if (cancelled || !current) {
       setDrag(null);
       return;
     }
-    if (decision) onCommit(current, decision);
+    if (via) onCommit(current, via);
     else {
       setDrag(null);
-      if ((approval || typed || sending) && Math.abs(dx) > DRAG_SLOP * 2) onRefuse(approval ? "approval" : sending ? "sending" : "typed");
+      if (gesture && "refused" in gesture) onRefuse(gesture.refused);
     }
   };
-  const handlers: CardHandlers = { onPointerDown, onPointerMove, onPointerUp: (e) => finish(e, false), onPointerCancel: (e) => finish(e, true) };
+  const handlers: CardHandlers = {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: (e) => finish(e, false),
+    onPointerCancel: (e) => finish(e, true),
+    onClickCapture: (e) => {
+      if (!dragged.current) return;
+      dragged.current = false;
+      e.stopPropagation();
+      e.preventDefault();
+    },
+  };
   return { drag, release, clear: () => setDrag(null), handlers };
 }
 
@@ -357,6 +404,7 @@ interface Release {
   id: string;
   committed: boolean;
   dx: number;
+  dy: number;
   v: number;
 }
 
@@ -437,12 +485,13 @@ export function Inbox({
   const [pickingLane, setPickingLane] = useState(false);
 
   const running = laneCards.filter((i) => i.status === "running").length;
-  const approval = !!current?.pendingApproval;
   const currentId = current ? idOf(current) : null;
   const [typedId, setTypedId] = useState<string | null>(null);
   const [keptReply] = useOutsideReply(current?.outside ? currentId : null);
-  const typed = !!currentId && (typedId === currentId || !!keptReply.trim());
-  useReplyHold(typed);
+  const [chatDraft] = useDraft(current && !current.outside ? draftKey(current.agent_id, current.id) : null);
+  const typedHere = !!currentId && (typedId === currentId || !!keptReply.trim());
+  const typed = typedHere || (!!currentId && (!!chatDraft.text.trim() || chatDraft.images.length > 0));
+  useReplyHold(typedHere);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = !!currentId && sendingId === currentId;
   const [seedsTaken, setSeedsTaken] = useState<SeedsTaken>({ card: null, taken: [] });
@@ -454,6 +503,11 @@ export function Inbox({
   }
   const [asking, setAsking] = useState<{ item: AttentionItem; how: "swipe" | "tap" } | null>(null);
   const [labelling, setLabelling] = useState<AttentionItem | null>(null);
+  const [handingOff, setHandingOff] = useState<AttentionItem | null>(null);
+  const hint = useFlowHint(current);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  if (menuFor && menuFor !== currentId) setMenuFor(null);
+  const handoff = chats.handoffPropose && chats.handoff ? { handoffPropose: chats.handoffPropose, handoff: chats.handoff } : null;
 
   const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({
     deck,
@@ -463,6 +517,7 @@ export function Inbox({
     onAsk: (item, how) => setAsking({ item, how }),
     onCommit: (item) => {
       swipe.clear();
+      if (hint.shown) hint.dismiss();
       if (idOf(item) === typedId) setTypedId(null);
     },
   });
@@ -472,13 +527,30 @@ export function Inbox({
       setAsking({ item, how });
     } else commit(item, "later", how);
   };
+  const decide = (item: AttentionItem, behavior: "allow" | "deny" | "always", how: "swipe" | "tap") => {
+    if (!item.pendingApproval) return;
+    onApprove(item, item.pendingApproval.requestId, behavior);
+    commit(item, behavior === "deny" ? "deny" : "approve", how);
+  };
+  const act = (item: AttentionItem, via: Via, how: "swipe" | "tap") => {
+    if (via === "later") later(item, how);
+    else if (via === "approve" || via === "deny") decide(item, via === "approve" ? "allow" : "deny", how);
+    else commit(item, via, how);
+  };
+  const pick = (item: AttentionItem, action: CardActionKind) => {
+    setMenuFor(null);
+    if (action === "label") setLabelling(item);
+    else if (action === "handoff") setHandingOff(item);
+    else if (action === "always") decide(item, "always", "tap");
+    else if (action === "later" && item.pendingApproval) commit(item, "later", "tap", { from: "menu" });
+    else act(item, action, "tap");
+  };
   const swipe = useSwipe({
     width,
-    approval,
     typed,
     sending,
     current,
-    onCommit: (item, via) => (via === "later" ? later(item, "swipe") : commit(item, via, "swipe")),
+    onCommit: (item, via) => act(item, via, "swipe"),
     onRefuse: flashRefused,
   });
   const shown = useEffectEvent(() => {
@@ -509,6 +581,7 @@ export function Inbox({
             </button>
           ) : undefined
         }
+        inline
         title={flow ? <LaneTitle lane={lane} onOpen={() => setPickingLane(true)} /> : "Flow"}
         sub={
           current
@@ -542,7 +615,7 @@ export function Inbox({
       ) : (
         <>
           <div ref={deckRef} className="loki-phone-deck">
-            <Reveal dx={swipe.drag?.dx ?? 0} width={width} approval={approval || typed || sending} />
+            <Reveal drag={swipe.drag} width={width} item={current} typed={typed} sending={sending} />
             <Stack
               onTyped={(item, has) => setTypedId((t) => (has ? idOf(item) : t === idOf(item) ? null : t))}
               onSending={(item, on) => setSendingId((t) => (on ? idOf(item) : t === idOf(item) ? null : t))}
@@ -551,8 +624,8 @@ export function Inbox({
               drag={swipe.drag}
               release={swipe.release}
               width={width}
-              approval={approval}
               refused={refused}
+              onMore={() => setMenuFor(currentId)}
               reduced={reduced}
               chats={chats}
               handlers={swipe.handlers}
@@ -563,20 +636,8 @@ export function Inbox({
               labelList={labelList}
               items={items}
             />
+            {hint.shown && <FlowHint words={`Drag the reply box. ${dragWords(current)}`} onDismiss={hint.dismiss} />}
           </div>
-          <Decisions
-            item={current}
-            sending={sending}
-            onRead={() => commit(current, "seen")}
-            onLater={() => later(current, "tap")}
-            onArchive={!current.outside || archivable(current) ? () => commit(current, "archive") : undefined}
-            onLabel={current.outside?.provider === "gmail" ? () => setLabelling(current) : undefined}
-            onApprove={(behavior) => {
-              if (!current.pendingApproval) return;
-              onApprove(current, current.pendingApproval.requestId, behavior);
-              commit(current, behavior !== "deny" ? "approve" : "deny");
-            }}
-          />
         </>
       )}
       {asking && (
@@ -590,6 +651,20 @@ export function Inbox({
         />
       )}
       {pickingLane && flow && <LaneSheet flow={flow} items={items} onClose={() => setPickingLane(false)} />}
+      {current && menuFor === currentId && (
+        <CardActionsSheet
+          item={current}
+          title={current.title ?? current.id}
+          actions={cardActions(current, { typed, sending, always: !!current.pendingApproval && offersAlways(current.pendingApproval), handoff: !!handoff })}
+          onPick={(action) => pick(current, action)}
+          onClose={() => setMenuFor(null)}
+        />
+      )}
+      {handingOff && handoff && (
+        <Sheet label="Hand Off" onClose={() => setHandingOff(null)} placement="bottom" className="loki-phone-sheet">
+          <HandoffPicker item={handingOff} source={handoff} touch onCancel={() => setHandingOff(null)} onDone={() => setHandingOff(null)} />
+        </Sheet>
+      )}
       {labelling && (
         <MailLabelsSheet load={() => moves.labelsOf(labelling)} onAdd={(ids) => moves.label(labelling, ids, "tap")} onClose={() => setLabelling(null)} />
       )}
@@ -699,24 +774,33 @@ function EmptyDeck({
   );
 }
 
-function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
-  const shown = approval ? 0 : revealOpacity(dx, width);
-  const read = dx > 0 ? shown : 0;
-  const later = dx < 0 ? shown : 0;
+const REVEAL: Partial<Record<Via, { label: string; icon: "check" | "clock" | "archive" | "close" }>> = {
+  seen: { label: "Read", icon: "check" },
+  later: { label: "Later", icon: "clock" },
+  archive: { label: "Archive", icon: "archive" },
+  approve: { label: "Approve", icon: "check" },
+  deny: { label: "Deny", icon: "close" },
+};
 
-  const ready = !approval && armed(dx, width);
+const REVEAL_CLASS: Record<Direction, string> = { right: "loki-phone-reveal-right", left: "loki-phone-reveal-left", up: "loki-phone-reveal-up" };
+
+function Reveal({ drag, width, item, typed, sending }: { drag: Drag | null; width: number; item: AttentionItem; typed: boolean; sending: boolean }) {
+  const dx = drag?.dx ?? 0;
+  const dy = drag?.dy ?? 0;
+  const up = -dy > Math.abs(dx);
+  const dir: Direction | null = up ? "up" : dx > 0 ? "right" : dx < 0 ? "left" : null;
+  const gesture = dir ? gestureFor(item, dir, { typed, sending }) : null;
+  const shown = gesture && "via" in gesture ? REVEAL[gesture.via] : undefined;
+  const reach = up ? -dy : dx;
+  const opacity = shown ? revealOpacity(reach, width) : 0;
+  const ready = !!shown && armed(reach, width);
   return (
-    <div aria-hidden className="loki-phone-reveal">
-      <span className="loki-phone-reveal-read" data-armed={(ready && dx > 0) || undefined} style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
-        <Icon name="check" size={20} /> Read
-      </span>
-      <span
-        className="loki-phone-reveal-later"
-        data-armed={(ready && dx < 0) || undefined}
-        style={{ opacity: later, transform: `scale(${0.9 + later * 0.1})` }}
-      >
-        Later <Icon name="clock" size={20} />
-      </span>
+    <div aria-hidden className="loki-phone-reveal" data-dir={dir ?? undefined}>
+      {shown && dir && (
+        <span className={REVEAL_CLASS[dir]} data-armed={ready || undefined} style={{ opacity, transform: `scale(${0.9 + opacity * 0.1})` }}>
+          <Icon name={shown.icon} size={20} /> {shown.label}
+        </span>
+      )}
     </div>
   );
 }
@@ -726,6 +810,7 @@ interface CardHandlers {
   onPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
   onPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
   onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
+  onClickCapture: (e: ReactMouseEvent<HTMLElement>) => void;
 }
 
 function Stack({
@@ -734,8 +819,8 @@ function Stack({
   drag,
   release,
   width,
-  approval,
   refused,
+  onMore,
   reduced,
   chats,
   handlers,
@@ -754,11 +839,11 @@ function Stack({
   items: AttentionItem[];
   visible: AttentionItem[];
   leaving: Leaving | null;
-  drag: { dx: number } | null;
+  drag: Drag | null;
   release: Release | null;
   width: number;
-  approval: boolean;
   refused: boolean;
+  onMore: () => void;
   reduced: boolean;
   chats: ChatViews & Partial<HandoffSource> & Partial<OutsideSource>;
   handlers: CardHandlers;
@@ -768,14 +853,20 @@ function Stack({
   onOpen: (item: AttentionItem) => void;
 }) {
   const dx = drag?.dx ?? 0;
+  const dy = drag?.dy ?? 0;
   const [suggestTick, setSuggestTick] = useState<ChatTick>(null);
   const rise = spring("smooth");
   const move = reduced ? "none" : `transform ${rise.ms}ms ${rise.easing}`;
-  const flyTo = leaving ? leaving.dir * (width + FLY_PAST) : 0;
+  const sign = leaving?.dir === "left" ? -1 : 1;
+  const flyTo = leaving ? (leaving.dir === "up" ? -(2 * width + FLY_PAST) : sign * (width + FLY_PAST)) : 0;
   const flung = leaving && release?.committed && release.id === idOf(leaving.item) ? release : null;
-  const fly = spring("smooth", flung ? flingVelocity(flung.dx, flyTo, flung.v) : 0);
+  const flungFrom = flung ? (leaving?.dir === "up" ? flung.dy : flung.dx) : 0;
+  const fly = spring("smooth", flung ? flingVelocity(flungFrom, flyTo, flung.v) : 0);
+  const flyTransform = leaving?.dir === "up" ? `translateY(${flyTo}px)` : `translateX(${flyTo}px) rotate(${sign * 12}deg)`;
   const homeFrom = (item: AttentionItem) =>
-    release && !release.committed && release.id === idOf(item) ? spring("snappy", flingVelocity(release.dx, 0, release.v)) : rise;
+    release && !release.committed && release.id === idOf(item)
+      ? spring("snappy", flingVelocity(Math.abs(release.dy) > Math.abs(release.dx) ? release.dy : release.dx, 0, release.v))
+      : rise;
   return cardsToDraw(visible, leaving?.item ?? null).map(({ item, role, index }) => {
     if (role === "leaving")
       return (
@@ -785,7 +876,7 @@ function Stack({
           role={role}
           style={{
             zIndex: 3,
-            transform: `translateX(${flyTo}px) rotate(${(leaving?.dir ?? 0) * 12}deg)`,
+            transform: flyTransform,
             opacity: 0,
             transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in`,
           }}
@@ -794,19 +885,19 @@ function Stack({
         </Card>
       );
     if (role === "top") {
-      const offset = approval ? refusedOffset(dx) : dx;
       return (
         <Card
           key={idOf(item)}
           item={item}
           role={role}
           refused={refused}
+          onMore={onMore}
           labelList={labelList}
           suggestions={card.suggestions ? waitingCount(card.suggestions.source, item.runtime) : 0}
           onSuggestions={() => setSuggestTick((t) => bumpTick(t, idOf(item)))}
           style={{
             zIndex: 2,
-            transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none",
+            transform: drag ? `translate(${dx}px, ${dy}px) rotate(${rotationFor(dx, width)}deg)` : "none",
             transition: drag || reduced ? "none" : `transform ${homeFrom(item).ms}ms ${homeFrom(item).easing}`,
           }}
           handlers={handlers}
@@ -824,7 +915,6 @@ function Stack({
               item={item}
               banner={banner}
               went={wentTo(item.outside, items)}
-              handoff={chats.handoffPropose && chats.handoff ? { handoffPropose: chats.handoffPropose, handoff: chats.handoff } : null}
               outside={
                 chats.readOutside && chats.replyOutside
                   ? {
@@ -877,6 +967,7 @@ export function Card({
   style,
   handlers,
   onOpen,
+  onMore,
   labelList,
   suggestions = 0,
   onSuggestions,
@@ -884,6 +975,7 @@ export function Card({
 }: {
   item: AttentionItem;
   role: Role;
+  onMore?: () => void;
   suggestions?: number;
   onSuggestions?: () => void;
   labelList?: readonly LabelView[] | null;
@@ -922,31 +1014,34 @@ export function Card({
           {!item.outside && <Icon name="chevron-down" size={16} />}
         </button>
         <span className="loki-phone-card-desk">
-          <span className="loki-phone-ellipsis">{title}</span>
+          <span className="loki-phone-ellipsis loki-phone-card-title">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
-          {item.outside && named && (
-            <>
-              <span aria-hidden>·</span>
-              <span className="loki-phone-ellipsis">{outsideWho(item.outside)}</span>
-            </>
-          )}
-          {item.has_draft && (
-            <>
-              <span aria-hidden>·</span>
-              <span className="loki-phone-card-draft">Draft</span>
-            </>
-          )}
-          {suggestions > 0 && (
-            <>
-              <span aria-hidden>·</span>
+        </span>
+        {onMore && (
+          <button
+            type="button"
+            className="loki-phone-card-more"
+            onClick={onMore}
+            aria-haspopup="dialog"
+            aria-label={`Actions for ${title}`}
+            tabIndex={top ? undefined : -1}
+          >
+            <Icon name="more" size={20} />
+          </button>
+        )}
+        {((item.outside && named) || item.has_draft || suggestions > 0 || (labelList !== undefined && !!item.labels?.length)) && (
+          <div className="loki-phone-card-extra">
+            {item.outside && named && <span className="loki-phone-ellipsis loki-phone-card-from">{outsideWho(item.outside)}</span>}
+            {item.has_draft && <span className="loki-phone-card-draft">Draft</span>}
+            {suggestions > 0 && (
               <button type="button" className="loki-phone-card-suggestions" onClick={onSuggestions} aria-haspopup="dialog" tabIndex={top ? undefined : -1}>
                 {sentence(chipText(suggestions, false))}
               </button>
-            </>
-          )}
-        </span>
-        {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
+            )}
+            {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
+          </div>
+        )}
       </header>
       {children && <div className="loki-phone-card-body loki-phone-thread">{children}</div>}
       {veil > 0 && <div aria-hidden className="loki-phone-card-veil" style={{ opacity: veil }} />}
@@ -1025,16 +1120,23 @@ export function CardConversation({
         onSent={onHold}
         suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}
         suggestionsTick={suggestionsTick}
+        fold
+        describe={dragWords(item)}
       />
     </OpenChat.Provider>,
   );
+}
+
+export function dragWords(item: AttentionItem): string {
+  if (item.pendingApproval) return "Drag right to approve, left to deny.";
+  const up = "via" in gestureFor(item, "up", { typed: false, sending: false });
+  return `Drag right for Read, left for Later${up ? ", up to Archive" : ""}.`;
 }
 
 function OutsideBody({
   item,
   banner,
   went = null,
-  handoff = null,
   outside = null,
   onTyped,
   onSending,
@@ -1042,13 +1144,12 @@ function OutsideBody({
   item: AttentionItem;
   banner?: ReactNode;
   went?: string | null;
-  handoff?: HandoffSource | null;
   outside?: OutsideSource | null;
   onTyped?: (has: boolean) => void;
   onSending?: (on: boolean) => void;
 }) {
-  const [picking, setPicking] = useState(false);
   const thread = useOutsideThread(item, outside);
+  const fold = useFold(true);
   const compose = useMailCompose(item, outside);
   const held = useRef<string | null>(null);
   const facts = item.outside;
@@ -1058,19 +1159,23 @@ function OutsideBody({
   const people = outside?.searchPeople;
   const pick = outside?.pickPerson;
   return (
-    <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
+    <div
+      className="loki-phone-outside-body"
+      style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}
+    >
       {banner}
       {facts.disconnected && <ThreadNotice text={sentence(disconnectedText(facts.disconnected, facts.provider))} />}
       {went && <span className="loki-phone-meta">{sentence(went)}</span>}
       <OutsideThread facts={facts} state={thread} touch />
       {outside && (
         <div
-          onPointerDown={stopPointer}
-          onPointerMove={stopPointer}
-          onPointerUp={stopPointer}
+          {...fold.props}
+          {...(fold.folded ? {} : { onPointerDown: stopPointer, onPointerMove: stopPointer, onPointerUp: stopPointer })}
           onInput={(e) => e.target instanceof HTMLTextAreaElement && onTyped?.(!!e.target.value.trim())}
         >
+          {fold.folded && <span className="loki-phone-sr-only">{dragWords(item)}</span>}
           <OutsideReply
+            folded={fold.folded}
             facts={facts}
             keep={idOf(item)}
             touch
@@ -1094,7 +1199,10 @@ function OutsideBody({
               try {
                 const threadTs = thread.kind === "read" ? (thread.opened ?? null) : null;
                 const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId, ...(threadTs ? { thread_ts: threadTs } : {}) });
-                if (r.sent) onTyped?.(false);
+                if (r.sent) {
+                  onTyped?.(false);
+                  fold.close();
+                }
                 return r;
               } finally {
                 held.current = null;
@@ -1104,20 +1212,6 @@ function OutsideBody({
           />
         </div>
       )}
-      {handoff &&
-        (picking ? (
-          <HandoffPicker item={item} source={handoff} touch onCancel={() => setPicking(false)} onDone={() => setPicking(false)} />
-        ) : (
-          <Button
-            size="touch"
-            tone="positive"
-            disabled={!!facts.disconnected}
-            onClick={() => setPicking(true)}
-            aria-label={`Hand Off to ${facts.owner_name ?? "its agent"}`}
-          >
-            Hand Off
-          </Button>
-        ))}
     </div>
   );
 }
@@ -1137,72 +1231,6 @@ function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews
       loadFailed={view.loadFailed ?? null}
       loadStep={view.loadStep}
     />
-  );
-}
-
-export function Decisions({
-  item,
-  sending = false,
-  onRead,
-  onLater,
-  onArchive,
-  onLabel,
-  onApprove,
-}: {
-  item: AttentionItem;
-  sending?: boolean;
-  onRead: () => void;
-  onLater: () => void;
-  onArchive?: () => void;
-  onLabel?: () => void;
-  onApprove: (behavior: "allow" | "deny" | "always") => void;
-}) {
-  const approval = item.pendingApproval;
-  if (approval)
-    return (
-      <div className="loki-phone-decide">
-        <button
-          type="button"
-          className="loki-phone-decide-btn loki-phone-decide-btn--deny"
-          onClick={() => onApprove("deny")}
-          aria-label={`Deny ${approval.toolName}`}
-        >
-          Deny
-        </button>
-        <button
-          type="button"
-          className="loki-phone-decide-btn loki-phone-decide-btn--affirm"
-          onClick={() => onApprove("allow")}
-          aria-label={`Approve ${approval.toolName}`}
-        >
-          Approve
-        </button>
-        {offersAlways(approval) && (
-          <button type="button" className="loki-phone-decide-always" onClick={() => onApprove("always")} aria-label={`Always allow ${approval.toolName}`}>
-            Always allow {approval.toolName}
-          </button>
-        )}
-      </div>
-    );
-  return (
-    <div className="loki-phone-decide loki-phone-decide--moves">
-      <button type="button" className="loki-phone-decide-btn" onClick={onLater} disabled={sending}>
-        Later
-      </button>
-      {onLabel && (
-        <button type="button" className="loki-phone-decide-btn" onClick={onLabel} aria-haspopup="dialog">
-          Label
-        </button>
-      )}
-      {onArchive && (
-        <button type="button" className="loki-phone-decide-btn" onClick={onArchive} disabled={sending}>
-          Archive
-        </button>
-      )}
-      <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={onRead} disabled={sending}>
-        Read
-      </button>
-    </div>
   );
 }
 

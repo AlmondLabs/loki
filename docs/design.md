@@ -155,7 +155,7 @@ result. Each tool row keeps its input and output (capped at `TOOL_TEXT_MAX`, 4,0
 `core/harness.ts`) and whether it failed. The live stream carries them; a history page travels lean, without a tool
 row's input and output (`core/attention/transcript.ts`), and the row fetches them when it opens.
 
-`test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
+`test/tokens.test.ts` fails `bun run test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines). The radius check
 allows the scale: 2, 4, 6, 8, 12, 16, 24 and 999; the shadow check covers
 inline `boxShadow` only. Padding, margins and gaps stay on the spacing scale, in the desktop stylesheets, inline and in a
@@ -483,7 +483,9 @@ box is one for both, its sizes set by `touch`.
   Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus flashes as on the Mac, in the
   link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
-  row) always have a visible button that does the same.
+  row) always have a visible button that does the same. The one exception is a Flow card: it has no action
+  buttons, so the message keeps the screen, and its ⋯ is the visible route to every action, each listed with its
+  gesture (plan 2026-11-19-2250).
 - **Messages.** Under every message, yours and the agent's, its copy button (as markdown), always there, and its
   time beside it (the name above no longer carries one); a long
   press on a message opens its actions (`app/src/phone/use-message-actions.tsx`): Copy, and Select text, which

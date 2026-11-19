@@ -3,7 +3,9 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { Card, CardConversation, Decisions, takeSeeds, type CardActions } from "../app/src/phone/inbox.tsx";
+import { Card, CardConversation, dragWords, takeSeeds, type CardActions } from "../app/src/phone/inbox.tsx";
+import { CardActionsSheet } from "../app/src/phone/card-actions.tsx";
+import { cardActions } from "../app/src/phone/deck.ts";
 import { ChatItemHeader } from "../app/src/desk/catch-up-parts.tsx";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
@@ -70,14 +72,20 @@ describe("the Inbox card's message box", () => {
     onPick: async () => {},
   };
 
-  test("carries the model pill, named with the card's model and effort", () => {
+  test("folds to one row that is the card's handle, the pill and send waiting for a tap (R3, R17)", () => {
     const html = render(item(), actions(model));
-    expect(html).toContain('aria-label="Model: Opus 5.5, medium effort"');
+    expect(html).toContain("data-reply-handle");
+    expect(html).toContain('data-folded="true"');
+    expect(html).not.toContain("Model:");
+    expect(html).not.toContain('aria-label="Send"');
   });
 
-  test("without a way to switch (the link is down) there is no pill", () => {
-    expect(render(item(), actions({ ...model, onPick: undefined }))).not.toContain("Model:");
-    expect(render(item(), actions())).not.toContain("Model:");
+  test("its spoken words name the drags, an approval's included (R12)", () => {
+    expect(render(item(), actions(model))).toContain("Drag right for Read, left for Later, up to Archive.");
+    expect(dragWords(item({ id: "default" }))).toBe("Drag right for Read, left for Later.");
+    expect(dragWords(item({ pendingApproval: { requestId: "r", toolName: "Bash", input: {}, at: "2026-09-25T10:00:00Z" } }))).toBe(
+      "Drag right to approve, left to deny.",
+    );
   });
 
   test("a plain wait has no line above the box; what adds something still shows", () => {
@@ -108,9 +116,9 @@ describe("the Inbox card's suggestions (plan 049)", () => {
       retarget: () => Promise.resolve({ done: true, message: null, suggestion: null }),
     },
   };
-  test("two pending suggestions wait behind the box's chip, and the card's mark opens them in the phone's words (plan 052)", () => {
+  test("two pending suggestions wait behind the folded box, and the card's mark opens them in the phone's words (plan 052)", () => {
     const closed = render(item(), { ...actions(), suggestions: { source, blocked: null } });
-    expect(closed).toContain("loki-suggestion-chip");
+    expect(closed).not.toContain("loki-suggestion-chip");
     expect(closed).not.toContain("data-suggestion=");
     const html = render(item(), { ...actions(), suggestions: { source, blocked: null } }, "idle", 1);
     expect([...html.matchAll(/data-suggestion="([^"]+)"/g)].map((m) => m[1])).toEqual(["s2", "s1"]);
@@ -135,52 +143,45 @@ describe("the Inbox card's suggestions (plan 049)", () => {
   });
 });
 
-describe("the phone's decisions under a card", () => {
-  const html = (over: Partial<AttentionItem>, label = false, sending = false) =>
-    renderToStaticMarkup(
-      createElement(Decisions, {
-        item: item(over),
-        sending,
-        onRead: () => {},
-        onLater: () => {},
-        onArchive: () => {},
-        onLabel: label ? () => {} : undefined,
-        onApprove: () => {},
+describe("a Flow card's buttons and ⋯ (R1, R8, R9)", () => {
+  const ask = item({ pendingApproval: { requestId: "approval-t1", toolName: "mcp__github__create_issue", input: {}, at: "2026-09-25T10:00:00Z" } });
+  const buttons = (out: string) => [...out.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
+
+  test("the card carries no Read, Later, Archive, Approve or Deny button, and one ⋯ named for it", () => {
+    const html = inPage(createElement(Card, { item: ask, role: "top", style: {}, onMore: () => {} }));
+    for (const word of ["Read", "Later", "Archive", "Approve", "Deny"]) expect(buttons(html)).not.toContain(word);
+    expect(html).toContain('aria-label="Actions for data pipelines"');
+    expect(html).toContain('aria-haspopup="dialog"');
+  });
+
+  test("the ⋯ sheet names each action with its gesture, and the tool for an approval's", () => {
+    const html = inPage(
+      createElement(CardActionsSheet, {
+        item: ask,
+        title: "data pipelines",
+        actions: cardActions(ask, { typed: false, sending: false, always: true, handoff: false }),
+        onPick: () => {},
+        onClose: () => {},
       }),
     );
-  const buttons = (out: string) => [...out.matchAll(/<button[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
-
-  test("an approval offers deny, approve, and always allowing the tool", () => {
-    const out = html({
-      pendingApproval: {
-        requestId: "approval-t1",
-        toolName: "mcp__github__create_issue",
-        input: {},
-        at: "2026-09-25T10:00:00Z",
-      },
-    });
-    expect(out).toContain(">Deny<");
-    expect(out).toContain(">Approve<");
-    expect(out).toContain("Always allow mcp__github__create_issue");
-    expect(buttons(out)).not.toContain("Read");
-    expect(buttons(out)).not.toContain("Later");
+    expect(html).toContain("Approve mcp__github__create_issue");
+    expect(html).toContain("Always Allow mcp__github__create_issue");
+    expect(html).toContain("Drag right");
+    expect(html).toContain(">Later<");
   });
 
-  test("anything else offers Later, Archive and Read as the swipes lie, in sentence case, and no always", () => {
-    const out = html({});
-    expect(buttons(out)).toEqual(["Later", "Archive", "Read"]);
-    expect(out).not.toContain("Always allow");
-  });
-
-  test("an email card has Label beside them", () => {
-    expect(buttons(html({}, true))).toEqual(["Later", "Label", "Archive", "Read"]);
-  });
-
-  test("while a reply sends, Read, Later and Archive are refused, so the card is committed once, by the reply", () => {
-    const out = html({}, true, true);
-    const disabled = [...out.matchAll(/<button[^>]*disabled=""[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
-    expect(disabled).toEqual(["Later", "Archive", "Read"]);
-    expect(html({}, true)).not.toContain("disabled");
+  test("with a reply in the box, Read is greyed with the reason beside it (R20)", () => {
+    const plain = item();
+    const html = inPage(
+      createElement(CardActionsSheet, {
+        item: plain,
+        title: "data pipelines",
+        actions: cardActions(plain, { typed: true, sending: false, always: false, handoff: false }),
+        onPick: () => {},
+        onClose: () => {},
+      }),
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*Mark as Read.*Send or clear the reply first\./);
   });
 });
 
@@ -267,5 +268,18 @@ describe("an approved comment in a Jira card's box (plan 2026-11-10-1451, U8, KT
     expect(takeSeeds(first.next, "jira:OPS-7", [SEED, OTHER])).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1", "reply-2"] }, lock: true });
     expect(takeSeeds(first.next, "jira:OPS-8", undefined)).toEqual({ next: { card: "jira:OPS-8", taken: [] }, lock: false });
     expect(takeSeeds(none, null, undefined)).toBeNull();
+  });
+});
+
+describe("a folded outside reply (plan 2026-11-19-2250, review)", () => {
+  test("still says a reply was not sent, so the failure is never folded away", () => {
+    const mail = must(outsideItem("Lunch").outside, "the outside facts");
+    const facts = { ...mail, not_sent: { outbox_id: "o3-abcdefgh", text: "ok", reason: "Gmail is unreachable", at: "2026-11-04T12:00:00.000Z" } };
+    const html = inPage(createElement(OutsideReply, { facts, touch: true, folded: true }));
+    expect(html).toContain("Gmail is unreachable");
+    expect(html).not.toContain(">Send<");
+  });
+  test("the hint names only the drags this card takes", () => {
+    expect(dragWords(jiraItem())).toBe("Drag right for Read, left for Later.");
   });
 });

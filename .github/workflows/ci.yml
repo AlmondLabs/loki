@@ -39,7 +39,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run typecheck
+        run: bun run --silent budget bun run typecheck
 
   format:
     name: format
@@ -61,7 +61,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run format:check
+        run: bun run --silent budget bun run format:check
 
   lint:
     name: lint
@@ -83,7 +83,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run lint
+        run: bun run --silent budget bun run lint
 
   test:
     name: tests (ubuntu-22.04)
@@ -105,9 +105,9 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run test:node
+        run: bun run --silent budget bun run test:node
 
   build:
     name: bundles
@@ -129,22 +129,18 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run build:app
+        run: bun run --silent budget bun run build:app
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run build:site
+        run: bun run --silent budget bun run build:site
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run build:mod
+        run: bun run --silent budget bun run build:mod
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
-        run: npm run smoke
+        run: bun run --silent budget bun run smoke
 
-  tests:
-    name: tests (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, windows-latest]
-    runs-on: ${{ matrix.os }}
+  windows:
+    name: tests (windows-latest)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -162,11 +158,53 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run test:node
+        run: bun run --silent budget bun run test:node
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run build:mod
+        run: bun run --silent budget bun run build:mod
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
-        run: npm run smoke
+        run: bun run --silent budget bun run smoke
+
+  # GitHub's Mac runners can queue for minutes, so a PR waits for one only when its diff can reach what runs
+  # differently on macOS (scripts/mac-scope.ts). A skipped job counts as passed; the queue and main run it always.
+  mac-scope:
+    name: mac scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    outputs:
+      needed: ${{ steps.scope.outputs.needed }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+      - id: scope
+        run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/mac-scope.ts >> "$GITHUB_OUTPUT"
+
+  mac:
+    name: tests (macos-15)
+    needs: mac-scope
+    # Runs unless the scope said no: a scope that failed or never ran (the queue, main) leaves the Mac job on.
+    if: ${{ !cancelled() && needs.mac-scope.outputs.needed != 'false' }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: install
+        uses: ./.github/actions/install
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --silent budget bun run test:node
+      - id: bundle
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --silent budget bun run build:mod
+      - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
+        run: bun run --silent budget bun run smoke

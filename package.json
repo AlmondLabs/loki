@@ -23,6 +23,7 @@
     "build:site": "vite build --config site/vite.config.ts",
     "build:mod": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-mod.ts",
     "smoke": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/smoke.ts",
+    "budget": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/budget.ts",
     "phone-preview": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/phone-preview.ts",
     "tauri": "tauri",
     "desktop:dev": "tauri dev --config \"{\\\"build\\\":{\\\"devUrl\\\":\\\"http://127.0.0.1:5173\\\"}}\"",
@@ -32,7 +33,8 @@
     "listen": "native/listen/listen.sh",
     "release": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/release.ts",
     "cask": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/cask.ts",
-    "shrink-images": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/shrink-images.ts"
+    "shrink-images": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/shrink-images.ts",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.9.0",
@@ -96,5 +98,6 @@
   },
   "engines": {
     "node": ">=22.19"
-  }
+  },
+  "packageManager": "bun@1.4.4"
 }

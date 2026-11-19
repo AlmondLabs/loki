@@ -14,6 +14,7 @@ interface Step {
 }
 interface Job {
   "runs-on": string;
+  if?: string;
   needs?: string | string[];
   env?: Record<string, string>;
   strategy?: { matrix?: { os?: string[] } };
@@ -29,6 +30,8 @@ const install = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github"
   runs: { steps: Step[] };
 };
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
+// The jobs that install and check; mac-scope only decides whether the Mac one runs.
+const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => name !== "mac-scope");
 
 describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
@@ -40,7 +43,8 @@ describe("ci: a PR's checks", () => {
 
   test("runs on every PR, docs alone included, so each required check reports; a docs-only PR passes each job before installing", () => {
     expect(ci.on.pull_request).toBeNull();
-    for (const [name, job] of Object.entries(ci.jobs)) {
+    // The Mac job is skipped as a whole on a PR that cannot reach it, docs alone included (the next block).
+    for (const [name, job] of checking(ci).filter(([n]) => n !== "mac")) {
       const scope = job.steps.find((s) => s.id === "scope");
       expect(scope?.run, name).toContain("git diff --name-only HEAD^1 HEAD");
       // The skill the app ships is not a doc: skills/ is not in the list.
@@ -54,11 +58,11 @@ describe("ci: a PR's checks", () => {
 
   test("types, format, lint, the suite and the bundles in jobs of their own on Linux, side by side; the suite on all three systems", () => {
     const linux: Record<string, string[]> = {
-      typecheck: ["npm run typecheck"],
-      format: ["npm run format:check"],
-      lint: ["npm run lint"],
-      test: ["npm test", "npm run test:node"],
-      build: ["npm run build:app", "npm run build:site", "npm run build:mod", "npm run smoke"],
+      typecheck: ["bun run typecheck"],
+      format: ["bun run format:check"],
+      lint: ["bun run lint"],
+      test: ["bun run test", "bun run test:node"],
+      build: ["bun run build:app", "bun run build:site", "bun run build:mod", "bun run smoke"],
     };
     for (const [name, commands] of Object.entries(linux)) {
       const job = must(ci.jobs[name], name);
@@ -66,12 +70,40 @@ describe("ci: a PR's checks", () => {
       expect(job.needs, name).toBeUndefined();
       for (const c of commands) expect(runs(job), name).toContain(c);
     }
-    expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "windows-latest"]);
-    const tests = runs(ci.jobs.tests);
-    expect(tests).toContain("npm test");
-    for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
-    expect(tests).toContain("npm run smoke");
-    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "test", "tests", "typecheck"]);
+    for (const [name, os] of [
+      ["windows", "windows-latest"],
+      ["mac", "macos-15"],
+    ] as const) {
+      const job = must(ci.jobs[name], name);
+      expect(job["runs-on"], name).toBe(os);
+      // The required checks' names: the ruleset waits for these.
+      expect((job as Job & { name?: string }).name, name).toBe(`tests (${os})`);
+      const tests = runs(job);
+      expect(tests, name).toContain("bun run test");
+      for (const once of ["typecheck", "lint", "build:app"]) expect(tests, name).not.toContain(once);
+      expect(tests, name).toContain("bun run smoke");
+      // Everything after the install is the same on both.
+      const checks = (j: Job) => j.steps.slice(j.steps.findIndex((s) => s.id === "install") + 1);
+      expect(checks(job), name).toEqual(checks(must(ci.jobs.windows, "windows")));
+    }
+    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows"]);
+  });
+});
+
+describe("the Mac job: on a PR only when its diff can reach macOS", () => {
+  const ci = workflow("ci");
+
+  test("a Linux job decides on a PR only, from scripts/mac-scope.ts", () => {
+    const scope = must(ci.jobs["mac-scope"], "mac-scope");
+    expect(scope.if).toBe("github.event_name == 'pull_request'");
+    expect(scope["runs-on"]).toBe("ubuntu-22.04");
+    expect(runs(scope)).toContain("scripts/mac-scope.ts");
+  });
+
+  test("the Mac job runs unless the scope said no, so the queue, main, and a scope that failed all run it", () => {
+    const mac = must(ci.jobs.mac, "mac");
+    expect(mac.needs).toBe("mac-scope");
+    expect(mac.if).toBe("${{ !cancelled() && needs.mac-scope.outputs.needed != 'false' }}");
   });
 });
 
@@ -80,27 +112,27 @@ describe("install: node_modules from a cache main seeds", () => {
   const cache = workflow("cache");
   const steps = install.runs.steps;
 
-  test("every ci job installs through it, and none runs npm ci itself", () => {
-    for (const [name, job] of Object.entries(ci.jobs)) {
+  test("every ci job installs through it, and none installs by itself", () => {
+    for (const [name, job] of checking(ci)) {
       expect(
         job.steps.some((s) => s.uses === "./.github/actions/install"),
         name,
       ).toBe(true);
-      expect(runs(job), name).not.toMatch(/\bnpm ci\b/);
+      expect(runs(job), name).not.toMatch(/\b(npm ci|npm install|bun install)\b/);
     }
   });
 
-  test("keys on the lockfile, package.json's dependency fields, Node's major and the system, and runs npm ci on a miss", () => {
+  test("keys on the lockfile, package.json's dependency fields, Node's major and the system, and runs bun install on a miss", () => {
     const key = steps.find((s) => s.id === "key")?.run ?? "";
-    for (const part of ["package-lock.json", "dependencies", "devDependencies", "overrides", "RUNNER_OS", "RUNNER_ARCH", "process.versions.node"])
+    for (const part of ["bun.lock", "dependencies", "devDependencies", "overrides", "RUNNER_OS", "RUNNER_ARCH", "process.versions.node"])
       expect(key).toContain(part);
-    const ci = steps.find((s) => s.run === "npm ci") as Step & { if?: string };
+    const ci = steps.find((s) => s.run === "bun install --frozen-lockfile") as Step & { if?: string };
     expect(ci.if).toBe("steps.cache.outputs.cache-hit != 'true'");
   });
 
   test("is seeded on main for all three systems when the dependencies change, and daily so it never expires", () => {
     expect((cache.on.push as { branches?: string[] } | null)?.branches).toEqual(["main"]);
-    expect(cache.on.push?.paths).toContain("package-lock.json");
+    expect(cache.on.push?.paths).toContain("bun.lock");
     expect(must(cache.jobs["node-modules"], "the seed job").strategy?.matrix?.os?.sort()).toEqual(["macos-15", "ubuntu-22.04", "windows-latest"]);
   });
 
@@ -116,16 +148,17 @@ describe("selection: a PR runs what its diff reaches, the merge queue runs every
   const ci = workflow("ci");
 
   test("each suite step runs the selection on a pull_request and the whole suite otherwise (the queue, the weekly run, by hand)", () => {
-    for (const name of ["test", "tests"]) {
-      const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("npm test"));
-      expect(step?.run, name).toBe("${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}");
+    for (const name of ["test", "windows", "mac"]) {
+      const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("test:pr"));
+      expect(step?.run, name).toBe("bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}");
     }
   });
 
   test("the Node runner's tests, the bundles and the smoke test are never narrowed", () => {
     for (const [name, job] of Object.entries(ci.jobs))
       for (const s of job.steps)
-        for (const cmd of ["test:node", "build:mod", "smoke"]) if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`npm run ${cmd}`);
+        for (const cmd of ["test:node", "build:mod", "smoke"])
+          if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`bun run --silent budget bun run ${cmd}`);
   });
 });
 
@@ -160,7 +193,7 @@ describe("shell: the Rust shell's tests", () => {
   test("need no Node and no app build: stand-ins for app/dist and the resources do", () => {
     const steps = shell.jobs.cargo.steps;
     expect(steps.some((s) => s.uses?.startsWith("actions/setup-node"))).toBe(false);
-    expect(runs(shell.jobs.cargo)).not.toMatch(/npm /);
+    expect(runs(shell.jobs.cargo)).not.toMatch(/\b(npm|bun) /);
     expect(runs(shell.jobs.cargo)).toContain("app/dist/index.html");
     expect(runs(shell.jobs.cargo)).toContain("cargo test --locked --manifest-path src-tauri/Cargo.toml");
     expect(runs(shell.jobs.cargo)).toContain("cargo fmt --manifest-path src-tauri/Cargo.toml --check");
@@ -211,7 +244,7 @@ describe("supply chain", () => {
 
   test("a release job that installs dependencies keeps no token in its checkout, and no Apple secret past the build", () => {
     const rel = workflow("release");
-    const installers = Object.entries(rel.jobs).filter(([, j]) => /\bnpm ci\b/.test(runs(j)));
+    const installers = Object.entries(rel.jobs).filter(([, j]) => /\bbun install\b/.test(runs(j)));
     expect(installers.map(([k]) => k).sort()).toEqual(["linux", "macos", "windows"]);
     for (const [k, j] of installers) {
       const checkout = j.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
@@ -236,8 +269,8 @@ describe("supply chain", () => {
     const release = workflow("release").jobs;
     const builds = [
       must(release.macos, "the macos job").steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@")),
-      must(release.windows, "the windows job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
-      must(release.linux, "the linux job").steps.findIndex((s) => s.run?.includes("tauri -- build")),
+      must(release.windows, "the windows job").steps.findIndex((s) => s.run?.includes("tauri build")),
+      must(release.linux, "the linux job").steps.findIndex((s) => s.run?.includes("tauri build")),
     ];
     expect(holders).toEqual([`release/macos/tauri-apps/tauri-action`, `release/windows/${builds[1]}`, `release/linux/${builds[2]}`]);
     for (const [job, i] of [
@@ -256,8 +289,8 @@ describe("supply chain", () => {
     const release = workflow("release").jobs;
     for (const [job, isBuild, isShip] of [
       ["macos", (s: Step) => s.uses?.startsWith("tauri-apps/tauri-action@"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
-      ["windows", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
-      ["linux", (s: Step) => s.run?.includes("tauri -- build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+      ["windows", (s: Step) => s.run?.includes("tauri build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
+      ["linux", (s: Step) => s.run?.includes("tauri build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
     ] as const) {
       const steps = must(release[job], job).steps;
       const built = steps.findIndex(isBuild);

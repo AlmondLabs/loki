@@ -1,0 +1,3 @@
+#!/bin/sh
+# Format, lint and types on what this push changes; see scripts/pre-push.ts. `git push --no-verify` skips it.
+exec node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/pre-push.ts

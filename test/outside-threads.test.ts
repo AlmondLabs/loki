@@ -19,7 +19,6 @@ import { OutsideCard, OutsideReply, OutsideThread, ticketAsk, withLoaded, type R
 import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-toolbar.tsx";
 import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import { outsideTitle, replyPlace } from "../app/src/desk/outside-words.ts";
-import { Decisions } from "../app/src/phone/inbox.tsx";
 import { keyFor } from "../app/src/shell/keymap.ts";
 import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
@@ -33,7 +32,7 @@ import type { HeldFile, HeldProposal, HeldReply } from "../mod/mail-outbox.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
 import { SlackError, type SlackPostInput, type SlackStoredMentions } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
-import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
 import { JIRA_ADA, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
@@ -1567,15 +1566,6 @@ describe("the moves a Jira card offers (plan 2026-11-10-1451, U6)", () => {
     const slack = card(FACTS);
     expect(slack).toContain('aria-label="Archive"');
     expect(slack).toContain("the card leaves until someone writes again");
-  });
-
-  test("on the phone: Later and Read under a Jira card, and no Archive", () => {
-    const decide = (onArchive?: () => void) =>
-      renderToStaticMarkup(createElement(Decisions, { item: jiraItem(), onRead: noop, onLater: noop, onArchive, onApprove: noop }));
-    expect(decide()).not.toContain("Archive");
-    expect(decide()).toContain(">Later<");
-    expect(decide()).toContain(">Read<");
-    expect(decide(noop)).toContain(">Archive<");
   });
 });
 

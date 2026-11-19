@@ -32,6 +32,7 @@ import {
   type ToolCall,
 } from "./api.ts";
 import { messageOf } from "../../core/errors.ts";
+import { keyedQueue } from "../../core/serial.ts";
 
 interface Pieces {
   tools: ModTool[];
@@ -97,7 +98,7 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.lengt
 export class ModRegistry {
   readonly registry: Registry = createRegistry();
   private readonly loaded = new Map<string, Loaded>();
-  private readonly loading = new Map<string, Promise<unknown>>();
+  private readonly loading = keyedQueue();
   private readonly report: (message: string) => void;
 
   constructor(report: (message: string) => void = (m) => console.error(`loki-daemon: ${m}`)) {
@@ -105,16 +106,7 @@ export class ModRegistry {
   }
 
   load(mod: LokiMod): Promise<LoadResult> {
-    const before = this.loading.get(mod.name) ?? Promise.resolve();
-    const next = before.then(
-      () => this.loadNow(mod),
-      () => this.loadNow(mod),
-    );
-    this.loading.set(mod.name, next);
-    void next.finally(() => {
-      if (this.loading.get(mod.name) === next) this.loading.delete(mod.name);
-    });
-    return next;
+    return this.loading(mod.name, () => this.loadNow(mod));
   }
 
   private async loadNow(mod: LokiMod): Promise<LoadResult> {

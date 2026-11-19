@@ -89,8 +89,8 @@ info**, then **Run anyway**, once); `loki_<version>_amd64.AppImage`, which needs
 `-setup.exe` and the AppImage update themselves after that; the `.deb` does not, and its next version is another
 download from the releases page. No package manager carries them.
 
-**From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout or
-`npm run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
+**From source**: Node, Rust and Xcode's command line tools, then `bun run start` to run the checkout or
+`bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
 ### First launch
 
@@ -454,20 +454,26 @@ Search button beside them:
    the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
 2. **Flow**: the same cards as Flow on the Mac, in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question; its head opens
-   the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way. Swipe right
-   (or **Read**) to mark it read, in Gmail or Slack too: a chat or an email rests a while, longer each time (see
-   "The order"), and a Slack message is done. Swipe left (or **Later**) to leave it unread and have it back in a day;
-   the second Later in a row asks when, in a sheet: later today, tomorrow, in 3 days, next week or a date of your
-   own, and closing the sheet leaves the card where it was. **Archive** is a button only (a main chat has none). An
-   email card also has **Label**, a sheet of the account's Gmail labels; the card stays for its next move. On a mail
-   or Slack card, **Send** sends your reply and marks the thread read; while the reply box holds text a swipe springs
-   back, so nothing goes by accident. A mail card's box has its recipients line, where you can add someone to To or
-   Cc. A mail reply waits 10 seconds with **Undo** beside it (see "Replying to mail as Gmail does"). Once only resting cards are left Flow says how many and offers **Go
-   through them**. An approval leaves only by its decision: the buttons become **Deny** and **Approve**, and it
-   refuses both swipes. Undo sits in the top bar for six seconds after Read, Later or Archive, and puts the thread
-   in Gmail or Slack back as it was; a move that fails brings the card back with the reason. The top bar reads "n
-   need you" (or "n chats" when nothing does). Once you have been past every chat it says "You've been through every
-   chat", what this visit did ("2 read · 1 later · 1 archived"), how many still need you, and **Go through again**.
+   the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way, by a drag
+   and with no buttons. Swipe the card right, or drag its reply box right, to mark it read, in Gmail or Slack too:
+   a chat or an email rests a while, longer each time (see "The order"), and a Slack message is done. Swipe or drag
+   left to leave it unread and have it back in a day; the second Later in a row asks when, in a sheet: later today,
+   tomorrow, in 3 days, next week or a date of your own, and closing the sheet leaves the card where it was. Drag
+   the reply box up to archive it; a main chat and a Jira card refuse, with a shake and a line saying why. The reply
+   box stays one row until you tap it, and then shows its extras (the model for a chat, the recipients line for an
+   email). The **⋯** at the end of the card's head lists every action with its gesture, and is where the rarer ones
+   live: **Label** on an email (a sheet of the account's Gmail labels; the card stays for its next move), **Hand
+   Off** on an email, a Slack message or a Jira ticket, and **Always Allow** on an approval. The first time Flow
+   shows a card, a note over the reply box says which way each drag goes. On a mail or Slack card, **Send** sends
+   your reply and marks the thread read. While the reply box holds text, Later and Archive still take the card and
+   keep the text with it, but Read is refused, so a half-written answer is not lost. A mail card's box has its
+   recipients line, where you can add someone to To or Cc. A mail reply waits 10 seconds with **Undo** beside it
+   (see "Replying to mail as Gmail does"). Once only resting cards are left Flow says how many and offers **Go
+   through them**. An approval is decided the same way: right approves and left denies, at once and with no undo;
+   to put it off, use **Later** in its ⋯. Undo sits in the top bar for six seconds after Read, Later or Archive,
+   and puts the thread in Gmail or Slack back as it was; a move that fails brings the card back with the reason.
+   The top bar reads "n need you" (or "n chats" when nothing does), on the title's line. Once you have been past
+   every chat it says "You've been through every chat", what this visit did ("2 read · 1 later · 1 archived"), how many still need you, and **Go through again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
    profile with its memory, changes and skills in one scroll.
 4. **More**: the paired Mac, then Agents, Learn, Archived chats, Preferences (appearance) and Usage (what the agents
@@ -611,19 +617,20 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 
 ## Install (development)
 
-You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs npm, Vite, the
-Tauri CLI, the tests and loki's daemon: a development build runs the daemon on your Node, never downloading one. It
+You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs Vite, the
+Tauri CLI, the tests and loki's daemon, and bun (`brew install oven-sh/bun/bun`) installs the packages and runs the
+scripts on that Node: a development build runs the daemon on your Node, never downloading one. It
 looks where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
 global bin, `~/.local/bin`, nvm and fnm (on Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place; on
 Windows npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta, nvm-windows, fnm, scoop and bun).
 Then:
 
 ```bash
-npm install
-npm start
+bun install
+bun run start
 ```
 
-`npm start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
+`bun run start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
 `~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
 command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
 that nothing else answers on port 5173, which the window would otherwise show. It then builds the page into
@@ -633,21 +640,21 @@ window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hos
 waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
 log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it.
 
-`npm start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
+`bun run start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
 in place when `mod/` or `core/` changes. A change to `app/`, `daemon/` or `core/` waits: the window shows "loki's code
 changed" with **update** and **later**, and loki never updates by itself. **update** builds the page if it changed
 (the window and the phone reload on the new build) and restarts the daemon if its code changed (the window reconnects
 a second later). A page that does not build stays as it was, and the notice says what failed. While a chat is working
 or waiting for you, a restart would cut it off: **update** says so and offers **update anyway**.
 
-`npm run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 and shows a change to `app/` as you save,
+`bun run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 and shows a change to `app/` as you save,
 and a watching build keeps `app/dist` current for the phone. The mod reloads as above, and a change to `daemon/` or
 `core/` still waits for **update**. It costs more while it runs: Vite and the watching build hold well over a
 gigabyte, and React's development build keeps a timing record for every render, so the window's memory grows for as
-long as it stays open. `npm start -- --check` and `npm run dev -- --check` report what each would do without starting
+long as it stays open. `bun run start --check` and `bun run dev --check` report what each would do without starting
 anything.
 
-Or run the pieces yourself: `npm run dev:vite` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
+Or run the pieces yourself: `bun run dev:vite` (Vite alone, for a browser tab) and `bun run desktop:dev` (the window
 against a Vite already running, in a second terminal).
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), and its daemon runs the
@@ -834,8 +841,8 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
 - **Images the agent looks at** with its `read` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
   the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
   file go as they are, and so does every image on Windows and Linux. Images an agent looked at before this shrink
-  are still whole in the history: quit loki and run `npm run shrink-images` to see what shrinking them would save, then
-  `npm run shrink-images -- --apply` to do it. It copies each store it changes to `~/.loki/stores/backup-<date>/`
+  are still whole in the history: quit loki and run `bun run shrink-images` to see what shrinking them would save, then
+  `bun run shrink-images --apply` to do it. It copies each store it changes to `~/.loki/stores/backup-<date>/`
   first (delete the copies once you are happy), shrinks only images in tool results, leaves your own pasted images as
   they are, and refuses while loki is running. Each chat it touched writes its prompt cache once more on its next turn.
 - **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
@@ -1103,7 +1110,7 @@ A rest keeps the time it was given, so a change counts from the next press on. H
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
 resting cards are left, Flow says how many and offers to go through them. The Mac's loki process keeps the rests
 and the return times beside the focus weights (`rests` and `return_times` in `state/attention.json`), and paired Macs and the phone share
-them; `npm run analytics` reports how often a card back from a rest is acted on, by rung.
+them; `bun run analytics` reports how often a card back from a rest is acted on, by rung.
 
 Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
 badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
@@ -1112,13 +1119,13 @@ front of you never moves until you act on it; whatever arrives lands behind it. 
 is the score, `core/attention/focus.ts` the focus, `core/attention/rest.ts` the rest.
 
 **What Flow is tuned for: finished work.** Engagement counts every reply as a win, a shallow one too, and it
-rose the more you hopped between chats. So `npm run analytics` leads with finished work: chats archived, and a day;
+rose the more you hopped between chats. So `bun run analytics` leads with finished work: chats archived, and a day;
 the messages a finished chat took (median, counting chats you messaged in the period); and how often, coming back to
 a chat within three hours, you had messaged none, 1, 2 or 3+ other chats in between. Engagement stays beside it for
 comparison. Every card that comes to the top is logged (`inbox_card_shown`),
 and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
 chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
-how long the card was on top, counting only the time loki's window was visible and focused). `npm run analytics`
+how long the card was on top, counting only the time loki's window was visible and focused). `bun run analytics`
 reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
 archive it — a read straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
 rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
@@ -1250,7 +1257,7 @@ sender, time and first line, as a mail client shows it; press one to open it. Wh
 you archive it, here or in Gmail. Connecting brings the newest of them, and while the account has fewer than 20 open
 cards waiting on you (not resting after read or later), the rest of the inbox fills it up to 20, newest first;
 closing cards makes room for more, so the whole inbox comes in time. A Slack workspace fills the same way from its
-DMs and what its Activity lists, a week back, then two, then a month, then a month more each time. A Jira site fills
+DMs and what its Activity lists, three days back, then a week, two weeks, a month, then the rest. A Jira site fills
 the same way with the watched tickets someone else has done something on, the most recently updated first, however
 long ago. Anything new comes at once, even past 20.
 
@@ -1762,7 +1769,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 loki keeps product analytics on itself — which views you open, which chats get turns, how a visit to Flow went,
 what you send from where, which models and modes you pick — as events in `~/.loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
-writes the file, nothing sends it anywhere, and `npm run analytics` on this machine is the only reader. The
+writes the file, nothing sends it anywhere, and `bun run analytics` on this machine is the only reader. The
 `distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, windows,
 linux, phone, or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
@@ -1775,7 +1782,7 @@ every window that saw it and written once), `chat_archived` and `chat_restored` 
 lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon's environment turns it off.
 
-`npm run analytics` (or `npm run analytics -- --days 7`) prints the report: sessions by device and their median
+`bun run analytics` (or `bun run analytics --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
 property (views by name, turns by chat, sends by origin, models picked), the visits to Flow and their decision
 split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
@@ -1792,7 +1799,7 @@ linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INST
 installing, and make a dev build link nothing and run the bundles already installed), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
 `LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR`, `LOKI_TASKS_DIR` (the beads store the move of open tasks
-reads) and `LOKI_EVENTS_PATH` (the file `npm run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
+reads) and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
 already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
 Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product

@@ -38,8 +38,26 @@ then the macOS queue at p95.
    order, shard by measured duration.
 5. **Selection and the merge queue.** On a PR, run what the diff can reach; the full suite runs in a merge queue before
    anything reaches main. Hide a change from the selection on purpose and confirm CI goes red.
-6. **Local.** A pre-push hook that checks format, lint and types on the changed files.
-7. **Budgets.** Each job fails when it runs past its budget.
+6. **Local.** A pre-push hook that checks format, lint and types on the changed files. Done: `npm install` points git at
+   `.githooks/`; the hook takes about 1s on a usual branch and 2s on one that changes 150 files, and catches a planted
+   format, lint, naming and type error each.
+7. **Budgets.** Each job fails when it runs past its budget. Done: every check step runs through
+   `scripts/budget.ts`, which holds each step's budget per system, and setup is held to one on a cache hit. The
+   targets met with room are the budgets (types and format 5s, tests 60s, setup 30s); two are not met yet and their
+   budgets sit about 1.5 times above today's slowest run: lint (target 5s, 23–25s: oxlint's type-aware rules take 15s on
+   GitHub's 4-core runners) and the suite on Windows (target 60s, 53–63s).
+
+8. **Install and scripts: bun.** bun installs `node_modules` and runs package.json's scripts; every script still runs
+   on Node, which loki ships on (loki left Bun as a runtime in October 2026, for the tests running the mod on a runtime
+   users never have). Side by side on this repository, from empty caches: `npm ci` 25.9s cold, 6.1s warm; `bun install`
+   16.0s cold, 1.4s warm (Apple silicon). bun's tree has the same packages at the same versions, but for five
+   WebAssembly fallbacks npm installs on every system (`@napi-rs/wasm-runtime`, `@emnapi/*`, `@tybys/wasm-util`) and one
+   duplicate `ansi-regex` it folds into the newer copy; every check passes on it. It runs the install scripts of trusted
+   packages only: of this tree's, it skips @google/genai's (a no-op echo) and protobufjs's (a version warning).
 
 Moving runners off GitHub's hosted ones, the merge queue's ruleset and anything else that needs an account, a secret
 or a bill are listed for the owner rather than done here.
+
+The owner chose to stay on GitHub's hosted runners (2026-11-19), so the Mac runner's queue stays. Instead a PR waits
+for a Mac only when its diff can reach what differs there: not for the app, the site, docs or tests of the app. Over
+the last 150 merged PRs that skips the Mac job on 35, and still runs it on all 5 where it alone went red.

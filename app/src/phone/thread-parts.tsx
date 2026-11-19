@@ -31,4 +31,4 @@ export function ThreadNotice({ text, status = false }: { text: string; status?: 
 }
 
 export const replyPlaceholder = (asked: boolean, deciding: boolean, agentName: string): string =>
-  asked ? "Answer, or pick above" : deciding ? "Reply, or decide below" : `Message ${agentName}`;
+  asked ? "Answer, or pick above" : deciding ? "Reply, or drag to decide" : `Message ${agentName}`;
