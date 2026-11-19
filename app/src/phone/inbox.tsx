@@ -55,6 +55,8 @@ import {
   holdCard,
   dragAxis,
   gestureFor,
+  markOf,
+  stillTheCard,
   cardActions,
   releaseDirection,
   REFUSED,
@@ -75,6 +77,7 @@ import {
   type Move,
   type PassSummary,
   type CardActionKind,
+  type CardMark,
   type Direction,
   type Origin,
   type Refusal,
@@ -317,19 +320,30 @@ function useSwipe({
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [release, setRelease] = useState<Release | null>(null);
-  const start = useRef<{ x: number; y: number; id: number; origin: Origin; dragging: boolean; base: Drag; xs: Sample[]; ys: Sample[] } | null>(null);
+  const start = useRef<{
+    x: number;
+    y: number;
+    id: number;
+    origin: Origin;
+    card: CardMark | null;
+    dragging: boolean;
+    base: Drag;
+    xs: Sample[];
+    ys: Sample[];
+  } | null>(null);
   const dragged = useRef(false);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     dragged.current = false;
     const target = e.target as Element;
-    const origin: Origin = target.closest(HANDLE) ? "box" : "body";
+    const origin: Origin = target.closest(HANDLE) && !target.closest("button") ? "box" : "body";
     if (origin === "body" && target.closest(OWN_GESTURE)) return;
     start.current = {
       x: e.clientX,
       y: e.clientY,
       id: e.pointerId,
       origin,
+      card: current ? markOf(current) : null,
       dragging: false,
       base: { dx: 0, dy: 0 },
       xs: [{ at: e.clientX, t: e.timeStamp }],
@@ -370,7 +384,8 @@ function useSwipe({
     const dy = s.origin === "box" ? Math.min(0, e.clientY - s.y + s.base.dy) : 0;
     const vx = cancelled ? 0 : releaseVelocity(s.xs, e.timeStamp) / 1000;
     const vy = cancelled || s.origin !== "box" ? 0 : releaseVelocity(s.ys, e.timeStamp) / 1000;
-    const dir = cancelled || !current ? null : releaseDirection(dx, dy, width, vx, vy, s.origin);
+    const same = stillTheCard(s.card, current);
+    const dir = cancelled || !current || !same ? null : releaseDirection(dx, dy, width, vx, vy, s.origin);
     const gesture = dir && current ? gestureFor(current, dir, { typed, sending }) : null;
     const via = gesture && "via" in gesture ? gesture.via : null;
     if (current) setRelease({ id: idOf(current), committed: !!via, dx, dy, v: dir === "up" ? vy : vx });
