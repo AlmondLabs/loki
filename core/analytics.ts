@@ -1,3 +1,4 @@
+// Probe for the PR lint timing; this PR is closed unmerged.
 import { scopeFor } from "./desk-core.ts";
 
 /**
