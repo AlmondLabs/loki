@@ -82,8 +82,13 @@ jobs:
       - id: install
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
+      # On a PR, the files the diff reaches (scripts/lint-pr.ts); a change to the lint's setup lints everything, under
+      # the whole lint's budget. The merge queue always lints everything.
+      - id: lint-plan
+        if: ${{ github.event_name == 'pull_request' && steps.install.outcome == 'success' }}
+        run: bun run --silent lint:pr --plan >> "$GITHUB_OUTPUT"
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run --silent budget bun run lint
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && steps.lint-plan.outputs.all != 'true' && 'bun run lint:pr' || 'bun run lint' }}
 
   test:
     name: tests (ubuntu-22.04)

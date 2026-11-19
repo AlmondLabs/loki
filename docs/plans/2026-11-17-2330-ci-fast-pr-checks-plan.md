@@ -45,7 +45,10 @@ then the macOS queue at p95.
    `scripts/budget.ts`, which holds each step's budget per system, and setup is held to one on a cache hit. The
    targets met with room are the budgets (types and format 5s, tests 60s, setup 30s); two are not met yet and their
    budgets sit about 1.5 times above today's slowest run: lint (target 5s, 23–25s: oxlint's type-aware rules take 15s on
-   GitHub's 4-core runners) and the suite on Windows (target 60s, 53–63s).
+   GitHub's 4-core runners) and the suite on Windows (target 60s, 53–63s). A PR's lint then met its target by
+   narrowing: the files the diff reaches (the changed code and its direct importers), budget 5s; the whole lint stays
+   at 40s for the merge queue and for a PR that changes the lint's setup. A planted break two imports from the change
+   passes the PR's lint and fails the queue's, as intended.
 
 8. **Install and scripts: bun.** bun installs `node_modules` and runs package.json's scripts; every script still runs
    on Node, which loki ships on (loki left Bun as a runtime in October 2026, for the tests running the mod on a runtime

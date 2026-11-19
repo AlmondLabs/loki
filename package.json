@@ -13,6 +13,7 @@
     "typecheck": "bun check --no-script -p tsconfig.json",
     "lint": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lint.ts",
     "lint:fast": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lint.ts --cache --cache-strategy content --cache-location node_modules/.cache/eslint/",
+    "lint:pr": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lint-pr.ts",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "vitest run",
