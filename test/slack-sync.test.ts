@@ -459,6 +459,62 @@ describe("walking the Activity feed", () => {
     expect(feedCalls(slack)).toEqual(["0", "50", "100", "0", "0", "50", "100"]);
   });
 
+  test("a refill the newest page cannot fill reads the whole feed at the next tick, not 15 minutes later", async () => {
+    const { slack, threads, sync, open, resting, clock } = await fixture();
+    const mention = (key: string, seconds: number) => {
+      slack.post("C0GEN", { ts: at(seconds), user: "U0GRACE", text: `<@U0ME> ${key}` });
+      slack.item({ key, type: "at_user", channel: "C0GEN", ts: at(seconds) });
+    };
+    for (let i = 0; i < 60; i++) mention(`new-${String(i)}`, 10 + i);
+    for (let i = 0; i < 30; i++) mention(`old-${String(i)}`, -DAY + i);
+    const backlog = () => open().filter((r) => r.from_backfill && !resting.has(r.thread_id));
+    const minute = async () => {
+      clock.t += 60_000;
+      await sync.tick();
+    };
+
+    await sync.tick();
+    for (const r of open()) resting.add(r.thread_id);
+    await minute();
+    expect(backlog()).toEqual([]);
+    await minute();
+    expect(backlog()).toHaveLength(20);
+
+    for (const r of backlog()) await threads.markRead(ACCOUNT, r.thread_id);
+    await minute();
+    await minute();
+    expect(backlog()).toHaveLength(10);
+
+    for (const r of backlog()) await threads.markRead(ACCOUNT, r.thread_id);
+    const walks = () => slack.sent.filter((c) => c.method === "activity.feed" && c.params.cursor === "50").length;
+    const before = walks();
+    for (let i = 0; i < 3; i++) await minute();
+    expect(walks()).toBe(before);
+  });
+
+  test("a walk whose refill Slack fails does not walk again before 15 minutes", async () => {
+    const { slack, sync, open, resting, clock } = await fixture();
+    for (let i = 0; i < 60; i++) {
+      slack.post("C0GEN", { ts: at(10 + i), user: "U0GRACE", text: `<@U0ME> new-${String(i)}` });
+      slack.item({ key: `new-${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(10 + i) });
+    }
+    slack.item({ key: "old", type: "at_user", channel: "C0GEN", ts: at(-DAY) });
+    const walks = () => slack.sent.filter((c) => c.method === "activity.feed" && c.params.cursor === "50").length;
+    await sync.tick();
+    for (const r of open()) resting.add(r.thread_id);
+    slack.refuse.history = "fatal_error";
+    for (let i = 0; i < 2; i++) {
+      clock.t += 60_000;
+      await sync.tick();
+    }
+    const after = walks();
+    for (let i = 0; i < 5; i++) {
+      clock.t += 60_000;
+      await sync.tick();
+    }
+    expect(walks()).toBe(after);
+  });
+
   test("a walk reads past 1,000 items, so the oldest unread mention is seen (plan 078)", async () => {
     const { slack, sync } = await fixture();
     for (let i = 1; i <= 1100; i++) slack.item({ key: `k${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(i) });
