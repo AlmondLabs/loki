@@ -1231,7 +1231,7 @@ sender, time and first line, as a mail client shows it; press one to open it. Wh
 you archive it, here or in Gmail. Connecting brings the newest of them, and while the account has fewer than 20 open
 cards waiting on you (not resting after read or later), the rest of the inbox fills it up to 20, newest first;
 closing cards makes room for more, so the whole inbox comes in time. A Slack workspace fills the same way from its
-DMs and what its Activity lists, a week back, then two, then a month, then a month more each time. A Jira site fills
+DMs and what its Activity lists, three days back, then a week, two weeks, a month, then the rest. A Jira site fills
 the same way with the watched tickets someone else has done something on, the most recently updated first, however
 long ago. Anything new comes at once, even past 20.
 
