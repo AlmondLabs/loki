@@ -47,6 +47,10 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 
 ## Before you push
 
+`git push` runs a hook (`.githooks/pre-push`, set up by `npm install`) that checks format and lint on the files the
+branch changes, and the whole project's types, in a second or two. Don't skip it with `--no-verify`; it is not the
+whole list below.
+
 While you work, check with `npm run lint:fast`: it reuses ESLint's earlier results. The cache can miss an error a
 type change in another file causes, so before pushing run the uncached `npm run lint` below. `npm run typecheck`
 checks the whole project in about a second and keeps no cache.

@@ -46,7 +46,8 @@ release's files.
 ## Checks
 
 How code, comments, docs, tests and commits are written is [style.md](style.md); agents read the short form in
-[AGENTS.md](../AGENTS.md). Before pushing, run:
+[AGENTS.md](../AGENTS.md). `npm install` sets git's hooks folder to `.githooks/`, whose `pre-push` checks format and lint
+on the files your branch changes and the whole project's types (`scripts/pre-push.ts`, a second or two). Before pushing, run:
 
 ```bash
 npm test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
