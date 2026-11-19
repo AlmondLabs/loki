@@ -138,13 +138,9 @@ jobs:
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         run: npm run smoke
 
-  tests:
-    name: tests (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, windows-latest]
-    runs-on: ${{ matrix.os }}
+  windows:
+    name: tests (windows-latest)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -160,6 +156,48 @@ jobs:
           fi
       - id: install
         if: steps.scope.outputs.docs_only != 'true'
+        uses: ./.github/actions/install
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:node
+      - id: bundle
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:mod
+      - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
+        run: npm run smoke
+
+  # GitHub's Mac runners can queue for minutes, so a PR waits for one only when its diff can reach what runs
+  # differently on macOS (scripts/mac-scope.ts). A skipped job counts as passed; the queue and main run it always.
+  mac-scope:
+    name: mac scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    outputs:
+      needed: ${{ steps.scope.outputs.needed }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+      - id: scope
+        run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/mac-scope.ts >> "$GITHUB_OUTPUT"
+
+  mac:
+    name: tests (macos-15)
+    needs: mac-scope
+    # Runs unless the scope said no: a scope that failed or never ran (the queue, main) leaves the Mac job on.
+    if: ${{ !cancelled() && needs.mac-scope.outputs.needed != 'false' }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: install
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}

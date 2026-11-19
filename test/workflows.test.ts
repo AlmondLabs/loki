@@ -14,6 +14,7 @@ interface Step {
 }
 interface Job {
   "runs-on": string;
+  if?: string;
   needs?: string | string[];
   env?: Record<string, string>;
   strategy?: { matrix?: { os?: string[] } };
@@ -29,6 +30,8 @@ const install = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github"
   runs: { steps: Step[] };
 };
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
+// The jobs that install and check; mac-scope only decides whether the Mac one runs.
+const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => name !== "mac-scope");
 
 describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
@@ -40,7 +43,8 @@ describe("ci: a PR's checks", () => {
 
   test("runs on every PR, docs alone included, so each required check reports; a docs-only PR passes each job before installing", () => {
     expect(ci.on.pull_request).toBeNull();
-    for (const [name, job] of Object.entries(ci.jobs)) {
+    // The Mac job is skipped as a whole on a PR that cannot reach it, docs alone included (the next block).
+    for (const [name, job] of checking(ci).filter(([n]) => n !== "mac")) {
       const scope = job.steps.find((s) => s.id === "scope");
       expect(scope?.run, name).toContain("git diff --name-only HEAD^1 HEAD");
       // The skill the app ships is not a doc: skills/ is not in the list.
@@ -66,12 +70,40 @@ describe("ci: a PR's checks", () => {
       expect(job.needs, name).toBeUndefined();
       for (const c of commands) expect(runs(job), name).toContain(c);
     }
-    expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "windows-latest"]);
-    const tests = runs(ci.jobs.tests);
-    expect(tests).toContain("npm test");
-    for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
-    expect(tests).toContain("npm run smoke");
-    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "test", "tests", "typecheck"]);
+    for (const [name, os] of [
+      ["windows", "windows-latest"],
+      ["mac", "macos-15"],
+    ] as const) {
+      const job = must(ci.jobs[name], name);
+      expect(job["runs-on"], name).toBe(os);
+      // The required checks' names: the ruleset waits for these.
+      expect((job as Job & { name?: string }).name, name).toBe(`tests (${os})`);
+      const tests = runs(job);
+      expect(tests, name).toContain("npm test");
+      for (const once of ["typecheck", "lint", "build:app"]) expect(tests, name).not.toContain(once);
+      expect(tests, name).toContain("npm run smoke");
+      // Everything after the install is the same on both.
+      const checks = (j: Job) => j.steps.slice(j.steps.findIndex((s) => s.id === "install") + 1);
+      expect(checks(job), name).toEqual(checks(must(ci.jobs.windows, "windows")));
+    }
+    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows"]);
+  });
+});
+
+describe("the Mac job: on a PR only when its diff can reach macOS", () => {
+  const ci = workflow("ci");
+
+  test("a Linux job decides on a PR only, from scripts/mac-scope.ts", () => {
+    const scope = must(ci.jobs["mac-scope"], "mac-scope");
+    expect(scope.if).toBe("github.event_name == 'pull_request'");
+    expect(scope["runs-on"]).toBe("ubuntu-22.04");
+    expect(runs(scope)).toContain("scripts/mac-scope.ts");
+  });
+
+  test("the Mac job runs unless the scope said no, so the queue, main, and a scope that failed all run it", () => {
+    const mac = must(ci.jobs.mac, "mac");
+    expect(mac.needs).toBe("mac-scope");
+    expect(mac.if).toBe("${{ !cancelled() && needs.mac-scope.outputs.needed != 'false' }}");
   });
 });
 
@@ -81,7 +113,7 @@ describe("install: node_modules from a cache main seeds", () => {
   const steps = install.runs.steps;
 
   test("every ci job installs through it, and none runs npm ci itself", () => {
-    for (const [name, job] of Object.entries(ci.jobs)) {
+    for (const [name, job] of checking(ci)) {
       expect(
         job.steps.some((s) => s.uses === "./.github/actions/install"),
         name,
@@ -116,7 +148,7 @@ describe("selection: a PR runs what its diff reaches, the merge queue runs every
   const ci = workflow("ci");
 
   test("each suite step runs the selection on a pull_request and the whole suite otherwise (the queue, the weekly run, by hand)", () => {
-    for (const name of ["test", "tests"]) {
+    for (const name of ["test", "windows", "mac"]) {
       const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("npm test"));
       expect(step?.run, name).toBe("${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}");
     }
