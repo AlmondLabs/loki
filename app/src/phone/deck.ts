@@ -14,16 +14,69 @@ export const DRAG_SLOP = 8;
 export const UNDO_MS = 6000;
 export const FLY_PAST = 80;
 
-export function swipeDecision(dx: number, width: number, velocity: number, opts: { approval: boolean; typed?: boolean }): Swipe | null {
-  if (opts.approval || opts.typed) return null;
-  if (!Number.isFinite(dx) || !Number.isFinite(width) || width <= 0 || dx === 0) return null;
+export type Direction = "right" | "left" | "up";
+export type Origin = "body" | "box";
+export type Refusal = "main" | "jira" | "decide" | "typed" | "sending" | "disconnected";
+export type Gesture = { via: Via } | { refused: Refusal };
+
+export const REFUSED: Record<Refusal, string> = {
+  main: "A main chat cannot be archived.",
+  jira: "A Jira card ends only with Read.",
+  decide: "Approve or deny this one first.",
+  typed: "Send or clear the reply first.",
+  sending: "The reply is still sending.",
+  disconnected: "The account needs a new sign-in.",
+};
+
+const commits = (d: number, v: number, width: number) => d > 0 && releaseCommits(d, v * 1000, width * COMMIT_FRACTION, DRAG_SLOP);
+
+export function releaseDirection(dx: number, dy: number, width: number, vx: number, vy: number, origin: Origin): Direction | null {
+  if (![dx, dy, width, vx, vy].every(Number.isFinite) || width <= 0) return null;
+  if (origin === "box" && -dy > Math.abs(dx)) return commits(-dy, -vy, width) ? "up" : null;
+  if (dx === 0) return null;
   const sign = dx > 0 ? 1 : -1;
-  const dir: Swipe = sign > 0 ? "seen" : "later";
-  return releaseCommits(dx * sign, velocity * 1000 * sign, width * COMMIT_FRACTION, DRAG_SLOP) ? dir : null;
+  return commits(dx * sign, vx * sign, width) ? (sign > 0 ? "right" : "left") : null;
 }
 
-export function isHorizontalDrag(dx: number, dy: number): boolean {
-  return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > DRAG_SLOP;
+export function dragAxis(dx: number, dy: number, origin: Origin): "x" | "y" | null {
+  if (Math.abs(dx) > Math.abs(dy)) return Math.abs(dx) > DRAG_SLOP ? "x" : null;
+  return origin === "box" && -dy > DRAG_SLOP ? "y" : null;
+}
+
+const archiveRefusal = (item: AttentionItem): Refusal => (item.outside ? "jira" : "main");
+
+export function gestureFor(item: AttentionItem, dir: Direction, opts: { typed: boolean; sending: boolean }): Gesture {
+  if (opts.sending) return { refused: "sending" };
+  if (item.pendingApproval) {
+    if (dir === "up") return { refused: "decide" };
+    return opts.typed ? { refused: "typed" } : { via: dir === "right" ? "approve" : "deny" };
+  }
+  if (dir === "right") return opts.typed ? { refused: "typed" } : { via: "seen" };
+  if (dir === "left") return { via: "later" };
+  return archivable(item) ? { via: "archive" } : { refused: archiveRefusal(item) };
+}
+
+export type CardActionKind = Via | "always" | "label" | "handoff";
+export interface CardAction {
+  via: CardActionKind;
+  gesture: Direction | null;
+  refused: Refusal | null;
+}
+
+export function cardActions(item: AttentionItem, opts: { typed: boolean; sending: boolean; always: boolean; handoff: boolean }): CardAction[] {
+  const by = (dir: Direction): CardAction | null => {
+    const plain = gestureFor(item, dir, { typed: false, sending: false });
+    if (!("via" in plain)) return null;
+    const g = gestureFor(item, dir, opts);
+    return { via: plain.via, gesture: dir, refused: "refused" in g ? g.refused : null };
+  };
+  const gestures = (["right", "left", "up"] as const).map(by).filter((a): a is CardAction => a !== null);
+  const extra = (via: CardActionKind): CardAction => ({ via, gesture: null, refused: opts.sending ? "sending" : null });
+  if (item.pendingApproval) return [...gestures, ...(opts.always ? [extra("always")] : []), extra("later")];
+  const provider = item.outside?.provider;
+  const handoffRefusal: Refusal | null = opts.sending ? "sending" : item.outside?.disconnected ? "disconnected" : null;
+  const handoff: CardAction[] = provider && opts.handoff ? [{ via: "handoff", gesture: null, refused: handoffRefusal }] : [];
+  return [...gestures, ...(provider === "gmail" ? [extra("label")] : []), ...handoff];
 }
 
 export function rotationFor(dx: number, width: number): number {
@@ -46,15 +99,9 @@ export function revealOpacity(dx: number, width: number): number {
   return Math.max(0, Math.min(1, Math.abs(dx) / (width * COMMIT_FRACTION)));
 }
 
-export function refusedOffset(dx: number): number {
-  const eased = dx * 0.25;
-  return Math.max(-40, Math.min(40, eased));
-}
-
 export function stackPose(index: number): { scale: number; offsetY: number; opacity: number } {
   if (index <= 0) return { scale: 1, offsetY: 0, opacity: 1 };
-  if (index === 1) return { scale: 0.97, offsetY: 6, opacity: 0.7 };
-  return { scale: 0.94, offsetY: 12, opacity: 0.45 };
+  return { scale: 0.97, offsetY: 6, opacity: 0.7 };
 }
 
 export interface PassSummary {
@@ -125,7 +172,7 @@ export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | n
   return [
     ...(leaving ? [{ item: leaving, role: "leaving" as Role, index: -1 }] : []),
     ...visible
-      .slice(0, 3)
+      .slice(0, 2)
       .filter((i) => !leaving || idOf(i) !== idOf(leaving))
       .map((item, index): { item: AttentionItem; role: Role; index: number } => ({ item, role: index === 0 ? "top" : "shell", index })),
   ];
@@ -144,8 +191,8 @@ export function throughResting(s: DeckState): DeckState {
   return { ...EMPTY_DECK, pass: s.pass, resting: true };
 }
 
-export function canCommit(item: AttentionItem, via: Via): boolean {
-  if (item.pendingApproval) return via === "approve" || via === "deny";
+export function canCommit(item: AttentionItem, via: Via, from: "gesture" | "menu" = "gesture"): boolean {
+  if (item.pendingApproval) return via === "approve" || via === "deny" || (via === "later" && from === "menu");
   return via === "seen" || via === "later" || (via === "archive" && archivable(item));
 }
 
@@ -157,8 +204,8 @@ export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[]
   return toFront(held && !visible.some(same(held)) ? [held, ...visible] : visible, s.topId);
 }
 
-export function commitCard(s: DeckState, item: AttentionItem, via: Via): DeckState {
-  if (!canCommit(item, via)) return s;
+export function commitCard(s: DeckState, item: AttentionItem, via: Via, from: "gesture" | "menu" = "gesture"): DeckState {
+  if (!canCommit(item, via, from)) return s;
   return { ...s, dismissed: dismiss(s.dismissed, item), topId: null, held: null, pass: tally(s.pass, via) };
 }
 

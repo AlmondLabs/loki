@@ -89,7 +89,7 @@ const LINE_MAX = 280;
 const STATES: readonly ThreadState[] = ["open", "archived", "handed_off"];
 
 /** A file name for an account id on every system: ":" and the like, which Windows refuses, written as %XX. */
-function fileName(accountId: string): string {
+export function fileName(accountId: string): string {
   return `${accountId.replace(/[^A-Za-z0-9._@-]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`)}.json`;
 }
 

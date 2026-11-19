@@ -18,6 +18,7 @@ describe("the phone preview's daemon (plan 2026-11-18-2327, U1)", () => {
       GITHUB_TOKEN: "t",
       LOKI_PINS_FILE: "/Users/someone/.loki/pins.json",
       LOKI_STATE_DIR: "/Users/someone/.loki/state",
+      LOKI_PREVIEW_ACCOUNTS: "0",
     },
     scratch,
     { port: 50100, lanPort: 50101 },
@@ -33,6 +34,7 @@ describe("the phone preview's daemon (plan 2026-11-18-2327, U1)", () => {
     expect(env.LOKI_BUILT_PAGE).toBe("1");
     expect(env.LOKI_PORT).toBe("50100");
     expect(env.LOKI_LAN_PORT).toBe("50101");
+    expect(env.LOKI_PREVIEW_ACCOUNTS).toBe("1");
     expect(env.PATH).toBe("/usr/bin");
     expect(Object.values(env).join("\n")).not.toContain("/Users/someone");
   });
@@ -48,6 +50,11 @@ describe("the phone preview's daemon (plan 2026-11-18-2327, U1)", () => {
   test("drops every inherited LOKI_ setting, so none points the daemon back at the real ~/.loki", () => {
     expect(env).not.toHaveProperty("LOKI_PINS_FILE");
     expect(env).not.toHaveProperty("LOKI_STATE_DIR");
+    expect(
+      Object.keys(env)
+        .filter((k) => k.startsWith("LOKI_"))
+        .sort(),
+    ).toEqual(["LOKI_ANALYTICS", "LOKI_BUILT_PAGE", "LOKI_DIR", "LOKI_KEYCHAIN", "LOKI_LAN_PORT", "LOKI_PORT", "LOKI_PREVIEW_ACCOUNTS", "LOKI_SKILLS_DIR"]);
   });
 
   test("knows the made-up agent's words from the fixture itself", () => {

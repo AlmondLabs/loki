@@ -22,6 +22,7 @@ A browser tab shows Preferences as a sheet. To check the Mac app's Settings wind
 
 - It starts a throwaway daemon on a scratch folder, with its own ports, no keychain and no provider keys, and switches its phone listener on. It builds `app/dist` first if there is none.
 - It seeds three made-up agents and seven chats through `test/fixtures/fake-acp.mjs`. One chat is long, so threads scroll under the floating bars, and two wait on an approval, so Flow has cards and a conversation shows its dock.
+- It also seeds a made-up Gmail, Slack and Jira account, owned by Juniper, each with one card in Flow. It sets `LOKI_PREVIEW_ACCOUNTS=1`, so the mod never syncs them: they stay connected, a card reads its own saved lines, and Read, Later and Archive change loki's records alone. Writing them needs the agent first, so the daemon starts once more after the chats are seeded.
 - It then prints a `localhost` link that pairs a browser as a phone. A link pairs once within ten minutes; press Enter for another. A paired browser stays paired for the run.
 
 Open the link at 390 × 844 (Chromium's device toolbar, or the in-app browser's mobile size). Switch day and night with the browser's colour-scheme emulation, and Increase Contrast with DevTools › Rendering › `prefers-contrast: more`.
@@ -30,7 +31,7 @@ Open the link at 390 × 844 (Chromium's device toolbar, or the in-app browser's 
 - An edit under `core/`, `daemon/` or `mod/` is picked up as under `bun run start`. A daemon change waits while a chat is busy, and the seeded approvals keep two busy. Once the daemon does restart, the script starts it again and re-seeds the approvals.
 - Ctrl-C stops it and deletes the scratch folder; `--keep` leaves the folder.
 
-It is Chromium, not Safari: blur, safe areas and text size are near, not exact. There are no Gmail, Slack or Jira cards.
+It is Chromium, not Safari: blur, safe areas and text size are near, not exact. Replying from a Gmail, Slack or Jira card does not send.
 
 **Windows and Linux** (the preview builds): Node, bun (bun.sh has the one-line install for both) and Rust as above; in place of Xcode's tools, Windows needs the
 Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and

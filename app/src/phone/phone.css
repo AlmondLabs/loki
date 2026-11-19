@@ -425,6 +425,17 @@ html:has(.loki-phone-shell) {
   flex: 1;
   min-width: 0;
 }
+.loki-phone-topbar-copy[data-inline] {
+  display: flex;
+  align-items: baseline;
+  gap: var(--phone-space-2);
+}
+.loki-phone-topbar-copy[data-inline] .loki-phone-topbar-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .loki-phone-topbar-copy:first-child {
   padding-left: var(--phone-space-2);
 }
@@ -1410,8 +1421,8 @@ span.loki-phone-section-btn {
   flex: 1;
   min-height: 0;
   position: relative;
-  margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
-  margin-top: calc(var(--phone-top-clearance) + var(--phone-space-2));
+  margin: var(--phone-space-1) calc(var(--phone-space-2) + var(--phone-safe-right)) 0 calc(var(--phone-space-2) + var(--phone-safe-left));
+  margin-top: calc(var(--phone-top-clearance) + var(--phone-space-1));
 }
 .loki-phone-card {
   position: absolute;
@@ -1437,20 +1448,22 @@ span.loki-phone-section-btn {
 }
 .loki-phone-card-head {
   flex: none;
-  display: grid;
-  justify-items: center;
-  gap: 0;
-  padding: var(--phone-space-1) var(--phone-space-4) var(--phone-space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--phone-space-1);
+  padding: 0 0 0 var(--phone-space-1);
   border-bottom: 1px solid var(--loki-border);
   -webkit-user-select: none;
   user-select: none;
   cursor: grab;
 }
 .loki-phone-card-who {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: var(--phone-space-2);
-  max-width: 100%;
+  max-width: 40%;
   min-height: var(--phone-touch);
   padding: 0 var(--phone-space-3);
   border: none;
@@ -1469,13 +1482,20 @@ span.loki-phone-section-btn {
   color: var(--loki-muted);
 }
 .loki-phone-card-desk {
+  flex: 1;
   display: flex;
   gap: var(--phone-space-1);
-  max-width: 100%;
   min-width: 0;
   font-size: var(--phone-text-meta);
   color: var(--loki-muted);
   white-space: nowrap;
+}
+.loki-phone-card-title {
+  min-width: 4em;
+}
+.loki-phone-card-from {
+  min-width: 0;
+  max-width: 100%;
 }
 .loki-phone-card-when {
   flex: none;
@@ -1495,6 +1515,88 @@ span.loki-phone-section-btn {
   font-weight: 600;
   cursor: pointer;
 }
+.loki-phone-flow-hint {
+  position: absolute;
+  left: var(--phone-space-3);
+  right: var(--phone-space-3);
+  bottom: calc(var(--phone-touch) * 2);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: var(--phone-space-2) var(--phone-space-2) var(--phone-space-2) var(--phone-space-3);
+  border: 1px solid var(--loki-glass-edge);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-glass-strong);
+  -webkit-backdrop-filter: var(--loki-glass-blur);
+  backdrop-filter: var(--loki-glass-blur);
+  box-shadow: var(--loki-shadow-float);
+  font-size: var(--phone-text-meta);
+  color: var(--loki-fg);
+}
+.loki-phone-flow-hint > span {
+  flex: 1;
+}
+.loki-phone-flow-hint-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--phone-touch);
+  height: var(--phone-touch);
+  margin: calc(var(--phone-space-2) * -1) 0;
+  border: 0;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  cursor: pointer;
+}
+.loki-phone-card-more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--phone-touch);
+  height: var(--phone-touch);
+  border: 0;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  cursor: pointer;
+}
+.loki-phone-card-more:active {
+  background: var(--loki-hover);
+}
+.loki-phone-card-extra {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: 0 var(--phone-space-3) var(--phone-space-2);
+  font-size: var(--phone-text-meta);
+  color: var(--loki-muted);
+}
+.loki-phone-card [data-reply-handle] {
+  touch-action: none;
+  cursor: grab;
+}
+.loki-phone-card [data-reply-handle] textarea {
+  pointer-events: none;
+  max-height: calc(var(--phone-touch) - var(--phone-space-2));
+  overflow: hidden;
+}
+.loki-phone .loki-phone-card .loki-msg-day-pill-wrap,
+.loki-phone .loki-phone-card .loki-msg-day::before {
+  display: none;
+}
+.loki-phone-outside-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
 .loki-phone-card-body {
   flex: 1;
   min-height: 0;
@@ -1503,7 +1605,7 @@ span.loki-phone-section-btn {
 }
 .loki-phone-card [data-thread-scroll] {
   touch-action: pan-y;
-  padding-bottom: calc(var(--loki-dock-height) + var(--phone-space-4)) !important;
+  padding-bottom: calc(var(--loki-dock-height) + var(--phone-space-2)) !important;
   scroll-padding-bottom: var(--loki-dock-height);
 }
 .loki-phone-card .loki-latest-chip {
@@ -1543,30 +1645,24 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-body);
   font-weight: var(--phone-weight-strong);
 }
-.loki-phone-reveal-read,
-.loki-phone-reveal-later {
+.loki-phone-reveal[data-dir="left"] {
+  justify-content: flex-end;
+}
+.loki-phone-reveal[data-dir="up"] {
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: var(--phone-space-6);
+}
+.loki-phone-reveal-right,
+.loki-phone-reveal-left,
+.loki-phone-reveal-up {
   display: inline-flex;
   align-items: center;
   gap: var(--phone-space-2);
-}
-.loki-phone-reveal-read {
-  color: var(--loki-positive);
-}
-.loki-phone-reveal-later {
   color: var(--loki-muted);
 }
-.loki-phone-decide {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--phone-space-2);
-  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-3) + var(--phone-safe-bottom))
-    calc(var(--phone-space-3) + var(--phone-safe-left));
-}
-.loki-phone-decide--moves {
-  grid-template-columns: none;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+.loki-phone-reveal-right {
+  color: var(--loki-positive);
 }
 .loki-phone-decide-btn {
   min-height: 52px;
@@ -1588,23 +1684,6 @@ span.loki-phone-section-btn {
   border-color: var(--phone-affirm);
   background: var(--phone-affirm);
   color: var(--phone-on-affirm);
-}
-.loki-phone-decide-btn--deny {
-  color: var(--loki-negative);
-}
-.loki-phone-decide-always {
-  grid-column: 1 / -1;
-  min-height: var(--phone-touch);
-  border: 0;
-  background: none;
-  color: var(--loki-muted);
-  font: inherit;
-  font-size: var(--phone-text-meta);
-  cursor: pointer;
-  overflow-wrap: anywhere;
-}
-.loki-phone-decide-always:active {
-  color: var(--loki-fg);
 }
 .loki-phone-row-action {
   flex: none;
@@ -1634,10 +1713,6 @@ span.loki-phone-section-btn {
   }
   .loki-phone-decide-btn {
     min-height: var(--phone-touch);
-  }
-  .loki-phone-decide {
-    padding-top: var(--phone-space-1);
-    padding-bottom: calc(var(--phone-space-2) + var(--phone-safe-bottom));
   }
 }
 
@@ -2876,8 +2951,9 @@ span.loki-phone-section-btn {
   opacity: 0;
 }
 
-.loki-phone-reveal-read,
-.loki-phone-reveal-later {
+.loki-phone-reveal-right,
+.loki-phone-reveal-left,
+.loki-phone-reveal-up {
   transition: scale var(--spring-bouncy-ms) var(--spring-bouncy);
 }
 .loki-phone-reveal [data-armed] {

@@ -90,7 +90,7 @@ describe("the phone's glass (U1)", () => {
   test("covers U3: each screen's scroller starts below its own bar, and every page starts with none", () => {
     expect(ruleOf(".loki-phone-scroll")).toMatch(/padding-top: calc\(var\(--phone-top-clearance\) \+ var\(--phone-space-3\)\);/);
     expect(ruleOf(".loki-phone-scroll--flush")).toMatch(/padding-top: var\(--phone-top-clearance\);/);
-    expect(ruleOf(".loki-phone-deck")).toMatch(/margin-top: calc\(var\(--phone-top-clearance\) \+ var\(--phone-space-2\)\);/);
+    expect(ruleOf(".loki-phone-deck")).toMatch(/margin-top: calc\(var\(--phone-top-clearance\) \+ var\(--phone-space-1\)\);/);
     expect(must(/\n\.loki-phone-page,\s*\.loki-phone-inbox \{([^}]*)\}/.exec(phone), "the page rule")[1]).toContain("--phone-top-clearance: 0px;");
   });
 
@@ -171,7 +171,7 @@ describe("the phone's glass (U1)", () => {
 
   test("a Flow card's thread ends above the card's floating dock, and its jump-to-latest chip rides above it", () => {
     const thread = ruleOf(".loki-phone-card [data-thread-scroll]");
-    expect(thread).toMatch(/padding-bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-4\)\) !important;/);
+    expect(thread).toMatch(/padding-bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-2\)\) !important;/);
     expect(thread).toContain("scroll-padding-bottom: var(--loki-dock-height);");
     expect(ruleOf(".loki-phone-card .loki-latest-chip")).toMatch(/bottom: calc\(var\(--loki-dock-height\) \+ var\(--phone-space-3\)\) !important;/);
   });
@@ -184,5 +184,22 @@ describe("the phone's glass (U1)", () => {
       });
     const users = files(APP).filter((path) => /--phone-nav-(surface|border)/.test(readFileSync(path, "utf8")));
     expect(users).toEqual([]);
+  });
+});
+
+describe("a Flow card that is all message (plan 2026-11-19-2250)", () => {
+  test("the folded reply box hands iOS no gesture, so it can drag up; the card body still scrolls (R3, R5)", () => {
+    expect(ruleOf(".loki-phone-card [data-reply-handle]")).toMatch(/touch-action:\s*none;/);
+    expect(ruleOf(".loki-phone-card [data-reply-handle] textarea")).toMatch(/pointer-events:\s*none;/);
+    expect(ruleOf(".loki-phone-card")).toMatch(/touch-action:\s*pan-y;/);
+    expect(ruleOf(".loki-phone-outside-body")).toMatch(/touch-action:\s*pan-y;/);
+  });
+  test("the card's ⋯ is a full touch target, and its thread shows no day pill (R8, R18)", () => {
+    const more = ruleOf(".loki-phone-card-more");
+    expect(more).toMatch(/width:\s*var\(--phone-touch\);/);
+    expect(more).toMatch(/height:\s*var\(--phone-touch\);/);
+    expect(phone).toMatch(
+      /\.loki-phone \.loki-phone-card \.loki-msg-day-pill-wrap,\n\.loki-phone \.loki-phone-card \.loki-msg-day::before \{\n\s*display: none;/,
+    );
   });
 });

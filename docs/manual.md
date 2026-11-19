@@ -454,20 +454,26 @@ Search button beside them:
    the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
 2. **Flow**: the same cards as Flow on the Mac, in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question; its head opens
-   the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way. Swipe right
-   (or **Read**) to mark it read, in Gmail or Slack too: a chat or an email rests a while, longer each time (see
-   "The order"), and a Slack message is done. Swipe left (or **Later**) to leave it unread and have it back in a day;
-   the second Later in a row asks when, in a sheet: later today, tomorrow, in 3 days, next week or a date of your
-   own, and closing the sheet leaves the card where it was. **Archive** is a button only (a main chat has none). An
-   email card also has **Label**, a sheet of the account's Gmail labels; the card stays for its next move. On a mail
-   or Slack card, **Send** sends your reply and marks the thread read; while the reply box holds text a swipe springs
-   back, so nothing goes by accident. A mail card's box has its recipients line, where you can add someone to To or
-   Cc. A mail reply waits 10 seconds with **Undo** beside it (see "Replying to mail as Gmail does"). Once only resting cards are left Flow says how many and offers **Go
-   through them**. An approval leaves only by its decision: the buttons become **Deny** and **Approve**, and it
-   refuses both swipes. Undo sits in the top bar for six seconds after Read, Later or Archive, and puts the thread
-   in Gmail or Slack back as it was; a move that fails brings the card back with the reason. The top bar reads "n
-   need you" (or "n chats" when nothing does). Once you have been past every chat it says "You've been through every
-   chat", what this visit did ("2 read · 1 later · 1 archived"), how many still need you, and **Go through again**.
+   the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way, by a drag
+   and with no buttons. Swipe the card right, or drag its reply box right, to mark it read, in Gmail or Slack too:
+   a chat or an email rests a while, longer each time (see "The order"), and a Slack message is done. Swipe or drag
+   left to leave it unread and have it back in a day; the second Later in a row asks when, in a sheet: later today,
+   tomorrow, in 3 days, next week or a date of your own, and closing the sheet leaves the card where it was. Drag
+   the reply box up to archive it; a main chat and a Jira card refuse, with a shake and a line saying why. The reply
+   box stays one row until you tap it, and then shows its extras (the model for a chat, the recipients line for an
+   email). The **⋯** at the end of the card's head lists every action with its gesture, and is where the rarer ones
+   live: **Label** on an email (a sheet of the account's Gmail labels; the card stays for its next move), **Hand
+   Off** on an email, a Slack message or a Jira ticket, and **Always Allow** on an approval. The first time Flow
+   shows a card, a note over the reply box says which way each drag goes. On a mail or Slack card, **Send** sends
+   your reply and marks the thread read. While the reply box holds text, Later and Archive still take the card and
+   keep the text with it, but Read is refused, so a half-written answer is not lost. A mail card's box has its
+   recipients line, where you can add someone to To or Cc. A mail reply waits 10 seconds with **Undo** beside it
+   (see "Replying to mail as Gmail does"). Once only resting cards are left Flow says how many and offers **Go
+   through them**. An approval is decided the same way: right approves and left denies, at once and with no undo;
+   to put it off, use **Later** in its ⋯. Undo sits in the top bar for six seconds after Read, Later or Archive,
+   and puts the thread in Gmail or Slack back as it was; a move that fails brings the card back with the reason.
+   The top bar reads "n need you" (or "n chats" when nothing does), on the title's line. Once you have been past
+   every chat it says "You've been through every chat", what this visit did ("2 read · 1 later · 1 archived"), how many still need you, and **Go through again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
    profile with its memory, changes and skills in one scroll.
 4. **More**: the paired Mac, then Agents, Learn, Archived chats, Preferences (appearance) and Usage (what the agents
