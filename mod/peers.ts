@@ -6,7 +6,7 @@ import { dirname } from "node:path";
 import type { MacIdentity, PeerSummary } from "../core/frame-types.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { hashToken } from "./devices.ts";
-import type { PairingCodes } from "./pairing.ts";
+import { TOO_MANY_WRONG_CODES, type CodeCheck, type CodeStep, type PairingCodes } from "./pairing.ts";
 import { log } from "./log.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
@@ -227,6 +227,12 @@ export function macName(): string {
   }
 }
 
+interface Pairing {
+  hello: PeerHello;
+  token: string;
+  invited: boolean;
+}
+
 export interface PeerAnswer {
   status: number;
   body: object;
@@ -281,22 +287,31 @@ export class Peers {
     return { code, host: me.host };
   }
 
-  async accept(body: Record<string, unknown> | null): Promise<PeerAnswer> {
-    const hello = parsePeerHello(body?.hello);
-    const token = body?.token;
-    if (!body || typeof body.code !== "string" || !hello || !isPeerToken(token)) return { status: 400, body: { error: "expected {code, hello, token}" } };
-    const invite = this.invites.get(body.code);
-    this.invites.delete(body.code);
-    const invited = !!invite && invite.mac_id === hello.mac_id && invite.expires > this.now();
+  async accept(body: Record<string, unknown> | null, step: CodeStep<Pairing> = (check) => check()): Promise<PeerAnswer> {
+    const result = step(() => this.spend(body));
+    if (result.code === "blocked") return { status: 429, body: { error: TOO_MANY_WRONG_CODES } };
+    if (result.code !== "right") return { status: result.status, body: result.body };
+    const { hello, token, invited } = result.value;
     const me = this.hello();
-    if (hello.mac_id === me.mac_id) return { status: 409, body: { error: "that code is this Mac's own" } };
-    if (!invited && !this.opts.codes.spend(body.code)) return { status: 404, body: { error: "unknown or expired code" } };
     const mine = mintPeerToken();
     await this.opts.keys.set(hello.mac_id, token);
     this.opts.store.add(hello, mine);
     log("peers:paired", { mac: hello.mac_id, name: hello.name, by: invited ? "invite" : "code" });
     this.opts.onChange?.();
     return { status: 200, body: { hello: me, token: mine } };
+  }
+
+  private spend(body: Record<string, unknown> | null): CodeCheck<Pairing> {
+    const hello = parsePeerHello(body?.hello);
+    const token = body?.token;
+    if (!body || typeof body.code !== "string" || !hello || !isPeerToken(token))
+      return { code: "refused", status: 400, body: { error: "expected {code, hello, token}" } };
+    const invite = this.invites.get(body.code);
+    this.invites.delete(body.code);
+    const invited = !!invite && invite.mac_id === hello.mac_id && invite.expires > this.now();
+    if (hello.mac_id === this.hello().mac_id) return { code: "refused", status: 409, body: { error: "that code is this Mac's own" } };
+    if (!invited && !this.opts.codes.spend(body.code)) return { code: "wrong", status: 404, body: { error: "unknown or expired code" } };
+    return { code: "right", value: { hello, token, invited } };
   }
 
   async join(host: string, code: string): Promise<PeerSummary> {

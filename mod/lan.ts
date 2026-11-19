@@ -4,7 +4,7 @@ import { hostname, networkInterfaces } from "node:os";
 import { execFileSync } from "node:child_process";
 import type { Scope } from "../core/desk-core.ts";
 import type { DeviceStore } from "./devices.ts";
-import type { PairingCodes } from "./pairing.ts";
+import { TOO_MANY_WRONG_CODES, type CodeCheck, type PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
 import { attachWs, closeServer, listenWithRetry, profileRoute, type Audience, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
 import { uploadRoute } from "./uploads.ts";
@@ -361,16 +361,12 @@ export class LanListener {
       case "/peer/pair": {
         if (req.method !== "POST") return json(res, 405, { error: "POST" });
         const ip = req.socket.remoteAddress ?? "?";
-        if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
+        if (this.attempts.blocked(ip)) return json(res, 429, { error: TOO_MANY_WRONG_CODES });
         if (!(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) return json(res, 415, { error: "send application/json" });
         void readJson(req)
-          .then((body) => (this.attempts.blocked(ip) ? { status: 429, body: { error: "too many wrong codes; wait a while" } } : peers.accept(body)))
+          .then((body) => peers.accept(body, (check) => this.attempts.check(ip, check)))
           .then(
-            (answer) => {
-              if (answer.status === 404) this.attempts.failed(ip);
-              else if (answer.status === 200) this.attempts.clear(ip);
-              json(res, answer.status, answer.body);
-            },
+            (answer) => json(res, answer.status, answer.body),
             () => json(res, 400, { error: "bad request body" }),
           );
         return;
@@ -398,17 +394,17 @@ export class LanListener {
 
   private pair(req: IncomingMessage, res: ServerResponse): void {
     const ip = req.socket.remoteAddress ?? "?";
-    if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
+    if (this.attempts.blocked(ip)) return json(res, 429, { error: TOO_MANY_WRONG_CODES });
     void readJson(req).then(
       (body) => {
-        if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
-        if (!body || typeof body.code !== "string") return json(res, 400, { error: "expected {code, name}" });
-        if (!this.opts.codes.redeem(body.code)) {
-          this.attempts.failed(ip);
-          return json(res, 404, { error: "unknown or expired code" });
-        }
-        this.attempts.clear(ip);
-        const name = typeof body.name === "string" && body.name.trim() ? body.name : "Phone";
+        const result = this.attempts.check(ip, (): CodeCheck<string> => {
+          if (!body || typeof body.code !== "string") return { code: "refused", status: 400, body: { error: "expected {code, name}" } };
+          if (!this.opts.codes.redeem(body.code)) return { code: "wrong", status: 404, body: { error: "unknown or expired code" } };
+          return { code: "right", value: typeof body.name === "string" && body.name.trim() ? body.name : "Phone" };
+        });
+        if (result.code === "blocked") return json(res, 429, { error: TOO_MANY_WRONG_CODES });
+        if (result.code !== "right") return json(res, result.status, result.body);
+        const name = result.value;
         const { id, token } = this.opts.devices.mint(name);
         log("lan:paired", { id, name });
         this.opts.onChange?.("devices", this.status());
@@ -464,6 +460,13 @@ export class Attempts {
     this.windowMs = windowMs;
     this.now = now;
   }
+  check<T>(ip: string, check: () => CodeCheck<T>): CodeCheck<T> | { code: "blocked" } {
+    if (this.blocked(ip)) return { code: "blocked" };
+    const result = check();
+    if (result.code === "wrong") this.failed(ip);
+    else if (result.code === "right") this.clear(ip);
+    return result;
+  }
   blocked(ip: string): boolean {
     const rec = this.byIp.get(ip);
     if (!rec) return false;
@@ -471,7 +474,7 @@ export class Attempts {
     if (this.now() - rec.first > this.windowMs) this.byIp.delete(ip);
     return false;
   }
-  failed(ip: string): void {
+  private failed(ip: string): void {
     const t = this.now();
     const rec = this.byIp.get(ip);
     if (!rec || t - rec.first > this.windowMs) {
@@ -481,7 +484,7 @@ export class Attempts {
     rec.count += 1;
     if (rec.count >= this.limit) rec.until = t + this.windowMs;
   }
-  clear(ip: string): void {
+  private clear(ip: string): void {
     this.byIp.delete(ip);
   }
 }

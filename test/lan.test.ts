@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { WebSocket as WsClient, type RawData } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress, tailnetAddresses } from "../mod/lan.ts";
+import { Attempts, HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress, tailnetAddresses } from "../mod/lan.ts";
+import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, mintPeerToken, type PeerHello } from "../mod/peers.ts";
+import { memorySecrets } from "../daemon/credentials.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 import { request as httpRequest, type IncomingMessage } from "node:http";
@@ -44,6 +46,7 @@ function fixture(
     host?: () => string | null;
     now?: () => number;
     interfaces?: () => ReturnType<typeof networkInterfaces>;
+    peers?: boolean;
   } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "loki-lan-"));
@@ -60,6 +63,8 @@ function fixture(
     },
   };
   const changes: Array<["status" | "devices", LanStatus]> = [];
+  const peerStore = new PeerStore(join(dir, "peers.json"));
+  const peers = opts.peers ? new Peers({ store: peerStore, keys: new PeerKeys(memorySecrets()), codes, me: () => BOOK }) : null;
   writeFileSync(join(dir, "face.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   const lan = new LanListener({
     port: opts.port ?? 0,
@@ -75,9 +80,42 @@ function fixture(
     host: opts.host,
     now: opts.now,
     interfaces: opts.interfaces,
+    ...(peers ? { peers, via: () => "tailscale" as const } : {}),
   });
   const cleanup = () => rmSync(dir, { recursive: true, force: true });
-  return { dir, devices, codes, handlers, connected, changes, lan, cleanup };
+  return { dir, devices, codes, handlers, connected, changes, lan, peerStore, cleanup };
+}
+
+const macHello = (macId: string, name: string): PeerHello => ({
+  mac_id: macId,
+  name,
+  host: `${name}.tail1234.ts.net:41415`,
+  build: null,
+  protocol: PEER_PROTOCOL,
+});
+const BOOK = macHello("aaaaaaaa-1111-4111-8111-111111111111", "book");
+const MINI = macHello("bbbbbbbb-2222-4222-8222-222222222222", "mini");
+
+async function peerPair(lan: LanListener, body: unknown): Promise<number> {
+  const res = await fetch(`${base(lan)}/peer/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  await res.body?.cancel();
+  return res.status;
+}
+
+/** POSTs whose headers reach the listener at once and whose bodies wait for send(): all pass the pre-body check together. */
+function heldPosts(lan: LanListener, path: string, bodies: unknown[]) {
+  return bodies.map((body) => {
+    const req = httpRequest({ host: "127.0.0.1", port: lan.status().port, path, method: "POST", headers: { "content-type": "application/json" } });
+    const status = new Promise<number>((resolve, reject) => {
+      req.on("response", (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on("error", reject);
+    });
+    req.flushHeaders();
+    return { send: () => void req.end(JSON.stringify(body)), status };
+  });
 }
 
 const base = (lan: LanListener) => `http://127.0.0.1:${lan.status().port}`;
@@ -261,32 +299,18 @@ describe("LAN listener", () => {
     try {
       await f.lan.setEnabled(true);
       const { code } = f.codes.mint();
-      // Every request's headers reach the listener before any body does: all are past the first check together.
-      const reqs = [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => {
-        const req = httpRequest({
-          host: "127.0.0.1",
-          port: f.lan.status().port,
-          path: "/pair",
-          method: "POST",
-          headers: { "content-type": "application/json" },
-        });
-        const status = new Promise<number>((resolve, reject) => {
-          req.on("response", (res) => {
-            res.resume();
-            resolve(res.statusCode ?? 0);
-          });
-          req.on("error", reject);
-        });
-        req.flushHeaders();
-        return { req, body: JSON.stringify({ code: c, name: "x" }), status };
-      });
+      const reqs = heldPosts(
+        f.lan,
+        "/pair",
+        [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => ({ code: c, name: "x" })),
+      );
       await new Promise((r) => setTimeout(r, 200));
       // The wrong codes' bodies all at once; the right one's only after they are answered, so it is the 31st attempt
       const wrong = reqs.slice(0, -1);
       const right = reqs[reqs.length - 1];
-      for (const r of wrong) r.req.end(r.body);
+      for (const r of wrong) r.send();
       const statuses = await Promise.all(wrong.map((r) => r.status));
-      right.req.end(right.body);
+      right.send();
       statuses.push(await right.status);
       expect(statuses.filter((s) => s === 404)).toHaveLength(10);
       expect(statuses.filter((s) => s === 429)).toHaveLength(21);
@@ -296,6 +320,71 @@ describe("LAN listener", () => {
       await f.lan.stop();
       f.cleanup();
     }
+  });
+
+  test("a Mac's wrong codes sent all at once are counted in the same step that checks them: ten answer 404, the eleventh 429", async () => {
+    const f = fixture({ peers: true });
+    try {
+      await f.lan.setEnabled(true);
+      const reqs = heldPosts(
+        f.lan,
+        "/peer/pair",
+        Array.from({ length: 11 }, () => ({ code: "ZZZZZZ", hello: MINI, token: mintPeerToken() })),
+      );
+      await new Promise((r) => setTimeout(r, 200));
+      for (const r of reqs) r.send();
+      const statuses = await Promise.all(reqs.map((r) => r.status));
+      expect(statuses.filter((s) => s === 404)).toHaveLength(10);
+      expect(statuses.filter((s) => s === 429)).toHaveLength(1);
+      expect(f.peerStore.list()).toEqual([]);
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
+    }
+  });
+
+  test("a malformed pairing request or one from this Mac's own id is refused without counting as a wrong code", async () => {
+    const f = fixture({ peers: true });
+    try {
+      await f.lan.setEnabled(true);
+      for (let i = 0; i < 9; i++) expect(await peerPair(f.lan, { code: "ZZZZZZ", hello: MINI, token: mintPeerToken() })).toBe(404);
+      expect(await peerPair(f.lan, { code: "ZZZZZZ" })).toBe(400);
+      const { code } = f.codes.mint();
+      expect(await peerPair(f.lan, { code, hello: BOOK, token: mintPeerToken() })).toBe(409);
+      expect(await peerPair(f.lan, { code: "ZZZZZZ", hello: MINI, token: mintPeerToken() })).toBe(404);
+      expect(await peerPair(f.lan, { code, hello: MINI, token: mintPeerToken() })).toBe(429);
+      expect(f.peerStore.list()).toEqual([]);
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
+    }
+  });
+
+  test("the wrong-code step: a blocked address's check never runs, a right code clears the count, a refusal leaves it", () => {
+    const attempts = new Attempts(3);
+    let runs = 0;
+    const counted =
+      <T>(answer: T) =>
+      () => {
+        runs++;
+        return answer;
+      };
+    const wrong = counted({ code: "wrong" as const, status: 404, body: {} });
+    const right = counted({ code: "right" as const, value: "paired" });
+    const refused = counted({ code: "refused" as const, status: 400, body: {} });
+    expect([wrong, wrong, right, wrong, refused, wrong, wrong].map((step) => attempts.check("1.2.3.4", step).code)).toEqual([
+      "wrong",
+      "wrong",
+      "right",
+      "wrong",
+      "refused",
+      "wrong",
+      "wrong",
+    ]);
+    const before = runs;
+    expect(attempts.check("1.2.3.4", right).code).toBe("blocked");
+    expect(runs).toBe(before);
+    expect(attempts.check("5.6.7.8", right).code).toBe("right");
   });
 
   test("upgrades: desktop token refused, device cookie or bearer reaches the bridge, forget closes the socket", async () => {
