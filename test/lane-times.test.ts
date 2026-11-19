@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { dueLane, followLane, latestEdge, nextChange, timesLabel, untilTime } from "../core/attention/lane-times.ts";
+import { dueLane, followLane, followStep, latestEdge, nextChange, timesLabel, untilTime } from "../core/attention/lane-times.ts";
 import type { Lane, LaneWindow } from "../core/attention/lanes.ts";
 
 const tz = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -79,6 +79,18 @@ describe("until", () => {
     expect(untilTime(LANES, "", at(17, "18:30"))).toBeNull();
   });
 
+  test("a lane its windows keep due past the next day names its real end, and nothing when that is more than a day away", () => {
+    const weekend = lane("weekend", [win("18:00", "06:00", [5, 6]), win("06:00", "18:00", [6, 0])]);
+    expect(dueLane([weekend], at(20, "19:00"))?.id).toBe("weekend");
+    expect(nextChange([weekend], at(20, "19:00"))).toEqual(at(22, "18:00"));
+    expect(untilTime([weekend], "weekend", at(20, "19:00"))).toBeNull();
+    expect(untilTime([weekend], "weekend", at(22, "07:00"))).toEqual(at(22, "18:00"));
+  });
+
+  test("no change ahead is null", () => {
+    expect(nextChange([reading], at(17, "10:00"))).toBeNull();
+  });
+
   test("skips an end the same lane carries on through", () => {
     const twice = lane("twice", [win("09:00", "09:30"), win("09:00", "10:00")]);
     expect(untilTime([twice], "twice", at(17, "09:10"))).toEqual(at(17, "10:00"));
@@ -155,5 +167,15 @@ describe("whether a device follows the times now", () => {
     expect(followLane(fresh, null, false, at(17, "16:15"))).toBeNull();
     expect(followLane(fresh, null, false, at(17, "16:30"))).toBe("");
     expect(followLane([reading], null, false, at(17, "16:00"))).toBeNull();
+  });
+});
+
+describe("what the follower does on a check", () => {
+  const ms = (d: Date) => d.getTime();
+
+  test("switches into the lane due, records when it is already there, and otherwise does nothing", () => {
+    expect(followStep(LANES, ms(at(17, "15:50")), false, "reading", at(17, "16:00"))).toEqual({ kind: "switch", to: "comms" });
+    expect(followStep(LANES, ms(at(17, "15:50")), false, "comms", at(17, "16:00"))).toEqual({ kind: "record" });
+    expect(followStep(LANES, ms(at(17, "16:00")), false, "comms", at(17, "16:10"))).toBeNull();
   });
 });

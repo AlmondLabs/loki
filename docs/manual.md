@@ -1044,7 +1044,7 @@ A lane you pick by hand stays until the next start or end of any window; then th
 was closed or asleep catches up when it opens: the phone opened at 19:40 lands in the lane due then, unless you switched
 it by hand since. While you are typing a reply on the card in front of you, a switch waits until you send it, leave
 the card or empty the reply. Saving times never switches anything by itself: a window you add takes effect at its next
-start or end. While a device is in a lane because of its times, the phone's lane sheet says until when ("Until 16:30")
+start or end. While a device is in a lane because of its times, the phone's lane sheet says until when ("Until 16:30", once that is less than a day away)
 and shows the other lanes' times; on the Mac only the window's name in Mission Control and the Window menu says it.
 Agents' own lanes and Everything have no times.
 

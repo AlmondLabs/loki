@@ -9,7 +9,8 @@ interface Occurrence {
 }
 
 const DAY_BACK_FOR_DUE = 1;
-const DAYS_BACK_FOR_EDGES = 8;
+const DAYS_SCANNED = 8;
+const UNTIL_WITHIN_MS = 24 * 60 * 60 * 1000;
 
 const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 
@@ -51,7 +52,7 @@ export function dueLane(lanes: Lane[], now: Date): Lane | null {
 export function latestEdge(lanes: Lane[], now: Date): number | null {
   const t = now.getTime();
   let latest: number | null = null;
-  for (const o of occurrences(lanes, now, DAYS_BACK_FOR_EDGES, 0)) {
+  for (const o of occurrences(lanes, now, DAYS_SCANNED, 0)) {
     for (const edge of [o.start, o.end]) {
       if (edge <= t && edge >= o.since && (latest === null || edge > latest)) latest = edge;
     }
@@ -61,7 +62,7 @@ export function latestEdge(lanes: Lane[], now: Date): number | null {
 
 export function nextChange(lanes: Lane[], now: Date): Date | null {
   const t = now.getTime();
-  const occs = occurrences(lanes, now, DAY_BACK_FOR_DUE, 1);
+  const occs = occurrences(lanes, now, DAY_BACK_FOR_DUE, DAYS_SCANNED);
   const current = dueAt(occs, t)?.id ?? "";
   const edges = [...new Set(occs.flatMap((o) => [o.start, o.end]).filter((e) => e > t))].sort((a, b) => a - b);
   const change = edges.find((e) => (dueAt(occs, e)?.id ?? "") !== current);
@@ -75,8 +76,18 @@ export function followLane(lanes: Lane[] | null, lastSwitch: number | null, held
   return dueLane(lanes, now)?.id ?? "";
 }
 
+export type FollowStep = { kind: "switch"; to: string } | { kind: "record" } | null;
+
+export function followStep(lanes: Lane[] | null, lastSwitch: number | null, held: boolean, activeId: string, now: Date): FollowStep {
+  const next = followLane(lanes, lastSwitch, held, now);
+  if (next === null) return null;
+  return next === activeId ? { kind: "record" } : { kind: "switch", to: next };
+}
+
 export function untilTime(lanes: Lane[], activeId: string, now: Date): Date | null {
-  return dueLane(lanes, now)?.id === activeId ? nextChange(lanes, now) : null;
+  if (dueLane(lanes, now)?.id !== activeId) return null;
+  const change = nextChange(lanes, now);
+  return change && change.getTime() - now.getTime() <= UNTIL_WITHIN_MS ? change : null;
 }
 
 const CLOCK: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };

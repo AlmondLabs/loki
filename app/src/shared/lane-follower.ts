@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { clockText, followLane, untilTime } from "../../../core/attention/lane-times.ts";
+import { clockText, followStep, untilTime } from "../../../core/attention/lane-times.ts";
 import type { FlowLane } from "../../../core/attention/use-attention.ts";
 import { laneStore, type LaneDevice } from "./active-lane";
 import { pageActivity } from "./page-activity";
@@ -23,10 +23,9 @@ export function useLaneFollower(device: LaneDevice, flow: Pick<FlowLane, "lanes"
   }, []);
   const { lanes, laneId, setLaneId } = flow;
   useEffect(() => {
-    const next = followLane(lanes, switchedAt, held, new Date(now));
-    if (next === null) return;
-    if (next === laneId) store.recordSwitch();
-    else setLaneId(next, "schedule");
+    const step = followStep(lanes, switchedAt, held, laneId, new Date(now));
+    if (step?.kind === "record") store.recordSwitch();
+    else if (step?.kind === "switch") setLaneId(step.to, "schedule");
   }, [lanes, laneId, setLaneId, switchedAt, held, now, store]);
   const until = lanes ? untilTime(lanes, laneId, new Date(now)) : null;
   return until ? clockText(until) : null;

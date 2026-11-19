@@ -11,7 +11,7 @@ export interface Lane {
   chats: LaneSide;
   /** Account ids (`gmail:<address>`, `slack:<team>:<user>`, `jira:<site>:<user>`) whose cards the lane holds. */
   accounts: LaneSide;
-  /** When the lane switches on by itself (plan 2026-11-19-1851). Missing or empty means only by hand. */
+  /** When the lane switches on by itself. Missing or empty means only by hand. */
   times?: LaneWindow[];
 }
 
