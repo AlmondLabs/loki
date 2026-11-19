@@ -21,10 +21,10 @@ export function useFlowHint(item: AttentionItem | undefined): { shown: boolean; 
   return { shown: hintShows(state, item), dismiss: () => set("seen") };
 }
 
-export function FlowHint({ onDismiss }: { onDismiss: () => void }) {
+export function FlowHint({ words, onDismiss }: { words: string; onDismiss: () => void }) {
   return (
     <div className="loki-phone-flow-hint" role="note">
-      <span>Drag the reply box: right for Read, left for Later, up to Archive.</span>
+      <span>{words}</span>
       <button type="button" className="loki-phone-flow-hint-close" onClick={onDismiss} aria-label="Dismiss Hint">
         <Icon name="close" size={16} />
       </button>

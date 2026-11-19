@@ -164,6 +164,12 @@ describe("the card's actions for the ⋯ (R9, R10)", () => {
     expect(list(ask)).toEqual(["approve:right", "deny:left", "later"]);
     expect(list(ask, { ...opts, always: true })).toEqual(["approve:right", "deny:left", "always", "later"]);
   });
+  test("a disconnected account's card keeps Hand Off but refuses it, as its old button did", () => {
+    const mail = outsideItem("Lunch");
+    const gone: AttentionItem = { ...mail, outside: mail.outside && { ...mail.outside, disconnected: "sign_in_again" } };
+    expect(cardActions(gone, opts).find((a) => a.via === "handoff")?.refused).toBe("disconnected");
+    expect(cardActions(mail, opts).find((a) => a.via === "handoff")?.refused).toBeNull();
+  });
   test("with a reply in the box, Read, Approve and Deny show refused", () => {
     expect(list(item("c1"), { ...opts, typed: true })).toEqual(["seen:right!", "later:left", "archive:up"]);
     expect(list(ask, { ...opts, typed: true })).toEqual(["approve:right!", "deny:left!", "later"]);

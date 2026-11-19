@@ -180,7 +180,10 @@ export function Conversation({
     onSend: actions.onSend,
     commands,
     onCommand: actions.onCommand,
-    onSent,
+    onSent: () => {
+      folding.close();
+      onSent?.();
+    },
     controlled: controlledDraft,
   });
   const { findOpen, setFindOpen, findRef } = useChatTicks({ focusTick, findTick, inputRef });

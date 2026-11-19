@@ -488,7 +488,7 @@ export function Inbox({
   const [typedId, setTypedId] = useState<string | null>(null);
   const [keptReply] = useOutsideReply(current?.outside ? currentId : null);
   const [chatDraft] = useDraft(current && !current.outside ? draftKey(current.agent_id, current.id) : null);
-  const typed = !!currentId && (typedId === currentId || !!keptReply.trim() || !!chatDraft.text.trim());
+  const typed = !!currentId && (typedId === currentId || !!keptReply.trim() || !!chatDraft.text.trim() || chatDraft.images.length > 0);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = !!currentId && sendingId === currentId;
   const [seedsTaken, setSeedsTaken] = useState<SeedsTaken>({ card: null, taken: [] });
@@ -633,7 +633,7 @@ export function Inbox({
               labelList={labelList}
               items={items}
             />
-            {hint.shown && <FlowHint onDismiss={hint.dismiss} />}
+            {hint.shown && <FlowHint words={`Drag the reply box. ${dragWords(current)}`} onDismiss={hint.dismiss} />}
           </div>
         </>
       )}
@@ -1196,7 +1196,10 @@ function OutsideBody({
               try {
                 const threadTs = thread.kind === "read" ? (thread.opened ?? null) : null;
                 const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId, ...(threadTs ? { thread_ts: threadTs } : {}) });
-                if (r.sent) onTyped?.(false);
+                if (r.sent) {
+                  onTyped?.(false);
+                  fold.close();
+                }
                 return r;
               } finally {
                 held.current = null;

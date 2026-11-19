@@ -694,7 +694,7 @@ export function OutsideReply({
       className={framed ? "loki-mail-compose" : undefined}
       style={framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
     >
-      {!folded && notSent}
+      {notSent}
       {isMail && !folded && (
         <div className={framed ? "loki-mail-compose-head" : undefined}>
           <MailAddressLine

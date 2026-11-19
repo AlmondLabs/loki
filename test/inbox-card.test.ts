@@ -270,3 +270,16 @@ describe("an approved comment in a Jira card's box (plan 2026-11-10-1451, U8, KT
     expect(takeSeeds(none, null, undefined)).toBeNull();
   });
 });
+
+describe("a folded outside reply (plan 2026-11-19-2250, review)", () => {
+  test("still says a reply was not sent, so the failure is never folded away", () => {
+    const mail = must(outsideItem("Lunch").outside, "the outside facts");
+    const facts = { ...mail, not_sent: { outbox_id: "o3-abcdefgh", text: "ok", reason: "Gmail is unreachable", at: "2026-11-04T12:00:00.000Z" } };
+    const html = inPage(createElement(OutsideReply, { facts, touch: true, folded: true }));
+    expect(html).toContain("Gmail is unreachable");
+    expect(html).not.toContain(">Send<");
+  });
+  test("the hint names only the drags this card takes", () => {
+    expect(dragWords(jiraItem())).toBe("Drag right for Read, left for Later.");
+  });
+});

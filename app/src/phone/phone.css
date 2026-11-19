@@ -1664,19 +1664,6 @@ span.loki-phone-section-btn {
 .loki-phone-reveal-right {
   color: var(--loki-positive);
 }
-.loki-phone-decide {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--phone-space-2);
-  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-3) + var(--phone-safe-bottom))
-    calc(var(--phone-space-3) + var(--phone-safe-left));
-}
-.loki-phone-decide--moves {
-  grid-template-columns: none;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-}
 .loki-phone-decide-btn {
   min-height: 52px;
   padding: 0 var(--phone-space-3);
@@ -1697,23 +1684,6 @@ span.loki-phone-section-btn {
   border-color: var(--phone-affirm);
   background: var(--phone-affirm);
   color: var(--phone-on-affirm);
-}
-.loki-phone-decide-btn--deny {
-  color: var(--loki-negative);
-}
-.loki-phone-decide-always {
-  grid-column: 1 / -1;
-  min-height: var(--phone-touch);
-  border: 0;
-  background: none;
-  color: var(--loki-muted);
-  font: inherit;
-  font-size: var(--phone-text-meta);
-  cursor: pointer;
-  overflow-wrap: anywhere;
-}
-.loki-phone-decide-always:active {
-  color: var(--loki-fg);
 }
 .loki-phone-row-action {
   flex: none;
@@ -1743,10 +1713,6 @@ span.loki-phone-section-btn {
   }
   .loki-phone-decide-btn {
     min-height: var(--phone-touch);
-  }
-  .loki-phone-decide {
-    padding-top: var(--phone-space-1);
-    padding-bottom: calc(var(--phone-space-2) + var(--phone-safe-bottom));
   }
 }
 

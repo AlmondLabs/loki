@@ -16,7 +16,7 @@ export const FLY_PAST = 80;
 
 export type Direction = "right" | "left" | "up";
 export type Origin = "body" | "box";
-export type Refusal = "main" | "jira" | "decide" | "typed" | "sending";
+export type Refusal = "main" | "jira" | "decide" | "typed" | "sending" | "disconnected";
 export type Gesture = { via: Via } | { refused: Refusal };
 
 export const REFUSED: Record<Refusal, string> = {
@@ -25,6 +25,7 @@ export const REFUSED: Record<Refusal, string> = {
   decide: "Approve or deny this one first.",
   typed: "Send or clear the reply first.",
   sending: "The reply is still sending.",
+  disconnected: "The account needs a new sign-in.",
 };
 
 const commits = (d: number, v: number, width: number) => d > 0 && releaseCommits(d, v * 1000, width * COMMIT_FRACTION, DRAG_SLOP);
@@ -73,7 +74,9 @@ export function cardActions(item: AttentionItem, opts: { typed: boolean; sending
   const extra = (via: CardActionKind): CardAction => ({ via, gesture: null, refused: opts.sending ? "sending" : null });
   if (item.pendingApproval) return [...gestures, ...(opts.always ? [extra("always")] : []), extra("later")];
   const provider = item.outside?.provider;
-  return [...gestures, ...(provider === "gmail" ? [extra("label")] : []), ...(provider && opts.handoff ? [extra("handoff")] : [])];
+  const handoffRefusal: Refusal | null = opts.sending ? "sending" : item.outside?.disconnected ? "disconnected" : null;
+  const handoff: CardAction[] = provider && opts.handoff ? [{ via: "handoff", gesture: null, refused: handoffRefusal }] : [];
+  return [...gestures, ...(provider === "gmail" ? [extra("label")] : []), ...handoff];
 }
 
 export function rotationFor(dx: number, width: number): number {
