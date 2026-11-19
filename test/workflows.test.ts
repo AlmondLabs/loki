@@ -154,6 +154,16 @@ describe("selection: a PR runs what its diff reaches, the merge queue runs every
     }
   });
 
+  test("a PR lints the files its diff reaches, unless its plan says everything; anything else lints everything", () => {
+    const steps = must(ci.jobs.lint, "lint").steps;
+    const plan = steps.find((s) => s.id === "lint-plan");
+    expect(plan?.if).toBe("${{ github.event_name == 'pull_request' && steps.install.outcome == 'success' }}");
+    expect(plan?.run).toBe('bun run --silent lint:pr --plan >> "$GITHUB_OUTPUT"');
+    expect(steps.at(-1)?.run).toBe(
+      "bun run --silent budget ${{ github.event_name == 'pull_request' && steps.lint-plan.outputs.all != 'true' && 'bun run lint:pr' || 'bun run lint' }}",
+    );
+  });
+
   test("the Node runner's tests, the bundles and the smoke test are never narrowed", () => {
     for (const [name, job] of Object.entries(ci.jobs))
       for (const s of job.steps)

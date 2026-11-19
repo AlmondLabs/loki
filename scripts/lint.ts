@@ -11,9 +11,15 @@ export interface Linter {
 }
 
 // oxlint and the ESLint that keeps the two rules oxlint lacks, side by side: the lint takes as long as the slower one.
-export function linters(eslintArgs: readonly string[]): Linter[] {
+// Given files, each lints those alone (a PR's lint, scripts/lint-pr.ts), skipping any its ignore list leaves out.
+export function linters(eslintArgs: readonly string[], files?: readonly string[]): Linter[] {
   const require = createRequire(import.meta.url);
   const binOf = (pkg: string, bin: string) => join(dirname(require.resolve(`${pkg}/package.json`)), bin);
+  if (files)
+    return [
+      { name: "oxlint", bin: binOf("oxlint", "bin/oxlint"), args: ["--no-error-on-unmatched-pattern", ...files] },
+      { name: "eslint", bin: binOf("eslint", "bin/eslint.js"), args: ["--no-warn-ignored", ...eslintArgs, ...files] },
+    ];
   return [
     { name: "oxlint", bin: binOf("oxlint", "bin/oxlint"), args: [] },
     { name: "eslint", bin: binOf("eslint", "bin/eslint.js"), args: [".", "--concurrency", "auto", ...eslintArgs] },

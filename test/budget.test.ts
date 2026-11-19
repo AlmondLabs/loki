@@ -27,9 +27,11 @@ describe("each CI step's budget", () => {
   test("every check in ci.yml runs through the budget, with a budget for the system it runs on", () => {
     for (const [name, job] of Object.entries(ci.jobs))
       for (const s of job.steps) {
-        if (!s.run || !/\bbun run\b/.test(s.run)) continue;
+        // A step that only decides what runs (its answer to $GITHUB_OUTPUT) is not a check.
+        if (!s.run || !/\bbun run\b/.test(s.run) || s.run.includes("$GITHUB_OUTPUT")) continue;
         expect(s.run, name).toMatch(/^bun run --silent budget /);
-        const commands = s.run.includes("test:pr") ? ["bun run test:pr", "bun run test"] : [s.run.replace("bun run --silent budget ", "")];
+        // A step that picks its command with an expression (the selection on a PR) needs a budget for each.
+        const commands = s.run.includes("${{") ? [...s.run.matchAll(/'(bun run [\w:]+)'/g)].map((m) => m[1]) : [s.run.replace("bun run --silent budget ", "")];
         for (const c of commands) expect(() => budgetFor(c, osOf(job["runs-on"])), `${name}: ${c}`).not.toThrow();
       }
   });

@@ -16,8 +16,10 @@ export type Os = "Linux" | "macOS" | "Windows";
 export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run format:check": { Linux: 5 },
   "bun run typecheck": { Linux: 5 },
-  // Target 5s; 23–25s today.
+  // The whole lint: the merge queue's, and a PR's that changes the lint's setup. Target 5s; 19–27s today.
   "bun run lint": { Linux: 40 },
+  // A PR's lint, of the files its diff reaches.
+  "bun run lint:pr": { Linux: 5 },
   // Target 60s; Windows takes 53–63s today.
   "bun run test": { Linux: 60, macOS: 60, Windows: 90 },
   "bun run test:pr": { Linux: 60, macOS: 60, Windows: 90 },
