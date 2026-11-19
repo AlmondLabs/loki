@@ -612,6 +612,13 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("lanes_set", { lanes: "all" })).toBe("lanes must be a list of lanes");
   });
 
+  test("a lane's switching times are kept when lanes are set", () => {
+    const times = [{ days: [1, 2, 3, 4, 5], start: "09:00", end: "09:30", since: "2026-11-19T10:00:00.000Z" }];
+    expect(parse("lanes_set", { lanes: [{ id: "l", name: "Comms", chats: [], accounts: "all", times }] })).toEqual({
+      lanes: [{ id: "l", name: "Comms", chats: [], accounts: "all", times }],
+    });
+  });
+
   test("none of the MCP or always-allow frames reach a phone", () => {
     for (const n of ["chat_mcp_get", "chat_mcp_server", "chat_mcp_secret", "chat_mcp_agent", "chat_approvals_set"] as const)
       expect(PHONE_FRAMES.has(n)).toBe(false);

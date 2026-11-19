@@ -11,6 +11,20 @@ export interface Lane {
   chats: LaneSide;
   /** Account ids (`gmail:<address>`, `slack:<team>:<user>`, `jira:<site>:<user>`) whose cards the lane holds. */
   accounts: LaneSide;
+  /** When the lane switches on by itself (plan 2026-11-19-1851). Missing or empty means only by hand. */
+  times?: LaneWindow[];
+}
+
+/**
+ * A window of a lane's switching times: `days` are weekdays (0 is Sunday), `start` and `end` are "HH:MM" on a 24-hour
+ * clock in each device's own zone, and an end at or before the start runs past midnight. `since` is the ISO time the
+ * window was added or last changed; its starts and ends before then never switch a device.
+ */
+export interface LaneWindow {
+  days: number[];
+  start: string;
+  end: string;
+  since: string;
 }
 
 export interface AgentLane {
@@ -36,8 +50,36 @@ function isLane(v: unknown): v is Lane {
   return typeof l.id === "string" && l.id !== "" && typeof l.name === "string" && l.name.trim() !== "" && isSide(l.chats) && isSide(l.accounts);
 }
 
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function isWindow(v: unknown): v is LaneWindow {
+  if (!v || typeof v !== "object") return false;
+  const w = v as Partial<Record<keyof LaneWindow, unknown>>;
+  return (
+    Array.isArray(w.days) &&
+    w.days.length > 0 &&
+    w.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) &&
+    typeof w.start === "string" &&
+    HHMM.test(w.start) &&
+    typeof w.end === "string" &&
+    HHMM.test(w.end) &&
+    w.start !== w.end &&
+    typeof w.since === "string" &&
+    !Number.isNaN(Date.parse(w.since))
+  );
+}
+
+function withGoodTimes(lane: Lane): Lane {
+  if (!("times" in lane)) return lane;
+  const times: unknown = lane.times;
+  const good = Array.isArray(times) ? times.filter(isWindow) : [];
+  if (Array.isArray(times) && good.length === times.length) return lane;
+  const { times: _bad, ...rest } = lane;
+  return good.length > 0 ? { ...rest, times: good } : rest;
+}
+
 export function parseLanes(v: unknown): Lane[] {
-  return Array.isArray(v) ? v.filter(isLane) : [];
+  return Array.isArray(v) ? v.filter(isLane).map(withGoodTimes) : [];
 }
 
 const onSide = (side: LaneSide, id: string) => side === "all" || side.includes(id);
