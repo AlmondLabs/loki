@@ -116,7 +116,8 @@ export class PassRunner {
   private readonly failedAt = new Map<string, number>();
   private readonly lastBatch = new Map<string, number>();
   private readonly backlog = new Set<string>();
-  private draining: Promise<void> | null = null;
+  private draining = false;
+  private drained: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: Deps) {
@@ -213,21 +214,24 @@ export class PassRunner {
   }
 
   private drain(): Promise<void> {
-    this.draining ??= (async () => {
-      await Promise.resolve();
-      try {
-        for (let next = this.queue.shift(); next; next = this.queue.shift()) {
-          try {
-            await next.work();
-          } finally {
-            for (const k of next.keys) this.queued.delete(k);
-          }
+    if (this.draining) return this.drained;
+    this.draining = true;
+    this.drained = this.runQueue();
+    return this.drained;
+  }
+
+  private async runQueue(): Promise<void> {
+    try {
+      for (let next = this.queue.shift(); next; next = this.queue.shift()) {
+        try {
+          await next.work();
+        } finally {
+          for (const k of next.keys) this.queued.delete(k);
         }
-      } finally {
-        this.draining = null;
       }
-    })();
-    return this.draining;
+    } finally {
+      this.draining = false;
+    }
   }
 
   async runNow(name: JobName, agentId: string, chatId: string): Promise<RunOutcome> {

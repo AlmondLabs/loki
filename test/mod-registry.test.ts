@@ -211,4 +211,27 @@ describe("reloading a mod", () => {
     mods.unload("loki");
     expect(live.size).toBe(0);
   });
+
+  test("a load that throws before it starts rejects only its caller, and the next load of that mod still runs", async () => {
+    const mods = new ModRegistry(() => {});
+    const broken = {
+      name: "loki",
+      get apiVersion(): number {
+        throw new Error("no version");
+      },
+      activate: () => {},
+    } satisfies LokiMod;
+    await expect(mods.load(broken)).rejects.toThrow("no version");
+    expect(await mods.load({ name: "loki", apiVersion: 1, activate: () => {} })).toEqual({ loaded: true });
+  });
+
+  test("loads of two mods do not wait for each other", async () => {
+    const mods = new ModRegistry(() => {});
+    let release: () => void = () => {};
+    const slow = new Promise<void>((r) => (release = r));
+    const first = mods.load({ name: "slow", apiVersion: 1, activate: () => slow });
+    expect(await mods.load({ name: "quick", apiVersion: 1, activate: () => {} })).toEqual({ loaded: true });
+    release();
+    expect(await first).toEqual({ loaded: true });
+  });
 });
