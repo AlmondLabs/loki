@@ -116,7 +116,7 @@ export class PeerLink {
     ws.on("unexpected-response", (_req, res) => {
       const status = res.statusCode ?? 0;
       fail(`that Mac answered ${status}${REFUSALS.get(status) ?? ""}`);
-      if (status === 401) this.opts.onRefused?.();
+      if (status === 401) this.tell("refused", () => this.opts.onRefused?.());
       ws.terminate();
     });
     // A close follows, which retries; the error is only the reason (a timeout, a refused or unreachable address).
@@ -157,7 +157,7 @@ export class PeerLink {
       else waiting.resolve(f);
       return;
     }
-    this.opts.onPush?.(f);
+    this.tell("push", () => this.opts.onPush?.(f));
   }
 
   private closed(): void {
@@ -197,10 +197,14 @@ export class PeerLink {
     if (status === this.current) return;
     this.current = status;
     log("peers:link", { mac: this.opts.macId, status });
+    this.tell(status, () => this.opts.onStatus?.(status));
+  }
+
+  private tell(event: string, listener: () => void): void {
     try {
-      this.opts.onStatus?.(status);
+      listener();
     } catch (err) {
-      log("peers:status_listener_failed", { mac: this.opts.macId, status, reason: messageOf(err) });
+      log("peers:listener_failed", { mac: this.opts.macId, event, reason: messageOf(err) });
     }
   }
 }

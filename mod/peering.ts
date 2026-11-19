@@ -125,7 +125,9 @@ export function startPeering(deps: PeeringDeps): Peering {
       if (relay) broadcast(frame, relay.scope);
       void sync.heard(id, frame);
     },
-    onRefused: (id) => void peers.contact(id),
+    onRefused: (id) => {
+      peers.contact(id).catch((err: unknown) => log("peers:contact_failed", { mac: id, reason: messageOf(err) }));
+    },
   });
   const sync: PeerSync = new PeerSync(
     [

@@ -97,7 +97,6 @@ export class RemoteChats {
       else this.setReachable(macId, false);
       return;
     }
-    this.stopRetry(macId);
     const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v.filter((x: unknown) => typeof x === "object" && x !== null) : []);
     const desks = (rows(reply.desks) as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted");
     const inbox = [...(rows(reply.inbox) as InboxRow[]), ...(rows(reply.outside) as InboxRow[])];
@@ -107,6 +106,7 @@ export class RemoteChats {
       desks.map((d) => d.scope),
     );
     this.opts.onChange();
+    this.stopRetry(macId);
   }
 
   desks(): DeskSummary[] {
