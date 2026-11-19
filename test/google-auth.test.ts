@@ -13,6 +13,7 @@ const SHARED = { client_id: "shared-client.apps.googleusercontent.com", client_s
 const ACCOUNT = "gmail:ada@acme.com";
 const DRIVE = "https://www.googleapis.com/drive/v3";
 const dirs: string[] = [];
+const yieldTurn = () => Promise.resolve();
 
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
@@ -27,7 +28,7 @@ function fakeApis(now: () => Date) {
     requests.push({ method: init?.method ?? "GET", url: url.href, body: init?.body });
     if (url.href === "https://oauth2.googleapis.com/token") {
       if (state.revoked) return json(400, { error: "invalid_grant" });
-      await Promise.resolve();
+      await yieldTurn();
       state.refreshes++;
       state.access = `a${state.refreshes}`;
       state.expires = now().getTime() + 3600_000;
