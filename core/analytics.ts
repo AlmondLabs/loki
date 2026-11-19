@@ -70,7 +70,8 @@ export const EVENTS: Record<string, string> = {
   inbox_card_decided:
     "an inbox card decided { action: next | later | archive | label | approve | deny | reply | answer | open | handoff, via: key | click | swipe | tap, source: chat | gmail | slack | jira, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
   inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, source, desk, agent }",
-  inbox_filtered: "a lane chosen in Flow's title { kind: everything | own | agent, agent (an agent lane's, else null) }; before lanes, an agent pill { agent }",
+  inbox_filtered:
+    "a lane switched to in Flow { kind: everything | own | agent, agent (an agent lane's, else null), by: hand | schedule (missing before lane times) }; before lanes, an agent pill { agent }",
   chat_archived: "a chat archived { desk, turn_id (its last turn), origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
   chat_restored: "a chat restored from the archive { desk, origin: inbox_undo | sidebar | chat_header | phone_list | phone_chat }",
   conversation_marked_seen: "a conversation marked seen",

@@ -68,6 +68,13 @@ export function nextChange(lanes: Lane[], now: Date): Date | null {
   return change === undefined ? null : new Date(change);
 }
 
+export function followLane(lanes: Lane[] | null, lastSwitch: number | null, held: boolean, now: Date): string | null {
+  if (!lanes || held) return null;
+  const edge = latestEdge(lanes, now);
+  if (edge === null || (lastSwitch !== null && edge <= lastSwitch)) return null;
+  return dueLane(lanes, now)?.id ?? "";
+}
+
 export function untilTime(lanes: Lane[], activeId: string, now: Date): Date | null {
   return dueLane(lanes, now)?.id === activeId ? nextChange(lanes, now) : null;
 }

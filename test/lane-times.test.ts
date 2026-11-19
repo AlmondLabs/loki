@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { dueLane, latestEdge, nextChange, timesLabel, untilTime } from "../core/attention/lane-times.ts";
+import { dueLane, followLane, latestEdge, nextChange, timesLabel, untilTime } from "../core/attention/lane-times.ts";
 import type { Lane, LaneWindow } from "../core/attention/lanes.ts";
 
 const tz = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -112,5 +112,42 @@ describe("the times label", () => {
 
   test("follows a 12-hour locale", () => {
     expect(timesLabel([win("16:00", "16:30")], "en-US")).toBe("Weekdays, 4:00 PM–4:30 PM");
+  });
+});
+
+describe("whether a device follows the times now", () => {
+  const ms = (d: Date) => d.getTime();
+
+  test("AE2: a hand switch holds until the next start or end", () => {
+    expect(followLane(LANES, ms(at(17, "15:50")), false, at(17, "16:00"))).toBe("comms");
+    expect(followLane(LANES, ms(at(17, "16:10")), false, at(17, "16:20"))).toBeNull();
+    expect(followLane(LANES, ms(at(17, "16:10")), false, at(17, "16:30"))).toBe("work");
+  });
+
+  test("AE3: a phone opened late catches up, and not after a hand switch since", () => {
+    expect(followLane(LANES, ms(at(17, "17:00")), false, at(17, "19:40"))).toBe("personal");
+    expect(followLane(LANES, ms(at(17, "19:45")), false, at(17, "19:50"))).toBeNull();
+  });
+
+  test("AE3 over a weekend: a phone last switched on Friday evening opens on Sunday in Everything", () => {
+    expect(followLane(LANES, ms(at(20, "19:00")), false, at(22, "12:00"))).toBe("");
+  });
+
+  test("AE6: a window saved after it started switches no one until its end", () => {
+    const edited = [work, lane("comms", [win("10:00", "11:00", [2], at(17, "10:20").toISOString())])];
+    expect(followLane(edited, ms(at(17, "09:00")), false, at(17, "10:20"))).toBeNull();
+    expect(followLane(edited, ms(at(17, "09:00")), false, at(17, "11:00"))).toBe("work");
+  });
+
+  test("nothing moves before the lanes load, or while a reply holds", () => {
+    expect(followLane(null, null, false, at(17, "16:00"))).toBeNull();
+    expect(followLane(LANES, ms(at(17, "15:50")), true, at(17, "16:00"))).toBeNull();
+  });
+
+  test("a device with no recorded switch keeps its lane until a counted start or end has passed", () => {
+    const fresh = [lane("comms", [win("16:00", "16:30", [2], at(17, "16:10").toISOString())])];
+    expect(followLane(fresh, null, false, at(17, "16:15"))).toBeNull();
+    expect(followLane(fresh, null, false, at(17, "16:30"))).toBe("");
+    expect(followLane([reading], null, false, at(17, "16:00"))).toBeNull();
   });
 });

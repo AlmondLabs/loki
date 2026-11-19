@@ -111,10 +111,12 @@ export function agentLanes(items: AttentionItem[]): AgentLane[] {
   return [...by.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-export function laneEvent(id: string): { kind: "everything" | "own" | "agent"; agent: string | null } {
-  if (!id) return { kind: "everything", agent: null };
+export type LaneSwitchBy = "hand" | "schedule";
+
+export function laneEvent(id: string, by: LaneSwitchBy = "hand"): { kind: "everything" | "own" | "agent"; agent: string | null; by: LaneSwitchBy } {
+  if (!id) return { kind: "everything", agent: null, by };
   const agent = agentOfLaneId(id);
-  return agent !== null ? { kind: "agent", agent } : { kind: "own", agent: null };
+  return agent !== null ? { kind: "agent", agent, by } : { kind: "own", agent: null, by };
 }
 
 export function agentLane(items: AttentionItem[], agentId: string): AgentLane {

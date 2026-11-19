@@ -50,7 +50,7 @@ import type {
   Suggestion,
 } from "../frame-types.ts";
 import { ChatStore, type AgentEntry, type ChatStoreHost } from "./chat-store.ts";
-import { laneEvent, laneItems, type Lane, type ResolvedLane } from "./lanes.ts";
+import { laneEvent, laneItems, type Lane, type LaneSwitchBy, type ResolvedLane } from "./lanes.ts";
 import type { SentReplies } from "./sent-replies.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -77,7 +77,7 @@ export interface LaneChoice {
 export interface FlowLane {
   lane: ResolvedLane | null;
   laneId: string;
-  setLaneId: (id: string) => void;
+  setLaneId: (id: string, by?: LaneSwitchBy) => void;
   lanes: Lane[] | null;
   setLanes: ((lanes: Lane[]) => void) | null;
   laneItems: AttentionItem[];
@@ -519,10 +519,10 @@ export function useAttention(opts: UseAttentionOptions) {
   const resolveLane = opts.lane?.resolve;
   const setId = opts.lane?.setId ?? noLaneSwitch;
   const setLaneId = useCallback(
-    (id: string) => {
+    (id: string, by: LaneSwitchBy = "hand") => {
       if (id === laneId) return;
       setId(id);
-      optsRef.current.capture?.("inbox_filtered", laneEvent(id));
+      optsRef.current.capture?.("inbox_filtered", laneEvent(id, by));
     },
     [laneId, setId],
   );

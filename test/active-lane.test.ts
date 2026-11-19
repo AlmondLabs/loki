@@ -64,6 +64,24 @@ describe("the stored id on each device", () => {
     expect(m.get("loki.desktop.lane")).toBe("work");
     expect(phone.get()).toBe("");
   });
+  test("every switch records when it happened, under the device's own key, even into the lane already active", () => {
+    const { storage, m } = memory();
+    let now = Date.parse("2026-11-17T16:00:00.000Z");
+    const desktop = createActiveLaneStore(
+      "desktop",
+      () => storage,
+      () => now,
+    );
+    expect(desktop.switchedAt()).toBeNull();
+    desktop.set("work");
+    expect(m.get("loki.desktop.lane_switched")).toBe("2026-11-17T16:00:00.000Z");
+    expect(desktop.switchedAt()).toBe(now);
+    now += 60_000;
+    desktop.recordSwitch();
+    expect(desktop.get()).toBe("work");
+    expect(desktop.switchedAt()).toBe(now);
+    expect(createActiveLaneStore("phone", () => storage).switchedAt()).toBeNull();
+  });
   test("a new device starts in Everything, and what was kept comes back", () => {
     expect(createActiveLaneStore("phone", () => memory().storage).get()).toBe("");
     expect(createActiveLaneStore("phone", () => memory({ "loki.phone.lane": "home" }).storage).get()).toBe("home");
