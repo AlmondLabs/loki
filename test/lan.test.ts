@@ -102,7 +102,11 @@ async function peerPair(lan: LanListener, body: unknown): Promise<number> {
   return res.status;
 }
 
-/** POSTs whose headers reach the listener at once and whose bodies wait for send(): all pass the pre-body check together. */
+const headersRead = async (lan: LanListener) => {
+  const res = await fetch(`${base(lan)}/health`);
+  await res.body?.cancel();
+};
+
 function heldPosts(lan: LanListener, path: string, bodies: unknown[]) {
   return bodies.map((body) => {
     const req = httpRequest({ host: "127.0.0.1", port: lan.status().port, path, method: "POST", headers: { "content-type": "application/json" } });
@@ -304,7 +308,7 @@ describe("LAN listener", () => {
         "/pair",
         [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => ({ code: c, name: "x" })),
       );
-      await new Promise((r) => setTimeout(r, 200));
+      await headersRead(f.lan);
       // The wrong codes' bodies all at once; the right one's only after they are answered, so it is the 31st attempt
       const wrong = reqs.slice(0, -1);
       const right = reqs[reqs.length - 1];
@@ -331,7 +335,7 @@ describe("LAN listener", () => {
         "/peer/pair",
         Array.from({ length: 11 }, () => ({ code: "ZZZZZZ", hello: MINI, token: mintPeerToken() })),
       );
-      await new Promise((r) => setTimeout(r, 200));
+      await headersRead(f.lan);
       for (const r of reqs) r.send();
       const statuses = await Promise.all(reqs.map((r) => r.status));
       expect(statuses.filter((s) => s === 404)).toHaveLength(10);
