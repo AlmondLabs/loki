@@ -414,6 +414,19 @@ describe("background passes", () => {
     }
   });
 
+  test("a sweep with nothing to run leaves the queue free: run now right after it reads the chat", async () => {
+    const s = await setup({ quietMs: 60 * 60_000 });
+    try {
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("kept")]);
+      await s.say("c", "short");
+      await s.runner.sweep();
+      expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("changed");
+      expect(s.seen).toHaveLength(1);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a compacted chat is read by a job that follows compaction without waiting for the quiet spell", async () => {
     const s = await setup({ quietMs: 60 * 60_000 });
     try {
