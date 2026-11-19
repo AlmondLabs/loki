@@ -3,11 +3,13 @@ import { clockText, followLane, untilTime } from "../../../core/attention/lane-t
 import type { FlowLane } from "../../../core/attention/use-attention.ts";
 import { laneStore, type LaneDevice } from "./active-lane";
 import { pageActivity } from "./page-activity";
+import { useReplyHeld } from "./reply-hold";
 
 const CHECK_EVERY_MS = 30_000;
 
-export function useLaneFollower(device: LaneDevice, flow: Pick<FlowLane, "lanes" | "laneId" | "setLaneId">, held = false): string | null {
+export function useLaneFollower(device: LaneDevice, flow: Pick<FlowLane, "lanes" | "laneId" | "setLaneId">): string | null {
   const store = laneStore(device);
+  const held = useReplyHeld();
   const switchedAt = useSyncExternalStore(store.subscribeSwitched, store.switchedAt, store.switchedAt);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

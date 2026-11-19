@@ -139,6 +139,12 @@ describe("whether a device follows the times now", () => {
     expect(followLane(edited, ms(at(17, "09:00")), false, at(17, "11:00"))).toBe("work");
   });
 
+  test("AE4: a reply holds a due switch, and once dropped the device moves into the lane due then", () => {
+    expect(followLane(LANES, ms(at(17, "09:30")), true, at(17, "16:00"))).toBeNull();
+    expect(followLane(LANES, ms(at(17, "09:30")), false, at(17, "16:02"))).toBe("comms");
+    expect(followLane(LANES, ms(at(17, "09:30")), false, at(17, "16:40"))).toBe("work");
+  });
+
   test("nothing moves before the lanes load, or while a reply holds", () => {
     expect(followLane(null, null, false, at(17, "16:00"))).toBeNull();
     expect(followLane(LANES, ms(at(17, "15:50")), true, at(17, "16:00"))).toBeNull();
