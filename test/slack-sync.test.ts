@@ -58,7 +58,13 @@ function fakeWorkspace() {
   const activity: FakeItem[] = [];
   const users: Partial<Record<string, string>> = { U0GRACE: "Grace Hopper", U0ALAN: "Alan Turing", U0ME: "Ada" };
   const sent: Array<{ method: string; params: Record<string, string> }> = [];
-  const refuse = { mark: null as string | null, feedAt: null as string | null, activityMark: null as string | null, info: null as string | null };
+  const refuse = {
+    mark: null as string | null,
+    feedAt: null as string | null,
+    activityMark: null as string | null,
+    info: null as string | null,
+    history: null as string | null,
+  };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
   const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts, files: m.files });
@@ -97,6 +103,7 @@ function fakeWorkspace() {
         return { ok: true, items: all.slice(from, from + limit).map(toItem), response_metadata: { next_cursor: next } };
       }
       case "conversations.history": {
+        if (refuse.history) return { ok: false, error: refuse.history };
         let list = mainStream(p.channel ?? "");
         if (p.oldest) list = list.filter((m) => m.ts > (p.oldest ?? ""));
         if (p.latest) list = list.filter((m) => (p.inclusive === "true" ? m.ts <= (p.latest ?? "") : m.ts < (p.latest ?? "")));
@@ -639,6 +646,51 @@ describe("older unread items", () => {
     await clear();
     await sync.tick();
     expect(open()).toEqual([]);
+  });
+  test("an item Slack no longer shows takes no room: the next batch fills past it, and it is not asked for again", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    const mention = (key: string, seconds: number, posted = true) => {
+      if (posted) slack.post("C0GEN", { ts: at(seconds), user: "U0GRACE", text: `<@U0ME> ${key}` });
+      slack.item({ key, type: "at_user", channel: "C0GEN", ts: at(seconds) });
+    };
+    for (let i = 0; i < 20; i++) mention(`first-${String(i)}`, -DAY + 100 + i);
+    for (let i = 0; i < 20; i++) mention(`deleted-${String(i)}`, -DAY + 50 + i, false);
+    for (let i = 0; i < 5; i++) mention(`next-${String(i)}`, -DAY + i);
+
+    await sync.tick();
+    expect(open()).toHaveLength(20);
+    for (const r of open()) await threads.markRead(ACCOUNT, r.thread_id);
+    await sync.tick();
+    expect(
+      open()
+        .map((r) => r.subject_or_first_line)
+        .sort(),
+    ).toEqual(["@Ada next-0", "@Ada next-1", "@Ada next-2", "@Ada next-3", "@Ada next-4"]);
+
+    const asked = slack.sent.filter((s) => s.method === "conversations.history").length;
+    await sync.tick();
+    expect(slack.sent.filter((s) => s.method === "conversations.history")).toHaveLength(asked);
+  });
+
+  test("a Slack failure that passes leaves the backlog where it was, and the items come at the next good tick", async () => {
+    const { slack, accounts, sync, open } = await fixture();
+    for (let i = 0; i < 3; i++) {
+      slack.post("C0GEN", { ts: at(-DAY + i), user: "U0GRACE", text: `<@U0ME> old-${String(i)}` });
+      slack.item({ key: `old-${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(-DAY + i) });
+    }
+    slack.post("C0GEN", { ts: at(30), user: "U0GRACE", text: "<@U0ME> live" });
+    slack.item({ key: "live", type: "at_user", channel: "C0GEN", ts: at(30) });
+    slack.refuse.history = "internal_error";
+    await sync.tick();
+    expect(open()).toEqual([]);
+    expect(must(accounts.get(ACCOUNT)).backfill).toEqual({});
+    slack.refuse.history = null;
+    await sync.tick();
+    expect(
+      open()
+        .map((r) => r.subject_or_first_line)
+        .sort(),
+    ).toEqual(["@Ada live", "@Ada old-0", "@Ada old-1", "@Ada old-2"]);
   });
 });
 
