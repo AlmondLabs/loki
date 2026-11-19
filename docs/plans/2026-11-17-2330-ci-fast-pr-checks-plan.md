@@ -41,7 +41,11 @@ then the macOS queue at p95.
 6. **Local.** A pre-push hook that checks format, lint and types on the changed files. Done: `npm install` points git at
    `.githooks/`; the hook takes about 1s on a usual branch and 2s on one that changes 150 files, and catches a planted
    format, lint, naming and type error each.
-7. **Budgets.** Each job fails when it runs past its budget.
+7. **Budgets.** Each job fails when it runs past its budget. Done: every check step runs through
+   `scripts/budget.ts`, which holds each step's budget per system, and setup is held to one on a cache hit. The
+   targets met with room are the budgets (types and format 5s, tests 60s, setup 30s); two are not met yet and their
+   budgets sit about 1.5 times above today's slowest run: lint (target 5s, 23–25s: oxlint's type-aware rules take 15s on
+   GitHub's 4-core runners) and the suite on Windows (target 60s, 53–63s).
 
 Moving runners off GitHub's hosted ones, the merge queue's ruleset and anything else that needs an account, a secret
 or a bill are listed for the owner rather than done here.

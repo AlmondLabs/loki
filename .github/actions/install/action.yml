@@ -3,6 +3,8 @@ description: Node 22 and node_modules, restored whole when the dependencies matc
 runs:
   using: composite
   steps:
+    - shell: bash
+      run: echo "INSTALL_STARTED=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
       with:
         node-version: 22
@@ -29,3 +31,7 @@ runs:
       with:
         path: node_modules
         key: ${{ steps.key.outputs.key }}
+    # Setup has a budget on a hit (scripts/budget.ts); a miss is a PR that changes the dependencies, and npm ci is its cost.
+    - if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: npm run -s budget -- --took "$(( $(date +%s) - INSTALL_STARTED ))" install

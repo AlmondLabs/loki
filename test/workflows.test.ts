@@ -150,14 +150,15 @@ describe("selection: a PR runs what its diff reaches, the merge queue runs every
   test("each suite step runs the selection on a pull_request and the whole suite otherwise (the queue, the weekly run, by hand)", () => {
     for (const name of ["test", "windows", "mac"]) {
       const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("npm test"));
-      expect(step?.run, name).toBe("${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}");
+      expect(step?.run, name).toBe("npm run -s budget -- ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}");
     }
   });
 
   test("the Node runner's tests, the bundles and the smoke test are never narrowed", () => {
     for (const [name, job] of Object.entries(ci.jobs))
       for (const s of job.steps)
-        for (const cmd of ["test:node", "build:mod", "smoke"]) if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`npm run ${cmd}`);
+        for (const cmd of ["test:node", "build:mod", "smoke"])
+          if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`npm run -s budget -- npm run ${cmd}`);
   });
 });
 
