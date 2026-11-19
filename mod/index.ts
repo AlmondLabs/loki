@@ -240,9 +240,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   threads.onChange(() => broadcast({ type: "chat_changed" }));
   const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
   const slackSessions = new SlackSessions({ home: homedir() });
-  const googleAuth = perAccount(accounts, (accountId) => new GoogleAuth({ accounts, account_id: accountId }));
-  const gmailClient = perAccount(accounts, (accountId) => new GmailClient({ accounts, account_id: accountId, auth: googleAuth(accountId) }));
   const statusOnly = (change: AccountChange) => change.kind === "status";
+  const googleAuth = perAccount(accounts, (accountId) => new GoogleAuth({ accounts, account_id: accountId }), statusOnly);
+  const gmailClient = perAccount(accounts, (accountId) => new GmailClient({ accounts, account_id: accountId, auth: googleAuth(accountId) }), statusOnly);
   const slackClient = perAccount(
     accounts,
     (accountId) => {
@@ -308,20 +308,12 @@ export default function activate(api: ModApi, host: Host): () => void {
   const previews = new OutsidePreviews({ dir: paths.chatImages });
   const slackPeople = new SlackPeople({ client: slackClient });
   const channelMembers = new ChannelMembers({ client: slackClient });
-  const googlePeople = new Map<string, GooglePeople>();
-  accounts.onChange((change) => googlePeople.delete(change.account_id));
+  const googlePeople = perAccount(accounts, (accountId) => new GooglePeople({ accounts, account_id: accountId, auth: googleAuth(accountId) }));
   const people = new People({
     accounts,
     slack: slackPeople,
     jira: (accountId) => jiraClient(accountId),
-    google: (accountId) => {
-      let client = googlePeople.get(accountId);
-      if (!client) {
-        client = new GooglePeople({ accounts, account_id: accountId, auth: googleAuth(accountId) });
-        googlePeople.set(accountId, client);
-      }
-      return client;
-    },
+    google: googlePeople,
   });
   const outside = new OutsideThreads({
     accounts,

@@ -28,6 +28,9 @@ const FULL_WALK_MS = 15 * 60_000;
 const REFILL_DAYS = [3, 7, 14, 30];
 const DAY_MS = 86_400_000;
 const ACCOUNT_ERRORS = ["signed_out", "ratelimited"];
+const PASSING_ERRORS = ["internal_error", "fatal_error", "service_unavailable", "request_timeout"];
+
+type Observed = "card" | "nothing" | "failed";
 
 interface Candidate {
   thread_id: string;
@@ -92,6 +95,7 @@ export class SlackSync implements AccountSync {
   private readonly places = new Map<string, string | null>();
   private activity = new Map<string, SlackActivityItem[]>();
   private readonly marked = new Map<string, SlackActivityItem[]>();
+  private readonly nothingAt = new Map<string, string>();
   private nextFullWalk = 0;
   private walk: { cursor: string; items: SlackActivityItem[]; pages: number } | null = null;
 
@@ -236,16 +240,20 @@ export class SlackSync implements AccountSync {
       })
       .sort((a, b) => tsKey(b.ts).localeCompare(tsKey(a.ts)));
     const start = { ...state };
-    const taken = new Set<string>();
+    const tried = new Set<string>();
+    let made = 0;
     for (;;) {
       const days = REFILL_DAYS.at(state.step);
       const cutoff = days === undefined ? "" : new Date(connected - days * DAY_MS).toISOString();
-      const batch = unseen.filter((c) => !taken.has(c.thread_id) && (tsIso(c.ts) ?? "") >= cutoff).slice(0, room - taken.size);
-      for (const c of batch) {
-        await this.observe(c, true);
-        taken.add(c.thread_id);
+      for (const c of unseen) {
+        if (made >= room) break;
+        if (tried.has(c.thread_id) || (tsIso(c.ts) ?? "") < cutoff) continue;
+        tried.add(c.thread_id);
+        const observed = await this.observe(c, true);
+        if (observed === "failed") return;
+        if (observed === "card") made++;
       }
-      if (taken.size >= room) break;
+      if (made >= room) break;
       if (days !== undefined) state.step++;
       else {
         state.exhausted = complete;
@@ -255,7 +263,7 @@ export class SlackSync implements AccountSync {
     if (state.step !== start.step || state.exhausted !== start.exhausted) this.opts.accounts.setBackfill(this.accountId, { ...state });
   }
 
-  private async observe(c: Candidate, fromBackfill: boolean): Promise<void> {
+  private async observe(c: Candidate, fromBackfill: boolean): Promise<Observed> {
     const r = this.opts.threads.get(this.accountId, c.thread_id);
     if (r && !tsAfter(c.ts, r.newest_message_id)) {
       if (r.reach === null || (r.place === null && !c.dm)) {
@@ -266,15 +274,21 @@ export class SlackSync implements AccountSync {
         const place = c.dm ? null : await this.place(c.thread_id.slice(0, c.thread_id.indexOf(":")));
         this.opts.threads.describe(this.accountId, c.thread_id, { reach, place });
       }
-      return;
+      return r.state === "open" ? "card" : "nothing";
     }
+    const nothing = this.nothingAt.get(c.thread_id);
+    if (nothing !== undefined && !tsAfter(c.ts, nothing)) return "nothing";
     try {
       const m = await this.message(c);
       if (m) this.opts.threads.observe(this.accountId, { ...m, from_backfill: fromBackfill });
     } catch (err) {
       if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
       log("slack:item-unreadable", { account_id: this.accountId, thread_id: c.thread_id, error: messageOf(err) });
+      if (!(err instanceof SlackError) || err.code.startsWith("http_") || PASSING_ERRORS.includes(err.code)) return "failed";
     }
+    if (this.opts.threads.get(this.accountId, c.thread_id)?.state === "open") return "card";
+    this.nothingAt.set(c.thread_id, c.ts);
+    return "nothing";
   }
 
   private async message(c: Candidate): Promise<ObservedMessage | null> {
@@ -310,7 +324,7 @@ export class SlackSync implements AccountSync {
       if (!channel || !ts) continue;
       const page = item.thread_ts
         ? { messages: await thread(channel, item.thread_ts, ts) }
-        : await client.conversationsHistory({ channel, latest: ts, inclusive: true, limit: 1 });
+        : { messages: (await client.conversationsHistory({ channel, latest: ts, inclusive: true, limit: 1 })).messages.filter((m) => m.ts === ts) };
       for (const m of page.messages) if (m.ts && !tsAfter(m.ts, ts)) found.set(m.ts, m);
       if (c.dm) continue;
       if (item.type !== "thread_v2" || !item.thread_ts) {
