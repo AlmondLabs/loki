@@ -31,6 +31,7 @@ const ACCOUNT_ERRORS = ["signed_out", "ratelimited"];
 const PASSING_ERRORS = ["internal_error", "fatal_error", "service_unavailable", "request_timeout"];
 
 type Observed = "card" | "nothing" | "failed";
+type Refilled = "filled" | "short" | "stopped";
 
 interface Candidate {
   thread_id: string;
@@ -97,6 +98,7 @@ export class SlackSync implements AccountSync {
   private readonly marked = new Map<string, SlackActivityItem[]>();
   private readonly nothingAt = new Map<string, string>();
   private nextFullWalk = 0;
+  private backlogLeft = true;
   private walk: { cursor: string; items: SlackActivityItem[]; pages: number } | null = null;
 
   constructor(opts: SlackSyncOptions) {
@@ -151,7 +153,14 @@ export class SlackSync implements AccountSync {
     }
 
     const open = threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
-    if (open < PAST_CAP) await this.refill(older, feed.complete, PAST_CAP - open);
+    if (open >= PAST_CAP) {
+      if (feed.walked) this.backlogLeft = true;
+      return;
+    }
+    if (feed.walked) this.backlogLeft = false;
+    const refilled = await this.refill(older, feed.complete, PAST_CAP - open);
+    if (feed.walked) this.backlogLeft = refilled === "filled";
+    else if (refilled === "short" && this.backlogLeft) this.nextFullWalk = 0;
   }
 
   async archive(record: ThreadRecord): Promise<void> {
@@ -195,7 +204,7 @@ export class SlackSync implements AccountSync {
     this.activity = next;
   }
 
-  private async unreadActivity(): Promise<{ items: SlackActivityItem[]; complete: boolean }> {
+  private async unreadActivity(): Promise<{ items: SlackActivityItem[]; complete: boolean; walked: boolean }> {
     const now = (this.opts.now?.() ?? new Date()).getTime();
     const page = async (cursor: string | undefined) => {
       const p = await this.opts.client.activityFeed({ unreadOnly: true, types: SLACK_ACTIVITY_TYPES, cursor, limit: FEED_PAGE });
@@ -204,7 +213,7 @@ export class SlackSync implements AccountSync {
     };
     if (!this.walk && now < this.nextFullWalk) {
       const first = await page(undefined);
-      return { items: first.items, complete: !first.next };
+      return { items: first.items, complete: !first.next, walked: false };
     }
     const walk = this.walk ?? { cursor: "", items: [], pages: 0 };
     this.walk = null;
@@ -215,23 +224,23 @@ export class SlackSync implements AccountSync {
         walk.items.push(...p.items);
         if (!p.next) {
           this.nextFullWalk = now + FULL_WALK_MS;
-          return { items: walk.items, complete: true };
+          return { items: walk.items, complete: true, walked: true };
         }
         walk.cursor = p.next;
       }
       this.nextFullWalk = now + FULL_WALK_MS;
-      return { items: walk.items, complete: false };
+      return { items: walk.items, complete: false, walked: true };
     } catch (err) {
       if (!(err instanceof SlackError && err.code === "ratelimited") || walk.pages === 0) throw err;
       this.walk = walk;
-      return { items: walk.items, complete: false };
+      return { items: walk.items, complete: false, walked: false };
     }
   }
 
-  private async refill(older: Candidate[], complete: boolean, room: number): Promise<void> {
+  private async refill(older: Candidate[], complete: boolean, room: number): Promise<Refilled> {
     const raw = this.opts.accounts.get(this.accountId)?.backfill ?? {};
     const state: RefillState = { step: typeof raw.step === "number" ? raw.step : 0, exhausted: raw.exhausted === true };
-    if (state.exhausted) return;
+    if (state.exhausted) return "stopped";
     const connected = Date.parse(this.opts.account.connected_at);
     const unseen = older
       .filter((c) => {
@@ -250,7 +259,7 @@ export class SlackSync implements AccountSync {
         if (tried.has(c.thread_id) || (tsIso(c.ts) ?? "") < cutoff) continue;
         tried.add(c.thread_id);
         const observed = await this.observe(c, true);
-        if (observed === "failed") return;
+        if (observed === "failed") return "stopped";
         if (observed === "card") made++;
       }
       if (made >= room) break;
@@ -261,6 +270,7 @@ export class SlackSync implements AccountSync {
       }
     }
     if (state.step !== start.step || state.exhausted !== start.exhausted) this.opts.accounts.setBackfill(this.accountId, { ...state });
+    return made >= room ? "filled" : state.exhausted ? "stopped" : "short";
   }
 
   private async observe(c: Candidate, fromBackfill: boolean): Promise<Observed> {
