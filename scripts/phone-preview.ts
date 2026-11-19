@@ -2,9 +2,12 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import type { AccountProvider, OutsideReach } from "../core/frame-types.ts";
+import { fileName, type ThreadRecord } from "../mod/account-threads.ts";
+import { SERVICE_NAME, type AccountRecord } from "../mod/accounts.ts";
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
 const FAKE_AGENT = join(repo, "test", "fixtures", "fake-acp.mjs");
@@ -36,6 +39,7 @@ export function previewEnv(base: Record<string, string | undefined>, scratch: st
     LOKI_BUILT_PAGE: "1",
     LOKI_PORT: String(ports.port),
     LOKI_LAN_PORT: String(ports.lanPort),
+    LOKI_PREVIEW_ACCOUNTS: "1",
   };
 }
 
@@ -88,6 +92,127 @@ export const SEED: SeedAgent[] = [
     ],
   },
 ];
+
+export interface SeedOutside {
+  provider: AccountProvider;
+  account_id: string;
+  address: string;
+  thread: {
+    thread_id: string;
+    message_id: string;
+    minutes_ago: number;
+    sender: string;
+    sender_address: string | null;
+    subject: string;
+    place: string | null;
+    reach: OutsideReach | null;
+    lines: string[];
+  };
+}
+
+export const SEED_OUTSIDE: SeedOutside[] = [
+  {
+    provider: "gmail",
+    account_id: "gmail:juniper@example.com",
+    address: "juniper@example.com",
+    thread: {
+      thread_id: "preview-mail-1",
+      message_id: "preview-mail-1-c",
+      minutes_ago: 12,
+      sender: "Hazel Moss",
+      sender_address: "hazel@example.org",
+      subject: "Plot 14 is free from March",
+      place: null,
+      reach: "to_you",
+      lines: [
+        "Hi Juniper, the Ferns are moving away, so plot 14 by the shed is free from the first of March.",
+        "Could the newsletter mention it? The waiting list goes in order, but anyone new may add their name.",
+        "I can send a photo of the plot if that helps. Thanks, Hazel",
+      ],
+    },
+  },
+  {
+    provider: "slack",
+    account_id: "slack:T0GARDEN:U0JUNIPER",
+    address: "Garden Club",
+    thread: {
+      thread_id: "C0SEEDSWAP:1763540000.000100",
+      message_id: "1763542400.000300",
+      minutes_ago: 25,
+      sender: "Rowan Ash",
+      sender_address: null,
+      subject: "Who is bringing the tables on Saturday?",
+      place: "#seed-swap",
+      reach: "mention",
+      lines: [
+        "Who is bringing the tables on Saturday?",
+        "I have two in the van, but we need four for the bean corner.",
+        "@Juniper could you ask in the newsletter as well?",
+      ],
+    },
+  },
+  {
+    provider: "jira",
+    account_id: "jira:garden-club.example.com:preview-juniper",
+    address: "garden-club.example.com",
+    thread: {
+      thread_id: "10014",
+      message_id: "10014-comment-3",
+      minutes_ago: 50,
+      sender: "Ivy Thorn",
+      sender_address: null,
+      subject: "Fix the gate latch on the north entrance",
+      place: "GARDEN-14",
+      reach: "assigned",
+      lines: ["The latch sticks again after the rain.", "I have ordered a new one; it comes on Thursday. Can you fit it at the weekend?"],
+    },
+  },
+];
+
+const MINUTE_MS = 60_000;
+
+export function seedOutsideFiles(ownerAgentId: string, now: Date): Array<{ file: string; json: unknown }> {
+  const accounts: AccountRecord[] = SEED_OUTSIDE.map((s) => ({
+    account_id: s.account_id,
+    provider: s.provider,
+    address: s.address,
+    owner_agent_id: ownerAgentId,
+    status: "connected",
+    connected_at: now.toISOString(),
+    backfill: {},
+  }));
+  const threads = SEED_OUTSIDE.map(({ account_id, thread: t }) => {
+    const record: ThreadRecord = {
+      thread_id: t.thread_id,
+      state: "open",
+      generation: 1,
+      newest_message_id: t.message_id,
+      newest_at: new Date(now.getTime() - t.minutes_ago * MINUTE_MS).toISOString(),
+      sender: t.sender,
+      sender_address: t.sender_address,
+      subject_or_first_line: t.subject,
+      lines: t.lines,
+      handoff_conversation_id: null,
+      from_backfill: false,
+      traits: null,
+      unread_out_there: true,
+      starred: false,
+      waiting: false,
+      kept_open: false,
+      reach: t.reach,
+      place: t.place,
+      sender_avatar: null,
+      not_sent: null,
+      dealt_message_id: null,
+      dealt_was: null,
+      brought_ids: [],
+      seeds: [],
+      seeds_was: [],
+    };
+    return { file: join("account-threads", fileName(account_id)), json: { version: 1, threads: [record] } };
+  });
+  return [{ file: "accounts.json", json: { version: 1, accounts } }, ...threads];
+}
 
 export type Message = { type: string; request_id?: string; message?: string } & Record<string, unknown>;
 
@@ -179,12 +304,14 @@ async function sendInto(sock: Socket, { agentId, conversationId, chat }: SeededC
   await Promise.all([sent, settled]);
 }
 
-async function seed(sock: Socket): Promise<SeededChat[]> {
+async function seed(sock: Socket): Promise<{ owner: string; waiting: SeededChat[] }> {
   await sock.request("chat_engine_set", { id: ENGINE_ID, name: "Made-up agent", command: process.execPath, args: [FAKE_AGENT] });
   const waiting: SeededChat[] = [];
+  const agentIds: string[] = [];
   for (const agent of SEED) {
     const made = await sock.request("chat_agent_create", { name: agent.name, description: agent.description });
     const agentId = String(made.id);
+    agentIds.push(agentId);
     for (const chat of agent.chats) {
       const created = await sock.request("chat_create", { agent_id: agentId, title: chat.title });
       const seeded = { agentId, conversationId: String(created.conversation_id), chat };
@@ -194,7 +321,15 @@ async function seed(sock: Socket): Promise<SeededChat[]> {
     }
     console.log(`  ${agent.name}: ${agent.chats.length} chats`);
   }
-  return waiting;
+  return { owner: agentIds[0] ?? "", waiting };
+}
+
+function writeOutside(stateDir: string, ownerAgentId: string): void {
+  for (const { file, json } of seedOutsideFiles(ownerAgentId, new Date())) {
+    mkdirSync(dirname(join(stateDir, file)), { recursive: true });
+    writeFileSync(join(stateDir, file), JSON.stringify(json));
+  }
+  console.log(`  ${SEED_OUTSIDE.map((s) => SERVICE_NAME[s.provider]).join(", ")}: one card each, owned by ${SEED[0].name}`);
 }
 
 async function printPairLink(sock: Socket, lanPort: number): Promise<void> {
@@ -291,7 +426,16 @@ async function main(): Promise<void> {
     console.log(`phone-preview: a throwaway daemon in ${scratch}\n  desktop socket on ${ports.port}, phone listener on ${ports.lanPort}`);
     daemon = await startDaemon(env, ports, log);
     sock = await connect(env.LOKI_DIR, ports.port);
-    const waiting = await seed(sock);
+    const { owner, waiting } = await seed(sock);
+    const reseed = async (s: Socket) => {
+      for (const w of waiting) await sendInto(s, w);
+    };
+    writeOutside(join(env.LOKI_DIR, "state"), owner);
+    sock.close();
+    await daemon.stop();
+    daemon = await startDaemon(env, ports, log);
+    sock = await connect(env.LOKI_DIR, ports.port);
+    await reseed(sock);
     await printPairLink(sock, ports.lanPort);
 
     const restart = async () => {
@@ -301,7 +445,7 @@ async function main(): Promise<void> {
       watch(daemon);
       if (stopping) return;
       sock = await connect(env.LOKI_DIR, ports.port);
-      for (const w of waiting) await sendInto(sock, w);
+      await reseed(sock);
       console.log("phone-preview: back, with its approvals waiting again; reload the page");
     };
     const watch = (d: Daemon) =>
