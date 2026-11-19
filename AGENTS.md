@@ -7,7 +7,7 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 
 - Read [docs/style.md](docs/style.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
   code lives. Use the words in [glossary.md](glossary.md).
-- Match the code around you: its naming and idiom. Leave layout to oxfmt (`npm run format`).
+- Match the code around you: its naming and idiom. Leave layout to oxfmt (`bun run format`).
 - Work in this repository goes through the `ce-*` skills:
   - `ce-brainstorm` to scope an idea
   - `ce-plan` for the plan
@@ -43,23 +43,23 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
   the working folder and `process.env` after each file. Anything else a file changes, it undoes in `afterAll`: servers
   closed, children killed, temp folders removed, module-level state (a registry, a cache, a listener) reset through
   the module's own API. A failure that depends on the order is a leak: rerun with the seed vitest printed
-  (`npx vitest run --sequence.seed=<seed>`) and fix the file that leaked, not the one that failed.
+  (`bun run test --sequence.seed=<seed>`) and fix the file that leaked, not the one that failed.
 
 ## Before you push
 
-`git push` runs a hook (`.githooks/pre-push`, set up by `npm install`) that checks format and lint on the files the
+`git push` runs a hook (`.githooks/pre-push`, set up by `bun install`) that checks format and lint on the files the
 branch changes, and the whole project's types, in a second or two. Don't skip it with `--no-verify`; it is not the
 whole list below.
 
-While you work, check with `npm run lint:fast`: it reuses ESLint's earlier results. The cache can miss an error a
-type change in another file causes, so before pushing run the uncached `npm run lint` below. `npm run typecheck`
+While you work, check with `bun run lint:fast`: it reuses ESLint's earlier results. The cache can miss an error a
+type change in another file causes, so before pushing run the uncached `bun run lint` below. `bun run typecheck`
 checks the whole project in about a second and keeps no cache.
 
-Run every check, with CI's toolchain (the newest Node 22 and its npm 10, `SHELL=/bin/bash`), and push only when all pass:
+Run every check, with CI's toolchain (the newest Node 22, the bun in package.json's `packageManager`, `SHELL=/bin/bash`), and push only when all pass:
 
 ```bash
-npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:node
-npm run build:app && npm run build:mod && npm run smoke
+bun run format:check && bun run lint && bun run typecheck && bun run test && bun run test:node
+bun run build:app && bun run build:mod && bun run smoke
 ```
 
 When `src-tauri/` changed, the cargo lines in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#checks) too.

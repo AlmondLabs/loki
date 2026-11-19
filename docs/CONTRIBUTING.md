@@ -5,20 +5,20 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13.3+, Node 22.19 or newer (it runs npm, Vite, the Tauri CLI, the tests and loki's daemon), Rust (stable, via rustup — `npm start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools.
+macOS 13.3+, Node 22.19 or newer (it runs Vite, the Tauri CLI, the tests and loki's daemon), bun (it installs the packages and runs package.json's scripts on Node; `brew install oven-sh/bun/bun`), Rust (stable, via rustup — `bun run start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools.
 
 ```bash
-npm install
-npm start              # the Tauri window (which starts the daemon) on the built page; code changes wait for update in the window (Ctrl-C stops all)
-npm run dev            # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
-npm run dev:vite       # Vite alone, for a browser tab
-npm run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
+bun install
+bun run start              # the Tauri window (which starts the daemon) on the built page; code changes wait for update in the window (Ctrl-C stops all)
+bun run dev            # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
+bun run dev:vite       # Vite alone, for a browser tab
+bun run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
 
 A browser tab shows Preferences as a sheet. To check the Mac app's Settings window instead, open the Vite tab with
 `&window=settings` after its `?t=` token, and `&page=<id>` (an id from `app/src/settings/pages.ts`) to open on a page.
 
-**The phone, in a browser.** `npm run phone-preview` shows the phone's real screens with made-up data, with no phone, no Simulator, and nothing of `~/.loki` or your running daemon touched:
+**The phone, in a browser.** `bun run phone-preview` shows the phone's real screens with made-up data, with no phone, no Simulator, and nothing of `~/.loki` or your running daemon touched:
 
 - It starts a throwaway daemon on a scratch folder, with its own ports, no keychain and no provider keys, and switches its phone listener on. It builds `app/dist` first if there is none.
 - It seeds three made-up agents and seven chats through `test/fixtures/fake-acp.mjs`. One chat is long, so threads scroll under the floating bars, and two wait on an approval, so Flow has cards and a conversation shows its dock.
@@ -27,48 +27,48 @@ A browser tab shows Preferences as a sheet. To check the Mac app's Settings wind
 Open the link at 390 × 844 (Chromium's device toolbar, or the in-app browser's mobile size). Switch day and night with the browser's colour-scheme emulation, and Increase Contrast with DevTools › Rendering › `prefers-contrast: more`.
 
 - An edit under `app/` rebuilds the page; reload to see it.
-- An edit under `core/`, `daemon/` or `mod/` is picked up as under `npm start`. A daemon change waits while a chat is busy, and the seeded approvals keep two busy. Once the daemon does restart, the script starts it again and re-seeds the approvals.
+- An edit under `core/`, `daemon/` or `mod/` is picked up as under `bun run start`. A daemon change waits while a chat is busy, and the seeded approvals keep two busy. Once the daemon does restart, the script starts it again and re-seeds the approvals.
 - Ctrl-C stops it and deletes the scratch folder; `--keep` leaves the folder.
 
 It is Chromium, not Safari: blur, safe areas and text size are near, not exact. There are no Gmail, Slack or Jira cards.
 
-**Windows and Linux** (the preview builds): Node and Rust as above; in place of Xcode's tools, Windows needs the
+**Windows and Linux** (the preview builds): Node, bun (bun.sh has the one-line install for both) and Rust as above; in place of Xcode's tools, Windows needs the
 Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
 Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in
 `.github/workflows/shell.yml`. On Windows run the commands from Git Bash, as CI does; `~` is `%USERPROFILE%`.
 `.gitattributes` keeps every checkout LF, so the tests that read source files pass there. The test in
 `test/agents.test.ts` that makes file symlinks needs Developer Mode or an administrator shell on Windows (CI's
-runner is one). `npm run tauri -- build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
+runner is one). `bun run tauri build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
 release's files.
 
-`npm start` bundles the mod before the window opens, and the window starts loki's daemon (`src-tauri/src/harness.rs`), which hosts it; when the daemon does not come up, the script says so and names its log, `~/.loki/logs/daemon.log`. `npm start -- --check` reports the preflight without starting anything.
+`bun run start` bundles the mod before the window opens, and the window starts loki's daemon (`src-tauri/src/harness.rs`), which hosts it; when the daemon does not come up, the script says so and names its log, `~/.loki/logs/daemon.log`. `bun run start --check` reports the preflight without starting anything.
 
 ## Checks
 
 How code, comments, docs, tests and commits are written is [style.md](style.md); agents read the short form in
-[AGENTS.md](../AGENTS.md). `npm install` sets git's hooks folder to `.githooks/`, whose `pre-push` checks format and lint
+[AGENTS.md](../AGENTS.md). `bun install` sets git's hooks folder to `.githooks/`, whose `pre-push` checks format and lint
 on the files your branch changes and the whole project's types (`scripts/pre-push.ts`, a second or two). Before pushing, run:
 
 ```bash
-npm test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
-npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
-npm run typecheck                                 # bun check: TypeScript 7's checker, the whole project in about a second
-npm run format:check                              # oxfmt; npm run format fixes it
-npm run lint                                      # uncached; npm run lint:fast caches results while you work
-npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
-npm run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart
+bun run test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
+bun run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
+bun run typecheck                                 # bun check: TypeScript 7's checker, the whole project in about a second
+bun run format:check                              # oxfmt; bun run format fixes it
+bun run lint                                      # uncached; bun run lint:fast caches results while you work
+bun run build:app && bun run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
+bun run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
 cargo fmt --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)
+bun run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
 CI runs these on a PR (a newer push cancels the run before it) and again in the merge queue, each check where it can
-say something. On a PR the suite runs only what the diff reaches (`npm run test:pr`, `scripts/select-tests.ts`): the
+say something. On a PR the suite runs only what the diff reaches (`bun run test:pr`, `scripts/select-tests.ts`): the
 tests the module graph links to the changed TypeScript, plus every test that reads the tree from disk; any other change
 (a stylesheet, a config, the lockfile, a workflow, a doc, a deletion) runs it all. The merge queue always runs it all,
 so nothing reaches main on a narrowed run. `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
 smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
-macOS 15 and Windows, where paths, shells and processes differ. GitHub's Mac runners can queue for minutes, so on a PR the Mac job runs only when the diff can reach what differs there (`scripts/mac-scope.ts`: anything but the app, the site, docs and tests of the app); skipped, it counts as passed, and the merge queue always runs it;
+macOS 15 and Windows, where paths, shells and processes differ. Each check has a time budget in `scripts/budget.ts`, and a check that passes but runs past it fails its job: to slow one down on purpose, raise its budget in the same PR and say why. GitHub's Mac runners can queue for minutes, so on a PR the Mac job runs only when the diff can reach what differs there (`scripts/mac-scope.ts`: anything but the app, the site, docs and tests of the app); skipped, it counts as passed, and the merge queue always runs it;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
 `app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). On a PR of docs alone each `ci` job passes after its checkout without installing anything: the checks are required, and a PR reaches main through the merge queue only once they pass. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
@@ -76,8 +76,8 @@ should be read for the other two, since nobody on the project runs them. `test/t
 
 Workflow actions are pinned to a commit with the tag in a comment (`test/workflows.test.ts` checks it); to move one,
 look up the new tag's commit (`gh api repos/<owner>/<action>/commits/<tag> --jq .sha`) and change both. CI installs
-with npm 10 (Node 22's): if you write `package-lock.json` with npm 11, run `npm install` once with npm 10 after, or
-`npm ci` on CI fails on entries npm 11 leaves out.
+with `bun install --frozen-lockfile` at the bun version in package.json's `packageManager`; a `bun.lock` written by
+another bun version may not match, so upgrade bun there and in `devDependencies` together.
 
 ## Where things are
 
@@ -111,5 +111,5 @@ the full checks and a run of the app. New dependencies are pinned exactly too, a
 
 Tauri's JavaScript packages (`@tauri-apps/api`, `cli`, `plugin-dialog`, `plugin-opener`) are held to the minor
 versions of the Rust crates in `src-tauri/Cargo.lock` with `~`: `tauri dev` and `tauri build` refuse to start when the
-two sides differ in major or minor version, and a package manager that does not read `package-lock.json` would
+two sides differ in major or minor version, and a package manager that does not read `bun.lock` would
 otherwise take the newest 2.x. Upgrade both sides in one PR.

@@ -9,8 +9,8 @@ const root = here("..");
 const out = here("../src-tauri/resources");
 
 // A package's folder as Node finds it from `from` (the checkout, or another package's folder): the nearest
-// node_modules/<name> up from where `from` really is. npm puts a dependency's own dependencies at the top of
-// node_modules and pnpm puts them beside it in its store, so a fixed node_modules/<name> path holds them under npm alone.
+// node_modules/<name> up from where `from` really is. bun and npm put a dependency's own dependencies at the top of
+// node_modules and pnpm puts them beside it in its store, so a fixed node_modules/<name> path holds them under the first two alone.
 const findPackageDir = (name: string, from: string): string | undefined => {
   for (let dir = realpathSync(from); ; dir = dirname(dir)) {
     const candidate = join(dir, "node_modules", name);
@@ -109,5 +109,5 @@ if (existsSync(`${appDist}/index.html`)) {
   console.log("mod bundled → src-tauri/resources/ (with app/dist for phones)");
 } else {
   console.log("mod bundled → src-tauri/resources/");
-  console.log("note: app/dist not found — phones get a 'run npm run build:app' page until the canvas is built and build:mod runs again");
+  console.log("note: app/dist not found — phones get a 'run bun run build:app' page until the canvas is built and build:mod runs again");
 }

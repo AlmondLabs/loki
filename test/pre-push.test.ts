@@ -35,7 +35,7 @@ describe("the pre-push hook", () => {
     expect(changedFiles(noMain)).toEqual(["x.ts", "y.css"]);
   });
 
-  test("npm install points git at the hook, which runs the script", () => {
+  test("bun install points git at the hook, which runs the script", () => {
     const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8")) as { scripts: Record<string, string> };
     expect(pkg.scripts.prepare).toBe("git config core.hooksPath .githooks || exit 0");
     expect(readFileSync(join(import.meta.dirname, "..", ".githooks", "pre-push"), "utf8")).toContain("scripts/pre-push.ts");

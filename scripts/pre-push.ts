@@ -87,7 +87,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
   const summary = results.map((r) => `${r.code === 0 ? "✓" : "✗"} ${r.name} ${(r.ms / 1000).toFixed(1)}s`).join(", ");
   console.error(`pre-push: ${files.length} changed files; ${summary || "nothing to check"} (${((performance.now() - start) / 1000).toFixed(1)}s)`);
   if (results.some((r) => r.code !== 0)) {
-    console.error("Fix these before pushing; `npm run format` fixes formatting.");
+    console.error("Fix these before pushing; `bun run format` fixes formatting.");
     process.exitCode = 1;
   }
 }

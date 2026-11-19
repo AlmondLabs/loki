@@ -12,23 +12,23 @@ The checks, all in CI and all to run before pushing. A pre-push hook (`scripts/p
 the files a push changes, so a push never carries a format, lint or type error:
 
 ```bash
-npm run format:check   # oxfmt; npm run format fixes it
-npm run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
-npm run typecheck      # bun check: TypeScript 7's checker on tsconfig.json, strict; the whole project in about a second
-npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
-npm run test:node
-npm run build:app && npm run build:mod && npm run smoke
+bun run format:check   # oxfmt; bun run format fixes it
+bun run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
+bun run typecheck      # bun check: TypeScript 7's checker on tsconfig.json, strict; the whole project in about a second
+bun run test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
+bun run test:node
+bun run build:app && bun run build:mod && bun run smoke
 ```
 
 `.oxlintrc.json` turns on every oxlint category that finds bugs (correctness, suspicious, perf); a rule that is off
 there says why, and the ones that still fire somewhere carry their count until a PR fixes them and turns them on.
-`eslint.config.mjs` keeps the two rules oxlint has no version of: `naming-convention` and `no-restricted-syntax`. `npm run lint:fast` runs the same with ESLint's cache, for while you work;
-`npm run lint` never uses the cache, and it is the one to run before pushing.
+`eslint.config.mjs` keeps the two rules oxlint has no version of: `naming-convention` and `no-restricted-syntax`. `bun run lint:fast` runs the same with ESLint's cache, for while you work;
+`bun run lint` never uses the cache, and it is the one to run before pushing.
 
 ## 1. Formatting
 
 - **oxfmt formats** TypeScript, JavaScript, CSS, JSON and YAML (`.oxfmtrc.json`). Print width 160, double quotes,
-  semicolons, trailing commas everywhere. A `prettier-ignore` comment keeps a line as written; oxfmt reads that name. Nobody formats by hand and nobody argues about it. **checked**: `npm run format:check`.
+  semicolons, trailing commas everywhere. A `prettier-ignore` comment keeps a line as written; oxfmt reads that name. Nobody formats by hand and nobody argues about it. **checked**: `bun run format:check`.
 - **Markdown is hand-written**: wrap prose near 120 characters, keep tables aligned enough to read in a terminal.
   **review**.
 - The commit that reformatted the whole tree is listed in `.git-blame-ignore-revs`; run
@@ -248,7 +248,7 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
   `test/fixtures/reset-after-file.ts` puts back mocks, stubbed globals and env, timers, mocked modules, the working
   folder and `process.env` after each file; a file undoes anything else it changes in `afterAll` (servers, children,
   temp folders, module-level state through the module's own API). An order-dependent failure is a leak in the file
-  that ran before: rerun with the printed seed (`npx vitest run --sequence.seed=<seed>`). **checked**: the random order.
+  that ran before: rerun with the printed seed (`bun run test --sequence.seed=<seed>`). **checked**: the random order.
 - A bug fix comes with the test that would have caught it. **review**.
 
 ## 9. Commits and pull requests

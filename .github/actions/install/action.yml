@@ -1,19 +1,26 @@
 name: install
-description: Node 22 and node_modules, restored whole when the dependencies match a saved copy, else npm ci.
+description: Node 22 to run loki, bun to install, and node_modules restored whole when the dependencies match a saved copy, else bun install.
 runs:
   using: composite
   steps:
+    - shell: bash
+      run: echo "INSTALL_STARTED=$(date +%s)" >> "$GITHUB_ENV"
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
       with:
         node-version: 22
-    # The key is what npm ci would install from: the lockfile and package.json's dependency fields, so a package.json
-    # out of step with the lockfile still misses and fails npm ci as it would without the cache. Node's major and the
+    # bun installs the dependencies and runs package.json's scripts; the scripts themselves run on Node, as loki does.
+    # Its version is package.json's packageManager.
+    - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version-file: package.json
+    # The key is what bun install would install from: the lockfile and package.json's dependency fields, so a package.json
+    # out of step with the lockfile still misses and fails bun install --frozen-lockfile as it would without the cache. Node's major and the
     # system are in it because native modules are built for them.
     - id: key
       shell: bash
       run: |
         deps=$(node -e 'const p = require("./package.json"); process.stdout.write(JSON.stringify([p.dependencies, p.devDependencies, p.optionalDependencies, p.peerDependencies, p.overrides, p.engines]))')
-        sum=$( { printf '%s' "$deps"; cat package-lock.json; } | node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => process.stdout.write(require("node:crypto").createHash("sha256").update(s).digest("hex")))')
+        sum=$( { printf '%s' "$deps"; cat bun.lock; } | node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => process.stdout.write(require("node:crypto").createHash("sha256").update(s).digest("hex")))')
         echo "key=node-modules-${RUNNER_OS}-${RUNNER_ARCH}-node$(node -p 'process.versions.node.split(".")[0]')-${sum}" >> "$GITHUB_OUTPUT"
     - id: cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -22,10 +29,14 @@ runs:
         key: ${{ steps.key.outputs.key }}
     - if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: npm ci
+      run: bun install --frozen-lockfile
     # Saved on a miss: from main it seeds every PR (cache.yml), from a PR it serves that PR's next push.
     - if: steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: node_modules
         key: ${{ steps.key.outputs.key }}
+    # Setup has a budget on a hit (scripts/budget.ts); a miss is a PR that changes the dependencies, and installing is its cost.
+    - if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: bun run --silent budget --took "$(( $(date +%s) - INSTALL_STARTED ))" install

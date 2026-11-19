@@ -423,7 +423,7 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 - Outside it: the global skills in `~/.agents/skills`, and provider, MCP and account secrets in the keychain.
 - Nothing is uploaded, logged remotely, or telemetered. The daemon keeps a local usage log
   (`~/.loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only this machine reads:
-  `npm run analytics`, and the usage page's ledger once, to seed its history; `LOKI_ANALYTICS=0` turns it off.
+  `bun run analytics`, and the usage page's ledger once, to seed its history; `LOKI_ANALYTICS=0` turns it off.
 
 ## What leaves the machine
 

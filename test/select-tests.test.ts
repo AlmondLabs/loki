@@ -23,7 +23,7 @@ describe("which tests a PR runs", () => {
     for (const change of [
       { status: "M", path: "app/src/kit/tokens.css" },
       { status: "M", path: "vitest.config.ts" },
-      { status: "M", path: "package-lock.json" },
+      { status: "M", path: "bun.lock" },
       { status: "M", path: ".github/workflows/ci.yml" },
       { status: "M", path: "docs/design.md" },
       { status: "M", path: "test/fixtures/fake-mcp.mjs" },

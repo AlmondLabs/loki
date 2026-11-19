@@ -8,7 +8,7 @@ import { buildPage, pageStale } from "../daemon/page-build.ts";
 const DEV_PORT = 5173;
 const DEV_URL = `http://127.0.0.1:${DEV_PORT}`;
 const hot = process.argv.includes("--hot");
-const command = hot ? "npm run dev" : "npm start";
+const command = hot ? "bun run dev" : "bun run start";
 const VITE_MARKER = 'name="apple-mobile-web-app-title" content="loki"';
 const MOD_HEALTH = `http://127.0.0.1:${process.env.LOKI_PORT ?? "41414"}/health`;
 const MOD_WAIT_MS = 90_000;
@@ -53,7 +53,7 @@ function rustPreflight(): string | null {
         ? "    winget install Rustlang.Rustup   (rustup-init also offers the Visual Studio C++ build tools cargo links with)"
         : "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
       ...(mac ? ["  Building also needs Xcode's command line tools: `xcode-select --install` if clang is missing."] : []),
-      "  Without Rust, `npm run dev:vite` serves the canvas alone at " + DEV_URL + " for a browser tab.",
+      "  Without Rust, `bun run dev:vite` serves the canvas alone at " + DEV_URL + " for a browser tab.",
     ].join("\n"),
   );
   return null;
@@ -182,8 +182,8 @@ if (vite === "other") {
 if (!hot && vite === "ours") {
   console.error(
     [
-      `loki dev: loki's page is already served at ${DEV_URL} — a Vite (\`npm run dev:vite\`) or another \`npm start\`.`,
-      `  \`npm start\` serves the built page on that port itself: stop the other one, then \`npm start\` again.`,
+      `loki dev: loki's page is already served at ${DEV_URL} — a Vite (\`bun run dev:vite\`) or another \`bun run start\`.`,
+      `  \`bun run start\` serves the built page on that port itself: stop the other one, then \`bun run start\` again.`,
     ].join("\n"),
   );
   process.exit(1);
@@ -235,7 +235,7 @@ function watchPhoneBuild(): void {
     phoneBuild.on("exit", (code) => {
       if (restarting) return;
       if (tauri.exitCode === null)
-        console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`npm run build:app\` after phone changes`);
+        console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
     });
   };
   startPhoneBuild();

@@ -89,8 +89,8 @@ info**, then **Run anyway**, once); `loki_<version>_amd64.AppImage`, which needs
 `-setup.exe` and the AppImage update themselves after that; the `.deb` does not, and its next version is another
 download from the releases page. No package manager carries them.
 
-**From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout or
-`npm run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
+**From source**: Node, Rust and Xcode's command line tools, then `bun run start` to run the checkout or
+`bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
 ### First launch
 
@@ -611,19 +611,20 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 
 ## Install (development)
 
-You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs npm, Vite, the
-Tauri CLI, the tests and loki's daemon: a development build runs the daemon on your Node, never downloading one. It
+You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs Vite, the
+Tauri CLI, the tests and loki's daemon, and bun (`brew install oven-sh/bun/bun`) installs the packages and runs the
+scripts on that Node: a development build runs the daemon on your Node, never downloading one. It
 looks where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
 global bin, `~/.local/bin`, nvm and fnm (on Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place; on
 Windows npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta, nvm-windows, fnm, scoop and bun).
 Then:
 
 ```bash
-npm install
-npm start
+bun install
+bun run start
 ```
 
-`npm start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
+`bun run start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
 `~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
 command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
 that nothing else answers on port 5173, which the window would otherwise show. It then builds the page into
@@ -633,21 +634,21 @@ window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hos
 waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
 log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it.
 
-`npm start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
+`bun run start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
 in place when `mod/` or `core/` changes. A change to `app/`, `daemon/` or `core/` waits: the window shows "loki's code
 changed" with **update** and **later**, and loki never updates by itself. **update** builds the page if it changed
 (the window and the phone reload on the new build) and restarts the daemon if its code changed (the window reconnects
 a second later). A page that does not build stays as it was, and the notice says what failed. While a chat is working
 or waiting for you, a restart would cut it off: **update** says so and offers **update anyway**.
 
-`npm run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 and shows a change to `app/` as you save,
+`bun run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 and shows a change to `app/` as you save,
 and a watching build keeps `app/dist` current for the phone. The mod reloads as above, and a change to `daemon/` or
 `core/` still waits for **update**. It costs more while it runs: Vite and the watching build hold well over a
 gigabyte, and React's development build keeps a timing record for every render, so the window's memory grows for as
-long as it stays open. `npm start -- --check` and `npm run dev -- --check` report what each would do without starting
+long as it stays open. `bun run start --check` and `bun run dev --check` report what each would do without starting
 anything.
 
-Or run the pieces yourself: `npm run dev:vite` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
+Or run the pieces yourself: `bun run dev:vite` (Vite alone, for a browser tab) and `bun run desktop:dev` (the window
 against a Vite already running, in a second terminal).
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), and its daemon runs the
@@ -834,8 +835,8 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
 - **Images the agent looks at** with its `read` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
   the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
   file go as they are, and so does every image on Windows and Linux. Images an agent looked at before this shrink
-  are still whole in the history: quit loki and run `npm run shrink-images` to see what shrinking them would save, then
-  `npm run shrink-images -- --apply` to do it. It copies each store it changes to `~/.loki/stores/backup-<date>/`
+  are still whole in the history: quit loki and run `bun run shrink-images` to see what shrinking them would save, then
+  `bun run shrink-images --apply` to do it. It copies each store it changes to `~/.loki/stores/backup-<date>/`
   first (delete the copies once you are happy), shrinks only images in tool results, leaves your own pasted images as
   they are, and refuses while loki is running. Each chat it touched writes its prompt cache once more on its next turn.
 - **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
@@ -1083,7 +1084,7 @@ A rest keeps the time it was given, so a change counts from the next press on. H
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
 resting cards are left, Flow says how many and offers to go through them. The Mac's loki process keeps the rests
 and the return times beside the focus weights (`rests` and `return_times` in `state/attention.json`), and paired Macs and the phone share
-them; `npm run analytics` reports how often a card back from a rest is acted on, by rung.
+them; `bun run analytics` reports how often a card back from a rest is acted on, by rung.
 
 Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
 badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
@@ -1092,13 +1093,13 @@ front of you never moves until you act on it; whatever arrives lands behind it. 
 is the score, `core/attention/focus.ts` the focus, `core/attention/rest.ts` the rest.
 
 **What Flow is tuned for: finished work.** Engagement counts every reply as a win, a shallow one too, and it
-rose the more you hopped between chats. So `npm run analytics` leads with finished work: chats archived, and a day;
+rose the more you hopped between chats. So `bun run analytics` leads with finished work: chats archived, and a day;
 the messages a finished chat took (median, counting chats you messaged in the period); and how often, coming back to
 a chat within three hours, you had messaged none, 1, 2 or 3+ other chats in between. Engagement stays beside it for
 comparison. Every card that comes to the top is logged (`inbox_card_shown`),
 and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
 chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
-how long the card was on top, counting only the time loki's window was visible and focused). `npm run analytics`
+how long the card was on top, counting only the time loki's window was visible and focused). `bun run analytics`
 reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
 archive it — a read straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
 rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
@@ -1742,7 +1743,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 loki keeps product analytics on itself — which views you open, which chats get turns, how a visit to Flow went,
 what you send from where, which models and modes you pick — as events in `~/.loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
-writes the file, nothing sends it anywhere, and `npm run analytics` on this machine is the only reader. The
+writes the file, nothing sends it anywhere, and `bun run analytics` on this machine is the only reader. The
 `distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, windows,
 linux, phone, or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
@@ -1755,7 +1756,7 @@ every window that saw it and written once), `chat_archived` and `chat_restored` 
 lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon's environment turns it off.
 
-`npm run analytics` (or `npm run analytics -- --days 7`) prints the report: sessions by device and their median
+`bun run analytics` (or `bun run analytics --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
 property (views by name, turns by chat, sends by origin, models picked), the visits to Flow and their decision
 split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
@@ -1772,7 +1773,7 @@ linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INST
 installing, and make a dev build link nothing and run the bundles already installed), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
 `LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR`, `LOKI_TASKS_DIR` (the beads store the move of open tasks
-reads) and `LOKI_EVENTS_PATH` (the file `npm run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
+reads) and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
 already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
 Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product

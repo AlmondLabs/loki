@@ -23,6 +23,7 @@
     "build:site": "vite build --config site/vite.config.ts",
     "build:mod": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-mod.ts",
     "smoke": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/smoke.ts",
+    "budget": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/budget.ts",
     "phone-preview": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/phone-preview.ts",
     "tauri": "tauri",
     "desktop:dev": "tauri dev --config \"{\\\"build\\\":{\\\"devUrl\\\":\\\"http://127.0.0.1:5173\\\"}}\"",
@@ -97,5 +98,6 @@
   },
   "engines": {
     "node": ">=22.19"
-  }
+  },
+  "packageManager": "bun@1.4.4"
 }

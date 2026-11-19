@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { lintAll, linters, type Linter } from "../scripts/lint.ts";
 
-describe("npm run lint", () => {
+describe("bun run lint", () => {
   test("runs oxlint and ESLint, and hands ESLint the extra arguments (lint:fast's cache)", () => {
     const list = linters(["--cache"]);
     expect(list.map((l) => l.name)).toEqual(["oxlint", "eslint"]);

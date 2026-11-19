@@ -1,4 +1,4 @@
-// `npm run lint` runs oxlint, then eslint.config.mjs for the two rules oxlint lacks. Every category that finds
+// `bun run lint` runs oxlint, then eslint.config.mjs for the two rules oxlint lacks. Every category that finds
 // bugs is on (correctness, suspicious, perf) with every plugin that fits this code, plus the rules docs/style.md asks for,
 // carried over from the ESLint config. A rule that is off says why below.
 {
