@@ -41,6 +41,7 @@ export interface TimeDraft {
   start: string;
   end: string;
   was: LaneWindow | null;
+  key: string;
 }
 
 export interface LaneRefusal {
@@ -75,7 +76,7 @@ export function draftOf(lane: Lane): LaneDraft {
     chatIds: lane.chats === "all" ? [] : [...lane.chats],
     accounts: choiceOf(lane.accounts),
     accountIds: lane.accounts === "all" ? [] : [...lane.accounts],
-    times: (lane.times ?? []).map((w) => ({ days: [...w.days], start: w.start, end: w.end, was: w })),
+    times: (lane.times ?? []).map((w) => ({ days: [...w.days], start: w.start, end: w.end, was: w, key: nextTimeKey() })),
   };
 }
 
@@ -83,8 +84,11 @@ export function newDraft(id: string): LaneDraft {
   return { id, name: "", chats: "pick", chatIds: [], accounts: "pick", accountIds: [], times: [] };
 }
 
+let timeKeys = 0;
+const nextTimeKey = () => `time-${++timeKeys}`;
+
 export function withNewTime(draft: LaneDraft): LaneDraft {
-  return { ...draft, times: [...draft.times, { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", was: null }] };
+  return { ...draft, times: [...draft.times, { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", was: null, key: nextTimeKey() }] };
 }
 
 const sameDays = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((d) => b.includes(d));
@@ -351,7 +355,7 @@ export function LaneEditor({
         <Setting label="Schedule" help="Every Mac and your phone switch to this lane at these times, from the first start or end after you save." />
         {draft.times.map((t, i) => (
           <TimeRow
-            key={i}
+            key={t.key}
             n={i + 1}
             time={t}
             error={error?.time === i ? error.message : null}

@@ -254,7 +254,10 @@ describe("Preferences › Flow: a lane's switching times (plan 2026-11-19-1851, 
   });
 
   test("Add Time adds a Monday-to-Friday row from 9:00 to 17:00", () => {
-    expect(withNewTime(newDraft("x")).times).toEqual([{ days: weekdays, start: "09:00", end: "17:00", was: null }]);
+    const added = withNewTime(newDraft("x")).times;
+    expect(added.map(({ key: _key, ...time }) => time)).toEqual([{ days: weekdays, start: "09:00", end: "17:00", was: null }]);
+    const twice = withNewTime(withNewTime(newDraft("x"))).times;
+    expect(new Set(twice.map((t) => t.key)).size).toBe(2);
   });
 
   test("each row's Remove, start and end carry its number, and its days are pressed chips", () => {
