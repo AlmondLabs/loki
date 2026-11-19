@@ -259,7 +259,7 @@ describe("Preferences › Flow: a lane's switching times (plan 2026-11-19-1851, 
 
   test("each row's Remove, start and end carry its number, and its days are pressed chips", () => {
     const out = editor(draftOf(COMMS));
-    expect(out).toContain("Every Mac and your phone switch to this lane at these times. Saving doesn't switch now; the next start or end does.");
+    expect(out).toContain("Every Mac and your phone switch to this lane at these times, from the first start or end after you save.");
     for (const n of [1, 2]) {
       expect(out).toContain(`aria-label="Remove time ${n}"`);
       expect(out).toContain(`aria-label="Start of time ${n}"`);

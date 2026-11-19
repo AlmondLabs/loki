@@ -87,18 +87,19 @@ export function clockText(at: Date, locale?: string): string {
 
 const hhmmText = (hhmm: string, locale?: string) => clockText(new Date(2000, 0, 1, 0, minutesOf(hhmm)), locale);
 
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+export const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
 
-const dateOfWeekday = (day: number) => new Date(2023, 0, 1 + day);
+export function weekdayName(day: number, locale?: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2023, 0, 1 + day));
+}
 
 function daysText(days: number[], locale?: string): string {
   const set = new Set(days);
   if (set.size === 7) return "Every day";
   if (set.size === 5 && [1, 2, 3, 4, 5].every((d) => set.has(d))) return "Weekdays";
   if (set.size === 2 && set.has(0) && set.has(6)) return "Weekends";
-  const name = new Intl.DateTimeFormat(locale, { weekday: "short" });
   return MONDAY_FIRST.filter((d) => set.has(d))
-    .map((d) => name.format(dateOfWeekday(d)))
+    .map((d) => weekdayName(d, locale))
     .join(", ");
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { timesLabel } from "../../../core/attention/lane-times.ts";
+import { MONDAY_FIRST, timesLabel, weekdayName } from "../../../core/attention/lane-times.ts";
 import type { Lane, LaneSide, LaneWindow } from "../../../core/attention/lanes.ts";
 import type { AccountProvider, AccountView } from "../../../core/frame-types.ts";
 import type { MacAccountView } from "../../../core/frames.ts";
@@ -61,10 +61,6 @@ const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack
 const SIDE_CHOICES: readonly SideChoice[] = ["all", "pick", "none"];
 
 const POLL_MS = 3000;
-
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
-const WEEKDAY_NAME = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-const dayName = (day: number) => WEEKDAY_NAME.format(new Date(2023, 0, 1 + day));
 
 const newLaneId = () => `lane-${crypto.randomUUID()}`;
 
@@ -352,7 +348,7 @@ export function LaneEditor({
           ))}
       </div>
       <div className="loki-settings-block">
-        <Setting label="Schedule" help="Every Mac and your phone switch to this lane at these times. Saving doesn't switch now; the next start or end does." />
+        <Setting label="Schedule" help="Every Mac and your phone switch to this lane at these times, from the first start or end after you save." />
         {draft.times.map((t, i) => (
           <TimeRow
             key={i}
@@ -430,14 +426,16 @@ function TimeRow({
           const on = time.days.includes(d);
           return (
             <Chip key={d} active={on} aria-pressed={on} onClick={() => onChange({ days: on ? time.days.filter((x) => x !== d) : [...time.days, d] })}>
-              {dayName(d)}
+              {weekdayName(d)}
             </Chip>
           );
         })}
       </div>
       <div className="flex items-center gap-2">
         {clock("start", "Start")}
-        <span className="loki-meta">to</span>
+        <span className="loki-meta" aria-hidden="true">
+          –
+        </span>
         {clock("end", "End")}
         <span className="flex-1" />
         <Button size="sm" aria-label={`Remove time ${n}`} onClick={onRemove}>

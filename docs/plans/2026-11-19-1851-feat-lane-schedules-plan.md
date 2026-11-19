@@ -267,7 +267,7 @@ flowchart TD
 - **Dependencies:** U1.
 - **Files:** `app/src/settings/lanes.tsx`, `core/attention/lane-times.ts`, `app/src/dev/workbench.tsx`, `test/settings-lanes.test.ts`, `test/lane-times.test.ts`.
 - **Approach:**
-  1. Add the windows to the draft and a Schedule group under Mail and Slack, with the help "Every Mac and your phone switch to this lane at these times. Saving doesn't switch now; the next start or end does.": a row per window with weekday chips, start and end, and Remove, then Add Time.
+  1. Add the windows to the draft and a Schedule group under Mail and Slack, with the help "Every Mac and your phone switch to this lane at these times, from the first start or end after you save.": a row per window with weekday chips, start and end, and Remove, then Add Time.
   2. Add Time appends a row with Monday to Friday picked, 9:00 to 17:00. Each row's controls are named for it ("Remove time 2", "Start of time 2", "End of time 2").
   3. Validate in `saveLane`: a window needs a weekday and different start and end, and a refused window shows its message beside its row ("Pick at least one day", "Start and end must differ") with the sheet left open; spread the saved lane and stamp `since` (KTD8).
   4. Add U1's times label as a second line on each lane row with times.
