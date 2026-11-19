@@ -7,7 +7,8 @@ import { idOf } from "../core/attention/queue.ts";
 import type { ChatFace, FlowLane } from "../core/attention/use-attention.ts";
 import { LANE_KEYS, createActiveLaneStore } from "../app/src/shared/active-lane.ts";
 import { Inbox, type Deck, type InboxMoves } from "../app/src/phone/inbox.tsx";
-import { LaneTitle } from "../app/src/phone/lane-sheet.tsx";
+import { LaneTitle, laneDetails } from "../app/src/phone/lane-sheet.tsx";
+import { clockText } from "../core/attention/lane-times.ts";
 import { EMPTY_DECK, commitCard, deckQueue, laneChoices, otherLanesLine, reconcileDeck } from "../app/src/phone/deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
@@ -127,6 +128,37 @@ describe("the lane sheet", () => {
       ["agent:ada", "ada"],
     ]);
     expect(laneChoices(null, []).map((c) => c.id)).toEqual([""]);
+  });
+  test("the active lane its times made due says until when, and the person's other lanes say when they run", () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      const since = "2026-01-01T00:00:00Z";
+      const weekdays = [1, 2, 3, 4, 5];
+      const scheduledWork: Lane = { ...work, times: [{ days: weekdays, start: "09:00", end: "18:00", since }] };
+      const comms: Lane = {
+        id: "comms",
+        name: "Comms",
+        chats: "all",
+        accounts: [],
+        times: [
+          { days: weekdays, start: "09:00", end: "09:30", since },
+          { days: weekdays, start: "16:00", end: "16:30", since },
+        ],
+      };
+      const reading: Lane = { id: "reading", name: "Reading", chats: ["cy"], accounts: [] };
+      const lanes = [scheduledWork, comms, reading];
+      const tuesday = (h: number, m: number) => new Date(2026, 10, 17, h, m);
+      const details = laneDetails(lanes, "comms", tuesday(16, 10), "en-GB");
+      expect(details.get("comms")).toBe(`Until ${clockText(tuesday(16, 30), "en-GB")}`);
+      expect(details.get("work")).toBe("Weekdays, 9:00–18:00");
+      expect(details.has("reading")).toBe(false);
+      expect(details.has("")).toBe(false);
+      expect(details.has(agentLaneId("ada"))).toBe(false);
+      expect(laneDetails(lanes, "reading", tuesday(16, 10), "en-GB").get("comms")).toBe("Weekdays, 9:00–9:30 and 16:00–16:30");
+    } finally {
+      process.env.TZ = tz;
+    }
   });
   test("picking a lane writes the phone's stored lane and leaves the Mac's alone", () => {
     const m = new Map<string, string>();

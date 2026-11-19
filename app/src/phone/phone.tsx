@@ -54,6 +54,7 @@ import type { ModelEntry } from "../chat/model-picker";
 import { Banner, Button } from "../components";
 import { pageActivity, pageVisibility } from "../shared/page-activity";
 import "./phone.css";
+import { useLaneFollower } from "../shared/lane-follower";
 
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
 
@@ -186,6 +187,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     activity: pageActivity,
     visibility: pageVisibility,
   });
+  useLaneFollower("phone", catchUp.flow);
   const { route, from, arrival } = useRouteState();
   const routeView = screenOf(route);
   const prevView = useRef<string | null>(null);

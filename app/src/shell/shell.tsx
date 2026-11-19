@@ -60,6 +60,7 @@ import type { Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
 import { useShellAttention } from "./use-shell-attention";
+import { useLaneFollower } from "../shared/lane-follower";
 import { MODELS_CHANGED_KEY, openSettingsWindow, SETTINGS_WINDOW } from "./open-settings";
 import { useStorageKey } from "../shared/use-storage-key";
 
@@ -80,6 +81,7 @@ export function Shell() {
     [captureRaw],
   );
   const catchUp = useShellAttention(desk, capture);
+  const laneUntil = useLaneFollower("desktop", catchUp.flow);
   const notice = (m: string) => void notify(m);
   const archivedKey = desk.desks.list
     .filter((d) => d.status === "archived")
@@ -224,7 +226,7 @@ export function Shell() {
   useEffect(() => {
     sessionStorage.setItem(SEGMENT_KEY, segment);
   }, [segment]);
-  useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, recall.due, catchUp.flow.lane?.name ?? null);
+  useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, recall.due, catchUp.flow.lane?.name ?? null, laneUntil);
 
   const linkUp = useEffectEvent(() => {
     desk.desks.request();

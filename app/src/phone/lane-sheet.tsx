@@ -1,7 +1,9 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { ResolvedLane } from "../../../core/attention/lanes.ts";
+import { clockText, timesLabel, untilTime } from "../../../core/attention/lane-times.ts";
+import type { Lane, ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { FlowLane } from "../../../core/attention/use-attention.ts";
 import { Button, Sheet, sentence } from "../components";
+import { useNow } from "../components/use-now";
 import { Icon } from "./icons";
 import { laneChoices } from "./deck";
 
@@ -15,13 +17,26 @@ export function LaneTitle({ lane, onOpen }: { lane: ResolvedLane | null; onOpen:
   );
 }
 
+export function laneDetails(lanes: Lane[], activeId: string, now: Date, locale?: string): Map<string, string> {
+  const until = untilTime(lanes, activeId, now);
+  const details = new Map<string, string>();
+  for (const lane of lanes) {
+    if (until && lane.id === activeId) details.set(lane.id, `Until ${clockText(until, locale)}`);
+    else if (lane.times?.length) details.set(lane.id, timesLabel(lane.times, locale));
+  }
+  return details;
+}
+
 export function LaneSheet({ flow, items, onClose }: { flow: FlowLane; items: AttentionItem[]; onClose: () => void }) {
+  const now = useNow();
+  const details = laneDetails(flow.lanes ?? [], flow.laneId, new Date(now));
   return (
     <Sheet label="Choose a lane" onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-title">Lanes</div>
       <div role="radiogroup" aria-label="Lanes">
         {laneChoices(flow.lanes, items).map((c) => {
           const chosen = c.id === (flow.lane?.id ?? "");
+          const detail = details.get(c.id);
           return (
             <button
               key={c.id}
@@ -34,7 +49,11 @@ export function LaneSheet({ flow, items, onClose }: { flow: FlowLane; items: Att
                 onClose();
               }}
             >
-              <span className="loki-phone-menu-row-label">{sentence(c.name)}</span>
+              <span className="loki-phone-menu-row-label">
+                {sentence(c.name)}
+                {detail && " "}
+                {detail && <span className="loki-phone-meta loki-phone-menu-row-detail">{detail}</span>}
+              </span>
               {chosen && <Icon name="check" size={20} />}
             </button>
           );

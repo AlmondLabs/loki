@@ -8,6 +8,12 @@ describe("the window title", () => {
     expect(windowTitle(desk, "inbox", 1, 0, "Work")).toEqual({ name: "Flow · Work · 1 waiting", document: "Flow · Work · 1 waiting" });
     expect(windowTitle(desk, "inbox", 0, 0, "Work").name).toBe("Flow · Work");
   });
+  test("a lane its times made due says until when, between the lane and the count", () => {
+    expect(windowTitle(desk, "inbox", 3, 0, "Comms", "16:30").name).toBe("Flow · Comms · until 16:30 · 3 waiting");
+    expect(windowTitle(desk, "inbox", 0, 0, "Comms", "4:30 PM").name).toBe("Flow · Comms · until 4:30 PM");
+    expect(windowTitle(desk, "inbox", 3, 0, "Reading", null).name).toBe("Flow · Reading · 3 waiting");
+    expect(windowTitle(desk, "desk", 3, 0, "Comms", "16:30").name).toBe("ira · notes");
+  });
   test("Everything reads as before", () => {
     expect(windowTitle(desk, "inbox", 3, 0, null).name).toBe("Flow · 3 waiting");
     expect(windowTitle(desk, "inbox", 0, 0, null).name).toBe("Flow");

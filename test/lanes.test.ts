@@ -111,4 +111,22 @@ describe("lanes from the wire", () => {
     expect(parseLanes(raw)).toEqual([good]);
     expect(parseLanes({ lanes: [] })).toEqual([]);
   });
+
+  test("a lane keeps its good switching times and fields it does not know, and loses only bad windows", () => {
+    const window = { days: [1, 2, 3, 4, 5], start: "09:00", end: "09:30", since: "2026-11-19T10:00:00.000Z" };
+    const timed = { ...lane({ id: "l7" }), times: [window], later_field: 1 };
+    expect(parseLanes([timed])).toEqual([timed]);
+    const bad = [
+      { ...window, days: [] },
+      { ...window, days: [7] },
+      { ...window, start: "9:00" },
+      { ...window, end: "24:00" },
+      { ...window, end: "09:00" },
+      { ...window, since: "soon" },
+    ];
+    expect(parseLanes([{ ...timed, times: [window, ...bad] }])).toEqual([timed]);
+    const { times: _times, ...untimed } = timed;
+    expect(parseLanes([{ ...timed, times: bad }])).toEqual([untimed]);
+    expect(parseLanes([{ ...timed, times: "weekdays" }])).toEqual([untimed]);
+  });
 });

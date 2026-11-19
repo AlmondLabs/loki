@@ -13,6 +13,7 @@ import { bumpTick, tickOf, waitingCount, type ChatTick, type SuggestionSource } 
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
+import { useReplyHold, useTypedReplyOnCard } from "../shared/reply-hold";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { BADGE, ChatItemHeader, FlowCaughtUp, VisitSummary, cameBackIn, deckKey, liveWaitingCount, type ChatMoves } from "./catch-up-parts";
 import { flowRows, kindPills } from "./flow-column";
@@ -104,6 +105,7 @@ export function FlowPlace(props: FlowPlaceProps) {
   const outsideSource = threadSourceOf(props.chats);
   const compose = useMailCompose(current, composeOutside ? { composeOutside } : null);
   const typing = typingRaw && !!current;
+  useReplyHold(useTypedReplyOnCard(current ? draftKey(current.agent_id, current.id) : null, current ? idOf(current) : null));
   const leaveBox = () => replyRef.current?.blur();
   const deck: DeckProps = {
     ...props,

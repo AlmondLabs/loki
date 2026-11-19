@@ -262,8 +262,9 @@ describe("a card answered elsewhere (R11)", () => {
 
 describe("analytics", () => {
   test("a lane switch reports the kind of lane, and the agent for an agent lane", () => {
-    expect(laneEvent("")).toEqual({ kind: "everything", agent: null });
-    expect(laneEvent(WORK.id)).toEqual({ kind: "own", agent: null });
-    expect(laneEvent(agentLane([work], "ag-work").id)).toEqual({ kind: "agent", agent: "ag-work" });
+    expect(laneEvent("")).toEqual({ kind: "everything", agent: null, by: "hand" });
+    expect(laneEvent(WORK.id)).toEqual({ kind: "own", agent: null, by: "hand" });
+    expect(laneEvent(agentLane([work], "ag-work").id)).toEqual({ kind: "agent", agent: "ag-work", by: "hand" });
+    expect(laneEvent(WORK.id, "schedule")).toEqual({ kind: "own", agent: null, by: "schedule" });
   });
 });

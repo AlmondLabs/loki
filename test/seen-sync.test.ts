@@ -102,6 +102,26 @@ describe("later rests and return times on two Macs (plan 070, U4)", () => {
 describe("lanes on two Macs (plan 087, U3)", () => {
   const work: Lane = { id: "l-work", name: "Work", chats: ["agent-ira"], accounts: ["gmail:me@work.example"] };
   const home: Lane = { id: "l-home", name: "Home", chats: [], accounts: "all" };
+  const comms: Lane = {
+    id: "l-comms",
+    name: "Comms",
+    chats: [],
+    accounts: "all",
+    times: [{ days: [1, 2, 3, 4, 5], start: "09:00", end: "09:30", since: "2026-11-19T10:00:00.000Z" }],
+  };
+
+  test("a lane's switching times reach the other Mac with it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
+    try {
+      const mini = marks(dir, "mini");
+      const book = marks(dir, "book");
+      mini.store.setLanes([comms]);
+      book.store.applyRemote(MINI, mini.store.snapshot());
+      expect(book.store.lanes()).toEqual([comms]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
   test("lanes set on one Mac reach the other through its marks", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));

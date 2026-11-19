@@ -31,6 +31,7 @@ import { Avatar, SkeletonCard } from "./rows";
 import { useMessageActions } from "./use-message-actions";
 import { draftKey, useDraft } from "../shared/drafts";
 import { useOutsideReply } from "../shared/outside-replies";
+import { useReplyHold } from "../shared/reply-hold";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
@@ -488,7 +489,9 @@ export function Inbox({
   const [typedId, setTypedId] = useState<string | null>(null);
   const [keptReply] = useOutsideReply(current?.outside ? currentId : null);
   const [chatDraft] = useDraft(current && !current.outside ? draftKey(current.agent_id, current.id) : null);
-  const typed = !!currentId && (typedId === currentId || !!keptReply.trim() || !!chatDraft.text.trim() || chatDraft.images.length > 0);
+  const typedHere = !!currentId && (typedId === currentId || !!keptReply.trim());
+  const typed = typedHere || (!!currentId && (!!chatDraft.text.trim() || chatDraft.images.length > 0));
+  useReplyHold(typedHere);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = !!currentId && sendingId === currentId;
   const [seedsTaken, setSeedsTaken] = useState<SeedsTaken>({ card: null, taken: [] });

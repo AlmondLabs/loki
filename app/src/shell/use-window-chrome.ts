@@ -9,11 +9,12 @@ export function windowTitle(
   waiting: number,
   dueCards = 0,
   laneName: string | null = null,
+  until: string | null = null,
 ): { name: string; document: string } {
   const deskName = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
   const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
   const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
-  const flow = ["Flow", ...(laneName ? [laneName] : []), ...(waiting > 0 ? [`${waiting} waiting`] : [])].join(" · ");
+  const flow = ["Flow", ...(laneName ? [laneName] : []), ...(until ? [`until ${until}`] : []), ...(waiting > 0 ? [`${waiting} waiting`] : [])].join(" · ");
   const name =
     segment === "inbox"
       ? flow
@@ -40,8 +41,9 @@ export function useWindowTitle(
   waiting: number,
   dueCards = 0,
   laneName: string | null = null,
+  until: string | null = null,
 ): void {
-  const { name, document: tabTitle } = windowTitle(desk, segment, waiting, dueCards, laneName);
+  const { name, document: tabTitle } = windowTitle(desk, segment, waiting, dueCards, laneName, until);
   useEffect(() => {
     document.title = tabTitle;
     if (inTauri)

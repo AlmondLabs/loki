@@ -1038,6 +1038,26 @@ lane you are in; switch back to undo one made elsewhere. A mail or Slack reply y
 so it is still there when its card comes back. Proposed replies and suggestions belong to the owning agent's chat card,
 so a lane shows them through its chats, not through an account.
 
+**Switching times.** A lane can switch on by itself at times you set, the way a Focus does. In its sheet, under
+Schedule, **Add Time** adds a window: the weekdays it runs on, a start and an end (an end before the start runs past
+midnight, so 19:00–01:00 on Fridays covers early Saturday). A lane can have several windows, and its row in Preferences
+shows them ("Weekdays, 9:00–9:30 and 16:00–16:30"). When a window starts, every Mac and the phone move into its lane;
+when it ends, they move into whatever lane's window still covers that moment, or Everything. When windows overlap, the
+one that started last wins, so a Comms block from 16:00 to 16:30 inside a Work day from 9:00 to 18:00 switches to Comms
+at 16:00 and back to Work at 16:30; if they start together, the one that ends sooner wins. Each device goes by its own
+clock and time zone.
+
+A lane you pick by hand stays until the next start or end of any window; then the times take over again. A device that
+was closed or asleep catches up when it opens: the phone opened at 19:40 lands in the lane due then, unless you switched
+it by hand since. While you are typing a reply on the card in front of you, a switch waits until you send it, leave
+the card or empty the reply. Saving times never switches anything by itself: a window you add takes effect at its next
+start or end. While a device is in a lane because of its times, the phone's lane sheet says until when ("Until 16:30", once that is less than a day away)
+and shows the other lanes' times; on the Mac only the window's name in Mission Control and the Window menu says it.
+Agents' own lanes and Everything have no times.
+
+Set times only once every paired Mac runs this version: a Mac on an older loki that edits a lane saves it without its
+times, and that edit reaches every device.
+
 ### The order
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
