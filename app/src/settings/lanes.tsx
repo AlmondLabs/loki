@@ -1,8 +1,9 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import type { Lane, LaneSide } from "../../../core/attention/lanes.ts";
+import { timesLabel } from "../../../core/attention/lane-times.ts";
+import type { Lane, LaneSide, LaneWindow } from "../../../core/attention/lanes.ts";
 import type { AccountProvider, AccountView } from "../../../core/frame-types.ts";
 import type { MacAccountView } from "../../../core/frames.ts";
-import { Button, Field, Sheet } from "../components";
+import { Button, Chip, Field, Sheet } from "../components";
 import type { AgentName } from "./accounts";
 import { Block, Segmented, Setting } from "./layout";
 
@@ -20,6 +21,7 @@ export interface LanesProps {
   accounts: LaneAccountsApi;
   agents: readonly AgentName[];
   newId?: () => string;
+  now?: () => Date;
 }
 
 export type SideChoice = "all" | "pick" | "none";
@@ -31,6 +33,19 @@ export interface LaneDraft {
   chatIds: string[];
   accounts: SideChoice;
   accountIds: string[];
+  times: TimeDraft[];
+}
+
+export interface TimeDraft {
+  days: number[];
+  start: string;
+  end: string;
+  was: LaneWindow | null;
+}
+
+export interface LaneRefusal {
+  message: string;
+  time: number | null;
 }
 
 export interface LaneAccount {
@@ -47,6 +62,10 @@ const SIDE_CHOICES: readonly SideChoice[] = ["all", "pick", "none"];
 
 const POLL_MS = 3000;
 
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+const WEEKDAY_NAME = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+const dayName = (day: number) => WEEKDAY_NAME.format(new Date(2023, 0, 1 + day));
+
 const newLaneId = () => `lane-${crypto.randomUUID()}`;
 
 const choiceOf = (side: LaneSide): SideChoice => (side === "all" ? "all" : side.length ? "pick" : "none");
@@ -60,19 +79,44 @@ export function draftOf(lane: Lane): LaneDraft {
     chatIds: lane.chats === "all" ? [] : [...lane.chats],
     accounts: choiceOf(lane.accounts),
     accountIds: lane.accounts === "all" ? [] : [...lane.accounts],
+    times: (lane.times ?? []).map((w) => ({ days: [...w.days], start: w.start, end: w.end, was: w })),
   };
 }
 
 export function newDraft(id: string): LaneDraft {
-  return { id, name: "", chats: "pick", chatIds: [], accounts: "pick", accountIds: [] };
+  return { id, name: "", chats: "pick", chatIds: [], accounts: "pick", accountIds: [], times: [] };
 }
 
-export function saveLane(lanes: readonly Lane[], draft: LaneDraft): Lane[] | string {
+export function withNewTime(draft: LaneDraft): LaneDraft {
+  return { ...draft, times: [...draft.times, { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", was: null }] };
+}
+
+const sameDays = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((d) => b.includes(d));
+
+function savedTime(t: TimeDraft, since: string): LaneWindow {
+  const days = [...new Set(t.days)].sort((a, b) => a - b);
+  if (t.was && sameDays(t.was.days, days) && t.was.start === t.start && t.was.end === t.end) return t.was;
+  return { ...t.was, days, start: t.start, end: t.end, since };
+}
+
+export function saveLane(lanes: readonly Lane[], draft: LaneDraft, now: Date): Lane[] | LaneRefusal {
   const name = draft.name.trim();
-  if (!name) return "A lane needs a name";
+  if (!name) return { message: "A lane needs a name", time: null };
   const other = lanes.find((l) => l.id !== draft.id && l.name.trim().toLowerCase() === name.toLowerCase());
-  if (other) return `Another lane is called ${other.name}`;
-  const lane: Lane = { id: draft.id, name, chats: sideOf(draft.chats, draft.chatIds), accounts: sideOf(draft.accounts, draft.accountIds) };
+  if (other) return { message: `Another lane is called ${other.name}`, time: null };
+  const bad = draft.times.findIndex((t) => t.days.length === 0 || t.start === t.end);
+  if (bad >= 0) return { message: draft.times[bad].days.length === 0 ? "Pick at least one day" : "Start and end must differ", time: bad };
+  const { times: _was, ...opened }: Partial<Lane> = lanes.find((l) => l.id === draft.id) ?? {};
+  const since = now.toISOString();
+  const times = draft.times.map((t) => savedTime(t, since));
+  const lane: Lane = {
+    ...opened,
+    id: draft.id,
+    name,
+    chats: sideOf(draft.chats, draft.chatIds),
+    accounts: sideOf(draft.accounts, draft.accountIds),
+    ...(times.length > 0 ? { times } : {}),
+  };
   return lanes.some((l) => l.id === draft.id) ? lanes.map((l) => (l.id === draft.id ? lane : l)) : [...lanes, lane];
 }
 
@@ -125,12 +169,13 @@ export function laneSummary(lane: Lane, agents: readonly AgentName[]): string {
   return `${chats}, ${mail}`;
 }
 
-export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: LanesProps) {
+export function Lanes({ lanes: api, accounts, agents, newId = newLaneId, now = () => new Date() }: LanesProps) {
   const [draft, setDraft] = useState<LaneDraft | null>(null);
   const choices = useLaneAccounts(accounts, agents, draft !== null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LaneRefusal | null>(null);
   const { lanes, set } = api;
-  const help = "A lane shows Flow only some agents' chats and some accounts' mail and Slack, and you switch lanes from Flow's title.";
+  const help =
+    "A lane shows Flow only some agents' chats and some accounts' mail and Slack; you switch lanes from the sidebar under Flow on a Mac and from Flow's title on the phone.";
   if (!lanes)
     return (
       <Block title="Lanes" help={help}>
@@ -146,8 +191,8 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
     setError(null);
   };
   const save = (d: LaneDraft) => {
-    const next = saveLane(lanes, d);
-    if (typeof next === "string") return setError(next);
+    const next = saveLane(lanes, d, now());
+    if (!Array.isArray(next)) return setError(next);
     set(next);
     close();
   };
@@ -156,7 +201,20 @@ export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: Lanes
     <Block title="Lanes" help={help}>
       {lanes.length === 0 && <Setting label="No lanes yet" help="Flow shows all your work until you add one." />}
       {lanes.map((l) => (
-        <Setting key={l.id} label={l.name} help={laneSummary(l, agents)}>
+        <Setting
+          key={l.id}
+          label={l.name}
+          help={
+            l.times?.length ? (
+              <>
+                <div>{laneSummary(l, agents)}</div>
+                <div>{timesLabel(l.times)}</div>
+              </>
+            ) : (
+              laneSummary(l, agents)
+            )
+          }
+        >
           <Button size="sm" aria-label={`Edit ${l.name}`} onClick={() => open(draftOf(l))}>
             Edit…
           </Button>
@@ -209,7 +267,7 @@ export function LaneEditor({
   lanes: readonly Lane[];
   agents: readonly AgentName[];
   accounts: LaneAccount[] | string | null;
-  error: string | null;
+  error: LaneRefusal | null;
   onDraft: (d: LaneDraft) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -218,6 +276,8 @@ export function LaneEditor({
   const [confirm, setConfirm] = useState(false);
   const saved = lanes.find((l) => l.id === draft.id)?.name;
   const title = saved ?? "the new lane";
+  const nameError = error?.time === null ? error.message : null;
+  const setTime = (i: number, change: Partial<TimeDraft>) => onDraft({ ...draft, times: draft.times.map((t, j) => (j === i ? { ...t, ...change } : t)) });
   return (
     <form
       aria-label={saved ? `Edit ${saved}` : "New lane"}
@@ -236,12 +296,12 @@ export function LaneEditor({
         placeholder="Name, like Work"
         autoComplete="off"
         value={draft.name}
-        aria-invalid={error ? true : undefined}
+        aria-invalid={nameError ? true : undefined}
         onChange={(e) => onDraft({ ...draft, name: e.target.value })}
       />
-      {error && (
+      {nameError && (
         <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
-          {error}
+          {nameError}
         </div>
       )}
       <div className="loki-settings-block">
@@ -291,6 +351,24 @@ export function LaneEditor({
             />
           ))}
       </div>
+      <div className="loki-settings-block">
+        <Setting label="Schedule" help="Every Mac and your phone switch to this lane at these times. Saving doesn't switch now; the next start or end does." />
+        {draft.times.map((t, i) => (
+          <TimeRow
+            key={i}
+            n={i + 1}
+            time={t}
+            error={error?.time === i ? error.message : null}
+            onChange={(change) => setTime(i, change)}
+            onRemove={() => onDraft({ ...draft, times: draft.times.filter((_, j) => j !== i) })}
+          />
+        ))}
+        <div className="flex justify-end" style={{ padding: "12px 0" }}>
+          <Button size="sm" onClick={() => onDraft(withNewTime(draft))}>
+            Add Time
+          </Button>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2" style={{ paddingTop: 4 }}>
         {onDelete &&
           (confirm ? (
@@ -316,6 +394,62 @@ export function LaneEditor({
         </Button>
       </div>
     </form>
+  );
+}
+
+function TimeRow({
+  n,
+  time,
+  error,
+  onChange,
+  onRemove,
+}: {
+  n: number;
+  time: TimeDraft;
+  error: string | null;
+  onChange: (change: Partial<TimeDraft>) => void;
+  onRemove: () => void;
+}) {
+  const clock = (which: "start" | "end", label: string) => (
+    <Field
+      size="sm"
+      type="time"
+      aria-label={`${label} of time ${n}`}
+      value={time[which]}
+      style={{ width: "auto" }}
+      onChange={(e) => {
+        const value = e.target.value;
+        if (value) onChange(which === "start" ? { start: value } : { end: value });
+      }}
+    />
+  );
+  return (
+    <div className="grid gap-2" style={{ padding: "12px 0" }}>
+      <div role="group" aria-label={`Days of time ${n}`} className="flex flex-wrap gap-1">
+        {MONDAY_FIRST.map((d) => {
+          const on = time.days.includes(d);
+          return (
+            <Chip key={d} active={on} aria-pressed={on} onClick={() => onChange({ days: on ? time.days.filter((x) => x !== d) : [...time.days, d] })}>
+              {dayName(d)}
+            </Chip>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2">
+        {clock("start", "Start")}
+        <span className="loki-meta">to</span>
+        {clock("end", "End")}
+        <span className="flex-1" />
+        <Button size="sm" aria-label={`Remove time ${n}`} onClick={onRemove}>
+          Remove
+        </Button>
+      </div>
+      {error && (
+        <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
+          {error}
+        </div>
+      )}
+    </div>
   );
 }
 

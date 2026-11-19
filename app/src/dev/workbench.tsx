@@ -322,7 +322,7 @@ export function Workbench() {
 
         <Section
           title="Preferences › Flow: lanes"
-          note="A row per lane with what it shows and Edit…, then Add Lane…; the editor is a sheet (plan 2026-11-15-2359)."
+          note="A row per lane with what it shows, its times on a second line, and Edit…, then Add Lane…; the editor is a sheet with the lane's times (plan 2026-11-15-2359, plan 2026-11-19-1851)."
         >
           <div className="max-w-2xl">
             <LanesBench />
@@ -401,6 +401,16 @@ const LANE_AGENTS = [
 
 const LANES: Lane[] = [
   { id: "lane-work", name: "Work", chats: ["agent-work", "agent-ops"], accounts: ["gmail:ada@example.com"] },
+  {
+    id: "lane-comms",
+    name: "Comms",
+    chats: [],
+    accounts: ["gmail:ada@example.com", "slack:acme"],
+    times: [
+      { days: [1, 2, 3, 4, 5], start: "09:00", end: "09:30", since: "2026-11-01T09:00:00.000Z" },
+      { days: [1, 2, 3, 4, 5], start: "16:00", end: "16:30", since: "2026-11-01T09:00:00.000Z" },
+    ],
+  },
   { id: "lane-home", name: "Home", chats: ["agent-home", "agent-elsewhere"], accounts: "all" },
 ];
 
