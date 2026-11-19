@@ -6,9 +6,14 @@ use std::sync::Mutex;
 
 #[derive(Default)]
 pub struct Harness {
-    slot: Mutex<Option<Running>>,
-    stopped: std::sync::atomic::AtomicBool,
-    stops: std::sync::atomic::AtomicU64,
+    slot: Mutex<Slot>,
+}
+
+#[derive(Default)]
+struct Slot {
+    running: Option<Running>,
+    stops: u64,
+    stopped: bool,
 }
 
 pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
@@ -98,16 +103,19 @@ impl Harness {
     }
 
     pub fn exited(&self) -> Option<std::process::ExitStatus> {
-        self.slot.lock().ok()?.as_mut()?.child.try_wait().ok()?
+        self.slot.lock().ok()?.running.as_mut()?.child.try_wait().ok()?
     }
 
     pub fn was_stopped(&self) -> bool {
-        self.stopped.load(std::sync::atomic::Ordering::SeqCst)
+        self.slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).stopped
+    }
+
+    fn lock(&self) -> Result<std::sync::MutexGuard<'_, Slot>, String> {
+        self.slot.lock().map_err(|_| "the harness slot is poisoned".to_string())
     }
 
     fn spawn(&self, mut cmd: Command, log: &Path) -> Result<(), String> {
-        use std::sync::atomic::Ordering::SeqCst;
-        let stops = self.stops.load(SeqCst);
+        let stops = self.lock()?.stops;
         if let Some(dir) = log.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
@@ -135,16 +143,15 @@ impl Harness {
     }
 
     fn install(&self, running: Running, stops: u64, name: &str) -> Result<(), String> {
-        use std::sync::atomic::Ordering::SeqCst;
         let previous = {
-            let mut g = self.slot.lock().map_err(|_| "the harness slot is poisoned".to_string())?;
-            if self.stops.load(SeqCst) != stops {
+            let mut g = self.lock()?;
+            if g.stops != stops {
                 drop(g);
                 terminate(running);
                 return Err(format!("{name} was stopped while it started"));
             }
-            self.stopped.store(false, SeqCst);
-            g.replace(running)
+            g.stopped = false;
+            g.running.replace(running)
         };
         if let Some(old) = previous {
             terminate(old);
@@ -153,11 +160,10 @@ impl Harness {
     }
 
     pub fn stop(&self) {
-        use std::sync::atomic::Ordering::SeqCst;
         let running = self.slot.lock().ok().and_then(|mut g| {
-            self.stopped.store(true, SeqCst);
-            self.stops.fetch_add(1, SeqCst);
-            g.take()
+            g.stopped = true;
+            g.stops += 1;
+            g.running.take()
         });
         if let Some(running) = running {
             terminate(running);
@@ -459,7 +465,7 @@ mod tests {
     #[test]
     fn a_start_that_a_stop_overtook_ends_its_child_instead_of_keeping_it() {
         let h = Harness::default();
-        let seen = h.stops.load(std::sync::atomic::Ordering::SeqCst);
+        let seen = h.slot.lock().unwrap().stops;
         h.stop();
         let child = Command::new("sleep").arg("30").spawn().unwrap();
         let pid = child.id() as libc::pid_t;
@@ -467,6 +473,23 @@ mod tests {
         assert!(h.was_stopped(), "the stop still holds: the supervisor leaves it down");
         assert!(h.exited().is_none(), "nothing kept in the slot");
         assert_eq!(unsafe { libc::kill(pid, 0) }, -1, "the child is gone");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_start_after_a_stop_clears_the_mark_so_the_supervisor_watches_it_again() {
+        let dir = std::env::temp_dir().join(format!("loki-harness-restart-{}", std::process::id()));
+        let h = Harness::default();
+        h.stop();
+        assert!(h.was_stopped());
+        let mut sleeper = Command::new("sleep");
+        sleeper.arg("30");
+        h.spawn(sleeper, &dir.join("sleep.log")).unwrap();
+        assert!(!h.was_stopped(), "the new start clears the stop");
+        assert!(h.exited().is_none(), "the child is running");
+        h.stop();
+        assert!(h.was_stopped());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
