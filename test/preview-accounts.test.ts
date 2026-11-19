@@ -6,7 +6,8 @@ import { memorySecrets } from "../daemon/credentials.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { AccountWatcher, type AccountSync } from "../mod/account-watcher.ts";
 import { Accounts } from "../mod/accounts.ts";
-import { OutsideThreads, previewAccounts, recordOnlyMail, recordOnlySource, recordThreadText } from "../mod/outside-threads.ts";
+import { OutsideThreads } from "../mod/outside-threads.ts";
+import { previewAccounts, previewWiring } from "../mod/preview-accounts.ts";
 import { SEED_OUTSIDE, seedOutsideFiles } from "../scripts/phone-preview.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -74,23 +75,17 @@ describe("the phone preview's Gmail, Slack and Jira cards (plan 2026-11-19-2250,
     const fetch = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetch);
     const { accounts, threads } = seededState();
-    const watcher = new AccountWatcher({ accounts, factories: {} });
+    const wiring = previewWiring(threads);
+    const watcher = new AccountWatcher({ accounts, factories: wiring.factories });
     watcher.start();
     await watcher.tick();
     await flush();
     watcher.stop();
     expect(accounts.list().every((a) => a.status === "connected")).toBe(true);
 
-    for (const provider of ["gmail", "slack", "jira"] as const) threads.register(provider, recordOnlySource());
-    const text = recordThreadText(threads);
-    const outside = new OutsideThreads({
-      accounts,
-      threads,
-      threadText: { gmail: text, slack: text, jira: text },
-      clientFor: () => {
-        throw new Error("a preview account has no client");
-      },
-    });
+    const sources = wiring.sources(watcher);
+    for (const provider of ["gmail", "slack", "jira"] as const) threads.register(provider, sources[provider]);
+    const outside = new OutsideThreads({ accounts, threads, threadText: wiring.threadText, cardView: wiring.cardView, clientFor: wiring.clientFor });
     for (const s of SEED_OUTSIDE) {
       const read = await outside.read(s.account_id, s.thread.thread_id);
       expect(read.messages.map((m) => [m.sender, m.text])).toEqual(s.thread.lines.map((l) => [s.thread.sender, l]));
@@ -109,10 +104,17 @@ describe("the phone preview's Gmail, Slack and Jira cards (plan 2026-11-19-2250,
   });
 });
 
-describe("the preview's mail", () => {
-  test("opening a Gmail card asks nothing of Google, so the account never reads as signed out", async () => {
-    const mail = recordOnlyMail();
-    await expect(mail.sendAs()).rejects.toThrow(/the preview sends and reads no mail/);
-    await expect(mail.getThread("t1", "metadata")).rejects.toThrow(/no mail/);
+describe("the preview's clients", () => {
+  test("a preview card sends nothing anywhere: Gmail, Slack and Jira each refuse, so no account reads as signed out", async () => {
+    const { accounts, threads } = seededState();
+    const wiring = previewWiring(threads);
+    const clients = accounts.list().map((a) => wiring.clientFor(a));
+    expect(clients.map((c) => c.provider).sort()).toEqual(["gmail", "jira", "slack"]);
+    for (const c of clients) {
+      if (c.provider === "gmail") await expect(c.client.sendAs()).rejects.toThrow(/the preview sends and reads no mail/);
+      if (c.provider === "slack") await expect(c.client.emojiList()).rejects.toThrow(/no Slack/);
+      if (c.provider === "jira") await expect(c.client.postComment("OPS-1", "hi")).rejects.toThrow(/no Jira/);
+    }
+    expect(accounts.list().every((a) => a.status === "connected")).toBe(true);
   });
 });
