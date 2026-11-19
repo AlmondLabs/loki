@@ -47,6 +47,14 @@ then the macOS queue at p95.
    budgets sit about 1.5 times above today's slowest run: lint (target 5s, 23–25s: oxlint's type-aware rules take 15s on
    GitHub's 4-core runners) and the suite on Windows (target 60s, 53–63s).
 
+8. **Install and scripts: bun.** bun installs `node_modules` and runs package.json's scripts; every script still runs
+   on Node, which loki ships on (loki left Bun as a runtime in October 2026, for the tests running the mod on a runtime
+   users never have). Side by side on this repository, from empty caches: `npm ci` 25.9s cold, 6.1s warm; `bun install`
+   16.0s cold, 1.4s warm (Apple silicon). bun's tree has the same packages at the same versions, but for five
+   WebAssembly fallbacks npm installs on every system (`@napi-rs/wasm-runtime`, `@emnapi/*`, `@tybys/wasm-util`) and one
+   duplicate `ansi-regex` it folds into the newer copy; every check passes on it. It runs the install scripts of trusted
+   packages only: of this tree's, it skips @google/genai's (a no-op echo) and protobufjs's (a version warning).
+
 Moving runners off GitHub's hosted ones, the merge queue's ruleset and anything else that needs an account, a secret
 or a bill are listed for the owner rather than done here.
 

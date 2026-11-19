@@ -80,7 +80,7 @@ end
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [owner, version, sha256, channel = "stable"] = process.argv.slice(2);
   if (!owner || !version || !sha256 || (channel !== "stable" && channel !== "nightly")) {
-    console.error("usage: npm run cask -- <owner> <version> <sha256> [stable|nightly]");
+    console.error("usage: bun run cask <owner> <version> <sha256> [stable|nightly]");
     process.exit(2);
   }
   process.stdout.write(renderCask({ owner, version, sha256, channel }));

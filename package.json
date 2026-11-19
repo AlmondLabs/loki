@@ -98,5 +98,6 @@
   },
   "engines": {
     "node": ">=22.19"
-  }
+  },
+  "packageManager": "bun@1.4.4"
 }

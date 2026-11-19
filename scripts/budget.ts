@@ -14,19 +14,19 @@ export type Os = "Linux" | "macOS" | "Windows";
  * noted: oxlint's type-aware rules take 15s on GitHub's 4-core runners, and Windows runs the suite in about 60s.
  */
 export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
-  "npm run format:check": { Linux: 5 },
-  "npm run typecheck": { Linux: 5 },
+  "bun run format:check": { Linux: 5 },
+  "bun run typecheck": { Linux: 5 },
   // Target 5s; 23–25s today.
-  "npm run lint": { Linux: 40 },
+  "bun run lint": { Linux: 40 },
   // Target 60s; Windows takes 53–63s today.
-  "npm test": { Linux: 60, macOS: 60, Windows: 90 },
-  "npm run test:pr": { Linux: 60, macOS: 60, Windows: 90 },
-  "npm run test:node": { Linux: 30, macOS: 30, Windows: 30 },
-  "npm run build:app": { Linux: 60 },
-  "npm run build:site": { Linux: 20 },
-  "npm run build:mod": { Linux: 10, macOS: 10, Windows: 10 },
-  "npm run smoke": { Linux: 30, macOS: 30, Windows: 30 },
-  // From the install action's start to node_modules in place, on a cache hit. A miss runs npm ci, which a PR that
+  "bun run test": { Linux: 60, macOS: 60, Windows: 90 },
+  "bun run test:pr": { Linux: 60, macOS: 60, Windows: 90 },
+  "bun run test:node": { Linux: 30, macOS: 30, Windows: 30 },
+  "bun run build:app": { Linux: 60 },
+  "bun run build:site": { Linux: 20 },
+  "bun run build:mod": { Linux: 10, macOS: 10, Windows: 10 },
+  "bun run smoke": { Linux: 30, macOS: 30, Windows: 30 },
+  // From the install action's start to node_modules in place, on a cache hit. A miss runs bun install, which a PR that
   // changes the dependencies needs, so it has no budget. Target 30s; Windows takes 16–26s today.
   install: { Linux: 30, macOS: 30, Windows: 40 },
 };

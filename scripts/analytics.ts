@@ -6,7 +6,7 @@ const args = process.argv.slice(2);
 const at = args.indexOf("--days");
 const days = at >= 0 ? Number(args[at + 1]) : 30;
 if (!Number.isFinite(days) || days <= 0) {
-  console.error("usage: npm run analytics -- [--days N]");
+  console.error("usage: bun run analytics [--days N]");
   process.exit(2);
 }
 const path = process.env.LOKI_EVENTS_PATH ?? paths.events;

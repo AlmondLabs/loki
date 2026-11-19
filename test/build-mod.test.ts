@@ -27,7 +27,7 @@ describe("the release bundle's build", () => {
     expect(readFileSync(new URL("../daemon/scripts.ts", import.meta.url), "utf8")).toContain('new URL("./codemode-worker.mjs", import.meta.url)');
   });
 
-  // quickjs-wasi and the keyring's prebuilt binary are dependencies of dependencies: npm puts them at the top of
+  // quickjs-wasi and the keyring's prebuilt binary are dependencies of dependencies: bun and npm put them at the top of
   test("finds a dependency's own dependencies from that dependency, so a pnpm install builds too", () => {
     expect(src).toContain('packageDir("quickjs-wasi", codemode)');
     expect(src).toContain("findPackageDir(name, keyring)");

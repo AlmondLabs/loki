@@ -26,11 +26,15 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REQUESTED_KIND: ${{ inputs.kind }}
-        run: npm run release -- plan
+        run: bun run release plan
 
   version:
     name: the version (${{ needs.plan.outputs.kind }})
@@ -53,6 +57,10 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - name: decide the version
         id: version
         env:
@@ -61,9 +69,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$KIND" = nightly ]; then
-            VERSION="$(npm run --silent release -- version nightly "$GITHUB_RUN_NUMBER")"
+            VERSION="$(bun run --silent release version nightly "$GITHUB_RUN_NUMBER")"
           else
-            VERSION="$(npm run --silent release -- version stable "$GITHUB_SHA")"
+            VERSION="$(bun run --silent release version stable "$GITHUB_SHA")"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "this run is $KIND $VERSION"
@@ -72,12 +80,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: npm run release -- draft "$VERSION"
+        run: bun run release draft "$VERSION"
       - name: the notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: npm run --silent release -- notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"
+        run: bun run --silent release notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
   macos:
     name: build macOS (${{ needs.version.outputs.version }})
@@ -93,12 +101,15 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          # npm ci runs every dependency's install script next: none of them finds a token in .git/config.
+          # bun install runs the install scripts it trusts next: none of them finds a token in .git/config.
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-          cache: npm
+      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: aarch64-apple-darwin
@@ -108,11 +119,11 @@ jobs:
           # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
           # repository's 10 GB, leaving the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: npm ci
+      - run: bun install --frozen-lockfile
       - name: stamp the version
-        run: npm run release -- set "$VERSION"
+        run: bun run release set "$VERSION"
       - name: smoke-test the bundle
-        run: npm run build:mod && npm run smoke
+        run: bun run build:mod && bun run smoke
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
       # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
       # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
@@ -137,6 +148,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          tauriScript: bun run tauri
           args: --target aarch64-apple-darwin
       - name: drop the signing secrets
         run: |
@@ -173,12 +185,15 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          # npm ci runs every dependency's install script next: none of them finds a token in .git/config.
+          # bun install runs the install scripts it trusts next: none of them finds a token in .git/config.
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-          cache: npm
+      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -186,13 +201,13 @@ jobs:
           # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
           # repository's 10 GB, leaving the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: npm ci
+      - run: bun install --frozen-lockfile
       - name: stamp the version
-        run: npm run release -- set "$VERSION"
+        run: bun run release set "$VERSION"
       - name: smoke-test the bundle
-        run: npm run build:mod && npm run smoke
+        run: bun run build:mod && bun run smoke
       - name: build the installer
-        run: npm run tauri -- build --bundles nsis
+        run: bun run tauri build --bundles nsis
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -222,7 +237,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          # npm ci runs every dependency's install script next: none of them finds a token in .git/config.
+          # bun install runs the install scripts it trusts next: none of them finds a token in .git/config.
           persist-credentials: false
       - name: linux build packages
         run: |
@@ -233,7 +248,10 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-          cache: npm
+      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -241,13 +259,13 @@ jobs:
           # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
           # repository's 10 GB, leaving the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: npm ci
+      - run: bun install --frozen-lockfile
       - name: stamp the version
-        run: npm run release -- set "$VERSION"
+        run: bun run release set "$VERSION"
       - name: smoke-test the bundle
-        run: npm run build:mod && npm run smoke
+        run: bun run build:mod && bun run smoke
       - name: build the AppImage and .deb
-        run: npm run tauri -- build --bundles appimage,deb --verbose
+        run: bun run tauri build --bundles appimage,deb --verbose
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -287,6 +305,10 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: dist
@@ -295,14 +317,14 @@ jobs:
         id: publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release -- publish "$KIND" "$VERSION" dist
+        run: bun run release publish "$KIND" "$VERSION" dist
       - name: render the cask
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           SHA="$(sha256sum "${{ steps.publish.outputs.dmg }}" | cut -d' ' -f1)"
-          npm run --silent cask -- "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
+          bun run --silent cask "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
           cat cask.rb
           TAG="$([ "$KIND" = stable ] && echo "v$VERSION" || echo nightly)"
           gh release upload "$TAG" cask.rb --repo "$GITHUB_REPOSITORY" --clobber
@@ -331,4 +353,4 @@ jobs:
         if: env.KIND == 'nightly'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release -- prune-nightly "$VERSION"
+        run: bun run release prune-nightly "$VERSION"

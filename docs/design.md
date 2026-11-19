@@ -155,7 +155,7 @@ result. Each tool row keeps its input and output (capped at `TOOL_TEXT_MAX`, 4,0
 `core/harness.ts`) and whether it failed. The live stream carries them; a history page travels lean, without a tool
 row's input and output (`core/attention/transcript.ts`), and the row fetches them when it opens.
 
-`test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
+`test/tokens.test.ts` fails `bun run test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines). The radius check
 allows the scale: 2, 4, 6, 8, 12, 16, 24 and 999; the shadow check covers
 inline `boxShadow` only. Padding, margins and gaps stay on the spacing scale, in the desktop stylesheets, inline and in a

@@ -126,7 +126,7 @@ async function agents(sock: Awaited<ReturnType<typeof connect>>) {
 }
 
 async function main(): Promise<void> {
-  for (const f of [daemonEntry, modEntry]) if (!existsSync(f)) throw new Error(`${f} is missing: run npm run build:mod first`);
+  for (const f of [daemonEntry, modEntry]) if (!existsSync(f)) throw new Error(`${f} is missing: run bun run build:mod first`);
   const home = mkdtempSync(join(tmpdir(), "loki-smoke-"));
   console.log(`smoke: the bundle in ${resources}, home ${home}`);
   let daemon: Daemon | null = null;

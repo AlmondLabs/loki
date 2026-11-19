@@ -117,7 +117,7 @@ describe("static app", () => {
     const res = await fetch(`${empty.base}/`);
     expect(res.status).toBe(503);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("npm run build:app");
+    expect(await res.text()).toContain("bun run build:app");
     expect((await fetch(`${empty.base}/assets/x.js`)).status).toBe(503);
   });
 });

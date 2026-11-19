@@ -52,7 +52,7 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to `~/.loki/logs/daemon.log`. A
    checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it reloads the mod when `mod/` or
    `core/` changes, and a change to `daemon/` or `core/` makes a restart due (`restart_due`), which the window offers;
-   `daemon_restart` stops it cleanly for the supervisor to start again. Under `npm start`, which runs the built page, a
+   `daemon_restart` stops it cleanly for the supervisor to start again. Under `bun run start`, which runs the built page, a
    change to `app/` or `core/` also makes a build due (`daemon/page-build.ts`).
 2. **A daemon that dies is started again, with backoff.** The supervisor (`supervise_daemon` in `lib.rs`) waits one
    second, doubling with each exit in the last minute, never more than thirty. A daemon that crashes at start
@@ -145,7 +145,7 @@ every chat gets, the chats, then the mods.
    crash never asks twice. `user_ask` shows a question card the same way. A script's own calls ask only in strict
    mode, and a call of a tool scripts may not call is blocked in every mode.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`, with `read` given loki's image processor, which
-   shrinks an image to the size of a pasted one before the model gets it (`daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
+   shrinks an image to the size of a pasted one before the model gets it (`daemon/image-shrink.ts`; `bun run shrink-images` does the same to the pictures already in a store,
    `daemon/store-images.ts`); loki's `ls`, `find` and `grep` for scripts only (`daemon/tools.ts`), since the model
    runs those with `bash`, whose read-only commands the gate weighs as reads (`daemon/read-only-command.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
@@ -586,7 +586,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus, built in AppKit so an
    action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight
    (the page sends the menu as data, `shell/native-menu.ts`, and gets back the index of the item chosen).
-6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),
+6. `scripts/`: `dev.ts` (`bun run start` and `bun run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),
    `trial.ts` (the timing trial), `smoke.ts` (the built bundle in a scratch home), `check-pr-title.ts` (a PR title
    against the commit rules, run by `pr-title.yml`), `check-update-key.ts` (a release build's update signatures
    against the compiled-in key, run by `release.yml`), `shrink-images.ts` (the pictures already in the stores),

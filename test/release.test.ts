@@ -570,15 +570,15 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       version.steps.find((s) => s.id === "version"),
       "the version step",
     );
-    expect(decide.run).toContain('npm run --silent release -- version stable "$GITHUB_SHA"');
-    expect(decide.run).toContain('npm run --silent release -- version nightly "$GITHUB_RUN_NUMBER"');
+    expect(decide.run).toContain('bun run --silent release version stable "$GITHUB_SHA"');
+    expect(decide.run).toContain('bun run --silent release version nightly "$GITHUB_RUN_NUMBER"');
     expect(decide.run).not.toContain("draft");
     const draft = must(
-      version.steps.find((s) => s.run?.includes('npm run release -- draft "$VERSION"')),
+      version.steps.find((s) => s.run?.includes('bun run release draft "$VERSION"')),
       "the draft step",
     );
     expect(draft.env?.VERSION).toBe("${{ steps.version.outputs.version }}");
-    expect(runs(version)).toContain('npm run --silent release -- notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"');
+    expect(runs(version)).toContain('bun run --silent release notes "$VERSION" >> "$GITHUB_STEP_SUMMARY"');
     expect(version.outputs?.version).toBe("${{ steps.version.outputs.version }}");
     expect(text).not.toContain("needs.plan.outputs.version");
   });
@@ -591,8 +591,8 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       expect(j.needs, name).toEqual(["plan", "version"]);
       expect(j.if, name).toBeUndefined();
       expect(j.env?.VERSION, name).toBe("${{ needs.version.outputs.version }}");
-      expect(runs(j), name).toContain('npm run release -- set "$VERSION"');
-      expect(runs(j), name).toContain("npm run build:mod && npm run smoke");
+      expect(runs(j), name).toContain('bun run release set "$VERSION"');
+      expect(runs(j), name).toContain("bun run build:mod && bun run smoke");
       const checkout = must(
         j.steps.find((s) => s.uses?.startsWith("actions/checkout")),
         `${name}'s checkout`,
@@ -606,8 +606,8 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       expect(String(upload.with?.path), name).toContain(".sig");
     }
     expect(String(job("macos").steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action@"))?.with?.args)).toBe("--target aarch64-apple-darwin");
-    expect(runs(job("windows"))).toContain("npm run tauri -- build --bundles nsis");
-    expect(runs(job("linux"))).toContain("npm run tauri -- build --bundles appimage,deb");
+    expect(runs(job("windows"))).toContain("bun run tauri build --bundles nsis");
+    expect(runs(job("linux"))).toContain("bun run tauri build --bundles appimage,deb");
     const macPaths = String(job("macos").steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"))?.with?.path);
     for (const f of ["dmg/loki_*_aarch64.dmg", "macos/loki.app.tar.gz", "macos/loki.app.tar.gz.sig"])
       expect(macPaths).toContain(`src-tauri/target/aarch64-apple-darwin/release/bundle/${f}`);
@@ -623,9 +623,9 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       pub.steps.find((s) => s.id === "publish"),
       "the publish step",
     );
-    expect(publishStep.run).toContain('npm run release -- publish "$KIND" "$VERSION" dist');
-    expect(pub.steps[at("npm run --silent cask")]?.run).toContain("steps.publish.outputs.dmg");
-    const prune = at('npm run release -- prune-nightly "$VERSION"');
+    expect(publishStep.run).toContain('bun run release publish "$KIND" "$VERSION" dist');
+    expect(pub.steps[at("bun run --silent cask")]?.run).toContain("steps.publish.outputs.dmg");
+    const prune = at('bun run release prune-nightly "$VERSION"');
     expect(prune).toBeGreaterThan(at("git push --quiet origin main"));
     expect(pub.steps[prune]?.if).toBe("env.KIND == 'nightly'");
     // A publish that stops (a re-run of an older nightly, say) fails its step, and nothing after it runs: no cask, no
@@ -635,7 +635,7 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
   test("only publish writes a release: uploads, moves the tag or prunes", () => {
     for (const [name, j] of Object.entries(wf.jobs)) {
       if (name === "publish") continue;
-      for (const write of ["release -- publish", "prune-nightly", "gh release", "git/refs/tags"]) expect(runs(j), `${name}: ${write}`).not.toContain(write);
+      for (const write of ["release publish", "prune-nightly", "gh release", "git/refs/tags"]) expect(runs(j), `${name}: ${write}`).not.toContain(write);
     }
     expect(Object.keys(job("version").permissions ?? {})).toEqual(["contents"]);
   });
@@ -658,7 +658,7 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
         ).if,
         context,
       );
-    return { kind, ran: [...ran].sort(), queue, drafts: ran.has("version") && step("version", "release -- draft"), prunes: step("publish", "prune-nightly") };
+    return { kind, ran: [...ran].sort(), queue, drafts: ran.has("version") && step("version", "release draft"), prunes: step("publish", "prune-nightly") };
   };
   const shipsAll = ["linux", "macos", "plan", "publish", "version", "windows"];
 

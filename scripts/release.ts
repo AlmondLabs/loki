@@ -577,7 +577,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       }
       default:
         console.error(
-          "usage: npm run release -- plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | latest-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
+          "usage: bun run release plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | latest-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
         );
         process.exit(2);
     }

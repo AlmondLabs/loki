@@ -39,7 +39,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run typecheck
+        run: bun run --silent budget bun run typecheck
 
   format:
     name: format
@@ -61,7 +61,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run format:check
+        run: bun run --silent budget bun run format:check
 
   lint:
     name: lint
@@ -83,7 +83,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run lint
+        run: bun run --silent budget bun run lint
 
   test:
     name: tests (ubuntu-22.04)
@@ -105,9 +105,9 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run test:node
+        run: bun run --silent budget bun run test:node
 
   build:
     name: bundles
@@ -129,14 +129,14 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run build:app
+        run: bun run --silent budget bun run build:app
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run build:site
+        run: bun run --silent budget bun run build:site
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run build:mod
+        run: bun run --silent budget bun run build:mod
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
-        run: npm run -s budget -- npm run smoke
+        run: bun run --silent budget bun run smoke
 
   windows:
     name: tests (windows-latest)
@@ -158,14 +158,14 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run test:node
+        run: bun run --silent budget bun run test:node
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run build:mod
+        run: bun run --silent budget bun run build:mod
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
-        run: npm run -s budget -- npm run smoke
+        run: bun run --silent budget bun run smoke
 
   # GitHub's Mac runners can queue for minutes, so a PR waits for one only when its diff can reach what runs
   # differently on macOS (scripts/mac-scope.ts). A skipped job counts as passed; the queue and main run it always.
@@ -200,11 +200,11 @@ jobs:
       - id: install
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- ${{ github.event_name == 'pull_request' && 'npm run test:pr' || 'npm test' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run test:node
+        run: bun run --silent budget bun run test:node
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run -s budget -- npm run build:mod
+        run: bun run --silent budget bun run build:mod
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
-        run: npm run -s budget -- npm run smoke
+        run: bun run --silent budget bun run smoke

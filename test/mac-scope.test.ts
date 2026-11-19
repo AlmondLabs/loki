@@ -34,7 +34,7 @@ describe("whether a PR needs the Mac job", () => {
       "test/watch.test.ts",
       "test/spawn.test.ts",
       "test/temp.test.ts",
-      "package-lock.json",
+      "bun.lock",
       ".github/workflows/ci.yml",
       "vitest.config.ts",
     ])

@@ -43,4 +43,4 @@ try {
 const saved = reports.reduce((n, r) => n + r.before - r.after, 0);
 if (!saved) console.log("Nothing to shrink.");
 else if (apply) console.log(`Saved ${mb(saved)}. The copies stay in ${backupDir} until you delete them.`);
-else console.log(`Would save ${mb(saved)}. Quit loki, then run npm run shrink-images -- --apply to do it.`);
+else console.log(`Would save ${mb(saved)}. Quit loki, then run bun run shrink-images --apply to do it.`);

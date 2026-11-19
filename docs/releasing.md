@@ -10,7 +10,7 @@ schedule.
 ## How a change ships
 
 1. **Merge PRs into `main`** as usual. That ships nothing.
-2. **See what would ship**, if you like: `npm run release -- notes` prints the notes the next release would carry,
+2. **See what would ship**, if you like: `bun run release notes` prints the notes the next release would carry,
    everything merged since the last stable (below, "Building locally").
 3. **Run the workflow on `main`**: Actions › release › Run workflow, with `main` as the branch, and pick the kind.
    From a terminal, `gh workflow run release.yml --ref main` for a nightly or add `-f kind=stable` for a stable.
@@ -35,7 +35,7 @@ and its branch deleted.
 
 ## What a release run builds
 
-1. **plan** (`npm run release -- plan`) decides stable, nightly or nothing: the kind you picked (the workflow's `kind`
+1. **plan** (`bun run release plan`) decides stable, nightly or nothing: the kind you picked (the workflow's `kind`
    input, passed as `REQUESTED_KIND`) when anything has merged since the last stable, and nothing otherwise. It writes
    what it decided, and why, to the run's summary.
 2. **version** decides the number once (`release.ts version`), in a queue that runs one at a time per kind (below).
@@ -43,15 +43,15 @@ and its branch deleted.
    no tag yet, but it counts as taken, so a stable queued behind it takes the next number. A stable run from a branch
    drafts nothing. It writes the release notes to the run's summary (`release.ts notes`).
 3. **Three builds**, for a stable and a nightly alike, each checking out the commit the run is for, stamping the number on the runner
-   (`release.ts set`), smoke-testing the bundle (`npm run smoke`: it starts and signs in, or nothing ships), building
+   (`release.ts set`), smoke-testing the bundle (`bun run smoke`: it starts and signs in, or nothing ships), building
    with the update key, checking every `.sig` against the compiled-in key (`scripts/check-update-key.ts`) and handing
    its files to publish as an artifact:
 
    | job     | runner           | how                                                                              | files                                                          |
    | ------- | ---------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------- |
    | macOS   | `macos-15`       | `tauri-apps/tauri-action`, `--target aarch64-apple-darwin`                       | `loki_<v>_aarch64.dmg`, `loki.app.tar.gz` and its `.sig`       |
-   | Windows | `windows-latest` | `npm run tauri -- build --bundles nsis`                                          | `loki_<v>_x64-setup.exe` and its `.sig`                        |
-   | Linux   | `ubuntu-22.04`   | the WebKitGTK apt packages, then `npm run tauri -- build --bundles appimage,deb` | `loki_<v>_amd64.AppImage` and its `.sig`, `loki_<v>_amd64.deb` |
+   | Windows | `windows-latest` | `bun run tauri build --bundles nsis`                                          | `loki_<v>_x64-setup.exe` and its `.sig`                        |
+   | Linux   | `ubuntu-22.04`   | the WebKitGTK apt packages, then `bun run tauri build --bundles appimage,deb` | `loki_<v>_amd64.AppImage` and its `.sig`, `loki_<v>_amd64.deb` |
 
    The Mac build is for Apple silicon only, so `latest.json` has no `darwin-x86_64`: a loki already on an Intel Mac
    finds no update for itself and stays as it is. Linux builds on the oldest supported Ubuntu so the files run on
@@ -95,7 +95,7 @@ loki's updater reads `https://github.com/AlmondLabs/loki/releases/latest/downloa
 and `https://github.com/AlmondLabs/loki/releases/download/nightly/latest.json` on the Nightly one; the install scripts
 fetch the unversioned copies from `releases/latest/download/` or `releases/download/nightly/` the same way, without
 asking GitHub's API which release is newest. The nightly is a prerelease, so `releases/latest` is always the newest
-stable. `npm run release -- latest-json <version> <dir>` prints the `latest.json` a release would carry for built
+stable. `bun run release latest-json <version> <dir>` prints the `latest.json` a release would carry for built
 files in `<dir>`; with `LOKI_UPDATE_URL` pointing at a copy of it on a throwaway prerelease, an update can be tried
 by hand.
 
@@ -164,7 +164,7 @@ builds share `~/.loki`, the daemon and the mod's ports, so one loki is installed
 
 Without the secret the workflow renders the cask, attaches it to the release, then fails at the push with a message
 naming the secret; copy the file into the tap by hand and nothing else is lost. `scripts/cask.ts` is the template
-(`npm run cask -- <owner> <version> <sha256> [stable|nightly]`), covered by `test/cask.test.ts`.
+(`bun run cask <owner> <version> <sha256> [stable|nightly]`), covered by `test/cask.test.ts`.
 
 ## Signing (one-time setup)
 
@@ -212,7 +212,7 @@ no release ever ships that some loki could not update from.
 
 ## Building locally
 
-`npm run desktop:build` produces the `.app` and the `.dmg` under `src-tauri/target/release/bundle/`, at the version
+`bun run desktop:build` produces the `.app` and the `.dmg` under `src-tauri/target/release/bundle/`, at the version
 the files hold (not a release's: see Versions). The `.dmg` step drives Finder through AppleScript to lay out the window; from a
 terminal without Automation permission for Finder (an SSH session, an agent's shell) it fails with `Finder got an
 error: AppleEvent timed out`. The `.app` is complete at that point; make the image without the Finder pass:
@@ -224,11 +224,11 @@ cd src-tauri/target/release/bundle/macos
   ../dmg/loki_local_aarch64.dmg loki.app
 ```
 
-On Windows or Linux, `npm run tauri -- build --bundles nsis` or `npm run tauri -- build --bundles appimage,deb` makes the
+On Windows or Linux, `bun run tauri build --bundles nsis` or `bun run tauri build --bundles appimage,deb` makes the
 same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appimage/` and `deb/` (the Linux build
 needs the apt packages in `shell.yml`). Neither needs the Finder workaround.
 
-`npm run release -- plan` says what a run would do for the checkout as it stands, as a nightly (with
-`REQUESTED_KIND=stable`, as a stable), `npm run release -- version stable` the number a stable built now would get,
-and `npm run release -- notes` the notes the next release would carry. None of them changes the checkout's files (`version` fetches the tags first); `plan` and
+`bun run release plan` says what a run would do for the checkout as it stands, as a nightly (with
+`REQUESTED_KIND=stable`, as a stable), `bun run release version stable` the number a stable built now would get,
+and `bun run release notes` the notes the next release would carry. None of them changes the checkout's files (`version` fetches the tags first); `plan` and
 `notes` ask GitHub (`gh`, signed in) which releases have shipped.
