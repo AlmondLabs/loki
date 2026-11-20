@@ -74,8 +74,9 @@ there says why, and the ones that still fire somewhere carry their count until a
   identifier.
 - Formats loki does not own keep their names: `mcp.json` (`mcpServers`, `alwaysLoad`), pi-durable's
   documents, provider APIs, the browser's `dataset`.
-- A field renamed in saved data is read through `migrateKeys` (`core/snake-keys.ts`, OLD_KEYS; task metadata through
-  OLD_TASK_METADATA_KEYS) and written back once; only listed names are renamed, since a map's keys may be ids.
+- Recall files and widget logs saved in camelCase are read through `migrateKeys` (`core/snake-keys.ts`, OLD_KEYS; task
+  metadata through OLD_TASK_METADATA_KEYS) and written back once; only listed names are renamed, since a map's keys may
+  be ids.
 
 **Modules**:
 
@@ -100,10 +101,10 @@ there says why, and the ones that still fire somewhere carry their count until a
   (`daemon/tool-kinds.ts`); a mod's tools say so in their annotations. A tool with no kind is a command.
 - Names loki does not choose stay as their owners write them: pi-durable's `read`, `write`, `edit` and `bash`, and MCP's
   `mcp__<server>__<tool>`.
-- A rename is a hard rename: the old name goes everywhere. `RENAMED_TOOLS` (and `SPLIT_TOOLS` for one tool made
-  several) carries the stored "always allow" list over, and every store's saved calls and results are renamed once when
-  it opens (`daemon/store-migration.ts`), so no code that reads history knows an old name. A chat on an ACP agent keeps
-  its agent's own names.
+- A rename is a hard rename: the old name goes everywhere. A rename that saved data still holds (the "always allow"
+  list, saved calls in every store) brings its own one-time migration with a marker of its own, never a reuse of
+  `stores/migrations.json`, which stores made after 2026.1116 carry no entry in; the migration goes once a release has
+  shipped it. A chat on an ACP agent keeps its agent's own names.
 
 ## 3. TypeScript
 

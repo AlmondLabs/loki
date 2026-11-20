@@ -121,18 +121,17 @@ every chat gets, the chats, then the mods.
    when the store reopens. One file per agent spreads the writes, and a storage failure closes only that agent's chats;
    the store manager (`StoreManager`, `kernel/stores.ts`) reopens it. pi-durable numbers its own conversations, so a
    document in each store maps loki's chat ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat
-   keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes
-   what a store holds migrates it on open, after a whole copy (`daemon/store-backup.ts`): pi-durable's own schema, to
-   `stores/backup-schema-<version>-<date>/`; and loki's entries, in `daemon/store-migration.ts`, one pass of rewrites
-   over a store's entries in one transaction (old tool names, and the shapes chats imported from Letta carried),
-   versioned per store in `stores/migrations.json`. It replaced `store-tool-names.ts` and its `tool-names.json`. Chats
-   on an ACP agent keep their agent's own names and shapes.
+   keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. A pi-durable update that
+   changes a store's schema migrates it on open, after a whole copy to `stores/backup-schema-<version>-<date>/`
+   (`daemon/store-backup.ts`). Before opening anything, the daemon refuses a loki folder no build from 2026.1116 has
+   started, or one whose listed agents' stores that release did not finish converting (`daemon/old-data.ts`, read from
+   `state/migrations.json` and `stores/migrations.json`): later builds no longer convert older data. It exits with
+   `EXIT_OLD_DATA`, and the shell stops restarting it and shows why.
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`:
    `agents/<id in base64>.json` for the record (`backendName`) and `memfs/<id>/memory/` for the memory repo. The memory
    repo's `system/` files go into the prompt; the rest is listed by path. A section read from disk is reused for ten
    seconds, and a commit to any memory repo clears it at once (`daemon/section-cache.ts`). Each change is a git commit,
-   by the agent, by "Reflection", or by "Doctor". `daemon/agent-migration.ts` migrates the records and memory once,
-   noted in `state/migrations.json`.
+   by the agent, by "Reflection", or by "Doctor".
 3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials (API
    keys, or the tokens from a provider's sign-in, such as ChatGPT, OpenRouter or GitHub Copilot) are kept in the OS
    keychain through `@napi-rs/keyring`, one entry per provider under the service "loki". A key is tried before it is
@@ -439,8 +438,9 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 1. `token`: the capability token the shell, the page and the daemon share.
 2. `daemon.lock`: the pid of the daemon serving this folder.
 3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone canvas (release builds).
-4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; `stores/migrations.json`, each
-   store's migration version; and `stores/backup-…/`, whole copies made before a migration.
+4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; `stores/migrations.json`, the last
+   conversion builds up to 2026.1116 ran on each store, which the start-up check reads; and `stores/backup-…/`, whole
+   copies made before a migration.
 5. `backend/`: agent records (`agents/`, each file named by the agent's id in base64) and memory repos
    (`memfs/<id>/memory/`).
 6. `widgets/<desk>/`: the files agents write onto the canvas.
@@ -455,9 +455,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     `acp-offered.json`), the analytics id (`analytics.json`), the LAN switch (`lan.json`), paired phones
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
     (`recent-models.json`), the chats held for a move to another Mac (`chat-moves.json`, plan 096), each agent's
-    switched-off MCP servers (`mcp-agents.json`), reflection's settings from
-    before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
-    (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
+    switched-off MCP servers (`mcp-agents.json`), each chat's canvas, and the start-up check's marker with the open
+    tasks already moved into suggestions (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
     account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),
     each chat's reply proposals (`reply-proposals.json`), the people each mailbox has mail with (`mail-people.json`,
     plan 076), and mail replies held for their undo (`outbox.json`).
