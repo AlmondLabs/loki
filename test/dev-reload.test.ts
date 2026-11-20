@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { DevReload } from "../daemon/dev-reload.ts";
+import type { RestartAnswer } from "../mod/frames/daemon.ts";
 
 function setup(built = false) {
   const said: string[] = [];
@@ -25,6 +26,11 @@ function setup(built = false) {
     report: (m) => said.push(m),
   });
   return { dev, state, said, restarts };
+}
+
+function restartOf(answer: RestartAnswer): () => void {
+  if (answer.code !== "restart") throw new Error(`expected a restart, got ${answer.code}`);
+  return answer.restart;
 }
 
 const settle = async () => {
@@ -60,16 +66,25 @@ describe("a checkout keeping up with its sources (plan 024)", () => {
     expect(s.restarts).toEqual([]);
   });
 
-  test("asked to restart, it does when nothing runs; while a chat works it says so, and restarts only anyway", async () => {
+  test("asked to restart, it hands back the restart when nothing runs; while a chat works it says so, and restarts only anyway", async () => {
     const s = setup();
     s.dev.daemonChanged("daemon/passes.ts");
     s.state.idle = false;
-    expect(await s.dev.restart(false)).toBe("a chat is still working or waiting for you: updating now cuts it off");
-    expect(s.restarts).toEqual([]);
-    expect(await s.dev.restart(true)).toBeNull();
+    expect(await s.dev.restart(false)).toEqual({ code: "not_updated", reason: "a chat is still working or waiting for you: updating now cuts it off" });
+    restartOf(await s.dev.restart(true))();
     expect(s.restarts).toEqual(["daemon/passes.ts changed"]);
-    s.state.idle = true;
-    expect(await setup().dev.restart(false)).toBeNull();
+    const asked = setup();
+    restartOf(await asked.dev.restart(false))();
+    expect(asked.restarts).toEqual(["asked"]);
+  });
+
+  test("the restart it hands back waits to be run", async () => {
+    const s = setup();
+    s.dev.daemonChanged("daemon/passes.ts");
+    const restart = restartOf(await s.dev.restart(false));
+    expect(s.restarts).toEqual([]);
+    restart();
+    expect(s.restarts).toEqual(["daemon/passes.ts changed"]);
   });
 
   test("under Vite a page change is hot reload's: nothing is due", () => {
@@ -88,7 +103,7 @@ describe("updating a checkout that runs the built page (plan 041)", () => {
     await settle();
     expect(s.state.builds).toBe(1);
     s.state.finishBuild();
-    expect(await done).toBeNull();
+    expect(await done).toEqual({ code: "updated" });
     expect(s.restarts).toEqual([]);
     expect(s.dev.restartDue()).toBeNull();
   });
@@ -101,7 +116,7 @@ describe("updating a checkout that runs the built page (plan 041)", () => {
     await settle();
     expect(s.restarts).toEqual([]);
     s.state.finishBuild();
-    expect(await done).toBeNull();
+    restartOf(await done)();
     expect(s.restarts).toEqual(["core/frames.ts changed"]);
   });
 
@@ -112,9 +127,9 @@ describe("updating a checkout that runs the built page (plan 041)", () => {
     const built = s.dev.restart(false);
     await settle();
     s.state.finishBuild();
-    expect(await built).toBeNull();
+    expect(await built).toEqual({ code: "updated" });
     s.dev.daemonChanged("daemon/passes.ts");
-    expect(await s.dev.restart(false)).toBe("a chat is still working or waiting for you: updating now cuts it off");
+    expect(await s.dev.restart(false)).toEqual({ code: "not_updated", reason: "a chat is still working or waiting for you: updating now cuts it off" });
     expect(s.restarts).toEqual([]);
   });
 
@@ -125,7 +140,7 @@ describe("updating a checkout that runs the built page (plan 041)", () => {
     const done = s.dev.restart(false);
     await settle();
     s.state.finishBuild();
-    expect(await done).toBe("the page did not build:\napp/src/x.tsx: Unexpected token");
+    expect(await done).toEqual({ code: "not_updated", reason: "the page did not build:\napp/src/x.tsx: Unexpected token" });
     expect(s.dev.restartDue()).toBe("app/src/x.tsx");
   });
 
@@ -136,7 +151,7 @@ describe("updating a checkout that runs the built page (plan 041)", () => {
     await settle();
     s.dev.pageChanged("app/src/b.tsx");
     s.state.finishBuild();
-    expect(await done).toBeNull();
+    expect(await done).toEqual({ code: "updated" });
     expect(s.dev.restartDue()).toBe("app/src/b.tsx");
   });
 
@@ -147,8 +162,8 @@ describe("updating a checkout that runs the built page (plan 041)", () => {
     const second = s.dev.restart(false);
     await settle();
     s.state.finishBuild();
-    expect(await first).toBeNull();
-    expect(await second).toBeNull();
+    expect(await first).toEqual({ code: "updated" });
+    expect(await second).toEqual({ code: "updated" });
     expect(s.state.builds).toBe(1);
   });
 });

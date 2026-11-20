@@ -10,7 +10,7 @@ export interface FrameContext {
   track(event: string, properties?: Record<string, unknown>): void;
 }
 
-export type Outcome<R> = { ok: true; reply: R } | { ok: false; message: string };
+export type Outcome<R> = { ok: true; reply: R; afterReply?: () => void } | { ok: false; message: string };
 export const reply = <R>(r: R): Outcome<R> => ({ ok: true, reply: r });
 export const fail = (message: string): { ok: false; message: string } => ({ ok: false, message });
 export const errorMessage = (err: unknown): string => messageOf(err);

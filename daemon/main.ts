@@ -357,7 +357,7 @@ const devReload: DevReload = new DevReload({
     return "loaded" in result ? "ok" : result.refused;
   },
   ...(builtPage ? { buildPage: () => buildPage(builtPage) } : {}),
-  restart: (why) => void setTimeout(() => stop(`${why}, restarting as asked`), 200),
+  restart: (why) => stop(`${why}, restarting as asked`),
   idle: async () => {
     for (const c of chats.list()) if (c.agentId && (await busy(c.agentId, c.conversationId))) return false;
     return true;

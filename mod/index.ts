@@ -17,6 +17,7 @@ import { DeskRegistry } from "./desks.ts";
 import { ChatListing } from "./chat-listing.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
+import type { RestartAnswer } from "./frames/daemon.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay } from "./recall.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
@@ -114,7 +115,7 @@ export interface Host {
   daemon?: {
     restartDue: () => string | null;
     onRestartDue: (fn: (file: string) => void) => () => void;
-    restart: (anyway: boolean) => Promise<string | null>;
+    restart: (anyway: boolean) => Promise<RestartAnswer>;
   };
 }
 

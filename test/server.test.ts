@@ -160,6 +160,45 @@ describe("the limits of a socket", () => {
       await s.close();
     }
   });
+
+  test("a frame's after-send step runs once the frame is written, once, and at once on a socket already gone", async () => {
+    const s = await startServer({ port: 0 });
+    const clients: Client[] = [];
+    const bridge = attachWs(s.server, token, {
+      onConnect: (c) => {
+        clients.push(c);
+        c.send({ type: "hello" });
+      },
+      onMessage: () => {},
+    });
+    try {
+      const ws = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      await hello(ws);
+      const [c] = clients;
+      let steps = 0;
+      const heard = new Promise<string>((resolve) => ws.once("message", (raw) => resolve(Buffer.isBuffer(raw) ? raw.toString("utf8") : "")));
+      const written = new Promise<void>((resolve) =>
+        c.send({ type: "chat_done", request_id: "r1" }, () => {
+          steps++;
+          resolve();
+        }),
+      );
+      expect(steps).toBe(0);
+      await written;
+      expect(JSON.parse(await heard)).toEqual({ type: "chat_done", request_id: "r1" });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(steps).toBe(1);
+      const gone = closed(ws);
+      ws.close();
+      await gone;
+      await until(() => bridge.clientCount() === 0);
+      c.send({ type: "chat_done", request_id: "r2" }, () => steps++);
+      expect(steps).toBe(2);
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
 });
 
 describe("a refused upgrade", () => {

@@ -1,4 +1,5 @@
 import { Listeners } from "../core/listeners.ts";
+import type { RestartAnswer } from "../mod/frames/daemon.ts";
 
 export interface DevReloadOptions {
   reloadMod: () => Promise<string>;
@@ -16,7 +17,7 @@ export class DevReload {
   private due: string | null = null;
   private restartNeeded = false;
   private buildNeeded = false;
-  private updating: Promise<string | null> | null = null;
+  private updating: Promise<RestartAnswer> | null = null;
   private readonly listeners = new Listeners<[file: string]>();
 
   constructor(opts: DevReloadOptions) {
@@ -71,29 +72,29 @@ export class DevReload {
     return this.listeners.add(fn);
   }
 
-  restart(anyway: boolean): Promise<string | null> {
+  restart(anyway: boolean): Promise<RestartAnswer> {
     this.updating ??= this.update(anyway).finally(() => (this.updating = null));
     return this.updating;
   }
 
-  private async update(anyway: boolean): Promise<string | null> {
+  private async update(anyway: boolean): Promise<RestartAnswer> {
     const restart = this.restartNeeded || !this.buildNeeded;
-    if (restart && !anyway && !(await this.opts.idle())) return "a chat is still working or waiting for you: updating now cuts it off";
+    if (restart && !anyway && !(await this.opts.idle()))
+      return { code: "not_updated", reason: "a chat is still working or waiting for you: updating now cuts it off" };
     const why = this.due ? `${this.due} changed` : "asked";
     if (this.buildNeeded && this.opts.buildPage) {
       this.buildNeeded = false;
       const failed = await this.opts.buildPage();
       if (failed) {
         this.buildNeeded = true;
-        return `the page did not build:\n${failed}`;
+        return { code: "not_updated", reason: `the page did not build:\n${failed}` };
       }
       this.opts.report("page built: the window reloads on it");
     }
     if (!restart) {
       if (!this.buildNeeded && !this.restartNeeded) this.due = null;
-      return null;
+      return { code: "updated" };
     }
-    this.opts.restart(why);
-    return null;
+    return { code: "restart", restart: () => this.opts.restart(why) };
   }
 }
