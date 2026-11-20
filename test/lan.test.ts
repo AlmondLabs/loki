@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createServer } from "node:net";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -782,6 +782,89 @@ describe("LAN listener", () => {
       await noApp.lan.stop();
       withApp.cleanup();
       noApp.cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a status listener that throws", () => {
+  test("does not reject starting, stopping or the paired Macs' need for the listener", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-lan-"));
+    let calls = 0;
+    const lan = new LanListener({
+      port: 0,
+      stateFile: join(dir, "lan.json"),
+      devices: new DeviceStore(join(dir, "devices.json")),
+      codes: new PairingCodes(),
+      handlers: { onConnect: () => {}, onMessage: () => {} },
+      onChange: () => {
+        calls++;
+        throw new Error("the status listener broke");
+      },
+    });
+    try {
+      expect((await lan.start()).port).toBeGreaterThan(0);
+      expect((await lan.stop()).port).toBe(0);
+      expect((await lan.setPeersNeeded(true)).port).toBeGreaterThan(0);
+      expect((await lan.setPeersNeeded(false)).port).toBe(0);
+      expect(calls).toBe(4);
+    } finally {
+      await lan.stop().catch(() => {});
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the Tailscale poll", () => {
+  test("a status listener that throws during a poll leaves no unhandled rejection, and the next poll still runs", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const dir = mkdtempSync(join(tmpdir(), "loki-lan-"));
+    const escaped: unknown[] = [];
+    const record = (error: unknown) => void escaped.push(error);
+    process.on("unhandledRejection", record);
+    const tailnet = { running: true };
+    let listenerBreaks = false;
+    const heard: boolean[] = [];
+    const lan = new LanListener({
+      port: 0,
+      stateFile: join(dir, "lan.json"),
+      devices: new DeviceStore(join(dir, "devices.json")),
+      codes: new PairingCodes(),
+      handlers: { onConnect: () => {}, onMessage: () => {} },
+      tailscale: new Tailscale({
+        bin: "/fake/tailscale",
+        port: 41415,
+        ttlMs: 0,
+        exec: (_bin, args) => Promise.resolve(args[0] === "status" ? (tailnet.running ? STATUS_RUNNING : JSON.stringify({ BackendState: "Stopped" })) : "{}"),
+      }),
+      tailscalePollMs: 1000,
+      onChange: (what, status) => {
+        if (what !== "status") return;
+        heard.push(status.tailscale?.running ?? false);
+        if (listenerBreaks) throw new Error("the status listener broke");
+      },
+    });
+    const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve));
+    try {
+      await lan.start();
+      expect(heard).toEqual([true]);
+      tailnet.running = false;
+      listenerBreaks = true;
+      await vi.advanceTimersByTimeAsync(1000);
+      await nextTurn();
+      await nextTurn();
+      expect(escaped).toEqual([]);
+      expect(heard).toEqual([true, false]);
+      tailnet.running = true;
+      listenerBreaks = false;
+      await vi.advanceTimersByTimeAsync(1000);
+      await nextTurn();
+      expect(heard).toEqual([true, false, true]);
+    } finally {
+      listenerBreaks = false;
+      await lan.stop();
+      process.off("unhandledRejection", record);
+      vi.useRealTimers();
       rmSync(dir, { recursive: true, force: true });
     }
   });
