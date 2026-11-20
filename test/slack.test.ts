@@ -168,20 +168,28 @@ describe("marking a DM read", () => {
   });
 });
 
-describe("marking a thread read", () => {
-  test("marks one thread read or unread with Slack's form fields, read as 1 or 0", async () => {
+describe("a thread's read point", () => {
+  const root = (extra: Record<string, unknown>) => () => ({
+    body: { ok: true, messages: [{ type: "message", ts: "1700000000.000100", text: "first", ...extra }] },
+  });
+
+  test("marking a thread sends its channel, its first message and the message to read up to", async () => {
     const { c, sent } = client(() => ({}));
-    await c.markThread("C0CHAN", "1700000000.000001", "1700000050.000002", true);
-    await c.markThread("C0CHAN", "1700000000.000001", "1700000010.000000", false);
-    expect(sent.map((s) => [s.method, s.url.slice(s.url.lastIndexOf("/") + 1), s.params])).toEqual([
-      ["POST", "subscriptions.thread.mark", { token: "xoxc-acme-1111", channel: "C0CHAN", thread_ts: "1700000000.000001", ts: "1700000050.000002", read: "1" }],
-      ["POST", "subscriptions.thread.mark", { token: "xoxc-acme-1111", channel: "C0CHAN", thread_ts: "1700000000.000001", ts: "1700000010.000000", read: "0" }],
+    await c.markThread("C0GEN", "1700000000.000100", "1700000500.000200");
+    expect(sent.map((s) => [s.url.slice(s.url.lastIndexOf("/") + 1), s.params])).toEqual([
+      ["subscriptions.thread.mark", { token: "xoxc-acme-1111", channel: "C0GEN", thread_ts: "1700000000.000100", ts: "1700000500.000200" }],
     ]);
   });
 
-  test("a refusal comes back with Slack's code", async () => {
-    const { c } = client(() => ({ body: { ok: false, error: "not_in_channel" } }));
-    await expect(c.markThread("C0CHAN", "1.0", "2.0", true)).rejects.toMatchObject({ code: "not_in_channel" });
+  test("a followed thread's read point is its first message's last_read, asked for with one message", async () => {
+    const { c, sent } = client(root({ subscribed: true, last_read: "1700000300.000100" }));
+    expect(await c.followedThreadLastRead("C0GEN", "1700000000.000100")).toBe("1700000300.000100");
+    expect(sent[0]?.params).toMatchObject({ channel: "C0GEN", ts: "1700000000.000100", limit: "1" });
+  });
+
+  test("a thread the person does not follow has no read point", async () => {
+    expect(await client(root({ last_read: "1700000300.000100" })).c.followedThreadLastRead("C0GEN", "1700000000.000100")).toBeNull();
+    expect(await client(root({ subscribed: false, last_read: "1700000300.000100" })).c.followedThreadLastRead("C0GEN", "1700000000.000100")).toBeNull();
   });
 });
 
@@ -548,7 +556,7 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     await c.conversationsInfo("D0DM");
     await c.usersInfo("U0YOU");
     await c.markDm("D0DM", "1.0");
-    await c.markThread("C0CHAN", "1.0", "2.0", true);
+    await c.markThread("C0CHAN", "1.0", "2.0");
     await c.postWithFiles({ channel: "D0DM", text: "x", files: [{ name: "a.txt", data: new Uint8Array([1]) }] });
     expect([...new Set(sent.map((s) => new URL(s.url).host))].sort()).toEqual(["acme.slack.com", "files.slack.com"]);
     const paths = [...new Set(sent.map((s) => new URL(s.url).pathname))].sort();

@@ -15,7 +15,7 @@ execution: code
 - **Objective:** After you read or archive a Slack card in loki, opening Slack shows nothing unread for what that card covered, and nothing you have not seen is marked read.
 - **Means:** at clear time loki reads the card's thread and its unread Activity fresh, then marks the Activity items and the thread itself read up to what you have seen (KTD1–KTD4).
 - **Product authority:** the owner, in a session on 2026-11-20 that started from "my Slack activities are not getting marked as read". The Product Contract wins on behaviour; the Planning Contract's KTDs win on mechanism.
-- **Stop conditions:** stop and ask if, in the hand check, Slack refuses `subscriptions.thread.mark` with `read=1` or the `channel_ids` filter on `activity.feed`, or accepts either and it has no effect (the thread stays unread in Slack's Threads view, or the read is not limited to the channel). Also stop if refusing a clear (R2) turns out to need app changes beyond the existing refusal notice.
+- **Stop conditions:** stop and ask if, in the hand check, Slack refuses `subscriptions.thread.mark` or the `channel_ids` filter on `activity.feed`, or accepts either and it has no effect (the thread stays unread in Slack's Threads view, or the read is not limited to the channel). Also stop if refusing a clear (R2) turns out to need app changes beyond the existing refusal notice.
 - **Execution profile:** the mod's Slack client and sync (`mod/slack.ts`, `mod/slack-sync.ts`), their tests, and docs. One branch, one PR, carrying this plan.
 - **Open blockers:** none.
 
@@ -78,13 +78,12 @@ Considered and not built:
 - **Undo after loki restarts or reconnects Slack.** What a clear marked lives in memory, as plan 092 chose, so such an undo only reopens the card in loki. Carrying it on `OutsideChange` would change a frame for a rare case. Revisit if undo after a restart is reported.
 - **A clear from a stale card view.** The frame names the thread, not the message the card showed, so the daemon clears up to its own newest message. That is unchanged here. R3 covers the race this change lengthens. Revisit if a phone view is found lagging the daemon.
 - **Letting your own reply, observed by a tick mid-clear, through R3.** R3 refuses on any new message, yours included, so you may see one needless refusal and clear again. Ending the card instead would mean changing `AccountThreads.write`'s keep-open rule. Revisit if the notice shows up in practice.
-- **Thread replies inside a DM.** A DM card ends with `conversations.mark` on the DM. A thread inside the DM can stay unread in Slack's Threads view. Revisit with the owner's report of one.
 - **Channel-level kinds** (the `channel` bundle, invites, reminders, lists). They are not about one thread, and marking `channel` would move toward the channel read point that R6 forbids.
 
 ### Sources / Research
 
 - Plan 092 (`docs/plans/2026-11-11-092-feat-slack-activity-mark-read-plan.md`) built the Activity mark this extends.
-- Slack documents none of these calls. Public clients and a datamine of Slack's web app (2026-11-20) give `subscriptions.thread.mark` as form fields `channel`, `thread_ts`, `ts`, `read` (1 or 0), with errors `channel_not_found`, `invalid_timestamp`, `message_not_found`, `not_in_channel`. `read=0` is sent by third-party clients but not proven server-side: gammons/slk, 0xdeafcafe/loafer `docs/slack-webapp-methods.md`, 3kh0/slack-datamine.
+- Slack documents none of these calls. Public clients and a datamine of Slack's web app (2026-11-20) give `subscriptions.thread.mark` as form fields `channel`, `thread_ts`, `ts` (some clients add `read`), with errors `channel_not_found`, `invalid_timestamp`, `message_not_found`, `not_in_channel`. Marking a thread unread again is sent by third-party clients but not proven server-side: gammons/slk, 0xdeafcafe/loafer `docs/slack-webapp-methods.md`, 3kh0/slack-datamine.
 - `activity.feed` needs an explicit `types` list, and the web client filters by channel with `channel_ids`. Item shapes: `item.message {ts, channel, thread_ts}` for mentions, `keyword` and `message_reaction` (plus `item.reaction`); `bundle_info.payload.dm_entry.latest_message` for `dm`; `bundle_info.payload.message` for `bot_dm_bundle`. Sources: the same, plus 3kh0/super-platinum `docs/notification-presentation-protocol.md`.
 
 ---
@@ -95,7 +94,7 @@ Considered and not built:
 
 - KTD1. **A refusal is a thrown, worded error from `SlackSync.archive`.** The app already brings a card back with a notice on any error (`docs/manual.md`, "A move that loki or Gmail refuses"). The daemon's `AccountThreads.write` already keeps a card open when its newest message changed during the call. Returning `ended: false` was the alternative, but `ChatStore.archiveOutside` drops a card on any answer that is not an error, so that would need app changes. The archive path tells a hand-off by the record's state at the start (`handed_off`), so R9 needs no new argument. Governs R2, R3, R9.
 - KTD2. **Activity is read fresh at clear time, for the card's channel only, and merged with what the tick remembered.** The read is one `activity.feed` call with `channel_ids` set to the card's channel, unread only, with the card kinds and the related kinds (`keyword`, `message_reaction`, `dm`, `bot_dm_bundle`), filtered to the card's thread or DM. The tick's remembered card-kind items for the thread are merged in by key, so one page can never mark less than plan 092 did. When the read is held or fails, the remembered items alone stand in, so the move never fails on it, and the fallback is logged (`slack:activity-read-held`). Each tick stays on the five card kinds: adding reactions there would crowd new mentions out of the 50-item first page and lengthen the 15-minute walk against Slack's rate limit. Governs R1, R5, R10.
-- KTD3. **The thread is marked with `subscriptions.thread.mark`.** It is sent only when the thread root carries a `last_read`, which means you follow it. It is never sent for a top-level message. Its `ts` is the seen point, skipped when `last_read` is already there or later. Undo sends `read=0` with the earlier `last_read`. Failures are logged as `slack:thread-mark-failed`. No other route exists: `conversations.mark` takes no `thread_ts`, and marking a `thread_v2` Activity item read is not known to clear the Threads view. Governs R4, R6, R8.
+- KTD3. **The thread is marked by plan 2026-11-20-0826's `markThreads`, merged in while this was built (AlmondLabs/loki#351).** It uses `subscriptions.thread.mark` the way emacs-slack does (`channel`, `thread_ts`, `ts`), only on a thread whose root says `subscribed` with a `last_read`, never backwards, and on a DM card also for the followed threads its Activity names. Undo marks the thread back to its earlier `last_read`. This plan only changes the point it marks to, from the card's newest to the seen point, and reads `subscribed` the same way for R2's followed test. Failures are logged as `slack:thread-mark-failed`. Governs R4, R6, R8.
 - KTD4. **Every read comes before any write.**
   1. A clear reads the thread replies or DM history after the card's newest, paging `conversations.replies` (or `conversations.history`) from there to the end. It also reads the clear-time Activity, and the DM's read point.
   2. It decides whether to refuse (R2), then checks R3 against the live record.
@@ -131,7 +130,7 @@ flowchart TD
 
 ### Risks
 
-- `read=0` on `subscriptions.thread.mark` is unproven. Undo may leave the thread read in Slack. If the hand check shows that, the manual names it as a gap. Unlike `read=1`, it does not stop the work.
+- Marking a thread back to an earlier point is unproven. Undo may leave the thread read in Slack. If the hand check shows that, the manual names it as a gap. Unlike marking read, it does not stop the work.
 - A clear now makes up to five Slack calls on a channel thread and six on a DM, where it made one or two. The clear-time read shares `activity.feed`'s rate-limit hold with each tick. A burst of clears can pause Slack card updates for the hold, and those clears take the remembered-items path, which skips R5. The `slack:activity-read-held` log line shows when that happens.
 
 ---
@@ -145,13 +144,12 @@ flowchart TD
 **Dependencies:** none.
 **Files:** `mod/slack.ts`, `test/slack.test.ts`.
 **Approach:**
-1. Add `subscriptions.thread.mark` to the allowed methods, and add a client call that sends `channel`, `thread_ts`, `ts` and `read` as `1` or `0`. A boolean would go out as `"true"`.
+1. The thread mark itself came with AlmondLabs/loki#351 (`markThread`, `followedThreadLastRead`), so this unit keeps it as it is.
 2. `activityFeed` takes an optional channel list, sent as `channel_ids`.
 3. Name the related kinds beside `SLACK_ACTIVITY_TYPES`.
 4. `parseActivity` reads `bundle_info.payload.dm_entry.latest_message` and `bundle_info.payload.message` for channel and ts when `item.message` is absent.
 **Patterns to follow:** `markActivity` and `markDm` in `mod/slack.ts`. Their tests in `test/slack.test.ts`, including its list of every path the client calls.
 **Test scenarios:**
-- A thread mark sends the four form fields, with `read` as `1`, and `0` when marking unread.
 - A Slack error on the thread mark comes back as a `SlackError` carrying Slack's code.
 - `activityFeed` with a channel sends `channel_ids`, and without one sends no such field.
 - A `message_reaction` item parses channel, ts and thread_ts from `item.message`.
@@ -218,7 +216,7 @@ flowchart TD
 4. Log a refused thread mark and carry on.
 **Patterns to follow:** `SlackClient.markDm`'s guard that refuses anything but a DM.
 **Test scenarios:**
-- A followed thread is marked read to the seen point with `read=1`.
+- A followed thread is marked read to the seen point.
 - A thread with no `last_read` (not followed), and a top-level mention card, send no thread mark.
 - Covers AE4. A thread whose `last_read` is past the seen point sends no thread mark.
 - A DM whose `last_read` is past the seen point sends no `conversations.mark`.
@@ -234,11 +232,11 @@ flowchart TD
 **Files:** `mod/slack-sync.ts`, `test/slack-sync.test.ts`.
 **Approach:**
 1. Keep, per thread, the marked items of both calls and, when a thread mark went out, the earlier `last_read`.
-2. `restore` marks the items unread and sends the thread mark with `read=0` back to the earlier `last_read`, logging refusals.
+2. `restore` marks the items unread and, as #351 does, marks the thread back to its earlier `last_read`, logging refusals.
 **Patterns to follow:** today's `marked` map and `restore`.
 **Test scenarios:**
 - Undo after a clear marks the card-kind and related-kind items unread.
-- Undo after a thread mark sends `read=0` with the earlier `last_read`.
+- Undo after a thread mark marks the thread back to the earlier `last_read`.
 - Undo after a clear that sent no thread mark sends none.
 - A second clear after undo marks everything again.
 **Verification:** the slack-sync tests pass.
@@ -250,7 +248,7 @@ flowchart TD
 **Dependencies:** U2–U5.
 **Files:** `docs/manual.md`, `docs/SECURITY.md`, `docs/architecture.md`.
 **Approach:**
-1. In the manual's Slack part of "Ranking, read, later and archive", describe the seen point, the refusal, the thread and related marks, and undo. Also name the gaps that remain: a DM's undo, threads inside DMs, undo after a restart, and `read=0` if the hand check shows it fails.
+1. In the manual's Slack part of "Ranking, read, later and archive", describe the seen point, the refusal, the thread and related marks, and undo. Also name the gaps that remain: a DM's undo, undo after a restart, and a thread's undo if the hand check shows it fails.
 2. In `docs/SECURITY.md`, add the thread mark and the channel-filtered Activity read to "What loki calls in Slack".
 3. Correct the stale line in `docs/architecture.md` that says Slack's `markRead` and `archive` are only the DM mark.
 **Test expectation:** none — docs only.
@@ -270,6 +268,6 @@ flowchart TD
 ## Definition of Done
 
 - R1–R10 hold, each with the tests named in its units passing.
-- The by-hand check in the owner's Slack is done. `read=1` and the `channel_ids` filter work. A failure of `read=0` (undo) alone is recorded in the manual as a known gap.
+- The by-hand check in the owner's Slack is done. Marking a thread read and the `channel_ids` filter work. A failure of a thread's undo alone is recorded in the manual as a known gap.
 - The manual, `docs/SECURITY.md` and `docs/architecture.md` describe the new behaviour.
 - No code from abandoned approaches is left in the diff.

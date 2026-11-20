@@ -1288,8 +1288,8 @@ channel's other messages unread.
 have seen: the card's newest message, and any replies of your own after it, sent from Slack or from loki.
 
 1. A DM or group DM is marked read to there.
-2. A thread you follow is marked read to there, so it leaves Slack's Threads view. A thread you don't follow, and a
-   message with no thread, have nothing to mark.
+2. A thread you follow is marked read to there, so it leaves Slack's Threads view, and so is a thread you follow inside
+   a DM on a DM card. A thread you don't follow, and a message with no thread, have nothing to mark.
 3. Slack's Activity items about the card's thread or DM are marked read to there. That covers the mentions and replies
    that brought the card, and also reactions to your messages, your highlight words, and DM and app bundles, which
    never make cards of their own.
@@ -1301,9 +1301,9 @@ counts as seen and never holds a card back, and neither does a reply in a thread
 show as unread. When a new message reaches the card while loki is clearing it, the card stays the same way, and what
 loki had already marked, up to what you had seen, stays read. Handing a card to an agent clears what you had seen and leaves the rest unread.
 
-Undo marks the Activity items unread again and puts a thread back where its read point was. Two gaps are known: undo
+Undo marks the Activity items unread again and puts a thread back where you had read it. Two gaps are known: undo
 cannot mark a Slack DM unread again, so the card comes back in loki and Slack keeps the DM read, and undo after loki
-restarts only brings the card back in loki. A thread inside a DM can also stay unread in Slack's Threads view.
+restarts only brings the card back in loki.
 
 Slack does not document how its Activity and threads are marked, so if Slack refuses one day, the card still ends in
 loki, Slack shows the item unread, and loki's log says `slack:activity-mark-failed` or `slack:thread-mark-failed`. When

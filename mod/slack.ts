@@ -32,7 +32,6 @@ export const SLACK_METHODS = [
   "activity.feed",
   "activity.markRead",
   "activity.markUnread",
-  "subscriptions.thread.mark",
   "conversations.history",
   "conversations.replies",
   "conversations.info",
@@ -49,6 +48,7 @@ export const SLACK_METHODS = [
   "files.completeUploadExternal",
   "reactions.add",
   "reactions.remove",
+  "subscriptions.thread.mark",
 ] as const;
 
 export type SlackMethod = (typeof SLACK_METHODS)[number];
@@ -439,8 +439,15 @@ export class SlackClient {
     await this.call("conversations.mark", { channel, ts });
   }
 
-  async markThread(channel: string, threadTs: string, ts: string, read: boolean): Promise<void> {
-    await this.call("subscriptions.thread.mark", { channel, thread_ts: threadTs, ts, read: read ? 1 : 0 });
+  async followedThreadLastRead(channel: string, threadTs: string): Promise<string | null> {
+    const root = (await this.conversationsReplies({ channel, ts: threadTs, limit: 1 })).messages.find((m) => m.ts === threadTs);
+    return root?.raw.subscribed === true ? strOrNull(root.raw.last_read) : null;
+  }
+
+  // Slack does not document how a thread is marked read; this is the call emacs-slack makes:
+  // https://github.com/emacs-slack/emacs-slack/blob/master/slack-thread.el
+  async markThread(channel: string, threadTs: string, ts: string): Promise<void> {
+    await this.call("subscriptions.thread.mark", { channel, thread_ts: threadTs, ts });
   }
 
   async markActivity(items: readonly SlackActivityEntry[], read: boolean): Promise<void> {
