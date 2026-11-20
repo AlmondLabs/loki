@@ -192,7 +192,12 @@ describe("a Flow card that is all message (plan 2026-11-19-2250)", () => {
     expect(ruleOf(".loki-phone-card [data-reply-handle]")).toMatch(/touch-action:\s*none;/);
     expect(ruleOf(".loki-phone-card [data-reply-handle] textarea")).toMatch(/pointer-events:\s*none;/);
     expect(ruleOf(".loki-phone-card")).toMatch(/touch-action:\s*pan-y;/);
-    expect(ruleOf(".loki-phone-outside-body")).toMatch(/touch-action:\s*pan-y;/);
+    expect(ruleOf(".loki-phone-outside-scroll")).toMatch(/touch-action:\s*pan-y;/);
+  });
+  test("an email, Slack or Jira card keeps its reply box at the bottom while the thread scrolls above it", () => {
+    expect(ruleOf(".loki-phone-outside-scroll")).toMatch(/overflow-y:\s*auto;/);
+    expect(ruleOf(".loki-phone-outside-body")).not.toMatch(/overflow/);
+    expect(ruleOf(".loki-phone-outside-reply")).toMatch(/flex:\s*none;/);
   });
   test("the card's ⋯ is a full touch target, and its thread shows no day pill (R8, R18)", () => {
     const more = ruleOf(".loki-phone-card-more");

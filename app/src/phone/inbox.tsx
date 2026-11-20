@@ -1174,17 +1174,17 @@ function OutsideBody({
   const people = outside?.searchPeople;
   const pick = outside?.pickPerson;
   return (
-    <div
-      className="loki-phone-outside-body"
-      style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}
-    >
-      {banner}
-      {facts.disconnected && <ThreadNotice text={sentence(disconnectedText(facts.disconnected, facts.provider))} />}
-      {went && <span className="loki-phone-meta">{sentence(went)}</span>}
-      <OutsideThread facts={facts} state={thread} touch />
+    <div className="loki-phone-outside-body">
+      <div className="loki-phone-outside-scroll">
+        {banner}
+        {facts.disconnected && <ThreadNotice text={sentence(disconnectedText(facts.disconnected, facts.provider))} />}
+        {went && <span className="loki-phone-meta">{sentence(went)}</span>}
+        <OutsideThread facts={facts} state={thread} touch />
+      </div>
       {outside && (
         <div
           {...fold.props}
+          className="loki-phone-outside-reply"
           {...(fold.folded ? {} : { onPointerDown: stopPointer, onPointerMove: stopPointer, onPointerUp: stopPointer })}
           onInput={(e) => e.target instanceof HTMLTextAreaElement && onTyped?.(!!e.target.value.trim())}
         >
