@@ -148,6 +148,19 @@ describe("the route", () => {
     expect((await fetch(`${base}/chat-images/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png?t=ok`)).status).toBe(404);
   });
 
+  test("a picture it serves can be read by the app's own page on another origin; the token still gates it", async () => {
+    const answer = async (path: string) => {
+      const res = await fetch(`${base}${path}`);
+      return [res.status, res.headers.get("access-control-allow-origin"), await res.text()];
+    };
+    writeFileSync(join(dir, NAME), "here");
+    expect(await answer(`/chat-images/${NAME}?t=ok`)).toEqual([200, "*", "here"]);
+    const other = "fedcba9876543210fedcba9876543210.jpg";
+    remote.set(other, Buffer.from("from the mini"));
+    expect(await answer(`/chat-images/${other}?t=ok`)).toEqual([200, "*", "from the mini"]);
+    expect(await answer(`/chat-images/${NAME}`)).toEqual([403, null, ""]);
+  });
+
   test("a picture that is there but cannot be read ends that answer, not the daemon; the next one is served", async () => {
     mkdirSync(join(dir, NAME));
     await fetch(`${base}/chat-images/${NAME}?t=ok`)

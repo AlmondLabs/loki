@@ -44,7 +44,7 @@ export interface ItemActionsView {
 export type ItemPart =
   | { kind: "text"; text: string }
   | { kind: "blocks"; blocks: SlackBlock[] }
-  | { kind: "html"; html: string }
+  | { kind: "html"; html: string; inline_images?: Record<string, string> }
   | { kind: "attachments"; attachments: SlackAttachment[] }
   | { kind: "files"; files: SlackFile[] }
   | { kind: "mail_files"; files: MailFile[] };
@@ -179,7 +179,7 @@ function changeText(c: JiraFieldChange): string {
 
 function partsOf(m: OutsideMessage): ItemPart[] {
   const parts: ItemPart[] = [];
-  if (m.html) parts.push({ kind: "html", html: m.html });
+  if (m.html) parts.push({ kind: "html", html: m.html, inline_images: m.inline_images });
   else if (m.body?.length) parts.push({ kind: "blocks", blocks: m.body });
   else if (m.text) parts.push({ kind: "text", text: m.text });
   if (m.attachments?.length) parts.push({ kind: "attachments", attachments: m.attachments });

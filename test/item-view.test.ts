@@ -172,6 +172,17 @@ describe("an email", () => {
     expect(view.composer.targets.map((t) => t.kind)).toEqual(["reply", "reply_all"]);
   });
 
+  test("a mail's HTML part carries the pictures pasted into it", () => {
+    const images = { ii_abc: "0123456789abcdef0123456789abcdef.png" };
+    const view = outsideItem({
+      facts: facts({ provider: "gmail" }),
+      messages: [msg("m1", { html: '<img src="cid:ii_abc">', inline_images: images })],
+      unread: false,
+    });
+    const m = view.entries[0];
+    expect(m.kind === "message" && m.parts[0]).toEqual({ kind: "html", html: '<img src="cid:ii_abc">', inline_images: images });
+  });
+
   test("a starred mail carries the starred flag; one not starred has none", () => {
     expect(outsideItem({ facts: facts({ provider: "gmail", starred: true }), messages: [], unread: false }).header.flags).toEqual(["starred"]);
     expect(outsideItem({ facts: facts({ provider: "gmail" }), messages: [], unread: false }).header.flags).toEqual([]);

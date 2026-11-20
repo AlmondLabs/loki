@@ -10,6 +10,8 @@ import { writeFileAtomic } from "./json-file.ts";
 
 const TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", gif: "image/gif", webp: "image/webp", heic: "image/heic" };
 
+const typeOf = (name: string) => TYPES[name.split(".")[1]] ?? "application/octet-stream";
+
 export type ImageRoute = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
 
 export function chatImageRoute(opts: {
@@ -31,7 +33,7 @@ export function chatImageRoute(opts: {
     if (!IMAGE_NAME.test(name)) return end(404);
     const file = join(opts.dir, name);
     const send = () => {
-      res.writeHead(200, { "content-type": TYPES[name.split(".")[1]] ?? "application/octet-stream", "cache-control": "private, max-age=31536000, immutable" });
+      res.writeHead(200, { "content-type": typeOf(name), "cache-control": "private, max-age=31536000, immutable", "access-control-allow-origin": "*" });
       // pipeline, not pipe: a read that fails after the check above (the file removed, a disk error) would otherwise be
       // an error event nobody listens for, which ends the daemon. It ends this answer instead, and a client that goes
       // away part-way closes the file.
@@ -51,7 +53,7 @@ export function chatImageRoute(opts: {
           writeFileAtomic(file, data);
         } catch (err) {
           log("chat-images:keep-failed", { name, error: messageOf(err) });
-          return void res.writeHead(200, { "content-type": TYPES[name.split(".")[1]] ?? "application/octet-stream" }).end(data);
+          return void res.writeHead(200, { "content-type": typeOf(name), "access-control-allow-origin": "*" }).end(data);
         }
         send();
       },

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { CID_SRC, cidOf } from "../../../core/mail-pictures.ts";
 import { FORWARD_OPENER } from "../../../core/mail-quote.ts";
-import { openExternal } from "./env";
+import { chatImageUrl, openExternal } from "./env";
 
 const DROPPED = ["script", "noscript", "iframe", "frameset", "object", "applet"];
 
@@ -63,7 +64,46 @@ export function darkRulesOff(css: string): string {
   return css.replace(/prefers-color-scheme\s*:\s*dark/gi, "prefers-color-scheme: loki-light-page");
 }
 
-export function mailDocument(html: string, quoteOpen = false): string {
+function placeImages(body: string, images: Record<string, string>): string {
+  return body.replace(CID_SRC, (whole, head: string, double: string | undefined, single: string | undefined, bare: string | undefined) => {
+    const id = cidOf(double ?? single ?? bare ?? "");
+    const url = Object.hasOwn(images, id) ? images[id] : undefined;
+    if (url === undefined) return whole;
+    const quote = double !== undefined ? '"' : single !== undefined ? "'" : "";
+    return `${head}${quote}${url}${quote}`;
+  });
+}
+
+export type ImageFetch = (name: string) => Promise<Blob>;
+
+async function fetchChatImage(name: string): Promise<Blob> {
+  const res = await fetch(chatImageUrl(name));
+  if (!res.ok) throw new Error(`picture ${name}: ${res.status}`);
+  return res.blob();
+}
+
+async function dataUrlOf(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let at = 0; at < bytes.length; at += 0x8000) binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+  return `data:${blob.type};base64,${btoa(binary)}`;
+}
+
+export async function inlineImages(names: Record<string, string>, fetchImage: ImageFetch = fetchChatImage): Promise<Record<string, string>> {
+  const loaded = await Promise.all(
+    Object.entries(names).map(([id, name]) =>
+      fetchImage(name)
+        .then(dataUrlOf)
+        .then(
+          (url) => [id, url] as const,
+          () => null,
+        ),
+    ),
+  );
+  return Object.fromEntries(loaded.filter((entry) => entry !== null));
+}
+
+export function mailDocument(html: string, quoteOpen = false, images: Record<string, string> = {}): string {
   let body = darkRulesOff(bodyOf(html));
   for (const name of DROPPED) body = body.replace(new RegExp(`<${name}\\b[\\s\\S]*?(?:<\\/${name}\\s*>|\\/>|$)`, "gi"), "");
   for (const name of DROPPED_VOID) body = body.replace(new RegExp(`<${name}\\b[^>]*>`, "gi"), "");
@@ -71,6 +111,7 @@ export function mailDocument(html: string, quoteOpen = false): string {
   // The frame's own referrer rule (below) is the only one: a mail that brought its own could have the page's address,
   // which carries the daemon's token in a browser tab, sent to whoever hosts its images.
   body = body.replace(/<meta\b[^>]*name\s*=\s*["']?referrer[^>]*>/gi, "").replace(/\sreferrerpolicy\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  body = placeImages(body, images);
   return [
     "<!doctype html><html><head>",
     `<meta http-equiv="Content-Security-Policy" content="${MAIL_POLICY}">`,
@@ -87,12 +128,25 @@ export function openableHref(href: string): boolean {
   return /^(?:https?:|mailto:)/i.test(href.trim());
 }
 
-export function MailHtml({ html, title }: { html: string; title: string }) {
+export function MailHtml({ html, title, images }: { html: string; title: string; images?: Record<string, string> }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const [placed, setPlaced] = useState<{ names: string; urls: Record<string, string> } | null>(null);
+  const names = images ? JSON.stringify(images) : "";
+  useEffect(() => {
+    if (!images) return;
+    let current = true;
+    void inlineImages(images).then((urls) => {
+      if (current) setPlaced({ names: JSON.stringify(images), urls });
+    });
+    return () => {
+      current = false;
+    };
+  }, [images]);
+  const urls = placed?.names === names ? placed.urls : undefined;
   const folds = useMemo(() => quoteFolds(bodyOf(html)), [html]);
-  const doc = useMemo(() => mailDocument(html, quoteOpen), [html, quoteOpen]);
+  const doc = useMemo(() => mailDocument(html, quoteOpen, urls), [html, quoteOpen, urls]);
   useEffect(() => {
     const el = frame.current;
     if (!el) return;

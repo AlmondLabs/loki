@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
-import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref, quoteFolds } from "../app/src/desk/mail-html.tsx";
+import { MAIL_POLICY, darkRulesOff, inlineImages, linkParts, mailDocument, openableHref, quoteFolds } from "../app/src/desk/mail-html.tsx";
 import { OutsideThread } from "../app/src/desk/outside-card.tsx";
 import { firstLine } from "../app/src/desk/mail-thread.tsx";
 
@@ -79,6 +79,61 @@ describe("the frame's document for a mail", () => {
   test("only web and mail links leave for the browser", () => {
     expect(["https://x.test", "http://x.test", "mailto:a@b.test"].map(openableHref)).toEqual([true, true, true]);
     expect(["javascript:alert(1)", "file:///etc/passwd", "loki://x", "#top"].map(openableHref)).toEqual([false, false, false, false]);
+  });
+});
+
+describe("a mail's pasted pictures", () => {
+  const PNG = "data:image/png;base64,AAAA";
+  const body = (img: string) => `<html><body><p>See below</p>${img}</body></html>`;
+
+  test("a cid: link the mail names takes the picture's data: address in its place, and keeps its alt", () => {
+    const doc = mailDocument(body('<img src="cid:ii_abc" alt="image.png">'), false, { ii_abc: PNG });
+    expect(doc).toContain(`<img src="${PNG}" alt="image.png">`);
+    expect(doc).not.toContain("cid:ii_abc");
+  });
+
+  test("single-quoted, unquoted and upper-case links are placed, and a percent-encoded id matches", () => {
+    const doc = mailDocument(body(`<img alt=a src='cid:ii_abc'><img src=cid:ii_abc alt=b><img width=10 SRC="CID:ii_abc"><img src="cid:ii%5Fabc">`), false, {
+      ii_abc: PNG,
+    });
+    const shown = doc.slice(doc.indexOf("<body>"));
+    expect(shown).not.toMatch(/cid:/i);
+    expect(shown.split(PNG)).toHaveLength(5);
+  });
+
+  test("a cid: the map does not know, or one outside an image's src, stays as it is", () => {
+    const html = body(`<img src="cid:other"><td background="cid:ii_abc"><a href="cid:ii_abc">x</a></td><img data-src="cid:ii_abc">`);
+    const doc = mailDocument(html, false, { ii_abc: PNG, constructor: PNG });
+    expect(doc).toContain('<img src="cid:other">');
+    expect(doc).toContain('<td background="cid:ii_abc"><a href="cid:ii_abc">x</a></td><img data-src="cid:ii_abc">');
+    expect(doc).not.toContain(PNG);
+    expect(mailDocument(body('<img src="cid:constructor">'), false, {})).toContain('<img src="cid:constructor">');
+  });
+
+  test("a malformed escape is compared as written and never stops the mail", () => {
+    expect(mailDocument(body('<img src="cid:%">'), false, { ii_abc: PNG })).toContain('<img src="cid:%">');
+    expect(mailDocument(body('<img src="cid:%zz">'), false, { "%zz": PNG })).toContain(`<img src="${PNG}">`);
+  });
+
+  test("the loader answers a data: address for each picture it could read and leaves out the one it could not", async () => {
+    const asked: string[] = [];
+    const images = await inlineImages({ ii_abc: "0123456789abcdef0123456789abcdef.png", ii_gone: "fedcba9876543210fedcba9876543210.png" }, (name) => {
+      asked.push(name);
+      return name.startsWith("0123")
+        ? Promise.resolve(new Blob([Uint8Array.from([137, 80, 78, 71])], { type: "image/png" }))
+        : Promise.reject(new Error("404"));
+    });
+    expect(asked.sort()).toEqual(["0123456789abcdef0123456789abcdef.png", "fedcba9876543210fedcba9876543210.png"]);
+    expect(images).toEqual({ ii_abc: "data:image/png;base64,iVBORw==" });
+  });
+
+  test("the drawn mail holds only data: pictures, never the picture route or the daemon's token, under the same policy", async () => {
+    const images = await inlineImages({ ii_abc: "0123456789abcdef0123456789abcdef.png" }, () => Promise.resolve(new Blob(["x"], { type: "image/png" })));
+    const doc = mailDocument(body('<img src="cid:ii_abc">'), false, images);
+    expect(doc).toContain('<img src="data:image/png;base64,eA==">');
+    expect(doc).not.toContain("chat-images");
+    expect(doc).not.toContain("?t=");
+    expect(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/.exec(doc)?.[1]).toBe(MAIL_POLICY);
   });
 });
 

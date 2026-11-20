@@ -37,7 +37,7 @@ function partOf(p: ItemPart, source: ItemSource, title: string): ReactNode {
         </div>
       );
     case "html":
-      return <MailHtml html={p.html} title={title} />;
+      return <MailHtml html={p.html} title={title} images={p.inline_images} />;
     case "attachments":
       return (
         <div className="whitespace-pre-wrap">
