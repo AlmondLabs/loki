@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { MAIN_CHAT_ID, mainChatAgent, scopeFor, SHARED_SCOPE } from "../core/desk-core.ts";
-import { migrateKeys } from "../core/snake-keys.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 import { writeJsonAtomic } from "./json-file.ts";
@@ -21,8 +20,8 @@ export class DeskRegistry {
     this.path = path;
     this.agentOf = agentOf;
     try {
-      const { value: parsed, changed } = migrateKeys(JSON.parse(readFileSync(path, "utf8")) as Record<string, Partial<Runtime> | null>);
-      let rewritten = changed;
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Partial<Runtime> | null>;
+      let rewritten = false;
       for (const [k, v] of Object.entries(parsed)) {
         if (!v?.agent_id || !v.conversation_id) continue;
         const rt: Runtime = { ...v, agent_id: v.agent_id, conversation_id: v.conversation_id };

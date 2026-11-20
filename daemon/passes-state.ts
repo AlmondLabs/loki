@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { PassSettings } from "../core/attention/protocol.ts";
-import { migrateKeys } from "../core/snake-keys.ts";
 import { readJson, writeJsonAtomic } from "../mod/json-file.ts";
 
 export type { PassSettings };
@@ -49,20 +48,16 @@ export class PassState {
   constructor(stateDir: string) {
     this.settingsFile = join(stateDir, "passes.json");
     this.cursorsFile = join(stateDir, "pass-cursors.json");
-    const { value: read, changed } = migrateKeys(readJson(this.cursorsFile) as Partial<Cursors> | null);
+    const read = readJson(this.cursorsFile) as Partial<Cursors> | null;
     this.data = {
       cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } },
       learn_written: read?.learn_written ?? { day: "", count: 0 },
       ...(read?.learn_last ? { learn_last: read.learn_last } : {}),
     };
-    if (changed) this.save();
   }
 
   settings(): PassSettings {
-    const { value, changed } = migrateKeys(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
-    const settings = normalSettings(value);
-    if (changed) writeJson(this.settingsFile, settings);
-    return settings;
+    return normalSettings(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
   }
 
   setSettings(s: Parameters<typeof normalSettings>[0]): PassSettings {
