@@ -294,16 +294,6 @@ describe("pages by position (plan 033)", () => {
     expect(after[24 - 10]).not.toBe(was[24 - 10]);
     expect(after[24 - 10].tool?.output).toBe("done");
   });
-
-  test("a page without a position replaces what was loaded, as an older Mac's answer does", () => {
-    const all = thread(30);
-    const t = new ThreadModel();
-    t.load(all.slice(20), 20);
-    t.prepend(all.slice(10, 20), 10);
-    t.load(all.slice(25));
-    expect(texts(t)).toEqual(all.slice(25).map((r) => r.text));
-    expect(t.firstPosition).toBeNull();
-  });
 });
 
 describe("a history page arriving", () => {

@@ -199,9 +199,7 @@ export class Suggestions {
     if (action === "draft") {
       const out = await this.opts.call({ type: "chat_update", ...target, draft: { text: s.text, suggestion_id: s.id, source } });
       if (!out.ok) return out.message.includes(DRAFT_HELD) ? { ok: false, message: HELD_WORDS } : out;
-      return out.reply.draft_suggestion_id === s.id
-        ? { ok: true }
-        : { ok: false, message: "that chat's Mac runs an older loki: send it instead, or pick another chat" };
+      return { ok: true };
     }
     const out = await this.opts.call({ type: "chat_send", ...target, text: s.text, images: [], send_id: s.id, context: this.context(source, s) });
     if (!out.ok) return out;

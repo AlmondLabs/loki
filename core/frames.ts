@@ -81,7 +81,7 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter(str) : []
 /** The person's state kept as folders of files, which another Mac asks for only when they changed (plan 040). */
 export const STATE_FOLDERS = ["learn", "mods"] as const;
 export type StateFolder = (typeof STATE_FOLDERS)[number];
-/** The folders a frame names; undefined when it names none, as an older loki's frames do, which means all of them. */
+/** The folders a frame names; undefined when it names none, which means all of them. */
 export function stateFolders(v: unknown): StateFolder[] | undefined {
   return Array.isArray(v) ? STATE_FOLDERS.filter((f) => v.includes(f)) : undefined;
 }
@@ -248,10 +248,7 @@ export interface Replies {
   memory_commits: { agent_id: string; commits: MemoryCommit[] };
   memory_diff: { agent_id: string; sha: string; diff: string };
   inbox: { conversations: InboxRow[] };
-  /**
-   * `start` is the position of the first of `messages` in the chat's whole thread (plan 033); a paired Mac on an
-   * older loki leaves it out.
-   */
+  /** `start` is the position of the first of `messages` in the chat's whole thread (plan 033). */
   history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start?: number; widget_log: WidgetLogEntry[] };
   /**
    * One lean row made whole: a tool row's step (plan 041), or an event's detail (plan 043); each null when the row is
@@ -265,10 +262,7 @@ export interface Replies {
   /** `home_mac` is the Mac each agent lives on (plan 023), null for one whose record names none. */
   chat_agents: { agents: Array<{ id: string; name: string; home_mac?: string | null }> };
   chat_agent_created: { id: string; name: string };
-  /**
-   * Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`, so the asking Mac knows the
-   * draft is kept: a loki from before plan 049 drops a draft it does not know and replies without it.
-   */
+  /** Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`. */
   chat_done: { draft_suggestion_id?: string };
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };

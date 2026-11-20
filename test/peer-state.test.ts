@@ -83,7 +83,7 @@ describe("Learn's and the mods' files travel only when they changed (plan 040)",
     ]);
   });
 
-  test("a frame naming no folders, as an older loki's, means every one; unknown names are dropped", () => {
+  test("a frame naming no folders means every one; unknown names are dropped", () => {
     expect(stateFolders(undefined)).toBeUndefined();
     expect(stateFolders([])).toEqual([]);
     expect(stateFolders(["mods", "nonsense", "learn"])).toEqual(["learn", "mods"]);
