@@ -122,7 +122,9 @@ every chat gets, the chats, then the mods.
    document in each store maps loki's chat ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat
    keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes
    what pi-durable's schema holds migrates it on open, after a whole copy to `stores/backup-schema-<version>-<date>/`
-   (`daemon/store-backup.ts`).
+   (`daemon/store-backup.ts`). Before it opens anything, the daemon refuses a loki folder that no version from
+   2026-10-28 to 2026.1116 started, or one with a listed agent's store those versions did not finish converting
+   (`daemon/old-data.ts`): it exits with `EXIT_OLD_DATA`, and the shell stops restarting it and shows why.
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`:
    `agents/<id in base64>.json` for the record (`backendName`) and `memfs/<id>/memory/` for the memory repo. The memory
    repo's `system/` files go into the prompt; the rest is listed by path. A section read from disk is reused for ten
@@ -434,7 +436,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 2. `daemon.lock`: the pid of the daemon serving this folder.
 3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone canvas (release builds).
 4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; and `stores/backup-…/`, whole copies
-   made before a migration. `stores/migrations.json`, left by versions up to 2026.1116, is no longer read.
+   made before a migration. `stores/migrations.json`, left by versions up to 2026.1116, is read only by the start-up
+   check.
 5. `backend/`: agent records (`agents/`, each file named by the agent's id in base64) and memory repos
    (`memfs/<id>/memory/`).
 6. `widgets/<desk>/`: the files agents write onto the canvas.
@@ -450,7 +453,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
     (`recent-models.json`), the chats held for a move to another Mac (`chat-moves.json`, plan 096), each agent's
     switched-off MCP servers (`mcp-agents.json`) and each chat's canvas; `reflection.json` and
-    `migrations.json`, left by versions up to 2026.1116, are no longer read. For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
+    `migrations.json`, left by versions up to 2026.1116, are read only by the start-up check (`migrations.json`) or not
+    at all (`reflection.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
     account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),
     each chat's reply proposals (`reply-proposals.json`), the people each mailbox has mail with (`mail-people.json`,
     plan 076), and mail replies held for their undo (`outbox.json`).

@@ -142,7 +142,9 @@ Saved chats are kept in the shapes loki writes now, so an old chat reads and res
 2026.1116 rewrote what older ones had saved, once, as each store or file first opened: loki's tool names, which changed
 several times in October and November 2026, the shapes of chats imported from Letta, and field names in loki's own
 files. An "always allow" for a renamed tool carried to its new name. Later versions read only today's shapes, so a Mac
-still on 2026.1022 or older installs and opens 2026.1116 once before it updates further. In November 2026
+still on 2026.1022 or older installs and opens 2026.1116 once before it updates further. A later version that finds a
+loki folder 2026.1116 never opened, or an agent's chats 2026.1116 could not finish rewriting, does not start: the
+window says to install 2026.1116, open it once, then update again, and the daemon's log names what it found. In November 2026
 `image_view`, `ls`, `find`, `grep`, `skill`, `suggestion_list`, `suggestion_withdraw`, `reply_list` and
 `reply_withdraw` went, since another tool or the chat itself already does what each did (see [Scripts](#scripts) for
 where `ls`, `find` and `grep` remain); old chats show their calls as they were. A chat on Claude Code, Cursor or
@@ -152,8 +154,10 @@ Leaving Letta behind changed a few things once on each Mac, up to 2026.1116: age
 ChatGPT's provider and kept their effort as `reasoning_effort`, memory files that named `~/.letta/loki` came to name
 `~/.loki` in a commit by loki, chats ran on pi-ai's model names in folders under `~/.loki`, Learn's chats from Letta
 were hidden, and a helper agent Letta made was moved to `~/.loki/backend/backup-letta-<date>/`. loki no longer moves
-or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's. Files those steps left, such as
-`~/.loki/stores/migrations.json` and `~/.loki/state/migrations.json`, are no longer read and can be deleted.
+or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's. Keep `~/.loki/stores/migrations.json`
+and `~/.loki/state/migrations.json`: they are how loki tells a folder 2026.1116 opened from an older one, and
+without them it does not start. The other files those steps left, such as the `backup-letta-<date>` folders, are no
+longer read and can be deleted.
 
 ### Uninstall
 
