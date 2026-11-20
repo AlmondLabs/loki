@@ -128,9 +128,10 @@ describe("the limits of a socket", () => {
     }
   });
 
-  test("a socket with too much waiting unsent is ended rather than fed more", async () => {
+  test("a socket with too much waiting unsent is ended rather than fed more, and every frame's after-send step still runs once", async () => {
     const s = await startServer({ port: 0 });
     let fed = 0;
+    let steps = 0;
     const bridge = attachWs(
       s.server,
       token,
@@ -139,7 +140,7 @@ describe("the limits of a socket", () => {
         // Far more than any system keeps for a socket nobody reads: once its buffers are full the rest waits in the
         onMessage: (c) => {
           const fill = "x".repeat(1024 * 1024);
-          for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill });
+          for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill }, () => steps++);
         },
       },
       { maxBufferedBytes: 64 * 1024 },
@@ -154,6 +155,8 @@ describe("the limits of a socket", () => {
       await until(() => bridge.clientCount() === 0);
       expect(bridge.clientCount()).toBe(0);
       expect(fed).toBeLessThan(64);
+      await until(() => steps === fed);
+      expect(steps).toBe(fed);
       ws.terminate();
     } finally {
       bridge.close();
