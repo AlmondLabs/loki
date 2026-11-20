@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { CURRENT_SQLITE_SCHEMA_VERSION } from "@earendil-works/pi-durable/storage/sqlite";
 import { AgentStore, type StoreOptions } from "./index.ts";
 import { backupBeforeMigration } from "../store-backup.ts";
-import { STORE_VERSION, acpConversations, markStoreVersion, migrateStoredEntries, storeVersion } from "../store-migration.ts";
 import { Listeners } from "../../core/listeners.ts";
 
 export class StoreManager {
@@ -32,20 +31,10 @@ export class StoreManager {
       (async (file) => {
         mkdirSync(dir, { recursive: true });
         // A newer pi-durable migrates the store as it opens it, for good: copy it first (plan 039). A copy that fails
+        // stops the store from opening, reported, rather than leaving it with no way back.
         const copy = backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION);
         if (copy) report(`store ${file} copied to ${copy} before pi-durable migrates it`);
-        const behind = storeVersion(file) < STORE_VERSION;
-        const store = await AgentStore.open({ file }, options, context);
-        if (behind) {
-          const migrated = migrateStoredEntries(
-            file,
-            await acpConversations(store, context),
-            join(dir, `backup-letta-${new Date().toISOString().slice(0, 10)}`),
-          );
-          if (migrated.backup) report(`store ${file}: ${migrated.entries} saved entries rewritten as loki writes them now, copied first to ${migrated.backup}`);
-          markStoreVersion(file);
-        }
-        return store;
+        return await AgentStore.open({ file }, options, context);
       });
   }
 

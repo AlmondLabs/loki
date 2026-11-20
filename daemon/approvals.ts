@@ -7,7 +7,7 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
 import { SCRIPT_TOOL } from "./scripts.ts";
-import { CODING_TOOL_KINDS, isOldTool, renamedTools, type ToolKind } from "./tool-kinds.ts";
+import { CODING_TOOL_KINDS, type ToolKind } from "./tool-kinds.ts";
 
 export type { ToolKind } from "./tool-kinds.ts";
 
@@ -71,8 +71,7 @@ export class Approvals {
     this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
-    this.alwaysAllowed = new Set(stored.flatMap(renamedTools).filter((name) => !NEVER_ALWAYS_TOOLS.has(name)));
-    if (stored.some(isOldTool)) this.saveAlways();
+    this.alwaysAllowed = new Set(stored.filter((name) => !NEVER_ALWAYS_TOOLS.has(name)));
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
 
