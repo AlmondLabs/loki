@@ -1,4 +1,4 @@
-import { CID_SRC, cidOf } from "../../core/mail-pictures.ts";
+import { CID_SRC, cidOf, drawnBody } from "../../core/mail-pictures.ts";
 import { htmlToText, tidyMail } from "../../core/mail-text.ts";
 import type { AccountRecord } from "../accounts.ts";
 import type { GmailClient, GmailMessage, GmailMessagePart } from "../gmail.ts";
@@ -48,7 +48,7 @@ function contentIdOf(part: GmailMessagePart): string {
 }
 
 function pastedPictures(messageId: string, html: string, root: GmailMessagePart | null): PastedPicture[] {
-  const shown = shownCids(html);
+  const shown = shownCids(drawnBody(html));
   const out: PastedPicture[] = [];
   const walk = (part: GmailMessagePart) => {
     const contentId = contentIdOf(part);

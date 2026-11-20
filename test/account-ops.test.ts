@@ -152,6 +152,17 @@ describe("pictures pasted into a mail", () => {
     expect(got.messages[0].files).toEqual([{ name: "image.png", size: 2048 }]);
   });
 
+  test("a cid: link the card would not draw, after the body or inside a dropped element, leaves its picture a file", async () => {
+    const p = pictures();
+    const html = '<html><body><p>Hi</p><noscript><img src="cid:ii_hidden"></noscript></body></html><img src="cid:ii_after">';
+    const got = await read(threadOf(html, [picture("ii_hidden"), picture("ii_after")]), p.pictures);
+    expect(p.asked).toEqual([]);
+    expect(got.messages[0].files).toEqual([
+      { name: "image.png", size: 2048 },
+      { name: "image.png", size: 2048 },
+    ]);
+  });
+
   test("a mail whose HTML is too long to draw fetches nothing and keeps its files", async () => {
     const p = pictures();
     const got = await read(threadOf(`<img src="cid:ii_abc">${"x".repeat(MAIL_HTML_MAX)}`, [picture("ii_abc")]), p.pictures);
