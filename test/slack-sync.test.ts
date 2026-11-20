@@ -1201,6 +1201,18 @@ describe("clearing a Slack card clears it in Slack (plan 2026-11-20-1041)", () =
     expect(open().map((r) => r.thread_id)).toEqual([card]);
   });
 
+  test("undo leaves a thread whose read point the person has since moved in Slack where they left it", async () => {
+    const { slack, threads } = await followedThread();
+    const change = must(await threads.archive(ACCOUNT, card), "the archive's change");
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(11));
+    slack.post("C0ENG", { ts: at(20), user: "U0ALAN", text: "read in Slack", thread_ts: at(10) });
+    slack.follow("C0ENG", at(10), at(20));
+    await threads.restore(ACCOUNT, card, change);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(20));
+    expect(marks(slack).filter((s) => s.method === "subscriptions.thread.mark")).toHaveLength(1);
+    expect(slack.unread("t")).toBe(true);
+  });
+
   test("undo after a clear that sent no thread mark sends none", async () => {
     const { slack, threads, sync } = await fixture();
     slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
