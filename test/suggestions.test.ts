@@ -16,9 +16,7 @@ const NEW_FRIDAY: SuggestionTarget = { agent_id: FRIDAY, folder: "/work/loki" };
 const NEW_IRA: SuggestionTarget = { agent_id: IRA, folder: "/work/site" };
 const key = (c: { agent_id: string; conversation_id: string }) => `${c.agent_id}/${c.conversation_id}`;
 
-function world(
-  opts: { archived?: boolean; chats?: Record<string, TargetChat>; agents?: string[]; refuse?: (f: ChatCall) => string | null; older?: boolean } = {},
-) {
+function world(opts: { archived?: boolean; chats?: Record<string, TargetChat>; agents?: string[]; refuse?: (f: ChatCall) => string | null } = {}) {
   const records = new Map<string, { suggestions: Suggestion[]; archived: boolean }>([[key(SOURCE), { suggestions: [], archived: opts.archived ?? false }]]);
   const chats: Record<string, TargetChat> = {
     [key(SOURCE)]: { title: "suggestions plan", status: "live", has_draft: false },
@@ -39,7 +37,7 @@ function world(
       return Promise.resolve({ ok: true, reply: { type: "chat_created", agent_id: f.agent_id, conversation_id: `conv-made-${++made}` } });
     if (f.type === "chat_send") return Promise.resolve({ ok: true, reply: { type: "chat_accepted", accepted: true } });
     if (f.archived === false) must(records.get(key(f)), "the chat un-archived").archived = false;
-    const saved = f.draft && !opts.older ? { draft_suggestion_id: f.draft.suggestion_id } : {};
+    const saved = f.draft ? { draft_suggestion_id: f.draft.suggestion_id } : {};
     return Promise.resolve({ ok: true, reply: { type: "chat_done", ...saved } });
   };
   let n = 0;
@@ -92,16 +90,6 @@ describe("making a suggestion", () => {
     await suggest(w);
     expect(w.calls).toEqual([{ type: "chat_update", ...SOURCE, archived: false }]);
     expect(must(w.records.get(key(SOURCE)), "source").archived).toBe(false);
-  });
-
-  test("an add with an id the chat already holds returns that suggestion and adds nothing", async () => {
-    const w = world();
-    const first = await w.s.add(SOURCE, { title: "Fix it", text: "Fix the lock test", target: INFRA }, { id: "task-7" });
-    expect(first.id).toBe("task-7");
-    const again = await w.s.add(SOURCE, { title: "Fix it again", text: "other", target: IRAS }, { id: "task-7" });
-    expect(again).toEqual(first);
-    expect(w.stored()).toEqual([first]);
-    expect(w.tracked.filter((t) => t.event === "suggestion_made")).toHaveLength(1);
   });
 
   test("the chat's own suggestions are listed, and its open ones are what a client opening it replays", async () => {
@@ -319,16 +307,6 @@ describe("saving a suggestion as a draft", () => {
     expect(await w.s.decide(SOURCE, made.id, "draft", "desktop")).toMatchObject({
       done: false,
       message: "that chat already holds a saved draft: send it there first, or pick another chat",
-      suggestion: { status: "pending" },
-    });
-  });
-
-  test("a draft to a chat on a Mac whose loki does not say it saved one stays pending", async () => {
-    const w = world({ older: true });
-    const made = await suggest(w);
-    expect(await w.s.decide(SOURCE, made.id, "draft", "desktop")).toMatchObject({
-      done: false,
-      message: "that chat's Mac runs an older loki: send it instead, or pick another chat",
       suggestion: { status: "pending" },
     });
   });

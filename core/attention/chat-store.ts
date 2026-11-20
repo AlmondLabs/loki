@@ -70,7 +70,7 @@ export interface HistoryPage {
     files?: FileRef[];
   }>;
   more: boolean;
-  start?: number;
+  start: number;
 }
 
 export interface ChatStoreHost {
@@ -168,7 +168,6 @@ export class ChatStore {
   private readonly faces = new Map<string, readonly unknown[]>();
   private client: ChatClient | null = null;
   private readonly flushing = coalesce(() => this.publish(), 150);
-  private readonly historyLimits = new Map<string, number>();
   private readonly loading = new Set<string>();
   private readonly envNotes = new Map<string, EnvNoteTold>();
   private readonly folderMoves = new Map<string, FolderMove>();
@@ -375,13 +374,12 @@ export class ChatStore {
     this.loading.add(key);
     const read = async () => {
       const thread = this.liveOf(key).thread;
-      const limit = thread.firstPosition === null ? (this.historyLimits.get(key) ?? HISTORY_PAGE) : HISTORY_PAGE;
-      const page = await this.host().loadLocalHistory?.(rt.agent_id, rt.conversation_id, limit);
+      const page = await this.host().loadLocalHistory?.(rt.agent_id, rt.conversation_id, HISTORY_PAGE);
       const unreached = page === null;
       this.set({ failed: flagged(this.snap.failed, key, unreached && thread.rows() === undefined) });
       if (unreached) return;
       const rows: HistoryRow[] = page?.rows ?? [];
-      thread.load(rows, page?.start);
+      thread.load(rows, page?.start ?? 0);
       this.threadsRead.set(key, rt);
       const first = thread.firstPosition;
       this.set({ older: flagged(this.snap.older, key, first === null ? !!page?.more : first > 0) });
@@ -396,15 +394,11 @@ export class ChatStore {
     if (this.loading.has(key)) return;
     const thread = this.liveOf(key).thread;
     const before = thread.firstPosition;
-    if (before === null) {
-      this.historyLimits.set(key, (this.historyLimits.get(key) ?? HISTORY_PAGE) + HISTORY_PAGE);
-      void this.loadThread(rt);
-      return;
-    }
+    if (before === null) return;
     this.loading.add(key);
     const read = async () => {
       const page = await this.host().loadLocalHistory?.(rt.agent_id, rt.conversation_id, HISTORY_PAGE, before);
-      if (page?.start !== undefined) thread.prepend(page.rows, page.start);
+      if (page) thread.prepend(page.rows, page.start);
       const first = thread.firstPosition;
       this.set({ older: flagged(this.snap.older, key, first !== null && first > 0) });
       this.publish();

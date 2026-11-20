@@ -2,21 +2,11 @@ import { lokiDir } from "./paths.ts";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
-import { migrateKeys } from "../core/snake-keys.ts";
 import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected } from "../core/recall/model.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 
 export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
-function readStored(path: string): unknown {
-  const { value, changed } = migrateKeys(readJson(path));
-  if (changed && value !== null) {
-    try {
-      writeJson(path, value);
-    } catch {}
-  }
-  return value;
-}
 const writeJson = (path: string, value: unknown) => writeJsonAtomic(path, value, { pretty: true, newline: true });
 function listJson<T>(dir: string): T[] {
   let names: string[];
@@ -25,7 +15,7 @@ function listJson<T>(dir: string): T[] {
   } catch {
     return [];
   }
-  return names.map((f) => readStored(join(dir, f)) as T | null).filter((v): v is T => v !== null);
+  return names.map((f) => readJson(join(dir, f)) as T | null).filter((v): v is T => v !== null);
 }
 export const isoDay = (now: number): string => {
   const d = new Date(now);
@@ -54,15 +44,15 @@ export class RecallStore {
       .filter((c) => isRecallId(c.id) && typeof c.front === "string" && typeof c.back === "string")
       .map((card) => ({
         card,
-        schedule: (readStored(this.f("schedule", card.id)) as Schedule | null) ?? newSchedule(new Date(card.created_at).getTime() || Date.now()),
+        schedule: (readJson(this.f("schedule", card.id)) as Schedule | null) ?? newSchedule(new Date(card.created_at).getTime() || Date.now()),
       }))
       .sort((a, b) => a.card.created_at.localeCompare(b.card.created_at));
   }
 
   card(id: string): CardWithSchedule | null {
-    const card = readStored(this.f("cards", id)) as Card | null;
+    const card = readJson(this.f("cards", id)) as Card | null;
     if (!card) return null;
-    return { card, schedule: (readStored(this.f("schedule", id)) as Schedule | null) ?? newSchedule() };
+    return { card, schedule: (readJson(this.f("schedule", id)) as Schedule | null) ?? newSchedule() };
   }
 
   rejected(): Rejected[] {
@@ -75,7 +65,7 @@ export class RecallStore {
   }
 
   edit(id: string, text: { front?: string; back?: string; tags?: string[] }, by: "recall" | "you", now = Date.now()): Card | null {
-    const cur = readStored(this.f("cards", id)) as Card | null;
+    const cur = readJson(this.f("cards", id)) as Card | null;
     if (!cur) return null;
     const front = text.front?.trim() || cur.front;
     const back = text.back?.trim() || cur.back;
@@ -117,7 +107,7 @@ export class RecallStore {
   }
 
   restore(id: string): Card | null {
-    const card = (readStored(this.f("rejected", id)) as Partial<Rejected> | null)?.card;
+    const card = (readJson(this.f("rejected", id)) as Partial<Rejected> | null)?.card;
     if (!card || !isRecallId(card.id)) return null;
     this.add(card);
     rmSync(this.f("rejected", id), { force: true });
@@ -134,7 +124,7 @@ export class RecallStore {
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
   lead(id: string): Lead | null {
-    return readStored(this.f("leads", id)) as Lead | null;
+    return readJson(this.f("leads", id)) as Lead | null;
   }
   addLead(lead: Lead): void {
     writeJson(this.f("leads", lead.id), lead);
@@ -151,7 +141,7 @@ export class RecallStore {
     return rec;
   }
   restoreLead(id: string): Lead | null {
-    const lead = (readStored(this.f("leads-dismissed", id)) as Partial<DismissedLead> | null)?.lead;
+    const lead = (readJson(this.f("leads-dismissed", id)) as Partial<DismissedLead> | null)?.lead;
     if (!lead || !isRecallId(lead.id)) return null;
     this.addLead(lead);
     rmSync(this.f("leads-dismissed", id), { force: true });

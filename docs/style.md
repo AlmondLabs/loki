@@ -39,7 +39,7 @@ there says why, and the ones that still fire somewhere carry their count until a
 **File names** **checked** (`test/style.test.ts`):
 
 - Every file is kebab-case, components and hooks included: `suggestion-card.tsx` (exports `SuggestionCard`), `use-draft.ts`
-  (exports `useDraft`), `task-migration.ts`, `fake-mcp.mjs`. One rule, as the Google TypeScript guide, Angular and most of
+  (exports `useDraft`), `peer-state.ts`, `fake-mcp.mjs`. One rule, as the Google TypeScript guide, Angular and most of
   the Node world have it.
 - Tools' own config files keep the names their tools look for (`vite.config.ts`, `eslint.config.mjs`).
 - Tests are `test/<subject>.test.ts`, their helpers in `test/fixtures/`; Node runner tests are
@@ -74,8 +74,10 @@ there says why, and the ones that still fire somewhere carry their count until a
   identifier.
 - Formats loki does not own keep their names: `mcp.json` (`mcpServers`, `alwaysLoad`), pi-durable's
   documents, provider APIs, the browser's `dataset`.
-- A field renamed in saved data is read through `migrateKeys` (`core/snake-keys.ts`, OLD_KEYS; task metadata through
-  OLD_TASK_METADATA_KEYS) and written back once; only listed names are renamed, since a map's keys may be ids.
+- A field renamed in saved data or a frame ships with a one-time migration that rewrites what was saved, renaming only
+  listed names, since a map's keys may be ids. It stays until every install loki has shipped to has run a release
+  containing it. loki updates itself straight to its channel's latest release, so the release that removes it names, in
+  its notes, the release an older install must open first.
 
 **Modules**:
 
@@ -100,10 +102,9 @@ there says why, and the ones that still fire somewhere carry their count until a
   (`daemon/tool-kinds.ts`); a mod's tools say so in their annotations. A tool with no kind is a command.
 - Names loki does not choose stay as their owners write them: pi-durable's `read`, `write`, `edit` and `bash`, and MCP's
   `mcp__<server>__<tool>`.
-- A rename is a hard rename: the old name goes everywhere. `RENAMED_TOOLS` (and `SPLIT_TOOLS` for one tool made
-  several) carries the stored "always allow" list over, and every store's saved calls and results are renamed once when
-  it opens (`daemon/store-migration.ts`), so no code that reads history knows an old name. A chat on an ACP agent keeps
-  its agent's own names.
+- A rename is a hard rename: the old name goes everywhere. The stored "always allow" list and every store's saved calls
+  and results are renamed by a one-time migration, kept as above, so no code that reads history knows an old name. A
+  chat on an ACP agent keeps its agent's own names.
 
 ## 3. TypeScript
 

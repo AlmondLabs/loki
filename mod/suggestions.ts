@@ -96,11 +96,11 @@ export class Suggestions {
     this.opts = opts;
   }
 
-  async add(source: ChatKey, input: SuggestionInput, options: { id?: string } = {}): Promise<Suggestion> {
+  async add(source: ChatKey, input: SuggestionInput): Promise<Suggestion> {
     if (!input.title.trim()) throw new Error("a suggestion needs a title");
     if (!input.text.trim()) throw new Error("a suggestion needs a text");
     const suggestion: Suggestion = {
-      id: options.id ?? this.opts.newId?.() ?? `sugg-${randomUUID()}`,
+      id: this.opts.newId?.() ?? `sugg-${randomUUID()}`,
       title: input.title.trim(),
       text: input.text,
       target: input.target,
@@ -109,15 +109,12 @@ export class Suggestions {
       created_at: this.now(),
       made_conversation_id: null,
     };
-    const added = await this.locked(source, async () => {
+    const archived = await this.locked(source, async () => {
       const record = await this.record(source);
-      const existing = options.id ? record.suggestions.find((s) => s.id === options.id) : undefined;
-      if (existing) return { existing, archived: false };
       await this.save(source, [...record.suggestions, suggestion]);
-      return { existing: null, archived: record.archived };
+      return record.archived;
     });
-    if (added.existing) return added.existing;
-    if (added.archived) {
+    if (archived) {
       const out = await this.opts.call({ type: "chat_update", ...source, archived: false });
       if (!out.ok) throw new Error(out.message);
     }
@@ -199,9 +196,7 @@ export class Suggestions {
     if (action === "draft") {
       const out = await this.opts.call({ type: "chat_update", ...target, draft: { text: s.text, suggestion_id: s.id, source } });
       if (!out.ok) return out.message.includes(DRAFT_HELD) ? { ok: false, message: HELD_WORDS } : out;
-      return out.reply.draft_suggestion_id === s.id
-        ? { ok: true }
-        : { ok: false, message: "that chat's Mac runs an older loki: send it instead, or pick another chat" };
+      return { ok: true };
     }
     const out = await this.opts.call({ type: "chat_send", ...target, text: s.text, images: [], send_id: s.id, context: this.context(source, s) });
     if (!out.ok) return out;

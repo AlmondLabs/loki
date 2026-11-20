@@ -81,7 +81,7 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter(str) : []
 /** The person's state kept as folders of files, which another Mac asks for only when they changed (plan 040). */
 export const STATE_FOLDERS = ["learn", "mods"] as const;
 export type StateFolder = (typeof STATE_FOLDERS)[number];
-/** The folders a frame names; undefined when it names none, as an older loki's frames do, which means all of them. */
+/** The folders a frame names; undefined when it names none, as a pull on reaching a Mac or on the poll does, which means all of them. */
 export function stateFolders(v: unknown): StateFolder[] | undefined {
   return Array.isArray(v) ? STATE_FOLDERS.filter((f) => v.includes(f)) : undefined;
 }
@@ -248,11 +248,8 @@ export interface Replies {
   memory_commits: { agent_id: string; commits: MemoryCommit[] };
   memory_diff: { agent_id: string; sha: string; diff: string };
   inbox: { conversations: InboxRow[] };
-  /**
-   * `start` is the position of the first of `messages` in the chat's whole thread (plan 033); a paired Mac on an
-   * older loki leaves it out.
-   */
-  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start?: number; widget_log: WidgetLogEntry[] };
+  /** `start` is the position of the first of `messages` in the chat's whole thread. */
+  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start: number; widget_log: WidgetLogEntry[] };
   /**
    * One lean row made whole: a tool row's step (plan 041), or an event's detail (plan 043); each null when the row is
    * not that. A Mac on a loki from before plan 043 leaves `detail` out, and sends no event lean.
@@ -266,8 +263,8 @@ export interface Replies {
   chat_agents: { agents: Array<{ id: string; name: string; home_mac?: string | null }> };
   chat_agent_created: { id: string; name: string };
   /**
-   * Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`, so the asking Mac knows the
-   * draft is kept: a loki from before plan 049 drops a draft it does not know and replies without it.
+   * Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`: a 2026.1116 Mac drafting
+   * here checks for it before it calls the suggestion drafted.
    */
   chat_done: { draft_suggestion_id?: string };
   chat_providers: { providers: ConnectProvider[] };
@@ -326,8 +323,6 @@ export interface Replies {
    * among them what already happened to it and from where (R17).
    */
   suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
-  /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
-  suggestion_added: { suggestion: Suggestion };
   /**
    * A reply proposal as it stands after an action (plan 2026-11-14-1134, KTD3): `done` when it took, else `message`
    * says why not. A Send answers as sending; what became of the reply comes as the chat's `reply_proposals` event.
@@ -852,20 +847,6 @@ export const FRAMES = {
       return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, files, mentions, title };
     },
     PHONE,
-    BY_CHAT,
-  ),
-  suggestion_add: request(
-    "suggestion_added",
-    "a new suggestion in this chat: its title, its message and the chat it is for",
-    (m) => {
-      const c = chatRef(m);
-      if (typeof c === "string") return c;
-      if (!str(m.title) || !m.title.trim() || !str(m.text) || !m.text.trim()) return "title and text required";
-      const target = parseSuggestionTarget(m.target);
-      if (!target) return "target needs agent_id and a conversation_id or a folder";
-      return { ...c, title: m.title, text: m.text, target, ...(str(m.suggestion_id) && m.suggestion_id ? { suggestion_id: m.suggestion_id } : {}) };
-    },
-    false,
     BY_CHAT,
   ),
   chat_message: request(

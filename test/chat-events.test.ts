@@ -169,10 +169,13 @@ describe("chat event converter", () => {
       const live = must(l.thread.rows(), "the thread's rows")
         .filter((r) => r.role === "assistant")
         .map((r) => r.text);
-      l.thread.load([
-        { role: "user", text: "farmart-co-read-write-user is needed" },
-        { role: "assistant", text: REPLY },
-      ]);
+      l.thread.load(
+        [
+          { role: "user", text: "farmart-co-read-write-user is needed" },
+          { role: "assistant", text: REPLY },
+        ],
+        0,
+      );
       const after = must(l.thread.rows(), "the thread's rows")
         .filter((r) => r.role === "assistant")
         .map((r) => r.text);

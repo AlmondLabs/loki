@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { Scope, WidgetActor, WidgetChange, WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
-import { migrateKeys } from "../core/snake-keys.ts";
 import type { WidgetsDiff } from "./widgets-fs.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
@@ -88,18 +87,13 @@ export class WidgetLog {
     let log = this.logs.get(scope);
     if (log) return log;
     log = [];
-    let rewrite = false;
     if (this.dir) {
       try {
-        const { value: parsed, changed } = migrateKeys(JSON.parse(readFileSync(this.file(this.dir, scope), "utf8")) as unknown);
-        if (Array.isArray(parsed)) {
-          log = parsed.filter(isEntry).slice(-WIDGET_LOG_LIMIT);
-          if (changed) rewrite = true;
-        }
+        const parsed = JSON.parse(readFileSync(this.file(this.dir, scope), "utf8")) as unknown;
+        if (Array.isArray(parsed)) log = parsed.filter(isEntry).slice(-WIDGET_LOG_LIMIT);
       } catch {}
     }
     this.logs.set(scope, log);
-    if (rewrite) this.persist(scope);
     return log;
   }
 

@@ -5,7 +5,74 @@ import { DeskStore } from "../../mod/desk-store.ts";
 import { GestureLog } from "../../mod/gestures.ts";
 import type { Client } from "../../mod/server.ts";
 import type { WidgetsWatcher } from "../../mod/widgets-fs.ts";
-import { OLD_KEYS } from "../../core/snake-keys.ts";
+
+const RENAMED_FIELDS: Readonly<Partial<Record<string, string>>> = {
+  agentId: "agent_id",
+  agentName: "agent_name",
+  alwaysLoad: "always_load",
+  apiKey: "api_key",
+  appServed: "app_served",
+  approvalId: "approval_id",
+  byAgent: "by_agent",
+  byConversation: "by_conversation",
+  closedAt: "closed_at",
+  configPath: "config_path",
+  conversationId: "conversation_id",
+  createdAt: "created_at",
+  dailyCap: "daily_cap",
+  dataShape: "data_shape",
+  defaultPath: "default_path",
+  dismissedLeads: "dismissed_leads",
+  expiresAt: "expires_at",
+  hasProfile: "has_profile",
+  isDefault: "is_default",
+  isFeatured: "is_featured",
+  isLink: "is_link",
+  lastActive: "last_active",
+  lastAsk: "last_ask",
+  lastAssistantText: "last_assistant_text",
+  lastCommit: "last_commit",
+  lastMessageAt: "last_message_at",
+  lastReview: "last_review",
+  lastRole: "last_role",
+  lastRunAt: "last_run_at",
+  lastRunNote: "last_run_note",
+  lastSeenAt: "last_seen_at",
+  lastVia: "last_via",
+  learnLast: "learn_last",
+  learnWritten: "learn_written",
+  linkPath: "link_path",
+  modelSettings: "model_settings",
+  modifiedAt: "modified_at",
+  offFor: "off_for",
+  providerId: "provider_id",
+  questionId: "question_id",
+  readOnly: "read_only",
+  reasoningEffort: "reasoning_effort",
+  requestId: "request_id",
+  rowWidth: "row_width",
+  sendId: "send_id",
+  serveUrl: "serve_url",
+  signIn: "sign_in",
+  signedIn: "signed_in",
+  startedAt: "started_at",
+  systemHead: "system_head",
+  timedOut: "timed_out",
+  tokenHash: "token_hash",
+  toolName: "tool_name",
+  turnId: "turn_id",
+  updatedAt: "updated_at",
+  updatedBy: "updated_by",
+  upstreamPath: "upstream_path",
+  viewedAt: "viewed_at",
+  seenAt: "seen_at",
+  widgetId: "widget_id",
+  widgetIds: "widget_ids",
+  widgetLog: "widget_log",
+  writtenToday: "written_today",
+  pendingApproval: "pending_approval",
+  pendingQuestion: "pending_question",
+};
 
 const DATA_FIELDS = new Set(["data", "overlay", "layout", "input", "args", "metadata"]);
 
@@ -13,7 +80,7 @@ export function assertSnakeCase(frame: unknown, path = "frame"): void {
   if (Array.isArray(frame)) return frame.forEach((v, i) => assertSnakeCase(v, `${path}[${i}]`));
   if (!frame || typeof frame !== "object") return;
   for (const [k, v] of Object.entries(frame)) {
-    const now = OLD_KEYS[k];
+    const now = RENAMED_FIELDS[k];
     if (now) throw new Error(`${path}.${k} is camelCase; on the wire it is ${now}`);
     if (!DATA_FIELDS.has(k)) assertSnakeCase(v, `${path}.${k}`);
   }

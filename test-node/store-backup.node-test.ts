@@ -74,6 +74,7 @@ void test("the daemon's store manager copies a version-1 store, then pi-durable 
     assert.match(reports[0], /copied to .*backup-schema-1-.*agent-local-a\.sqlite before pi-durable migrates it/);
     const copy = /copied to (.*) before/.exec(reports[0])?.[1] ?? "";
     assert.equal(versionOf(copy), 1);
+    assert.equal(existsSync(join(dir, "migrations.json")), false);
   } finally {
     await stores.closeAll();
     rmSync(dir, { recursive: true, force: true });

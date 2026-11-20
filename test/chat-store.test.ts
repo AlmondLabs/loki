@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ChatClient } from "../core/attention/chat-client.ts";
-import { ChatStore, type ChatStoreHost } from "../core/attention/chat-store.ts";
+import { ChatStore, HISTORY_PAGE, type ChatStoreHost } from "../core/attention/chat-store.ts";
 import { sentKey } from "../core/attention/sent-replies.ts";
 import type { ChatEvent, ConversationInfo, Digest } from "../core/attention/model.ts";
 import type { Runtime } from "../core/attention/protocol.ts";
@@ -240,6 +240,22 @@ describe("the chat store (plan 052)", () => {
     await flush();
     expect(asked).toBe(2);
     expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hello", "hi, Ada here"]);
+  });
+
+  test("a thread loads one page, and asks for nothing older before it has one", async () => {
+    const d = daemon();
+    const asked: Array<[number | undefined, number | undefined]> = [];
+    d.host.loadLocalHistory = (_a, _c, limit, before) => {
+      asked.push([limit, before]);
+      return Promise.resolve({ rows: [{ role: "user", text: "hello", at: "2026-10-29T10:00:00Z" }], start: 0, more: false });
+    };
+    await flush();
+    d.store.loadOlder(ADA);
+    await flush();
+    expect(asked).toEqual([]);
+    await d.store.loadThread(ADA);
+    expect(asked).toEqual([[HISTORY_PAGE, undefined]]);
+    expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hello"]);
   });
 
   test("a mail reply that did not go is sent again or let go on its account's Mac, with why when that fails", async () => {

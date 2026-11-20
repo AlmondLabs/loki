@@ -138,30 +138,22 @@ in October 2026 did. Before the first start rewrites a store, loki copies it who
 `~/.loki/stores/backup-schema-<version>-<date>/`. An older loki cannot open the rewritten store, so those copies are the
 way back to it; delete them once you are happy. Each Mac copies and rewrites its own stores on its own first start.
 
-Saved chats are kept in the shapes loki writes now, so an old chat reads and resumes like a new one. When a store
-first opens on a loki that changed those shapes, its saved entries are rewritten once, after a whole copy of the store
-to `~/.loki/stores/backup-letta-<date>/` (only when something changes); `~/.loki/stores/migrations.json` notes how far
-each store has come, and the older `tool-names.json` is deleted. There are three steps so far. The first takes loki's
-new tool names: in October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became `canvas_read` and
-`canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and `view_image` became
-`image_view`. Tasks and its four tools went later that month, replaced by [suggestions](#suggestions); old chats that
-called them still read as they did. In November 2026 `image_view`, `ls`, `find`, `grep`, `skill`, `suggestion_list`,
-`suggestion_withdraw`, `reply_list` and `reply_withdraw` went too, since another tool or the chat itself already does
-what each did (see [Scripts](#scripts) for where `ls`, `find` and `grep` remain); old chats show their calls as they
-were. Older names from before then (`Agent`, `Skill`, `bash_background`,
-`TaskOutput`, `loki_camera` and the like) take today's names the same way, and so does the "always allow" list; the
-whole map is `RENAMED_TOOLS` in `daemon/tool-kinds.ts`. The second rewrites what chats imported from Letta still carried: its tool
-arguments, notices and paths. The third, also in November 2026, folds the background task's tools into two:
-`background_output`, `background_write` and `background_stop` calls become `background_watch` calls (a read with no
-wait, one that types its `input` first, one with `stop`). An "always allow" for `background_write` or `background_stop`
-carries to `background_watch`; one for `background_output` does not, since it was only ever a read. A chat on Claude
-Code, Cursor or another ACP agent is left as it is, with its agent's own tool names.
+Saved chats are kept in the shapes loki writes now, so an old chat reads and resumes like a new one. Versions up to
+2026.1116 rewrote what older ones had saved, once, as each store or file first opened: loki's tool names, which changed
+several times in October and November 2026, the shapes of chats imported from Letta, and field names in loki's own
+files. An "always allow" for a renamed tool carried to its new name. Later versions read only today's shapes, so a Mac
+still on 2026.1022 or older installs and opens 2026.1116 once before it updates further. In November 2026
+`image_view`, `ls`, `find`, `grep`, `skill`, `suggestion_list`, `suggestion_withdraw`, `reply_list` and
+`reply_withdraw` went, since another tool or the chat itself already does what each did (see [Scripts](#scripts) for
+where `ls`, `find` and `grep` remain); old chats show their calls as they were. A chat on Claude Code, Cursor or
+another ACP agent is left as it is, with its agent's own tool names.
 
-Leaving Letta behind also changed a few things once on each Mac (noted in `~/.loki/state/migrations.json`): agent
-records take pi-ai's name for ChatGPT's provider and keep their effort as `reasoning_effort`, memory files that named
-`~/.letta/loki` name `~/.loki` in a commit by loki, chats run on pi-ai's model names in folders under `~/.loki`, and
-Learn's chats from Letta are hidden; a helper agent Letta made is moved to `~/.loki/backend/backup-letta-<date>/`.
-loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's.
+Leaving Letta behind changed a few things once on each Mac, up to 2026.1116: agent records took pi-ai's name for
+ChatGPT's provider and kept their effort as `reasoning_effort`, memory files that named `~/.letta/loki` came to name
+`~/.loki` in a commit by loki, chats ran on pi-ai's model names in folders under `~/.loki`, Learn's chats from Letta
+were hidden, and a helper agent Letta made was moved to `~/.loki/backend/backup-letta-<date>/`. loki no longer moves
+or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's. Files those steps left, such as
+`~/.loki/stores/migrations.json` and `~/.loki/state/migrations.json`, are no longer read and can be deleted.
 
 ### Uninstall
 
@@ -1648,13 +1640,10 @@ suggestion is already yours to decide.
 Reflection and Learn cannot suggest: a background pass has no chat screen to show a suggestion in.
 
 **What happened to Tasks.** The shared task list (Tasks, ⌘3, backed by beads) was removed in October 2026, with its
-views, assigning, task chips, Add task and the `task_*` tools. On the first start of the version without it, each
-open task became a suggestion in the chat it was filed from, for a new chat with the same agent in the same folder,
-and an archived source chat came back into Flow. Each task moves once (noted in `~/.loki/state/migrations.json`);
-one that cannot move yet, because `bd` is missing or its chat's Mac is out of reach, is tried again at the next start
-and when a paired Mac comes into reach, and one that names no chat it was filed from stays where it is; the daemon's
-log names each. loki only reads the beads store (`~/.loki/tasks`) for this and leaves it on disk as it was; `bd` is
-needed for nothing else. Old chats that used Tasks still read cleanly.
+views, assigning, task chips, Add task and the `task_*` tools. Versions up to 2026.1116 turned each open task into a
+suggestion in the chat it was filed from, for a new chat with the same agent in the same folder, and brought an
+archived source chat back into Flow. loki no longer reads the beads store (`~/.loki/tasks`), which stays on disk as it
+was. Old chats that used Tasks still read cleanly.
 
 ## Chat links
 
@@ -1796,13 +1785,11 @@ period.
 `LOKI_DIR` (everything loki keeps, default `~/.loki`: for tests and a second loki), `LOKI_PORT` (the mod's socket,
 default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
 `LOKI_WIDGETS_DIR` (default `~/.loki/widgets`), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
-`LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_BD` (the `bd` that the one-time move of open tasks reads
-with), `LOKI_INSTALL=1` (make a dev build install its bundles and skill into `~/.loki` as a release does, instead of
+`LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1` (make a dev build install its bundles and skill into `~/.loki` as a release does, instead of
 linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INSTALL=1` (stop a release build from
 installing, and make a dev build link nothing and run the bundles already installed), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
-`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR`, `LOKI_TASKS_DIR` (the beads store the move of open tasks
-reads) and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
+`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR` and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
 already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
 Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product

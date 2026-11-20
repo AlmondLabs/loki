@@ -329,7 +329,7 @@ export class ThreadModel {
     return changed;
   }
 
-  load(page: HistoryRow[], start?: number): void {
+  load(page: HistoryRow[], start: number): void {
     if (!page.length && this.tail.length) {
       this.history ??= [];
       this.touch();
@@ -383,7 +383,7 @@ export class ThreadModel {
     const was = this.history ?? [];
     const wasStart = this.historyStart;
     let front: TranscriptRow[] = [];
-    if (start !== undefined && wasStart !== null) {
+    if (wasStart !== null) {
       for (let i = 0; i < rows.length; i++) {
         const old = was[start + i - wasStart] as TranscriptRow | undefined;
         if (old && samePageRow(old, rows[i])) rows[i] = old;
@@ -391,7 +391,7 @@ export class ThreadModel {
       if (wasStart < start) front = was.slice(0, start - wasStart);
     }
     this.history = front.length ? [...front, ...rows] : rows;
-    this.historyStart = start === undefined ? null : front.length ? wasStart : start;
+    this.historyStart = front.length ? wasStart : start;
     this.tail = kept;
     this.touch();
   }

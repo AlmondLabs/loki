@@ -1,7 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { PassSettings } from "../core/attention/protocol.ts";
-import { migrateKeys } from "../core/snake-keys.ts";
 import { readJson, writeJsonAtomic } from "../mod/json-file.ts";
 
 export type { PassSettings };
@@ -10,7 +9,6 @@ export type JobName = "reflection" | "learn";
 export const JOBS: readonly JobName[] = ["reflection", "learn"];
 
 export const DEFAULT_DAILY_CAP = 5;
-const OLD_DEFAULT_DAILY_CAP = 25;
 
 export const DEFAULT_SETTINGS: PassSettings = {
   reflection: { enabled: true },
@@ -50,13 +48,12 @@ export class PassState {
   constructor(stateDir: string) {
     this.settingsFile = join(stateDir, "passes.json");
     this.cursorsFile = join(stateDir, "pass-cursors.json");
-    const { value: read, changed } = migrateKeys(readJson(this.cursorsFile) as Partial<Cursors> | null);
+    const read = readJson(this.cursorsFile) as Partial<Cursors> | null;
     this.data = {
       cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } },
       learn_written: read?.learn_written ?? { day: "", count: 0 },
       ...(read?.learn_last ? { learn_last: read.learn_last } : {}),
     };
-    if (changed) this.save();
   }
 
   started(): boolean {
@@ -64,10 +61,7 @@ export class PassState {
   }
 
   settings(): PassSettings {
-    const { value, changed } = migrateKeys(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
-    const settings = normalSettings(value);
-    if (changed) writeJson(this.settingsFile, settings);
-    return settings;
+    return normalSettings(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
   }
 
   setSettings(s: Parameters<typeof normalSettings>[0]): PassSettings {
@@ -110,44 +104,8 @@ export class PassState {
     writeJson(this.cursorsFile, this.data);
   }
 
-  migrate(
-    old: { reflectionSettings: string; reflectionRoot: string; learnWorker: string },
-    chats: ReadonlyArray<{ agentId: string; chatId: string; entries: number }>,
-  ): void {
-    const reflection = readJson(old.reflectionSettings) as { trigger?: string } | null;
-    const worker = readJson(old.learnWorker) as {
-      enabled?: boolean;
-      dailyCap?: number;
-      cursors?: Record<string, number>;
-      written?: { day?: string; count?: number };
-    } | null;
-    for (const [k, at] of Object.entries(worker?.cursors ?? {})) if (typeof at === "number") this.data.cursors.learn[k] = at;
-    if (worker?.written?.day) this.data.learn_written = { day: worker.written.day, count: worker.written.count ?? 0 };
-    for (const agentId of dirs(old.reflectionRoot)) {
-      for (const chatId of dirs(join(old.reflectionRoot, agentId))) {
-        const at = (readJson(join(old.reflectionRoot, agentId, chatId, "state.json")) as { reflected_through?: number } | null)?.reflected_through;
-        if (typeof at === "number") this.data.cursors.reflection[key(agentId, chatId)] = at;
-      }
-    }
+  startCursors(chats: ReadonlyArray<{ agentId: string; chatId: string; entries: number }>): void {
     for (const c of chats) for (const job of JOBS) this.data.cursors[job][key(c.agentId, c.chatId)] ??= c.entries;
     this.save();
-    const cap = worker?.dailyCap;
-    writeJson(
-      this.settingsFile,
-      normalSettings({
-        reflection: { enabled: reflection?.trigger !== "off" },
-        learn: { enabled: worker?.enabled === true, daily_cap: cap === undefined || cap === OLD_DEFAULT_DAILY_CAP ? DEFAULT_DAILY_CAP : cap },
-      }),
-    );
-  }
-}
-
-function dirs(dir: string): string[] {
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-  } catch {
-    return [];
   }
 }
