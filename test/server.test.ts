@@ -128,9 +128,10 @@ describe("the limits of a socket", () => {
     }
   });
 
-  test("a socket with too much waiting unsent is ended rather than fed more", async () => {
+  test("a socket with too much waiting unsent is ended rather than fed more, and every frame's after-send step still runs once", async () => {
     const s = await startServer({ port: 0 });
     let fed = 0;
+    let steps = 0;
     const bridge = attachWs(
       s.server,
       token,
@@ -139,7 +140,7 @@ describe("the limits of a socket", () => {
         // Far more than any system keeps for a socket nobody reads: once its buffers are full the rest waits in the
         onMessage: (c) => {
           const fill = "x".repeat(1024 * 1024);
-          for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill });
+          for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill }, () => steps++);
         },
       },
       { maxBufferedBytes: 64 * 1024 },
@@ -154,7 +155,48 @@ describe("the limits of a socket", () => {
       await until(() => bridge.clientCount() === 0);
       expect(bridge.clientCount()).toBe(0);
       expect(fed).toBeLessThan(64);
+      await until(() => steps === fed);
+      expect(steps).toBe(fed);
       ws.terminate();
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+
+  test("a frame's after-send step runs once the frame is written, once, and at once on a socket already gone", async () => {
+    const s = await startServer({ port: 0 });
+    const clients: Client[] = [];
+    const bridge = attachWs(s.server, token, {
+      onConnect: (c) => {
+        clients.push(c);
+        c.send({ type: "hello" });
+      },
+      onMessage: () => {},
+    });
+    try {
+      const ws = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      await hello(ws);
+      const [c] = clients;
+      let steps = 0;
+      const heard = new Promise<string>((resolve) => ws.once("message", (raw) => resolve(Buffer.isBuffer(raw) ? raw.toString("utf8") : "")));
+      const written = new Promise<void>((resolve) =>
+        c.send({ type: "chat_done", request_id: "r1" }, () => {
+          steps++;
+          resolve();
+        }),
+      );
+      expect(steps).toBe(0);
+      await written;
+      expect(JSON.parse(await heard)).toEqual({ type: "chat_done", request_id: "r1" });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(steps).toBe(1);
+      const gone = closed(ws);
+      ws.close();
+      await gone;
+      await until(() => bridge.clientCount() === 0);
+      c.send({ type: "chat_done", request_id: "r2" }, () => steps++);
+      expect(steps).toBe(2);
     } finally {
       bridge.close();
       await s.close();

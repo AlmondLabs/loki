@@ -108,7 +108,9 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
     };
     if (entry.kind === "request") {
       const answer = (out: Outcome<object>) =>
-        client.send(out.ok ? { ...out.reply, type: entry.reply, request_id: requestId } : { type: "error", request_id: requestId, message: out.message });
+        out.ok
+          ? client.send({ ...out.reply, type: entry.reply, request_id: requestId }, out.afterReply)
+          : client.send({ type: "error", request_id: requestId, message: out.message });
       return settle(
         run,
         (out) => answer(out as Outcome<object>),

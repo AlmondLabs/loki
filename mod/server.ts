@@ -126,7 +126,7 @@ export interface Client {
   scope: Scope;
   deviceId?: string;
   peerId?: string;
-  send(msg: object): void;
+  send(msg: object, sent?: () => void): void;
 }
 
 export interface WsHandlers {
@@ -175,14 +175,14 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
   });
   const clients = new Map<WebSocket, Client>();
   const alive = new Set<WebSocket>();
-  const send = (ws: WebSocket, text: string): void => {
-    if (ws.readyState !== WebSocket.OPEN) return;
+  const send = (ws: WebSocket, text: string, sent?: () => void): void => {
+    if (ws.readyState !== WebSocket.OPEN) return sent?.();
     if (ws.bufferedAmount > maxBuffered) {
       ws.terminate();
       clients.delete(ws);
-      return;
+      return sent?.();
     }
-    ws.send(text);
+    ws.send(text, sent && (() => sent()));
   };
   const heartbeat = setInterval(() => {
     for (const ws of clients.keys()) {
@@ -221,7 +221,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     }
     const scope = scopeFor(url.searchParams.get("desk"));
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const client: Client = { scope, send: (msg) => send(ws, JSON.stringify(msg)) };
+      const client: Client = { scope, send: (msg, sent) => send(ws, JSON.stringify(msg), sent) };
       if (who.deviceId) client.deviceId = who.deviceId;
       if (who.peerId) client.peerId = who.peerId;
       clients.set(ws, client);
