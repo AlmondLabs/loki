@@ -3,8 +3,7 @@ import { senderOf, tsIso } from "./account-ops/slack.ts";
 import type { ThreadMessage } from "./account-ops/thread.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
 import { reactionEmoji, readSlackMessage, slackFileParts, type SlackNames, type SlackThumb } from "./slack-markup.ts";
-import { SlackError } from "./slack.ts";
-import { tsAfter, tsKey } from "./slack-sync.ts";
+import { SlackError, tsAfter, tsKey } from "./slack.ts";
 
 export const VIEW_AROUND = 5;
 export const VIEW_LOAD = 20;

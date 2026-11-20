@@ -16,6 +16,16 @@ import { writeMentions } from "../core/mentions.ts";
 
 export const MAX_DM_PEOPLE = 8;
 
+/**
+ * A Slack ts as a string that sorts in time order: seconds padded, then the six-digit fraction. Comparing ts as numbers
+ * loses the last digits of the fraction, which is what tells two messages in one second apart.
+ */
+export const tsKey = (ts: string): string => {
+  const [s = "", f = ""] = ts.split(".");
+  return `${s.padStart(12, "0")}.${f.padEnd(6, "0")}`;
+};
+export const tsAfter = (a: string, b: string): boolean => tsKey(a) > tsKey(b);
+
 export const SLACK_METHODS = [
   "auth.test",
   "client.counts",
@@ -96,12 +106,17 @@ export interface SlackCounts {
 
 export const SLACK_ACTIVITY_TYPES = ["at_user", "at_user_group", "at_channel", "at_everyone", "thread_v2"] as const;
 
+export const SLACK_RELATED_ACTIVITY_TYPES = ["keyword", "message_reaction", "dm", "bot_dm_bundle"] as const;
+
 export interface SlackActivityItem {
   key: string;
   feed_ts: string;
   is_unread: boolean;
   type: string;
-  /** The conversation and message it points at, when Slack says (mentions: `item.message`; thread replies: `item.bundle_info.payload.thread_entry`). */
+  /**
+   * The conversation and message it points at, when Slack says: `item.message` for mentions, highlight words and
+   * reactions, `item.bundle_info.payload.thread_entry` for thread replies, and the bundle's latest message for DM and app bundles.
+   */
   channel: string | null;
   ts: string | null;
   thread_ts: string | null;
@@ -192,14 +207,16 @@ function parseActivity(v: unknown): SlackActivityItem {
   const r = rec(v);
   const item = rec(r.item);
   const message = rec(item.message);
-  const thread = rec(rec(rec(item.bundle_info).payload).thread_entry);
+  const payload = rec(rec(item.bundle_info).payload);
+  const thread = rec(payload.thread_entry);
+  const bundled = rec(payload.message ?? rec(payload.dm_entry).latest_message);
   return {
     key: str(r.key),
     feed_ts: str(r.feed_ts),
     is_unread: r.is_unread === true,
     type: str(item.type),
-    channel: strOrNull(message.channel) ?? strOrNull(thread.channel_id),
-    ts: strOrNull(message.ts) ?? strOrNull(thread.latest_ts),
+    channel: strOrNull(message.channel) ?? strOrNull(thread.channel_id) ?? strOrNull(bundled.channel),
+    ts: strOrNull(message.ts) ?? strOrNull(thread.latest_ts) ?? strOrNull(bundled.ts),
     thread_ts: strOrNull(message.thread_ts) ?? strOrNull(thread.thread_ts),
     author_user_id: strOrNull(message.author_user_id),
     item,
@@ -279,9 +296,16 @@ export class SlackClient {
     };
   }
 
-  async activityFeed(opts: { unreadOnly: boolean; types?: readonly string[]; cursor?: string; limit?: number }): Promise<SlackActivityPage> {
+  async activityFeed(opts: {
+    unreadOnly: boolean;
+    types?: readonly string[];
+    channels?: readonly string[];
+    cursor?: string;
+    limit?: number;
+  }): Promise<SlackActivityPage> {
     const r = await this.call("activity.feed", {
       types: (opts.types ?? SLACK_ACTIVITY_TYPES).join(","),
+      channel_ids: opts.channels?.join(","),
       mode: "chrono_reads_and_unreads",
       unread_only: opts.unreadOnly,
       archive_only: false,
@@ -411,6 +435,7 @@ export class SlackClient {
   async markDm(channel: string, ts: string): Promise<void> {
     const info = await this.conversationsInfo(channel);
     if (!info.is_im && !info.is_mpim) throw new SlackError(`${channel} is not a DM or group DM: loki marks only those read`, "not_a_dm");
+    if (info.last_read && !tsAfter(ts, info.last_read)) return;
     await this.call("conversations.mark", { channel, ts });
   }
 

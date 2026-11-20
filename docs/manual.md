@@ -1269,8 +1269,8 @@ Every move writes back to Gmail or Slack, and touches messages up to the card's 
 loki last looked stays unread:
 
 1. Read (⌘]): Gmail marks the thread read and the card rests on the same ladder as a chat card, from the first rest
-   for email (see "Read sets a card down"). Slack marks a DM or group DM read up to the card's last message, and the
-   card is done.
+   for email (see "Read sets a card down"). Slack marks what the card covered read, as "Read and archive in Slack"
+   below says, and the card is done.
 2. Later (⌘[): Gmail marks the thread's newest incoming message unread, and the card comes back after email's later
    time. Slack is left as it is, still unread, and the card comes back after Slack's later time.
 3. Archive (⌘E): Gmail archives the thread and the card is done. On Slack, archive marks the message read, as read
@@ -1282,14 +1282,33 @@ loki last looked stays unread:
 
 The other way round works too: archive a thread in Gmail, or read a Slack message in Slack, and its card ends at the
 next check. loki never moves a Slack channel's read marker, so reading a mention in a busy channel leaves that
-channel's other messages unread. Read or archive on a Slack mention or thread card marks its items in Slack's
-Activity read, up to the newest message the card showed; undo marks them unread again. A thread you follow is marked
-read in Slack's Threads view too, up to the same message, and so is a thread inside a DM on a DM card; a reply that
-came after stays unread, and a thread Slack already has read further is left as it is. Undo puts the thread back to
-where you had read it. Slack documents neither its Activity marks nor its thread marks, so if Slack refuses one some
-day, the card still ends in loki, Slack shows the item or the thread unread, and loki's log says
-`slack:activity-mark-failed` or `slack:thread-mark-failed`. One gap is known: undo cannot mark a Slack DM unread again
-in Slack. The card comes back in loki, and Slack keeps the DM read.
+channel's other messages unread.
+
+**Read and archive in Slack.** Read or archive on a Slack card clears in Slack what the card covered, up to what you
+have seen: the card's newest message, and any replies of your own after it, sent from Slack or from loki.
+
+1. A DM or group DM is marked read to there.
+2. A thread you follow is marked read to there, so it leaves Slack's Threads view, and so is a thread you follow inside
+   a DM on a DM card. A thread you don't follow, and a message with no thread, have nothing to mark.
+3. Slack's Activity items about the card's thread or DM are marked read to there. That covers the mentions and replies
+   that brought the card, and also reactions to your messages, your highlight words, and DM and app bundles, which
+   never make cards of their own.
+4. No read point moves back: a DM or thread you already read further in Slack stays where you left it.
+
+If someone else wrote in the DM or in a thread you follow after the card's newest message, loki clears nothing: the
+card stays, now showing the new message, and a notice says a new message came in. A message you already read in Slack
+counts as seen and never holds a card back, and neither does a reply in a thread you don't follow, which Slack doesn't
+show as unread. When a new message reaches the card while loki is clearing it, the card stays the same way, and what
+loki had already marked, up to what you had seen, stays read. Handing a card to an agent clears what you had seen and leaves the rest unread.
+
+Undo marks the Activity items unread again and puts a thread back where you had read it. Two gaps are known: undo
+cannot mark a Slack DM unread again, so the card comes back in loki and Slack keeps the DM read, and undo after loki
+restarts only brings the card back in loki.
+
+Slack does not document how its Activity and threads are marked, so if Slack refuses one day, the card still ends in
+loki, Slack shows the item unread, and loki's log says `slack:activity-mark-failed` or `slack:thread-mark-failed`. When
+Slack asks loki to wait, loki clears up to the card's newest message as it can (`slack:thread-unreadable`), or marks the
+Activity it last saw (`slack:activity-read-held`).
 
 A Jira card's moves write nothing to Jira, and Jira's read state does not reach loki: see "Jira tickets" below.
 
