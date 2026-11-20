@@ -5,7 +5,13 @@ runs:
   steps:
     - shell: bash
       run: echo "INSTALL_STARTED=$(date +%s)" >> "$GITHUB_ENV"
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+    # The hosted images already put Node 22 on the path. setup-node is only for an image that doesn't: on Windows it
+    # spends 16s printing npm's and yarn's versions.
+    - id: node
+      shell: bash
+      run: echo "major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo none)" >> "$GITHUB_OUTPUT"
+    - if: steps.node.outputs.major != '22'
+      uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
       with:
         node-version: 22
     # bun installs the dependencies and runs package.json's scripts; the scripts themselves run on Node, as loki does.
