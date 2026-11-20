@@ -1,6 +1,11 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { gmailThread, gmailThreadText, mailAttachments, mailHeader, mailParts } from "../mod/account-ops/gmail.ts";
+import { IMAGE_NAME } from "../daemon/chat-images.ts";
+import { gmailCardView, gmailThread, gmailThreadText, mailAttachments, mailHeader, mailParts } from "../mod/account-ops/gmail.ts";
 import { MAIL_HTML_MAX } from "../mod/account-ops/thread.ts";
+import { OutsidePreviews } from "../mod/outside-previews.ts";
 import type { GmailMessage, GmailMessagePart, GmailThread } from "../mod/gmail.ts";
 
 const b64 = (text: string): string => Buffer.from(text, "utf8").toString("base64url");
@@ -183,6 +188,37 @@ describe("pictures pasted into a mail", () => {
     const p = pictures();
     const got = await read(threadOf('<img src="cid:%zz"><img src="cid:ii_abc">', [picture("ii_abc")]), p.pictures);
     expect(got.messages[0].inline_images).toEqual({ ii_abc: NAME });
+  });
+
+  test("a Gmail card keeps each picture once in the picture store, and a second open fetches nothing", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mail-pictures-"));
+    try {
+      const store = new OutsidePreviews({ dir });
+      const fetched: string[] = [];
+      const client = {
+        getThread: () => Promise.resolve(threadOf('<img src="cid:ii_abc">', [picture("ii_abc")])),
+        attachment: (messageId: string, attachmentId: string) => {
+          fetched.push(`${messageId}/${attachmentId}`);
+          return Promise.resolve(Buffer.from("png bytes"));
+        },
+      };
+      const view = gmailCardView(
+        () => client,
+        (key, read) => store.preview(key, read),
+        () => new Promise<void>(() => {}),
+      );
+      const facts = { dealt_message_id: null, brought_ids: [], newest_message_id: "m1" };
+      const first = await view("gmail:sam@acme.test", "t1", facts, {});
+      const second = await view("gmail:sam@acme.test", "t1", facts, {});
+      expect(first.window).toBeNull();
+      const name = first.messages[0].inline_images?.ii_abc ?? "";
+      expect(name).toMatch(IMAGE_NAME);
+      expect(readFileSync(join(dir, name), "utf8")).toBe("png bytes");
+      expect(second.messages[0].inline_images).toEqual({ ii_abc: name });
+      expect(fetched).toEqual(["m1/att-ii_abc"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("reading the thread's text for a hand-off fetches no pictures and keeps its files", async () => {

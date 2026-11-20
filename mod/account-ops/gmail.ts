@@ -1,8 +1,10 @@
+import { CID_SRC, cidOf } from "../../core/mail-pictures.ts";
 import { htmlToText, tidyMail } from "../../core/mail-text.ts";
 import type { AccountRecord } from "../accounts.ts";
 import type { GmailClient, GmailMessage, GmailMessagePart } from "../gmail.ts";
 import { GoogleError } from "../google-auth.ts";
 import { headerOf, replyAllOf, replySubject, replyTarget } from "../reply-addressing.ts";
+import type { CardView } from "../slack-view.ts";
 import { MAIL_HTML_MAX, type FlowRecord, type ReplyDestination, type ThreadMessage, type ThreadText } from "./thread.ts";
 
 const decoded = (data: string): string => Buffer.from(data, "base64url").toString("utf8");
@@ -31,18 +33,8 @@ interface PastedPicture {
   part: GmailMessagePart;
 }
 
-const CID_SRC = /<img\b[^>]*?\ssrc\s*=\s*(?:"\s*cid:([^"]*)"|'\s*cid:([^']*)'|cid:([^\s"'>]+))/gi;
-
-function cidOf(written: string): string {
-  try {
-    return decodeURIComponent(written.trim());
-  } catch {
-    return written.trim();
-  }
-}
-
 function shownCids(html: string): Set<string> {
-  return new Set([...html.matchAll(CID_SRC)].map((m) => cidOf(m[1] ?? m[2] ?? m[3] ?? "")));
+  return new Set([...html.matchAll(CID_SRC)].map((m) => cidOf(m[2] ?? m[3] ?? m[4] ?? "")));
 }
 
 function contentIdOf(part: GmailMessagePart): string {
@@ -129,6 +121,22 @@ export async function gmailThread(
     };
   });
   return { subject: opening ? mailHeader(opening, "subject") : "", messages };
+}
+
+const PICTURE_WAIT_MS = 5_000;
+
+const pictureWait = (): Promise<void> => new Promise((done) => setTimeout(done, PICTURE_WAIT_MS).unref());
+
+export function gmailCardView(
+  client: (accountId: string) => Pick<GmailClient, "getThread" | "attachment">,
+  keep: MailPictures["keep"],
+  waited: MailPictures["waited"] = pictureWait,
+): CardView<null> {
+  return async (accountId, threadId) => {
+    const gmail = client(accountId);
+    const pictures = { keep, waited, attachment: (messageId: string, attachmentId: string) => gmail.attachment(messageId, attachmentId) };
+    return { messages: (await gmailThread(gmail, accountId, threadId, pictures)).messages, window: null };
+  };
 }
 
 export function gmailThreadText(client: (accountId: string) => Pick<GmailClient, "getThread">): ThreadText {

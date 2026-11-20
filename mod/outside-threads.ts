@@ -9,6 +9,7 @@ import type {
   OutsideChange,
   OutsideRead,
   OutsideReplied,
+  OutsideWindow,
   OutsideWindowAsk,
   ReplyThen,
   SlackPerson,
@@ -77,7 +78,7 @@ export interface OutsideThreadsOptions {
       ) => (Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> & { place?: string | null }) | null;
     };
   threadText: Record<AccountProvider, ThreadText>;
-  cardView?: Partial<Record<AccountProvider, CardView>>;
+  cardView?: Partial<Record<AccountProvider, CardView<OutsideWindow | null>>>;
   clientFor: (account: AccountRecord) => SendClient;
   sleep?: (ms: number) => Promise<void>;
   outbox?: Omit<MailOutboxOptions, "send">;
@@ -303,6 +304,7 @@ export class OutsideThreads {
       text: account.provider === "gmail" ? withoutQuoted(m.text) : m.text,
       mine: m.mine === true,
       ...(account.provider === "gmail" && m.html ? { html: m.html } : {}),
+      ...(account.provider === "gmail" && m.html && m.inline_images ? { inline_images: m.inline_images } : {}),
       ...(account.provider === "gmail" && m.to ? { to: m.to } : {}),
       ...(account.provider === "gmail" && m.cc ? { cc: m.cc } : {}),
       ...(account.provider === "gmail" && m.files?.length ? { files: m.files } : {}),
