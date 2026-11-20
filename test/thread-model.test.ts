@@ -264,18 +264,12 @@ describe("pages by position (plan 033)", () => {
     expect(texts(t)).toEqual([...all.map((r) => r.text), "just sent"]);
   });
 
-  test("a page that overlaps what is loaded adds only the rows before it; one without positions changes nothing", () => {
+  test("a page that overlaps what is loaded adds only the rows before it", () => {
     const all = thread(20);
     const t = new ThreadModel();
     t.load(all.slice(10), 10);
     t.prepend(all.slice(5, 15), 5);
     expect(texts(t)).toEqual(all.slice(5).map((r) => r.text));
-    const legacy = new ThreadModel();
-    legacy.load(all.slice(10));
-    const before = rowsOf(legacy);
-    legacy.prepend(all.slice(0, 10), 0);
-    expect(rowsOf(legacy)).toBe(before);
-    expect(legacy.firstPosition).toBeNull();
   });
 
   test("opening again: the newest page keeps the older pages in front, and unchanged rows keep their objects", () => {
@@ -294,16 +288,6 @@ describe("pages by position (plan 033)", () => {
     expect(after[24 - 10]).not.toBe(was[24 - 10]);
     expect(after[24 - 10].tool?.output).toBe("done");
   });
-
-  test("a page without a position replaces what was loaded, as an older Mac's answer does", () => {
-    const all = thread(30);
-    const t = new ThreadModel();
-    t.load(all.slice(20), 20);
-    t.prepend(all.slice(10, 20), 10);
-    t.load(all.slice(25));
-    expect(texts(t)).toEqual(all.slice(25).map((r) => r.text));
-    expect(t.firstPosition).toBeNull();
-  });
 });
 
 describe("a history page arriving", () => {
@@ -316,11 +300,14 @@ describe("a history page arriving", () => {
     const t = new ThreadModel();
     t.apply({ kind: "call", name: "Bash", args: { command: "ls" }, id: "c7", at: t1001 });
     t.apply({ kind: "assistant", text: "a2", at: t1003 });
-    t.load([
-      { role: "user", text: "u1", at: "2026-10-09T10:00:00.000Z" },
-      { role: "assistant", text: "a1", at: t1002 },
-      { ...call7, at: null },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "u1", at: "2026-10-09T10:00:00.000Z" },
+        { role: "assistant", text: "a1", at: t1002 },
+        { ...call7, at: null },
+      ],
+      0,
+    );
     expect(rowsOf(t).map((r) => [r.text, r.at])).toEqual([
       ["u1", "2026-10-09T10:00:00.000Z"],
       ["a1", t1002],
@@ -332,7 +319,7 @@ describe("a history page arriving", () => {
   test("a row the daemon never echoes (the answers to a question) goes once the page is newer than it", () => {
     const t = new ThreadModel();
     t.own({ role: "user", text: "yes · ship it", at: t1001 });
-    t.load([{ role: "assistant", text: "shipping", at: t1002 }]);
+    t.load([{ role: "assistant", text: "shipping", at: t1002 }], 0);
     expect(rowsOf(t).map((r) => r.text)).toEqual(["shipping"]);
   });
 
@@ -340,10 +327,13 @@ describe("a history page arriving", () => {
     const t = new ThreadModel();
     t.beginCommand("/compact", t1001);
     t.queue({ role: "user", text: "and also", at: t1001 });
-    t.load([
-      { role: "user", text: "and also", at: "2026-10-09T09:00:00.000Z" },
-      { role: "assistant", text: "a1", at: t1002 },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "and also", at: "2026-10-09T09:00:00.000Z" },
+        { role: "assistant", text: "a1", at: t1002 },
+      ],
+      0,
+    );
     expect(rowsOf(t).map((r) => [r.text, r.queued === true])).toEqual([
       ["and also", false],
       ["a1", false],
@@ -357,10 +347,13 @@ describe("a history page arriving", () => {
     t.apply({ kind: "user", raw: "ok", at: t1001 });
     t.apply({ kind: "assistant", text: "unseen by the page", at: t1003 });
     t.queue({ role: "user", text: "later", at: t1003 });
-    t.load([
-      { role: "user", text: "ok" },
-      { role: "assistant", text: "earlier" },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "ok" },
+        { role: "assistant", text: "earlier" },
+      ],
+      0,
+    );
     expect(rowsOf(t).map((r) => [r.text, r.at])).toEqual([
       ["ok", t1001],
       ["earlier", undefined],
@@ -372,22 +365,31 @@ describe("a history page arriving", () => {
     const t = new ThreadModel();
     t.apply({ kind: "user", raw: "ok", at: t1001 });
     t.apply({ kind: "assistant", text: "done", at: t1002 });
-    t.load([
-      { role: "user", text: "ok" },
-      { role: "assistant", text: "earlier" },
-      { role: "user", text: "ok" },
-      { role: "assistant", text: "done" },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "ok" },
+        { role: "assistant", text: "earlier" },
+        { role: "user", text: "ok" },
+        { role: "assistant", text: "done" },
+      ],
+      0,
+    );
     expect(rowsOf(t).map((r) => r.at)).toEqual([undefined, undefined, t1001, t1002]);
-    t.load([
-      { role: "user", text: "ok" },
-      { role: "assistant", text: "done" },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "ok" },
+        { role: "assistant", text: "done" },
+      ],
+      0,
+    );
     expect(rowsOf(t).map((r) => r.at)).toEqual([t1001, t1002]);
-    t.load([
-      { role: "user", text: "ok", at: "2026-10-09T09:59:59Z" },
-      { role: "assistant", text: "done" },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "ok", at: "2026-10-09T09:59:59Z" },
+        { role: "assistant", text: "done" },
+      ],
+      0,
+    );
     expect(rowsOf(t).map((r) => r.at)).toEqual(["2026-10-09T09:59:59Z", t1002]);
   });
 
@@ -397,29 +399,29 @@ describe("a history page arriving", () => {
       { role: "user" as const, text: "yes", at: "2026-10-09T10:00:00.000Z" },
       { role: "assistant" as const, text: "done A", at: "2026-10-09T10:00:05.000Z" },
     ];
-    t.load(page);
+    t.load(page, 0);
     t.own({ role: "user", text: "yes", at: "2026-10-09T10:05:00.000Z" }, "yes");
-    t.load(page);
+    t.load(page, 0);
     expect(rowsOf(t).map((r) => [r.text, r.at])).toEqual([
       ["yes", "2026-10-09T10:00:00.000Z"],
       ["done A", "2026-10-09T10:00:05.000Z"],
       ["yes", "2026-10-09T10:05:00.000Z"],
     ]);
-    t.load([...page, { role: "user", text: "yes", at: "2026-10-09T10:05:01.000Z" }]);
+    t.load([...page, { role: "user", text: "yes", at: "2026-10-09T10:05:01.000Z" }], 0);
     expect(rowsOf(t).map((r) => r.text)).toEqual(["yes", "done A", "yes"]);
   });
 
   test("a picture you sent pairs with the page's [image] row, whatever the sending device's clock says", () => {
     const t = new ThreadModel();
     t.own({ role: "user", text: "look", images: ["data:image/png;base64,x"], at: "2026-10-09T10:09:00.000Z" }, "look");
-    t.load([{ role: "user", text: "look\n[image]", at: "2026-10-09T10:00:00.000Z" }]);
+    t.load([{ role: "user", text: "look\n[image]", at: "2026-10-09T10:00:00.000Z" }], 0);
     expect(rowsOf(t).map((r) => r.text)).toEqual(["look\n[image]"]);
   });
 
   test("an approval that arrives after the page took its call belongs to that call", () => {
     const t = new ThreadModel();
     t.apply({ kind: "call", name: "Bash", args: { command: "ls" }, id: "c7", at: "2026-10-09T10:01:00.000Z" });
-    t.load([{ ...call7, at: "2026-10-09T10:01:00.000Z" }]);
+    t.load([{ ...call7, at: "2026-10-09T10:01:00.000Z" }], 0);
     t.apply({ kind: "approval", name: "Bash", args: { command: "ls" }, id: "approval-1", at: "2026-10-09T10:01:01.000Z" });
     expect(tools(t.rows()).length).toBe(1);
   });
@@ -427,10 +429,10 @@ describe("a history page arriving", () => {
   test("an empty page leaves the live rows alone; a result for a call the page took lands on the page's row", () => {
     const t = new ThreadModel();
     t.apply({ kind: "user", raw: "first message", at: t1001 });
-    t.load([]);
+    t.load([], 0);
     expect(rowsOf(t).map((r) => r.text)).toEqual(["first message"]);
     t.apply({ kind: "call", name: "Bash", args: { command: "ls" }, id: "c7", at: t1001 });
-    t.load([{ ...call7, at: t1002 }]);
+    t.load([{ ...call7, at: t1002 }], 0);
     t.apply({ kind: "result", id: "c7", output: "a.ts", failed: false });
     expect(t.rows()).toMatchObject([{ text: "Bash · ls", tool: { output: "a.ts" } }]);
   });
@@ -454,7 +456,7 @@ describe("a message sent from a suggestion (plan 049, KTD6)", () => {
   test("from a history page, the reloaded row keeps the link", () => {
     const page: HistoryRow[] = leanPage(foldSteps([user(sent, at0), said("On it.", at0)]), 0);
     const t = new ThreadModel();
-    t.load(page);
+    t.load(page, 0);
     expect(rowsOf(t)).toMatchObject([chip, { role: "user", text: "The upload test sleeps." }, { role: "assistant", text: "On it." }]);
   });
 
@@ -545,7 +547,7 @@ describe("rows keep their identity until they change", () => {
   test("the rows are one array until something changes, and a new one after each kind of change", () => {
     const t = new ThreadModel();
     expect(t.rows()).toBeUndefined();
-    t.load([{ role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" }]);
+    t.load([{ role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" }], 0);
     const loaded = rowsOf(t);
     expect(rowsOf(t)).toBe(loaded);
     const changes: Array<[string, () => void]> = [
@@ -556,14 +558,20 @@ describe("rows keep their identity until they change", () => {
       [
         "a page",
         () =>
-          t.load([
-            { role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" },
-            { role: "assistant", text: "Let me", at: "2026-09-23T09:00:01.000Z" },
-          ]),
+          t.load(
+            [
+              { role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" },
+              { role: "assistant", text: "Let me", at: "2026-09-23T09:00:01.000Z" },
+            ],
+            0,
+          ),
       ],
       [
         "a result onto the page's call",
-        () => (t.load([{ role: "tool", text: "Read", tool: { name: "Read", id: "r2" } }]), t.apply({ kind: "result", id: "r2", output: "b", failed: false })),
+        () => (
+          t.load([{ role: "tool", text: "Read", tool: { name: "Read", id: "r2" } }], 0),
+          t.apply({ kind: "result", id: "r2", output: "b", failed: false })
+        ),
       ],
     ];
     let before = rowsOf(t);
@@ -580,7 +588,7 @@ describe("rows keep their identity until they change", () => {
 
   test("a result landing on a call makes only that row new; the page's rows stay the same objects", () => {
     const t = new ThreadModel();
-    t.load([{ role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" }]);
+    t.load([{ role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" }], 0);
     t.apply({ kind: "call", name: "Read", args: { path: "a.ts" }, id: "r1", at: "2026-09-23T09:00:01.000Z" });
     t.apply({ kind: "call", name: "Read", args: { path: "b.ts" }, id: "r2", at: "2026-09-23T09:00:02.000Z" });
     const before = rowsOf(t);
@@ -623,7 +631,7 @@ describe("rows keep their identity until they change", () => {
   });
   test("a lean row in a loaded page is a finished call: a live approval for that tool does not take it (plan 041)", () => {
     const t = new ThreadModel();
-    t.load(leanPage([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a\nb" } }], 0));
+    t.load(leanPage([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a\nb" } }], 0), 0);
     t.apply({ kind: "approval", name: "Bash", args: { command: "rm x" }, id: "p2", at: null });
     const shown = tools(t.rows());
     expect(shown).toHaveLength(2);

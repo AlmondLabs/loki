@@ -67,8 +67,7 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    exists, a leftover from a crash is found and stopped at the next launch.
 5. **There are no other long-lived processes.** The children are short-lived
    or belong to a chat: an agent's bash commands and background tasks, `git` for memory commits,
-   `rg` for search when it is installed, and `bd`, only to read the open tasks once when Tasks gave way to
-   suggestions. The exception is the MCP servers you list in `~/.loki/mcp.json`: each local
+   `rg` for search when it is installed. The exception is the MCP servers you list in `~/.loki/mcp.json`: each local
    one runs as long as the daemon does, restarted with backoff if it exits.
 
 The model is a remote service, not a process on your machine.
@@ -122,17 +121,13 @@ every chat gets, the chats, then the mods.
    the store manager (`StoreManager`, `kernel/stores.ts`) reopens it. pi-durable numbers its own conversations, so a
    document in each store maps loki's chat ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat
    keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes
-   what a store holds migrates it on open, after a whole copy (`daemon/store-backup.ts`): pi-durable's own schema, to
-   `stores/backup-schema-<version>-<date>/`; and loki's entries, in `daemon/store-migration.ts`, one pass of rewrites
-   over a store's entries in one transaction (old tool names, and the shapes chats imported from Letta carried),
-   versioned per store in `stores/migrations.json`. It replaced `store-tool-names.ts` and its `tool-names.json`. Chats
-   on an ACP agent keep their agent's own names and shapes.
+   what pi-durable's schema holds migrates it on open, after a whole copy to `stores/backup-schema-<version>-<date>/`
+   (`daemon/store-backup.ts`).
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`:
    `agents/<id in base64>.json` for the record (`backendName`) and `memfs/<id>/memory/` for the memory repo. The memory
    repo's `system/` files go into the prompt; the rest is listed by path. A section read from disk is reused for ten
    seconds, and a commit to any memory repo clears it at once (`daemon/section-cache.ts`). Each change is a git commit,
-   by the agent, by "Reflection", or by "Doctor". `daemon/agent-migration.ts` migrates the records and memory once,
-   noted in `state/migrations.json`.
+   by the agent, by "Reflection", or by "Doctor".
 3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials (API
    keys, or the tokens from a provider's sign-in, such as ChatGPT, OpenRouter or GitHub Copilot) are kept in the OS
    keychain through `@napi-rs/keyring`, one entry per provider under the service "loki". A key is tried before it is
@@ -288,8 +283,7 @@ so each bundle has its own copy and both see the same files. Anything that holds
    the mod moves the suggestion from pending to sending to its end in one step under the chat's lock, so the first
    action wins. A send is a `chat_send` request to the target's Mac that waits for its reply, with the suggestion's
    id as its `send_id` and a `<loki-suggested/>` mark in its context; a saved draft is a field on the target chat's
-   record. `suggestion_add` exists only for `mod/task-migration.ts`, which turns each open task into a suggestion on
-   its source chat's Mac once.
+   record.
 5. **Chat links** (`mod/chat-links.ts`, plan 067). A chat's leave to message another, kept in
    `~/.loki/state/chat-links.json` on each linked chat's Mac. `chat_message` with no live link asks through the host's
    `askLink`, the daemon's `Approvals.ask` with a question whose input is the link (the app draws it as the link card);
@@ -439,8 +433,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 1. `token`: the capability token the shell, the page and the daemon share.
 2. `daemon.lock`: the pid of the daemon serving this folder.
 3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone canvas (release builds).
-4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; `stores/migrations.json`, each
-   store's migration version; and `stores/backup-…/`, whole copies made before a migration.
+4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; and `stores/backup-…/`, whole copies
+   made before a migration. `stores/migrations.json`, left by versions up to 2026.1116, is no longer read.
 5. `backend/`: agent records (`agents/`, each file named by the agent's id in base64) and memory repos
    (`memfs/<id>/memory/`).
 6. `widgets/<desk>/`: the files agents write onto the canvas.
@@ -455,9 +449,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     `acp-offered.json`), the analytics id (`analytics.json`), the LAN switch (`lan.json`), paired phones
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
     (`recent-models.json`), the chats held for a move to another Mac (`chat-moves.json`, plan 096), each agent's
-    switched-off MCP servers (`mcp-agents.json`), reflection's settings from
-    before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
-    (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
+    switched-off MCP servers (`mcp-agents.json`) and each chat's canvas; `reflection.json` and
+    `migrations.json`, left by versions up to 2026.1116, are no longer read. For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
     account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),
     each chat's reply proposals (`reply-proposals.json`), the people each mailbox has mail with (`mail-people.json`,
     plan 076), and mail replies held for their undo (`outbox.json`).
@@ -508,7 +501,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    with); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas and watch widget files;
    `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the daemon's projection;
    `seen.ts` keeps the done and viewed marks and the focus weights; `gestures.ts` turns what you did into the message
-   note; `suggestions.ts` and `task-migration.ts` keep the suggestions and move Tasks into them once; `pins.ts`,
+   note; `suggestions.ts` keeps the suggestions; `pins.ts`,
    `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back pins, folders, the Agents pages and
    Learn; `skill-sources.ts` says where each skill came from and refreshes the installed ones; `models.ts` keeps the
    recent models for the picker; `tools.ts` holds the canvas, `chat_list` and suggestion tools; `requirements.ts` says
@@ -629,7 +622,7 @@ place, and the Mac's side of it is what shipped first.
    sequence again and `install_tools` runs `xcode-select --install`. A development build runs the machine's Node:
    `node.rs` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
    does not see on its short PATH: Homebrew's prefixes, volta, nvm, fnm and npm's global bin, and on Windows the
-   nodejs.org installer's folder, nvm-windows, fnm and scoop; nothing new enough is the reason Welcome shows. The mod finds `tailscale` (and `bd`, for the one-time move of open tasks)
+   nodejs.org installer's folder, nvm-windows, fnm and scoop; nothing new enough is the reason Welcome shows. The mod finds `tailscale`
    through `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.

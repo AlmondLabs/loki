@@ -58,7 +58,6 @@ export interface PeeringDeps {
   broadcast: (msg: object, scope?: Scope) => void;
   local: { desks: () => DeskSummary[]; inbox: () => InboxRow[] };
   dirs: Pick<typeof paths, "peers" | "state" | "data" | "widgets" | "uploads">;
-  moveTasks: () => Promise<unknown>;
 }
 
 export interface Peering {
@@ -157,7 +156,6 @@ export function startPeering(deps: PeeringDeps): Peering {
           await chatMoves.takeOver(id);
         },
       },
-      { name: "tasks", after: "moves", reached: () => deps.moveTasks() },
       {
         name: "state",
         reached: (id) => peerState.pull(id),

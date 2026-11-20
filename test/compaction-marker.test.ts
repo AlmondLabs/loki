@@ -97,13 +97,16 @@ describe("a compaction in the thread", () => {
   test("a running row stays across a history page, and a finished one pairs with the page's", () => {
     const t = new ThreadModel();
     t.apply(running);
-    t.load([{ role: "user", text: "go on", at: NOW }]);
+    t.load([{ role: "user", text: "go on", at: NOW }], 0);
     expect(t.rows()?.map((r) => r.text)).toEqual(["go on", "compacting the chat"]);
     t.apply(done);
-    t.load([
-      { role: "user", text: "go on", at: NOW },
-      { role: "event", text: COMPACTED_TEXT, summary: null, detail: "## Goal\n- Ship it" },
-    ]);
+    t.load(
+      [
+        { role: "user", text: "go on", at: NOW },
+        { role: "event", text: COMPACTED_TEXT, summary: null, detail: "## Goal\n- Ship it" },
+      ],
+      0,
+    );
     expect(t.rows()?.map((r) => r.text)).toEqual(["go on", COMPACTED_TEXT]);
   });
 });

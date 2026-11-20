@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { DeviceSummary, DeviceVia } from "../core/frame-types.ts";
-import { migrateKeys } from "../core/snake-keys.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
 export interface DeviceRecord extends DeviceSummary {
@@ -22,13 +21,12 @@ export class DeviceStore {
     this.path = path;
     this.now = opts.now ?? Date.now;
     try {
-      const { value: parsed, changed } = migrateKeys(JSON.parse(readFileSync(path, "utf8")) as unknown);
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
       if (Array.isArray(parsed)) {
         this.devices = parsed.filter(
           (d): d is DeviceRecord =>
             typeof d === "object" && d !== null && typeof (d as DeviceRecord).id === "string" && typeof (d as DeviceRecord).token_hash === "string",
         );
-        if (changed) this.persist();
       }
     } catch {
       this.devices = [];

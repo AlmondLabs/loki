@@ -18,8 +18,8 @@ export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run typecheck": { Linux: 5 },
   // The whole lint: the merge queue's, and a PR's that changes the lint's setup. Target 5s; 19–27s today.
   "bun run lint": { Linux: 40 },
-  // A PR's lint, of the files its diff reaches.
-  "bun run lint:pr": { Linux: 5 },
+  // A PR's lint, of the files its diff reaches. Target 5s; a diff that reaches core/frames.ts lints about 180 files in 10s.
+  "bun run lint:pr": { Linux: 15 },
   // Windows runs the suite in two shards (ci.yml), each held to this.
   "bun run test": { Linux: 60, macOS: 60, Windows: 60 },
   "bun run test:pr": { Linux: 60, macOS: 60, Windows: 60 },

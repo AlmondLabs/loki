@@ -1,12 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Approvals, kindOf } from "../daemon/approvals.ts";
 import { BackgroundTasks } from "../daemon/background.ts";
 import { builtinExtensions, builtinKinds } from "../daemon/extensions.ts";
 import { Schedules } from "../daemon/schedule.ts";
-import { RENAMED_TOOLS } from "../daemon/tool-kinds.ts";
 
 function builtins() {
   const dir = mkdtempSync(join(tmpdir(), "loki-extensions-"));
@@ -87,7 +86,6 @@ describe("the built-in tools", () => {
     try {
       const names = extensions.flatMap((e) => (e.tools ?? []).map((t) => t.name));
       expect(names.filter((n) => !/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(n))).toEqual([]);
-      expect(Object.values(RENAMED_TOOLS).filter((n) => n && !/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(n))).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -100,21 +98,15 @@ describe("the built-in tools", () => {
   });
 });
 
-describe("tools allowed always, under their old names", () => {
-  test("carry over to the new names, written back once", () => {
+describe("tools allowed always", () => {
+  test("are read as they were saved, without the one that is never allowed always, and the file is left as it is", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-always-"));
     const path = join(dir, "approvals.json");
     try {
-      writeFileSync(path, JSON.stringify({ always: ["Agent", "TaskOutput", "bash", "mcp__github__list_issues"] }));
-      const approvals = new Approvals({ alwaysPath: path });
-      expect(approvals.always()).toEqual(["bash", "mcp__github__list_issues", "subagent"]);
-      expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ always: ["bash", "mcp__github__list_issues", "subagent"] });
-      writeFileSync(path, JSON.stringify({ always: ["background_stop", "background_write"] }));
-      expect(new Approvals({ alwaysPath: path }).always()).toEqual(["background_watch"]);
-      writeFileSync(path, JSON.stringify({ always: ["bash"] }));
-      new Approvals({ alwaysPath: path });
-      expect(readFileSync(path, "utf8")).toBe(JSON.stringify({ always: ["bash"] }));
-      expect(existsSync(path)).toBe(true);
+      const saved = JSON.stringify({ always: ["bash", "codemode", "user_ask"] });
+      writeFileSync(path, saved);
+      expect(new Approvals({ alwaysPath: path }).always()).toEqual(["bash", "user_ask"]);
+      expect(readFileSync(path, "utf8")).toBe(saved);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

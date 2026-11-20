@@ -29,7 +29,7 @@ import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
-import { conversationDirName, scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/desk-core.ts";
 
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import type { UsageDeps } from "./frames/usage.ts";
@@ -73,12 +73,10 @@ import { slackThreadText } from "./account-ops/slack.ts";
 import { Handoff } from "./handoff.ts";
 import { slackChannelView } from "./slack-view.ts";
 import { jiraCardView, jiraThreadText } from "./jira-view.ts";
-import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
 import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
-import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
 import { GooglePeople } from "./google-people.ts";
@@ -169,8 +167,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
-  const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
-    conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
 
   const threads = new AccountThreads({
     dir: join(paths.state, "account-threads"),
@@ -226,7 +222,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     broadcast,
     local: { desks: listLocalDesks, inbox: listLocalInbox },
     dirs: paths,
-    moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
   const accounts = new Accounts({
@@ -413,24 +408,6 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
-  const taskMoves = serialQueue();
-  const moveOpenTasks = (): Promise<unknown> => {
-    if (!suggestions) return Promise.resolve();
-    const s = suggestions;
-    return taskMoves(() =>
-      moveTasks({
-        run: bdReader(tasksDir()),
-        stateFile: join(paths.state, "migrations.json"),
-        route: macs.router,
-        suggestions: s,
-        folderOf: (c) =>
-          macs.desks().find((d) => d.conversation_id === c.conversation_id && (d.agent_id ?? c.agent_id) === c.agent_id)?.cwd ??
-          folderFor(c.agent_id, c.conversation_id),
-        report: (message) => log("tasks:move", message),
-      }),
-    ).catch((err: unknown) => log("tasks:move-failed", messageOf(err)));
-  };
-  void moveOpenTasks();
   const skillSources = new SkillSources({
     sourcesFile: join(paths.state, "skill-sources.json"),
     stagingDir: join(paths.state, "upstream"),

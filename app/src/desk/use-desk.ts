@@ -311,7 +311,7 @@ export function useDesk() {
       conversationId: string,
       limit?: number,
       before?: number,
-    ): Promise<{ rows: TranscriptRow[]; more: boolean; start?: number } | null> =>
+    ): Promise<{ rows: TranscriptRow[]; more: boolean; start: number } | null> =>
       request(
         "history_get",
         { agent_id: agentId, conversation_id: conversationId, ...(limit ? { limit } : {}), ...(before !== undefined ? { before } : {}) },

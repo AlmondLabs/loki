@@ -86,7 +86,7 @@ async function macs() {
       return reply({ accepted: true });
     },
     chat_approve: (p) => (reached.push({ type: "chat_approve", ...p }), reply({ accepted: true })),
-    history_get: (p) => reply({ agent_id: p.agent_id, conversation_id: p.conversation_id, messages: [], more: false, widget_log: [] }),
+    history_get: (p) => reply({ agent_id: p.agent_id, conversation_id: p.conversation_id, messages: [], more: false, start: 0, widget_log: [] }),
   };
   const farBridge = createBridge({
     modules: [

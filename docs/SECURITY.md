@@ -30,8 +30,7 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
   `src-tauri/capabilities/default.json`), and loki's own shell commands (its log, the daemon's status and a retry, the
   badge, the global key, the menu). It cannot read files or run programs.
 - **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits and for
-  refreshing a skill from its upstream repo, `rg` for search, `bd` only to read the open tasks once when Tasks gave
-  way to suggestions (the beads store is read, never written), the local MCP servers you list, and the ACP agents you
+  refreshing a skill from its upstream repo, `rg` for search, the local MCP servers you list, and the ACP agents you
   choose for a chat (Claude Code, Cursor's CLI, or your own in `~/.loki/state/acp.json`). On the Mac it also runs
   `osascript` for the folder chooser, `sips` to shrink images, `scutil` for the computer's name and `caffeinate`
   (below); `open`, `xdg-open` or `rundll32` open an ACP agent's sign-in page, and `taskkill` stops a task on Windows.
