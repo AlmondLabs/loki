@@ -1,6 +1,8 @@
 import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
 import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
 import { pushMeaning } from "../core/frames.ts";
+import { messageOf } from "../core/errors.ts";
+import { log } from "./log.ts";
 import type { PeerLink } from "./peer-link.ts";
 
 interface MacChats {
@@ -55,7 +57,7 @@ export class RemoteChats {
 
   setReachable(macId: string, reachable: boolean): void {
     if (reachable) {
-      void this.refresh(macId);
+      this.startRefresh(macId);
       return;
     }
     this.stopRetry(macId);
@@ -71,10 +73,17 @@ export class RemoteChats {
     if (this.timers.has(macId)) return;
     const t = setTimeout(() => {
       this.timers.delete(macId);
-      void this.refresh(macId);
+      this.startRefresh(macId);
     }, this.opts.debounceMs ?? 400);
     t.unref();
     this.timers.set(macId, t);
+  }
+
+  startRefresh(macId: string): void {
+    this.refresh(macId).catch((err: unknown) => {
+      log("peers:chats_failed", { mac: macId, reason: messageOf(err) });
+      this.retryLater(macId);
+    });
   }
 
   async refresh(macId: string): Promise<void> {
@@ -88,7 +97,6 @@ export class RemoteChats {
       else this.setReachable(macId, false);
       return;
     }
-    this.stopRetry(macId);
     const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v.filter((x: unknown) => typeof x === "object" && x !== null) : []);
     const desks = (rows(reply.desks) as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted");
     const inbox = [...(rows(reply.inbox) as InboxRow[]), ...(rows(reply.outside) as InboxRow[])];
@@ -98,6 +106,7 @@ export class RemoteChats {
       desks.map((d) => d.scope),
     );
     this.opts.onChange();
+    this.stopRetry(macId);
   }
 
   desks(): DeskSummary[] {
@@ -128,7 +137,7 @@ export class RemoteChats {
     retry.waitMs = Math.min(wait * 2, MAX_RETRY_MS);
     retry.timer = setTimeout(() => {
       retry.timer = null;
-      void this.refresh(macId);
+      this.startRefresh(macId);
     }, wait);
     retry.timer.unref();
     this.retries.set(macId, retry);

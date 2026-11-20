@@ -12,6 +12,12 @@ import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 export { PAIRING_ALPHABET, PAIRING_LENGTH };
 export const PAIRING_TTL_MS = 10 * 60_000;
 
+export const TOO_MANY_WRONG_CODES = "too many wrong codes; wait a while";
+
+export type CodeCheck<T> = { code: "right"; value: T } | { code: "wrong" | "refused"; status: number; body: Record<string, unknown> };
+
+export type CodeStep<T> = (check: () => CodeCheck<T>) => CodeCheck<T> | { code: "blocked" };
+
 export interface PairingCode {
   code: string;
   expiresAt: string;
