@@ -80,7 +80,7 @@ export class LanListener {
     this.enabledFlag = state.enabled;
     this.viaSetting = state.via;
     this.tailscale = opts.tailscale ?? null;
-    opts.devices.onSeen = () => this.opts.onChange?.("devices", this.status());
+    opts.devices.onSeen = () => this.tell("devices", this.status());
   }
 
   enabled(): boolean {
@@ -117,7 +117,7 @@ export class LanListener {
       this.lastTailscale = next;
       if (prev && (prev.running !== next.running || prev.name !== next.name || prev.serve_url !== next.serve_url)) {
         log("lan:tailscale", { running: next.running, name: next.name, serveUrl: next.serve_url, error: next.error });
-        this.opts.onChange?.("status", this.status());
+        this.tell("status", this.status());
       }
     }
     return this.status();
@@ -156,7 +156,7 @@ export class LanListener {
     this.viaSetting = via;
     writeState(this.opts.stateFile, { enabled: this.enabledFlag, via });
     const status = this.status();
-    this.opts.onChange?.("status", status);
+    this.tell("status", status);
     return status;
   }
 
@@ -164,7 +164,7 @@ export class LanListener {
     if (!this.tailscale) return this.status();
     this.lastTailscale = await this.tailscale.setServe(enabled);
     const status = this.status();
-    this.opts.onChange?.("status", status);
+    this.tell("status", status);
     return status;
   }
 
@@ -241,10 +241,18 @@ export class LanListener {
     });
   }
 
+  private tell(what: LanChange, status: LanStatus): void {
+    try {
+      this.opts.onChange?.(what, status);
+    } catch (err) {
+      log("lan:listener-failed", { what, reason: messageOf(err) });
+    }
+  }
+
   private async serialized(fn: () => Promise<void>): Promise<LanStatus> {
     await this.busy(fn);
     const status = this.status();
-    this.opts.onChange?.("status", status);
+    this.tell("status", status);
     return status;
   }
 
@@ -317,7 +325,7 @@ export class LanListener {
           const who = this.authorize(req, url);
           if (who.deviceId) {
             this.forget(who.deviceId);
-            this.opts.onChange?.("devices", this.status());
+            this.tell("devices", this.status());
           }
           return json(res, 200, { ok: true }, { "set-cookie": clearCookie() });
         }
@@ -340,7 +348,7 @@ export class LanListener {
           this.dist = found;
           this.serveStatic = createStaticApp(found);
           log("lan:app-dist", { dist: found });
-          this.opts.onChange?.("status", this.status());
+          this.tell("status", this.status());
         }
       }
       this.serveStatic(req, res, url);
@@ -410,7 +418,7 @@ export class LanListener {
         const name = result.value;
         const { id, token } = this.opts.devices.mint(name);
         log("lan:paired", { id, name });
-        this.opts.onChange?.("devices", this.status());
+        this.tell("devices", this.status());
         json(res, 200, { device_id: id, name: this.opts.devices.get(id)?.name ?? name }, { "set-cookie": setCookie(token) });
       },
       () => json(res, 400, { error: "bad request body" }),

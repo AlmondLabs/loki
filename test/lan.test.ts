@@ -787,6 +787,34 @@ describe("LAN listener", () => {
   });
 });
 
+describe("a status listener that throws", () => {
+  test("does not reject starting, stopping or the paired Macs' need for the listener", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-lan-"));
+    let calls = 0;
+    const lan = new LanListener({
+      port: 0,
+      stateFile: join(dir, "lan.json"),
+      devices: new DeviceStore(join(dir, "devices.json")),
+      codes: new PairingCodes(),
+      handlers: { onConnect: () => {}, onMessage: () => {} },
+      onChange: () => {
+        calls++;
+        throw new Error("the status listener broke");
+      },
+    });
+    try {
+      expect((await lan.start()).port).toBeGreaterThan(0);
+      expect((await lan.stop()).port).toBe(0);
+      expect((await lan.setPeersNeeded(true)).port).toBeGreaterThan(0);
+      expect((await lan.setPeersNeeded(false)).port).toBe(0);
+      expect(calls).toBe(4);
+    } finally {
+      await lan.stop().catch(() => {});
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("the Tailscale poll", () => {
   test("a status listener that throws during a poll leaves no unhandled rejection, and the next poll still runs", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
