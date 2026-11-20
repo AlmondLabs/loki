@@ -40,6 +40,13 @@ interface Candidate {
   items: SlackActivityItem[];
 }
 
+interface SlackThread {
+  channel: string;
+  thread_ts: string;
+}
+
+type MarkedThread = SlackThread & { last_read: string };
+
 interface RefillState {
   step: number;
   exhausted: boolean;
@@ -96,6 +103,7 @@ export class SlackSync implements AccountSync {
   private readonly places = new Map<string, string | null>();
   private activity = new Map<string, SlackActivityItem[]>();
   private readonly marked = new Map<string, SlackActivityItem[]>();
+  private readonly threadsMarked = new Map<string, MarkedThread[]>();
   private readonly nothingAt = new Map<string, string>();
   private nextFullWalk = 0;
   private backlogLeft = true;
@@ -165,6 +173,7 @@ export class SlackSync implements AccountSync {
 
   async archive(record: ThreadRecord): Promise<void> {
     if (!record.thread_id.includes(":")) await this.opts.client.markDm(record.thread_id, record.newest_message_id);
+    await this.markThreads(record);
     const items = (this.activity.get(record.thread_id) ?? []).filter((i) => !i.ts || !tsAfter(i.ts, record.newest_message_id));
     if (items.length === 0) return;
     try {
@@ -181,6 +190,21 @@ export class SlackSync implements AccountSync {
   }
 
   async restore(record: ThreadRecord): Promise<void> {
+    const moved = this.threadsMarked.get(record.thread_id) ?? [];
+    this.threadsMarked.delete(record.thread_id);
+    for (const t of moved) {
+      try {
+        await this.opts.client.markThread(t.channel, t.thread_ts, t.last_read);
+      } catch (err) {
+        log("slack:thread-mark-failed", {
+          account_id: this.accountId,
+          thread_id: record.thread_id,
+          thread_ts: t.thread_ts,
+          read: false,
+          error: messageOf(err),
+        });
+      }
+    }
     const items = this.marked.get(record.thread_id);
     if (!items) return;
     this.marked.delete(record.thread_id);
@@ -192,6 +216,32 @@ export class SlackSync implements AccountSync {
     }
     const keys = new Set(items.map((i) => i.key));
     this.activity.set(record.thread_id, [...(this.activity.get(record.thread_id) ?? []).filter((i) => !keys.has(i.key)), ...items]);
+  }
+
+  private threadsOf(record: ThreadRecord): SlackThread[] {
+    const at = record.thread_id.indexOf(":");
+    if (at >= 0) return [{ channel: record.thread_id.slice(0, at), thread_ts: record.thread_id.slice(at + 1) }];
+    const found = new Map<string, SlackThread>();
+    for (const { channel, thread_ts } of this.activity.get(record.thread_id) ?? []) {
+      if (channel && thread_ts) found.set(`${channel}:${thread_ts}`, { channel, thread_ts });
+    }
+    return [...found.values()];
+  }
+
+  private async markThreads(record: ThreadRecord): Promise<void> {
+    const moved: MarkedThread[] = [];
+    for (const t of this.threadsOf(record)) {
+      try {
+        const read = await this.opts.client.followedThreadLastRead(t.channel, t.thread_ts);
+        if (read === null || !tsAfter(record.newest_message_id, read)) continue;
+        await this.opts.client.markThread(t.channel, t.thread_ts, record.newest_message_id);
+        moved.push({ ...t, last_read: read });
+      } catch (err) {
+        log("slack:thread-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, thread_ts: t.thread_ts, read: true, error: messageOf(err) });
+      }
+    }
+    if (moved.length > 0) this.threadsMarked.set(record.thread_id, moved);
+    else this.threadsMarked.delete(record.thread_id);
   }
 
   private remember(candidates: ReadonlyMap<string, Candidate>, complete: boolean): void {

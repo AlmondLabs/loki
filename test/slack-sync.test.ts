@@ -31,6 +31,8 @@ const CONNECTED = Date.parse("2026-11-04T10:00:00Z") / 1000;
 const DAY = 86_400;
 
 const at = (seconds: number) => `${String(CONNECTED + seconds)}.000100`;
+const READS = ["conversations.replies", "conversations.info"];
+const writes = <T extends { method: string }>(sent: T[]) => sent.filter((s) => !READS.includes(s.method));
 
 interface FakeMessage {
   ts: string;
@@ -52,6 +54,8 @@ interface FakeItem {
 function fakeWorkspace() {
   const kinds = new Map<string, "im" | "mpim" | "channel">();
   const lastRead = new Map<string, string>();
+  // Threads the person follows, by `channel:thread_ts`, with how far they have read each.
+  const followed = new Map<string, string>();
   // DMs closed in Slack, which client.counts no longer lists.
   const closed = new Set<string>();
   const messages = new Map<string, FakeMessage[]>();
@@ -64,6 +68,8 @@ function fakeWorkspace() {
     activityMark: null as string | null,
     info: null as string | null,
     history: null as string | null,
+    replies: null as string | null,
+    threadMark: null as string | null,
   };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
@@ -117,14 +123,19 @@ function fakeWorkspace() {
         };
       }
       case "conversations.replies": {
-        // Slack's order: the parent, then the replies oldest first, a page at a time.
+        if (refuse.replies) return { ok: false, error: refuse.replies };
+        // Slack's order: the parent, then the replies oldest first, a page at a time; the parent of a followed thread
+        // carries how far the person has read it.
         const list = (messages.get(p.channel ?? "") ?? []).filter((m) => m.ts === p.ts || m.thread_ts === p.ts);
         const from = Number(p.cursor ?? "0");
         const limit = Number(p.limit ?? "1000");
         const more = from + limit < list.length;
         return {
           ok: true,
-          messages: list.slice(from, from + limit).map(toMessage),
+          messages: list.slice(from, from + limit).map((m) => {
+            const read = m.ts === p.ts ? followed.get(`${p.channel ?? ""}:${m.ts}`) : undefined;
+            return read === undefined ? toMessage(m) : { ...toMessage(m), subscribed: true, last_read: read };
+          }),
           has_more: more,
           response_metadata: { next_cursor: more ? String(from + limit) : "" },
         };
@@ -171,6 +182,10 @@ function fakeWorkspace() {
         }
         return { ok: true };
       }
+      case "subscriptions.thread.mark":
+        if (refuse.threadMark) return { ok: false, error: refuse.threadMark };
+        followed.set(`${p.channel ?? ""}:${p.thread_ts ?? ""}`, p.ts ?? "");
+        return { ok: true };
       case "chat.postMessage": {
         // The person's own post, which Slack counts as read up to it, as the desktop app does.
         const channel = p.channel ?? "";
@@ -220,6 +235,10 @@ function fakeWorkspace() {
       lastRead.set(channel, ts);
     },
     lastRead: (channel: string) => lastRead.get(channel) ?? null,
+    follow(channel: string, threadTs: string, read: string) {
+      followed.set(`${channel}:${threadTs}`, read);
+    },
+    threadRead: (channel: string, threadTs: string) => followed.get(`${channel}:${threadTs}`) ?? null,
     unread: (key: string) => activity.find((x) => x.key === key)?.unread ?? null,
   };
 }
@@ -418,7 +437,7 @@ describe("Activity", () => {
     await sync.tick();
     const before = slack.sent.length;
     await threads.archive(ACCOUNT, `C0GEN:${at(10)}`);
-    expect(slack.sent.slice(before).map((s) => s.method)).toEqual(["activity.markRead"]);
+    expect(writes(slack.sent.slice(before)).map((s) => s.method)).toEqual(["activity.markRead"]);
     expect(open()).toEqual([]);
     await sync.tick();
     expect(open()).toEqual([]);
@@ -577,7 +596,7 @@ describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
     await sync.tick();
     const before = slack.sent.length;
     expect(await threads.markRead(ACCOUNT, `C0GEN:${at(10)}`)).toMatchObject({ move: "read", ended: true });
-    expect(slack.sent.slice(before).map((s) => [s.method, s.params.entries])).toEqual([
+    expect(writes(slack.sent.slice(before)).map((s) => [s.method, s.params.entries])).toEqual([
       ["activity.markRead", JSON.stringify([{ type: "at_user", key: "a", feed_ts: at(10) }])],
     ]);
     expect(slack.unread("a")).toBe(false);
@@ -910,5 +929,102 @@ describe("what brought a card (plan 077, KTD2)", () => {
     clock.t += 20 * 60_000;
     await sync.tick();
     expect(threads.get(ACCOUNT, id)?.brought_ids).toEqual([at(30)]);
+  });
+});
+
+describe("a thread's own read point in Slack", () => {
+  const followedThread = async (read = at(10)) => {
+    const f = await fixture();
+    f.slack.post("C0ENG", { ts: at(10), user: "U0ME", text: "the plan" });
+    f.slack.post("C0ENG", { ts: at(11), user: "U0GRACE", text: "looks good", thread_ts: at(10) });
+    f.slack.post("C0ENG", { ts: at(12), user: "U0ALAN", text: "agreed", thread_ts: at(10) });
+    f.slack.follow("C0ENG", at(10), read);
+    f.slack.item({ key: "t", type: "thread_v2", channel: "C0ENG", ts: at(12), thread_ts: at(10) });
+    await f.sync.tick();
+    return { ...f, card: `C0ENG:${at(10)}` };
+  };
+  const threadMarks = (sent: Array<{ method: string; params: Record<string, string> }>) =>
+    sent.filter((s) => s.method === "subscriptions.thread.mark").map((s) => [s.params.channel, s.params.thread_ts, s.params.ts]);
+
+  test("reading a followed thread's card marks the thread read up to the card's newest message, and a later reply stays unread", async () => {
+    const { slack, threads, open, card } = await followedThread();
+    slack.post("C0ENG", { ts: at(13), user: "U0ALAN", text: "one more", thread_ts: at(10) });
+    expect(await threads.markRead(ACCOUNT, card)).toMatchObject({ move: "read", ended: true });
+    expect(threadMarks(slack.sent)).toEqual([["C0ENG", at(10), at(12)]]);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(12));
+    expect(slack.lastRead("C0ENG")).toBeNull();
+    expect(open()).toEqual([]);
+  });
+
+  test("a thread Slack already has read at or past the card's newest message is left alone", async () => {
+    const { slack, threads, card } = await followedThread(at(12));
+    await threads.archive(ACCOUNT, card);
+    expect(threadMarks(slack.sent)).toEqual([]);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(12));
+  });
+
+  test("a top-level mention and a thread the person does not follow mark no thread", async () => {
+    const { slack, threads, sync } = await fixture();
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    slack.post("C0ENG", { ts: at(20), user: "U0ALAN", text: "a post" });
+    slack.post("C0ENG", { ts: at(21), user: "U0GRACE", text: "<@U0ME> in a thread", thread_ts: at(20) });
+    slack.item({ key: "m", type: "at_user", channel: "C0ENG", ts: at(21), thread_ts: at(20) });
+    await sync.tick();
+    await threads.markRead(ACCOUNT, `C0GEN:${at(10)}`);
+    await threads.archive(ACCOUNT, `C0ENG:${at(20)}`);
+    expect(threadMarks(slack.sent)).toEqual([]);
+    expect([slack.unread("a"), slack.unread("m")]).toEqual([false, false]);
+  });
+
+  test("a DM card marks a followed thread inside the DM as well as the DM, and a DM with no thread reply marks no thread", async () => {
+    const { slack, threads, sync } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(10), user: "U0GRACE", text: "parent" });
+    slack.read("D0GRACE", at(10));
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "a reply in the thread", thread_ts: at(10) });
+    slack.follow("D0GRACE", at(10), at(10));
+    slack.item({ key: "k1", type: "thread_v2", channel: "D0GRACE", ts: at(20), thread_ts: at(10) });
+    slack.dm("D0ALAN");
+    slack.post("D0ALAN", { ts: at(30), user: "U0ALAN", text: "hello" });
+    await sync.tick();
+    await threads.markRead(ACCOUNT, "D0ALAN");
+    expect(threadMarks(slack.sent)).toEqual([]);
+    await threads.markRead(ACCOUNT, "D0GRACE");
+    expect(threadMarks(slack.sent)).toEqual([["D0GRACE", at(10), at(20)]]);
+    expect(slack.sent.filter((s) => s.method === "conversations.mark").map((s) => s.params.channel)).toEqual(["D0ALAN", "D0GRACE"]);
+  });
+
+  test("an undo marks the thread back to where it was, and a second read marks it forward again", async () => {
+    const { slack, threads, open, card } = await followedThread();
+    const change = must(await threads.markRead(ACCOUNT, card), "the read's change");
+    await threads.restore(ACCOUNT, card, change);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(10));
+    expect(open().map((r) => r.thread_id)).toEqual([card]);
+    await threads.markRead(ACCOUNT, card);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(12));
+  });
+
+  test("an undo marks the thread back even when the card's Activity mark failed", async () => {
+    const { slack, threads, card } = await followedThread();
+    slack.refuse.activityMark = "unknown_method";
+    const change = must(await threads.archive(ACCOUNT, card), "the archive's change");
+    expect([slack.unread("t"), slack.threadRead("C0ENG", at(10))]).toEqual([true, at(12)]);
+    await threads.restore(ACCOUNT, card, change);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(10));
+  });
+
+  test("when Slack refuses the thread mark, or will not show the thread, the card still ends, its Activity is marked, and it is logged", async () => {
+    for (const refusal of ["threadMark", "replies"] as const) {
+      const { dir, slack, threads, open, card } = await followedThread();
+      const logFile = join(dir, "mod.log");
+      initLog(logFile);
+      slack.refuse[refusal] = refusal === "threadMark" ? "team_is_restricted" : "internal_error";
+      expect(await threads.markRead(ACCOUNT, card)).toMatchObject({ move: "read", ended: true });
+      expect(slack.threadRead("C0ENG", at(10))).toBe(at(10));
+      expect(slack.unread("t")).toBe(false);
+      expect(open()).toEqual([]);
+      expect(readFileSync(logFile, "utf8")).toContain("slack:thread-mark-failed");
+    }
   });
 });
