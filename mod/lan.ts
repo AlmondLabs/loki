@@ -205,7 +205,10 @@ export class LanListener {
       this.buildPoll = setInterval(() => this.checkBuild(), this.opts.buildPollMs ?? 5000);
       if (this.tailscale) {
         await this.refresh();
-        this.tailscalePoll = setInterval(() => void this.refresh(), this.opts.tailscalePollMs ?? 60_000);
+        this.tailscalePoll = setInterval(
+          () => void this.refresh().catch((err: unknown) => log("lan:tailscale-poll-failed", messageOf(err))),
+          this.opts.tailscalePollMs ?? 60_000,
+        );
       }
     });
   }
