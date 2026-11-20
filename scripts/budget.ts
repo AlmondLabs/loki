@@ -11,7 +11,7 @@ export type Os = "Linux" | "macOS" | "Windows";
  *
  * Where a step meets the plan's target with room to spare the budget is the target (lint and types 5s, tests 60s,
  * setup 30s). Where it does not yet, the budget is about 1.5 times its slowest run in November 2026 and the target is
- * noted: oxlint's type-aware rules take 15s on GitHub's 4-core runners, and Windows runs the suite in about 60s.
+ * noted: oxlint's type-aware rules take 15s on GitHub's 4-core runners.
  */
 export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run format:check": { Linux: 5 },
@@ -20,9 +20,9 @@ export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run lint": { Linux: 40 },
   // A PR's lint, of the files its diff reaches.
   "bun run lint:pr": { Linux: 5 },
-  // Target 60s; Windows takes 53–63s today.
-  "bun run test": { Linux: 60, macOS: 60, Windows: 90 },
-  "bun run test:pr": { Linux: 60, macOS: 60, Windows: 90 },
+  // Windows runs the suite in two shards (ci.yml), each held to this.
+  "bun run test": { Linux: 60, macOS: 60, Windows: 60 },
+  "bun run test:pr": { Linux: 60, macOS: 60, Windows: 60 },
   "bun run test:node": { Linux: 30, macOS: 30, Windows: 30 },
   "bun run build:app": { Linux: 60 },
   "bun run build:site": { Linux: 20 },
@@ -33,9 +33,12 @@ export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   install: { Linux: 30, macOS: 30, Windows: 30 },
 };
 
+// A shard of the suite is held to the suite's budget: the target is per shard.
+const SHARD = / --shard=\d+\/\d+$/;
+
 /** A step's budget on a system; a step without one is an error, so every step CI runs is given one. */
 export function budgetFor(step: string, os: Os): number {
-  const budget = BUDGETS[step]?.[os];
+  const budget = BUDGETS[step.replace(SHARD, "")]?.[os];
   if (budget === undefined) throw new Error(`${step} has no budget on ${os}: add one to scripts/budget.ts`);
   return budget;
 }
