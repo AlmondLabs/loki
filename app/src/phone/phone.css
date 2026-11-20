@@ -1587,6 +1587,14 @@ span.loki-phone-section-btn {
   touch-action: none;
   cursor: grab;
 }
+.loki-phone .loki-composer-box[data-folded] {
+  flex-direction: row;
+  align-items: center;
+}
+.loki-phone .loki-composer-box[data-folded] > :first-child {
+  flex: 1;
+  min-width: 0;
+}
 .loki-phone-card [data-reply-handle] textarea {
   pointer-events: none;
   max-height: calc(var(--phone-touch) - var(--phone-space-2));

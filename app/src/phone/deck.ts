@@ -38,6 +38,16 @@ export function releaseDirection(dx: number, dy: number, width: number, vx: numb
   return commits(dx * sign, vx * sign, width) ? (sign > 0 ? "right" : "left") : null;
 }
 
+export interface CardMark {
+  id: string;
+  approval: string | null;
+}
+
+export const markOf = (item: AttentionItem): CardMark => ({ id: idOf(item), approval: item.pendingApproval?.requestId ?? null });
+
+export const stillTheCard = (mark: CardMark | null, item: AttentionItem | undefined): boolean =>
+  !!mark && !!item && mark.id === idOf(item) && mark.approval === (item.pendingApproval?.requestId ?? null);
+
 export function dragAxis(dx: number, dy: number, origin: Origin): "x" | "y" | null {
   if (Math.abs(dx) > Math.abs(dy)) return Math.abs(dx) > DRAG_SLOP ? "x" : null;
   return origin === "box" && -dy > DRAG_SLOP ? "y" : null;

@@ -10,12 +10,11 @@ import type {
   OutsideRead,
   OutsideReplied,
   OutsideWindowAsk,
-  OutsideWrite,
   ReplyThen,
   SlackPerson,
 } from "../core/frame-types.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
-import type { AccountThreads, OutsideSource, ThreadRecord } from "./account-threads.ts";
+import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { OUTBOX_HEADER, type GmailAttachment, type GmailClient, type GmailMessage, type GmailSendAs } from "./gmail.ts";
 import { JiraError, type JiraClient } from "./jira.ts";
 import { mailAttachments, mailParts } from "./account-ops/gmail.ts";
@@ -98,41 +97,6 @@ const FREQUENT_TTL_MS = 10 * 60_000;
 
 /** The most a forward carries in files: under Gmail's 25 MB once the files are written out as text. */
 const MAX_FORWARD_BYTES = 17 * 1024 * 1024;
-
-/**
- * `LOKI_PREVIEW_ACCOUNTS=1`, which `npm run phone-preview` alone sets: its made-up accounts have no keychain and no
- * service behind them, so their cards act on loki's own records and read their records' lines.
- */
-export const previewAccounts = (env: Record<string, string | undefined>): boolean => env.LOKI_PREVIEW_ACCOUNTS === "1";
-
-export function recordOnlySource(): OutsideSource {
-  const change = (move: OutsideWrite, record: ThreadRecord): Promise<OutsideChange> =>
-    Promise.resolve({ move, messages: [], ended: move === "archive", was_unread: record.unread_out_there });
-  return {
-    archive: (_accountId, record) => change("archive", record),
-    markRead: (_accountId, record) => change("read", record),
-    markUnread: (_accountId, record) => change("unread", record),
-    addLabels: (_accountId, record) => change("label", record),
-    restore: () => Promise.resolve(),
-    labels: () => Promise.resolve([]),
-  };
-}
-
-export function recordOnlyMail(): SendGmail {
-  const none = () => Promise.reject(new Error("the preview sends and reads no mail"));
-  return { getThread: none, sendAs: none, sendReply: none, attachment: none, listMessages: none };
-}
-
-export function recordThreadText(threads: Pick<AccountThreads, "get">): ThreadText {
-  return (accountId, threadId) => {
-    const r = threads.get(accountId, threadId);
-    const last = (r?.lines.length ?? 0) - 1;
-    return Promise.resolve(
-      r?.lines.map((text, i) => ({ id: i === last ? r.newest_message_id : `${r.newest_message_id}-${String(i)}`, sender: r.sender, at: r.newest_at, text })) ??
-        [],
-    );
-  };
-}
 
 export class OutsideThreads {
   private readonly opts: OutsideThreadsOptions;

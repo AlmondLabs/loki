@@ -80,6 +80,13 @@ describe("the Inbox card's message box", () => {
     expect(html).not.toContain('aria-label="Send"');
   });
 
+  test("while the agent's turn runs, the folded box keeps its Stop button", () => {
+    const running = render(item(), { ...actions(), onStop: () => Promise.resolve(null) }, "thinking");
+    expect(running).toContain('data-folded="true"');
+    expect(running).toContain('aria-label="Stop"');
+    expect(render(item(), { ...actions(), onStop: () => Promise.resolve(null) })).not.toContain('aria-label="Stop"');
+  });
+
   test("its spoken words name the drags, an approval's included (R12)", () => {
     expect(render(item(), actions(model))).toContain("Drag right for Read, left for Later, up to Archive.");
     expect(dragWords(item({ id: "default" }))).toBe("Drag right for Read, left for Later.");

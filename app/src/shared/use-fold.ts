@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FocusEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type MouseEvent, type RefObject } from "react";
 
 export interface Fold {
   folded: boolean;
@@ -9,7 +9,7 @@ export interface Fold {
     onFocus?: (e: FocusEvent<HTMLDivElement>) => void;
     onBlur?: (e: FocusEvent<HTMLDivElement>) => void;
     onPointerDownCapture?: () => void;
-    onClick?: () => void;
+    onClick?: (e: MouseEvent<HTMLDivElement>) => void;
   };
 }
 
@@ -66,9 +66,9 @@ export function useFold(on: boolean, openTick = 0): Fold {
       onPointerDownCapture: () => {
         pressing.current = true;
       },
-      onClick: () => {
+      onClick: (e) => {
         pressing.current = false;
-        if (folded) ref.current?.querySelector("textarea")?.focus();
+        if (folded && !(e.target instanceof Element && e.target.closest("button"))) ref.current?.querySelector("textarea")?.focus();
       },
     },
   };

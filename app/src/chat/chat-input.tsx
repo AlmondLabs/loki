@@ -330,6 +330,18 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
         {...aria}
         {...field}
       />
+      {folded && onStop && !canSend && (
+        <IconButton
+          size={36}
+          onClick={onStop}
+          disabled={stopping}
+          label={stopping ? "Stopping" : "Stop"}
+          title={stopping ? "Stopping…" : "Stop the agent's turn"}
+          className="loki-composer-round loki-composer-stop"
+        >
+          <Icon name="stop" size={20} />
+        </IconButton>
+      )}
       {!folded && (
         <ComposerBar
           touch={touch}

@@ -25,6 +25,8 @@ import {
   releaseDirection,
   dragAxis,
   gestureFor,
+  markOf,
+  stillTheCard,
   cardActions,
   tally,
   toFront,
@@ -112,6 +114,21 @@ describe("a drag's axis", () => {
     expect(dragAxis(9, 2, "box")).toBe("x");
     expect(dragAxis(2, -9, "box")).toBe("y");
     expect(dragAxis(2, 9, "box")).toBeNull();
+  });
+});
+
+describe("a drag on a card that changes while it is held", () => {
+  test("a chat that raises an approval mid-drag is not the card the drag began on, so the release snaps back", () => {
+    const chat = item("c1");
+    const asking = item("c1", { status: "approval", pendingApproval: { requestId: "r9", toolName: "Bash", input: "rm", at: "2026-09-07T10:02:00Z" } });
+    expect(stillTheCard(markOf(chat), chat)).toBe(true);
+    expect(stillTheCard(markOf(chat), asking)).toBe(false);
+    expect(stillTheCard(markOf(asking), item("c1"))).toBe(false);
+  });
+  test("another card on top, or none, is never the held card", () => {
+    expect(stillTheCard(markOf(item("c1")), item("c2"))).toBe(false);
+    expect(stillTheCard(markOf(item("c1")), undefined)).toBe(false);
+    expect(stillTheCard(null, item("c1"))).toBe(false);
   });
 });
 
