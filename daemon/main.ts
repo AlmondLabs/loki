@@ -31,7 +31,6 @@ import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
 import { listAgents } from "./store/agents.ts";
 import { checkOldData } from "./old-data.ts";
-import { migrateAgents } from "./agent-migration.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { DevReload } from "./dev-reload.ts";
@@ -42,7 +41,7 @@ import { ModRegistry, type LoadResult } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
 import { McpTools } from "./mcp/index.ts";
 import { paths } from "../mod/paths.ts";
-import { RecallStore, recallDir } from "../mod/recall.ts";
+import { RecallStore } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 import { UsageLedger } from "./usage.ts";
 import { readAcpAgents } from "./acp/agents.ts";
@@ -193,19 +192,14 @@ const passes = new PassRunner({
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
-const oldPassFiles = {
-  reflectionSettings: join(args.dir, "state", "reflection.json"),
-  reflectionRoot: join(args.dir, "reflection"),
-  learnWorker: join(recallDir(), "worker.json"),
-};
-async function carryOverPasses(): Promise<void> {
+async function startPasses(): Promise<void> {
   await chats.loaded();
-  if (passState.started()) return;
-  const list = chats
-    .list()
-    .flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
-  passState.migrate(oldPassFiles, list);
-  report(`background passes: settings and cursors carried over for ${list.length} chats`);
+  passState.seed(
+    chats
+      .list()
+      .flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : [])),
+  );
+  passes.start();
 }
 const lokiTools = new LokiTools({
   tools: () => [...memoryTools(backend), ...historyTools(chats), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
@@ -293,16 +287,6 @@ const usage = new UsageLedger({
   report,
 });
 usage.follow(stores);
-await migrateAgents({
-  backendDir: backend,
-  stores,
-  known: (id) => Boolean(models.getProvider(id)),
-  learnWorkerFile: oldPassFiles.learnWorker,
-  stateFile: join(paths.state, "migrations.json"),
-  backupDir: join(backend, `backup-letta-${new Date().toISOString().slice(0, 10)}`),
-  context,
-  report,
-});
 await Promise.all(
   listAgents(backend).map(async (id) => {
     const store = await stores.get(id);
@@ -392,9 +376,7 @@ const stopWatchingCore = () => {
 };
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
-void carryOverPasses()
-  .then(() => passes.start())
-  .catch((error: unknown) => report(`background passes did not start: ${String(error)}`));
+void startPasses().catch((error: unknown) => report(`background passes did not start: ${String(error)}`));
 console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
 
 let stopping = false;
