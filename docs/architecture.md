@@ -537,8 +537,11 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    the whole ticket for a hand-off and `jira_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
    each provider's write-back (plan 070): `archive`, `markRead`, `markUnread`, `addLabels` and `restore`, each
    recording what it changed so `restore` puts back exactly that for undo, and `labels`, the account's Gmail labels
-   for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same DM
-   mark, and its `markUnread` and `restore` write nothing); `AccountThreads.reopen` opens an archived thread again as
+   for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same
+   clear, `SlackSync.archive`: it reads the card's thread or DM and its channel's unread Activity first, refuses when
+   someone else wrote after the card in a DM or followed thread, then marks the DM, the followed thread and the
+   Activity items read up to what the person has seen, plan 2026-11-20-1041; its `markUnread` writes nothing, and
+   `restore` marks the thread and items unread again); `AccountThreads.reopen` opens an archived thread again as
    the same card when it is back in the Gmail inbox, by undo or by hand in Gmail; `handoff.ts` gives a thread to its
    owner's chat, then ends it out there through `AccountThreads.archiveHandedOff`; `outside-threads.ts` reads a card's
    whole thread and sends the person's own reply, then the move of the key that sent it (plans 068 and 070), with

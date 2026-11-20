@@ -56,18 +56,31 @@ function fakeWorkspace() {
   const closed = new Set<string>();
   const messages = new Map<string, FakeMessage[]>();
   const activity: FakeItem[] = [];
+  const followedThreadReadPoints = new Map<string, string>();
+  const beforeNextCallTo = new Map<string, () => Promise<void> | void>();
   const users: Partial<Record<string, string>> = { U0GRACE: "Grace Hopper", U0ALAN: "Alan Turing", U0ME: "Ada" };
   const sent: Array<{ method: string; params: Record<string, string> }> = [];
   const refuse = {
     mark: null as string | null,
     feedAt: null as string | null,
     activityMark: null as string | null,
+    activityMarkType: null as string | null,
     info: null as string | null,
     history: null as string | null,
+    replies: null as string | null,
+    threadMark: null as string | null,
   };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
-  const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts, files: m.files });
+  const toMessage = (m: FakeMessage, channel: string) => ({
+    type: "message",
+    ts: m.ts,
+    user: m.user,
+    text: m.text,
+    thread_ts: m.thread_ts,
+    files: m.files,
+    last_read: followedThreadReadPoints.get(`${channel}:${m.ts}`),
+  });
   const toItem = (i: FakeItem) =>
     i.type === "thread_v2"
       ? {
@@ -76,12 +89,26 @@ function fakeWorkspace() {
           is_unread: i.unread,
           item: { type: i.type, bundle_info: { payload: { thread_entry: { channel_id: i.channel, latest_ts: i.ts, thread_ts: i.thread_ts } } } },
         }
-      : {
-          key: i.key,
-          feed_ts: i.ts,
-          is_unread: i.unread,
-          item: { type: i.type, message: { channel: i.channel, ts: i.ts, thread_ts: i.thread_ts, author_user_id: "U0GRACE" } },
-        };
+      : i.type === "dm"
+        ? {
+            key: i.key,
+            feed_ts: i.ts,
+            is_unread: i.unread,
+            item: { type: i.type, bundle_info: { payload: { dm_entry: { latest_message: { channel: i.channel, ts: i.ts } } } } },
+          }
+        : i.type === "bot_dm_bundle"
+          ? {
+              key: i.key,
+              feed_ts: i.ts,
+              is_unread: i.unread,
+              item: { type: i.type, bundle_info: { unread_count: 1, payload: { message: { channel: i.channel, ts: i.ts } } } },
+            }
+          : {
+              key: i.key,
+              feed_ts: i.ts,
+              is_unread: i.unread,
+              item: { type: i.type, message: { channel: i.channel, ts: i.ts, thread_ts: i.thread_ts, author_user_id: "U0GRACE" } },
+            };
 
   const answer = (method: string, p: Partial<Record<string, string>>): unknown => {
     switch (method) {
@@ -96,7 +123,11 @@ function fakeWorkspace() {
       }
       case "activity.feed": {
         if (refuse.feedAt !== null && (p.cursor ?? "0") === refuse.feedAt) return { ok: false, error: "ratelimited" };
-        const all = activity.filter((i) => p.unread_only !== "true" || i.unread).sort((a, b) => b.ts.localeCompare(a.ts));
+        const types = (p.types ?? "").split(",");
+        const channels = p.channel_ids?.split(",") ?? null;
+        const all = activity
+          .filter((i) => (p.unread_only !== "true" || i.unread) && types.includes(i.type) && (!channels || channels.includes(i.channel)))
+          .sort((a, b) => b.ts.localeCompare(a.ts));
         const from = Number(p.cursor ?? "0");
         const limit = Number(p.limit ?? "50");
         const next = from + limit < all.length ? String(from + limit) : "";
@@ -112,19 +143,20 @@ function fakeWorkspace() {
           messages: list
             .reverse()
             .slice(0, Number(p.limit ?? "100"))
-            .map(toMessage),
+            .map((m) => toMessage(m, p.channel ?? "")),
           has_more: false,
         };
       }
       case "conversations.replies": {
         // Slack's order: the parent, then the replies oldest first, a page at a time.
+        if (refuse.replies) return { ok: false, error: refuse.replies };
         const list = (messages.get(p.channel ?? "") ?? []).filter((m) => m.ts === p.ts || m.thread_ts === p.ts);
         const from = Number(p.cursor ?? "0");
         const limit = Number(p.limit ?? "1000");
         const more = from + limit < list.length;
         return {
           ok: true,
-          messages: list.slice(from, from + limit).map(toMessage),
+          messages: list.slice(from, from + limit).map((m) => toMessage(m, p.channel ?? "")),
           has_more: more,
           response_metadata: { next_cursor: more ? String(from + limit) : "" },
         };
@@ -164,11 +196,20 @@ function fakeWorkspace() {
         if (refuse.activityMark) return { ok: false, error: refuse.activityMark };
         const entries: unknown = JSON.parse(p.entries ?? "null");
         if (!Array.isArray(entries)) return { ok: false, error: "invalid_arguments" };
+        if (refuse.activityMarkType && (entries as Array<Partial<Record<string, string>>>).some((e) => e.type === refuse.activityMarkType))
+          return { ok: false, error: "invalid_arguments" };
         for (const e of entries as Array<Partial<Record<string, string>>>) {
           const i = activity.find((x) => x.key === e.key && x.type === e.type && x.ts === e.feed_ts);
           if (!i) return { ok: false, error: "invalid_arguments" };
           i.unread = method === "activity.markUnread";
         }
+        return { ok: true };
+      }
+      case "subscriptions.thread.mark": {
+        if (refuse.threadMark) return { ok: false, error: refuse.threadMark };
+        const key = `${p.channel ?? ""}:${p.thread_ts ?? ""}`;
+        if (!followedThreadReadPoints.has(key)) return { ok: false, error: "not_subscribed" };
+        followedThreadReadPoints.set(key, p.ts ?? "");
         return { ok: true };
       }
       case "chat.postMessage": {
@@ -184,12 +225,17 @@ function fakeWorkspace() {
     }
   };
 
-  const fetchFn: typeof fetch = (input, init) => {
+  const fetchFn: typeof fetch = async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const params = Object.fromEntries(new URLSearchParams(typeof init?.body === "string" ? init.body : ""));
     const method = url.slice(url.lastIndexOf("/") + 1);
     sent.push({ method, params });
-    return Promise.resolve(new Response(JSON.stringify(answer(method, params))));
+    const hook = beforeNextCallTo.get(method);
+    if (hook) {
+      beforeNextCallTo.delete(method);
+      await hook();
+    }
+    return new Response(JSON.stringify(answer(method, params)));
   };
 
   return {
@@ -211,6 +257,17 @@ function fakeWorkspace() {
     },
     item(i: Omit<FakeItem, "unread"> & { unread?: boolean }) {
       activity.push({ unread: true, ...i });
+    },
+    follow(channel: string, threadTs: string, lastRead: string) {
+      followedThreadReadPoints.set(`${channel}:${threadTs}`, lastRead);
+    },
+    threadRead: (channel: string, threadTs: string) => followedThreadReadPoints.get(`${channel}:${threadTs}`) ?? null,
+    moveItem(key: string, ts: string) {
+      const i = activity.find((x) => x.key === key);
+      if (i) i.ts = ts;
+    },
+    beforeNextCall(method: string, run: () => Promise<void> | void) {
+      beforeNextCallTo.set(method, run);
     },
     readItem(key: string) {
       const i = activity.find((x) => x.key === key);
@@ -283,18 +340,32 @@ describe("DMs", () => {
     expect(open().map((r) => [r.thread_id, r.lines.at(-1)])).toEqual([["D0GRACE", "a reply in the thread"]]);
   });
 
-  test("Covers AE4. archiving a DM card marks the DM read up to the card's last message, not a later one", async () => {
+  test("archiving a DM card marks the DM read up to the card's last message, and past the person's own later reply", async () => {
     const { slack, threads, sync, open } = await fixture();
     slack.dm("D0GRACE");
     slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
     await sync.tick();
-    slack.post("D0GRACE", { ts: at(30), user: "U0GRACE", text: "came after the card was drawn" });
+    slack.post("D0GRACE", { ts: at(30), user: "U0ME", text: "replied from Slack" });
     await threads.archive(ACCOUNT, "D0GRACE");
     expect(slack.sent.filter((s) => s.method === "conversations.mark").map((s) => s.params)).toEqual([
-      { token: SESSION.token, channel: "D0GRACE", ts: at(20) },
+      { token: SESSION.token, channel: "D0GRACE", ts: at(30) },
     ]);
-    expect(slack.lastRead("D0GRACE")).toBe(at(20));
+    expect(slack.lastRead("D0GRACE")).toBe(at(30));
     expect(open()).toEqual([]);
+  });
+
+  test("Covers AE2. a newer message in the DM from anyone else, an app included, refuses the archive and shows on the card", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    slack.post("D0GRACE", { ts: at(30), user: "", text: "a reminder from an app" });
+    const before = slack.sent.length;
+    await expect(threads.archive(ACCOUNT, "D0GRACE")).rejects.toThrow("a new message came in");
+    expect(slack.sent.slice(before).map((s) => s.method)).not.toContain("conversations.mark");
+    expect(slack.sent.slice(before).map((s) => s.method)).not.toContain("activity.markRead");
+    expect(slack.lastRead("D0GRACE")).toBeNull();
+    expect(open().map((r) => [r.thread_id, r.newest_message_id, r.lines.at(-1), r.reach])).toEqual([["D0GRACE", at(30), "a reminder from an app", "dm"]]);
   });
 
   test("a new message in the DM after archive opens the card again", async () => {
@@ -418,7 +489,7 @@ describe("Activity", () => {
     await sync.tick();
     const before = slack.sent.length;
     await threads.archive(ACCOUNT, `C0GEN:${at(10)}`);
-    expect(slack.sent.slice(before).map((s) => s.method)).toEqual(["activity.markRead"]);
+    expect(slack.sent.slice(before).map((s) => s.method)).toEqual(["conversations.replies", "activity.feed", "activity.markRead"]);
     expect(open()).toEqual([]);
     await sync.tick();
     expect(open()).toEqual([]);
@@ -561,7 +632,6 @@ describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
     slack.dm("D0GRACE");
     slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
     await sync.tick();
-    slack.post("D0GRACE", { ts: at(30), user: "U0GRACE", text: "came after the card was drawn" });
     const change = await threads.markRead(ACCOUNT, "D0GRACE");
     expect(change).toEqual({ move: "read", messages: [], ended: true, was_unread: true });
     expect(slack.sent.filter((s) => s.method === "conversations.mark").map((s) => s.params)).toEqual([
@@ -577,9 +647,12 @@ describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
     await sync.tick();
     const before = slack.sent.length;
     expect(await threads.markRead(ACCOUNT, `C0GEN:${at(10)}`)).toMatchObject({ move: "read", ended: true });
-    expect(slack.sent.slice(before).map((s) => [s.method, s.params.entries])).toEqual([
-      ["activity.markRead", JSON.stringify([{ type: "at_user", key: "a", feed_ts: at(10) }])],
-    ]);
+    expect(
+      slack.sent
+        .slice(before)
+        .filter((s) => s.method.includes("mark"))
+        .map((s) => [s.method, s.params.entries]),
+    ).toEqual([["activity.markRead", JSON.stringify([{ type: "at_user", key: "a", feed_ts: at(10) }])]]);
     expect(slack.unread("a")).toBe(false);
     expect(slack.lastRead("C0GEN")).toBeNull();
     expect(open()).toEqual([]);
@@ -815,12 +888,12 @@ describe("a reply on a Slack card, then the key's move (plan 070, U5)", () => {
     slack.dm("D0GRACE");
     slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "ping" });
     await sync.tick();
-    slack.refuse.mark = "channel_not_found";
+    slack.refuse.info = "channel_not_found";
     const answer = await outside.reply(ACCOUNT, "D0GRACE", "on it", "archive");
     expect(answer).toMatchObject({ sent: true, change: null });
     expect(answer.sent && answer.then_error).toEqual(expect.any(String));
     expect(open().map((r) => r.thread_id)).toEqual(["D0GRACE"]);
-    slack.refuse.mark = null;
+    slack.refuse.info = null;
     await threads.archive(ACCOUNT, "D0GRACE");
     expect(open()).toEqual([]);
     expect(posts(slack)).toHaveLength(1);
@@ -910,5 +983,285 @@ describe("what brought a card (plan 077, KTD2)", () => {
     clock.t += 20 * 60_000;
     await sync.tick();
     expect(threads.get(ACCOUNT, id)?.brought_ids).toEqual([at(30)]);
+  });
+});
+
+describe("clearing a Slack card clears it in Slack (plan 2026-11-20-1041)", () => {
+  const card = `C0ENG:${at(10)}`;
+  const marks = (slack: ReturnType<typeof fakeWorkspace>, from = 0) =>
+    slack.sent.slice(from).filter((s) => ["conversations.mark", "subscriptions.thread.mark", "activity.markRead", "activity.markUnread"].includes(s.method));
+
+  async function followedThread() {
+    const f = await fixture();
+    f.slack.post("C0ENG", { ts: at(10), user: "U0ME", text: "the plan" });
+    f.slack.post("C0ENG", { ts: at(11), user: "U0GRACE", text: "looks good", thread_ts: at(10) });
+    f.slack.follow("C0ENG", at(10), at(10));
+    f.slack.item({ key: "t", type: "thread_v2", channel: "C0ENG", ts: at(11), thread_ts: at(10) });
+    await f.sync.tick();
+    expect(f.threads.get(ACCOUNT, card)).toMatchObject({ newest_message_id: at(11), place: "#eng" });
+    return f;
+  }
+
+  test("Covers AE1. a followed thread whose newest reply is the person's own is marked read, its Activity and the thread itself", async () => {
+    const { slack, threads, open } = await followedThread();
+    slack.post("C0ENG", { ts: at(12), user: "U0ME", text: "thanks", thread_ts: at(10) });
+    slack.moveItem("t", at(12));
+    await threads.archive(ACCOUNT, card);
+    expect(slack.unread("t")).toBe(false);
+    expect(marks(slack).find((s) => s.method === "subscriptions.thread.mark")?.params).toEqual({
+      token: SESSION.token,
+      channel: "C0ENG",
+      thread_ts: at(10),
+      ts: at(12),
+      read: "1",
+    });
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(12));
+    expect(open()).toEqual([]);
+  });
+
+  test("Covers AE2. a reply from someone else after the card refuses the clear, marks nothing, and the card shows it", async () => {
+    const { slack, threads, open } = await followedThread();
+    slack.post("C0ENG", { ts: at(13), user: "U0ALAN", text: "one more thing", thread_ts: at(10) });
+    slack.moveItem("t", at(13));
+    const before = slack.sent.length;
+    await expect(threads.archive(ACCOUNT, card)).rejects.toThrow("a new message came in");
+    expect(marks(slack, before)).toEqual([]);
+    expect(slack.unread("t")).toBe(true);
+    expect(open().map((r) => [r.thread_id, r.newest_message_id, r.lines.at(-1), r.place])).toEqual([[card, at(13), "one more thing", "#eng"]]);
+  });
+
+  test("Covers AE5. in a thread the person doesn't follow, a later reply neither refuses the clear nor is marked", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.post("C0GEN", { ts: at(20), user: "U0ALAN", text: "<!channel> deploy at five" });
+    slack.item({ key: "b", type: "at_channel", channel: "C0GEN", ts: at(20) });
+    await sync.tick();
+    slack.post("C0GEN", { ts: at(21), user: "U0GRACE", text: "deploy@five works for me", thread_ts: at(20) });
+    slack.item({ key: "k", type: "keyword", channel: "C0GEN", ts: at(21), thread_ts: at(20) });
+    await threads.archive(ACCOUNT, `C0GEN:${at(20)}`);
+    expect([slack.unread("b"), slack.unread("k")]).toEqual([false, true]);
+    expect(marks(slack).map((s) => s.method)).toEqual(["activity.markRead"]);
+    expect(open()).toEqual([]);
+  });
+
+  test("a message a tick sees before the writes refuses the clear, with nothing marked", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    await sync.tick();
+    slack.beforeNextCall("activity.feed", async () => {
+      slack.post("C0GEN", { ts: at(15), user: "U0GRACE", text: "<@U0ME> and this", thread_ts: at(10) });
+      slack.item({ key: "a2", type: "at_user", channel: "C0GEN", ts: at(15), thread_ts: at(10) });
+      await sync.tick();
+    });
+    await expect(threads.archive(ACCOUNT, `C0GEN:${at(10)}`)).rejects.toThrow("a new message came in");
+    expect(marks(slack)).toEqual([]);
+    expect(open().map((r) => r.newest_message_id)).toEqual([at(15)]);
+  });
+
+  test("a message a tick sees during the writes refuses the clear after them; what was marked stays marked", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    await sync.tick();
+    slack.beforeNextCall("activity.markRead", async () => {
+      slack.post("C0GEN", { ts: at(15), user: "U0GRACE", text: "<@U0ME> and this", thread_ts: at(10) });
+      slack.item({ key: "a2", type: "at_user", channel: "C0GEN", ts: at(15), thread_ts: at(10) });
+      await sync.tick();
+    });
+    await expect(threads.archive(ACCOUNT, `C0GEN:${at(10)}`)).rejects.toThrow("a new message came in");
+    expect([slack.unread("a"), slack.unread("a2")]).toEqual([false, true]);
+    expect(open().map((r) => r.newest_message_id)).toEqual([at(15)]);
+  });
+
+  test("a hand-off is never refused: it marks up to what the card showed, even with a newer reply and a tick mid-clear", async () => {
+    const { slack, threads, sync } = await followedThread();
+    slack.post("C0ENG", { ts: at(13), user: "U0ALAN", text: "one more thing", thread_ts: at(10) });
+    slack.item({ key: "m", type: "at_user", channel: "C0ENG", ts: at(11), thread_ts: at(10) });
+    slack.item({ key: "late", type: "at_user", channel: "C0ENG", ts: at(13), thread_ts: at(10) });
+    slack.moveItem("t", at(13));
+    threads.handedOff(ACCOUNT, card, "conv-1");
+    slack.beforeNextCall("activity.markRead", () => sync.tick());
+    await threads.archiveHandedOff(ACCOUNT, card);
+    expect([slack.unread("m"), slack.unread("late"), slack.unread("t")]).toEqual([false, true, true]);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(11));
+  });
+
+  test("when Slack asks loki to wait on the thread, the clear goes on as before: up to the card, no thread mark, logged", async () => {
+    const { dir, slack, threads, open } = await followedThread();
+    const logFile = join(dir, "mod.log");
+    initLog(logFile);
+    slack.refuse.replies = "ratelimited";
+    await threads.archive(ACCOUNT, card);
+    expect(slack.unread("t")).toBe(false);
+    expect(marks(slack).map((s) => s.method)).toEqual(["activity.markRead"]);
+    expect(open()).toEqual([]);
+    expect(readFileSync(logFile, "utf8")).toContain("slack:thread-unreadable");
+  });
+
+  test("Covers AE3. a reaction to the person's reply in the cleared thread is marked read too, in a call of its own", async () => {
+    const { slack, threads } = await followedThread();
+    slack.post("C0ENG", { ts: at(12), user: "U0ME", text: "thanks", thread_ts: at(10) });
+    slack.moveItem("t", at(12));
+    slack.item({ key: "r", type: "message_reaction", channel: "C0ENG", ts: at(12), thread_ts: at(10) });
+    slack.item({ key: "elsewhere", type: "keyword", channel: "C0ENG", ts: at(50), thread_ts: at(40) });
+    await threads.archive(ACCOUNT, card);
+    expect([slack.unread("t"), slack.unread("r"), slack.unread("elsewhere")]).toEqual([false, false, true]);
+    expect(
+      marks(slack)
+        .filter((s) => s.method === "activity.markRead")
+        .map((s) => s.params.entries),
+    ).toEqual([JSON.stringify([{ type: "thread_v2", key: "t", feed_ts: at(12) }]), JSON.stringify([{ type: "message_reaction", key: "r", feed_ts: at(12) }])]);
+  });
+
+  test("a card's own item that one page of the channel's Activity leaves out is still marked", async () => {
+    const { slack, threads, sync } = await fixture();
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    await sync.tick();
+    for (let i = 0; i < 60; i++) slack.item({ key: `k${String(i)}`, type: "keyword", channel: "C0GEN", ts: at(100 + i), thread_ts: at(100 + i) });
+    await threads.archive(ACCOUNT, `C0GEN:${at(10)}`);
+    expect(slack.unread("a")).toBe(false);
+  });
+
+  test("when Slack asks loki to wait on the Activity read, the remembered items are marked, the card ends, and it is logged", async () => {
+    const { dir, slack, threads, sync, open } = await fixture();
+    const logFile = join(dir, "mod.log");
+    initLog(logFile);
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    await sync.tick();
+    slack.refuse.feedAt = "0";
+    await threads.archive(ACCOUNT, `C0GEN:${at(10)}`);
+    expect(slack.unread("a")).toBe(false);
+    expect(open()).toEqual([]);
+    expect(readFileSync(logFile, "utf8")).toContain("slack:activity-read-held");
+  });
+
+  test("a refused mark of the related kinds still ends the card, keeps the card's own marks, and is logged", async () => {
+    const { dir, slack, threads, open } = await followedThread();
+    const logFile = join(dir, "mod.log");
+    initLog(logFile);
+    slack.item({ key: "r", type: "message_reaction", channel: "C0ENG", ts: at(10) });
+    slack.refuse.activityMarkType = "message_reaction";
+    await threads.archive(ACCOUNT, card);
+    expect([slack.unread("t"), slack.unread("r")]).toEqual([false, true]);
+    expect(open()).toEqual([]);
+    expect(readFileSync(logFile, "utf8")).toContain("slack:activity-mark-failed");
+  });
+
+  test("each tick still reads only the five kinds that make cards, from every channel", async () => {
+    const { slack, sync } = await fixture();
+    await sync.tick();
+    const feed = slack.sent.filter((s) => s.method === "activity.feed");
+    expect(feed.length).toBeGreaterThan(0);
+    for (const s of feed) {
+      expect(s.params.types).toBe("at_user,at_user_group,at_channel,at_everyone,thread_v2");
+      expect(s.params.channel_ids).toBeUndefined();
+    }
+  });
+
+  test("Covers AE4. a thread read in Slack past the card keeps its read point", async () => {
+    const { slack, threads } = await followedThread();
+    slack.follow("C0ENG", at(10), at(20));
+    await threads.archive(ACCOUNT, card);
+    expect(marks(slack).map((s) => s.method)).toEqual(["activity.markRead"]);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(20));
+  });
+
+  test("a DM read in Slack past the card is not marked back", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    slack.read("D0GRACE", at(25));
+    await threads.archive(ACCOUNT, "D0GRACE");
+    expect(marks(slack)).toEqual([]);
+    expect(slack.lastRead("D0GRACE")).toBe(at(25));
+    expect(open()).toEqual([]);
+  });
+
+  test("a refused thread mark is logged, and the Activity is still marked and the card ends", async () => {
+    const { dir, slack, threads, open } = await followedThread();
+    const logFile = join(dir, "mod.log");
+    initLog(logFile);
+    slack.refuse.threadMark = "not_in_channel";
+    await threads.archive(ACCOUNT, card);
+    expect(slack.unread("t")).toBe(false);
+    expect(open()).toEqual([]);
+    expect(readFileSync(logFile, "utf8")).toContain("slack:thread-mark-failed");
+  });
+
+  test("undo marks the Activity of both calls unread, and the thread back to its earlier read point", async () => {
+    const { slack, threads, open } = await followedThread();
+    slack.post("C0ENG", { ts: at(12), user: "U0ME", text: "thanks", thread_ts: at(10) });
+    slack.moveItem("t", at(12));
+    slack.item({ key: "r", type: "message_reaction", channel: "C0ENG", ts: at(12), thread_ts: at(10) });
+    const change = must(await threads.archive(ACCOUNT, card), "the archive's change");
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(12));
+    await threads.restore(ACCOUNT, card, change);
+    expect([slack.unread("t"), slack.unread("r")]).toEqual([true, true]);
+    expect(
+      marks(slack)
+        .filter((s) => s.method === "subscriptions.thread.mark")
+        .map((s) => [s.params.ts, s.params.read]),
+    ).toEqual([
+      [at(12), "1"],
+      [at(10), "0"],
+    ]);
+    expect(slack.threadRead("C0ENG", at(10))).toBe(at(10));
+    expect(open().map((r) => r.thread_id)).toEqual([card]);
+  });
+
+  test("undo after a clear that sent no thread mark sends none", async () => {
+    const { slack, threads, sync } = await fixture();
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    await sync.tick();
+    const change = must(await threads.archive(ACCOUNT, `C0GEN:${at(10)}`), "the archive's change");
+    await threads.restore(ACCOUNT, `C0GEN:${at(10)}`, change);
+    expect(slack.unread("a")).toBe(true);
+    expect(slack.sent.some((s) => s.method === "subscriptions.thread.mark")).toBe(false);
+  });
+
+  test("a DM card's DM and app bundles are marked read with it, another DM's stay, and undo marks them unread", async () => {
+    const { slack, threads, sync } = await fixture();
+    slack.dm("D0GRACE");
+    slack.dm("D0ALAN");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    slack.post("D0ALAN", { ts: at(21), user: "U0ALAN", text: "other" });
+    await sync.tick();
+    slack.item({ key: "dm-D0GRACE", type: "dm", channel: "D0GRACE", ts: at(20) });
+    slack.item({ key: "bot_dm_bundle-D0GRACE", type: "bot_dm_bundle", channel: "D0GRACE", ts: at(19) });
+    slack.item({ key: "dm-D0ALAN", type: "dm", channel: "D0ALAN", ts: at(21) });
+    const change = must(await threads.archive(ACCOUNT, "D0GRACE"), "the archive's change");
+    expect([slack.unread("dm-D0GRACE"), slack.unread("bot_dm_bundle-D0GRACE"), slack.unread("dm-D0ALAN")]).toEqual([false, false, true]);
+    await threads.restore(ACCOUNT, "D0GRACE", change);
+    expect([slack.unread("dm-D0GRACE"), slack.unread("bot_dm_bundle-D0GRACE")]).toEqual([true, true]);
+  });
+
+  test("a newer DM message the person already read in Slack neither refuses the clear nor is marked back", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    slack.post("D0GRACE", { ts: at(30), user: "U0GRACE", text: "read in Slack" });
+    slack.read("D0GRACE", at(30));
+    await threads.archive(ACCOUNT, "D0GRACE");
+    expect(marks(slack)).toEqual([]);
+    expect(slack.lastRead("D0GRACE")).toBe(at(30));
+    expect(open()).toEqual([]);
+  });
+
+  test("when Slack asks loki to wait on a DM's history, a DM read past the card is still not marked back", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    slack.read("D0GRACE", at(25));
+    slack.refuse.history = "ratelimited";
+    await threads.archive(ACCOUNT, "D0GRACE");
+    expect(marks(slack)).toEqual([]);
+    expect(slack.lastRead("D0GRACE")).toBe(at(25));
+    expect(open()).toEqual([]);
   });
 });

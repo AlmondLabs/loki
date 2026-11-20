@@ -168,7 +168,64 @@ describe("marking a DM read", () => {
   });
 });
 
+describe("marking a thread read", () => {
+  test("marks one thread read or unread with Slack's form fields, read as 1 or 0", async () => {
+    const { c, sent } = client(() => ({}));
+    await c.markThread("C0CHAN", "1700000000.000001", "1700000050.000002", true);
+    await c.markThread("C0CHAN", "1700000000.000001", "1700000010.000000", false);
+    expect(sent.map((s) => [s.method, s.url.slice(s.url.lastIndexOf("/") + 1), s.params])).toEqual([
+      ["POST", "subscriptions.thread.mark", { token: "xoxc-acme-1111", channel: "C0CHAN", thread_ts: "1700000000.000001", ts: "1700000050.000002", read: "1" }],
+      ["POST", "subscriptions.thread.mark", { token: "xoxc-acme-1111", channel: "C0CHAN", thread_ts: "1700000000.000001", ts: "1700000010.000000", read: "0" }],
+    ]);
+  });
+
+  test("a refusal comes back with Slack's code", async () => {
+    const { c } = client(() => ({ body: { ok: false, error: "not_in_channel" } }));
+    await expect(c.markThread("C0CHAN", "1.0", "2.0", true)).rejects.toMatchObject({ code: "not_in_channel" });
+  });
+});
+
 describe("what the client reads", () => {
+  test("the Activity feed for some channels sends channel_ids, and other kinds parse where they point", async () => {
+    const { c, sent } = client(() => ({
+      body: {
+        ok: true,
+        items: [
+          {
+            is_unread: true,
+            feed_ts: "1700000300.000000",
+            key: "message_reaction-C0CHAN-1700000099.000100",
+            item: {
+              type: "message_reaction",
+              message: { ts: "1700000099.000100", channel: "C0CHAN", thread_ts: "1700000000.000001" },
+              reaction: { user: "U0YOU", name: "eyes" },
+            },
+          },
+          {
+            is_unread: true,
+            feed_ts: "1700000400.000000",
+            key: "dm-D0DM",
+            item: { type: "dm", bundle_info: { payload: { dm_entry: { latest_message: { ts: "1700000399.000000", channel: "D0DM" } } } } },
+          },
+          {
+            is_unread: true,
+            feed_ts: "1700000500.000000",
+            key: "bot_dm_bundle-D0BOT",
+            item: { type: "bot_dm_bundle", bundle_info: { unread_count: 2, payload: { message: { ts: "1700000499.000000", channel: "D0BOT" } } } },
+          },
+        ],
+      },
+    }));
+    const page = await c.activityFeed({ unreadOnly: true, types: ["message_reaction", "dm", "bot_dm_bundle"], channels: ["C0CHAN", "D0DM"] });
+    expect(sent[0]?.params.channel_ids).toBe("C0CHAN,D0DM");
+    expect(sent[0]?.params.types).toBe("message_reaction,dm,bot_dm_bundle");
+    expect(page.items.map((i) => [i.type, i.channel, i.ts, i.thread_ts])).toEqual([
+      ["message_reaction", "C0CHAN", "1700000099.000100", "1700000000.000001"],
+      ["dm", "D0DM", "1700000399.000000", null],
+      ["bot_dm_bundle", "D0BOT", "1700000499.000000", null],
+    ]);
+  });
+
   test("the Activity feed: unread mentions and thread replies, with where each points", async () => {
     const { c, sent } = client(() => ({
       body: {
@@ -475,7 +532,7 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     expect(names.filter((n) => SEND.test(n) && !ALLOWED.includes(n))).toEqual([]);
   });
 
-  test("every call the client makes goes to a method that reads, marks a DM read or uploads the person's files", async () => {
+  test("every call the client makes goes to a method that reads, marks a DM or thread read or uploads the person's files", async () => {
     const { c, sent } = client((method) =>
       method === "conversations.info"
         ? { body: { ok: true, channel: { id: "D0DM", is_im: true } } }
@@ -491,6 +548,7 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
     await c.conversationsInfo("D0DM");
     await c.usersInfo("U0YOU");
     await c.markDm("D0DM", "1.0");
+    await c.markThread("C0CHAN", "1.0", "2.0", true);
     await c.postWithFiles({ channel: "D0DM", text: "x", files: [{ name: "a.txt", data: new Uint8Array([1]) }] });
     expect([...new Set(sent.map((s) => new URL(s.url).host))].sort()).toEqual(["acme.slack.com", "files.slack.com"]);
     const paths = [...new Set(sent.map((s) => new URL(s.url).pathname))].sort();
@@ -506,6 +564,7 @@ describe("only the person's own reply posts on Slack (plan 068)", () => {
         "/api/conversations.info",
         "/api/conversations.mark",
         "/api/conversations.replies",
+        "/api/subscriptions.thread.mark",
         "/api/users.info",
       ].sort(),
     );

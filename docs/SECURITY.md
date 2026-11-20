@@ -244,7 +244,10 @@ agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
   activity and counts, the conversations you are in (`users.conversations`, to find a `#channel` an agent names) and
   who is in one (`conversations.members`, to say on a card when someone mentioned is not), opening a DM
-  (`conversations.open`, only at your Send on an agent's new DM, so a rejected one opens nothing), marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), and `chat.postMessage` and the file upload
+  (`conversations.open`, only at your Send on an agent's new DM, so a rejected one opens nothing), marking a DM read, a
+  thread you follow read (`subscriptions.thread.mark`) and the Activity items about the card read (read, archive and a
+  hand-off, after reading that card's channel's unread Activity; undo marks the thread and the items unread again, and
+  later writes nothing to Slack), and `chat.postMessage` and the file upload
   (`files.getUploadURLExternal`, `files.completeUploadExternal`) for a reply you send, your own or an agent's on your
   Send; no agent tool reaches them, and nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, and a file's bytes only to the
