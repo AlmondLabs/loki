@@ -143,9 +143,15 @@ jobs:
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         run: bun run --silent budget bun run smoke
 
+  # Windows starts processes several times slower than Linux, and the suite's git and daemon tests start many: the
+  # suite runs in two shards there, and the required check is the job after them.
   windows:
-    name: tests (windows-latest)
+    name: tests (windows-latest, ${{ matrix.shard }}/2)
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -163,14 +169,22 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }} --shard=${{ matrix.shard }}/2
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.shard == 2 }}
         run: bun run --silent budget bun run test:node
       - id: bundle
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.shard == 1 }}
         run: bun run --silent budget bun run build:mod
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         run: bun run --silent budget bun run smoke
+
+  windows-result:
+    name: tests (windows-latest)
+    needs: windows
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-22.04
+    steps:
+      - run: test "${{ needs.windows.result }}" = success
 
   # GitHub's Mac runners can queue for minutes, so a PR waits for one only when its diff can reach what runs
   # differently on macOS (scripts/mac-scope.ts). A skipped job counts as passed; the queue and main run it always.

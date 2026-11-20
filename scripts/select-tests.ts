@@ -30,6 +30,11 @@ export function selectTests(changes: readonly Change[], tests: ReadonlyMap<strin
   return { all: false, files: [...new Set([...changes.map((c) => c.path), ...treeReaders(tests)])].sort() };
 }
 
+/** vitest's arguments for a selection; `flags` (a shard) go to vitest as they are. */
+export function vitestArgs(selection: Selection, flags: readonly string[]): string[] {
+  return selection.all ? ["run", ...flags] : ["related", "--run", "--passWithNoTests", ...flags, ...selection.files];
+}
+
 function changesSince(base: string): Change[] {
   const out = execFileSync("git", ["diff", "--name-status", "--no-renames", base, "HEAD"], { encoding: "utf8" });
   return out
@@ -51,11 +56,13 @@ function testSources(root: string): Map<string, string> {
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const base = process.argv[2] ?? "HEAD^1";
+  const given = process.argv.slice(2);
+  const base = given.find((a) => !a.startsWith("--")) ?? "HEAD^1";
+  const flags = given.filter((a) => a.startsWith("--"));
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");
   const selection = selectTests(changesSince(base), testSources(root));
   const vitest = join(dirname(createRequire(import.meta.url).resolve("vitest/package.json")), "vitest.mjs");
-  const args = selection.all ? ["run"] : ["related", "--run", "--passWithNoTests", ...selection.files];
+  const args = vitestArgs(selection, flags);
   console.log(selection.all ? `All tests: ${selection.why}.` : `Tests the diff reaches, from ${selection.files.length} files and tree readers.`);
   process.exitCode = spawnSync(process.execPath, [vitest, ...args], { stdio: "inherit", cwd: root }).status ?? 1;
 }

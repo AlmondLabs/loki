@@ -57,6 +57,12 @@ then the macOS queue at p95.
    WebAssembly fallbacks npm installs on every system (`@napi-rs/wasm-runtime`, `@emnapi/*`, `@tybys/wasm-util`) and one
    duplicate `ansi-regex` it folds into the newer copy; every check passes on it. It runs the install scripts of trusted
    packages only: of this tree's, it skips @google/genai's (a no-op echo) and protobufjs's (a version warning).
+9. **Windows in two shards.** Windows ran the suite in 45–61s against 28s on Linux. The files are no slower to load
+   there; the tests are, at 112s summed against 52s, most of it in the tests that start git and the daemon
+   (`memory-sync`, `chat-backend`, `passes`, `memory`): Windows starts a process several times slower. Those tests are
+   what checks git and the daemon on Windows, so the suite runs in two shards there instead, one with the bundle and its
+   smoke test, the other with the Node runner's tests, each held to the 60s target. `setup-node` is skipped where the
+   image already has Node 22, which took Windows' setup from 22–32s to 19–24s.
 
 Moving runners off GitHub's hosted ones, the merge queue's ruleset and anything else that needs an account, a secret
 or a bill are listed for the owner rather than done here.

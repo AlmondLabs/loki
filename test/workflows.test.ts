@@ -17,7 +17,7 @@ interface Job {
   if?: string;
   needs?: string | string[];
   env?: Record<string, string>;
-  strategy?: { matrix?: { os?: string[] } };
+  strategy?: { "fail-fast"?: boolean; matrix?: { os?: string[]; shard?: number[] } };
   steps: Step[];
 }
 interface Workflow {
@@ -30,8 +30,10 @@ const install = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github"
   runs: { steps: Step[] };
 };
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
-// The jobs that install and check; mac-scope only decides whether the Mac one runs.
-const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => name !== "mac-scope");
+// The jobs that install and check; mac-scope only decides whether the Mac one runs, and windows-result only reports
+// the Windows shards as one check.
+const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => name !== "mac-scope" && name !== "windows-result");
+const SHARD = " --shard=${{ matrix.shard }}/2";
 
 describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
@@ -76,17 +78,36 @@ describe("ci: a PR's checks", () => {
     ] as const) {
       const job = must(ci.jobs[name], name);
       expect(job["runs-on"], name).toBe(os);
-      // The required checks' names: the ruleset waits for these.
-      expect((job as Job & { name?: string }).name, name).toBe(`tests (${os})`);
       const tests = runs(job);
       expect(tests, name).toContain("bun run test");
       for (const once of ["typecheck", "lint", "build:app"]) expect(tests, name).not.toContain(once);
       expect(tests, name).toContain("bun run smoke");
-      // Everything after the install is the same on both.
-      const checks = (j: Job) => j.steps.slice(j.steps.findIndex((s) => s.id === "install") + 1);
-      expect(checks(job), name).toEqual(checks(must(ci.jobs.windows, "windows")));
     }
-    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows"]);
+    // The required checks' names: the ruleset waits for these.
+    const named = (job: string) => (must(ci.jobs[job], job) as Job & { name?: string }).name;
+    expect(named("mac")).toBe("tests (macos-15)");
+    expect(named("windows-result")).toBe("tests (windows-latest)");
+    // Everything after the install is the same on both, but for Windows' shards: each runs half the suite, the first
+    // the bundle and its smoke test, the second the Node runner's tests.
+    const checks = (j: Job) =>
+      j.steps
+        .slice(j.steps.findIndex((s) => s.id === "install") + 1)
+        .map((s) => ({ ...s, if: s.if?.replace(/ && matrix\.shard == [12]/, ""), run: s.run?.replace(SHARD, "") }));
+    expect(checks(must(ci.jobs.windows, "windows"))).toEqual(checks(must(ci.jobs.mac, "mac")));
+    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows", "windows-result"]);
+  });
+
+  test("Windows runs the suite in two shards, and its required check passes only when both did", () => {
+    const windows = must(ci.jobs.windows, "windows");
+    expect(windows.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2] } });
+    const steps = windows.steps.filter((s) => s.run?.includes("bun run"));
+    expect(steps.filter((s) => s.run?.endsWith(SHARD))).toHaveLength(1);
+    expect(steps.filter((s) => s.if?.includes("matrix.shard == 1")).map((s) => s.run)).toEqual(["bun run --silent budget bun run build:mod"]);
+    expect(steps.filter((s) => s.if?.includes("matrix.shard == 2")).map((s) => s.run)).toEqual(["bun run --silent budget bun run test:node"]);
+    const result = must(ci.jobs["windows-result"], "windows-result");
+    expect(result.needs).toBe("windows");
+    expect(result.if).toBe("${{ !cancelled() }}");
+    expect(runs(result)).toBe('test "${{ needs.windows.result }}" = success');
   });
 });
 
@@ -137,7 +158,7 @@ describe("install: node_modules from a cache main seeds", () => {
   });
 
   test("checks out a blobless clone with the whole history, so the merge base is there without every file's every version", () => {
-    for (const [name, job] of Object.entries(ci.jobs)) {
+    for (const [name, job] of Object.entries(ci.jobs).filter(([n]) => n !== "windows-result")) {
       const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
       expect(checkout?.with, name).toEqual({ "fetch-depth": 0, filter: "blob:none" });
     }
@@ -150,7 +171,8 @@ describe("selection: a PR runs what its diff reaches, the merge queue runs every
   test("each suite step runs the selection on a pull_request and the whole suite otherwise (the queue, the weekly run, by hand)", () => {
     for (const name of ["test", "windows", "mac"]) {
       const step = must(ci.jobs[name], name).steps.find((s) => s.run?.includes("test:pr"));
-      expect(step?.run, name).toBe("bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}");
+      const shard = name === "windows" ? SHARD : "";
+      expect(step?.run, name).toBe(`bun run --silent budget \${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }}${shard}`);
     }
   });
 

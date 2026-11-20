@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { selectTests, treeReaders } from "../scripts/select-tests.ts";
+import { selectTests, treeReaders, vitestArgs } from "../scripts/select-tests.ts";
 
 const tests = new Map([
   ["test/pure.test.ts", 'import { x } from "../core/x.ts";'],
@@ -37,4 +37,15 @@ describe("which tests a PR runs", () => {
     expect(treeReaders(tests)).toEqual(["test/tokens.test.ts", "test/build.test.ts"]);
     expect(treeReaders(new Map([["test/c.test.ts", "process.cwd()"]]))).toEqual(["test/c.test.ts"]);
   });
+});
+
+test("a shard flag reaches vitest whether the selection is everything or the files the diff reaches", () => {
+  expect(vitestArgs({ all: true, why: "" }, ["--shard=1/2"])).toEqual(["run", "--shard=1/2"]);
+  expect(vitestArgs({ all: false, files: ["test/a.test.ts"] }, ["--shard=2/2"])).toEqual([
+    "related",
+    "--run",
+    "--passWithNoTests",
+    "--shard=2/2",
+    "test/a.test.ts",
+  ]);
 });

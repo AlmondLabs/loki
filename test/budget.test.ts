@@ -22,6 +22,8 @@ describe("each CI step's budget", () => {
 
   test("a step with no budget on a system is an error, not a pass", () => {
     expect(() => budgetFor("bun run lint", "Windows")).toThrow("has no budget on Windows");
+    expect(budgetFor("bun run test --shard=2/2", "Windows")).toBe(budgetFor("bun run test", "Windows"));
+    expect(budgetFor("bun run test:pr --shard=1/2", "Windows")).toBe(60);
   });
 
   test("every check in ci.yml runs through the budget, with a budget for the system it runs on", () => {
