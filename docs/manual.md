@@ -1293,7 +1293,8 @@ counts as seen and never holds a card back, and neither does a reply in a thread
 show as unread. When a new message reaches the card while loki is clearing it, the card stays the same way, and what
 loki had already marked, up to what you had seen, stays read. Handing a card to an agent clears what you had seen and leaves the rest unread.
 
-Undo marks the Activity items unread again and puts a thread back where you had read it. Two gaps are known: undo
+Undo marks the Activity items unread again and puts a thread back where you had read it, unless you have since moved
+its read point in Slack, which then stays where you left it. Two gaps are known: undo
 cannot mark a Slack DM unread again, so the card comes back in loki and Slack keeps the DM read, and undo after loki
 restarts only brings the card back in loki.
 

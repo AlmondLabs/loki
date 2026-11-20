@@ -55,7 +55,7 @@ interface SlackThread {
   thread_ts: string;
 }
 
-type MarkedThread = SlackThread & { last_read: string };
+type MarkedThread = SlackThread & { last_read: string; marked_to: string };
 
 interface RefillState {
   step: number;
@@ -223,6 +223,8 @@ export class SlackSync implements AccountSync {
     this.threadsMarked.delete(record.thread_id);
     for (const t of moved) {
       try {
+        const now = await this.opts.client.followedThreadLastRead(t.channel, t.thread_ts);
+        if (now === null || tsKey(now) !== tsKey(t.marked_to)) continue;
         await this.opts.client.markThread(t.channel, t.thread_ts, t.last_read);
       } catch (err) {
         log("slack:thread-mark-failed", {
@@ -377,7 +379,7 @@ export class SlackSync implements AccountSync {
         const read = await this.opts.client.followedThreadLastRead(t.channel, t.thread_ts);
         if (read === null || !tsAfter(upTo, read)) continue;
         await this.opts.client.markThread(t.channel, t.thread_ts, upTo);
-        moved.push({ ...t, last_read: read });
+        moved.push({ ...t, last_read: read, marked_to: upTo });
       } catch (err) {
         log("slack:thread-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, thread_ts: t.thread_ts, read: true, error: messageOf(err) });
       }
