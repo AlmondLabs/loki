@@ -47,6 +47,19 @@ pub fn daemon_path(front: &[PathBuf], inherited: Option<&OsStr>) -> OsString {
 
 pub const EXIT_HELD: i32 = 3;
 
+/// The daemon's exit when it refuses a loki folder that no loki from 2026.1116 has started (`EXIT_OLD_DATA` in
+/// `daemon/main.ts`). Restarting cannot help: only running that release once converts the data.
+pub const EXIT_OLD_DATA: i32 = 4;
+
+pub fn old_data_note(code: Option<i32>, log: &Path) -> Option<String> {
+    (code == Some(EXIT_OLD_DATA)).then(|| {
+        format!(
+            "This loki folder was last used by a loki older than 2026.1116. Install loki 2026.1116, start it once, then update again. The daemon's log is {}",
+            log.display()
+        )
+    })
+}
+
 pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
     let mut cmd = Command::new(d.node);
     cmd.arg("--disable-warning=ExperimentalWarning");
@@ -324,6 +337,17 @@ mod tests {
         let note = crash_loop_note(CRASH_LOOP_EXITS, &log).expect("a note at the third exit");
         assert!(note.contains("keeps stopping (3 times in the last minute)"), "{note}");
         assert!(note.contains("daemon.log"), "{note}");
+    }
+
+    #[test]
+    fn only_the_old_data_exit_stops_the_restarts_with_its_note() {
+        let log = Path::new("logs").join("daemon.log");
+        let note = old_data_note(Some(EXIT_OLD_DATA), &log).expect("a note for the old-data exit");
+        assert!(note.contains("2026.1116"), "{note}");
+        assert!(note.contains("daemon.log"), "{note}");
+        for other in [None, Some(0), Some(1), Some(EXIT_HELD)] {
+            assert_eq!(old_data_note(other, &log), None);
+        }
     }
 
     #[test]

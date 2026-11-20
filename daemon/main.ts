@@ -30,6 +30,7 @@ import { topUsualModel } from "../mod/usual-models.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
 import { listAgents } from "./store/agents.ts";
+import { checkOldData } from "./old-data.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { DevReload } from "./dev-reload.ts";
@@ -51,6 +52,8 @@ import { agentPrompt } from "./acp/prompt.ts";
 import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
 export const EXIT_HELD = 3;
+/** The exit for a loki folder this build refuses (`checkOldData`); `EXIT_OLD_DATA` in `src-tauri/src/harness.rs` stops the restarts. */
+export const EXIT_OLD_DATA = 4;
 
 /**
  * The flag every start passes so the shell can tell loki's daemon from any other Node process: `is_own_daemon` in
@@ -89,6 +92,12 @@ const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
 const backend = join(args.dir, "backend");
+const oldData = checkOldData({ stateDir: paths.state, storesDir: join(args.dir, "stores"), agents: listAgents(backend) });
+if (!oldData.ok) {
+  report(oldData.reason);
+  lock.release();
+  process.exit(EXIT_OLD_DATA);
+}
 process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 const secrets =

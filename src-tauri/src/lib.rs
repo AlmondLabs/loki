@@ -385,6 +385,11 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
                     continue;
                 }
                 held = false;
+                if let Some(note) = harness::old_data_note(status.code(), &loki_dir().join("logs").join("daemon.log")) {
+                    eprintln!("loki: daemon: {note}");
+                    publish(&app, |s| s.error = Some(note));
+                    break;
+                }
                 exits.retain(|t| t.elapsed() < std::time::Duration::from_secs(60));
                 let delay = harness::restart_delay(exits.len());
                 exits.push(std::time::Instant::now());
