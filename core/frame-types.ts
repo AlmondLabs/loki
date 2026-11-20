@@ -177,7 +177,7 @@ export interface OutsideFacts {
    * A paired Mac on a loki older than plan 070 sends no value, which reads as unread, as the mod reads its own records.
    */
   unread_out_there?: boolean;
-  /** How directly the newest message is meant for the person (plan 073); absent from an older loki. */
+  /** How directly the newest message is meant for the person (plan 073). */
   reach?: OutsideReach | null;
   /** Where a Slack message was posted, as `#channel`; null for a DM and for mail (plan 073). */
   place?: string | null;
@@ -185,11 +185,11 @@ export interface OutsideFacts {
   sender_avatar?: string | null;
   /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
   only_account?: boolean;
-  /** A Gmail thread one of whose messages is starred (plan 097, U9); absent when it is not, and from an older loki. */
+  /** A Gmail thread one of whose messages is starred (plan 097, U9); absent when it is not. */
   starred?: boolean;
   /**
    * The person's mail reply that did not go (plan 096): its words, why, and when. The card says "not sent" with send
-   * again and discard until one of them settles it. Absent while there is none, and from an older loki.
+   * again and discard until one of them settles it. Absent while there is none.
    */
   not_sent?: NotSentReply | null;
   /**
@@ -365,7 +365,7 @@ export interface OutsideMessage {
   html?: string;
   /**
    * The sender's photo: a Slack profile image (plan 074) or a Jira comment author's 48 px avatar (plan 091); absent for
-   * mail, for a sender with none, and from an older loki.
+   * mail and for a sender with none.
    */
   avatar?: string;
   /** A reply under the card's thread's first message, drawn indented as an open thread (plan 074). */
@@ -378,7 +378,7 @@ export interface OutsideMessage {
   more_after?: boolean;
   /**
    * A Slack message read the way Slack draws it (plan 075), or a Jira comment's document in the same shape (plan 091);
-   * absent for mail, for a Jira field change, and from an older loki, which draw `text`.
+   * absent for mail and for a Jira field change, which draw `text`.
    */
   body?: SlackBlock[];
   /** What a Slack app attached under its message (plan 075). */
@@ -390,7 +390,7 @@ export interface OutsideMessage {
   brought?: boolean;
   /**
    * A Jira comment that mentions the person (plan 091, Decision 4), drawn with Slack's mention look: any event brings a
-   * Jira card, so a look on every new comment would say nothing. Absent for mail and Slack, and from an older loki.
+   * Jira card, so a look on every new comment would say nothing. Absent for mail and Slack.
    */
   mentions_me?: boolean;
   /**
@@ -405,7 +405,7 @@ export interface OutsideMessage {
    * it has none.
    */
   slack_files?: SlackFile[];
-  /** A mail's To and Cc headers as written (plan 078), for its header line; absent for Slack and from an older loki. */
+  /** A mail's To and Cc headers as written (plan 078), for its header line; absent for Slack. */
   to?: string;
   cc?: string;
   /** The files a mail carries, by name and size in bytes (plan 078), shown as chips; absent when it has none. */

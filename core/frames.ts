@@ -252,7 +252,7 @@ export interface Replies {
   history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start?: number; widget_log: WidgetLogEntry[] };
   /**
    * One lean row made whole: a tool row's step (plan 041), or an event's detail (plan 043); each null when the row is
-   * not that. A Mac on a loki from before plan 043 leaves `detail` out, and sends no event lean.
+   * not that.
    */
   history_step: { step: ToolStep | null; detail?: string | null };
   chat_state: ChatState;
