@@ -144,8 +144,8 @@ reflection and Learn files. Later builds no longer do. A loki folder that no bui
 refused at start: the window says to install loki 2026.1116, start it once, then update again, and the daemon's log
 says why. The same happens when 2026.1116 could not finish converting an agent's chats, and the log names that store.
 What the conversions left behind stays where it was, for you to delete when you like: `~/.loki/stores/backup-letta-<date>/`,
-`~/.loki/stores/migrations.json`, `~/.loki/backend/backup-letta-<date>/`, `~/.loki/state/reflection.json` and
-`~/.loki/reflection/`. loki never moved or deleted `~/.letta`, which is Letta's.
+`~/.loki/stores/migrations.json`, `~/.loki/backend/backup-letta-<date>/`, `~/.loki/state/reflection.json`,
+`~/.loki/reflection/` and `~/.loki/recall/worker.json`. loki never moved or deleted `~/.letta`, which is Letta's.
 
 ### Uninstall
 
