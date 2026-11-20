@@ -29,8 +29,8 @@ export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run build:mod": { Linux: 10, macOS: 10, Windows: 10 },
   "bun run smoke": { Linux: 30, macOS: 30, Windows: 30 },
   // From the install action's start to node_modules in place, on a cache hit. A miss runs bun install, which a PR that
-  // changes the dependencies needs, so it has no budget. Target 30s; Windows takes 16–26s today.
-  install: { Linux: 30, macOS: 30, Windows: 40 },
+  // changes the dependencies needs, so it has no budget.
+  install: { Linux: 30, macOS: 30, Windows: 30 },
 };
 
 /** A step's budget on a system; a step without one is an error, so every step CI runs is given one. */

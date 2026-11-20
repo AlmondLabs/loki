@@ -40,6 +40,7 @@ describe("each CI step's budget", () => {
     expect(Object.keys(BUDGETS.install).sort()).toEqual(["Linux", "Windows", "macOS"]);
     const action = readFileSync(join(import.meta.dirname, "..", ".github", "actions", "install", "action.yml"), "utf8");
     expect(action).toContain(`if: steps.cache.outputs.cache-hit == 'true'`);
+    expect(action).toContain(`if: steps.node.outputs.major != '22'`);
     expect(action).toContain(`bun run --silent budget --took "$(( $(date +%s) - INSTALL_STARTED ))" install`);
   });
 });
