@@ -31,14 +31,19 @@ export interface CardFacts {
   place?: string | null;
 }
 
-export interface CardWindow {
+export interface CardWindow<W extends OutsideWindow | null = OutsideWindow> {
   messages: ThreadMessage[];
-  window: OutsideWindow;
+  window: W;
   link?: string;
   ticket?: JiraCardTicket;
 }
 
-export type CardView = (accountId: string, threadId: string, facts: CardFacts, ask: OutsideWindowAsk) => Promise<CardWindow>;
+export type CardView<W extends OutsideWindow | null = OutsideWindow> = (
+  accountId: string,
+  threadId: string,
+  facts: CardFacts,
+  ask: OutsideWindowAsk,
+) => Promise<CardWindow<W>>;
 
 export function slackChannelView(
   client: (accountId: string) => ViewClient,

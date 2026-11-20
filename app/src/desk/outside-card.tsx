@@ -353,7 +353,7 @@ function MessageRow({ m, folded }: { m: OutsideMessage; folded: boolean }) {
         {m.at && <Meta>{ago(m.at)}</Meta>}
       </div>
       {m.html ? (
-        <MailHtml html={m.html} title={`Mail from ${senderName(m.sender)}`} />
+        <MailHtml html={m.html} title={`Mail from ${senderName(m.sender)}`} images={m.inline_images} />
       ) : (
         <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: size }}>
           <LinkedText text={m.text} />

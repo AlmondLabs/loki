@@ -1,4 +1,4 @@
-import type { AccountProvider, OutsideChange, OutsideWrite } from "../core/frame-types.ts";
+import type { AccountProvider, OutsideChange, OutsideWindow, OutsideWrite } from "../core/frame-types.ts";
 import type { AccountRecord } from "./accounts.ts";
 import type { AccountThreads, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountSyncFactory, AccountWatcher } from "./account-watcher.ts";
@@ -16,7 +16,7 @@ export interface AccountWiring {
   sources: (watcher: Pick<AccountWatcher, "syncOf">) => Record<AccountProvider, OutsideSource>;
   factories: Partial<Record<AccountProvider, AccountSyncFactory>>;
   threadText: Record<AccountProvider, ThreadText>;
-  cardView?: Partial<Record<AccountProvider, CardView>>;
+  cardView?: Partial<Record<AccountProvider, CardView<OutsideWindow | null>>>;
   clientFor: (account: AccountRecord) => SendClient;
 }
 

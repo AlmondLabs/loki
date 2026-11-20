@@ -269,6 +269,12 @@ describe("reading a card's whole thread", () => {
     expect((await threads({ thread }).t.read(MAIL, "t1")).messages[0]).toMatchObject({ text: "Bill", html: '<p>Bill <a href="https://x.test">here</a></p>' });
     expect((await threads({ thread }).t.read(SLACK, "D1")).messages[0]).not.toHaveProperty("html");
   });
+  test("a mail's pasted pictures reach the card by name beside its HTML; Slack has none", async () => {
+    const name = `${"b".repeat(32)}.png`;
+    const thread = [{ sender: "Bob", at: "", text: "See", id: "m1", html: '<img src="cid:ii_abc">', inline_images: { ii_abc: name } }];
+    expect((await threads({ thread }).t.read(MAIL, "t1")).messages[0]).toMatchObject({ html: '<img src="cid:ii_abc">', inline_images: { ii_abc: name } });
+    expect((await threads({ thread }).t.read(SLACK, "D1")).messages[0]).not.toHaveProperty("inline_images");
+  });
   test("a Slack card reads its channel view when there is one, with each message's photo, place and read state", async () => {
     const thread = [{ sender: "Bob", at: "", text: "only the thread", id: "1" }];
     const view = [

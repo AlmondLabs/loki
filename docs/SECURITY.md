@@ -285,7 +285,13 @@ agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
 - **A mail drawn on its card.** A mail's HTML is drawn for you only, in a frame sandboxed with no scripts or forms and
   its own policy allowing only images, styles and fonts (`app/src/desk/mail-html.tsx`); scripts, frames,
   objects, base and refresh tags are also removed before it is drawn. Remote images load, so a sender can tell the
-  mail was opened and from which address, as in Gmail. A link opens in your browser, and only `http`, `https` and
+  mail was opened and from which address, as in Gmail. A picture pasted into the mail (an `<img src="cid:…">`) is
+  fetched from Gmail once by the daemon and kept with your chats' pictures in `~/.loki/chat-images/` (plan
+  2026-11-20-1353, `mod/account-ops/gmail.ts`). The app reads it from its own page and puts it in the mail as a `data:`
+  image, so the daemon's token never enters the mail, where the mail's own CSS could read an image's address. For that
+  read, the picture route answers with `access-control-allow-origin: *` on every listener it serves (loopback, the LAN
+  page and paired Macs), as `/uploads` and the profile picture do; each still asks for its own credential (the token,
+  the device cookie, a paired Mac's bearer token), and a browser refuses a credentialed read under a wildcard origin. A link opens in your browser, and only `http`, `https` and
   `mailto` links open. The frame may ask for a new window, which is how a click reaches the Mac's shell, but the shell
   opens no window: it hands a web or mail address to the browser and drops anything else (`src-tauri/src/lib.rs`). The HTML goes to no model: agents read the mail's text.
 - **What loki keeps on disk.** Each thread's record (its sender, subject and last few lines,

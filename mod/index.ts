@@ -68,7 +68,7 @@ import { previewAccounts, previewWiring, type AccountWiring } from "./preview-ac
 import { outboxKey } from "./mail-outbox.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
-import { gmailThreadText } from "./account-ops/gmail.ts";
+import { gmailCardView, gmailThreadText } from "./account-ops/gmail.ts";
 import { slackThreadText } from "./account-ops/slack.ts";
 import { Handoff } from "./handoff.ts";
 import { slackChannelView } from "./slack-view.ts";
@@ -278,6 +278,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         },
         threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraThreadText(jiraClient) },
         cardView: {
+          gmail: gmailCardView(gmailClient, (key, read) => previews.preview(key, read)),
           slack: slackChannelView(
             slackClient,
             slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),

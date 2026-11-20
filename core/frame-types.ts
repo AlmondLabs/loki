@@ -410,6 +410,12 @@ export interface OutsideMessage {
   cc?: string;
   /** The files a mail carries, by name and size in bytes (plan 078), shown as chips; absent when it has none. */
   files?: MailFile[];
+  /**
+   * The pictures pasted into a mail: each part's Content-ID, without its angle brackets, to the
+   * chat-images file name served at `/chat-images/<name>`, which the card draws where the HTML names it as `cid:`.
+   * Absent for Slack and Jira, for a mail without pasted pictures, and from an older loki.
+   */
+  inline_images?: Record<string, string>;
 }
 
 /** A file a mail carries, as its card lists it (plan 078): its name and its size in bytes. */

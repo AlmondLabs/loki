@@ -118,7 +118,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
       </div>
       <div style={{ marginLeft: MAIL_INDENT, marginTop: 8 }}>
         {m.html ? (
-          <MailHtml html={m.html} title={`Mail from ${senderName(m.sender)}`} />
+          <MailHtml html={m.html} title={`Mail from ${senderName(m.sender)}`} images={m.inline_images} />
         ) : (
           <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "var(--text-sm)", lineHeight: 1.55 }}>
             <LinkedText text={m.text} />

@@ -1224,7 +1224,10 @@ first, with who wrote it and when, and yours marked **you**; mail loses the earl
 each reply ("On … wrote:"); on a mail drawn as designed, **•••** under it shows that thread. A forward reads open, with
 or without a note above it, and a mail that is all quote shows it. A mail with an HTML part is drawn as its sender designed it, on a light page: its
 layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
-you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
+you opened the mail. A picture pasted into the mail, such as a screenshot, shows where the sender put it: the Mac that
+holds the account fetches it from Gmail once and keeps it with your chats' pictures. A first open waits a few seconds
+at most for them, and one not ready by then shows on the next open. A PNG, JPEG, GIF, WebP or HEIC picture shows; any
+other kind shows its name, as before. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
 text, with its web addresses made into links. **A Slack card opens on what brought it**: the messages that brought it
 into your Flow, with 5 messages before and 5 after, drawn as a chat draws messages, with faces, day pills, @channel
 marked, and Slack's red **New** line before the first new one; the card opens on that line. What brought it, a mention,
@@ -1340,7 +1343,8 @@ already on the reply. Both work on the phone too.
 the card's title. With more than one mailbox connected, the header ends with the one it came to ("in
 you@work.example"). Each mail has its own header line with the sender's face, name and address, whom it went to ("to
 you, cc Dev Patel") and when it came. The mails before the newest fold to one line each, and a press opens one. A
-mail's files show as chips with their size under it; open them from Gmail. The reply box sits at the end of the thread,
+mail's files show as chips with their size under it; open them from Gmail. A picture shown in the mail is not among
+its files, as in Gmail. The reply box sits at the end of the thread,
 under the newest mail. It holds the recipients line, your text, your signature and the quote, then **send** and
 **discard**, which clears the text and puts the recipients back. The card's moves (hand off, label, archive, later,
 read) stay in the row at the bottom. The phone keeps its own layout.

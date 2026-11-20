@@ -19,6 +19,7 @@ export interface ThreadMessage {
   reactions?: SlackReaction[];
   slack_files?: SlackFile[];
   html?: string;
+  inline_images?: Record<string, string>;
   to?: string;
   cc?: string;
   files?: MailFile[];
