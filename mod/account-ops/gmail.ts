@@ -34,7 +34,12 @@ interface PastedPicture {
 }
 
 function shownCids(html: string): Set<string> {
-  return new Set([...html.matchAll(CID_SRC)].map((m) => cidOf(m[2] ?? m[3] ?? m[4] ?? "")));
+  return new Set(
+    [...html.matchAll(CID_SRC)].map((m) => {
+      const ids: Array<string | undefined> = m.slice(2);
+      return cidOf(ids.find((id) => id !== undefined) ?? "");
+    }),
+  );
 }
 
 function contentIdOf(part: GmailMessagePart): string {
