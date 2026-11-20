@@ -54,7 +54,7 @@ pub const EXIT_OLD_DATA: i32 = 4;
 pub fn old_data_note(code: Option<i32>, log: &Path) -> Option<String> {
     (code == Some(EXIT_OLD_DATA)).then(|| {
         format!(
-            "This loki folder was last used by a loki older than 2026.1116. Install loki 2026.1116, start it once, then update again. The daemon's log is {}",
+            "This loki folder needs loki 2026.1116 to finish converting it. Install loki 2026.1116, start it once, then update again. The daemon's log says what it found: {}",
             log.display()
         )
     })
