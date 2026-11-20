@@ -19,28 +19,110 @@ function partOf(part: GmailMessagePart | null, mimeType: string): GmailMessagePa
 
 export const mailHeader = (m: GmailMessage, name: string): string => m.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 
+export interface MailPictures {
+  keep: (key: string, read: () => Promise<{ data: Buffer; type: string }>) => Promise<string | null>;
+  attachment: (messageId: string, attachmentId: string) => Promise<Buffer>;
+  waited: () => Promise<void>;
+}
+
+interface PastedPicture {
+  message_id: string;
+  content_id: string;
+  part: GmailMessagePart;
+}
+
+const CID_SRC = /<img\b[^>]*?\ssrc\s*=\s*(?:"\s*cid:([^"]*)"|'\s*cid:([^']*)'|cid:([^\s"'>]+))/gi;
+
+function cidOf(written: string): string {
+  try {
+    return decodeURIComponent(written.trim());
+  } catch {
+    return written.trim();
+  }
+}
+
+function shownCids(html: string): Set<string> {
+  return new Set([...html.matchAll(CID_SRC)].map((m) => cidOf(m[1] ?? m[2] ?? m[3] ?? "")));
+}
+
+function contentIdOf(part: GmailMessagePart): string {
+  const value = part.headers.find((h) => h.name.toLowerCase() === "content-id")?.value.trim() ?? "";
+  return /^<(.*)>$/.exec(value)?.[1] ?? value;
+}
+
+function pastedPictures(messageId: string, html: string, root: GmailMessagePart | null): PastedPicture[] {
+  const shown = shownCids(html);
+  const out: PastedPicture[] = [];
+  const walk = (part: GmailMessagePart) => {
+    const contentId = contentIdOf(part);
+    if (part.mimeType.toLowerCase().startsWith("image/") && contentId && shown.has(contentId) && (part.body.attachmentId || part.body.data))
+      out.push({ message_id: messageId, content_id: contentId, part });
+    part.parts.forEach(walk);
+  };
+  if (root && shown.size) walk(root);
+  return out;
+}
+
+async function namedPictures(accountId: string, wanted: PastedPicture[], pictures: MailPictures): Promise<Map<PastedPicture, string>> {
+  const named = new Map<PastedPicture, string>();
+  const all = Promise.all(
+    wanted.map(async (p) => {
+      const { attachmentId, data } = p.part.body;
+      const read = async () => ({
+        data: attachmentId ? await pictures.attachment(p.message_id, attachmentId) : Buffer.from(data ?? "", "base64url"),
+        type: p.part.mimeType,
+      });
+      const name = await pictures.keep(`gmail:${accountId}:${p.message_id}:${p.content_id}`, read).catch(() => null);
+      if (name) named.set(p, name);
+    }),
+  );
+  await Promise.race([all, pictures.waited()]);
+  return new Map(named);
+}
+
 export async function gmailThread(
   client: Pick<GmailClient, "getThread">,
   accountId: string,
   threadId: string,
+  pictures?: MailPictures,
 ): Promise<{ subject: string; messages: ThreadMessage[] }> {
   const thread = await client.getThread(threadId, "full");
   const own = accountId.startsWith("gmail:") ? accountId.slice("gmail:".length) : "";
   const opening = thread.messages.at(0);
-  const messages = thread.messages.map((m): ThreadMessage => {
+  const read = thread.messages.map((m) => {
+    const { text, html } = mailParts(m);
+    const kept = html !== null && html.length <= MAIL_HTML_MAX ? html : null;
+    return { m, text, html: kept, wanted: pictures && kept !== null ? pastedPictures(m.id, kept, m.payload) : [] };
+  });
+  const named = pictures
+    ? await namedPictures(
+        accountId,
+        read.flatMap((r) => r.wanted),
+        pictures,
+      )
+    : new Map<PastedPicture, string>();
+  const messages = read.map(({ m, text, html, wanted }): ThreadMessage => {
     const from = mailHeader(m, "from");
     const at = Number(m.internalDate);
-    const { text, html } = mailParts(m);
     const to = mailHeader(m, "to");
     const cc = mailHeader(m, "cc");
-    const files = mailAttachments(m).map((f) => ({ name: f.filename, size: f.size }));
+    const shown = wanted.flatMap((p) => {
+      const name = named.get(p);
+      return name ? [{ picture: p, name }] : [];
+    });
+    const shownAttachments = new Set(shown.map((s) => s.picture.part.body.attachmentId));
+    const files = mailAttachments(m)
+      .filter((f) => !shownAttachments.has(f.attachmentId))
+      .map((f) => ({ name: f.filename, size: f.size }));
+    const inlineImages = Object.fromEntries(shown.map((s) => [s.picture.content_id, s.name]));
     return {
       sender: from || "someone",
       id: m.id,
       mine: own !== "" && addressOf(from) === own,
       at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
       text,
-      ...(html !== null && html.length <= MAIL_HTML_MAX ? { html } : {}),
+      ...(html !== null ? { html } : {}),
+      ...(shown.length ? { inline_images: inlineImages } : {}),
       ...(to ? { to } : {}),
       ...(cc ? { cc } : {}),
       ...(files.length ? { files } : {}),
