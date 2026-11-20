@@ -38,6 +38,7 @@ export const SLACK_METHODS = [
   "files.completeUploadExternal",
   "reactions.add",
   "reactions.remove",
+  "subscriptions.thread.mark",
 ] as const;
 
 export type SlackMethod = (typeof SLACK_METHODS)[number];
@@ -411,6 +412,17 @@ export class SlackClient {
     const info = await this.conversationsInfo(channel);
     if (!info.is_im && !info.is_mpim) throw new SlackError(`${channel} is not a DM or group DM: loki marks only those read`, "not_a_dm");
     await this.call("conversations.mark", { channel, ts });
+  }
+
+  async followedThreadLastRead(channel: string, threadTs: string): Promise<string | null> {
+    const root = (await this.conversationsReplies({ channel, ts: threadTs, limit: 1 })).messages.find((m) => m.ts === threadTs);
+    return root?.raw.subscribed === true ? strOrNull(root.raw.last_read) : null;
+  }
+
+  // Slack does not document how a thread is marked read; this is the call emacs-slack makes:
+  // https://github.com/emacs-slack/emacs-slack/blob/master/slack-thread.el
+  async markThread(channel: string, threadTs: string, ts: string): Promise<void> {
+    await this.call("subscriptions.thread.mark", { channel, thread_ts: threadTs, ts });
   }
 
   async markActivity(items: readonly SlackActivityEntry[], read: boolean): Promise<void> {

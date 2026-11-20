@@ -1283,10 +1283,13 @@ loki last looked stays unread:
 The other way round works too: archive a thread in Gmail, or read a Slack message in Slack, and its card ends at the
 next check. loki never moves a Slack channel's read marker, so reading a mention in a busy channel leaves that
 channel's other messages unread. Read or archive on a Slack mention or thread card marks its items in Slack's
-Activity read, up to the newest message the card showed; undo marks them unread again. Slack does not document how
-its Activity is marked, so if Slack refuses it one day, the card still ends in loki, Slack shows the item unread, and
-loki's log says `slack:activity-mark-failed`. One gap is known: undo cannot mark a Slack DM unread again in Slack. The
-card comes back in loki, and Slack keeps the DM read.
+Activity read, up to the newest message the card showed; undo marks them unread again. A thread you follow is marked
+read in Slack's Threads view too, up to the same message, and so is a thread inside a DM on a DM card; a reply that
+came after stays unread, and a thread Slack already has read further is left as it is. Undo puts the thread back to
+where you had read it. Slack documents neither its Activity marks nor its thread marks, so if Slack refuses one some
+day, the card still ends in loki, Slack shows the item or the thread unread, and loki's log says
+`slack:activity-mark-failed` or `slack:thread-mark-failed`. One gap is known: undo cannot mark a Slack DM unread again
+in Slack. The card comes back in loki, and Slack keeps the DM read.
 
 A Jira card's moves write nothing to Jira, and Jira's read state does not reach loki: see "Jira tickets" below.
 

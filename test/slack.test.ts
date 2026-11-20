@@ -168,6 +168,31 @@ describe("marking a DM read", () => {
   });
 });
 
+describe("a thread's read point", () => {
+  const root = (extra: Record<string, unknown>) => () => ({
+    body: { ok: true, messages: [{ type: "message", ts: "1700000000.000100", text: "first", ...extra }] },
+  });
+
+  test("marking a thread sends its channel, its first message and the message to read up to", async () => {
+    const { c, sent } = client(() => ({}));
+    await c.markThread("C0GEN", "1700000000.000100", "1700000500.000200");
+    expect(sent.map((s) => [s.url.slice(s.url.lastIndexOf("/") + 1), s.params])).toEqual([
+      ["subscriptions.thread.mark", { token: "xoxc-acme-1111", channel: "C0GEN", thread_ts: "1700000000.000100", ts: "1700000500.000200" }],
+    ]);
+  });
+
+  test("a followed thread's read point is its first message's last_read, asked for with one message", async () => {
+    const { c, sent } = client(root({ subscribed: true, last_read: "1700000300.000100" }));
+    expect(await c.followedThreadLastRead("C0GEN", "1700000000.000100")).toBe("1700000300.000100");
+    expect(sent[0]?.params).toMatchObject({ channel: "C0GEN", ts: "1700000000.000100", limit: "1" });
+  });
+
+  test("a thread the person does not follow has no read point", async () => {
+    expect(await client(root({ last_read: "1700000300.000100" })).c.followedThreadLastRead("C0GEN", "1700000000.000100")).toBeNull();
+    expect(await client(root({ subscribed: false, last_read: "1700000300.000100" })).c.followedThreadLastRead("C0GEN", "1700000000.000100")).toBeNull();
+  });
+});
+
 describe("what the client reads", () => {
   test("the Activity feed: unread mentions and thread replies, with where each points", async () => {
     const { c, sent } = client(() => ({
