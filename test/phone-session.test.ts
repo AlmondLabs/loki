@@ -228,7 +228,7 @@ describe("focus on arrival", () => {
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    // oxlint-disable-next-line no-empty-function -- a stand-in class for instanceof, which needs a function, not an arrow
     g.HTMLElement ??= function FakeHtmlElement() {};
     try {
       restoreFocus(root, "#/agents", false, createFocusMemory());
