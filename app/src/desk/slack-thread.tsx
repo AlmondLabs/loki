@@ -18,7 +18,7 @@ import { LinkedText, openableHref } from "./mail-html";
 import { fileSize } from "./mail-thread";
 import type { ThreadControls } from "./outside-card";
 import { keyFor, registerActions } from "../shell/keymap";
-import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
+import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions, pickReaction } from "./slack-reactions";
 import { SmilePlusIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
@@ -488,8 +488,8 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
     if (!react) return undefined;
     const pick = (choice: EmojiChoice) => {
       setPicking(null);
-      const mine = m.reactions?.some((r) => r.name === choice.name && r.mine) === true;
-      react(m.id, choice, !mine);
+      const picked = pickReaction(m.reactions ?? [], choice);
+      react(m.id, picked.choice, picked.on);
     };
     return {
       open: () => setPicking(m.id),

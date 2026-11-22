@@ -7,7 +7,7 @@ import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } fro
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
 import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
-import { QUICK_EMOJI, emojiNote, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
+import { QUICK_EMOJI, emojiNote, pickReaction, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
 
 const ACCOUNT = "slack:T1:UME";
 
@@ -451,6 +451,27 @@ describe("reactions on a Slack card (plan 079)", () => {
       { name: "eyes", count: 1, mine: true, emoji: eyes.emoji },
     ]);
     expect(toggleReaction(others, eyes, false)).toEqual(others);
+  });
+
+  test("a pick is the reaction already there when it draws the same emoji, under the name Slack keeps it by", () => {
+    const thumbsup = { name: "thumbsup", emoji: { kind: "emoji" as const, text: "👍" } };
+    const plusOne = (count: number, mine: boolean) => ({ name: "+1", count, mine, emoji: { kind: "emoji" as const, text: "👍" } });
+    expect(pickReaction([plusOne(2, true)], thumbsup)).toEqual({ choice: { name: "+1", emoji: thumbsup.emoji }, on: false });
+    expect(pickReaction([plusOne(1, false)], thumbsup)).toEqual({ choice: { name: "+1", emoji: thumbsup.emoji }, on: true });
+    expect(pickReaction([], thumbsup)).toEqual({ choice: thumbsup, on: true });
+    expect(toggleReaction([plusOne(2, true)], thumbsup, false)).toEqual([plusOne(1, false)]);
+    expect(toggleReaction([plusOne(1, false)], thumbsup, true)).toEqual([plusOne(2, true)]);
+    const check = { name: "white_check_mark", count: 1, mine: true, emoji: { kind: "emoji" as const, text: "✅\uFE0F" } };
+    expect(pickReaction([check], QUICK_EMOJI[1])).toEqual({ choice: { name: "white_check_mark", emoji: check.emoji }, on: false });
+    const toned = { name: "+1::skin-tone-2", count: 1, mine: true, emoji: { kind: "emoji" as const, text: "👍\u{1F3FB}" } };
+    expect(pickReaction([toned], QUICK_EMOJI[2])).toEqual({ choice: QUICK_EMOJI[2], on: true });
+    expect(toggleReaction([toned], QUICK_EMOJI[2], true)).toHaveLength(2);
+    const shipit = { kind: "emoji" as const, text: ":shipit:", image: "https://example.test/shipit.png" };
+    const own = { name: "shipit", count: 1, mine: true, emoji: shipit };
+    expect(pickReaction([own], { name: "ship_it", emoji: { ...shipit, text: ":ship_it:" } })).toEqual({ choice: { name: "shipit", emoji: shipit }, on: false });
+    expect(pickReaction([{ name: "mystery", count: 1, mine: true, emoji: null }], { name: "mystery", emoji: { kind: "emoji", text: ":mystery:" } }).on).toBe(
+      false,
+    );
   });
 
   test("the main message is the newest that brought the card, else the card's newest, else the last shown", () => {

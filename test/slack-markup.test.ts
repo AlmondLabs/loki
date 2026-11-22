@@ -136,6 +136,12 @@ describe("the emoji a reaction draws and the person can pick (plan 079)", () => 
     expect(searchEmoji("  ", OWN)).toEqual([]);
     expect(searchEmoji("e", {}, 5)).toHaveLength(5);
   });
+
+  test("a standard emoji found by another of its names answers with the name Slack keeps it under", () => {
+    expect(searchEmoji("thumbsup", {})[0]).toEqual({ name: "+1", emoji: { kind: "emoji", text: "👍" } });
+    expect(searchEmoji("thumbsup", {}).map((c) => c.name)).not.toContain("thumbsup");
+    expect(searchEmoji("ship_it", OWN)[0]?.name).toBe("ship_it");
+  });
 });
 
 describe("the files shared in a message (plan 080)", () => {
