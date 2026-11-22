@@ -3,6 +3,7 @@ import { createCodingTools } from "@earendil-works/pi-durable/tools";
 import type { Approvals } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { backgroundExtension, type BackgroundTasks } from "./background.ts";
+import { changesExtension } from "./changes.ts";
 import { shrinkingProcessor } from "./image-shrink.ts";
 import { historyExtension, type ChatHistory } from "./history-tools.ts";
 import { memoryExtension } from "./memory.ts";
@@ -36,6 +37,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     backgroundExtension(deps.background),
     scheduleExtension(deps.schedules),
     historyExtension(deps.history),
+    changesExtension(),
     repliesExtension(),
     ...(deps.scripts ?? []),
   ];
