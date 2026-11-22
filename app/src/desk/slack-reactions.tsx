@@ -40,16 +40,19 @@ export function useQuickEmoji(accountId: string | null, search: EmojiSearch | nu
 const drawn = (emoji: EmojiChoice["emoji"]) => emoji.image ?? emoji.text.replaceAll("\uFE0F", "");
 
 function sameReaction(r: SlackReaction, choice: EmojiChoice): boolean {
-  return r.name === choice.name || (r.emoji !== null && drawn(r.emoji) === drawn(choice.emoji));
+  return r.emoji !== null && drawn(r.emoji) === drawn(choice.emoji);
 }
 
+const pillFor = (reactions: readonly SlackReaction[], choice: EmojiChoice): SlackReaction | undefined =>
+  reactions.find((r) => r.name === choice.name) ?? reactions.find((r) => sameReaction(r, choice));
+
 export function pickReaction(reactions: readonly SlackReaction[], choice: EmojiChoice): { choice: EmojiChoice; on: boolean } {
-  const had = reactions.find((r) => sameReaction(r, choice));
+  const had = pillFor(reactions, choice);
   return had ? { choice: { name: had.name, emoji: had.emoji ?? choice.emoji }, on: !had.mine } : { choice, on: true };
 }
 
 export function toggleReaction(reactions: readonly SlackReaction[], choice: EmojiChoice, on: boolean): SlackReaction[] {
-  const had = reactions.find((r) => sameReaction(r, choice));
+  const had = pillFor(reactions, choice);
   if (!had) return on ? [...reactions, { name: choice.name, count: 1, mine: true, emoji: choice.emoji }] : [...reactions];
   if (had.mine === on) return [...reactions];
   const count = had.count + (on ? 1 : -1);

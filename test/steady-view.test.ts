@@ -67,6 +67,14 @@ describe("a Slack card keeps its view while new messages come (plan 090)", () =>
     expect(next.messages[1]).toEqual({ ...now.messages[1], reactions: thumbs });
     expect(next.window).toEqual(channel);
   });
+  test("a message the person reacted to after the read was asked keeps the reactions they see", () => {
+    const eyes = [{ name: "eyes", count: 1, mine: true, emoji: null }];
+    const now = shown([msg("100.000001", { reactions: eyes }), msg("100.000002")], channel);
+    const out = { messages: [msg("100.000001"), msg("100.000002", { reactions: eyes })], window: channel };
+    const next = withNewer(now, out, new Set(["100.000001"]));
+    expect(next.messages[0]?.reactions).toEqual(eyes);
+    expect(next.messages[1]?.reactions).toEqual(eyes);
+  });
   test("ordering compares Slack times as times, not as text", () => {
     const now = shown([msg("99.900000")], channel);
     const next = withNewer(now, { messages: [msg("100.000001")], window: channel });

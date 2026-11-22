@@ -149,13 +149,13 @@ export function refreshAsk(messages: readonly OutsideMessage[], w: OutsideWindow
   return first && last && !w.more_after ? { view: "channel", direction: "after", from: last, shown_from: first } : null;
 }
 
-export function withNewer(now: Shown, out: OutsideRead): Shown {
+export function withNewer(now: Shown, out: OutsideRead, reactedSince: ReadonlySet<string> = new Set()): Shown {
   const w = now.window;
   if (!w) return now;
   const fresh = new Map(out.messages.map((m) => [m.id, m]));
   const messages = now.messages.map((m) => {
     const f = fresh.get(m.id);
-    if (!f) return m;
+    if (!f || reactedSince.has(m.id)) return m;
     const next = { ...m };
     if (f.reactions) next.reactions = f.reactions;
     else delete next.reactions;
@@ -169,11 +169,19 @@ export function withNewer(now: Shown, out: OutsideRead): Shown {
   return { ...now, messages: [...messages, ...newer], window: { ...w, more_after: more } };
 }
 
+interface Reacted {
+  seq: number;
+  at: Map<string, number>;
+}
+
+const reactedAfter = (r: Reacted, asked: number): Set<string> => new Set([...r.at].filter(([, seq]) => seq > asked).map(([id]) => id));
+
 function useReactControls(
   item: AttentionItem,
   source: OutsideThreadSource | null,
   setShown: (change: (now: Shown | null) => Shown | null) => void,
   tag: string,
+  onReact: (messageId: string) => void,
 ): Pick<ThreadControls, "react" | "quick" | "searchEmoji" | "refusal"> {
   const o = item.outside;
   const search = source?.searchEmoji;
@@ -185,6 +193,7 @@ function useReactControls(
     setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
   const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
     if (!reactOutside) return;
+    onReact(messageId);
     setRefused(null);
     setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
     void reactOutside(item, messageId, choice.name, on).then((why) => {
@@ -267,6 +276,7 @@ export function useOutsideThread(
   const steady = o?.provider === "slack";
   const tag = steady ? view : `${view}/${newest}`;
   const [shown, setShown] = useState<Shown | null>(null);
+  const reacted = useRef<Reacted>({ seq: 0, at: new Map() });
   const tick = useTick(steady && key !== "", REFRESH_MS);
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
@@ -275,7 +285,7 @@ export function useOutsideThread(
   const readNewer = useEffectEvent(() => {
     if (!steady || shown?.tag !== tag || shown.failed !== null || !shown.window) return null;
     const again = refreshAsk(shown.messages, shown.window);
-    return { pending: again ? read(again) : null };
+    return { pending: again ? read(again) : null, asked: reacted.current.seq };
   });
   useEffect(() => {
     if (!key) return;
@@ -287,7 +297,7 @@ export function useOutsideThread(
     if (newer) {
       void newer.pending?.then((out) => {
         if (!live || typeof out === "string") return;
-        setShown((s) => (s?.tag === tag ? withNewer(s, out) : s));
+        setShown((s) => (s?.tag === tag ? withNewer(s, out, reactedAfter(reacted.current, newer.asked)) : s));
         if (out.window?.more_after !== true) settle(went);
       });
       return stop;
@@ -305,7 +315,11 @@ export function useOutsideThread(
     });
     return stop;
   }, [key, tag, view, newest, went, tick]);
-  const reacting = useReactControls(item, source, setShown, tag);
+  const noteReacted = (messageId: string) => {
+    reacted.current.seq += 1;
+    reacted.current.at.set(messageId, reacted.current.seq);
+  };
+  const reacting = useReactControls(item, source, setShown, tag, noteReacted);
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
   const messages = [...shown.messages, ...sent.standIns];

@@ -67,7 +67,7 @@ A review of reactions across Flow found three faults on Slack cards (plan 079 bu
 
 ### Key Technical Decisions
 
-- KTD1. **An open Slack card reads again about once a minute while the window is in front.** A new message was the only trigger, and a reaction moves nothing the deck sees (`newest_message_id` stays). A one-minute tick, skipped while `document.visibilityState` is hidden, costs one `conversations.history` (channel, DM) or one thread read per open card per minute, well inside Slack's tier 3. It reuses the existing refresh path, so a thread re-reads whole as today. Governs R1.
+- KTD1. **An open Slack card reads again about once a minute while the window is in front.** A new message was the only trigger, and a reaction moves nothing the deck sees (`newest_message_id` stays). A one-minute tick, skipped while `document.visibilityState` is hidden, costs per open card per minute one `conversations.info` and two or more `conversations.history` calls (the newer page, the shown range) for a channel or DM, or one whole-thread read, well inside Slack's tier 3. The phone's card shares the hook, so it ticks too. It reuses the existing refresh path, so a thread re-reads whole as today. Governs R1.
 - KTD2. **The refresh read brings back the shown messages too, through one optional ask field.** `OutsideWindowAsk` gains `shown_from`: with `direction: "after"`, the mod also reads the messages from `shown_from` up to `from`, both included, in one `conversations.history` call (newest 100), and returns them with the newer ones. `withNewer` already takes reactions from returned messages it shows and adds only those newer than the last, so it needs no change. Those messages are drawn without their reply counts, so the refresh makes no thread reads; `withNewer` takes only their reactions. An older mod ignores the field and the card behaves as today. Governs R1, R2.
 - KTD3. **The card keeps the refusal beside the message it was for.** `useReactControls` holds `{ messageId, text }` for the last refusal and clears it on the next reaction; each row's `RowReacting` carries its own line, drawn under its pills on the deck row and the item row. Search hands its refusal to the picker, which shows "Couldn't search emoji: …". Governs R3, R4.
 - KTD4. **A reaction is the drawn emoji, not its name.** In the app, `toggleReaction` and `pick` find a pill by name or by the same drawn emoji (image, else character); when one is found, the reaction is sent under the pill's own name, the one Slack keeps. In the mod, `searchEmoji` answers a standard emoji with its iamcal short name (`+1` for `thumbsup`), the name Slack uses, so a new pill gets Slack's name too. A skin tone draws differently, so it stays its own pill, as in Slack. Governs R5.
@@ -78,6 +78,7 @@ A review of reactions across Flow found three faults on Slack cards (plan 079 bu
 
 ### Risks
 
+- A refresh asked before a reaction press and answered after it would put Slack's older state back on that pill; the card keeps the reactions of any message reacted to after the read was asked.
 - The tick reads Slack while a card sits open for hours. One call a minute per open card is small; a rate-limit refusal leaves the card as it was until the next tick.
 - Drawing the shown messages again re-reads their people and file previews; both are cached per account, so the cost is the history call.
 

@@ -469,6 +469,9 @@ describe("reactions on a Slack card (plan 079)", () => {
     const shipit = { kind: "emoji" as const, text: ":shipit:", image: "https://example.test/shipit.png" };
     const own = { name: "shipit", count: 1, mine: true, emoji: shipit };
     expect(pickReaction([own], { name: "ship_it", emoji: { ...shipit, text: ":ship_it:" } })).toEqual({ choice: { name: "shipit", emoji: shipit }, on: false });
+    const twin = { name: "ship_it", count: 2, mine: false, emoji: shipit };
+    expect(pickReaction([own, twin], { name: "ship_it", emoji: shipit })).toEqual({ choice: { name: "ship_it", emoji: shipit }, on: true });
+    expect(toggleReaction([own, twin], { name: "ship_it", emoji: shipit }, true)).toEqual([own, { ...twin, count: 3, mine: true }]);
     expect(pickReaction([{ name: "mystery", count: 1, mine: true, emoji: null }], { name: "mystery", emoji: { kind: "emoji", text: ":mystery:" } }).on).toBe(
       false,
     );
