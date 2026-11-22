@@ -174,7 +174,7 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
     },
-    account_thread_read: async ({ account_id: accountId, thread_id: threadId, view, thread_ts: threadTs, direction, from, ticket }) => {
+    account_thread_read: async ({ account_id: accountId, thread_id: threadId, view, thread_ts: threadTs, direction, from, shown_from: shownFrom, ticket }) => {
       if (!deps.outside) return fail("reading threads is not available in this mod");
       try {
         const ask = {
@@ -182,6 +182,7 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
           ...(threadTs ? { thread_ts: threadTs } : {}),
           ...(direction ? { direction } : {}),
           ...(from ? { from } : {}),
+          ...(shownFrom ? { shown_from: shownFrom } : {}),
           ...(ticket ? { ticket } : {}),
         };
         const read = await deps.outside.read(accountId, threadId, ask);

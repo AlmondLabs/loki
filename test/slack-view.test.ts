@@ -7,7 +7,7 @@ import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } fro
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
 import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
-import { QUICK_EMOJI, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
+import { QUICK_EMOJI, emojiNote, pickReaction, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
 
 const ACCOUNT = "slack:T1:UME";
 
@@ -38,7 +38,9 @@ function fakeSlack(opts: { history: SlackMessage[]; threads?: Record<string, Sla
     conversationsHistory: (o: { latest?: string; oldest?: string; inclusive?: boolean; limit?: number; cursor?: string }): Promise<SlackMessagePage> => {
       calls.push(`history ${o.oldest ? "after" : o.latest ? "before" : "latest"}${o.cursor ? ` ${o.cursor}` : ""}`);
       const inRange = newestFirst.filter(
-        (m) => (!o.latest || Number(m.ts) < Number(o.latest) || (o.inclusive === true && m.ts === o.latest)) && (!o.oldest || Number(m.ts) > Number(o.oldest)),
+        (m) =>
+          (!o.latest || Number(m.ts) < Number(o.latest) || (o.inclusive === true && m.ts === o.latest)) &&
+          (!o.oldest || Number(m.ts) > Number(o.oldest) || (o.inclusive === true && m.ts === o.oldest)),
       );
       const start = o.cursor ? Number(o.cursor) : 0;
       const limit = o.limit ?? 100;
@@ -423,6 +425,21 @@ describe("reactions on a Slack card (plan 079)", () => {
     expect(w.messages.find((m) => m.id === ts(1001))?.reactions).toBeUndefined();
   });
 
+  test("a refresh read brings back the shown messages with their reactions now, then the newer ones, in one more call", async () => {
+    const checked = (n: number) => ({ raw: n === 102 ? { reactions: [{ name: "white_check_mark", users: ["U2"], count: 1 }] } : {} });
+    const { client, calls } = fakeSlack({ history: run(100, 106, () => "U2", checked) });
+    const view = slackChannelView(() => client);
+    const w = await view(ACCOUNT, "D1", facts(), { view: "channel", direction: "after", from: ts(104), shown_from: ts(101) });
+    expect(ids(w)).toEqual(run(101, 106).map((m) => m.ts));
+    expect(w.messages.find((m) => m.id === ts(102))?.reactions).toEqual([
+      { name: "white_check_mark", count: 1, mine: false, emoji: { kind: "emoji", text: "✅\uFE0F" } },
+    ]);
+    expect(w.window).toEqual({ view: "channel", thread_ts: null, more_before: false, more_after: false });
+    expect(calls.filter((c) => c.startsWith("history"))).toHaveLength(2);
+    const plain = await view(ACCOUNT, "D1", facts(), { view: "channel", direction: "after", from: ts(104) });
+    expect(ids(plain)).toEqual([ts(105), ts(106)]);
+  });
+
   const eyes = QUICK_EMOJI[0];
   test("reacting adds a pill or joins one; taking it back leaves the pill to others, or takes it away", () => {
     const others = [{ name: "eyes", count: 2, mine: false, emoji: eyes.emoji }];
@@ -434,6 +451,30 @@ describe("reactions on a Slack card (plan 079)", () => {
       { name: "eyes", count: 1, mine: true, emoji: eyes.emoji },
     ]);
     expect(toggleReaction(others, eyes, false)).toEqual(others);
+  });
+
+  test("a pick is the reaction already there when it draws the same emoji, under the name Slack keeps it by", () => {
+    const thumbsup = { name: "thumbsup", emoji: { kind: "emoji" as const, text: "👍" } };
+    const plusOne = (count: number, mine: boolean) => ({ name: "+1", count, mine, emoji: { kind: "emoji" as const, text: "👍" } });
+    expect(pickReaction([plusOne(2, true)], thumbsup)).toEqual({ choice: { name: "+1", emoji: thumbsup.emoji }, on: false });
+    expect(pickReaction([plusOne(1, false)], thumbsup)).toEqual({ choice: { name: "+1", emoji: thumbsup.emoji }, on: true });
+    expect(pickReaction([], thumbsup)).toEqual({ choice: thumbsup, on: true });
+    expect(toggleReaction([plusOne(2, true)], thumbsup, false)).toEqual([plusOne(1, false)]);
+    expect(toggleReaction([plusOne(1, false)], thumbsup, true)).toEqual([plusOne(2, true)]);
+    const check = { name: "white_check_mark", count: 1, mine: true, emoji: { kind: "emoji" as const, text: "✅\uFE0F" } };
+    expect(pickReaction([check], QUICK_EMOJI[1])).toEqual({ choice: { name: "white_check_mark", emoji: check.emoji }, on: false });
+    const toned = { name: "+1::skin-tone-2", count: 1, mine: true, emoji: { kind: "emoji" as const, text: "👍\u{1F3FB}" } };
+    expect(pickReaction([toned], QUICK_EMOJI[2])).toEqual({ choice: QUICK_EMOJI[2], on: true });
+    expect(toggleReaction([toned], QUICK_EMOJI[2], true)).toHaveLength(2);
+    const shipit = { kind: "emoji" as const, text: ":shipit:", image: "https://example.test/shipit.png" };
+    const own = { name: "shipit", count: 1, mine: true, emoji: shipit };
+    expect(pickReaction([own], { name: "ship_it", emoji: { ...shipit, text: ":ship_it:" } })).toEqual({ choice: { name: "shipit", emoji: shipit }, on: false });
+    const twin = { name: "ship_it", count: 2, mine: false, emoji: shipit };
+    expect(pickReaction([own, twin], { name: "ship_it", emoji: shipit })).toEqual({ choice: { name: "ship_it", emoji: shipit }, on: true });
+    expect(toggleReaction([own, twin], { name: "ship_it", emoji: shipit }, true)).toEqual([own, { ...twin, count: 3, mine: true }]);
+    expect(pickReaction([{ name: "mystery", count: 1, mine: true, emoji: null }], { name: "mystery", emoji: { kind: "emoji", text: ":mystery:" } }).on).toBe(
+      false,
+    );
   });
 
   test("the main message is the newest that brought the card, else the card's newest, else the last shown", () => {
@@ -466,6 +507,28 @@ describe("reactions on a Slack card (plan 079)", () => {
     const html = draw([m("a", "Ravi", 0, { reactions })], { load: () => {}, openThread: () => {}, busy: null });
     expect(html.match(/disabled=""/g)).toHaveLength(3);
     expect(html).not.toContain('class="loki-slack-hoverbar"');
+  });
+
+  test("a refused reaction says why under the message it was for, and nowhere else", () => {
+    const text = "Couldn't add the reaction: Slack reactions.add failed: message_not_found";
+    const html = draw([m("a", "Ravi", 0, { reactions }), m("b", "Ravi", 1)], {
+      load: () => {},
+      openThread: () => {},
+      busy: null,
+      react: () => {},
+      refusal: { messageId: "b", text },
+    });
+    const drawn = text.replace("'", "&#x27;");
+    expect(html.split(drawn)).toHaveLength(2);
+    expect(html.indexOf(drawn)).toBeGreaterThan(html.indexOf(">b<"));
+    expect(draw([m("a", "Ravi", 0)], { load: () => {}, openThread: () => {}, busy: null, react: () => {} })).not.toContain("Couldn't");
+  });
+
+  test("the picker says a search failed, and why, rather than that no emoji has the name", () => {
+    expect(emojiNote("that account is not connected now")).toBe("Couldn't search emoji: that account is not connected now");
+    expect(emojiNote([])).toBe("No emoji by that name");
+    expect(emojiNote(null)).toBe("Searching…");
+    expect(emojiNote([{ name: "eyes", emoji: eyes.emoji }])).toBeNull();
   });
 
   test("the hover bar shows the person's first three quick reactions and the add-reaction mark (plan 084)", () => {

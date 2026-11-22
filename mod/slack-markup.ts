@@ -9,11 +9,17 @@ export interface SlackNames {
 }
 
 const STANDARD = new Map<string, string>();
+/** Each standard name to the emoji's first name in iamcal's list, the one Slack keeps a reaction under (`thumbsup` → `+1`). */
+const KEPT_NAME = new Map<string, string>();
 for (const [hex, names] of Object.entries(shortcodes as Record<string, string | string[]>)) {
   const points = hex.split("-").map((h) => Number.parseInt(h, 16));
   // A lone character from the older symbol ranges (❤, ☀) draws as text without the emoji variation selector.
   const char = String.fromCodePoint(...points) + (points.length === 1 && points[0] < 0x1f000 ? "️" : "");
-  for (const name of typeof names === "string" ? [names] : names) STANDARD.set(name, char);
+  const all = typeof names === "string" ? [names] : names;
+  for (const name of all) {
+    STANDARD.set(name, char);
+    KEPT_NAME.set(name, all[0]);
+  }
 }
 
 function emojiSpan(name: string, tone: string | undefined, names: SlackNames, depth = 0): SlackSpan | null {
@@ -56,7 +62,7 @@ export function searchEmoji(query: string, own: Record<string, string>, limit = 
     const key = emoji?.image ?? emoji?.text;
     if (!emoji || !key || shown.has(key)) continue;
     shown.add(key);
-    out.push({ name, emoji });
+    out.push({ name: Object.hasOwn(own, name) ? name : (KEPT_NAME.get(name) ?? name), emoji });
     if (out.length >= limit) break;
   }
   return out;

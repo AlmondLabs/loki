@@ -18,7 +18,7 @@ import { LinkedText, openableHref } from "./mail-html";
 import { fileSize } from "./mail-thread";
 import type { ThreadControls } from "./outside-card";
 import { keyFor, registerActions } from "../shell/keymap";
-import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
+import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions, pickReaction } from "./slack-reactions";
 import { SmilePlusIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
@@ -263,6 +263,7 @@ export interface RowReacting {
   quick: readonly EmojiChoice[];
   pick: (choice: EmojiChoice) => void;
   picker: ReactNode;
+  refused: string | null;
 }
 
 const BAR_QUICK = 3;
@@ -283,6 +284,14 @@ export function HoverBar({ reacting }: { reacting: RowReacting }) {
         <AddReactionMark />
       </button>
     </div>
+  );
+}
+
+export function ReactionRefused({ text }: { text: string }) {
+  return (
+    <p className="loki-emoji-note" role="status">
+      {text}
+    </p>
   );
 }
 
@@ -329,6 +338,7 @@ function SlackRow({
         )}
         {m.slack_files && <SlackFiles files={m.slack_files} where={jira ? "jira" : "Slack"} />}
         {!jira && <Reactions reactions={m.reactions ?? []} onToggle={reacting?.toggle} />}
+        {reacting?.refused && <ReactionRefused text={reacting.refused} />}
         {reacting?.picker}
         {!jira && <SlackReplies m={m} onOpen={onOpen} />}
       </div>
@@ -478,8 +488,8 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
     if (!react) return undefined;
     const pick = (choice: EmojiChoice) => {
       setPicking(null);
-      const mine = m.reactions?.some((r) => r.name === choice.name && r.mine) === true;
-      react(m.id, choice, !mine);
+      const picked = pickReaction(m.reactions ?? [], choice);
+      react(m.id, picked.choice, picked.on);
     };
     return {
       open: () => setPicking(m.id),
@@ -487,6 +497,7 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
       pick,
       toggle: (r) => react(m.id, { name: r.name, emoji: r.emoji ?? { kind: "emoji", text: `:${r.name}:` } }, !r.mine),
       picker: picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} quick={quick} onPick={pick} onClose={() => setPicking(null)} /> : null,
+      refused: controls.refusal?.messageId === m.id ? controls.refusal.text : null,
     };
   };
 }

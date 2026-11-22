@@ -515,6 +515,12 @@ export interface OutsideWindowAsk {
   direction?: "before" | "after";
   from?: string;
   /**
+   * With `direction: "after"` on a Slack channel or DM, the first message the card shows: the read also answers the
+   * shown messages from it to `from`, both included, so the card can take their reactions as they are now. A mod older
+   * than this ignores it and answers the newer messages alone.
+   */
+  shown_from?: string;
+  /**
    * A Jira card drawn as its ticket (plan 089): its comments alone, and with the opening window the ticket itself. Left
    * out, as an app older than plan 089 leaves it, the card's messages are its comments and field changes together.
    */

@@ -43,7 +43,7 @@ import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } fro
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { NewLine, SlackThread, loadLabel } from "./slack-thread";
-import { toggleReaction, useQuickEmoji } from "./slack-reactions";
+import { toggleReaction, useQuickEmoji, type EmojiSearch } from "./slack-reactions";
 import { cardKey, type OpenedThread } from "./deck-moves";
 import { useSeededReply } from "./use-seeded-reply";
 import { OutsideItemActions, OutsideItemHeader, type OutsideMoveHandlers } from "./outside-toolbar";
@@ -73,8 +73,9 @@ export interface ThreadControls {
   back?: () => void;
   busy: "before" | "after" | null;
   react?: (messageId: string, choice: EmojiChoice, on: boolean) => void;
-  searchEmoji?: (query: string) => Promise<EmojiChoice[]>;
+  searchEmoji?: EmojiSearch;
   quick?: EmojiChoice[];
+  refusal?: { messageId: string; text: string };
 }
 
 export type OutsideThreadSource = Pick<
@@ -143,17 +144,18 @@ const tsOrder = (ts: string): string => {
 
 export function refreshAsk(messages: readonly OutsideMessage[], w: OutsideWindow): OutsideWindowAsk | null {
   if (w.view === "thread") return w.thread_ts ? { view: "thread", thread_ts: w.thread_ts } : null;
+  const first = messages.at(0)?.id;
   const last = messages.at(-1)?.id;
-  return last && !w.more_after ? { view: "channel", direction: "after", from: last } : null;
+  return first && last && !w.more_after ? { view: "channel", direction: "after", from: last, shown_from: first } : null;
 }
 
-export function withNewer(now: Shown, out: OutsideRead): Shown {
+export function withNewer(now: Shown, out: OutsideRead, reactedSince: ReadonlySet<string> = new Set()): Shown {
   const w = now.window;
   if (!w) return now;
   const fresh = new Map(out.messages.map((m) => [m.id, m]));
   const messages = now.messages.map((m) => {
     const f = fresh.get(m.id);
-    if (!f) return m;
+    if (!f || reactedSince.has(m.id)) return m;
     const next = { ...m };
     if (f.reactions) next.reactions = f.reactions;
     else delete next.reactions;
@@ -167,27 +169,55 @@ export function withNewer(now: Shown, out: OutsideRead): Shown {
   return { ...now, messages: [...messages, ...newer], window: { ...w, more_after: more } };
 }
 
+interface Reacted {
+  seq: number;
+  at: Map<string, number>;
+}
+
+const reactedAfter = (r: Reacted, asked: number): Set<string> => new Set([...r.at].filter(([, seq]) => seq > asked).map(([id]) => id));
+
 function useReactControls(
   item: AttentionItem,
   source: OutsideThreadSource | null,
   setShown: (change: (now: Shown | null) => Shown | null) => void,
   tag: string,
-): Pick<ThreadControls, "react" | "quick" | "searchEmoji"> {
+  onReact: (messageId: string) => void,
+): Pick<ThreadControls, "react" | "quick" | "searchEmoji" | "refusal"> {
   const o = item.outside;
   const search = source?.searchEmoji;
-  const searchEmoji = search ? (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) : null;
+  const searchEmoji = search ? (q: string) => search(item, q) : null;
   const reactOutside = source?.reactOutside;
   const quick = useQuickEmoji(o?.provider === "slack" && reactOutside ? o.account_id : null, searchEmoji);
+  const [refused, setRefused] = useState<{ tag: string; messageId: string; text: string } | null>(null);
   const setReactions = (messageId: string, change: (m: OutsideMessage) => OutsideMessage["reactions"]) =>
     setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
   const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
     if (!reactOutside) return;
+    onReact(messageId);
+    setRefused(null);
     setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
-    void reactOutside(item, messageId, choice.name, on).then((refused) => {
-      if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
+    void reactOutside(item, messageId, choice.name, on).then((why) => {
+      if (why === null) return;
+      setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
+      setRefused({ tag, messageId, text: `Couldn't ${on ? "add" : "remove"} the reaction: ${why}` });
     });
   };
-  return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}) };
+  const refusal = refused?.tag === tag ? { messageId: refused.messageId, text: refused.text } : null;
+  return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}), ...(refusal ? { refusal } : {}) };
+}
+
+const REFRESH_MS = 60_000;
+
+function useTick(on: boolean, every: number): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") setTick((n) => n + 1);
+    }, every);
+    return () => clearInterval(timer);
+  }, [on, every]);
+  return tick;
 }
 
 const NO_SENT: SentSnapshot = { replies: [], went: 0 };
@@ -246,6 +276,8 @@ export function useOutsideThread(
   const steady = o?.provider === "slack";
   const tag = steady ? view : `${view}/${newest}`;
   const [shown, setShown] = useState<Shown | null>(null);
+  const reacted = useRef<Reacted>({ seq: 0, at: new Map() });
+  const tick = useTick(steady && key !== "", REFRESH_MS);
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
@@ -253,7 +285,7 @@ export function useOutsideThread(
   const readNewer = useEffectEvent(() => {
     if (!steady || shown?.tag !== tag || shown.failed !== null || !shown.window) return null;
     const again = refreshAsk(shown.messages, shown.window);
-    return { pending: again ? read(again) : null };
+    return { pending: again ? read(again) : null, asked: reacted.current.seq };
   });
   useEffect(() => {
     if (!key) return;
@@ -265,7 +297,7 @@ export function useOutsideThread(
     if (newer) {
       void newer.pending?.then((out) => {
         if (!live || typeof out === "string") return;
-        setShown((s) => (s?.tag === tag ? withNewer(s, out) : s));
+        setShown((s) => (s?.tag === tag ? withNewer(s, out, reactedAfter(reacted.current, newer.asked)) : s));
         if (out.window?.more_after !== true) settle(went);
       });
       return stop;
@@ -282,8 +314,12 @@ export function useOutsideThread(
       );
     });
     return stop;
-  }, [key, tag, view, newest, went]);
-  const reacting = useReactControls(item, source, setShown, tag);
+  }, [key, tag, view, newest, went, tick]);
+  const noteReacted = (messageId: string) => {
+    reacted.current.seq += 1;
+    reacted.current.at.set(messageId, reacted.current.seq);
+  };
+  const reacting = useReactControls(item, source, setShown, tag, noteReacted);
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
   const messages = [...shown.messages, ...sent.standIns];

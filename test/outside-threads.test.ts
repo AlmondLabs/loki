@@ -792,6 +792,15 @@ describe("the reply frames", () => {
     asked.pop();
     await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", view: "thread", thread_ts: "1", direction: "after", from: "5" });
     expect(asked).toEqual([{}, { view: "thread", thread_ts: "1", direction: "after", from: "5" }]);
+    asked.pop();
+    await send({ type: "account_thread_read", account_id: SLACK, thread_id: "D1", view: "channel", direction: "after", from: "5", shown_from: "2" });
+    await send({ type: "account_thread_read", account_id: SLACK, thread_id: "D1", direction: "before", from: "5", shown_from: "2" });
+    await send({ type: "account_thread_read", account_id: SLACK, thread_id: "D1", direction: "after", from: "5", shown_from: 2 });
+    expect(asked.slice(-3)).toEqual([
+      { view: "channel", direction: "after", from: "5", shown_from: "2" },
+      { direction: "before", from: "5" },
+      { direction: "after", from: "5" },
+    ]);
     expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", direction: "sideways", from: "5" })).toMatchObject({
       type: "error",
       message: "direction must be before or after",
