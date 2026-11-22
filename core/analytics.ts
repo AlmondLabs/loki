@@ -315,7 +315,7 @@ function passRows(
     .sort((a, b) => a.job.localeCompare(b.job));
 }
 
-const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection", "doctor"]);
+const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection", "doctor", "advisor"]);
 
 const DAY_MS = 86_400_000;
 export const RETURN_WINDOW_MS = 3 * 60 * 60_000;

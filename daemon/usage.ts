@@ -2,6 +2,7 @@ import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, UsageState } from "@earendil-works/pi-durable";
 import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+import { isAdvisorChat } from "../core/advisor.ts";
 import { isWriterChat } from "../core/recall/model.ts";
 import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
 import { doctorChatId } from "./doctor.ts";
@@ -89,9 +90,11 @@ const ORIGIN_OF_TURN: Partial<Record<string, UsageOrigin>> = {
   recall: "learn",
   reflection: "reflection",
   doctor: "doctor",
+  advisor: "advisor",
 };
 
 export function originOfChat(chatId: string, agentId: string): UsageOrigin {
+  if (isAdvisorChat(chatId)) return "advisor";
   if (isWriterChat(chatId)) return "learn";
   const own = chatId.endsWith(ACP_PASS_SUFFIX) ? chatId.slice(0, -ACP_PASS_SUFFIX.length) : chatId;
   if (own === `reflection-${agentId}`) return "reflection";
