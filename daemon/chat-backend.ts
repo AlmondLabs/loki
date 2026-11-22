@@ -8,13 +8,14 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
-import type { AdvisorView, ConsultFrom } from "../core/advisor.ts";
+import { advisorChatId, type AdvisorView, type ConsultFrom } from "../core/advisor.ts";
 import { backendName, MAIN_CHAT_ID } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
+import type { HeldMove } from "../mod/chat-moves.ts";
 import type { Advice, AdvisorConsults, ConsultReply } from "./advisor-consults.ts";
 import { changesConsultText, type ChangesConsult } from "./advisor-changes.ts";
 import type { Approvals } from "./approvals.ts";
@@ -31,7 +32,7 @@ import type { PassState } from "./passes-state.ts";
 import { editMemoryFile, isDoctorChat, isReflectionChat, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore, ChatInfo } from "./kernel/index.ts";
 import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
-import { exportChat, importChat, type MoveNames, type MovedChat } from "./chat-move.ts";
+import { exportChat, importChat, type MoveNames, type MovedAdvisor, type MovedChat } from "./chat-move.ts";
 import type { BackgroundTasks } from "./background.ts";
 import type { Schedules } from "./schedule.ts";
 import { homeOf, readRecord } from "./store/agent-sync.ts";
@@ -342,8 +343,18 @@ export class DaemonChats implements ChatBackend {
       ...(p.draft === null ? { draft: null } : {}),
     };
     if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
+    if (p.archived !== undefined) await this.archiveAdvisor(store, p.agent_id, p.conversation_id, p.archived);
     for (const label of p.labels ?? []) this.colors.colorOf(label);
     return p.draft ? { draft_suggestion_id: p.draft.suggestion_id } : {};
+  }
+
+  private async archiveAdvisor(store: AgentStore, agentId: string, chatId: string, archived: boolean): Promise<void> {
+    const advisorId = advisorChatId(chatId);
+    if (archived) {
+      await this.deps.advisors?.drop(agentId, chatId);
+      if (await this.busy(agentId, advisorId)) await this.abort(agentId, advisorId);
+    }
+    await store.updateChat(advisorId, { archived }, this.deps.context);
   }
 
   private async everyChat(): Promise<Array<{ store: AgentStore; info: ChatInfo }>> {
@@ -555,7 +566,8 @@ export class DaemonChats implements ChatBackend {
   }
 
   async exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }> {
-    if (await this.busy(agentId, chatId)) return { chat: null, busy: true };
+    const advising = (await this.busy(agentId, advisorChatId(chatId))) || (await this.deps.advisors?.running(agentId, chatId)) === true;
+    if (advising || (await this.busy(agentId, chatId))) return { chat: null, busy: true };
     const store = await this.deps.stores.get(agentId);
     const schedules = (this.deps.schedules?.list() ?? []).filter((t) => t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId);
     const cursors: Record<string, number> = {};
@@ -569,6 +581,7 @@ export class DaemonChats implements ChatBackend {
   async importChat(moved: MovedChat, names?: MoveNames): Promise<boolean> {
     const store = await this.deps.stores.get(moved.agent_id);
     const made = await importChat(store, moved, this.deps.context, names);
+    if (made && moved.advisor) await this.adoptAdvisor(store, moved, moved.advisor);
     if (made) await this.loki.forgetChat(moved.agent_id, moved.conversation_id);
     for (const task of moved.schedules) this.deps.schedules?.adopt(task);
     for (const [job, at] of Object.entries(moved.cursors))
@@ -576,11 +589,44 @@ export class DaemonChats implements ChatBackend {
     return made;
   }
 
+  private async adoptAdvisor(store: AgentStore, moved: MovedChat, advisor: MovedAdvisor): Promise<void> {
+    try {
+      if (!this.deps.advisors) throw new Error("advisors are not running in this daemon");
+      await this.deps.advisors.adopt(moved.agent_id, moved.conversation_id, advisor);
+    } catch (error) {
+      await store.retireChat(moved.conversation_id, this.deps.context).catch(() => false);
+      throw error;
+    }
+    await this.loki.forgetChat(moved.agent_id, advisorChatId(moved.conversation_id));
+  }
+
   async finishMove(agentId: string, chatId: string): Promise<void> {
     const store = await this.deps.stores.get(agentId);
-    await store.updateChat(chatId, { hidden: true }, this.deps.context);
+    await store.updateChat(chatId, { hidden: true, move_to: null }, this.deps.context);
+    await store.updateChat(advisorChatId(chatId), { hidden: true }, this.deps.context);
+    await this.deps.advisors?.drop(agentId, chatId);
     for (const t of this.deps.schedules?.list() ?? [])
       if (t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId) this.deps.schedules?.cancel(agentId, t.id);
+  }
+
+  holdMove(agentId: string, chatId: string, to: string): Promise<boolean> {
+    return this.deps.advisors?.hold(agentId, chatId, to) ?? Promise.resolve(false);
+  }
+
+  async heldMoves(): Promise<HeldMove[]> {
+    const out: HeldMove[] = [];
+    for (const agentId of listAgents(this.deps.backendDir)) {
+      const store = await this.deps.stores.get(agentId);
+      for (const info of await store.chats(this.deps.context)) {
+        if (!info.move_to || info.hidden || info.advisor_consults?.some((c) => c.state === "running")) continue;
+        if (!(await this.busy(agentId, info.id))) out.push({ agent_id: agentId, conversation_id: info.id, to: info.move_to });
+      }
+    }
+    return out;
+  }
+
+  releaseMove(agentId: string, chatId: string): Promise<void> {
+    return this.deps.advisors?.release(agentId, chatId) ?? Promise.resolve();
   }
 
   labelColors(): LabelColorsSnapshot {

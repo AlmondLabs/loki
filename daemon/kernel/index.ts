@@ -87,6 +87,11 @@ export type ChatInfo = {
    * which the agent's hourly cap counts, with the newest ended one; absent, none.
    */
   advisor_consults?: AdvisorConsult[];
+  /**
+   * The paired Mac this chat moves to once its advisor's running consult has answered (daemon/advisor-consults.ts).
+   * While it is set, the consults still queued wait to travel with the chat. Absent or null, no move waits.
+   */
+  move_to?: string | null;
 };
 
 /**
@@ -201,7 +206,10 @@ export class AgentStore {
   async updateChat(
     id: string,
     change: Partial<
-      Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved">
+      Pick<
+        ChatInfo,
+        "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved" | "move_to"
+      >
     >,
     context: Context,
   ): Promise<boolean> {
@@ -221,6 +229,7 @@ export class AgentStore {
       if (change.suggestions !== undefined) info.suggestions = change.suggestions;
       if (change.placed !== undefined) info.placed = change.placed;
       if (change.moved !== undefined) info.moved = change.moved;
+      if (change.move_to !== undefined) info.move_to = change.move_to;
     }, context);
     return true;
   }

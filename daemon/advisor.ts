@@ -15,6 +15,7 @@ import { harnessOf, type ReasoningEffort } from "../core/models.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ADVISOR_TOOLS } from "./advisor-gate.ts";
+import type { MovedAdvisor } from "./chat-move.ts";
 import { ADVISOR_EXTENSION, AgentInfoDoc, type AgentStore } from "./kernel/index.ts";
 import { modelRef, thinkingLevel } from "./loki-engine.ts";
 import { memoryRoot, memorySection } from "./memory.ts";
@@ -105,30 +106,67 @@ export class Advisors {
     if (!advised) return { refused: "The chat this advisor would work for is gone." };
     const choice = await advisorModel(readLocalAgent(agentId, this.deps.backendDir), (handle) => this.deps.canRun(handle));
     if ("refused" in choice) return choice;
+    const model = modelRef(choice.handle);
+    const chat = await this.make(store, chatId, {
+      ...(model ? { model } : {}),
+      ...(choice.effort ? { effort: choice.effort } : {}),
+      cwd: (await advised.agent(context)).cwd ?? this.deps.home,
+    });
+    return { chat, advisorId, created: true };
+  }
+
+  private async make(store: AgentStore, chatId: string, agent: MovedAdvisor["agent"], createdAt?: string): Promise<Conversation> {
     const snapshot = this.deps.registry.snapshot();
     const advisor = snapshot.extension(ADVISOR_EXTENSION);
     if (!advisor) throw new Error(`loki's ${ADVISOR_EXTENSION} extension is not installed`);
     const registered = new Map<string, ToolRegistration>(snapshot.tools().map(({ tool }) => [tool.name, tool]));
     const tools = ADVISOR_TOOLS.flatMap((name) => registered.get(name) ?? []);
-    const level = thinkingLevel(choice.effort);
-    const chat = await store.createChat(
-      advisorId,
+    const level = thinkingLevel(agent.effort ?? null);
+    return store.createChat(
+      advisorChatId(chatId),
       {
         title: "Advisor",
         hidden: true,
         mode: "standard",
         advisor_for: chatId,
+        ...(createdAt ? { createdAt } : {}),
         agent: {
           tools,
           modelTools: tools,
           extensions: { add: [advisor] },
-          model: modelRef(choice.handle),
+          ...(agent.model ? { model: agent.model } : {}),
           ...(level ? { thinkingLevel: level } : {}),
-          cwd: (await advised.agent(context)).cwd ?? this.deps.home,
+          cwd: agent.cwd ?? this.deps.home,
         },
       },
-      context,
+      this.deps.context,
     );
-    return { chat, advisorId, created: true };
+  }
+
+  adopt(agentId: string, chatId: string, moved: MovedAdvisor): Promise<void> {
+    return this.queue(`${agentId}\u0000${chatId}`, async () => {
+      const { context } = this.deps;
+      const store = await this.deps.stores.get(agentId);
+      const advisorId = advisorChatId(chatId);
+      if (await store.chat(advisorId, context)) await store.retireChat(advisorId, context);
+      const chat = await this.make(store, chatId, moved.agent, moved.created_at);
+      try {
+        await store.importEntries(chat, moved.entries, context);
+        if (moved.archived) await store.updateChat(advisorId, { archived: true }, context);
+      } catch (error) {
+        await store.retireChat(advisorId, context).catch(() => false);
+        throw error;
+      }
+    });
+  }
+
+  async followFolder(agentId: string, chatId: string): Promise<void> {
+    const { context } = this.deps;
+    const store = await this.deps.stores.get(agentId);
+    const advisor = await store.chat(advisorChatId(chatId), context);
+    const advised = await store.chat(chatId, context);
+    if (!advisor || !advised) return;
+    const cwd = (await advised.agent(context)).cwd ?? this.deps.home;
+    if ((await advisor.agent(context)).cwd !== cwd) await advisor.configure({ cwd }, context);
   }
 }

@@ -10,6 +10,25 @@ import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
 import { messageOf } from "../core/errors.ts";
 
+/** A move asked while the chat's advisor was answering, ready to go: that answer has landed and the chat is idle. */
+export interface HeldMove {
+  agent_id: string;
+  conversation_id: string;
+  to: string;
+}
+
+/**
+ * What the daemon keeps of a move that waits for a chat's advisor (daemon/chat-backend.ts): `holdMove` holds it when a
+ * consult is running, saving the Mac on the chat; `releaseMove` lets go of one that cannot go; `onAdvisorChange` fires
+ * when a held move may have become ready.
+ */
+export interface AdvisorHolds {
+  holdMove(agentId: string, conversationId: string, to: string): Promise<boolean>;
+  heldMoves(): Promise<HeldMove[]>;
+  releaseMove(agentId: string, conversationId: string): Promise<void>;
+  onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void;
+}
+
 export class ChatMoves implements PeerMoves {
   private readonly opts: {
     here: string;
@@ -21,15 +40,18 @@ export class ChatMoves implements PeerMoves {
     markDone: (macId: string) => void;
     onMoved: (macId: string) => void;
     onLeft: (chat: { agent_id: string; conversation_id: string }, to: string) => void;
+    held?: AdvisorHolds;
     file?: string;
     now?: () => number;
   };
   private readonly moving: Map<string, Hold>;
   private readonly running = new Set<string>();
+  private readonly going = new Set<string>();
 
   constructor(opts: ChatMoves["opts"]) {
     this.opts = opts;
     this.moving = new Map(opts.file ? readHolds(opts.file) : []);
+    opts.held?.onAdvisorChange(() => void this.goHeld());
   }
 
   blocked(agentId: string, conversationId: string): string | null {
@@ -52,6 +74,11 @@ export class ChatMoves implements PeerMoves {
   async settle(macId: string): Promise<void> {
     const link = this.opts.link(macId);
     if (!link) return;
+    await this.settleHolds(macId, link);
+    await this.goHeld();
+  }
+
+  private async settleHolds(macId: string, link: PeerLink): Promise<void> {
     for (const [key, hold] of [...this.moving].filter(([, h]) => h.to === macId)) {
       try {
         // react-doctor-disable-next-line react-doctor/async-await-in-loop
@@ -121,6 +148,37 @@ export class ChatMoves implements PeerMoves {
     if (name === null) return "that Mac is not paired with this one";
     const link = this.opts.link(to);
     if (!link) return `${name} is out of reach: move the chat once it is back`;
+    if (await this.opts.held?.holdMove(agentId, conversationId, to)) {
+      log("peers:chat-move-held", { agent: agentId, chat: conversationId, to });
+      return `The chat moves to ${name} when the advisor has answered.`;
+    }
+    return this.send(to, name, link, agentId, conversationId);
+  }
+
+  private async goHeld(): Promise<void> {
+    const held = this.opts.held;
+    if (!held) return;
+    try {
+      for (const move of await held.heldMoves()) {
+        const key = `${move.agent_id}/${move.conversation_id}`;
+        const link = this.opts.link(move.to);
+        if (!link || this.going.has(key)) continue;
+        this.going.add(key);
+        try {
+          // react-doctor-disable-next-line react-doctor/async-await-in-loop
+          const why = await this.send(move.to, this.opts.name(move.to) ?? "another Mac", link, move.agent_id, move.conversation_id);
+          if (why) await held.releaseMove(move.agent_id, move.conversation_id);
+          log(why ? "peers:chat-held-move-failed" : "peers:chat-held-move-went", { agent: move.agent_id, chat: move.conversation_id, to: move.to, error: why });
+        } finally {
+          this.going.delete(key);
+        }
+      }
+    } catch (err) {
+      log("peers:chat-held-moves-failed", { error: messageOf(err) });
+    }
+  }
+
+  private async send(to: string, name: string, link: PeerLink, agentId: string, conversationId: string): Promise<string | null> {
     try {
       const out = (await link.request({ type: "peer_chat_take", agent_id: agentId, conversation_id: conversationId }, MOVE_TIMEOUT_MS)) as {
         moved?: boolean;

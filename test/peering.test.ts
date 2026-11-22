@@ -26,7 +26,7 @@ function mac(opts: { tailnet?: TailnetDevice[]; desks?: DeskSummary[]; inbox?: I
     secrets: memorySecrets(),
     memory: memoryRepos,
     chats: { list: () => [] },
-    chat: {} as PeeringDeps["chat"],
+    chat: { onAdvisorChange: () => () => {}, heldMoves: () => Promise.resolve([]) } as Partial<PeeringDeps["chat"]> as PeeringDeps["chat"],
     seen: new SeenStore(join(dir, "attention.json")),
     desks: { forgetConversations: () => 0 },
     sockets: {

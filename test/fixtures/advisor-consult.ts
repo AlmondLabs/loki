@@ -62,6 +62,7 @@ function surviving(storage: Storage): Storage {
 interface DaemonOptions {
   deliver?: (advice: Advice, real: () => Promise<void>) => Promise<void>;
   restartLimit?: number;
+  apart?: boolean;
   changes?: ConstructorParameters<typeof DaemonChats>[0]["changes"];
 }
 
@@ -80,8 +81,9 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
   const main = `${faux.provider.id}/main`;
   const advice = `${faux.provider.id}/advice`;
   writeRecord(backend, AGENT, { id: AGENT, name: "Ada", model: main, advisor_model: advice, model_settings: {}, tags: [] });
+  mkdirSync(join(backend, "memfs", AGENT), { recursive: true });
 
-  const seen = { chat: [] as string[], chatContexts: [] as string[], advisor: [] as string[] };
+  const seen = { chat: [] as string[], chatContexts: [] as string[], advisor: [] as string[], advisorContexts: [] as string[] };
   const replies: { chat: Reply; advisor: Reply } = {
     chat: () => fauxAssistantMessage("Taken up."),
     advisor: (text) => fauxAssistantMessage(`Advice on: ${text.slice(0, 60)}`),
@@ -90,6 +92,7 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
     const text = lastUserText(context.messages);
     if (model.id === "advice") {
       seen.advisor.push(text);
+      seen.advisorContexts.push(JSON.stringify(context));
       return replies.advisor(text);
     }
     seen.chat.push(text);
@@ -102,7 +105,8 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
   const clock = { now: Date.parse("2026-11-22T10:00:00Z") };
   let ids = 0;
 
-  const daemon = async ({ deliver, restartLimit, changes }: DaemonOptions = {}) => {
+  const daemon = async ({ deliver, restartLimit, apart, changes }: DaemonOptions = {}) => {
+    const own = apart ? new MemoryStorage() : storage;
     const approvals = new Approvals({ advisorFolders: { dataDir, backendDir: backend, home } });
     const mods = new ModRegistry(() => {});
     const history = new ChatProjection(ctx, () => "Ada");
@@ -125,7 +129,7 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
       options,
       ctx,
       () => {},
-      () => AgentStore.open({ storage }, options, ctx),
+      () => AgentStore.open({ storage: own }, options, ctx),
     );
     history.follow(stores, () => {});
     const reports: string[] = [];

@@ -19,7 +19,8 @@ import {
 import { messageOf } from "../core/errors.ts";
 import { Listeners } from "../core/listeners.ts";
 import { keyedQueue } from "../core/serial.ts";
-import type { AdvisorOpen } from "./advisor.ts";
+import type { Advisors } from "./advisor.ts";
+import type { MovedAdvisor } from "./chat-move.ts";
 import { unansweredWhy } from "./chat-events.ts";
 import type { AgentStore } from "./kernel/index.ts";
 
@@ -34,7 +35,7 @@ export type ConsultReply = { consult_id: string; advisor_model: string | null; a
 type Outcome = { state: "answered"; text: string } | { state: "failed" | "stopped"; reason: string };
 
 export interface ConsultDeps {
-  advisors: { open(agentId: string, chatId: string): Promise<AdvisorOpen> };
+  advisors: Pick<Advisors, "open" | "adopt" | "followFolder">;
   stores: { get(agentId: string): Promise<AgentStore> };
   agents(): string[];
   context: Context;
@@ -215,6 +216,30 @@ export class AdvisorConsults {
     });
   }
 
+  hold(agentId: string, chatId: string, to: string): Promise<boolean> {
+    return this.serial(this.keyOf(agentId, chatId), async () => {
+      const { context } = this.deps;
+      const store = await this.deps.stores.get(agentId);
+      const chat = await store.chat(chatId, context);
+      const consults = chat ? ((await store.chatInfo(chat.id, context))?.advisor_consults ?? []) : [];
+      if (!consults.some((c) => c.state === "running")) return false;
+      await store.updateChat(chatId, { move_to: to }, context);
+      return true;
+    });
+  }
+
+  async release(agentId: string, chatId: string): Promise<void> {
+    const store = await this.deps.stores.get(agentId);
+    await store.updateChat(chatId, { move_to: null }, this.deps.context);
+    await this.pump(agentId, chatId);
+  }
+
+  async adopt(agentId: string, chatId: string, moved: MovedAdvisor): Promise<void> {
+    await this.deps.advisors.adopt(agentId, chatId, moved);
+    this.changes.emit(agentId, chatId);
+    void this.pump(agentId, chatId);
+  }
+
   private keyOf(agentId: string, chatId: string): string {
     return `${agentId}\u0000${chatId}`;
   }
@@ -224,8 +249,9 @@ export class AdvisorConsults {
       const { context } = this.deps;
       const store = await this.deps.stores.get(agentId);
       const chat = await store.chat(chatId, context);
-      const consults = chat ? ((await store.chatInfo(chat.id, context))?.advisor_consults ?? []) : [];
-      if (consults.some((c) => c.state === "running")) return;
+      const info = chat ? await store.chatInfo(chat.id, context) : undefined;
+      const consults = info?.advisor_consults ?? [];
+      if (info?.move_to || consults.some((c) => c.state === "running")) return;
       const next = consults.find((c) => c.state === "queued");
       if (!next) return;
       const opened = await this.deps.advisors.open(agentId, chatId);
@@ -238,6 +264,7 @@ export class AdvisorConsults {
         this.afterIdle(agentId, chatId, advisor);
         return;
       }
+      await this.deps.advisors.followFolder(agentId, chatId);
       const submission = await advisor.submit(
         { type: "input", content: consultBlock(next.from, next.text ?? ""), requestId: `${ADVISOR_REQUEST_PREFIX}${next.id}` },
         context,
@@ -310,8 +337,9 @@ export class AdvisorConsults {
       const { context } = this.deps;
       const store = await this.deps.stores.get(agentId);
       const chat = await store.chat(chatId, context);
-      const consult = chat ? (await store.chatInfo(chat.id, context))?.advisor_consults?.find((c) => c.id === consultId) : undefined;
-      if (!consult || consultEnded(consult)) return;
+      const info = chat ? await store.chatInfo(chat.id, context) : undefined;
+      const consult = info?.advisor_consults?.find((c) => c.id === consultId);
+      if (!chat || !consult || consultEnded(consult)) return;
       const answer: AdvisorAnswer = { from: consult.from, asked: consult.first_line, advisor_chat: advisorChatId(chatId), ...outcome };
       try {
         await this.deps.deliver(agentId, chatId, {
@@ -338,7 +366,15 @@ export class AdvisorConsults {
         context,
       );
       this.changes.emit(agentId, chatId);
-      void this.pump(agentId, chatId);
+      if (info?.move_to) this.whenChatIdle(agentId, chatId, chat);
+      else void this.pump(agentId, chatId);
     });
+  }
+
+  private whenChatIdle(agentId: string, chatId: string, chat: Conversation): void {
+    void chat
+      .waitForIdle(this.deps.context)
+      .then(() => this.changes.emit(agentId, chatId))
+      .catch((e: unknown) => this.report(`a move waiting on an advisor did not go on: ${messageOf(e)}`));
   }
 }

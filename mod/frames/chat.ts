@@ -2,6 +2,7 @@ import { isAdvisorChat, type AdvisorView, type ConsultFrom } from "../../core/ad
 import type { ConsultReply } from "../../daemon/advisor-consults.ts";
 import type { PermissionMode } from "../../core/chat-links.ts";
 import type { MovedChat } from "../../daemon/chat-move.ts";
+import type { HeldMove } from "../chat-moves.ts";
 import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
@@ -49,6 +50,9 @@ export interface ChatBackend {
   consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply>;
   advisorView(agentId: string, chatId: string): Promise<AdvisorView | null>;
   onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void;
+  holdMove(agentId: string, conversationId: string, to: string): Promise<boolean>;
+  heldMoves(): Promise<HeldMove[]>;
+  releaseMove(agentId: string, conversationId: string): Promise<void>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   approvals(): Promise<Replies["chat_approvals"]>;
