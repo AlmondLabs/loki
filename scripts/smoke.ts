@@ -193,7 +193,7 @@ async function main(): Promise<void> {
     try {
       rmSync(home, { recursive: true, force: true, maxRetries: 5 });
     } catch {
-      // Windows may hold a file of the killed daemon's a moment longer; the scratch folder is the system's to clear
+      // Outside (Windows): it may hold a file of the killed daemon's a moment longer; the scratch folder is the system's to clear.
     }
   }
   if (failures) {

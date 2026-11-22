@@ -4,24 +4,20 @@ import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lintAll, linters, type Linter } from "./lint.ts";
 
-/** One file a PR changed, as `git diff --name-status` gives it. */
 export interface Change {
   status: string;
   path: string;
 }
 
-/** What a PR's lint covers: everything, and why, or these files. */
 export type LintPlan = { all: true; why: string } | { all: false; files: string[] };
 
 const SCRIPT = /\.(c|m)?[jt]sx?$/;
-// A change to how the lint is set up, or to what the types are built from, can change any file's result.
-const SETUP =
+const SETUP_THAT_REACHES_EVERY_FILE =
   /^(\.oxlintrc\.json|eslint\.config\.mjs|tsconfig(\.[\w-]+)?\.json|package\.json|bun\.lock|scripts\/lint(-pr)?\.ts|eslint-comments\.(mjs|d\.mts)|scripts\/workflow-comments\.ts)$/;
 const IMPORT = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 
 const stem = (path: string) => path.replace(/\.(c|m)?[jt]sx?$/, "").replace(/\/index$/, "");
 
-/** The files under `sources` that import one of `changed`, by relative path or the app's `@/` alias. */
 export function importersOf(changed: ReadonlySet<string>, sources: ReadonlyMap<string, string>): string[] {
   const targets = new Set([...changed].map(stem));
   const found: string[] = [];
@@ -39,12 +35,8 @@ export function importersOf(changed: ReadonlySet<string>, sources: ReadonlyMap<s
   return found;
 }
 
-/**
- * On a PR, the files a change can turn red: the changed code and the files that import it directly. A type-aware rule
- * can still fail further away (a type two imports off), which the merge queue's full lint catches before main.
- */
 export function lintPlan(changes: readonly Change[], sources: ReadonlyMap<string, string>): LintPlan {
-  const setup = changes.find((c) => SETUP.test(c.path));
+  const setup = changes.find((c) => SETUP_THAT_REACHES_EVERY_FILE.test(c.path));
   if (setup) return { all: true, why: `${setup.path} changed` };
   const changed = new Set(changes.filter((c) => c.status !== "D" && SCRIPT.test(c.path)).map((c) => c.path));
   return { all: false, files: [...changed, ...importersOf(changed, sources)].sort() };
@@ -77,8 +69,8 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
     .split("\n")
     .filter((f) => SCRIPT.test(f));
   const plan = lintPlan(changes, new Map(tracked.map((f) => [f, readFileSync(join(root, f), "utf8")])));
-  // --plan says only whether the whole lint runs, for CI to pick the step and its budget (ci.yml).
-  if (args.includes("--plan")) console.log(`all=${String(plan.all)}`);
+  const onlyTellCiWhetherAll = args.includes("--plan");
+  if (onlyTellCiWhetherAll) console.log(`all=${String(plan.all)}`);
   else if (plan.all) {
     console.log(`Linting everything: ${plan.why}.`);
     process.exitCode = await lintAll(linters([]), (l) => runNode(l, root));

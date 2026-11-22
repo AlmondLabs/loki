@@ -1,15 +1,5 @@
-/**
- * The update key's check (plan 2026-11-15-2319, U4): every updater signature a release build made must come from the
- * key compiled into loki, `plugins.updater.pubkey` in src-tauri/tauri.conf.json. tauri-cli only warns when the two
- * differ, and a loki built that way can never verify an update again, so the release stops here instead. Run by
- * .github/workflows/release.yml after each build, with the build's `.sig` files:
- *   node --experimental-strip-types scripts/check-update-key.ts src-tauri/target/release/bundle/nsis/loki_x64-setup.exe.sig
- *
- * Both are minisign files, stored as base64 of the file's text. The public key's second line is base64 of 42 bytes:
- * the algorithm `Ed`, the 8-byte key id and the 32-byte key. A signature's second line is base64 of 74 bytes: the
- * algorithm (`Ed`, or `ED` when the file was hashed first), the key id and the 64-byte signature. Only the key ids are
- * compared: the bundler has already signed, and the plugin verifies the signature itself.
- */
+// Outside (Tauri): tauri-cli only warns when the key that signed an update differs from `plugins.updater.pubkey` in
+// src-tauri/tauri.conf.json, and a loki built that way can never verify an update again.
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -20,30 +10,38 @@ export interface KeyCheck {
   signed: string[];
 }
 
-/** Strict base64: Buffer.from would quietly skip the characters it does not know, and decode the placeholder. */
+// Outside (Node): Buffer.from quietly skips the characters it does not know, so it would decode the placeholder.
 function decodeBase64(text: string, what: string): Buffer {
   const t = text.trim();
   if (t === "" || t.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(t)) throw new Error(`${what} is not base64`);
   return Buffer.from(t, "base64");
 }
 
-/** The key id in a minisign file's second line, as minisign prints it: the 8 bytes as a little-endian number, in hex. */
+const ALGORITHM_BYTES = 2;
+const KEY_ID_BYTES = 8;
+const PUBLIC_KEY_BYTES = ALGORITHM_BYTES + KEY_ID_BYTES + 32;
+const SIGNATURE_BYTES = ALGORITHM_BYTES + KEY_ID_BYTES + 64;
+const ED25519 = "Ed";
+const ED25519_PREHASHED = "ED";
+
+const keyIdAsMinisignPrintsIt = (littleEndian: Uint8Array) => Buffer.from(littleEndian).reverse().toString("hex").toUpperCase();
+
 function keyIdIn(file: string, what: string, length: number, algorithms: string[]): string {
   const lines = decodeBase64(file, what).toString("utf8").split(/\r?\n/);
   const [comment, second] = lines;
   if (lines.length < 2 || !comment.startsWith("untrusted comment:")) throw new Error(`${what} is not a minisign file`);
   const line = decodeBase64(second, `${what}'s second line`);
-  const algorithm = line.subarray(0, 2).toString("latin1");
+  const algorithm = line.subarray(0, ALGORITHM_BYTES).toString("latin1");
   if (line.length !== length || !algorithms.includes(algorithm)) throw new Error(`${what} is not a minisign Ed25519 key or signature`);
-  return Buffer.from(line.subarray(2, 10)).reverse().toString("hex").toUpperCase();
+  return keyIdAsMinisignPrintsIt(line.subarray(ALGORITHM_BYTES, ALGORITHM_BYTES + KEY_ID_BYTES));
 }
 
 export function publicKeyId(pubkey: string): string {
-  return keyIdIn(pubkey, "the public key", 42, ["Ed"]);
+  return keyIdIn(pubkey, "the public key", PUBLIC_KEY_BYTES, [ED25519]);
 }
 
 export function signatureKeyId(sig: string): string {
-  return keyIdIn(sig, "the signature", 74, ["Ed", "ED"]);
+  return keyIdIn(sig, "the signature", SIGNATURE_BYTES, [ED25519, ED25519_PREHASHED]);
 }
 
 function pubkeyIn(configText: string): string {

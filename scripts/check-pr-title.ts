@@ -26,12 +26,12 @@ export const SCOPES = [
 
 export const MAX_TITLE = 72;
 
+const GITHUB_REVERT_BUTTON_TITLE = /^Revert ".+"$/;
 const SHAPE = /^(?<type>[a-z]+)(?:\((?<scope>[a-z-]+)\))?(?<breaking>!)?: (?<subject>.+)$/;
 
 export function titleProblem(title: string): string | null {
   const t = title.trim();
-  // GitHub's own revert button titles the PR `Revert "<the original title>"`.
-  if (/^Revert ".+"$/.test(t)) return null;
+  if (GITHUB_REVERT_BUTTON_TITLE.test(t)) return null;
   const m = SHAPE.exec(t);
   if (!m?.groups) return 'the shape is "type(scope): what changed", e.g. "feat(chat): suggest work for another chat"';
   const { type, scope, subject } = m.groups;

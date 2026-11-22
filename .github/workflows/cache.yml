@@ -1,6 +1,5 @@
 name: cache
-# Installs on main, so a PR finds node_modules saved from its base branch: a cache saved on a PR is visible to that PR
-# alone. A run on a key already saved restores it, which also keeps it from expiring after seven days unused.
+# Outside (GitHub Actions): a cache saved on a PR is visible to that PR alone, and one unused for seven days expires.
 on:
   push:
     branches: [main]

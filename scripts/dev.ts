@@ -16,10 +16,8 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const windows = process.platform === "win32";
 const mac = process.platform === "darwin";
 const exeNames = (name: string): string[] => (windows ? [`${name}.exe`, `${name}.cmd`, name] : [name]);
-/**
- * The dev tools' entry scripts. On Windows node_modules/.bin holds .cmd shims, which spawn cannot start without a
- * shell, so there the JS entry runs directly with this script's runtime (see `run`).
- */
+// Outside (Windows): node_modules/.bin holds .cmd shims, which spawn cannot start without a shell, so the JS entry
+// runs directly with this script's runtime.
 const ENTRIES: Record<string, string> = { vite: "../node_modules/vite/bin/vite.js", tauri: "../node_modules/@tauri-apps/cli/tauri.js" };
 const bin = (name: string) => fileURLToPath(new URL(windows ? ENTRIES[name] : `../node_modules/.bin/${name}`, import.meta.url));
 const home = homedir();
@@ -32,11 +30,8 @@ function onPath(name: string, path = process.env.PATH ?? ""): string | null {
   return null;
 }
 
-/**
- * The Rust toolchain: `tauri dev` runs `cargo metadata` first and dies with a bare "No such file or directory"
- * without it. rustup installs to ~/.cargo/bin and only the next shell sees it, so look there too and use it.
- * Returns the PATH the children should run with, or null after printing what to install.
- */
+// Outside (Tauri): `tauri dev` runs `cargo metadata` first and dies with a bare "No such file or directory" without
+// cargo. rustup installs to ~/.cargo/bin, which only the next shell has on PATH.
 function rustPreflight(): string | null {
   const path = process.env.PATH ?? "";
   if (onPath("cargo", path)) return path;
@@ -78,11 +73,8 @@ async function viteThere(url: string): Promise<"ours" | "other" | "none"> {
   }
 }
 
-/**
- * Xcode's command line tools: cargo links through them, and without them the build dies much later with an
- * `xcrun` or linker error that names nothing. `xcode-select -p` prints the developer directory when either
- * the tools or Xcode is installed.
- */
+// Outside (macOS): cargo links through Xcode's command line tools, and without them the build dies much later with an
+// `xcrun` or linker error that names nothing. `xcode-select -p` succeeds when either the tools or Xcode is installed.
 function xcodeToolsPresent(): boolean {
   const r = spawnSync("xcode-select", ["-p"], { stdio: "ignore" });
   return r.status === 0;
@@ -226,8 +218,8 @@ if (hot) watchPhoneBuild();
 
 function watchPhoneBuild(): void {
   console.error("loki dev: rebuilding the phone's app (app/dist) as the code changes");
-  // A build watch reads its config once (Vite's dev server restarts on a config change; this does not), so a change to
-  // app/vite.config.ts starts it afresh; a stale config once left every build failing while the watch looked alive.
+  // Outside (Vite): a build watch reads its config once, unlike the dev server, so a change to app/vite.config.ts
+  // starts it afresh.
   let phoneBuild: ChildProcess;
   let restarting = false;
   const startPhoneBuild = () => {

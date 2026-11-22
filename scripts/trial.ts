@@ -104,8 +104,8 @@ async function daemonTurn(store: AgentStore, instructions: string, prompt: Promp
   for (const entry of (await store.entries(chat, ctx)).slice(before)) {
     const m = entry.model?.[0] as { role?: string; timestamp?: number; durationMs?: number } | undefined;
     if (!m?.role || typeof m.timestamp !== "number") continue;
-    // pi-ai stamps a response when its request starts and records how long it took; a tool result carries its end
-    // and its duration.
+    // Outside (pi-ai): it stamps a response when its request starts and records how long it took; a tool result
+    // carries its end and its duration.
     if (m.role === "assistant") saved.push({ role: "assistant", start: m.timestamp, end: m.timestamp + (m.durationMs ?? 0) });
     else if (m.role === "toolResult") saved.push({ role: "toolResult", start: m.timestamp - (m.durationMs ?? 0), end: m.timestamp });
   }

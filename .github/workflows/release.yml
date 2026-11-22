@@ -26,8 +26,8 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: set up the bun in package.json's packageManager
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
       - id: plan
@@ -57,8 +57,8 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: set up the bun in package.json's packageManager
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
       - name: decide the version
@@ -101,33 +101,32 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          # bun install runs the install scripts it trusts next: none of them finds a token in .git/config.
+          # Outside (GitHub Actions): checkout leaves its token in .git/config, where the install scripts bun runs next
+          # could read it.
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: set up the bun in package.json's packageManager
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # https://github.com/dtolnay/rust-toolchain/tree/stable
         with:
           targets: aarch64-apple-darwin
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
-          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
-          # repository's 10 GB, leaving the next release build cold.
+          # Outside (GitHub Actions): a repository's caches share 10 GB, so a branch's own 0.5 GB copies would push
+          # main's out and leave the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: bun install --frozen-lockfile
       - name: stamp the version
         run: bun run release set "$VERSION"
       - name: smoke-test the bundle
         run: bun run build:mod && bun run smoke
-      # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
-      # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
-      # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
-      # unsigned (docs/manual.md, "Requirements"; docs/releasing.md, "Signing").
+      # Outside (Tauri): it signs whenever APPLE_CERTIFICATE is set, even to "", which is what a missing secret written
+      # straight into `env:` becomes.
       - name: signing secrets, when present
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -155,8 +154,7 @@ jobs:
           for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
             echo "$v=" >> "$GITHUB_ENV"
           done
-      # tauri-cli only warns when the key that signed is not tauri.conf.json's pubkey's pair, and a loki built that way
-      # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
+      # Outside (Tauri): tauri-cli only warns when the key that signed is not the pair of tauri.conf.json's pubkey.
       - name: check the update key
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -185,21 +183,22 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          # bun install runs the install scripts it trusts next: none of them finds a token in .git/config.
+          # Outside (GitHub Actions): checkout leaves its token in .git/config, where the install scripts bun runs next
+          # could read it.
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: set up the bun in package.json's packageManager
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # https://github.com/dtolnay/rust-toolchain/tree/stable
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
-          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
-          # repository's 10 GB, leaving the next release build cold.
+          # Outside (GitHub Actions): a repository's caches share 10 GB, so a branch's own 0.5 GB copies would push
+          # main's out and leave the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: bun install --frozen-lockfile
       - name: stamp the version
@@ -211,8 +210,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      # tauri-cli only warns when the key that signed is not tauri.conf.json's pubkey's pair, and a loki built that way
-      # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
+      # Outside (Tauri): tauri-cli only warns when the key that signed is not the pair of tauri.conf.json's pubkey.
       - name: check the update key
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -237,7 +235,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          # bun install runs the install scripts it trusts next: none of them finds a token in .git/config.
+          # Outside (GitHub Actions): checkout leaves its token in .git/config, where the install scripts bun runs next
+          # could read it.
           persist-credentials: false
       - name: linux build packages
         run: |
@@ -248,16 +247,16 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: set up the bun in package.json's packageManager
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # https://github.com/dtolnay/rust-toolchain/tree/stable
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
-          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
-          # repository's 10 GB, leaving the next release build cold.
+          # Outside (GitHub Actions): a repository's caches share 10 GB, so a branch's own 0.5 GB copies would push
+          # main's out and leave the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: bun install --frozen-lockfile
       - name: stamp the version
@@ -269,8 +268,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      # tauri-cli only warns when the key that signed is not tauri.conf.json's pubkey's pair, and a loki built that way
-      # could never verify an update: stop before anything ships (docs/releasing.md, "The update key").
+      # Outside (Tauri): tauri-cli only warns when the key that signed is not the pair of tauri.conf.json's pubkey.
       - name: check the update key
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -305,8 +303,8 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # bun installs and runs package.json's scripts; the scripts run on Node. Its version is package.json's packageManager.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: set up the bun in package.json's packageManager
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0

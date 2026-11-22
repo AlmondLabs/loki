@@ -25,16 +25,10 @@ function repoName(): string {
 }
 
 export const dayNumber = (d: Date): string => `${d.getUTCMonth() + 1}${String(d.getUTCDate()).padStart(2, "0")}`;
-/**
- * `YYYY.MMDD.N`: three integers (semver, macOS bundle versions, Cargo, and Windows installers' 65535 cap per part),
- * and newer than every `YYYY.M.D` stable before it, since a month and day (101 to 1231) outnumber a month (1 to 12).
- */
+// Outside (Windows): installers cap each part of a version at 65535, and semver, Cargo and macOS bundle versions take
+// three integers.
 export const stableVersion = (d: Date, n: number): string => `${d.getUTCFullYear()}.${dayNumber(d)}.${n}`;
 export const isStableVersion = (v: string): boolean => /^\d{4}\.(?:[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\.\d+$/.test(v);
-/**
- * Whether `v` is a nightly's number: the next stable's, then `-nightly.` and the workflow's run number (no leading
- * zero, which semver forbids). The older `-nightly.<sha>` shape is not one: no new nightly is numbered so.
- */
 export const isNightlyVersion = (v: string): boolean => /^\d+\.\d+\.\d+-nightly\.[1-9]\d*$/.test(v);
 
 export const byVersion = (a: string, b: string): number => {
@@ -112,8 +106,8 @@ export interface Commit {
 
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
-/** GitHub refuses a release body over 125,000 characters; the notes stay under it with room to spare. */
-export const RELEASE_NOTES_MAX = 120_000;
+const GITHUB_RELEASE_BODY_MAX = 125_000;
+export const RELEASE_NOTES_MAX = GITHUB_RELEASE_BODY_MAX - 5_000;
 
 export function releaseNotes(version: string, commits: Commit[], { max = RELEASE_NOTES_MAX, fullList }: { max?: number; fullList?: string } = {}): string {
   const subject = (c: Commit) => `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})`;
@@ -252,7 +246,7 @@ function cmdNotes(version: string): string {
 const fullList = (last: string | null, to: string): string | undefined =>
   last === null ? undefined : `https://github.com/${repoName()}/compare/v${last}...${to}`;
 
-/** Release notes, written to a file for `gh --notes-file`: a long body does not fit in a command line (E2BIG). */
+// A long body does not fit in a command line: E2BIG in https://man7.org/linux/man-pages/man2/execve.2.html
 function bodyFile(name: string, body: string): string {
   const path = join(root, name);
   writeFileSync(path, body);
@@ -292,11 +286,8 @@ export function draftStable({ version, sha, notesFile, gh }: { version: string; 
   stableRelease(version, sha, notesFile, gh);
 }
 
-/**
- * The platform keys latest.json lists, as tauri-plugin-updater looks them up (`<os>-<arch>`, after
- * `<os>-<arch>-<installer>`). loki ships for Apple silicon Macs only, so there is no `darwin-x86_64`: a loki already
- * on an Intel Mac finds no update for itself and keeps the version it has.
- */
+// Outside (Tauri): tauri-plugin-updater looks a platform up as `<os>-<arch>`, after `<os>-<arch>-<installer>`, so a
+// loki on an Intel Mac, with no `darwin-x86_64` here, finds no update and keeps the version it has.
 export const UPDATE_PLATFORMS = ["darwin-aarch64", "windows-x86_64", "linux-x86_64"] as const;
 
 export const INSTALL_FILES = ["loki-macos-arm64.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"] as const;
@@ -309,13 +300,13 @@ interface UpdateFile {
 }
 
 const updateFiles = (version: string): UpdateFile[] => [
-  // The bundler names the Mac's archive after the app alone, so it ships under a versioned name like the other two.
+  // Outside (Tauri): the bundler names the Mac's archive after the app alone.
   { built: "loki.app.tar.gz", shipped: `loki_${version}_aarch64.app.tar.gz`, install: INSTALL_FILES[0], platforms: ["darwin-aarch64"] },
   { built: `loki_${version}_x64-setup.exe`, shipped: `loki_${version}_x64-setup.exe`, install: INSTALL_FILES[1], platforms: ["windows-x86_64"] },
   { built: `loki_${version}_amd64.AppImage`, shipped: `loki_${version}_amd64.AppImage`, install: INSTALL_FILES[2], platforms: ["linux-x86_64"] },
 ];
 
-/** latest.json as tauri-plugin-updater 2 reads it (its `RemoteRelease`): the version, notes, an RFC 3339 date, and per platform the download and its signature. */
+// Outside (Tauri): latest.json as tauri-plugin-updater 2 reads it, its `RemoteRelease`, with an RFC 3339 date.
 export interface LatestJson {
   version: string;
   notes: string;
@@ -341,7 +332,7 @@ export function latestJson({
   return { version, notes, pub_date: now.toISOString(), platforms };
 }
 
-/** Every file under `dir`, by name: actions/download-artifact keeps each artifact's own folders. */
+// Outside (GitHub Actions): actions/download-artifact keeps each artifact's own folders.
 function filesByName(dir: string): Map<string, string> {
   const found = new Map<string, string>();
   for (const rel of readdirSync(dir, { recursive: true, encoding: "utf8" })) if (!found.has(basename(rel))) found.set(basename(rel), join(dir, rel));
@@ -458,8 +449,8 @@ export function publish({
     const title = nightlyTitle(version, sha);
     const state = releaseState(NIGHTLY_TAG, gh);
     if (!state) {
-      // A tag left without its release (the old delete-then-create, cancelled between the two) would pin the new
-      // release to the old commit: it goes first.
+      // Outside (GitHub): a release created on a tag that already exists keeps the tag's commit, whatever `--target`
+      // says, so a tag left without its release goes first.
       try {
         gh("api", "-X", "DELETE", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`);
       } catch {}
