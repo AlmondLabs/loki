@@ -1245,8 +1245,12 @@ reply from a later day shows that day beside its time. **Reactions** show under 
 with their counts and yours outlined; press one to add or take back yours. Hovering over a message shows Slack's bar
 on it: your three most-used emoji in Slack, one press each, and the add-reaction face, which opens a picker (⌘⇧\
 opens it on the card's main message: what brought it, else its newest). In the picker 1 to 5 pick your five most
-used (👀 ✅ 👍 🙏 🙌 when Slack keeps none), and typing searches every emoji, the workspace's own too. A reaction tells the sender you saw it without a reply; the
-card stays until you read, put off or archive it. **Files** shared in a Slack message show as chips under it, with
+used (👀 ✅ 👍 🙏 🙌 when Slack keeps none), and typing searches every emoji, the workspace's own too. An emoji is one
+reaction whatever name finds it: 👍 found as `thumbsup` joins the 👍 already there, or takes yours back. While the card
+is open it reads Slack again every minute, so reactions others add or take back show up without leaving it. When
+Slack refuses a reaction, the pill goes back and a line under the message says why; a search Slack refuses says so in
+the picker. A reaction tells the sender you saw it without a reply; the card stays until you read, put off or archive
+it. **Files** shared in a Slack message show as chips under it, with
 their name, kind and size; press one to open it in Slack, which holds the file. A picture shows as itself, up to 360
 by 240, with its name under it: the Mac that holds the account fetches Slack's small copy once and keeps it with your
 chats' pictures. A file deleted since says so, and a
