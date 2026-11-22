@@ -73,7 +73,7 @@ export async function shrinkStoreImages(
       throw error;
     }
     db.exec("VACUUM");
-    // The write-ahead log keeps what VACUUM rewrote until a checkpoint: fold it in, so the space comes back now.
+    // Outside (SQLite): the write-ahead log keeps what VACUUM rewrote until a checkpoint: fold it in, so the space comes back now.
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return report;
   } finally {

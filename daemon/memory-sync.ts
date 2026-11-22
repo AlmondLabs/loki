@@ -6,7 +6,8 @@ import { promisify } from "node:util";
 import { onRepoSettled, serial } from "./repo-queue.ts";
 
 const run = promisify(execFile);
-// Git tidies a repo after a fetch, merge or commit in a process of its own that outlives the call; kept in the call
+// Outside (git): it tidies a repo after a fetch, merge or commit in a process of its own that outlives the call; kept
+// in the call (`autoDetach=false`), it is done before loki's next git step on the repo.
 const git = (root: string, ...args: string[]) =>
   run(
     "git",
@@ -63,7 +64,7 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
       if (!existsSync(join(root, ".git"))) {
         mkdirSync(dirname(root), { recursive: true });
         rmSync(root, { recursive: true, force: true });
-        // Kept in the clone's own config: Windows' git checks notes out with CRLF otherwise, unlike the home Mac's.
+        // Outside (Windows): its git checks notes out with CRLF unless the clone's own config says otherwise.
         await run("git", ["clone", "--quiet", "--config", "core.autocrlf=false", file, root]);
         await git(root, "remote", "remove", "origin").catch(() => undefined);
         return "cloned";
@@ -75,12 +76,7 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
         await git(root, "-c", `user.name=${SYNC.name}`, "-c", `user.email=${SYNC.email}`, "merge", "--quiet", "--no-edit", theirs);
         return (await memoryHead(root)) === before ? "unchanged" : "merged";
       } catch (error) {
-        // Only a merge git stopped part way (MERGE_HEAD set) is a clash to settle; one that never began (a file in the
-        const merging = await git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").then(
-          () => true,
-          () => false,
-        );
-        if (!merging) throw error;
+        if (!(await mergeStoppedPartWay(root))) throw error;
         await settleClash(root, opts);
         return "conflicted";
       }
@@ -90,20 +86,27 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
   });
 }
 
+function mergeStoppedPartWay(root: string): Promise<boolean> {
+  return git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").then(
+    () => true,
+    () => false,
+  );
+}
+
 async function settleClash(root: string, opts: { from: string; homeIsHere: boolean; now?: () => Date }): Promise<void> {
   const unmerged = (await git(root, "diff", "--name-only", "--diff-filter=U")).stdout.split("\n").filter(Boolean);
-  const stage = async (n: 2 | 3, path: string): Promise<string | null> => {
+  const textUnlessDeleted = async (n: 2 | 3, path: string): Promise<string | null> => {
     try {
       return (await git(root, "show", `:${n}:${path}`)).stdout;
     } catch {
-      return null; // that side deleted it
+      return null;
     }
   };
   const at = (opts.now?.() ?? new Date()).toISOString();
   const notes: string[] = [];
   for (const path of unmerged) {
-    const ours = await stage(2, path);
-    const theirs = await stage(3, path);
+    const ours = await textUnlessDeleted(2, path);
+    const theirs = await textUnlessDeleted(3, path);
     const [kept, other, otherMac] = opts.homeIsHere ? [ours, theirs, opts.from] : [theirs, ours, "this Mac"];
     if (kept === null) await git(root, "rm", "--quiet", "--force", "--", path);
     else {

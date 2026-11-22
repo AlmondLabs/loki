@@ -333,7 +333,8 @@ export class PassRunner {
         advance();
         return finish("nothing");
       }
-      // The pass chat is reset, not recreated, and pi-durable answers a repeated request id with the old submission:
+      // Outside (pi-durable): it answers a repeated request id with the old submission, and the pass chat is reset, not
+      // recreated, so each attempt gets its own id and a retry is really asked again.
       const which = createHash("sha256")
         .update(parts.map((p) => `${p.chatId}@${p.lines}`).join("\n"))
         .digest("hex")

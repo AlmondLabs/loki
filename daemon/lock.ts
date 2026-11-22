@@ -5,7 +5,7 @@ function alive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    // EPERM: it exists but belongs to someone else, which still means the lock is held.
+    // Outside (Node): EPERM means the process exists but belongs to someone else, which still means the lock is held.
     return (error as NodeJS.ErrnoException).code === "EPERM";
   }
 }

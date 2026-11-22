@@ -106,7 +106,7 @@ function inside(root: string, path: unknown): string {
   if (typeof path !== "string" || !path.trim()) throw new Error("path required");
   const full = resolve(root, path);
   const rel = relative(root, full);
-  // On Windows a path on another drive is relative to nothing: `relative` gives it back absolute, with no "..".
+  // Outside (Windows): a path on another drive is relative to nothing: `relative` gives it back absolute, with no "..".
   if (!rel || rel.startsWith("..") || isAbsolute(rel) || rel.split(sep).some(gitOwned)) throw new Error(`${path} is not a memory file`);
   return full;
 }
@@ -114,9 +114,9 @@ function inside(root: string, path: unknown): string {
 /**
  * git in a memory repo, with no hooks (whatever is in the repo, a commit runs nothing of it) and no line-ending
  * conversion: Windows' git turns LF into CRLF on checkout by default, and a revert checks files out, so a reverted
- * file came back with CRLF and the agent's memory_edit of an LF passage no longer matched it.
+ * file came back with CRLF and the agent's memory_edit of an LF passage no longer matched it. Git's tidying after a
+ * commit runs inside the call (`autoDetach=false`), so no process of git's outlives it in the repo.
  */
-// Git's tidying after a commit runs inside the call (`autoDetach=false`), so no process of git's outlives it in the repo.
 const git = (root: string, ...args: string[]) =>
   run("git", [
     "-C",
@@ -134,6 +134,13 @@ const git = (root: string, ...args: string[]) =>
 
 export { serial } from "./repo-queue.ts";
 
+function hasStagedChanges(root: string, paths: readonly string[]): Promise<boolean> {
+  return git(root, "diff", "--cached", "--quiet", "--", ...paths).then(
+    () => false,
+    () => true,
+  );
+}
+
 function commit(root: string, path: string, message: string, author: { name: string; email: string }): Promise<void> {
   return commitMemoryFiles(root, [path], message, author);
 }
@@ -141,12 +148,7 @@ function commit(root: string, path: string, message: string, author: { name: str
 export function commitMemoryFiles(root: string, paths: readonly string[], message: string, author: { name: string; email: string }): Promise<void> {
   return serial(root, async () => {
     await git(root, "add", "--", ...paths);
-    // A note written again with the same text has nothing to commit, and git calls that an error: it is not one.
-    const changed = await git(root, "diff", "--cached", "--quiet", "--", ...paths).then(
-      () => false,
-      () => true,
-    );
-    if (!changed) return;
+    if (!(await hasStagedChanges(root, paths))) return;
     await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", ...paths);
   });
 }

@@ -50,11 +50,14 @@ function field(text: string, min: number, max: number): Set<number> {
   return out;
 }
 
+const SUNDAY = 0;
+const SUNDAY_AS_SEVEN = 7;
+
 export function parseCron(expr: string): Fields {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) throw new Error(`a cron expression has five fields: ${expr}`);
   const weekday = field(parts[4], 0, 7);
-  if (weekday.has(7)) weekday.add(0); // Sunday is 0 or 7
+  if (weekday.has(SUNDAY_AS_SEVEN)) weekday.add(SUNDAY);
   return {
     minute: field(parts[0], 0, 59),
     hour: field(parts[1], 0, 23),
@@ -86,6 +89,10 @@ function partsIn(at: Date, timezone: string) {
   const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
   const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
   return { minute: Number(p.minute), hour: Number(p.hour), day: Number(p.day), month: Number(p.month), year: Number(p.year), weekday };
+}
+
+function checkTimezone(timezone: string, at: Date): void {
+  partsIn(at, timezone);
 }
 
 /** Whether a minute matches; day-of-month and day-of-week match either, as cron has it when both are given. */
@@ -161,7 +168,7 @@ export class Schedules {
 
   create(t: Omit<ScheduledTask, "id" | "status" | "created_at" | "last_fired_at" | "fire_count">, now = new Date()): ScheduledTask {
     parseCron(t.cron);
-    partsIn(now, t.timezone); // a timezone Intl does not know throws here
+    checkTimezone(t.timezone, now);
     const task: ScheduledTask = {
       ...t,
       id: randomBytes(4).toString("hex"),

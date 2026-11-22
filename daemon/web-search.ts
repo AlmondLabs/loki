@@ -7,6 +7,7 @@ export interface SearchResult {
   snippet: string;
 }
 
+const AD_TRACKER = "duckduckgo.com/y.js";
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'", "&#39;": "'", "&nbsp;": " " };
 const codePoint = (n: number, entity: string) => (Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : entity);
 const plain = (html: string) =>
@@ -41,7 +42,7 @@ export function parseResults(html: string, limit = 8): SearchResult[] {
     if (!link) continue;
     const snippet = /class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/.exec(block);
     const url = realUrl(link[1]);
-    if (url.includes("duckduckgo.com/y.js")) continue; // an ad's tracker
+    if (url.includes(AD_TRACKER)) continue;
     out.push({ title: plain(link[2]), url, snippet: snippet ? plain(snippet[1]) : "" });
   }
   return out;

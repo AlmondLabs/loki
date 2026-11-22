@@ -52,7 +52,8 @@ const STDERR_KEEP = 2000;
 export const connectServer: Connector = async (config, client, stderr, auth) => {
   let transport: Transport;
   if (config.kind === "local") {
-    // The given env adds to the safe defaults (PATH, HOME …) rather than replacing them: a server started with only
+    // Outside (MCP): the SDK's stdio transport replaces the environment with the given env, and a server started with
+    // only its token in its environment could not find its own runtime, so the env adds to the SDK's safe defaults.
     const stdio = new StdioClientTransport({
       command: config.command,
       args: config.args,
@@ -282,7 +283,7 @@ export class McpServers {
     if (!tool) throw new Error(`${key} is not available: its server is down or no longer has it`);
     const client = this.entries.get(tool.server)?.client;
     if (!client) throw new Error(`the ${tool.server} MCP server is not connected`);
-    // A long tool (a build, a crawl) is not cut off at the SDK's default minute; Stop still ends it.
+    // Outside (MCP): the SDK cuts a call off after a minute by default, too soon for a long tool (a build, a crawl).
     return client.callTool({ name: tool.name, arguments: args }, { ...(signal ? { signal } : {}), timeout: 10 * 60_000, resetTimeoutOnProgress: true });
   }
 

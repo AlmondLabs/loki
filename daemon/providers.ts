@@ -97,7 +97,7 @@ export class Providers {
           signal: entry.abort.signal,
           prompt: (prompt) => {
             if (prompt.type === "select") return Promise.resolve(prompt.options[0]?.id ?? "");
-            // A question with a blank default: GitHub Copilot's first asks for an Enterprise domain, blank for github.com.
+            // Outside (pi-ai): GitHub Copilot's sign-in first asks for an Enterprise domain, left blank for github.com.
             if (prompt.type === "text") return Promise.resolve("");
             if (prompt.type !== "manual_code") return Promise.reject(new Error("this sign-in asks for something loki cannot answer; use an API key"));
             return new Promise<string>((answer, cancel) => {

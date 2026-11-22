@@ -4,6 +4,7 @@ export const OUTSIDE = [
   "ACP",
   "Android",
   "Base UI",
+  "bash",
   "Bun",
   "Chrome",
   "Claude Code",

@@ -31,7 +31,8 @@ export class DevReload {
       return this.reloading;
     }
     this.reloading = (async () => {
-      // A change during the reload sets `again` (read through a call: it changes while the reload awaits).
+      // Outside (TypeScript): it narrows `again` to false after the assignment, though a change sets it while the reload
+      // awaits, so the loop reads it through a call.
       do {
         this.again = false;
         const name = this.changed;

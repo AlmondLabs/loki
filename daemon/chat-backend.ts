@@ -218,7 +218,7 @@ export class DaemonChats implements ChatBackend {
   async sendHeld(p: PayloadOf<"chat_send">, cap: PermissionMode | null): Promise<string | null> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
     if (c.engine) {
-      // loki cannot lower an ACP agent's mode for one turn, so a chat whose mode has more power is refused instead.
+      // Outside (ACP): an agent's mode cannot be lowered for one turn, so a chat whose mode has more power is refused instead.
       const mode = lokiModeOf((await this.acp.state(p.agent_id, p.conversation_id)).mode, true);
       if (looserThan(mode, cap ?? UNKNOWN_CAP))
         return "that chat runs in a mode with more power than the chat that sent this: lower its mode, or ask the person";

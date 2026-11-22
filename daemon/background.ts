@@ -64,7 +64,8 @@ export class BackgroundTasks {
   start(agentId: string, chatId: string, cwd: string, command: string): string {
     this.prune();
     const id = `bg-${randomBytes(3).toString("hex")}`;
-    // Its own process group off Windows, so stopping it stops what its shell started too (bash keeps `sleep 30`, a dev
+    // Outside (bash): it keeps `sleep 30`, a dev server under `npm run`, as children that hold the output open after the
+    // shell itself is gone, so off Windows the task gets its own process group, and stopping it stops them too.
     const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
     const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, endedAt: 0, waiters: new Set() };
     const take = (text: string) => {
@@ -77,13 +78,12 @@ export class BackgroundTasks {
       }
       for (const w of task.waiters) w();
     };
-    // One decoder per stream, so a character split across two chunks is not garbled.
-    const out = new StringDecoder("utf8");
-    const err = new StringDecoder("utf8");
-    child.stdout.on("data", (chunk: Buffer) => take(out.write(chunk)));
-    child.stderr.on("data", (chunk: Buffer) => take(err.write(chunk)));
+    const stdoutDecoder = new StringDecoder("utf8");
+    const stderrDecoder = new StringDecoder("utf8");
+    child.stdout.on("data", (chunk: Buffer) => take(stdoutDecoder.write(chunk)));
+    child.stderr.on("data", (chunk: Buffer) => take(stderrDecoder.write(chunk)));
     child.on("error", (error) => take(`\n${error.message}\n`));
-    // A write to a task whose input has closed (EPIPE) is the task's trouble, not the daemon's.
+    // Outside (Node): a write to a task whose input has closed is emitted as an EPIPE error, thrown when nobody listens.
     child.stdin.on("error", (error) => take(`\n[input: ${error.message}]\n`));
     child.on("exit", () => {
       if (!task.stopping) return;
@@ -93,9 +93,9 @@ export class BackgroundTasks {
       }, STRAGGLER_MS).unref();
     });
     child.on("close", (code, exitSignal) => {
-      // Windows ends a tree without a signal; a task stopped there still reads as stopped.
+      // Outside (Windows): it ends a tree without a signal; a task stopped there still reads as stopped.
       const signal = exitSignal ?? task.stopping ?? null;
-      take(out.end() + err.end());
+      take(stdoutDecoder.end() + stderrDecoder.end());
       task.exit = { code, signal };
       task.endedAt = Date.now();
       const watched = task.waiters.size > 0;
@@ -170,7 +170,8 @@ export class BackgroundTasks {
     const end = (force: boolean) => {
       if (task.exit) return;
       if (process.platform === "win32") {
-        // taskkill ends the tree; it can take a second or more on a busy machine, so the shell itself is ended once
+        // Outside (Windows): taskkill ends the tree but can take a second or more on a busy machine, so the shell itself
+        // is ended once it answers or after WINDOWS_SHELL_MS, whichever comes first.
         const shell = setTimeout(() => !task.exit && task.child.kill(), WINDOWS_SHELL_MS);
         shell.unref();
         execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {
