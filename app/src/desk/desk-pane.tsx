@@ -42,7 +42,7 @@ import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
 import { chatItem } from "../item/item-view";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
-import { isMainChat } from "../../../core/desk-core.ts";
+import { isMainChat, scopeFor } from "../../../core/desk-core.ts";
 
 const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "messages", label: "Messages" },
@@ -185,6 +185,14 @@ export function DeskPane(props: DeskPaneProps) {
         advisorChat={props.advisorChat}
         chatName={name}
         advisor={view.advisor}
+        models={{
+          entries: models,
+          model: desk.modelOf(scopeFor(props.advisorChat, agentId)),
+          reasoningEffort: desk.reasoningEffortOf(scopeFor(props.advisorChat, agentId)),
+          onLoad: props.onLoadModels,
+          onPick: props.onPickModel,
+        }}
+        modelPickerTick={visible ? tickFor(model, visible) : 0}
         onBack={props.onCloseAdvisor}
       />
     );

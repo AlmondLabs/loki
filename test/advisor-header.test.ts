@@ -47,7 +47,7 @@ describe("the advisor strip (R23)", () => {
   });
 
   test("the advisor's view on the Mac goes back to its chat, named", () => {
-    const html = renderToStaticMarkup(createElement(AdvisorPaneHeader, { chatName: "Fix the flaky test", advisor: IDLE, onBack: () => {} }));
+    const html = renderToStaticMarkup(createElement(AdvisorPaneHeader, { chatName: "Fix the flaky test", model: IDLE.model, onBack: () => {} }));
     expect(html).toMatch(/<button[^>]*aria-label="Back to Fix the flaky test"/);
     expect(html).toContain("Fix the flaky test");
     expect(html).toContain(">Advisor<");

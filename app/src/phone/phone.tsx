@@ -8,6 +8,7 @@ import { modBase } from "../desk/env";
 import { useDesk } from "../desk/use-desk";
 import { resolveLane, useActiveLaneId } from "../shared/active-lane";
 import { savePurpose } from "../desk/rename-desk";
+import { lokiModels } from "../desk/advisor-pane";
 import { AgentPage, FilePage } from "./agent-page";
 import { Agents, knownDescription } from "./agents";
 import { ConversationScreen, type Thread } from "./conversation-screen";
@@ -48,7 +49,7 @@ import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
 import { conversationDirName, isMainChat, scopeFor } from "../../../core/desk-core.ts";
-import { isAdvisorChat } from "../../../core/advisor.ts";
+import { advisedChat, isAdvisorChat } from "../../../core/advisor.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
@@ -440,6 +441,9 @@ function ConversationPage({
   const scope = scopeFor(thread.conversationId, thread.agentId);
   const view = catchUp.conversation(thread.agentId, thread.conversationId);
   const advisor = isAdvisorChat(thread.conversationId);
+  const advised = advisedChat(thread.conversationId);
+  const advisorModel = advised === null ? null : (catchUp.conversation(thread.agentId, advised).advisor?.model ?? null);
+  const advisorModels = useMemo(() => lokiModels(models), [models]);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
     if (!note) return;
@@ -457,9 +461,9 @@ function ConversationPage({
       thread={thread}
       view={view}
       chats={catchUp}
-      model={desk.modelOf(scope)}
+      model={desk.modelOf(scope) ?? advisorModel}
       reasoningEffort={desk.reasoningEffortOf(scope)}
-      models={models}
+      models={advisor ? advisorModels : models}
       onLoadModels={onLoadModels}
       onPickModel={catchUp.status === "open" ? pickModel : undefined}
       item={item}
