@@ -9,11 +9,6 @@ const PHONE = { w: 393 + 22, h: 852 + 22 };
 const PAGE_ROOM = 120;
 const MIN_SCALE = 0.62;
 
-/**
- * The phone section's live demo: loki's own phone Inbox, in a phone's outline, over its own copy of the made-up
- * chats. Swipe a card right to read and left for later, or use its buttons; replies and answers stream back as on
- * the desktop's deck. The outline is transformed, so the phone's fixed layers stay inside it instead of the page.
- */
 export function PhoneDemo() {
   const [chats] = useState(() => new DemoChats());
   useEffect(() => () => chats.dispose(), [chats]);

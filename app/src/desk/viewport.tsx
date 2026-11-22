@@ -78,7 +78,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
       const rect = el.getBoundingClientRect();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rect.height : 1;
       if (e.ctrlKey || e.metaKey) {
-        // Pinch (Chrome reports it as ctrl+wheel) or explicit zoom modifier.
+        // Outside (Chrome): a trackpad pinch arrives as a wheel with ctrl held.
         const raw = Math.exp(-e.deltaY * unit * 0.0035);
         zoom *= Math.min(MAX_STEP, Math.max(1 / MAX_STEP, raw));
         zx = e.clientX - rect.left;
@@ -90,7 +90,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
       schedule();
     };
 
-    // Safari reports trackpad pinch as gesture events with an absolute scale.
+    // Outside (WebKit): a trackpad pinch arrives as gesture events with an absolute scale.
     let gestureScale = 1;
     const onGestureStart = (e: Event) => {
       e.preventDefault();
@@ -151,7 +151,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: Reac
       >
         <TransformComponent
           wrapperStyle={{ width: "100%", height: "100%" }}
-          // No will-change here: a promoted layer keeps its 1x raster and looks pixelated when zoomed.
+          // Outside (Chrome): a layer promoted by will-change keeps its 1x raster and looks pixelated when zoomed.
           contentStyle={{ width: "100%", height: "100%" }}
         >
           {children}

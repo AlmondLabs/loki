@@ -82,7 +82,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
           spellCheck={false}
           maxLength={DESK_NAME_MAX}
           value={value}
-          // read-only, not disabled, while saving: focus stays in the dialog, so Esc still reaches it
+          // Outside (HTML): a disabled field loses the focus, so while saving it is read-only and Esc still reaches the dialog.
           readOnly={busy}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "loki-rename-error" : undefined}

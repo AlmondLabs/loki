@@ -95,8 +95,8 @@ export async function inlineImages(names: Record<string, string>, fetchImage: Im
 export function mailDocument(html: string, quoteOpen = false, images: Record<string, string> = {}): string {
   let body = darkRulesOff(drawnBody(html));
   body = body.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, "");
-  // The frame's own referrer rule (below) is the only one: a mail that brought its own could have the page's address,
-  // which carries the daemon's token in a browser tab, sent to whoever hosts its images.
+  // Outside (HTML): a referrer rule in the mail would apply too, and could send the page's address, which in a browser
+  // tab carries the daemon's token, to whoever hosts its images. The frame's own rule below is the only one kept.
   body = body.replace(/<meta\b[^>]*name\s*=\s*["']?referrer[^>]*>/gi, "").replace(/\sreferrerpolicy\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
   body = placeImages(body, images);
   return [
@@ -183,11 +183,10 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
     <iframe
       ref={frame}
       className="loki-mail-html"
-      // Named for screen readers by aria-label rather than title, which the Mac shows as a tooltip over the whole mail.
+      // Outside (HTML): a title shows as a tooltip over the whole mail, so the frame is named by aria-label instead.
       aria-label={title}
-      // No allow-scripts: nothing in the mail runs. Same origin with scripts off lets loki size the frame and catch clicks.
-      // allow-popups is for the Mac's webview, which runs no listener of loki's inside a frame without scripts: there a
-      // link asks for a new window (base target _blank), and the shell sends its address to the browser instead.
+      // Outside (WebKit): the Mac's webview runs no listener of loki's inside a frame without scripts, so there a link
+      // asks for a new window (base target _blank), which allow-popups lets through for the shell to send to the browser.
       sandbox="allow-same-origin allow-popups"
       srcDoc={doc}
       style={{ height }}

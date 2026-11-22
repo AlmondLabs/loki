@@ -108,7 +108,7 @@ export function installShellLogging(): void {
     console.warn = mirror("warn", console.warn.bind(console));
     console.error = mirror("error", console.error.bind(console));
     console.info = mirror("info", console.info.bind(console));
-    // WebKit prints CSP refusals to the console directly, bypassing console.error: report them ourselves.
+    // Outside (WebKit): CSP refusals skip console.error, so they are reported here.
     document.addEventListener(
       "securitypolicyviolation",
       (e) =>

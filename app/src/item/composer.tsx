@@ -62,7 +62,8 @@ function MessagesBox({
             <InputGroupTextarea
               rows={1}
               name="message"
-              // iCloud Passwords skips a textarea that calls itself a search field; `type` is inert on a textarea.
+              // Outside (macOS): iCloud Passwords ignores autocomplete=off but skips a textarea that calls itself a search
+              // field; `type` is inert on a textarea, so it costs nothing and stops the password popup on a chat box.
               {...({ type: "search" } as object)}
               autoComplete="off"
               autoCorrect="on"

@@ -84,9 +84,7 @@ export function WidgetFrame({
     e.preventDefault();
     try {
       (e.target as Element).setPointerCapture(e.pointerId);
-    } catch {
-      // synthetic or already-released pointer; dragging still works within the element
-    }
+    } catch {}
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: layout.position.x, origY: layout.position.y };
     if (frameRef.current) frameRef.current.style.willChange = "transform";
   };

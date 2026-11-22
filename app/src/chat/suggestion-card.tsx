@@ -272,8 +272,8 @@ function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; 
     </div>
   );
   if (touch)
-    // The Sheet draws itself at the phone shell's root; React still bubbles its events through the Inbox card, which
-    // would take a drag in the sheet for a swipe of the card underneath.
+    // Outside (React): a portal's events bubble through the tree it came from, so a drag in the sheet, drawn at the phone
+    // shell's root, would otherwise swipe the Inbox card underneath.
     return (
       <div className="contents" onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
         <Sheet label="Suggestions" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-suggestion-sheet">

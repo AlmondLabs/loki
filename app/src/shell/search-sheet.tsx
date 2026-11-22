@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { ListIcon, Sheet } from "../components";
 import { AgentFace } from "../desk/agent-chip";
 import { Icon } from "../shared/icons";
@@ -19,6 +19,8 @@ import {
 import { preferredModelEntry } from "../chat/model-picker";
 import { selectionOf, type ReasoningEffort } from "../../../core/models.ts";
 import "./search-sheet.css";
+
+const keepFocusInField = (e: PointerEvent) => e.preventDefault();
 
 const LIST_ID = "loki-search-results";
 const optionId = (key: string) => `loki-search-opt-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
@@ -496,8 +498,7 @@ function HitRow({
   const lead = "agent" in hit.lead ? <AgentFace name={hit.lead.agent.name} src={avatar(hit.lead.agent.id)} /> : <ListIcon name={hit.lead.icon} />;
   return (
     <li id={optionId(hit.key)} role="option" aria-selected={selected} className="loki-list-item" data-dim={hit.dim || undefined} data-launch={hit.key}>
-      {/* The field keeps focus; a press would take it, so the row opens on click without ever being focused. */}
-      <div className="loki-list-row loki-search-row" onPointerDown={(e) => e.preventDefault()} onPointerMove={selected ? undefined : onPoint} onClick={onOpen}>
+      <div className="loki-list-row loki-search-row" onPointerDown={keepFocusInField} onPointerMove={selected ? undefined : onPoint} onClick={onOpen}>
         <span className="loki-list-row-lead">{lead}</span>
         <span className="loki-list-row-copy">
           <span className="loki-list-row-title">

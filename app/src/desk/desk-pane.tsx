@@ -318,12 +318,11 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
     const el = root.current;
     if (!el || was === visible) return;
     const active = document.activeElement as HTMLElement | null;
-    // The panel just hidden may still hold the focus until the browser moves it off: count that as dropped too.
-    const inPanel = (t: DeskTab) =>
+    const focusLeftWith = (t: DeskTab) =>
       !active || active === document.body || !!document.getElementById(panelId(t))?.contains(active) || active.getAttribute("aria-controls") === panelId(t);
-    if (was === "messages" && visible === "inset" && inPanel("messages"))
+    if (was === "messages" && visible === "inset" && focusLeftWith("messages"))
       el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
-    else if (was === "inset" && visible === "messages" && inPanel("desk") && last.current?.isConnected) last.current.focus({ preventScroll: true });
+    else if (was === "inset" && visible === "messages" && focusLeftWith("desk") && last.current?.isConnected) last.current.focus({ preventScroll: true });
   }, [visible, root, last]);
 }
 

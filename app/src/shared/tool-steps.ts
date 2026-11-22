@@ -81,7 +81,7 @@ export function stepVerb(name: string): string {
     case "AskUserQuestion":
       return "Asked you";
     default:
-      // An ACP agent names a step by its title ("Read signups.csv"), which already says what it did.
+      // Outside (ACP): an agent names a step by its title ("Read signups.csv"), which already says what it did.
       return name.includes(" ") ? name : `Used ${name}`;
   }
 }

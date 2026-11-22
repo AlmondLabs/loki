@@ -68,7 +68,7 @@ export function AgentPage({
   const d = valueOf(fetched);
   const log = useMemoryLog(api, agentId);
   const [folded, setFoldedState] = useState<Record<string, boolean>>(() => foldedByAgent.get(agentId) ?? {});
-  // Kept outside the updater (React may run updaters twice).
+  // Outside (React): an updater may run twice, so the fold is kept outside it.
   const setFolded = (name: string, closed: boolean) => {
     const next = { ...folded, [name]: closed };
     foldedByAgent.set(agentId, next);

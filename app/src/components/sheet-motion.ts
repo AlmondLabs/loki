@@ -165,7 +165,7 @@ export function useSheetMotion(
       card.removeEventListener("pointercancel", up);
       parent.removeAttribute("data-sheet-drag");
       unlift();
-      // StrictMode's rehearsal unmount comes within the same frame; a real close has been on screen longer.
+      // Outside (React): StrictMode's rehearsal unmount comes within the same frame; a real close has been on screen longer.
       if (!gone && performance.now() - opened > 32 && parent.isConnected) leave(veil, parent, dy);
     };
   }, [on, veilRef, cardRef]);

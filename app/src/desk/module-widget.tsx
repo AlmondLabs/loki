@@ -49,7 +49,8 @@ export function ModuleWidget({
   });
 
   const send = (msg: { type: ToFrame["type"] } & Record<string, unknown>) => {
-    // The frame's origin is opaque ("null"), which postMessage cannot name: "*". Nothing sent here is secret.
+    // Outside (HTML): a sandboxed frame's origin is opaque ("null"), which postMessage cannot name, so the target is "*".
+    // Nothing sent here is secret.
     frameRef.current?.contentWindow?.postMessage({ bridge: BRIDGE, ...msg }, "*");
   };
 

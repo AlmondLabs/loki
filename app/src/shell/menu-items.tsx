@@ -36,7 +36,7 @@ export function MenuItems({ entries }: { entries: MenuEntry[] }) {
     return (
       <DropdownMenuItem
         key={e.id}
-        // A choice in a picker says so, and whether it is the one chosen; Base UI lets these win over its own role.
+        // Outside (Base UI): a role and aria-checked given here win over its own, so a choice in a picker says it is one.
         role={choice ? "menuitemradio" : "menuitem"}
         aria-checked={choice ? e.checked : undefined}
         disabled={e.disabled}

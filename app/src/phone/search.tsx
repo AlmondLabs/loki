@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { avatarUrl } from "../desk/env";
 import { Icon } from "./icons";
 import type { LinkState } from "./model";
@@ -8,6 +8,8 @@ import { cleanQuery } from "../shared/search";
 import { buildIndex, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./search-index";
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
 import { useTopClearance } from "./ui";
+
+const keepFocusInField = (e: PointerEvent) => e.preventDefault();
 
 const COVERAGE = "Searches chat titles, agents, waiting items and pages on this phone — not message text.";
 const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "more" } as const satisfies Record<GroupId, string>;
@@ -113,8 +115,7 @@ export function Search({
             data-form-type="other"
           />
           {query && (
-            // pointerdown would take focus from the field and drop the keyboard; the tap clears and keeps it
-            <button type="button" className="loki-phone-search-clear" aria-label="Clear search" onPointerDown={(e) => e.preventDefault()} onClick={clear}>
+            <button type="button" className="loki-phone-search-clear" aria-label="Clear search" onPointerDown={keepFocusInField} onClick={clear}>
               <Icon name="close" size={16} />
             </button>
           )}

@@ -116,7 +116,7 @@ export function useDesk() {
   useEffect(() => {
     const hot = import.meta.hot;
     if (!hot) return;
-    // Optional param: Vite types this callback loosely; the payload is an ErrorPayload at runtime.
+    // Outside (Vite): it types this callback loosely; the payload is an ErrorPayload at runtime.
     const onError = (payload?: { err?: { message?: string; id?: string; loc?: { file?: string } } }) => {
       const err = payload?.err;
       if (!err) return;

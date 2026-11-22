@@ -22,8 +22,8 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
   const subscribe = (l: () => void) => {
     return listeners.add(l);
   };
-  // A value kept in localStorage follows another window's change (the Settings window, plan 2026-11-12-1505 U18).
-  // sessionStorage is the window's own, so its events never come.
+  // Outside (HTML): a storage event tells of another window's change to localStorage; sessionStorage is the window's
+  // own, so for it none come.
   if (typeof window !== "undefined")
     addEventListener("storage", (e) => {
       let area: Storage;

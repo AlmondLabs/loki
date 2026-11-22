@@ -15,7 +15,7 @@ export function useLeave(ref: RefObject<HTMLElement | null>, frames: LeaveFrames
     if (!el) return;
     const opened = performance.now();
     return () => {
-      // StrictMode's rehearsal unmount comes within the same frame; a real leave has been on screen longer.
+      // Outside (React): StrictMode's rehearsal unmount comes within the same frame; a real leave has been on screen longer.
       if (performance.now() - opened < 32 || typeof el.animate !== "function" || prefersReducedMotion()) return;
       const f = framesRef.current;
       const play = typeof f === "function" ? f(el) : f;
