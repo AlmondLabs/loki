@@ -18,8 +18,13 @@ const shown = (messages: OutsideMessage[], window: OutsideWindow): Shown => ({
 });
 
 describe("a Slack card keeps its view while new messages come (plan 090)", () => {
-  test("a channel or DM reads on from the last message shown, in the channel view", () => {
-    expect(refreshAsk([msg("100.000001"), msg("100.000002")], channel)).toEqual({ view: "channel", direction: "after", from: "100.000002" });
+  test("a channel or DM reads on from the last message shown, in the channel view, and the shown ones again for their reactions", () => {
+    expect(refreshAsk([msg("100.000001"), msg("100.000002")], channel)).toEqual({
+      view: "channel",
+      direction: "after",
+      from: "100.000002",
+      shown_from: "100.000001",
+    });
   });
   test("a thread, the card's own or one opened on it, is read whole in that thread", () => {
     expect(refreshAsk([msg("100.000001")], thread)).toEqual({ view: "thread", thread_ts: "100.000001" });
@@ -48,6 +53,19 @@ describe("a Slack card keeps its view while new messages come (plan 090)", () =>
     const next = withNewer(now, out);
     expect(next.messages.map((m) => m.id)).toEqual(["100.000001", "100.000005", "100.000009"]);
     expect(next.messages[1]).toEqual({ ...now.messages[1], reactions: thumbs });
+  });
+  test("a channel read with the shown messages takes their reactions now, adds only the newer ones, and keeps the rest", () => {
+    const thumbs = [{ name: "+1", count: 1, mine: false, emoji: null }];
+    const now = shown([msg("100.000001", { unread: true, brought: true, reactions: thumbs }), msg("100.000002")], channel);
+    const out = {
+      messages: [msg("100.000001"), msg("100.000002", { reactions: thumbs }), msg("100.000003")],
+      window: { ...channel, more_before: false },
+    };
+    const next = withNewer(now, out);
+    expect(next.messages.map((m) => m.id)).toEqual(["100.000001", "100.000002", "100.000003"]);
+    expect(next.messages[0]).toEqual(msg("100.000001", { unread: true, brought: true }));
+    expect(next.messages[1]).toEqual({ ...now.messages[1], reactions: thumbs });
+    expect(next.window).toEqual(channel);
   });
   test("ordering compares Slack times as times, not as text", () => {
     const now = shown([msg("99.900000")], channel);

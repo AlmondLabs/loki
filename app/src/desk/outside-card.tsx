@@ -143,8 +143,9 @@ const tsOrder = (ts: string): string => {
 
 export function refreshAsk(messages: readonly OutsideMessage[], w: OutsideWindow): OutsideWindowAsk | null {
   if (w.view === "thread") return w.thread_ts ? { view: "thread", thread_ts: w.thread_ts } : null;
+  const first = messages.at(0)?.id;
   const last = messages.at(-1)?.id;
-  return last && !w.more_after ? { view: "channel", direction: "after", from: last } : null;
+  return first && last && !w.more_after ? { view: "channel", direction: "after", from: last, shown_from: first } : null;
 }
 
 export function withNewer(now: Shown, out: OutsideRead): Shown {
@@ -188,6 +189,20 @@ function useReactControls(
     });
   };
   return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}) };
+}
+
+const REFRESH_MS = 60_000;
+
+function useTick(on: boolean, every: number): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") setTick((n) => n + 1);
+    }, every);
+    return () => clearInterval(timer);
+  }, [on, every]);
+  return tick;
 }
 
 const NO_SENT: SentSnapshot = { replies: [], went: 0 };
@@ -246,6 +261,7 @@ export function useOutsideThread(
   const steady = o?.provider === "slack";
   const tag = steady ? view : `${view}/${newest}`;
   const [shown, setShown] = useState<Shown | null>(null);
+  const tick = useTick(steady && key !== "", REFRESH_MS);
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
@@ -282,7 +298,7 @@ export function useOutsideThread(
       );
     });
     return stop;
-  }, [key, tag, view, newest, went]);
+  }, [key, tag, view, newest, went, tick]);
   const reacting = useReactControls(item, source, setShown, tag);
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
