@@ -1,4 +1,4 @@
-import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
+import { isReasoningEffort, type AppliedModel, type ModelEntry, type ModelSelection } from "../models.ts";
 import { DOCTOR_WAIT_MS, HANDOFF_WAIT_MS, REPLY_WAIT_MS } from "../frames.ts";
 import type { InputOf, ReplyAction, ReplyDecideOptions, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type {
@@ -401,6 +401,10 @@ export class FrameChatClient {
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(typeof body.description === "string" ? { description: body.description } : {}),
       ...(typeof body.model === "string" ? { model: body.model } : {}),
+      ...(typeof body.advisor_model === "string" || body.advisor_model === null ? { advisor_model: body.advisor_model } : {}),
+      ...(isReasoningEffort(body.advisor_reasoning_effort) || body.advisor_reasoning_effort === null
+        ? { advisor_reasoning_effort: body.advisor_reasoning_effort }
+        : {}),
     });
   }
 

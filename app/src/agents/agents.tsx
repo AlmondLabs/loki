@@ -21,7 +21,7 @@ import { MemoryPage, memoryRows } from "./memory-page";
 import { ChangesPage, changeRows } from "./changes-page";
 import { ReflectionPage, reflectionRuns } from "./reflection-page";
 import { SkillsPage, skillRows, type Adding } from "./skills-page";
-import type { AgentEdit, AgentsApi, AgentsWrite, ReflectionControls } from "./types";
+import type { AgentEdit, AgentsApi, AgentsWrite, ModelChoice, ReflectionControls } from "./types";
 import type { MacIdentity } from "../../../core/frame-types.ts";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
@@ -40,7 +40,7 @@ export interface AgentsProps {
   onUpdateAgent: (agentId: string, body: AgentEdit) => Promise<string | null>;
   write: AgentsWrite;
   reflect: ReflectionControls;
-  listModels: () => Promise<Array<{ handle: string }>>;
+  listModels: () => Promise<ModelChoice[]>;
   onShowDesks: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
   accounts?: AccountsApi;
@@ -97,8 +97,9 @@ export function useAgentsPlace({
     setRunSha(null);
     setSkillName(null);
   }
-  const [models, setModels] = useState<string[] | null>(null);
-  const loadModels = () => void listModels().then((m) => setModels([...new Set(m.map((e) => e.handle))]));
+  const [modelChoices, setModelChoices] = useState<ModelChoice[] | null>(null);
+  const models = modelChoices && [...new Set(modelChoices.map((e) => e.handle))];
+  const loadModels = () => void listModels().then(setModelChoices);
   const [adding, setAdding] = useState<Adding>(null);
 
   const store = useAgentDetails({
@@ -184,7 +185,7 @@ export function useAgentsPlace({
           accounts={accounts ? { api: accounts, agents } : undefined}
           macs={macs}
           avatar={avatar(selected)}
-          models={models}
+          models={modelChoices}
           onLoadModels={loadModels}
           onSave={store.save}
           desks={desks}

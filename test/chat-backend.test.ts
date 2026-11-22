@@ -18,6 +18,8 @@ import { ModRegistry } from "../daemon/mods/registry.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
 import { isScheduledPrompt, TOOL_TEXT_MAX } from "../core/harness.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
+import { readRecord, stampsOf } from "../daemon/store/agent-sync.ts";
+import type { PayloadOf } from "../core/frames.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -497,6 +499,25 @@ describe("the daemon's chats", () => {
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "max" });
       await s.chats.model({ agent_id: agent.id, conversation_id: conversationId, handle: s.handle, reasoning_effort: "none" });
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "off" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("an agent's advisor model and effort are saved stamped for the other Macs, and clearing the model removes both", async () => {
+    const s = await setup({ macId: "mac-book" });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ira", description: null, persona: null, model: s.handle });
+      const record = () => readRecord(join(s.dir, "backend"), agent.id) ?? {};
+      const change = (p: Partial<PayloadOf<"chat_agent_update">>) =>
+        s.chats.updateAgent({ agent_id: agent.id, name: undefined, description: undefined, model: undefined, home_mac: undefined, ...p });
+      await change({ advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" });
+      expect(record()).toMatchObject({ advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high", model: s.handle });
+      expect(stampsOf(record())).toMatchObject({ advisor_model: { mac: "mac-book" }, advisor_reasoning_effort: { mac: "mac-book" } });
+      await change({ advisor_model: null });
+      expect(record()).not.toHaveProperty("advisor_model");
+      expect(record()).not.toHaveProperty("advisor_reasoning_effort");
+      expect(record()).toMatchObject({ model: s.handle });
     } finally {
       await s.cleanup();
     }

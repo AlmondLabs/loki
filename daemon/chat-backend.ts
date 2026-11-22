@@ -390,7 +390,10 @@ export class DaemonChats implements ChatBackend {
     const record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
     const changed = (["name", "description", "model", "home_mac"] as const).filter((f) => p[f] !== undefined);
     for (const f of changed) record[f] = p[f];
-    writeRecord(this.deps.backendDir, p.agent_id, stamp(record, changed, this.stampNow()));
+    const cleared = p.advisor_model === null;
+    const advisor = (["advisor_model", "advisor_reasoning_effort"] as const).filter((f) => cleared || p[f] !== undefined);
+    for (const f of advisor) record[f] = cleared ? undefined : (p[f] ?? undefined);
+    writeRecord(this.deps.backendDir, p.agent_id, stamp(record, [...changed, ...advisor], this.stampNow()));
     if (p.name !== undefined) await (await this.deps.stores.get(p.agent_id)).setAgent({ id: p.agent_id, name: p.name }, this.deps.context);
   }
 

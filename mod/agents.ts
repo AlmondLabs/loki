@@ -5,6 +5,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { backendName } from "../core/desk-core.ts";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
 import { isAgentId } from "../core/frames.ts";
+import { isReasoningEffort } from "../core/models.ts";
 
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
 
@@ -24,6 +25,8 @@ export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent 
       favourite: tags.some((t) => t.startsWith("favorite:")),
       system_head: system ? system.split("\n")[0].slice(0, 200) : null,
       home_mac: typeof raw.home_mac === "string" && raw.home_mac ? raw.home_mac : null,
+      advisor_model: typeof raw.advisor_model === "string" && raw.advisor_model ? raw.advisor_model : null,
+      advisor_reasoning_effort: isReasoningEffort(raw.advisor_reasoning_effort) ? raw.advisor_reasoning_effort : null,
     };
   } catch {
     return null;
