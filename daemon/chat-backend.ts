@@ -8,7 +8,7 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
-import type { ConsultFrom } from "../core/advisor.ts";
+import type { AdvisorView, ConsultFrom } from "../core/advisor.ts";
 import { backendName, MAIN_CHAT_ID } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
@@ -283,6 +283,14 @@ export class DaemonChats implements ChatBackend {
   consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply> {
     if (!this.deps.advisors) return Promise.resolve({ refused: "advisors are not running in this daemon" });
     return this.deps.advisors.consult(p.agent_id, p.conversation_id, from, text);
+  }
+
+  advisorView(agentId: string, chatId: string): Promise<AdvisorView | null> {
+    return this.deps.advisors?.view(agentId, chatId) ?? Promise.resolve(null);
+  }
+
+  onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void {
+    return this.deps.advisors?.onChange(listener) ?? (() => {});
   }
 
   async advise(agentId: string, conversationId: string, advice: Advice): Promise<void> {
