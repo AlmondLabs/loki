@@ -29,9 +29,10 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
   http(s), `mailto:` and `tel:` links and showing a file in the file manager (`opener:default`, see
   `src-tauri/capabilities/default.json`), and loki's own shell commands (its log, the daemon's status and a retry, the
   badge, the global key, the menu). It cannot read files or run programs.
-- **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits and for
-  refreshing a skill from its upstream repo, `rg` for search, the local MCP servers you list, and the ACP agents you
-  choose for a chat (Claude Code, Cursor's CLI, or your own in `~/.loki/state/acp.json`). On the Mac it also runs
+- **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits, for
+  refreshing a skill from its upstream repo and for an advisor's `changes_read` ([Advisor](#advisor)), `rg` for
+  search, the local MCP servers you list, and the ACP agents you choose for a chat (Claude Code, Cursor's CLI, or your
+  own in `~/.loki/state/acp.json`). On the Mac it also runs
   `osascript` for the folder chooser, `sips` to shrink images, `scutil` for the computer's name and `caffeinate`
   (below); `open`, `xdg-open` or `rundll32` open an ACP agent's sign-in page, and `taskkill` stops a task on Windows.
   An ACP chat reaches loki's own tools through one MCP endpoint on a random loopback port, with a key per chat, kept
@@ -165,6 +166,25 @@ ask, in any permission mode (`NEVER_ASK` in `daemon/approvals.ts`),
 on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names, folders, labels and purpose lines of
 your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
 chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
+
+## Advisor
+
+A chat's advisor (plan 2026-11-22-2109) is another model call: each consult, and what the advisor reads to answer it,
+goes to the provider of the agent's advisor model, which may be a different provider from the chat's. Only loki's own
+models can be advisor models. The advisor chat runs in standard mode but never asks: a gate before every one of its
+tool calls (`daemon/advisor-gate.ts`), whatever its mode, refuses with a reason any tool off its list (file reads and
+searches, read-only `bash`, web search, `memory_read`, its own history and `changes_read`), any `bash` command that is
+not [read-only](#what-runs-where), and any path that resolves, links followed, inside `~/.loki`, other than the
+agent's memory and the advisor chat's own saved output, so it cannot read any chat's thread. Its file searches never
+follow links, and a recursive search of a folder that holds `~/.loki` is refused.
+
+`changes_read` (`daemon/changes.ts`) runs `git` in the chat's folder so the advisor can read status, diffs, logs and
+commits without `git` being a read-only command for every chat, since a folder's own git config can name programs git
+runs. It ignores the system and global git config and switches off, through `GIT_CONFIG_*` environment pairs, every
+program a folder's config can name: fsmonitor, hooks, the pager, external diff and textconv, signature programs and
+every filter driver the config lists; it passes `--no-optional-locks`, takes options only from a fixed list per kind,
+and puts paths after `--`. The advisor's answer reaches its chat as a row the agent is told to weigh against your
+instructions, never as your message, and the turn it starts runs under the chat's own permission mode.
 
 ## Scripts
 
@@ -435,7 +455,8 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 
 ## What leaves the machine
 
-1. Each turn, to the provider of the chat's model, over HTTPS: the prompt, the history and the tool results.
+1. Each turn, to the provider of the chat's model, over HTTPS: the prompt, the history and the tool results; for a
+   chat's advisor, to the provider of its advisor model, the consults and what the advisor read.
 2. The agent's web searches, to DuckDuckGo's plain HTML results, which need no key.
 3. Tool calls to your MCP servers, as above.
 4. The update check to GitHub, as above.

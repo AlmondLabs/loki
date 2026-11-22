@@ -140,11 +140,14 @@ every chat gets, the chats, then the mods.
    the chat's permission mode (glossary.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
    crash never asks twice. `user_ask` shows a question card the same way. A script's own calls ask only in strict
-   mode, and a call of a tool scripts may not call is blocked in every mode.
+   mode, and a call of a tool scripts may not call is blocked in every mode. In an advisor chat the hook runs the
+   advisor's gate first (item 15), whatever the mode, and blocks what it refuses without a card.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`, with `read` given loki's image processor, which
    shrinks an image to the size of a pasted one before the model gets it (`daemon/image-shrink.ts`; `bun run shrink-images` does the same to the pictures already in a store,
    `daemon/store-images.ts`); loki's `ls`, `find` and `grep` for scripts only (`daemon/tools.ts`), since the model
-   runs those with `bash`, whose read-only commands the gate weighs as reads (`daemon/read-only-command.ts`); web search over DuckDuckGo's plain HTML results, which need no key
+   runs those with `bash`, whose read-only commands the gate weighs as reads (`daemon/read-only-command.ts`, whose
+   `commandWords` the advisor's gate also reads; an advisor gets model-callable `ls`, `find` and `grep`, and
+   `changes_read`, item 15); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
    read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
    compacted (`daemon/history-tools.ts`, plan 062). The history and schedule tools are script-only (plan 099). `daemon/extensions.ts` installs the built-in extensions in one
@@ -162,7 +165,9 @@ every chat gets, the chats, then the mods.
 7. **Subagents (`daemon/subagents.ts`).** The `subagent` tool runs a helper in a child conversation that the call owns,
    with the parent's model, tools and folder; it asks under the parent chat's permission mode as that mode is at each
    call. Aborting the call aborts the helper. Helpers are not
-   agent records, so they never appear in the Agents list, and they run no scripts.
+   agent records, so they never appear in the Agents list, and they run no scripts. A helper knows what its parent
+   writes in its brief and answers inside the parent's turn; a chat's advisor (item 15) is the other way round: a chat
+   that outlives the call, on the agent's advisor model, that only reads, and answers later as a row.
    **Scripts (`daemon/scripts.ts`, plan 2026-11-11 scripts).** pi-durable's Code Mode on one daemon-wide QuickJS
    sandbox, with its limits as constants there (time, memory, scripts at once, the section's listing budget). The
    `loki.scripts` extension wraps the `codemode` tool so a script sees only the script-only tools (`callers:
@@ -185,7 +190,8 @@ every chat gets, the chats, then the mods.
    part is at most 24,000 characters (`MAX_MATERIAL_CHARS`), its oldest, and the rest waits for the next run; a batch
    reads at most 80,000 (`MAX_BATCH_CHARS`), and a chat that does not fit whole waits for the next batch. A stretch
    under 300 characters (`MIN_NEW_CHARS`), a thanks or an acknowledgement, is not worth a model call: its cursor moves
-   on. Cursors stay per chat and move only when a run succeeds. A run works as the agent in that pass's hidden chat for
+   on. Cursors stay per chat and move only when a run succeeds. Hidden chats are never due, so the passes leave helpers'
+   and advisors' chats alone. A run works as the agent in that pass's hidden chat for
    the agent, cleared first, never while a chat in it is busy, one run at a time across all agents, and is measured
    (`pass_finished`, with the chats it read). The memory review (`/doctor`, `daemon/doctor.ts`) shares the queue and the
    hidden-chat run but reads the agent's whole memory instead of chats, and runs only when asked; its commits are
@@ -223,7 +229,9 @@ every chat gets, the chats, then the mods.
     (`daemon/chat-images.ts`). Each label's colour is kept by `daemon/labels.ts`. When a turn ends,
     `daemon/telemetry.ts` writes its `turn_finished` line, measured from what the store saved (`daemon/timing.ts`).
 13. **The usage ledger (`daemon/usage.ts`).** What every model call cost, by hour, agent, model and origin (the
-    person's chats, helpers, or a background pass), in `state/usage.json`, for the usage page. pi-durable adds each
+    person's chats, helpers, a background pass, or an advisor), in `state/usage.json`, for the usage page. The
+    origin comes from the chat's id (`advisor-…` for an advisor, item 15) and, in `turn_finished`, the request id
+    (`advisor:…`), since the ledger keeps a conversation's origin from the first time it sees it. pi-durable adds each
     call's tokens and cost into its conversation's `pi.usage` but keeps no time, so the ledger follows each store's
     commits and adds what grew to the commit's hour. It remembers each chat's last totals in the same file, so a
     restart counts nothing twice, and takes the totals of chats it has never seen as history. That history comes in
@@ -251,6 +259,43 @@ every chat gets, the chats, then the mods.
     for the picker. Settings › Engines shows how each stands. Which agents there are, how each stands and what each
     offered is `AcpCatalog` (`catalog.ts`, plan 060), apart from running them: `AcpChats` tells it what a session
     offered and how a turn went.
+15. **The advisor (plan 2026-11-22-2109).** A chat's second opinion, in a hidden chat of the agent's store with the id
+    `advisor-<chat id>` and an `advisor_for` marker naming its chat (`core/advisor.ts` holds the id, the consult
+    ledger's types, the cap and the blocks a consult and an answer travel in). Every advisor rule keys on
+    `advisor_for` or the id, never on the chat's mode.
+    - `daemon/advisor.ts`: `Advisors` makes the advisor chat at the first consult, single-flight per chat, through the
+      store as the passes make theirs (never `DaemonChats.create`, which puts the person's usual model on top): on
+      `advisorModel`'s choice (the agent's `advisor_model`, else its own model when that is loki's, else a refusal),
+      in the chat's folder, in standard mode, with the tool list below and the `loki.advisor` extension, which only
+      a chat that adds it gets (`ADDED_ONLY` in `daemon/kernel/`). The extension adds the advisor's prompt section,
+      reads memory as read-only, drops the replies, canvas, accounts and MCP sections, and gives the advisor
+      model-callable `ls`, `find` and `grep` that never follow links and history tools it calls without a script,
+      since its list has no `codemode`. `followFolder` moves the advisor to its chat's folder before each consult;
+      `adopt` remakes it from a moved record, re-applying what the record does not carry.
+    - `daemon/advisor-gate.ts`: `ADVISOR_TOOLS`, the list by name, and `advisorRefusal`, which the approvals hook
+      (item 4) runs first for a chat with `advisor_for` and turns into a block with a reason, never a card: a tool
+      off the list, `bash` that `isReadOnlyCommand` refuses, and any path (each `bash` word, `~` and `file:` spelt
+      out; the working folder when a file tool names none) that resolves, links followed, inside the data folder,
+      other than the agent's memory and the advisor's own `tool-results`. A recursive search of a folder above the
+      data folder, or one that follows links, is refused too.
+    - `daemon/changes.ts`: `changes_read`, a deferred tool of its own extension that only the advisor's list offers,
+      and `changeList`, which `/advisor` alone uses. git runs with the system and global config off, every program a
+      folder's config can name switched off by `GIT_CONFIG_*` pairs (fsmonitor, hooks, pager, external diff,
+      signature programs, every filter driver the config lists), and each kind's options from an allowlist, paths
+      only after `--`. `daemon/advisor-changes.ts` turns the change list into a consult or a "Nothing to review"
+      notice.
+    - `daemon/advisor-consults.ts`: `AdvisorConsults`, the queue. Each chat's ledger (`advisor_consults` on its info)
+      runs queued → running → answered, failed, stopped or dropped; the cap counts the agent's consults over the
+      last hour on an injected clock (`agentConsultsInHour`). loki submits a consult only while the advisor is idle,
+      with an `advisor:` request id, and reads the answer as the advisor's last text after the consult's input.
+      Every end but dropped is delivered through `DaemonChats.advise`, which does what `send` does at the chat's own
+      power (not the chat-link path's turn hold) but leaves the saved draft alone; an answer a Stop withdrew is
+      written back as a row that starts no turn (`keepIfWithdrawn`). On start it re-attaches to a running consult
+      whose run is live and ends the rest as "loki restarted". `drop` (archive) and `hold`/`release` (a move asked
+      during an answer, `move_to` on the chat) are here too; `view` builds the strip's `AdvisorView`.
+    - The daemon's side of the chat: `DaemonChats` runs `/advisor` in `command`, sends to an advisor chat without
+      `steer`, archives the advisor with its chat, and carries it in a move (`daemon/chat-move.ts`'s
+      `MovedAdvisor`). `chat_model` on an advisor chat leaves the agent's usual model alone (`mod/frames/chat.ts`).
 
 ## loki's own mod
 
@@ -275,10 +320,12 @@ so each bundle has its own copy and both see the same files. Anything that holds
    transform.
 3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
    `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
-   links), `suggestion_create` and `chat_message`. The first three are scripts' only (plan 099); a `canvas` prompt
+   links), `suggestion_create`, `chat_message` and `advisor_consult` (item 9). The first three are scripts' only (plan
+   099); a `canvas` prompt
    section tells every chat that widgets are files it writes. These are marked
    read-only and listed in `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a
-   background pass fails; `chat_message` asks on its own link card instead.
+   background pass fails, as does `advisor_consult` from an advisor chat; `chat_message` asks on its own link card
+   instead.
 4. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,
    so they persist with no file of their own and move with the chat. That Mac carries out every action: a client
    sends `suggestion_decide` (send, draft, reject) or `suggestion_retarget`, routed by the chat like any chat frame;
@@ -304,6 +351,17 @@ so each bundle has its own copy and both see the same files. Anything that holds
    has, never a helper agent's. The chat list also shows archived chats, lessons and canvases with no chat; the
    inbox shows only open chats. Both lists, a paired Mac's view of this one and the `desk_title` push read their
    rows here.
+9. **The advisor** (`mod/advisor.ts`, `mod/chat-advisor.ts`; the daemon's side is item 15 above). `advisor_consult`
+   (`mod/tools.ts`) is a mod tool, so a chat on an ACP agent reaches it through loki's tool server; it refuses in an
+   advisor or pass chat, builds the change list for a call with no text, and hands the consult to the host's
+   `ChatBackend.consult`. `mod/advisor.ts` holds the `advisor_consult` prompt section every other chat gets (when to
+   consult, what to send, that the answer comes later, the cap, `Nothing new.`) and the tool's reply. The strip reads
+   one whole-value `advisor` field on the chat's state: `withAdvisorOnOpen` adds it on open, and `AdvisorStrips`
+   pushes it again as an `advisor` chat event when the ledger changes or the advisor chat's turn starts or ends. In
+   the app, `app/src/chat/advisor-header.tsx` draws the strip, `AdvisorAnswerRow` in `chat/transcript.tsx` the answer
+   row (`core/harness.ts` reads the `<loki-advisor-answer>` block into it), and `OpenAdvisor` is the context that
+   opens the advisor chat by its runtime id, which hidden chats need: `desk/advisor-pane.tsx` in place of the chat's
+   pane on the Mac, a conversation page on the phone.
 
 ## The ports, and why there are two
 
@@ -402,7 +460,8 @@ bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats 
    `moved_to`, which the asking Mac follows once. The bridge sends a chat or canvas frame about another Mac's chat
    there as it is (`route`) and passes back the pushes of the Mac the directory names for that chat, so Macs never
    echo each other. A new chat's home is its agent's while that Mac is in reach (`chat_create`'s `home`). Files
-   attached here go to the home's uploads first.
+   attached here go to the home's uploads first. An advisor chat lives where its chat does: the directory answers for
+   `advisor-<chat id>` as for the chat (`holderOf`), so the copy a move leaves hidden on the old Mac never answers.
 5. **Memory** (`daemon/memory-sync.ts`, `mod/peer-memory.ts`). After a repo settles in its queue
    (`daemon/repo-queue.ts`) paired Macs are told (`memory_changed`) and fetch the commits they lack as a git bundle,
    merged in the same queue. A clash keeps the home's text and writes the other side to `conflicts/sync.md`, which
@@ -416,7 +475,11 @@ bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats 
    set, a Mac takes over the idle chats of agents homed on it: copied out, imported under the same id, then hidden on
    the old Mac with its schedules stopped. `chat_move` moves one chat by hand: routed to the Mac it lives on, which
    asks the target to take it (`peer_chat_take`) the same way. `ChatMoves` holds both sides of a move and is the
-   peer frames' `moves`; its tests join two of them with an in-memory link.
+   peer frames' `moves`; its tests join two of them with an in-memory link. A chat's advisor chat and its consult
+   ledger go inside its moved record (`MovedAdvisor`). A chat whose advisor is answering is busy, so the hand-over
+   skips it, and a move by hand is held instead: `AdvisorHolds.holdMove` saves the target on the chat (`move_to`),
+   and `ChatMoves` starts the move when `onAdvisorChange` says the answer has landed and the chat is idle, or at
+   start for a held move with nothing running.
 8. **What wakes each syncer** (`mod/peer-sync.ts`). The links hand every status and push to `PeerSync`, where each
    syncer (agents, memory, moves, state, group, directory) names the pushes that wake it, what it does when a Mac
    comes into reach, and the syncer it waits for: agents, then their memory, then the chats that move with them;
@@ -497,7 +560,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
 
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
    `mods/` the mod API and registry; the rest one file per capability
-   (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
+   (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats,
+   the advisor).
 2. `mod/`: loki's own mod. `index.ts` wires it, and `peering.ts` the paired Macs; `server.ts` and `lan.ts` hold the
    ports, and `sockets.ts` pushes to them; `bridge.ts` routes each frame to its handler under `frames/` (one module per
    feature: chats, desks, seen marks, history, folders, Learn, suggestions, agents, the phone listener, the paired Macs,
@@ -508,7 +572,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    note; `suggestions.ts` keeps the suggestions; `pins.ts`,
    `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back pins, folders, the Agents pages and
    Learn; `skill-sources.ts` says where each skill came from and refreshes the installed ones; `models.ts` keeps the
-   recent models for the picker; `tools.ts` holds the canvas, `chat_list` and suggestion tools; `requirements.ts` says
+   recent models for the picker; `tools.ts` holds the canvas, `chat_list`, suggestion, `chat_message` and
+   `advisor_consult` tools; `advisor.ts` and `chat-advisor.ts` the advisor's prompt and strip; `requirements.ts` says
    what this Mac lacks to run a chat; `uploads.ts` and `chat-images.ts` serve attached files and the pictures in
    messages; `pairing.ts`, `devices.ts`, `tailscale.ts` and `static.ts` are the phone listener; `peer-group.ts` pairs
    every paired Mac with every other; `boot.ts` re-bundles the mod on each reload in a checkout. Email, Slack and Jira

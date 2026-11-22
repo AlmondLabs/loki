@@ -108,6 +108,20 @@ a question card the sending chat shows when its agent first messages a chat it h
 chat's Mac. A message along it lands as a row of its own and holds the receiving chat's turn to the sender's power (a
 **turn hold**, `ChatInfo.turn_cap`). _Avoid_: channel, permission (a tool approval), grant.
 
+**Advisor** (`core/advisor.ts`, `daemon/advisor.ts`, plan 2026-11-22-2109): a chat's second opinion. It runs in the
+chat's **advisor chat**, a hidden chat of the same agent with the id `advisor-<chat id>` and `ChatInfo.advisor_for`
+naming its chat, one per chat and never shared, made at the first consult. It is the agent on its **advisor model**
+(`advisor_model` on the agent record, one of loki's own), reads its memory without writing it, never sees the chat's
+thread, and only reads: anything else it calls is refused without a card (`daemon/advisor-gate.ts`). It moves,
+archives and comes back with its chat. _Avoid_: reviewer, subagent or helper (a `subagent` call's child), second
+agent.
+
+**Consult** (`AdvisorConsult`, `ChatInfo.advisor_consults`): one request to a chat's advisor, from the agent
+(`advisor_consult`) or the person (`/advisor`), carrying only what its sender wrote, or the change list for
+`/advisor` alone. Kept in the chat's ledger, it runs queued → running → answered, failed or stopped, or ends dropped
+when its chat is archived; every end but dropped lands in the chat as a row from the advisor that starts the agent's
+turn. The agent may start 6 an hour in a chat, answered or not. _Avoid_: review (one use of a consult), ask.
+
 **Suggestion** (`mod/suggestions.ts`, plan 049): a message an agent writes for another chat, an open one of any agent
 or a new one for an agent in a folder, made with `suggestion_create` whenever another chat fits the work better. It
 is kept on the record of the chat it was made in, on that chat's home, and shows in that chat's screen, outside the
