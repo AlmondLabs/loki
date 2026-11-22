@@ -1313,7 +1313,7 @@ export const FRAMES = {
   ),
   account_thread_read: request(
     "account_thread",
-    "an outside card's thread, every message with its sender and time, read from its account (plan 068); a Slack card's window around what is new, or with `direction` and `from` 20 more messages before or after one, and with `view` and `thread_ts` one thread alone (plan 077); a Jira card's comments and field changes the same way, or with `ticket` its comments alone and, with its opening window, the ticket's fields, description and what changed since it was read (plan 089); sent to the Mac the account lives on by `home`",
+    "an outside card's thread, every message with its sender and time, read from its account (plan 068); a Slack card's window around what is new, or with `direction` and `from` 20 more messages before or after one (after one with `shown_from`, the shown messages again too, for their reactions), and with `view` and `thread_ts` one thread alone (plan 077); a Jira card's comments and field changes the same way, or with `ticket` its comments alone and, with its opening window, the ticket's fields, description and what changed since it was read (plan 089); sent to the Mac the account lives on by `home`",
     (m) => {
       if (!(str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id)) return "account_id and thread_id required";
       const ask: OutsideWindowAsk = {};
@@ -1324,6 +1324,7 @@ export const FRAMES = {
       else if (m.direction !== undefined) return "direction must be before or after";
       if (str(m.from) && m.from) ask.from = m.from;
       if (ask.direction && !ask.from) return "from required with direction";
+      if (ask.direction === "after" && str(m.shown_from) && m.shown_from) ask.shown_from = m.shown_from;
       if (m.ticket === true) ask.ticket = true;
       return { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null), ...ask };
     },

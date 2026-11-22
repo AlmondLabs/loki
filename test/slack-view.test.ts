@@ -38,7 +38,9 @@ function fakeSlack(opts: { history: SlackMessage[]; threads?: Record<string, Sla
     conversationsHistory: (o: { latest?: string; oldest?: string; inclusive?: boolean; limit?: number; cursor?: string }): Promise<SlackMessagePage> => {
       calls.push(`history ${o.oldest ? "after" : o.latest ? "before" : "latest"}${o.cursor ? ` ${o.cursor}` : ""}`);
       const inRange = newestFirst.filter(
-        (m) => (!o.latest || Number(m.ts) < Number(o.latest) || (o.inclusive === true && m.ts === o.latest)) && (!o.oldest || Number(m.ts) > Number(o.oldest)),
+        (m) =>
+          (!o.latest || Number(m.ts) < Number(o.latest) || (o.inclusive === true && m.ts === o.latest)) &&
+          (!o.oldest || Number(m.ts) > Number(o.oldest) || (o.inclusive === true && m.ts === o.oldest)),
       );
       const start = o.cursor ? Number(o.cursor) : 0;
       const limit = o.limit ?? 100;
@@ -421,6 +423,21 @@ describe("reactions on a Slack card (plan 079)", () => {
       { name: "not_an_emoji_anywhere", count: 1, mine: false, emoji: null },
     ]);
     expect(w.messages.find((m) => m.id === ts(1001))?.reactions).toBeUndefined();
+  });
+
+  test("a refresh read brings back the shown messages with their reactions now, then the newer ones, in one more call", async () => {
+    const checked = (n: number) => ({ raw: n === 102 ? { reactions: [{ name: "white_check_mark", users: ["U2"], count: 1 }] } : {} });
+    const { client, calls } = fakeSlack({ history: run(100, 106, () => "U2", checked) });
+    const view = slackChannelView(() => client);
+    const w = await view(ACCOUNT, "D1", facts(), { view: "channel", direction: "after", from: ts(104), shown_from: ts(101) });
+    expect(ids(w)).toEqual(run(101, 106).map((m) => m.ts));
+    expect(w.messages.find((m) => m.id === ts(102))?.reactions).toEqual([
+      { name: "white_check_mark", count: 1, mine: false, emoji: { kind: "emoji", text: "✅\uFE0F" } },
+    ]);
+    expect(w.window).toEqual({ view: "channel", thread_ts: null, more_before: false, more_after: false });
+    expect(calls.filter((c) => c.startsWith("history"))).toHaveLength(2);
+    const plain = await view(ACCOUNT, "D1", facts(), { view: "channel", direction: "after", from: ts(104) });
+    expect(ids(plain)).toEqual([ts(105), ts(106)]);
   });
 
   const eyes = QUICK_EMOJI[0];

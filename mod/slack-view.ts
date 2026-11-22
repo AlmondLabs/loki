@@ -187,8 +187,14 @@ export function slackChannelView(
       }
     };
     if (ask.direction && ask.from) {
-      const page = ask.direction === "before" ? await before(slack, channel, ask.from, VIEW_LOAD) : await after(slack, channel, ask.from, VIEW_LOAD);
-      const drawn = await Promise.all(page.messages.map(async (m) => draw(m, { ...flags(m, channelRead), ...(await repliesOf(m)) })));
+      const [page, shown] = await Promise.all([
+        ask.direction === "before" ? before(slack, channel, ask.from, VIEW_LOAD) : after(slack, channel, ask.from, VIEW_LOAD),
+        ask.direction === "after" && ask.shown_from ? between(slack, channel, ask.shown_from, ask.from) : [],
+      ]);
+      const drawn = await Promise.all([
+        ...shown.map((m) => draw(m, flags(m, channelRead))),
+        ...page.messages.map(async (m) => draw(m, { ...flags(m, channelRead), ...(await repliesOf(m)) })),
+      ]);
       return {
         messages: drawn,
         window: {
@@ -265,6 +271,11 @@ async function wholeThread(slack: ViewClient, channel: string, ts: string): Prom
 async function before(slack: ViewClient, channel: string, ts: string, count: number): Promise<{ messages: SlackMessage[]; more: boolean }> {
   const page = await slack.conversationsHistory({ channel, latest: ts, inclusive: false, limit: count });
   return { messages: byTime(page.messages), more: page.has_more };
+}
+
+async function between(slack: ViewClient, channel: string, oldest: string, latest: string): Promise<SlackMessage[]> {
+  const page = await slack.conversationsHistory({ channel, oldest, latest, inclusive: true, limit: PAGE });
+  return byTime(page.messages);
 }
 
 /**
