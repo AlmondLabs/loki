@@ -632,7 +632,7 @@ export type SuggestionTarget = { agent_id: string; conversation_id: string } | {
 export type SuggestionStatus = "pending" | "sending" | "sent" | "drafted" | "rejected" | "withdrawn";
 
 /** A message an agent suggests for another chat (plan 049), kept on the chat it was made in until the person acts. */
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
+// oxlint-disable-next-line typescript/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
 export type Suggestion = {
   id: string;
   title: string;
@@ -788,7 +788,7 @@ export interface ReplyAttachment {
  * A suggestion saved as a draft (plan 049, KTD7), kept on the chat it is for until that chat sends or the person
  * empties its box: its text, the suggestion it came from, and the chat that suggestion was made in.
  */
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
+// oxlint-disable-next-line typescript/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
 export type SavedDraft = { text: string; suggestion_id: string; source: { agent_id: string; conversation_id: string } };
 
 export interface RecentFolders {

@@ -31,7 +31,7 @@ describe("a saved draft in the message box", () => {
     const s = setup();
     s.save("look at the flaky upload test");
     expect(s.store.get(s.key)).toEqual({ text: "look at the flaky upload test", images: [] });
-    // The same object on each read until it changes, as useSyncExternalStore needs.
+    // Outside (React): useSyncExternalStore needs the same object on each read until it changes.
     expect(s.store.get(s.key)).toBe(s.store.get(s.key));
   });
 

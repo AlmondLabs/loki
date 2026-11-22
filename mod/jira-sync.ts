@@ -106,7 +106,7 @@ export class JiraSync implements AccountSync {
     do {
       const page = await this.opts.client.searchWatched({ sinceMinutes, pageToken, limit: TICKETS_PER_TICK });
       for (const ticket of page.tickets) {
-        // The search asks in whole minutes, so it may return a ticket from before the overlap: nothing on it is new.
+        // Outside (Jira): the search asks in whole minutes, so it may return a ticket from before the overlap: nothing on it is new.
         if (ticket.updated < floor || cursor.seen[ticket.id] === ticket.updated) continue;
         if (due.length >= TICKETS_PER_TICK) {
           more = true;
@@ -146,7 +146,7 @@ export class JiraSync implements AccountSync {
       const page = await this.opts.client
         .searchWatched({ sinceMinutes: null, pageToken: cursor.past.page_token, limit: TICKETS_PER_TICK })
         .catch((error: unknown) => {
-          // Jira's page tokens expire after a week, and a full site may wait longer than that for room: a position
+          // Outside (Jira): Jira's page tokens expire after a week, and a full site may wait longer than that for room: a position
           // Jira refuses is dropped, so the next tick starts again from the top and passes over what is recorded.
           if (cursor.past.page_token && error instanceof JiraError && error.code.startsWith("http_4"))
             this.save({ ...cursor, past: { page_token: null, done: false } });

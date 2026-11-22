@@ -35,7 +35,7 @@ function scratch(): Scratch {
   };
   for (const d of [s.home, s.tmp, s.apps, s.releases, s.bin]) mkdirSync(d);
   tool(s, "uname", 'case "$1" in -m) echo "$FAKE_ARCH" ;; *) echo "$FAKE_SYSTEM" ;; esac');
-  // hw.optional.arm64 is 1 on Apple silicon, under Rosetta too, 0 on some Intel Macs and missing on the rest.
+  // Outside (macOS): hw.optional.arm64 is 1 on Apple silicon, under Rosetta too, 0 on some Intel Macs and missing on the rest.
   tool(
     s,
     "sysctl",

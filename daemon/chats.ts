@@ -53,7 +53,6 @@ function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: I
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
   const text = contentText(message.content).trim();
   if (message.role !== "user") return { steps, role: message.role, text, at: messageAt(message) };
-  // Markup taken out leaves a cut of a text nothing else keeps, which would hold the whole of it (core/harness.ts ownText).
   const said = stripHarnessMarkup(text).trim();
   return { steps, role: message.role, text: said === text ? text : ownText(said), at: messageAt(message) };
 }
@@ -165,8 +164,8 @@ export class ChatProjection implements ChatSource {
 
   private apply(agentId: string, publication: CommitPublication): void {
     const isIndex = (change: CommitPublication["changes"][number]) => change.type === "document" && change.record.kind === ChatIndex.definition.kind;
-    // The index first: the commit that makes a chat may write its settings (its folder) before its index entry.
-    for (const change of [...publication.changes].sort((a, b) => Number(isIndex(b)) - Number(isIndex(a)))) {
+    const indexBeforeSettings = [...publication.changes].sort((a, b) => Number(isIndex(b)) - Number(isIndex(a)));
+    for (const change of indexBeforeSettings) {
       if (change.type !== "document" || change.value === null) continue;
       if (change.record.kind === ChatIndex.definition.kind) {
         const index = (change.value as { chats?: Record<string, number> }).chats ?? {};

@@ -59,7 +59,7 @@ export class AcpProcess {
   private async start(): Promise<Running> {
     const generation = (this.generation = Symbol(this.config.name));
     this.stderrTail = "";
-    // npx and other .cmd shims run only through a shell on Windows; a program named by its .exe runs as it is.
+    // Outside (Windows): npx and other .cmd shims run only through a shell; a program named by its .exe runs as it is.
     const child = spawn(this.config.command, this.config.args, {
       env: { ...process.env, ...this.config.env },
       stdio: ["pipe", "pipe", "pipe"],
@@ -81,7 +81,9 @@ export class AcpProcess {
     const stream = ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>);
     const connection = client({ name: "loki" })
       .onRequest(methods.client.session.requestPermission, (ctx) => this.handlers.permission(ctx.params))
-      // A page the agent asks the person to open. Its later `elicitation/complete` is left unhandled on purpose: the card
+      // Outside (ACP): the later `elicitation/complete` is left unhandled, as a second notification handler makes the SDK
+      // deliver `session/update`s out of order with responses, and a loaded session's replayed history leaked into the
+      // next turn.
       .onRequest(methods.client.elicitation.create, (ctx) => this.handlers.elicit(ctx.params))
 
       .onNotification(methods.client.session.update, (ctx) => {
@@ -99,7 +101,7 @@ export class AcpProcess {
       timer.unref();
     });
     void exited.then((error) => connection.close(error));
-    // The connection can close before the process says it exited (its stdout ends first): either way, the next use starts it again.
+    // Outside (Node): a child's stdout can end, closing the connection, before the child says it exited.
     void connection.closed.then(() => {
       if (this.generation === generation) this.running = null;
     });

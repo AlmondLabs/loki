@@ -120,7 +120,7 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
           .serverInfo()
           .catch(() => null);
         const host = info ? hostOf(info.base_url) : null;
-        // Jira Cloud's API lives under atlassian.net even for a site with its own domain, so an answer naming any other
+        // Outside (Jira): Jira Cloud's API lives under atlassian.net even for a site with its own domain, so an answer naming any other
         // host is not a Cloud site, and the token must not go there.
         if (!info || !host || !JIRA_CLOUD_HOST.test(host)) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
         const linkHost = hostOf(info.display_url);

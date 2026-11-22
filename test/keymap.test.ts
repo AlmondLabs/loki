@@ -65,7 +65,7 @@ describe("keymap: the list's Search", () => {
   test("⌥⌘F on the Mac, from a text box too, however ⌥ changes the letter; Ctrl Shift F on Windows and Linux", () => {
     expect(resolve(ev("f", { meta: true, alt: true }), "desk", "macos")?.id).toBe("list.search");
     expect(resolve(ev("f", { meta: true, alt: true }, true), "inbox", "macos")?.id).toBe("list.search");
-    // ⌥F types "ƒ" on a Mac: the key's place still says F
+    // Outside (macOS): ⌥F types "ƒ" on a Mac, and the key's place still says F.
     const typedWithOption = Object.assign(ev("ƒ", { meta: true, alt: true }), { code: "KeyF" });
     expect(resolve(typedWithOption, "learn", "macos")?.id).toBe("list.search");
     expect(resolve(ev("ƒ", { meta: true, alt: true }), "learn", "macos")).toBeNull();
@@ -406,7 +406,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(keyFor("search.open", "linux")).toBe("Ctrl K");
   });
   test("on the Mac, Ctrl with a letter in a text box edits the text: only ⌘ reaches a binding there", () => {
-    // Ctrl+K cuts to the end of the line, Ctrl+N goes down a line, Ctrl+E (Archive in the Inbox) to the line's end.
+    // Outside (macOS): Ctrl+K cuts to the end of the line, Ctrl+N goes down a line, Ctrl+E (Archive in the Inbox) to the line's end.
     expect(resolve(ev("k", { ctrl: true }, true), "desk", "macos")).toBeNull();
     expect(resolve(ev("n", { ctrl: true }, true), "desk", "macos")).toBeNull();
     expect(resolve(ev("e", { ctrl: true }, true), "inbox", "macos")).toBeNull();
@@ -414,7 +414,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(resolve(ev("k", { ctrl: true }), "desk", "macos")?.id).toBe("search.open");
   });
   test("off the Mac no binding takes a key the system keeps, nor any Ctrl+Alt chord (AltGr on Windows, workspaces on Linux)", () => {
-    // Windows: Ctrl+Alt+arrows rotate the screen (Intel graphics), Alt+Space is the window menu, Ctrl+Esc the Start menu.
+    // Outside (Windows): Ctrl+Alt+arrows rotate the screen (Intel graphics), Alt+Space is the window menu, Ctrl+Esc the Start menu.
     const RESERVED: Record<"windows" | "linux", string[]> = {
       windows: ["alt+cmd+left", "alt+cmd+right", "alt+cmd+up", "alt+cmd+down", "alt+space", "cmd+escape", "cmd+shift+escape"],
       linux: ["alt+cmd+left", "alt+cmd+right", "alt+cmd+up", "alt+cmd+down", "alt+space", "alt+cmd+t", "alt+cmd+backspace"],

@@ -44,8 +44,8 @@ export function RenameSheet({
     if (err) setError(err);
     else onClose();
   };
-  // A form of two fields does not submit on Return by itself, so each field saves on it.
-  const onEnter = (e: KeyboardEvent<HTMLInputElement>) => {
+  // Outside (HTML): a form of two fields and no submit button does not submit on Return, so each field saves on it.
+  const saveOnReturn = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void save();
@@ -76,7 +76,7 @@ export function RenameSheet({
             setValue(e.target.value);
             setError(null);
           }}
-          onKeyDown={onEnter}
+          onKeyDown={saveOnReturn}
         />
         {onPurpose && (
           <Field
@@ -92,7 +92,7 @@ export function RenameSheet({
               setPurposeValue(e.target.value);
               setError(null);
             }}
-            onKeyDown={onEnter}
+            onKeyDown={saveOnReturn}
           />
         )}
       </form>

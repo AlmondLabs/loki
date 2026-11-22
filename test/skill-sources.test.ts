@@ -54,7 +54,7 @@ beforeAll(() => {
   git(checkout, "commit", "-q", "-m", "skills v1");
   global = join(root, "global");
   mkdirSync(global);
-  // a junction on Windows (no privilege needed); the type is ignored elsewhere
+  // Outside (Windows): a junction needs no privilege on Windows; Node ignores the link type elsewhere.
   symlinkSync(join(checkout, "fmt-linked"), join(global, "fmt-linked"), "junction");
   skill(global, "copied-in", "a global copy from a lock file");
 
@@ -231,18 +231,15 @@ describe("sources and trees", () => {
       JSON.stringify({ skills: [{ name: "ok", source: "a/b", sourceUrl: "https://github.com/a/b.git", skillPath: "skills/ok/SKILL.md" }, { name: 3 }, "x"] }),
     );
     expect(readLock(f).map((e) => e.name)).toEqual(["ok"]);
-    // What the `skills` CLI actually writes (version 3): keyed by name.
-    writeFileSync(
-      f,
-      JSON.stringify({
-        version: 3,
-        skills: {
-          pptx: { source: "anthropics/skills", sourceType: "github", sourceUrl: "https://github.com/anthropics/skills.git", skillPath: "skills/pptx/SKILL.md" },
-          broken: { source: "x" },
-          junk: 4,
-        },
-      }),
-    );
+    const lockAsTheSkillsCliWritesIt = JSON.stringify({
+      version: 3,
+      skills: {
+        pptx: { source: "anthropics/skills", sourceType: "github", sourceUrl: "https://github.com/anthropics/skills.git", skillPath: "skills/pptx/SKILL.md" },
+        broken: { source: "x" },
+        junk: 4,
+      },
+    });
+    writeFileSync(f, lockAsTheSkillsCliWritesIt);
     expect(readLock(f)).toEqual([
       {
         name: "pptx",

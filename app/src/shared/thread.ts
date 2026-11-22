@@ -46,8 +46,6 @@ export function holdMark(prev: HeldMark | null, key: string | null, item: { view
 
 const DAY_MS = 86_400_000;
 
-// The formats the thread writes, and one Intl.DateTimeFormat per locale and format, built on first use: every
-// message's time went through toLocaleTimeString, which builds a formatter per call (20 ms on a long thread).
 const CLOCK: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 const WEEKDAY: Intl.DateTimeFormatOptions = { weekday: "long" };
 const SHORT_DATE: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" };
@@ -55,7 +53,7 @@ const LONG_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", 
 const formatters = new Map<Intl.DateTimeFormatOptions, Map<string, Intl.DateTimeFormat>>();
 let built = 0;
 
-function format(locale: string | undefined, options: Intl.DateTimeFormatOptions, d: Date): string {
+function formatCached(locale: string | undefined, options: Intl.DateTimeFormatOptions, d: Date): string {
   let byLocale = formatters.get(options);
   if (!byLocale) formatters.set(options, (byLocale = new Map<string, Intl.DateTimeFormat>()));
   let f = byLocale.get(locale ?? "");
@@ -82,9 +80,9 @@ export function dayLabel(iso: string | null | undefined, now: number = Date.now(
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   const d = new Date(t);
-  if (days < 7) return format("en-GB", WEEKDAY, d);
+  if (days < 7) return formatCached("en-GB", WEEKDAY, d);
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  return format("en-GB", sameYear ? SHORT_DATE : LONG_DATE, d);
+  return formatCached("en-GB", sameYear ? SHORT_DATE : LONG_DATE, d);
 }
 
 const dayKey = (t: number) => {
@@ -112,5 +110,5 @@ function dayOf(r: { at?: string }): string | null {
 export function clockLabel(iso: string | null | undefined): string | null {
   const t = iso ? Date.parse(iso) : Number.NaN;
   if (!Number.isFinite(t)) return null;
-  return format(undefined, CLOCK, new Date(t));
+  return formatCached(undefined, CLOCK, new Date(t));
 }

@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeProvider } from "../app/src/theme.tsx";
 import { KeysSheet } from "../app/src/shell/keys-sheet.tsx";
 
-// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 const noop = () => {};

@@ -3,6 +3,7 @@ import { dmgName, renderCask } from "../scripts/cask.ts";
 import { must } from "./fixtures/must.ts";
 
 const sha = "a".repeat(64);
+const inHomebrewStanzaOrder = (rb: string, stanzas: string[]) => stanzas.every((s, i) => i === 0 || rb.indexOf(stanzas[i - 1]) < rb.indexOf(s));
 
 describe("homebrew cask", () => {
   test("points at the release's Apple silicon dmg and carries its checksum", () => {
@@ -36,12 +37,14 @@ describe("homebrew cask", () => {
   test("matches the app's floor and knows what loki leaves behind", () => {
     const rb = renderCask({ owner: "example", version: "2026.9.28", sha256: sha });
     expect(rb).toContain("depends_on arch: :arm64");
-    expect(rb).toContain("depends_on macos: :ventura"); // tauri.conf.json: minimumSystemVersion 13.0; Homebrew 7 deprecates the ">= :ventura" string form
+    // Outside (Homebrew): Homebrew 7 deprecates the ">= :ventura" string form.
+    expect(rb).toContain("depends_on macos: :ventura");
     expect(rb).not.toContain("depends_on formula");
     for (const p of ["~/.loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
     expect(rb).not.toContain(".letta");
     expect(rb).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
-    expect(rb).not.toContain("--no-quarantine"); // gone from Homebrew 7: "invalid option"
+    // Outside (Homebrew): Homebrew 7 answers --no-quarantine with "invalid option".
+    expect(rb).not.toContain("--no-quarantine");
   });
 
   test("both casks say the app updates itself, so brew upgrade leaves a running loki to its own updater (R19)", () => {
@@ -49,7 +52,7 @@ describe("homebrew cask", () => {
       const rb = renderCask({ owner: "example", version: channel === "stable" ? "2026.1116.0" : "2026.1116.0-nightly.4900", sha256: sha, channel });
       expect(rb, channel).toContain("  auto_updates true\n");
       expect(rb, channel).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
-      expect(rb.indexOf("auto_updates"), channel).toBeLessThan(rb.indexOf("conflicts_with")); // Homebrew's stanza order
+      expect(inHomebrewStanzaOrder(rb, ["auto_updates", "conflicts_with"]), channel).toBe(true);
     }
   });
 
@@ -62,9 +65,7 @@ describe("homebrew cask", () => {
     expect(line).toMatch(/^ {2}deprecate! date: "2026-11-16", because: "[^"]+"$/);
     expect(line).toContain("loki cask");
     expect(line).toContain("Nightly");
-    // after livecheck, before auto_updates: Homebrew's stanza order
-    expect(rb.indexOf("livecheck do")).toBeLessThan(rb.indexOf("deprecate!"));
-    expect(rb.indexOf("deprecate!")).toBeLessThan(rb.indexOf("auto_updates"));
+    expect(inHomebrewStanzaOrder(rb, ["livecheck do", "deprecate!", "auto_updates"])).toBe(true);
     expect(renderCask({ owner: "example", version: "2026.1116.0", sha256: sha })).not.toContain("deprecate!");
   });
 

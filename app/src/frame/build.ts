@@ -49,7 +49,7 @@ export async function buildFrameScript(production: boolean): Promise<string> {
 export const BOOT_REPORTER = `(function(){function r(m){try{parent.postMessage({bridge:"loki-widget",type:"error",hash:"boot",message:"widget frame: "+String(m)},"*")}catch(_){}}window.__lokiBootError=function(e){r(e&&e.message||e)};window.addEventListener("error",window.__lokiBootError);window.addEventListener("unhandledrejection",function(e){r(e.reason&&e.reason.message||e.reason)})})();`;
 
 export function frameHtml(script: string): string {
-  // esbuild escapes "</script" inside strings and regexes; any that is left would end the tag early.
+  // Outside (esbuild): it escapes "</script" inside strings and regexes; any that is left would end the tag early.
   if (/<\/script/i.test(script)) throw new Error("widget frame bundle contains </script");
   return `<!doctype html>
 <html>

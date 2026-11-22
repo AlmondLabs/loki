@@ -5,9 +5,9 @@ export interface FakeJiraPerson {
 }
 
 export interface FakeJiraUser extends FakeJiraPerson {
-  /** Their address, which Jira shows only when their profile shares it. */
+  // Outside (Jira): Jira shows a person's address only when their profile shares it.
   email?: string;
-  /** Ticket keys and project keys they cannot see; the site-wide search still finds them. */
+  // Outside (Jira): the site-wide search still finds the tickets and projects a person cannot see.
   blind?: string[];
   assignable?: boolean;
   app?: boolean;
@@ -19,7 +19,6 @@ export interface FakeJiraRequest {
   url: URL;
   body: string;
   authorization: string;
-  /** The fetch's `redirect` option, `follow` when it was left out, as fetch's own default. */
   redirect: RequestRedirect;
 }
 
@@ -33,7 +32,7 @@ export interface FakeJiraAttachment {
 
 export type FakeJiraThumbnailAnswer = "image" | "redirect" | "unauthorized" | "not_image" | "oversize";
 
-/** Where a redirected thumbnail points, a media host apart from the site, as Jira's own redirect does. */
+// Outside (Jira): Jira redirects a thumbnail to a media host apart from the site.
 export const JIRA_MEDIA_HOST = "api.media.atlassian.com";
 export const JIRA_THUMBNAIL_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -97,9 +96,9 @@ export const JIRA_ME: FakeJiraPerson = { account_id: "acc-me", display_name: "Mi
 export const JIRA_ADA: FakeJiraPerson = { account_id: "acc-ada", display_name: "Ada Lovelace" };
 export const JIRA_BOB: FakeJiraPerson = { account_id: "acc-bob", display_name: "Bob Stone" };
 
-/** A time as Jira writes it: milliseconds, then an offset without a colon. */
+// Outside (Jira): Jira writes a time with milliseconds and an offset without a colon, which Date.parse is not promised
+// to read.
 const stamp = (ms: number) => new Date(ms).toISOString().replace("Z", "+0000");
-/** The instant a time names; Jira's offset has no colon, which Date.parse is not promised to read. */
 const instant = (at: FakeJiraTime) => (at instanceof Date ? at.getTime() : Date.parse(at.replace(/([+-]\d{2})(\d{2})$/, "$1:$2")));
 const written = (at: FakeJiraTime) => (at instanceof Date ? stamp(at.getTime()) : at);
 const person = (p: FakeJiraPerson) => ({
@@ -137,17 +136,15 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     email: opts.email ?? "mina@example.com",
     token: opts.token ?? "fixture-jira-token",
     unauthorized: false,
-    /** Every call answers 200 with an empty body and Jira's failed-login header. */
     failed_login: false,
     profile_without_id: false,
     retry_after: null as number | null,
-    /** The name of the list in a history answer: Jira's reference shows both. */
+    // Outside (Jira): Jira's reference names the list in a history answer both ways.
     history_list: "values" as "values" | "histories",
     display_url: null as string | null,
-    /** Whether the site has a field named Sprint; a site without Jira Software has none. */
+    // Outside (Jira): a site without Jira Software has no field named Sprint.
     has_sprints: true,
     broken: null as { read: "issue" | "field"; status: number } | null,
-    /** How the thumbnail route answers; a request without `redirect=false` is redirected whatever this says, as Jira does. */
     thumbnail: "image" as FakeJiraThumbnailAnswer,
     projects: [
       {
@@ -205,7 +202,7 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       .sort((a, b) => direction * (a.updated - b.updated));
     const from = Number(q.get("nextPageToken") ?? "0");
     const size = Number(q.get("maxResults") ?? "50");
-    // Jira returns only the id unless fields are named.
+    // Outside (Jira): Jira returns only the id unless fields are named.
     const fields = (q.get("fields") ?? "").split(",").filter(Boolean);
     const all: Record<string, (t: StoredTicket) => unknown> = {
       summary: (t) => t.summary,
@@ -257,7 +254,7 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
   const site = (req: FakeJiraRequest): Response => {
     const path = req.url.pathname;
     const q = req.url.searchParams;
-    // The site says where it lives to anyone, signed in or not.
+    // Outside (Jira): the site says where it lives to anyone, signed in or not.
     if (path === "/rest/api/3/serverInfo" && req.method === "GET")
       return json(200, { baseUrl: `https://${host}`, displayUrl: state.display_url ?? `https://${host}`, deploymentType: "Cloud" });
     if (state.retry_after !== null) return json(429, {}, { "retry-after": String(state.retry_after) });
@@ -267,7 +264,6 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
 
     if (path === "/rest/api/3/myself" && req.method === "GET")
       return json(200, state.profile_without_id ? {} : { ...person(me), emailAddress: state.email, timeZone: "Asia/Kolkata" });
-    // The search Jira retired in 2025.
     if (path === "/rest/api/3/search") return json(410, { errorMessages: ["The requested API has been removed. Please migrate to /rest/api/3/search/jql."] });
     if (path === "/rest/api/3/search/jql" && req.method === "GET") return search(q);
     if (path === "/rest/api/3/user/search" && req.method === "GET") return userSearch(q, () => true);
@@ -374,7 +370,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       };
       return json(200, { id: ticket.id, key: ticket.key, fields: Object.fromEntries(fields.filter((f) => f in all).map((f) => [f, all[f]])) });
     }
-    // Every field the person may see, a list rather than an object; a custom field's id differs from site to site.
+    // Outside (Jira): Jira lists every field the person may see, a list rather than an object, and a custom field's id
+    // differs from site to site.
     if (path === "/rest/api/3/field" && req.method === "GET")
       return (
         breaks("field") ??
@@ -390,7 +387,7 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     const issue = /^\/rest\/api\/3\/issue\/([^/]+)\/(comment|changelog)$/.exec(path);
     if (issue) {
       const ticket = find(decodeURIComponent(issue[1]));
-      // Jira hides a ticket the person may not see behind the same answer as one that is not there.
+      // Outside (Jira): Jira hides a ticket the person may not see behind the same answer as one that is not there.
       if (!ticket) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
       if (issue[2] === "changelog" && req.method === "GET") {
         const { page, ...paging } = slice(byTime(ticket.history), q, 100);
@@ -411,7 +408,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return json(404, { errorMessages: ["Not Found"] });
   };
 
-  /** A thumbnail's answer: Jira redirects to its media host, token in the address, unless asked with `redirect=false`. */
+  // Outside (Jira): Jira redirects a thumbnail to its media host, token in the address, unless asked with
+  // `redirect=false`.
   const thumbnail = (id: string, q: URLSearchParams): Response => {
     const file = tickets.flatMap((t) => (t.hidden ? [] : t.attachments)).find((a) => a.id === id);
     if (!file) return json(404, { errorMessages: ["The attachment does not exist."] });
@@ -430,7 +428,6 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return comment;
   }
 
-  // A redirect is followed, as fetch follows one, unless the caller asked for `manual` or `error`, so a test sees any
   const fetchFn = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const req: FakeJiraRequest = {

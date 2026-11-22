@@ -38,14 +38,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
             build-essential curl wget file patchelf
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # https://github.com/dtolnay/rust-toolchain/tree/stable
         with:
           components: rustfmt, clippy
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
-          # Only main saves: a branch reads main's cache, and its own 0.5 GB copies would push main's out of the
-          # repository's 10 GB, leaving the next release build cold.
+          # Outside (GitHub Actions): a repository's caches share 10 GB, so a branch's own 0.5 GB copies would push
+          # main's out and leave the next release build cold.
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: stand-ins for the app build and the bundled resources
         run: |

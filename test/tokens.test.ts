@@ -17,8 +17,8 @@ function walk(dir: string, keep: (name: string) => boolean): string[] {
   }
   return out;
 }
-// paths as "kit/tokens.css" on every system: the filters below name them with "/", and Windows joins with "\\"
-const read = (p: string) => ({ path: p.slice(APP.length + 1).replaceAll("\\", "/"), text: readFileSync(p, "utf8") });
+const withForwardSlashes = (path: string) => path.replaceAll("\\", "/");
+const read = (p: string) => ({ path: withForwardSlashes(p.slice(APP.length + 1)), text: readFileSync(p, "utf8") });
 const files = walk(APP, (n) => /\.(tsx|ts|css)$/.test(n) && !n.endsWith(".d.ts")).map(read);
 const code = files.filter((f) => !f.path.endsWith(".css"));
 const css = files.filter((f) => f.path.endsWith(".css"));
@@ -120,8 +120,8 @@ const definitionOf = (text: string, at: number, expr: string) => {
 
 const offFontInline = (path: string, text: string) =>
   [...text.matchAll(/\bfontSize(?:=("[^"]*")|(?:: |=\{)((?:`[^`]*`|"[^"]*"|'[^']*'|\((?:[^()\n]|\([^()\n]*\))*\)|[^,}\n"'`()])+))/g)]
-    // the JSX string prop is the first group, everything else the second; the group that did not match is undefined, whatever its type says
-    .map((m) => ({ at: m.index, value: (m[1] || m[2]).trim() }))
+    // Outside (TypeScript): a group that did not match is undefined, whatever its type says.
+    .map(({ index, 1: jsxStringProp, 2: expression }) => ({ at: index, value: (jsxStringProp || expression).trim() }))
     .filter(({ at, value }) => {
       if (path === FACE_INITIAL.path && value === FACE_INITIAL.value) return false;
       const meaning = definitionOf(text, at, value);
@@ -586,9 +586,9 @@ describe("phone tokens: one system under the phone root", () => {
     expect(phone).toMatch(/\.loki-phone [^{]*:focus-visible[^{]*\{[^}]*outline: 2px solid/);
     expect(phone).toMatch(/--loki-focus-flash: var\(--phone-focus\)/);
     expect(flat(phone)).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
-    // an animation beats a plain declaration, so every ring turned off must stop the flash too
-    const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
-    expect(off.filter((b) => !b.includes("animation: none"))).toEqual([]);
+    const ringsTurnedOff = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
+    const ringsOffButStillFlashing = ringsTurnedOff.filter((b) => !b.includes("animation: none"));
+    expect(ringsOffButStillFlashing).toEqual([]);
     expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
 });

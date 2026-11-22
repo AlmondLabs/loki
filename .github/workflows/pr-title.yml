@@ -2,8 +2,7 @@ name: pr title
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
-  # A required check, so it reports in the merge queue too, where it passes by being skipped: the title was checked on
-  # the PR.
+  # Outside (GitHub Actions): the merge queue waits for every required check, and a skipped job passes.
   merge_group:
 
 permissions:
@@ -23,7 +22,7 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      # The title reaches the script through the environment, never the shell line, where a title could run as a command.
-      - env:
+      - name: check the title, passed in the environment so it cannot run as a command
+        env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-pr-title.ts

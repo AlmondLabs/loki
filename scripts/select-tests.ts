@@ -12,16 +12,14 @@ export interface Change {
 export type Selection = { all: true; why: string } | { all: false; files: string[] };
 
 const CODE = /^(app\/src|mod|core|daemon|site\/src|scripts|test|test-node)\/.+\.(ts|tsx|mts)$/;
-// A test that reads the tree from disk (a source's text, a folder's files, the workflows) is related to files the
-// module graph cannot see, so it runs on every PR.
+// Outside (vitest): `vitest related` follows the module graph, which cannot see a test that reads the tree from disk,
+// so such a test runs on every PR.
 const READS_TREE = /import\.meta\.dirname|new URL\(\s*["'`]\.\.\/|process\.cwd\(\)/;
 
 export function treeReaders(tests: ReadonlyMap<string, string>): string[] {
   return [...tests].filter(([, source]) => READS_TREE.test(source)).map(([path]) => path);
 }
 
-// On a PR: the tests the diff can reach. Anything but an edit or an addition of TypeScript under the code folders
-// (a stylesheet, a config, the lockfile, a workflow, a deletion, a rename) runs the whole suite.
 export function selectTests(changes: readonly Change[], tests: ReadonlyMap<string, string>): Selection {
   for (const c of changes) {
     if (c.status !== "M" && c.status !== "A") return { all: true, why: `${c.path} was ${c.status === "D" ? "deleted" : "renamed or copied"}` };
@@ -30,7 +28,6 @@ export function selectTests(changes: readonly Change[], tests: ReadonlyMap<strin
   return { all: false, files: [...new Set([...changes.map((c) => c.path), ...treeReaders(tests)])].sort() };
 }
 
-/** vitest's arguments for a selection; `flags` (a shard) go to vitest as they are. */
 export function vitestArgs(selection: Selection, flags: readonly string[]): string[] {
   return selection.all ? ["run", ...flags] : ["related", "--run", "--passWithNoTests", ...flags, ...selection.files];
 }

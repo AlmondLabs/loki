@@ -3,9 +3,8 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { isNewSend } from "../app/src/chat/use-transcript-scroll.ts";
 import { drawnRows, keepsFollowing, lastShown, newSince } from "../app/src/item/thread-follow.ts";
 
-/** The thread's viewport as MessageScroller marks it: "end" in `data-scrollable` while it is away from the bottom. */
-const viewport = (away: boolean) =>
-  ({ getAttribute: (name: string) => (name === "data-scrollable" ? (away ? "start end" : "start") : null) }) as unknown as HTMLElement;
+const viewport = (awayFromBottom: boolean) =>
+  ({ getAttribute: (name: string) => (name === "data-scrollable" ? (awayFromBottom ? "start end" : "start") : null) }) as unknown as HTMLElement;
 
 const user = (text: string, queued = false): TranscriptRow => ({ role: "user", text, ...(queued ? { queued } : {}) });
 const reply = (text: string): TranscriptRow => ({ role: "assistant", text });

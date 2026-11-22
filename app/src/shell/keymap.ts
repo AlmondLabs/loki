@@ -57,8 +57,7 @@ export const KEYMAP: Binding[] = [
     labelOn: { windows: "Minimise loki", linux: "Minimise loki" },
     typing: true,
   },
-  // Mail's Mailbox Search: the showing list's Search field, from anywhere in the place (plan 2026-11-14-1330, R16). The
-  // list registers it while it has a Search. Off the Mac a Ctrl+Alt chord is AltGr's, so it is Ctrl Shift F there.
+  // Outside (Windows): Ctrl+Alt is AltGr off the Mac, so there the chord is Ctrl+Shift+F.
   {
     id: "list.search",
     keys: ["alt+cmd+f"],
@@ -83,7 +82,8 @@ export const KEYMAP: Binding[] = [
   { id: "chat.suggestions", keys: ["cmd+shift+s"], where: "desk", label: "Show Suggestions…", typing: true, menu: "Chat" },
   { id: "chat.allow", keys: ["cmd+enter"], where: "desk", label: "Allow Step", typing: true, menu: "Chat/decide" },
   { id: "chat.deny", keys: ["cmd+shift+backspace"], where: "desk", label: "Deny Step", typing: true, menu: "Chat/decide" },
-  // Ctrl+Alt+arrows are the system's off the Mac (workspaces on Linux, screen rotation on Windows, where Ctrl+Alt is also AltGr).
+  // Outside (Windows): Ctrl+Alt+arrows belong to the system off the Mac: screen rotation on Windows, where Ctrl+Alt is also
+  // AltGr, and workspaces on Linux.
   {
     id: "chat.left",
     keys: ["cmd+left", "alt+cmd+left"],
@@ -146,7 +146,7 @@ export const KEYMAP: Binding[] = [
   { id: "settings.prevPage", keys: ["cmd+["], where: "settings", label: "previous page", typing: true },
   { id: "settings.nextPage", keys: ["cmd+]"], where: "settings", label: "next page", typing: true },
 
-  // The Mac's alone: Alt+Space is the window menu on Windows and Linux.
+  // Outside (Windows): Alt+Space opens the window menu on Windows and Linux, so this is the Mac's alone.
   { id: "global.inbox", keys: ["alt+space"], keysOn: { windows: [], linux: [] }, where: "global", label: "bring loki up on Flow", note: "the OS" },
 ];
 
@@ -257,6 +257,17 @@ export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP, os: Platform
   return map.filter((b) => keysOf(b, os).some((k) => matches(e, k))).map((b) => b.id);
 }
 
+const SHIFTED_FORM = new Map([
+  ["0", ")"],
+  ["=", "+"],
+  ["-", "_"],
+  [",", "<"],
+  ["/", "?"],
+  ["[", "{"],
+  ["]", "}"],
+  ["\\", "|"],
+]);
+
 export function matches(e: KeyboardEvent, spec: string): boolean {
   const parts = spec.split("+");
   const key = parts[parts.length - 1];
@@ -266,8 +277,7 @@ export function matches(e: KeyboardEvent, spec: string): boolean {
   if (want.ctrl && !e.ctrlKey) return false;
   if (!want.ctrl && e.metaKey && e.ctrlKey) return false;
   if (want.alt !== e.altKey) return false;
-  // Shift: required when asked; tolerated for "=" (⌘⇧= is also zoom in on a Mac) via a separate spec.
-  if (want.shift !== e.shiftKey && !(key.length === 1 && !/[a-z0-9]/.test(key) && !want.shift && !e.shiftKey)) return false;
+  if (want.shift !== e.shiftKey) return false;
   const k = e.key;
   switch (key) {
     case "enter":
@@ -287,19 +297,9 @@ export function matches(e: KeyboardEvent, spec: string): boolean {
     case "down":
       return k === "ArrowDown";
     default:
-      // Letters compare case-insensitively (shift is checked above); punctuation compares as typed,
-      // with the shifted forms of the digits and punctuation accepted for chords ("cmd+shift+0" arrives as "0" or ")").
-      // On the Mac ⌥ changes the letter a key types (⌥F is "ƒ"), so a chord with ⌥ also matches by the key's place.
+      // Outside (macOS): ⌥ changes the letter a key types (⌥F is "ƒ"), so a chord with ⌥ also matches by the key's place.
       if (/^[a-z]$/.test(key)) return k.toLowerCase() === key || (want.alt && e.code === `Key${key.toUpperCase()}`);
-      if (key === "0") return k === "0" || k === ")";
-      if (key === "=") return k === "=" || k === "+";
-      if (key === "-") return k === "-" || k === "_";
-      if (key === ",") return k === "," || k === "<";
-      if (key === "/") return k === "/" || k === "?";
-      if (key === "[") return k === "[" || k === "{";
-      if (key === "]") return k === "]" || k === "}";
-      if (key === "\\") return k === "\\" || k === "|";
-      return k === key;
+      return k === key || k === SHIFTED_FORM.get(key);
   }
 }
 
@@ -328,12 +328,11 @@ export const TEXT_CHORDS = new Set([
 
 export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keyboard): Binding | null {
   const typing = typingIn(e);
-  // A key fires while typing only if the binding allows it AND the key is a chord the text does not use:
-  // a plain letter or arrow always belongs to the text, whatever the binding says. On the Mac, Ctrl with a letter
-  // edits the text too (Ctrl+K cuts to the line's end, Ctrl+E goes to it), so there only ⌘ counts while typing, unless the
-  // binding asks for ⌃⌘ together (⌃⌘S), which no text box uses.
+  // Outside (macOS): Ctrl with a letter edits text (Ctrl+K cuts to the line's end, Ctrl+E goes to it), so there only ⌘
+  // counts while typing, unless the binding asks for ⌃⌘ together (⌃⌘S), which no text box uses.
   const held = (k: string) => (k.includes("ctrl+") ? e.metaKey && e.ctrlKey : cmdHeld(e, os));
-  const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k) && held(k)));
+  const firesWhileTyping = (b: Binding, k: string) => b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k) && held(k);
+  const live = (b: Binding, k: string) => matches(e, k) && (!typing || firesWhileTyping(b, k));
   const hit = (where: Where) => KEYMAP.find((b) => !b.note && b.where === where && keysOf(b, os).some((k) => live(b, k))) ?? null;
   return hit(segment) ?? hit("anywhere");
 }

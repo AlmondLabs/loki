@@ -85,7 +85,8 @@ describe("device name", () => {
   test("kinds", () => {
     expect(deviceKind(IPHONE)).toBe("iPhone");
     expect(deviceKind(IPAD)).toBe("iPad");
-    expect(deviceKind(IPADOS_DESKTOP_UA, 5)).toBe("iPad"); // iPadOS Safari says Macintosh; touch points tell
+    // Outside (Safari): iPadOS Safari says Macintosh, and only its touch points tell it apart.
+    expect(deviceKind(IPADOS_DESKTOP_UA, 5)).toBe("iPad");
     expect(deviceKind(IPADOS_DESKTOP_UA, 0)).toBe("phone");
     expect(deviceKind(ANDROID)).toBe("Android");
     expect(deviceKind(OTHER)).toBe("phone");

@@ -36,16 +36,15 @@ export function loadDesks(store: DeskStore, dir: string): Scope[] {
   return loaded;
 }
 
-const SAFE_SCOPE = /^[A-Za-z0-9_-]+$/;
+const SCOPE_AS_FILE_NAME = /^[A-Za-z0-9_-]+$/;
 
 export function persistDesks(store: DeskStore, dir: string, debounceMs = DEBOUNCE_MS): () => void {
   const timers = new Map<Scope, ReturnType<typeof setTimeout>>();
 
   const flush = (scope: Scope) => {
     timers.delete(scope);
-    // A scope is a file name here, and a widget id from a tab names its scope: only scopeFor's own letters are written,
-    // so `..\x` (a way out of the folder on Windows) is not.
-    if (!SAFE_SCOPE.test(scope)) return;
+    // Outside (Windows): a backslash also leads out of a folder, so a scope a tab names, such as `..\x`, is not written.
+    if (!SCOPE_AS_FILE_NAME.test(scope)) return;
     const state = store.get(scope);
     if (Object.keys(state.layout).length === 0 && Object.keys(state.overlay).length === 0) return;
     try {

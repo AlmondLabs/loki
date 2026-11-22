@@ -2,7 +2,6 @@ import { describe, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 const { Sheet, sheetCloses } = await import("../app/src/components/index.tsx");
 

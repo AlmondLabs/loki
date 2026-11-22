@@ -45,7 +45,7 @@ function insideFolder(path: unknown, folder: string, cwd: string | undefined): b
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a tool task's result must be a JsonValue, and an interface with an optional field cannot extend JsonObject
+// oxlint-disable-next-line typescript/consistent-type-definitions -- a tool task's result must be a JsonValue, and an interface with an optional field cannot extend JsonObject
 type Decision = { allow: boolean; message?: string; always?: boolean };
 interface Pending {
   agentId: string;

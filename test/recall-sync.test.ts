@@ -88,16 +88,15 @@ describe("a mod's files on two Macs", () => {
     const book = join(root, "book");
     const mini = join(root, "mini");
     try {
-      // A PNG's first bytes: 0x89 alone is not UTF-8, so read as text it became a replacement character.
-      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe]);
+      const pngStartingWithByteNotUtf8 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe]);
       mkdirSync(book, { recursive: true });
-      writeFileSync(join(book, "icon.png"), png);
+      writeFileSync(join(book, "icon.png"), pngStartingWithByteNotUtf8);
       writeFileSync(join(book, "mod.ts"), "export default () => {}; // ünïcode");
       const snap = filesSnapshot(book, MODS, T);
       expect(snap.files["icon.png"].encoding).toBe("base64");
       expect(snap.files["mod.ts"].encoding).toBeUndefined();
       expect(applyFiles(mini, MODS, snap, T)).toBe(true);
-      expect(readFileSync(join(mini, "icon.png")).equals(png)).toBe(true);
+      expect(readFileSync(join(mini, "icon.png")).equals(pngStartingWithByteNotUtf8)).toBe(true);
       expect(readFileSync(join(mini, "mod.ts"), "utf8")).toBe("export default () => {}; // ünïcode");
       expect(applyFiles(mini, MODS, { files: { "mod.ts": { content: "old", mtime: T + 1 } }, deleted: {} }, T + 1)).toBe(true);
       expect(readFileSync(join(mini, "mod.ts"), "utf8")).toBe("old");

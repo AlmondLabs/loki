@@ -221,6 +221,11 @@ async function windowOf(
   return { shown: events.slice(start), moreBefore: more || start > 0, total };
 }
 
+function setAsNewest<K, V>(map: Map<K, V>, key: K, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+}
+
 async function ticketOf(
   client: JiraViewClient,
   ticket: string,
@@ -238,7 +243,6 @@ async function ticketOf(
       (read) => read.some((e) => !since(e)),
     ),
   ]);
-  // A Map keeps the order entries were set in, so taking a field out before setting it again orders by newest change.
   const runs = new Map<string, JiraFieldChange>();
   for (const event of history.events) {
     if (event.kind !== "history") continue;
@@ -246,8 +250,13 @@ async function ticketOf(
       const run = runs.get(item.field);
       if (event.author.account_id === me) runs.delete(item.field);
       if (event.author.account_id === me || !isNew(event)) continue;
-      runs.delete(item.field);
-      runs.set(item.field, { field: item.field, from: run ? run.from : item.from, to: item.to, by: event.author.display_name || "someone", at: event.created });
+      setAsNewest(runs, item.field, {
+        field: item.field,
+        from: run ? run.from : item.from,
+        to: item.to,
+        by: event.author.display_name || "someone",
+        at: event.created,
+      });
     }
   }
   const changes = [...runs.values()];

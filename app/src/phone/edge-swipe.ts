@@ -57,9 +57,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
         g.x = e.clientX;
         try {
           shell.setPointerCapture(e.pointerId);
-        } catch {
-          /* a pointer that already left */
-        }
+        } catch {}
         main.style.transition = "none";
         shell.setAttribute("data-edge-drag", "");
       }

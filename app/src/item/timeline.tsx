@@ -204,7 +204,8 @@ function ThreadBody({
             fold();
           }
         }}
-        // MessageScroller stops following on any wheel or scroll key; at the bottom one that goes nowhere follows again.
+        // Outside (shadcn): MessageScroller stops following on any wheel or scroll key; at the bottom, one that goes
+        // nowhere follows again.
         onWheel={(ev: WheelEvent<HTMLDivElement>) => {
           if (keepsFollowing(ev.currentTarget, ev)) scrollToEnd();
         }}
@@ -212,8 +213,7 @@ function ThreadBody({
           if (keepsFollowing(ev.currentTarget, ev)) scrollToEnd();
         }}
         data-thread-scroll
-        // The thread keeps the row being read in place itself (use-keep-place.ts); the browser's own, in the Windows
-        // app's Chromium, would move it twice.
+        // Outside (Chrome): its scroll anchoring would move the row being read a second time, after the thread's own.
         className="[overflow-anchor:none]"
         style={style}
       >
@@ -232,8 +232,8 @@ function ThreadBody({
           )}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
-              // Each entry drawn at its real height: content-visibility's stand-in height for rows not yet on screen would
-              // change as each one scrolled into view above you, and nothing would put your place back.
+              // Outside (shadcn): MessageScrollerItem skips drawing rows off screen, and their stand-in height would change
+              // as each one scrolled into view above you, with nothing to put your place back.
               <MessageScrollerItem key={e.key} messageId={e.key} className="[content-visibility:visible]">
                 {draw(e)}
               </MessageScrollerItem>

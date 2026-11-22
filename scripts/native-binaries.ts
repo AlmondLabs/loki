@@ -1,11 +1,8 @@
-// Which of a native package's prebuilt binaries (`@napi-rs/keyring-linux-x64-gnu`, `…-linux-x64-musl`, …) the app
-// bundle carries. An installer may put both of Linux's C library builds in node_modules (npm does), and linuxdeploy runs `ldd` on every binary in the
-// AppImage: `ldd` on a glibc system cannot read a musl binary and linuxdeploy stops the build, so a bundle keeps only
-// the build for the C library this system runs on.
-
+// Outside (linuxdeploy): it runs `ldd` on every binary in the AppImage, and `ldd` on a glibc system cannot read a musl
+// binary, so it stops the build when npm has installed both of a native package's Linux builds.
 export type Libc = "glibc" | "musl" | null;
 
-/** This process's C library, from Node's report: a glibc build names its glibc version there, a musl build does not. */
+// Outside (Node): a glibc build names its glibc version in the process report's header, a musl build does not.
 export function thisLibc(): Libc {
   if (process.platform !== "linux") return null;
   const report: unknown = process.report.getReport();

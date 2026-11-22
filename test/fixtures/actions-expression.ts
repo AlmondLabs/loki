@@ -15,10 +15,8 @@ function tokenize(expr: string): string[] {
   return tokens;
 }
 
-/** Actions' falsy values: false, 0, the empty string and null. */
 const truthy = (v: Value): boolean => v !== false && v !== 0 && v !== "" && v !== null;
-/** Actions compares strings without regard to case. */
-const equal = (a: Value, b: Value): boolean => (typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b);
+const equalIgnoringCase = (a: Value, b: Value): boolean => (typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b);
 
 export function evaluate(expr: string, context: Context): Value {
   const tokens = tokenize(expr);
@@ -51,7 +49,7 @@ export function evaluate(expr: string, context: Context): Value {
     while (peek() === "==" || peek() === "!=") {
       const op = next();
       const r = unary();
-      v = op === "==" ? equal(v, r) : !equal(v, r);
+      v = op === "==" ? equalIgnoringCase(v, r) : !equalIgnoringCase(v, r);
     }
     return v;
   };
@@ -83,10 +81,8 @@ export function evaluate(expr: string, context: Context): Value {
 
 const WRAPPED = /\$\{\{([\s\S]*?)\}\}/g;
 
-/**
- * A field that may hold `${{ }}`: one expression filling the whole field gives its value, as Actions does for
- * `cancel-in-progress`; expressions inside other text are written into it, as for a concurrency group.
- */
+// Outside (GitHub Actions): one expression filling a whole field gives its value, as for `cancel-in-progress`;
+// expressions inside other text are written into it, as for a concurrency group.
 export function field(text: unknown, context: Context): Value {
   if (typeof text === "boolean" || typeof text === "number" || text === null) return text;
   if (typeof text !== "string") throw new Error(`not a workflow field: ${JSON.stringify(text)}`);
@@ -95,7 +91,7 @@ export function field(text: unknown, context: Context): Value {
   return text.replace(WRAPPED, (_, e: string) => String(evaluate(e, context)));
 }
 
-/** Whether a job's or step's `if:` holds; no `if:` holds, and the `${{ }}` around one is optional. */
+// Outside (GitHub Actions): an `if:` may leave out the `${{ }}` around its expression.
 export function holds(condition: string | undefined, context: Context): boolean {
   if (condition === undefined) return true;
   const whole = /^\s*\$\{\{([\s\S]*)\}\}\s*$/.exec(condition);

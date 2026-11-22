@@ -1376,7 +1376,7 @@ export const FRAMES = {
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.message_id) || !m.message_id)
         return "account_id, thread_id and message_id required";
-      // Slack's emoji names are lowercase words with - _ + ' and a skin tone after `::`.
+      // Outside (Slack): emoji names are lowercase words with - _ + ' and a skin tone after `::`.
       if (!str(m.name) || !/^[\w+'-]{1,100}(::skin-tone-[2-6])?$/.test(m.name)) return "name must be an emoji name";
       if (typeof m.on !== "boolean") return "on must be true or false";
       return { account_id: m.account_id, thread_id: m.thread_id, message_id: m.message_id, name: m.name, on: m.on, home: strOr(m.home, null) };

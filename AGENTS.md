@@ -29,10 +29,12 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
   tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
-- **Comments are the exception**: a licence header, a gotcha forced by something outside loki, `prettier-ignore` or a
-  style-only lint suppression, a doc comment stating a contract across a process or disk boundary (frames, `~/.loki`
+- **Comments are the exception**: a licence header, a gotcha forced by something outside loki (its first line
+  `Outside (<what>): `, `<what>` from `OUTSIDE` in `eslint-comments.mjs`), `prettier-ignore` or a style-only lint
+  suppression with its reason, a doc comment stating a contract across a process or disk boundary (frames, `~/.loki`
   files, the mod API, tool arguments, Tauri commands), or an issue or RFC link. A surprise in loki's own code is fixed
-  by renaming, extracting or typing it, not explained. No commented-out code, no `TODO`, no plan tags.
+  by renaming, extracting or typing it, not explained. No commented-out code, no `TODO`, no plan tags. `bun run lint`
+  fails on any other comment.
 - **Words on screen**: Apple's (the Human Interface Guidelines): controls in title case (`Mark as Read`), everything else
   a sentence, keys in tooltips and the menu bar rather than on buttons, plain words, no exclamation marks.
 - **Styles** stay on the scales in [docs/design.md](docs/design.md) (`test/tokens.test.ts` checks).

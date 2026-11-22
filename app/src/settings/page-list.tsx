@@ -59,7 +59,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
       >
         {groups.map(({ g, pages }) => (
           <Fragment key={g.title}>
-            {/* A group's name: a heading for the eye only, since a tablist may hold nothing but its tabs. */}
+            {/* A tablist may hold nothing but its tabs (https://www.w3.org/TR/wai-aria-1.2/#tablist), so a group's name is for the eye only. */}
             <div aria-hidden className="loki-settings-heading">
               {g.title}
             </div>

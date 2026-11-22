@@ -362,9 +362,7 @@ function useSwipe({
       s.base = { dx: onScreenOffset(e.currentTarget, "x"), dy: onScreenOffset(e.currentTarget, "y") };
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        /* a pointer that already left */
-      }
+      } catch {}
     }
     s.xs.push({ at: e.clientX, t: e.timeStamp });
     s.ys.push({ at: e.clientY, t: e.timeStamp });

@@ -515,7 +515,7 @@ export class AcpChats {
           .join("\n\n") || null;
     const systemPrompt = prompt && takesPrompt ? { systemPrompt: { mode: "append" as const, content: [{ type: "text" as const, text: prompt }] } } : {};
     const allowedTools = pass ? LokiTools.named(pass.tools) : (this.deps.allowedTools?.(live.agentId) ?? []);
-    // Claude's adapter takes the tools it may run without asking as one of its options; another agent ignores it.
+    // Outside (Claude Code): its ACP adapter takes the tools it may run without asking as one of its options; another agent ignores it.
     const meta = allowedTools.length ? { _meta: { claudeCode: { options: { allowedTools } } } } : {};
     const opening = { cwd, mcpServers, ...systemPrompt, ...meta };
     if (live.sessionId) this.bySession.delete(live.sessionId);
@@ -538,7 +538,7 @@ export class AcpChats {
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
       }
       opened = await proc.newSession(opening);
-      // Known before anything else is awaited: the agent sends its commands right after it answers.
+      // Outside (ACP): the agent sends its commands right after it answers, so the session is known before anything else is awaited.
       this.register(opened.sessionId, live);
       const now = (await store.chatInfo(chat.id, this.deps.context))?.engine;
       if (now?.kind === "acp" && now.agent === engine.agent)
@@ -801,7 +801,7 @@ export class AcpChats {
         this.remember(live);
         return;
     }
-    // A loaded session's history, replayed: loki has it already.
+    // Outside (ACP): loading a session replays its history as updates, and loki has it already.
     if (live.loading) return;
     const turn = live.turn;
     if (!turn) return;
@@ -865,7 +865,7 @@ export class AcpChats {
         const model = u._meta?.["_claude/model"];
         if (typeof model === "string" && model) turn.model = model;
         if (u.cost?.currency === "USD") {
-          // A total below the last one is a new session's (the agent restarted): all of it is new.
+          // Outside (ACP): an agent reports its session's running total; a total below the last one is a restarted agent's, all of it new.
           turn.cost += u.cost.amount >= live.costSoFar ? u.cost.amount - live.costSoFar : u.cost.amount;
           live.costSoFar = u.cost.amount;
         }
@@ -885,7 +885,7 @@ export class AcpChats {
   }
 
   private async elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse> {
-    // The request's type keeps room for modes a later ACP adds, so its fields are read as unknown and checked.
+    // Outside (ACP): the request's type keeps room for modes a later version adds, so its fields are read as unknown and checked.
     const url = r.mode === "url" && "url" in r && typeof r.url === "string" && /^https?:\/\//i.test(r.url) ? r.url : null;
     const sessionId = "sessionId" in r && typeof r.sessionId === "string" ? r.sessionId : null;
     const openUrl = this.deps.openUrl;

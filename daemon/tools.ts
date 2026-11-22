@@ -9,6 +9,8 @@ import { withKind } from "./tool-kinds.ts";
 const run = promisify(execFile);
 
 const GREP_MAX_BUFFER = 8 * 1024 * 1024;
+const RIPGREP_NOTHING_MATCHED = 1;
+const RIPGREP_ERROR = 2;
 const LIMIT = 200;
 const SKIP = new Set([".git", "node_modules", ".DS_Store"]);
 
@@ -139,10 +141,10 @@ export function fileToolsExtension(): Extension {
               const e = error as { code?: unknown; stdout?: unknown; stderr?: unknown };
               const found = typeof e.stdout === "string" ? e.stdout : "";
               const why = typeof e.stderr === "string" ? e.stderr.trim() : "";
-              // ripgrep exits 1 when nothing matched; ENOENT means there is no ripgrep.
-              if (e.code === 1) return text("no matches");
-              // 2 is an error somewhere, often one folder it may not read (macOS keeps Desktop, Mail and the like
-              if (e.code === 2 && (found || !/regex parse error|error parsing/i.test(why)))
+              if (e.code === RIPGREP_NOTHING_MATCHED) return text("no matches");
+              // Outside (macOS): it keeps Desktop, Mail and the like from a process without access, so ripgrep's error is
+              // often one folder it may not read, and what it found elsewhere is still the answer.
+              if (e.code === RIPGREP_ERROR && (found || !/regex parse error|error parsing/i.test(why)))
                 return answer(found, `(some of it could not be searched: ${why.split("\n")[0] || "ripgrep reported an error"})`);
               if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER")
                 return answer(found, "(stopped early: the output was too large; narrow the pattern or the folder)");

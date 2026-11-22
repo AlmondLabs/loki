@@ -39,7 +39,7 @@ export function useColumn(segment: Segment, hasList: boolean) {
     (w: number, commit: boolean) => {
       const sidebar = clampSidebar(w);
       setPref((p) => ({ ...p, sidebar }));
-      // Saved outside the updater (React may run updaters twice); a drag never changes the fold, so this pref's is current.
+      // Outside (React): an updater may run twice, so the width is saved outside it.
       if (commit) saveColumns(columnsStore(), { ...pref, sidebar });
     },
     [pref],

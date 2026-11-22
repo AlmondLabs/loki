@@ -241,7 +241,7 @@ export class TurnTelemetry {
         tools?: unknown[];
       };
       let run = this.running.get(key);
-      // A run hands over to a new task after each tool round; it is the same run while its first input is.
+      // Outside (pi-durable): a run hands over to a new task after each tool round; it is the same run while its first input is.
       if (run && live.run && String(live.run.inputs[0]) === String(run.inputs[0])) run.taskId = live.run.taskId;
       else if (run) {
         for (const id of run.inputs) inRuns.add(String(id));

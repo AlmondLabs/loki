@@ -51,13 +51,11 @@ describe("the transcript draws a streaming reply in blocks (plan 039)", () => {
         streaming,
       }),
     );
-  // What a reader sees: the words without their spans, the cursor and the live class left out, and without the line
-  const seen = (html: string) =>
-    html
-      .replace(/<span class="loki-word">([^<]*)<\/span>/g, "$1")
-      .replace(/<span style="opacity:0.6">▍<\/span>/, "")
-      .replace(" loki-md--live", "")
-      .replace(/>\n</g, "><");
+  const wordSpan = /<span class="loki-word">([^<]*)<\/span>/g;
+  const cursor = /<span style="opacity:0.6">▍<\/span>/;
+  const liveClass = " loki-md--live";
+  const lineBreakBetweenBlocks = />\n</g;
+  const seen = (html: string) => html.replace(wordSpan, "$1").replace(cursor, "").replace(liveClass, "").replace(lineBreakBetweenBlocks, "><");
 
   const body = (html: string) => {
     const at = html.lastIndexOf('<div class="loki-md');

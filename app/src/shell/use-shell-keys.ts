@@ -121,10 +121,6 @@ export function useShellKeys(
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // The native menu bar is built from the same keymap. Its clicks arrive as loki:menu with the binding id;
-  // when macOS also fires an accelerator for a chord we already handled, the echo arrives within a beat — drop
-  // it, even when the menu's item for that chord is a different binding (⌘] is "next desk" in the Desk menu
-  // and "read the card" in the inbox; the key handler already ran the right one).
   const labels = JSON.stringify(menuLabels);
   useEffect(() => {
     if (!inTauri) return;
@@ -138,6 +134,9 @@ export function useShellKeys(
       off = await listen<string>("loki:menu", (ev) => {
         const id = ev.payload;
         const last = lastKeyFired.current;
+        // Outside (macOS): it also fires a menu's accelerator for a chord the key handler already ran, so that echo,
+        // within a beat, is dropped, even when the menu's item for the chord is another binding (⌘] is "next desk" in
+        // the Desk menu and "read the card" in the inbox).
         if (last && last.ids.has(id) && Date.now() - last.at < 250) return;
         if (!runAction(id)) console.warn("loki: menu item without an action", id);
       });

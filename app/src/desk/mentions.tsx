@@ -1,4 +1,15 @@
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Meta, sentence } from "../components";
 import { caretOffset, fitLeft } from "../shared/caret-offset";
 
@@ -139,6 +150,10 @@ export function useMentions({
     setText(next.text);
     c.onPick?.();
   };
+  const pickBeforeBlur = (c: MentionChoice) => (e: PointerEvent) => {
+    e.preventDefault();
+    pick(c);
+  };
 
   const listId = useId();
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
@@ -174,11 +189,7 @@ export function useMentions({
             role="option"
             aria-selected={i === at}
             className="loki-mail-suggest-row"
-            // Before the box's blur, so the caret it knows is where the name goes.
-            onPointerDown={(e) => {
-              e.preventDefault();
-              pick(c);
-            }}
+            onPointerDown={pickBeforeBlur(c)}
           >
             <span className="loki-mail-suggest-name">{c.label}</span>
             {c.sub && <Meta>{c.sub}</Meta>}

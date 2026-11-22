@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { checkUpdateKey, publicKeyId, signatureKeyId } from "../scripts/check-update-key.ts";
 
-// Minisign files built here from known bytes, as `tauri signer generate` and the bundler write them: each is base64 of
+// Outside (Tauri): `tauri signer generate` and the bundler write minisign files as base64 of the file's text, and the
+// file's second line is base64 of the algorithm, the 8-byte key id and the key or signature.
 const b64 = (bytes: Uint8Array | string) => Buffer.from(bytes).toString("base64");
 const id = (n: number) => Uint8Array.from({ length: 8 }, (_, i) => n + i);
 const bytes = (length: number, fill: number) => new Uint8Array(length).fill(fill);
@@ -34,9 +35,9 @@ describe("the update key check", () => {
     const result = checkUpdateKey("tauri.conf.json", ["macos/loki.app.tar.gz.sig", "nsis/loki_1_x64-setup.exe.sig"], read);
     expect(result.problems).toEqual([]);
     expect(result.signed).toHaveLength(2);
-    // The key id as minisign prints it: the eight bytes read as a little-endian number, in hex.
-    expect(publicKeyId(publicKey(id(1)))).toBe("0807060504030201");
-    expect(signatureKeyId(signature(id(1)))).toBe("0807060504030201");
+    const idOneAsMinisignPrintsIt = "0807060504030201";
+    expect(publicKeyId(publicKey(id(1)))).toBe(idOneAsMinisignPrintsIt);
+    expect(signatureKeyId(signature(id(1)))).toBe(idOneAsMinisignPrintsIt);
   });
 
   test("fails, naming the file, when a signature is from another key", () => {

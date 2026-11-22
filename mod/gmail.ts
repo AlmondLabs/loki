@@ -209,7 +209,7 @@ export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
     d.from ? `From: ${oneLine(d.from)}` : "",
     to.length ? `To: ${to.join(", ")}` : "",
     cc.length ? `Cc: ${cc.join(", ")}` : "",
-    // Gmail takes Bcc from the message it sends and leaves it off what the others get.
+    // Outside (Gmail): Gmail takes Bcc from the message it sends and leaves it off what the others get.
     bcc.length ? `Bcc: ${bcc.join(", ")}` : "",
     `Subject: ${encodedWord(oneLine(d.subject))}`,
     d.inReplyTo ? `In-Reply-To: ${oneLine(d.inReplyTo)}` : "",
@@ -287,7 +287,7 @@ export class GmailClient {
         })
         .filter((s) => s.address);
     } catch (error) {
-      // Settings Gmail will not show (a 403 that is not an admin's block) leave the mailbox's own address.
+      // Outside (Gmail): settings Gmail will not show (a 403 that is not an admin's block) leave the mailbox's own address.
       if (!(error instanceof GoogleError) || error.status !== 403 || error.reason?.toLowerCase() === "admin_policy_enforced") throw error;
     }
     if (!found.length) found = [{ address: (await this.profile()).emailAddress, name: "", signature: "", isDefault: true }];
@@ -392,7 +392,8 @@ export class GmailClient {
   }
 
   private upload(message: string, meta: Record<string, unknown>, url: string): Promise<unknown> {
-    // The boundary must not occur in the message, whose own boundaries start "loki-" and whose files are base64.
+    // The boundary must not occur in the message (https://www.rfc-editor.org/rfc/rfc2046#section-5.1.1), whose own
+    // boundaries start "loki-" and whose files are base64.
     const boundary = `upload-${randomUUID()}`;
     const body = Buffer.from(
       [

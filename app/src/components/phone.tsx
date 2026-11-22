@@ -259,8 +259,8 @@ export function BottomSheet({ label, onClose, zIndex = LAYER.modal, escape = !!o
   useEffect(() => {
     opener.current = document.activeElement;
     const card = cardRef.current;
-    // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
-    // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
+    // Outside (HTML): focus scrolls what it lands on into view; on the phone that scrolled the whole shell up under the
+    // rising sheet and back, so the sheet seemed to open twice.
     if (card && !card.contains(document.activeElement)) (firstControl(card) ?? card).focus({ preventScroll: true });
     return () => {
       const el = opener.current;

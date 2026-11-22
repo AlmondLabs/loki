@@ -44,7 +44,8 @@ export function FolderSheet({
     } catch (e) {
       err = messageOf(e);
     }
-    setBusy(false); // after either branch: the catch cannot throw, so no finally (the React Compiler cannot take one)
+    // Outside (React Compiler): it cannot compile a finally; the catch cannot throw, so this runs after either branch.
+    setBusy(false);
     if (err) setError(err);
     else onClose();
   };

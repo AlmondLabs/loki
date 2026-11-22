@@ -189,7 +189,7 @@ export function ChatList({
     const d = deskOf(scope);
     if (!d) return;
     const box = e.currentTarget.getBoundingClientRect();
-    // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
+    // Outside (HTML): the context-menu key gives a pointer at 0,0, so the menu then hangs from the row.
     const x = e.clientX || box.left + 24;
     const y = e.clientY || box.bottom;
     if (NATIVE_MENUS) void popUpMenu(menuEntries(d), { x, y }).catch((err: unknown) => console.warn("loki: row menu", err));

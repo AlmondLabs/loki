@@ -179,7 +179,7 @@ describe("ACP agents (plan 020)", () => {
     const { store, conversation, entries } = await s.stored(id);
     expect(entries.flatMap((e) => entrySteps(e)).map((st) => st.kind)).toEqual(["user", "assistant"]);
     expect(entries.flatMap((e) => entrySteps(e))[1]).toMatchObject({ text: "Hi there" });
-    // The agent reports its running total of dollars; each turn counts only what it added.
+    // Outside (ACP): the agent reports its running total of dollars, so each turn counts only what it added.
     await s.say(id, "hello");
     const usage = must(await store.usage(conversation.id, ctx));
     expect(usage.models["acp:fake/fake-sonnet"]).toMatchObject({ input: 200, output: 40, cacheRead: 100, cacheWrite: 20, totalTokens: 360 });
@@ -346,7 +346,7 @@ describe("ACP agents (plan 020)", () => {
     expect(s.errors().join("\n")).toMatch(/fake-acp: ready/);
     await s.say(id, "mode?");
     expect(s.words()).toContain("mode default");
-    // The agent replays a loaded session's history; loki has it already.
+    // Outside (ACP): the agent replays a loaded session's history, which loki has already.
     expect(s.words()).not.toContain("replayed");
   });
 

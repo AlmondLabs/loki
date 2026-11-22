@@ -107,7 +107,8 @@ export function uploadRoute(
     if (failed) return;
     if (!req.complete) return fail(400, "the upload broke off");
     const final = existsSync(target) ? freePath(folder, name) : target;
-    // Inside a stream's event, a throw nobody catches ends the daemon: a name Windows keeps (CON, nul.txt) fails here.
+    // Outside (Node): inside a stream's event, a throw nobody catches ends the daemon, and a name Windows keeps (CON,
+    // nul.txt) fails here.
     try {
       renameSync(partial, final);
     } catch (err) {

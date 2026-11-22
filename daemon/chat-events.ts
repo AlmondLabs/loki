@@ -71,7 +71,8 @@ export class ChatEventConverter {
         this.blocks.clear();
         return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
       }
-      // A message begun. A user message is shown at its end, which comes with it and says what entry it is: a
+      // Outside (pi-durable): a user message is shown at its end, which says what entry it is (a compaction's summary is
+      // a user message too). An answer's start is its first partial, and often holds its first words.
       case "message_start":
         if (ev.message.role === "user") return [];
         this.blocks = textBlocks(ev.message.role === "assistant" ? ev.message : undefined);
@@ -95,7 +96,7 @@ export class ChatEventConverter {
         return this.answered(ev.entry, now);
       case "tool_execution_end": {
         const result = ev.entry?.model?.[0] as { content?: unknown; isError?: boolean } | undefined;
-        // No entry: the tool task faulted or was orphaned; the model is told, and the call shows as failed.
+        // Outside (pi-durable): a tool task that faulted or was orphaned ends with no entry; the call shows as failed.
         return [
           {
             kind: "step",

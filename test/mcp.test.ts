@@ -364,7 +364,7 @@ describe("loki.mcp in a chat", () => {
     const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
     const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
     const asked: string[] = [];
-    // The tools a request offers travel in the transcript's system messages (pi-ai's transcript context).
+    // Outside (pi-ai): the tools a request offers travel in the transcript's system messages.
     const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { messages: unknown[] }) => (
       asked.push(
         getCurrentTools(c.messages as never)
@@ -463,7 +463,6 @@ describe("loki.mcp in a chat", () => {
       await (await s.chat.submit({ type: "input", content: "logs?" }, ctx)).wait(ctx);
       const [dump, fail] = await s.results();
       expect(dump).toContain("too large for the conversation");
-      // The saved file is the one file in the chat's folder, and the result names it (in JSON, a Windows path's
       const folder = join(s.dir, "tool-results", "c");
       const files = readdirSync(folder);
       expect(files).toHaveLength(1);

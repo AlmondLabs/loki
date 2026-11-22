@@ -142,9 +142,9 @@ export function useMessageBox(
     }
   }, [value, dictation.listening]);
 
-  // Grow to fit, capped; shrink back when cleared. Measured before paint, and with the box held at its height while
-  // the field is collapsed to read its scrollHeight: otherwise the thread above grows for that instant, WebKit pulls
-  // its scroll offset back to fit, and following the bottom pushes it down again — the thread twitched per keystroke.
+  // Outside (WebKit): measured before paint, with the box held at its height while the field is collapsed to read its
+  // scrollHeight. Otherwise the thread above grows for that instant, WebKit pulls its scroll offset back to fit, and
+  // following the bottom pushes it down again, so the thread twitched on every keystroke.
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
@@ -313,9 +313,8 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(functi
         className="loki-composer-text"
         rows={1}
         name="message"
-        // iCloud Passwords ignores autocomplete=off but skips textareas that declare themselves a
-        // search field (type/inputmode/enterkeyhint "search"). `type` is inert on a textarea, so
-        // it costs nothing in the browser and stops the credential popup on a chat box.
+        // Outside (macOS): iCloud Passwords ignores autocomplete=off but skips a textarea that calls itself a search
+        // field; `type` is inert on a textarea, so it costs nothing and stops the password popup on a chat box.
         {...({ type: "search" } as object)}
         autoComplete="off"
         autoCorrect="on"

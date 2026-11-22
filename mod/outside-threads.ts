@@ -567,9 +567,9 @@ export class OutsideThreads {
 function unclearPost(err: unknown, service: "Slack" | "Jira"): Error {
   const timedOut = (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) || (err instanceof JiraError && err.code === "timeout");
   if (timedOut) return new Error(`${service} did not answer in time: ${MAY_HAVE_GONE}`);
-  // fetch throws a TypeError when the connection fails, which may be after the request reached the service.
+  // Outside (Node): fetch throws a TypeError when the connection fails, which may be after the request reached the service.
   if (err instanceof TypeError) return new Error(`the connection to ${service} was lost: ${MAY_HAVE_GONE}`);
-  // Slack answering 200 with a body it would not let us read, or failing on its side, may still have posted.
+  // Outside (Slack): Slack answering 200 with a body it would not let us read, or failing on its side, may still have posted.
   if (err instanceof SlackError && /^http_(200|5\d\d)$/.test(err.code)) return new Error(`Slack did not answer clearly: ${MAY_HAVE_GONE}`);
   return err instanceof Error ? err : new Error(messageOf(err));
 }

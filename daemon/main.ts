@@ -105,7 +105,9 @@ const secrets =
     ? memorySecrets()
     : await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
 const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
-// The sign-in flows (ChatGPT, OpenRouter, GitHub Copilot…), imported statically. pi-ai loads each through a variable
+// Outside (pi-ai): it loads each sign-in flow (ChatGPT, OpenRouter, GitHub Copilot…) through a variable path a bundler
+// cannot follow, which in the release bundle pointed at files that are not there. Its Bun helper imports them
+// statically, which suits Node and the bundle alike.
 registerBunOAuthFlows();
 const models = builtinModels(credentials ? { credentials } : {});
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: chatEnvs(args.dir) }, context, report);
@@ -330,7 +332,7 @@ const loadCore = (): Promise<LoadResult> =>
         usage: {
           rows: () => usage.rows(),
           priced: (model) => {
-            // An ACP agent prices its own calls, and reports dollars rather than rates (plan 020, R9).
+            // Outside (ACP): an agent prices its own calls, and reports dollars rather than rates.
             if (model.startsWith("acp:")) return true;
             const slash = model.indexOf("/");
             const cost = slash > 0 ? models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost : undefined;

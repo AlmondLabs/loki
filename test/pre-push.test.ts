@@ -7,7 +7,7 @@ const binOf = (pkg: string, bin: string) => `${pkg}/${bin}`;
 const names = (files: string[]) => checksFor(files, binOf).map((c) => c.name);
 
 describe("the pre-push hook", () => {
-  test("formats, lints and typechecks a push that changes code, linting only the changed files", () => {
+  test("formats, lints and typechecks a push that changes code, linting only the changed files and typechecking the whole project", () => {
     const checks = checksFor(["core/x.ts", "app/src/y.tsx", "docs/z.md"], binOf);
     expect(checks.map((c) => c.name)).toEqual(["format", "oxlint", "eslint", "types"]);
     expect(checks.find((c) => c.name === "format")).toEqual({
@@ -17,7 +17,6 @@ describe("the pre-push hook", () => {
       node: false,
     });
     expect(checks.find((c) => c.name === "oxlint")?.args).toEqual(["--no-error-on-unmatched-pattern", "core/x.ts", "app/src/y.tsx"]);
-    // The types of one file can break in another, so the typecheck is the whole project's.
     expect(checks.find((c) => c.name === "types")).toEqual({
       name: "types",
       bin: "bun/bin/bun.exe",
@@ -26,8 +25,9 @@ describe("the pre-push hook", () => {
     });
   });
 
-  test("a push of a stylesheet or a config is only formatted, and a push of docs alone checks nothing", () => {
-    expect(names(["app/src/kit/tokens.css", ".github/workflows/ci.yml"])).toEqual(["format"]);
+  test("a push of a stylesheet is only formatted, a workflow is formatted and its comments checked, and a push of docs alone checks nothing", () => {
+    expect(names(["app/src/kit/tokens.css"])).toEqual(["format"]);
+    expect(names([".github/workflows/ci.yml"])).toEqual(["format", "workflows"]);
     expect(names(["docs/manual.md", "app/public/icon.png"])).toEqual([]);
   });
 

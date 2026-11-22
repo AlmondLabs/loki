@@ -24,7 +24,8 @@ describe("springs", () => {
     expect(peak("smooth")).toBeLessThanOrEqual(1);
     expect(peak("snappy")).toBeLessThan(1.01);
     expect(peak("bouncy")).toBeGreaterThan(1.02);
-    expect(peak("bouncy")).toBeLessThan(1.046); // SwiftUI's .bouncy (bounce 0.3) peaks near 4.6%
+    const swiftUiBouncyPeak = 1.046;
+    expect(peak("bouncy")).toBeLessThan(swiftUiBouncyPeak);
   });
 
   test("a start velocity carries into the curve: a flick toward the target starts steeper", () => {

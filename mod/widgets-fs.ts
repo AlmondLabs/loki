@@ -208,8 +208,8 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
     watcher = watch(root, { recursive: true }, () => {
       settling.schedule();
     });
-    // The folder removed under it (EPERM on Windows) is emitted as an error, thrown when nobody listens; tools still
-    // call rescan() themselves.
+    // Outside (Node): the folder removed under it (EPERM on Windows) is emitted as an error, thrown when nobody
+    // listens; tools still call rescan() themselves.
     watcher.on("error", () => {
       watcher?.close();
       watcher = null;

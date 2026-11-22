@@ -603,7 +603,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
           overflowY: "auto",
           overflowX: "hidden",
           overscrollBehavior: "contain",
-          // The thread keeps the row being read in place itself (use-transcript-scroll.ts); the browser's own would move it twice.
+          // Outside (Chrome): its scroll anchoring would move the row being read a second time, after the thread's own.
           overflowAnchor: "none",
           padding: "16px 20px",
           fontSize: "var(--text-sm)",

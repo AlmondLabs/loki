@@ -87,7 +87,8 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
     const files = new Set(readdirSync(dir).filter(isMod));
     for (const file of new Set([...files, ...loadedAt.keys()])) if (!files.has(file) || loadedAt.get(file) !== modifiedAt(join(dir, file))) await load(file);
   };
-  // Watching starts before the first look, and a second look follows once the watch is surely running: on macOS
+  // Outside (macOS): fs.watch returns before its event stream has started, so watching starts before the first look,
+  // and a second look follows once the watch is surely running.
   const stop = watchFiles(dir, isMod, load, 150, false);
   await sweep();
   const again = setTimeout(() => {
@@ -123,7 +124,7 @@ export function watchFiles(dir: string, include: (file: string) => boolean, chan
       }, settleMs),
     );
   });
-  // The folder removed under it (EPERM on Windows) is emitted as an error, thrown when nobody listens: it stops watching.
+  // Outside (Node): the folder removed under it (EPERM on Windows) is emitted as an error, thrown when nobody listens: it stops watching.
   watcher.on("error", () => watcher.close());
   return () => {
     watcher.close();

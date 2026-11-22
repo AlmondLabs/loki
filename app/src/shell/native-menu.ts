@@ -109,7 +109,8 @@ const ICON_PX = 32;
 async function drawIcon(icon: LucideIcon): Promise<number[]> {
   const host = document.createElement("div");
   const root = createRoot(host);
-  // No colour given: an SVG drawn as an image draws its currentColor black, and the template reads only the shape.
+  // Outside (macOS): a template image is read for its shape alone, so no colour is given; an SVG drawn as an image draws
+  // its currentColor black.
   flushSync(() => root.render(createElement(icon, { size: ICON_PX, strokeWidth: 1.75, "aria-hidden": true })));
   const svg = host.innerHTML;
   root.unmount();

@@ -8,9 +8,8 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const root = here("..");
 const out = here("../src-tauri/resources");
 
-// A package's folder as Node finds it from `from` (the checkout, or another package's folder): the nearest
-// node_modules/<name> up from where `from` really is. bun and npm put a dependency's own dependencies at the top of
-// node_modules and pnpm puts them beside it in its store, so a fixed node_modules/<name> path holds them under the first two alone.
+// Outside (Node): a package resolves to the nearest node_modules/<name> up from where `from` really is. pnpm puts a
+// dependency's own dependencies beside it in its store, not at the top of node_modules, so a fixed path misses them.
 const findPackageDir = (name: string, from: string): string | undefined => {
   for (let dir = realpathSync(from); ; dir = dirname(dir)) {
     const candidate = join(dir, "node_modules", name);
@@ -28,10 +27,8 @@ mkdirSync(`${out}/mod`, { recursive: true });
 
 const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string };
 
-// loki's Slack session reader and client (mod/slack-session.ts, mod/slack-leveldb.ts, mod/slack.ts) are ported from
-// agent-slack, whose MIT license asks that its notice go with every copy. `legalComments` keeps only `/*!` and
-// `@license` comments, which the ported files' line comments are not, and the installer copies loki-mod.mjs alone, so
-// the notice rides in the bundle itself.
+// Outside (esbuild): `legalComments` keeps only `/*!` and `@license` comments, and agent-slack's MIT license asks that
+// its notice go with every copy of the ported Slack files, so the notice rides in the bundle as a footer.
 const agentSlackNotice = `/*!
  * loki's Slack session reader and client are ported from agent-slack (https://github.com/stablyai/agent-slack).
  *
@@ -52,9 +49,8 @@ await build({
   format: "esm",
   target: "node22",
   external: ["esbuild"],
-  // The bundle is ESM, and `ws` (inlined) reaches Node's builtins with require(): without a `require` in scope,
-  // esbuild's shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle,
-  // and the mod never activates.
+  // Outside (esbuild): `ws` reaches Node's builtins with require(), and without a `require` in scope esbuild's ESM
+  // shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle.
   banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
   footer: { js: agentSlackNotice },
   legalComments: "none",
@@ -68,7 +64,7 @@ await build({
   platform: "node",
   format: "esm",
   target: "node22",
-  // The keychain binding is native code esbuild cannot bundle: it ships beside the daemon, below.
+  // Outside (esbuild): it cannot bundle the keychain binding's native code, which ships beside the daemon.
   external: ["esbuild", "@napi-rs/keyring"],
   banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
   legalComments: "none",
@@ -85,9 +81,8 @@ const binaries = forLibc(Object.keys(optionalDependencies), thisLibc()).flatMap(
 for (const { name, dir } of [{ name: "@napi-rs/keyring", dir: keyring }, ...binaries]) {
   cpSync(dir, `${out}/daemon/node_modules/${name}`, { recursive: true, dereference: true });
 }
-// The script sandbox's worker thread (daemon/scripts.ts): its own entry, because the package finds its worker beside
-// its own module, which bundling moves. The QuickJS wasm it compiles goes where the package looks for it,
-// <data>/daemon/node_modules/quickjs-wasi, with the package file whose exports name it.
+// Outside (pi-codemode): it finds its worker thread beside its own module, which bundling moves, and looks for the
+// QuickJS wasm in node_modules/quickjs-wasi beside the daemon, with the package file whose exports name it.
 const codemode = packageDir("@earendil-works/pi-codemode", root);
 await build({
   entryPoints: [join(codemode, "dist/runtime/worker.js")],

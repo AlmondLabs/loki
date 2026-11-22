@@ -4,10 +4,11 @@ import type { GmailMessage } from "./gmail.ts";
 export const headerOf = (m: GmailMessage | undefined, name: string): string =>
   m?.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 
+const addressInLastBrackets = (text: string) => [...text.matchAll(/<([^<>]+)>/g)].at(-1)?.[1];
+
 function people(header: string): Array<{ text: string; address: string }> {
   return splitMailboxes(header).flatMap((text) => {
-    // The address is the last <…>: a display name may hold angle brackets of its own, quoted.
-    const address = ([...text.matchAll(/<([^<>]+)>/g)].at(-1)?.[1] ?? text).trim().toLowerCase();
+    const address = (addressInLastBrackets(text) ?? text).trim().toLowerCase();
     return address.includes("@") ? [{ text, address }] : [];
   });
 }

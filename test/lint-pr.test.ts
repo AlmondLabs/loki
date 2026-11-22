@@ -34,8 +34,22 @@ describe("a PR's lint", () => {
     ).toEqual({ all: false, files: [] });
   });
 
+  test("a changed workflow is linted for its comments", () => {
+    expect(lintPlan([{ status: "M", path: ".github/workflows/ci.yml" }], sources)).toEqual({ all: false, files: [".github/workflows/ci.yml"] });
+  });
+
   test("lints everything when the lint's setup or what the types are built from changes", () => {
-    for (const path of [".oxlintrc.json", "eslint.config.mjs", "tsconfig.json", "package.json", "bun.lock", "scripts/lint.ts", "scripts/lint-pr.ts"])
+    for (const path of [
+      ".oxlintrc.json",
+      "eslint.config.mjs",
+      "tsconfig.json",
+      "package.json",
+      "bun.lock",
+      "scripts/lint.ts",
+      "scripts/lint-pr.ts",
+      "eslint-comments.mjs",
+      "scripts/workflow-comments.ts",
+    ])
       expect(
         lintPlan(
           [

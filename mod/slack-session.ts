@@ -202,7 +202,7 @@ export class SlackSessions {
       const teams = await this.teams(join(snap, "leveldb"));
       const cookies = [join(dir, "Network", "Cookies"), join(dir, "Cookies")].find((f) => existsSync(f));
       if (!cookies) throw new SlackSessionError("cannot read Slack session: Slack keeps no cookies on this Mac", "unreadable");
-      // The write-ahead log carries Slack's latest writes; the shared-memory index is rebuilt from it on open.
+      // Outside (SQLite): the write-ahead log carries Slack's latest writes; the shared-memory index is rebuilt from it on open.
       for (const suffix of ["", "-wal", "-journal"]) if (existsSync(cookies + suffix)) await copyFile(cookies + suffix, join(snap, `Cookies${suffix}`));
       const cookie = await this.cookie(join(snap, "Cookies"));
       return teams.map((t) => ({ ...t, cookie }));
@@ -228,7 +228,7 @@ export class SlackSessions {
   }
 
   private async cookie(file: string): Promise<string> {
-    // Imported here so Node's notice that SQLite is experimental shows only once Slack is used.
+    // Outside (Node): imported here so Node's notice that SQLite is experimental shows only once Slack is used.
     const { DatabaseSync } = await import("node:sqlite");
     let rows: Array<{ host: string; value: string; encrypted: Buffer }>;
     const db = new DatabaseSync(file);

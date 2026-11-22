@@ -30,7 +30,8 @@ export class StoreManager {
       openStore ??
       (async (file) => {
         mkdirSync(dir, { recursive: true });
-        // A newer pi-durable migrates the store as it opens it, for good: copy it first (plan 039). A copy that fails
+        // Outside (pi-durable): a newer version migrates the store as it opens it, for good, so it is copied first. A copy
+        // that fails stops the store from opening, reported, rather than leaving it with no way back.
         const copy = backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION);
         if (copy) report(`store ${file} copied to ${copy} before pi-durable migrates it`);
         return AgentStore.open({ file }, options, context);

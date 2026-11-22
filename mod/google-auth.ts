@@ -195,7 +195,7 @@ export class GoogleAuth {
     const expiresIn = typeof answer.expires_in === "number" ? answer.expires_in : 0;
     if (!access) throw new GoogleError("Google gave no access token", res.status, null);
     const scopes = str(answer.scope);
-    // Google may hand out a new refresh token; the newest one is the one that keeps working.
+    // Outside (Google): Google may hand out a new refresh token; the newest one is the one that keeps working.
     const next: GmailSecret = {
       ...secret,
       access_token: access,

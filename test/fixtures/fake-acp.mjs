@@ -38,7 +38,8 @@ const modelOption = (value) => ({
   ],
 });
 
-// Each model's effort levels, as Claude's adapter offers them: they change with the model, and "ultra" is a level
+// Outside (Claude Code): Claude's adapter offers effort levels that change with the model, and "ultra" is one loki
+// has no word for.
 const LEVELS = { default: ["low", "medium", "high"], sonnet: ["low", "high", "max", "ultra"] };
 const effortOption = (s) => ({
   id: "effort",
@@ -235,7 +236,7 @@ async function handle(msg) {
       }
       const sessionId = `s-${process.pid}-${nextSession++}`;
       ok({ sessionId, ...open(sessionId, p) });
-      // Its commands follow the session, as Claude's adapter sends them.
+      // Outside (Claude Code): Claude's adapter sends the session's commands after the session.
       update(sessionId, {
         sessionUpdate: "available_commands_update",
         availableCommands: [{ name: "review", description: "review the changes", input: { hint: "[branch]" } }],
@@ -245,7 +246,7 @@ async function handle(msg) {
     case "session/load": {
       if (!signedIn) return signedOut(msg);
       if (p.sessionId === "gone") return send({ id: msg.id, error: { code: -32002, message: "no such session" } });
-      // The agent replays the session's history, which a client that keeps its own copy drops.
+      // Outside (ACP): the agent replays a loaded session's history, which a client that keeps its own copy drops.
       update(p.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text: "replayed question" } });
       update(p.sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "replayed answer" } });
       return ok(open(p.sessionId, p));
@@ -264,7 +265,7 @@ async function handle(msg) {
       return ok({});
     case "session/set_config_option": {
       const s = sessions.get(p.sessionId);
-      // A new model starts on its default effort, as Claude's adapter does.
+      // Outside (Claude Code): Claude's adapter starts a new model on its default effort.
       if (p.configId === "model") Object.assign(s, { model: p.value, effort: "default" });
       else s.effort = p.value;
       return ok({ configOptions: options(s) });

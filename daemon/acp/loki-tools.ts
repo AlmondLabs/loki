@@ -42,7 +42,8 @@ export class LokiTools {
   }
 
   async start(): Promise<void> {
-    // A request that fails (the agent drops it mid-body, the handler throws) fails alone: unhandled, it would end the
+    // Outside (Node): an unhandled rejection ends the daemon, so a request that fails (the agent drops it mid-body, the
+    // handler throws) fails alone.
     const http = createServer((req, res) => {
       this.serve(req, res).catch(() => {
         if (res.headersSent) res.destroy();

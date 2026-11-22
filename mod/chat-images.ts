@@ -34,9 +34,9 @@ export function chatImageRoute(opts: {
     const file = join(opts.dir, name);
     const send = () => {
       res.writeHead(200, { "content-type": typeOf(name), "cache-control": "private, max-age=31536000, immutable", "access-control-allow-origin": "*" });
-      // pipeline, not pipe: a read that fails after the check above (the file removed, a disk error) would otherwise be
-      // an error event nobody listens for, which ends the daemon. It ends this answer instead, and a client that goes
-      // away part-way closes the file.
+      // Outside (Node): with pipe, a read that fails after the check above (the file removed, a disk error) is an error
+      // event nobody listens for, which ends the daemon. pipeline ends this answer instead, and a client that goes away
+      // part-way closes the file.
       pipeline(createReadStream(file), res, (err) => {
         if (err && err.code !== "ERR_STREAM_PREMATURE_CLOSE") log("chat-images:read-failed", { error: err.message });
       });

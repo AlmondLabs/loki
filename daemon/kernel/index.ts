@@ -26,7 +26,7 @@ export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({
   checkpointWhen: smallDoc,
 });
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a pi-durable document must be a JsonObject, and an interface with optional fields cannot extend one
+// oxlint-disable-next-line typescript/consistent-type-definitions -- a pi-durable document must be a JsonObject, and an interface with optional fields cannot extend one
 export type ChatInfo = {
   id: string;
   title: string | null;
@@ -82,7 +82,7 @@ export type ChatInfo = {
  * An ACP chat's engine: the agent (daemon/acp/agents.ts), its model, the effort chosen for it (plan 021; absent or
  * null leaves the agent's own), and the agent's session id once it has one.
  */
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- part of ChatInfo, a pi-durable document
+// oxlint-disable-next-line typescript/consistent-type-definitions -- part of ChatInfo, a pi-durable document
 export type ChatEngine = { kind: "acp"; agent: string; model: string; effort?: string | null; session_id: string | null };
 
 export type ImportedMessage = Record<string, unknown> & { role: string; timestamp: number };

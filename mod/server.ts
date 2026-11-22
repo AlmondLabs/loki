@@ -167,7 +167,6 @@ export interface WsLimits {
 export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers, limits: WsLimits = {}): WsBridge {
   const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
   const maxBuffered = limits.maxBufferedBytes ?? MAX_BUFFERED_BYTES;
-  // A tab that sent its token in the subprotocol header is answered `loki`; one that sent none is asked nothing.
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: limits.maxFrameBytes ?? MAX_FRAME_BYTES,
@@ -208,7 +207,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     const who = authorize(req, url);
     if (!who.ok) {
       const status = who.refusal === 403 ? "403 Forbidden" : "401 Unauthorized";
-      // Node takes its own error listener off a socket it hands to "upgrade", and ws only adds one for an upgrade it
+      // Outside (Node): Node takes its own error listener off a socket it hands to "upgrade", and ws only adds one for an upgrade it
       // takes. A caller that hangs up on the refusal with a reset (another Mac's link drops it at once) is an error on
       // this socket, and an error nobody listens for ends the daemon. The answer is already given, so the socket goes.
       socket.on("error", () => socket.destroy());
@@ -231,8 +230,8 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
         clients.delete(ws);
         alive.delete(ws);
       });
-      // A frame ws cannot read (bad UTF-8, too large) is emitted as an error before the close, and an error nobody
-      // listens for is thrown: one bad client would end the daemon.
+      // Outside (Node): ws emits a frame it cannot read (bad UTF-8, too large) as an error before the close, and an
+      // error nobody listens for is thrown: one bad client would end the daemon.
       ws.on("error", () => {});
       ws.on("message", (raw) => {
         let msg: unknown;

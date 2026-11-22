@@ -8,13 +8,19 @@ export interface SlackNames {
   emoji?(name: string): string | null;
 }
 
+const EMOJI_VARIATION_SELECTOR = "\u{FE0F}";
+const FIRST_EMOJI_BLOCK = 0x1f000;
+const FIRST_SKIN_TONE_MODIFIER = 0x1f3fb;
+
+const drawsAsTextAlone = (points: number[]) => points.length === 1 && points[0] < FIRST_EMOJI_BLOCK;
+const skinToneModifier = (slackTone: string) => String.fromCodePoint(FIRST_SKIN_TONE_MODIFIER + Number(slackTone) - 2);
+
 const STANDARD = new Map<string, string>();
 /** Each standard name to the emoji's first name in iamcal's list, the one Slack keeps a reaction under (`thumbsup` → `+1`). */
 const KEPT_NAME = new Map<string, string>();
 for (const [hex, names] of Object.entries(shortcodes as Record<string, string | string[]>)) {
   const points = hex.split("-").map((h) => Number.parseInt(h, 16));
-  // A lone character from the older symbol ranges (❤, ☀) draws as text without the emoji variation selector.
-  const char = String.fromCodePoint(...points) + (points.length === 1 && points[0] < 0x1f000 ? "️" : "");
+  const char = String.fromCodePoint(...points) + (drawsAsTextAlone(points) ? EMOJI_VARIATION_SELECTOR : "");
   const all = typeof names === "string" ? [names] : names;
   for (const name of all) {
     STANDARD.set(name, char);
@@ -28,8 +34,7 @@ function emojiSpan(name: string, tone: string | undefined, names: SlackNames, de
   if (own?.startsWith("https://")) return { kind: "emoji", text: `:${name}:`, image: own };
   const char = STANDARD.get(name);
   if (char === undefined) return null;
-  // Skin tones 2–6 are the five modifiers from U+1F3FB, which follow the emoji in place of its selector.
-  return { kind: "emoji", text: tone ? char.replace("️", "") + String.fromCodePoint(0x1f3fb + Number(tone) - 2) : char };
+  return { kind: "emoji", text: tone ? char.replace(EMOJI_VARIATION_SELECTOR, "") + skinToneModifier(tone) : char };
 }
 
 export function reactionEmoji(name: string, names: Pick<SlackNames, "emoji">): Extract<SlackSpan, { kind: "emoji" }> | null {
@@ -58,7 +63,7 @@ export function searchEmoji(query: string, own: Record<string, string>, limit = 
   const shown = new Set<string>();
   for (const { name } of found) {
     const emoji = reactionEmoji(name, { emoji: (n) => own[n] ?? null });
-    // One emoji has many names in Slack (+1, thumbsup); the best-matching one stands for it.
+    // Outside (Slack): one emoji has many names in Slack (+1, thumbsup); the best-matching one stands for it.
     const key = emoji?.image ?? emoji?.text;
     if (!emoji || !key || shown.has(key)) continue;
     shown.add(key);
@@ -72,9 +77,8 @@ const decode = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").repl
 
 type Style = Partial<Record<"bold" | "italic" | "strike", true>>;
 
-// One pass finds the next piece of markup: a <…> entity, `code`, *bold*, _italic_, ~strike~ or an :emoji:. A style's
-// markers sit next to a word on the inside and away from one on the outside, as Slack reads them; an entity may sit
-// inside a style (`*<url|title>*`), so a link's own underscores never start italics.
+// Outside (Slack): a style's markers sit next to a word on the inside and away from one on the outside, and an entity
+// may sit inside a style (`*<url|title>*`), so a link's own underscores never start italics.
 const INLINE =
   /<([^<>]*)>|`([^`\n]+)`|(?<![\p{L}\p{N}*])\*(?=\S)((?:<[^<>]*>|[^*\n<])+?)(?<=\S)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?=\S)((?:<[^<>]*>|[^_\n<])+?)(?<=\S)_(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}~])~(?=\S)((?:<[^<>]*>|[^~\n<])+?)(?<=\S)~(?![\p{L}\p{N}~])|:([a-z0-9_+'-]+):(?::skin-tone-([2-6]):)?/gu;
 
@@ -90,7 +94,7 @@ async function inline(text: string, names: SlackNames, style: Style, out: SlackS
   for (const m of text.matchAll(INLINE)) {
     plain(text.slice(at, m.index));
     at = m.index + m[0].length;
-    // A group that did not take part is undefined, which the match's own type does not say.
+    // Outside (TypeScript): a group that did not take part is undefined, which the match's own type does not say.
     const groups: ReadonlyArray<string | undefined> = m;
     const [whole = "", entity, code, bold, italic, strike, emoji, tone] = groups;
     if (entity !== undefined) out.push(await entitySpan(entity, names, style));

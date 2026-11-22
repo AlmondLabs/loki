@@ -19,7 +19,6 @@ import type { LanStatus } from "../core/frame-types.ts";
 const DESKTOP = "0123456789abcdef0123456789abcdef";
 const TAILNET = "my-macbook-pro.tail1234.ts.net";
 
-/** A frame from the listener: ws hands each message over as bytes, which here are JSON text. */
 const frameOf = (raw: RawData) =>
   JSON.parse((Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8")) as Record<string, unknown>;
 
@@ -265,7 +264,7 @@ describe("LAN listener", () => {
       expect(bearer.status).toBe(200);
       expect((await fetch(`${base(f.lan)}/me`, { headers: { authorization: `Bearer ${DESKTOP}` } })).status).toBe(401);
 
-      // the same code pairs again inside its window: a second device (the Home Screen app's own cookie jar)
+      // Outside (iOS): a Home Screen web app has its own cookie jar, so the same code pairs it again as a second device.
       const q = await pair(f.lan, code.toLowerCase(), "Home Screen");
       expect(q.res.status).toBe(200);
       expect(q.body.device_id).not.toBe(p.body.device_id);
@@ -309,7 +308,6 @@ describe("LAN listener", () => {
         [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => ({ code: c, name: "x" })),
       );
       await headersRead(f.lan);
-      // The wrong codes' bodies all at once; the right one's only after they are answered, so it is the 31st attempt
       const wrong = reqs.slice(0, -1);
       const right = reqs[reqs.length - 1];
       for (const r of wrong) r.send();
@@ -644,11 +642,12 @@ describe("LAN listener", () => {
     });
     expect(tailnetAddresses(mac, null)).toEqual(["100.90.1.2"]);
     expect(tailnetAddresses(mac, "100.90.1.2")).toEqual(["100.90.1.2"]);
-    // Every VPN on the Mac is a utun: another one handing out 100.x addresses (WARP, NetBird) is not Tailscale's, which
+    // Outside (Tailscale): every VPN on the Mac is a utun, and only Tailscale's also holds an address in Tailscale's own
+    // IPv6 prefix.
     const otherVpn = () => ({ ...mac(), utun9: [v4("100.96.0.2"), { address: "fe80::1", family: "IPv6", internal: false } as never] });
     expect(tailnetAddresses(otherVpn, null)).toEqual(["100.90.1.2"]);
     expect(tailnetAddresses(() => ({ utun9: [v4("100.96.0.2")] }), null)).toEqual([]);
-    // Linux and Windows name the tunnel after Tailscale; the CLI's address counts whatever its interface is called.
+    // Outside (Tailscale): on Linux and Windows the tunnel is named after Tailscale.
     expect(tailnetAddresses(() => ({ tailscale0: [v4("100.90.1.3")] }), null)).toEqual(["100.90.1.3"]);
     expect(tailnetAddresses(() => ({ Tailscale: [v4("100.90.1.4")] }), null)).toEqual(["100.90.1.4"]);
     expect(tailnetAddresses(() => ({ en0: [v4("100.80.0.5")] }), "100.90.1.2")).toEqual(["100.90.1.2"]);
@@ -668,14 +667,13 @@ describe("LAN listener", () => {
     expect(requestVia(req("192.168.1.20", { host: "my-macbook-pro.local:41415" }))).toBe("lan");
     expect(requestVia(req("::ffff:172.20.0.7"))).toBe("lan");
     expect(requestVia(req("127.0.0.1"))).toBe("lan");
-    // A 100.x address is only the tailnet inside CGNAT space (100.64–100.127); 100.1.x is somebody's real network.
+    // Outside (Tailscale): Tailscale hands out addresses only in CGNAT space (100.64–100.127).
     expect(requestVia(req("100.1.2.3"))).toBe("lan");
-    // A Wi‑Fi may hand out 100.x addresses too: with this Mac's tailnet addresses known, only a caller that reached one counts.
-    const at = (remoteAddress: string, localAddress: string) => ({ headers: {}, socket: { remoteAddress, localAddress } });
-    expect(requestVia(at("100.74.177.93", "100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
-    expect(requestVia(at("::ffff:100.74.177.93", "::ffff:100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
-    expect(requestVia(at("100.74.177.93", "100.80.0.5"), ["100.90.1.2"])).toBe("lan");
-    expect(requestVia(at("100.74.177.93", "100.80.0.5"), [])).toBe("lan");
+    const reaching = (remoteAddress: string, localAddress: string) => ({ headers: {}, socket: { remoteAddress, localAddress } });
+    expect(requestVia(reaching("100.74.177.93", "100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
+    expect(requestVia(reaching("::ffff:100.74.177.93", "::ffff:100.90.1.2"), ["100.90.1.2"])).toBe("tailscale");
+    expect(requestVia(reaching("100.74.177.93", "100.80.0.5"), ["100.90.1.2"])).toBe("lan");
+    expect(requestVia(reaching("100.74.177.93", "100.80.0.5"), [])).toBe("lan");
     expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }), [])).toBe("tailscale");
     expect(requestVia(req("192.168.1.20", { "x-forwarded-for": "100.74.177.93" }))).toBe("lan");
     expect(isTailnetAddress("100.64.0.1")).toBe(true);
@@ -723,7 +721,6 @@ describe("LAN listener", () => {
   });
 
   test("behind tailscale serve: /pair from the tailnet origin reaches the code check; a stranger is still 403", async () => {
-    // Port 0, read back once bound: a port probed free first can be taken by another listener before this one binds it
     const f = fixture({ tailscale: fakeTailscale() });
     try {
       await f.lan.setEnabled(true);

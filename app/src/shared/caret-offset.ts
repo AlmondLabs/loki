@@ -38,7 +38,7 @@ export function caretOffset(el: HTMLTextAreaElement, index: number): { left: num
   mirror.style.overflowWrap = "break-word";
   mirror.textContent = el.value.slice(0, index);
   const mark = document.createElement("span");
-  // A character to measure at: an empty span at a line's end can sit on either line.
+  // Outside (CSS): an empty span at a line's end can sit on either line, so the mark holds a character.
   mark.textContent = el.value.slice(index, index + 1) || ".";
   mirror.appendChild(mark);
   document.body.appendChild(mirror);

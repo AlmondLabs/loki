@@ -1,5 +1,5 @@
 import type { MailAddressing, MailCompose, MailMode, MailPerson } from "../../../core/frame-types.ts";
-import { useId, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useId, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Chip, Field, Meta, sentence } from "../components";
 import { XIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
@@ -96,6 +96,10 @@ function RecipientRow({
     setQuery("");
     setPick(0);
   };
+  const addBeforeBlur = (p: MailPerson) => (e: ReactPointerEvent) => {
+    e.preventDefault();
+    add(asRecipient(p));
+  };
   const keys = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation();
     if (e.key === "ArrowDown" && found.length) {
@@ -181,11 +185,7 @@ function RecipientRow({
                   role="option"
                   aria-selected={i === at}
                   className="loki-mail-suggest-row"
-                  // Before the field's blur, so the pick is the person and not what was typed.
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    add(asRecipient(p));
-                  }}
+                  onPointerDown={addBeforeBlur(p)}
                 >
                   <span className="loki-mail-suggest-name">{p.name || p.address}</span>
                   {p.name && <Meta>{p.address}</Meta>}

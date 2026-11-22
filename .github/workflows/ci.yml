@@ -1,9 +1,7 @@
 name: ci
 on:
-  # Every PR, docs alone included: the checks are required, so each job reports. On a PR that changes only docs, each
-  # job passes after its checkout (the scope step) without installing or checking anything.
+  # Outside (GitHub Actions): a required check that never reports holds the PR, so a docs-only PR runs every job too.
   pull_request:
-  # The queue runs everything before a PR reaches main; a PR's own run narrows the suite to what its diff reaches.
   merge_group:
   schedule:
     - cron: "17 3 * * 1"
@@ -18,7 +16,6 @@ defaults:
     shell: bash
 
 jobs:
-  # Side by side, not one after another: the run takes as long as its slowest check.
   typecheck:
     name: types
     runs-on: ubuntu-22.04
@@ -27,7 +24,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - id: scope
+      - name: find whether the PR changes only docs
+        id: scope
         if: github.event_name == 'pull_request'
         run: |
           if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
@@ -49,7 +47,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - id: scope
+      - name: find whether the PR changes only docs
+        id: scope
         if: github.event_name == 'pull_request'
         run: |
           if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
@@ -71,7 +70,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - id: scope
+      - name: find whether the PR changes only docs
+        id: scope
         if: github.event_name == 'pull_request'
         run: |
           if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
@@ -82,9 +82,8 @@ jobs:
       - id: install
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
-      # On a PR, the files the diff reaches (scripts/lint-pr.ts); a change to the lint's setup lints everything, under
-      # the whole lint's budget. The merge queue always lints everything.
-      - id: lint-plan
+      - name: find whether the PR's diff reaches every file's lint
+        id: lint-plan
         if: ${{ github.event_name == 'pull_request' && steps.install.outcome == 'success' }}
         run: bun run --silent lint:pr --plan >> "$GITHUB_OUTPUT"
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -98,7 +97,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - id: scope
+      - name: find whether the PR changes only docs
+        id: scope
         if: github.event_name == 'pull_request'
         run: |
           if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
@@ -122,7 +122,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - id: scope
+      - name: find whether the PR changes only docs
+        id: scope
         if: github.event_name == 'pull_request'
         run: |
           if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
@@ -143,8 +144,8 @@ jobs:
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         run: bun run --silent budget bun run smoke
 
-  # Windows starts processes several times slower than Linux, and the suite's git and daemon tests start many: the
-  # suite runs in two shards there, and the required check is the job after them.
+  # Outside (Windows): it starts processes several times slower than Linux, and the suite's git and daemon tests start
+  # many.
   windows:
     name: tests (windows-latest, ${{ matrix.shard }}/2)
     runs-on: windows-latest
@@ -157,7 +158,8 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-      - id: scope
+      - name: find whether the PR changes only docs
+        id: scope
         if: github.event_name == 'pull_request'
         run: |
           if git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|LICENSE$|\.github/ISSUE_TEMPLATE/|[^/]+\.md$)'; then
@@ -186,8 +188,7 @@ jobs:
     steps:
       - run: test "${{ needs.windows.result }}" = success
 
-  # GitHub's Mac runners can queue for minutes, so a PR waits for one only when its diff can reach what runs
-  # differently on macOS (scripts/mac-scope.ts). A skipped job counts as passed; the queue and main run it always.
+  # Outside (GitHub Actions): Mac runners can queue for minutes, and a skipped job counts as passed.
   mac-scope:
     name: mac scope
     if: github.event_name == 'pull_request'
@@ -208,7 +209,6 @@ jobs:
   mac:
     name: tests (macos-15)
     needs: mac-scope
-    # Runs unless the scope said no: a scope that failed or never ran (the queue, main) leaves the Mac job on.
     if: ${{ !cancelled() && needs.mac-scope.outputs.needed != 'false' }}
     runs-on: macos-15
     steps:

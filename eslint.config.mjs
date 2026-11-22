@@ -1,16 +1,16 @@
-// The two rules oxlint (.oxlintrc.json) has no version of: identifiers' case (docs/style.md) and the few patterns that
-// have a helper of their own. Neither needs type information, so this runs in seconds.
 import tseslint from "typescript-eslint";
+import { plugin as loki } from "./eslint-comments.mjs";
 
 export default tseslint.config(
   { ignores: ["node_modules/**", "**/dist/**", ".loki-build/**", "src-tauri/**", ".impeccable/**", "docs/**", ".claude/**"] },
   {
     files: ["**/*.{ts,tsx,mts,cts,js,mjs,cjs}"],
     languageOptions: { parser: tseslint.parser },
-    plugins: { "@typescript-eslint": tseslint.plugin },
-    // The code's disable comments are oxlint's to judge, for its rules.
-    linterOptions: { reportUnusedDisableDirectives: "off" },
+    plugins: { "@typescript-eslint": tseslint.plugin, loki },
+    // Outside (oxlint): the disable comments in the code name oxlint's rules, which ESLint does not run.
+    linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: "off" },
     rules: {
+      "loki/comments": "error",
       "@typescript-eslint/naming-convention": [
         "error",
         { selector: "default", format: ["strictCamelCase"], leadingUnderscore: "allow" },
@@ -44,4 +44,5 @@ export default tseslint.config(
       ],
     },
   },
+  { files: ["app/src/ui/**"], rules: { "loki/comments": "off" } },
 );

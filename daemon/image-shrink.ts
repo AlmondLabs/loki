@@ -48,7 +48,7 @@ async function shrunk(
   try {
     const source = file ?? join(dir, "source");
     if (!file) await writeFile(source, data);
-    // Its size first: `sips -Z` would also enlarge a smaller one.
+    // Outside (macOS): `sips -Z` would also enlarge a smaller picture, so its size is read first.
     const dims = await run("/usr/bin/sips", ["-g", "pixelWidth", "-g", "pixelHeight", source]);
     const sides = [...dims.matchAll(/pixel(?:Width|Height):\s*(\d+)/g)].map((m) => Number(m[1]));
     const long = sides.length ? Math.max(...sides) : 0;

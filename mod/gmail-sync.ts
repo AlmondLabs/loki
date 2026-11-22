@@ -284,7 +284,7 @@ export class GmailSync implements AccountSync {
       from_backfill: fromBackfill,
       traits: mailTraits(newest.payload?.headers ?? [], own, newest.labelIds),
       unread_out_there: unread,
-      // Gmail stars a message; the thread reads as starred while any of its messages is.
+      // Outside (Gmail): Gmail stars a message; the thread reads as starred while any of its messages is.
       starred: messages.some((m) => m.labelIds.includes("STARRED")),
     });
     return { observed, unread };

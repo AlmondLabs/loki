@@ -70,7 +70,8 @@ export function transition(from: Route, to: Route, arrival: Arrival, apply: () =
   dragged = null;
   const ours = ownPop || !!drag;
   ownPop = false;
-  if (arrival === "pop" && !ours) motion = null; // the browser's Back, already animated by the browser
+  const backAnimatedByBrowser = arrival === "pop" && !ours;
+  if (backAnimatedByBrowser) motion = null;
   if (drag && motion === "zoom") motion = "pop";
   const update = () => {
     drag?.reset();

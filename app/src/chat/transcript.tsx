@@ -289,7 +289,7 @@ function useMessageHold(row: TranscriptRow) {
     onPointerUp: end,
     onPointerCancel: end,
     onPointerLeave: end,
-    // Android's long press (and a right-click) arrives as a context menu: the message's actions, not the browser's.
+    // Outside (Android): a long press arrives as a context menu, as a right-click does; it opens the message's actions.
     onContextMenu: (e: MouseEvent) => {
       e.preventDefault();
       end();

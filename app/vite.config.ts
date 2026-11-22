@@ -11,6 +11,7 @@ import { rewriteSharedImports } from "./src/frame/rewrite.ts";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const modPort = process.env.LOKI_PORT ?? "41414";
+const KIT_IMPORT_FOR_AUTHORED_WIDGETS = "@loki/kit";
 const { version, repository } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string; repository?: string };
 const repo = (repository ?? "")
   .replace(/^github:/, "")
@@ -37,9 +38,8 @@ async function widgetModule(rel: string): Promise<string | null> {
 
 function compilerOptions() {
   const base = {
-    // The compiler skips any function carrying an eslint suppression for these rules. This repo runs no
-    // ESLint; its `exhaustive-deps` suppressions mark effects that deliberately run on a tick or a key, which
-    // the compiler handles as written (deps arrays are kept verbatim). Only rules-of-hooks still opts out.
+    // Outside (React Compiler): it skips every function that suppresses a rule listed here, and compiles an
+    // `exhaustive-deps` suppression with its deps array as written, so only rules-of-hooks is listed.
     eslintSuppressionRules: ["react-hooks/rules-of-hooks"],
   };
   if (!process.env.LOKI_COMPILER_LOG) return base;
@@ -77,8 +77,8 @@ export default defineConfig({
       name: "loki:desks",
       enforce: "pre",
       transform(code, id) {
-        // Tailwind resolves @source relative to the stylesheet, so hand it a relative path.
-        // The id may carry a query (?direct, ?used), so match with includes, not endsWith.
+        // Outside (Tailwind): it resolves @source relative to the stylesheet, and Vite's module id may carry a query
+        // (?direct, ?used).
         if (id.includes("/src/styles.css")) {
           return code.replaceAll("__LOKI_WIDGETS_DIR__", relative(dirname(id.split("?")[0]), widgetsDir));
         }
@@ -130,8 +130,7 @@ export default defineConfig({
   clearScreen: false,
   define: { __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify(repo) },
   resolve: {
-    // Authored widgets import the kit by this name; keep it stable in docs.
-    alias: { "@loki/kit": here("./src/kit/index.tsx"), "@": here("./src") },
+    alias: { [KIT_IMPORT_FOR_AUTHORED_WIDGETS]: here("./src/kit/index.tsx"), "@": here("./src") },
   },
   server: {
     fs: { allow: [here("..")] },

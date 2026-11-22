@@ -30,9 +30,8 @@ const install = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github"
   runs: { steps: Step[] };
 };
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
-// The jobs that install and check; mac-scope only decides whether the Mac one runs, and windows-result only reports
-// the Windows shards as one check.
-const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => name !== "mac-scope" && name !== "windows-result");
+const JOBS_THAT_ONLY_DECIDE_OR_REPORT = ["mac-scope", "windows-result"];
+const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => !JOBS_THAT_ONLY_DECIDE_OR_REPORT.includes(name));
 const SHARD = " --shard=${{ matrix.shard }}/2";
 
 describe("ci: a PR's checks", () => {
@@ -45,11 +44,10 @@ describe("ci: a PR's checks", () => {
 
   test("runs on every PR, docs alone included, so each required check reports; a docs-only PR passes each job before installing", () => {
     expect(ci.on.pull_request).toBeNull();
-    // The Mac job is skipped as a whole on a PR that cannot reach it, docs alone included (the next block).
-    for (const [name, job] of checking(ci).filter(([n]) => n !== "mac")) {
+    const skippedWholeByMacScope = "mac";
+    for (const [name, job] of checking(ci).filter(([n]) => n !== skippedWholeByMacScope)) {
       const scope = job.steps.find((s) => s.id === "scope");
       expect(scope?.run, name).toContain("git diff --name-only HEAD^1 HEAD");
-      // The skill the app ships is not a doc: skills/ is not in the list.
       expect(scope?.run, name).toContain("^(docs/|LICENSE$|\\.github/ISSUE_TEMPLATE/|[^/]+\\.md$)");
       const install = job.steps.find((s) => s.id === "install");
       expect(install?.if, name).toBe("steps.scope.outputs.docs_only != 'true'");
@@ -83,17 +81,14 @@ describe("ci: a PR's checks", () => {
       for (const once of ["typecheck", "lint", "build:app"]) expect(tests, name).not.toContain(once);
       expect(tests, name).toContain("bun run smoke");
     }
-    // The required checks' names: the ruleset waits for these.
-    const named = (job: string) => (must(ci.jobs[job], job) as Job & { name?: string }).name;
-    expect(named("mac")).toBe("tests (macos-15)");
-    expect(named("windows-result")).toBe("tests (windows-latest)");
-    // Everything after the install is the same on both, but for Windows' shards: each runs half the suite, the first
-    // the bundle and its smoke test, the second the Node runner's tests.
-    const checks = (j: Job) =>
+    const requiredCheckName = (job: string) => (must(ci.jobs[job], job) as Job & { name?: string }).name;
+    expect(requiredCheckName("mac")).toBe("tests (macos-15)");
+    expect(requiredCheckName("windows-result")).toBe("tests (windows-latest)");
+    const afterInstallWithoutShards = (j: Job) =>
       j.steps
         .slice(j.steps.findIndex((s) => s.id === "install") + 1)
         .map((s) => ({ ...s, if: s.if?.replace(/ && matrix\.shard == [12]/, ""), run: s.run?.replace(SHARD, "") }));
-    expect(checks(must(ci.jobs.windows, "windows"))).toEqual(checks(must(ci.jobs.mac, "mac")));
+    expect(afterInstallWithoutShards(must(ci.jobs.windows, "windows"))).toEqual(afterInstallWithoutShards(must(ci.jobs.mac, "mac")));
     expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows", "windows-result"]);
   });
 
@@ -208,8 +203,8 @@ describe("main between PRs", () => {
     for (const name of ["ci", "shell"]) {
       const schedule = (workflow(name).on as unknown as { schedule?: Array<{ cron: string }> }).schedule ?? [];
       expect(schedule, name).toHaveLength(1);
-      // minute hour * * weekday: weekly, not daily or hourly.
-      expect(schedule[0]?.cron, name).toMatch(/^\d{1,2} \d{1,2} \* \* [0-6]$/);
+      const weeklyCron = /^\d{1,2} \d{1,2} \* \* [0-6]$/;
+      expect(schedule[0]?.cron, name).toMatch(weeklyCron);
     }
   });
 });
@@ -316,7 +311,8 @@ describe("supply chain", () => {
       });
   });
 
-  // tauri-cli only warns when the signing key and tauri.conf.json's pubkey are not one pair, and a loki built that way
+  // Outside (Tauri): tauri-cli only warns when the signing key and tauri.conf.json's pubkey are not one pair, and a loki
+  // built that way can never verify an update.
   test("each build checks its update signatures against the compiled-in key before it ships them", () => {
     const release = workflow("release").jobs;
     for (const [job, isBuild, isShip] of [

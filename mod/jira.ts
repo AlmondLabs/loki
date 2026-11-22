@@ -294,7 +294,7 @@ function parseComment(v: unknown): JiraEvent {
 function parseHistory(v: unknown): JiraEvent {
   const r = rec(v);
   const created = str(r.created);
-  // Jira names a value by `fromString` and `toString`, with the stored value beside it. Every object has a method
+  // Outside (Jira): Jira names a value by `fromString` and `toString`, with the stored value beside it. Every object has a method
   // called `toString`, so the answer's own field is read, never the one each object inherits.
   const items = list(r.items).map((raw): JiraHistoryItem => {
     const item = rec(raw);
@@ -372,7 +372,7 @@ export class JiraClient {
   async myself(): Promise<JiraIdentity> {
     const r = await this.call("GET", "/rest/api/3/myself");
     const accountId = str(r.accountId);
-    // Jira answers some calls with a bad token as it would an anonymous visitor: 200, and no account.
+    // Outside (Jira): Jira answers some calls with a bad token as it would an anonymous visitor: 200, and no account.
     if (!accountId) return this.rejected("the profile names no account", 200);
     return { account_id: accountId, display_name: str(r.displayName), email: strOrNull(r.emailAddress) };
   }
@@ -435,7 +435,7 @@ export class JiraClient {
   }
 
   async history(ticket: string, opts: JiraEventPageOptions = {}): Promise<JiraEventPage> {
-    // Jira's reference names the list `histories` in one place and `values` in another; whichever is there is read.
+    // Outside (Jira): Jira's reference names the list `histories` in one place and `values` in another; whichever is there is read.
     return this.page(`/rest/api/3/issue/${encodeURIComponent(ticket)}/changelog`, opts, (r) =>
       (Array.isArray(r.values) ? list(r.values) : list(r.histories)).map(parseHistory),
     );
@@ -547,7 +547,8 @@ export class JiraClient {
 
   async attachFiles(ticket: string, files: JiraFile[]): Promise<string[]> {
     const form = new FormData();
-    // A Blob takes only bytes over a plain ArrayBuffer, and a caller's view may sit over a shared one, so each is copied.
+    // Outside (TypeScript): a Blob takes only bytes over a plain ArrayBuffer, and a caller's view may sit over a shared
+    // one, so each is copied.
     for (const f of files) form.append("file", new Blob([new Uint8Array(f.data)]), f.name);
     const size = files.reduce((n, f) => n + f.data.byteLength, 0);
     const answer = await this.request("POST", `/rest/api/3/issue/${encodeURIComponent(ticket)}/attachments`, undefined, undefined, true, {
@@ -639,7 +640,7 @@ export class JiraClient {
     if (res.ok) return answer;
     const fields = Object.fromEntries(Object.entries(rec(rec(answer).errors)).filter((e): e is [string, string] => typeof e[1] === "string"));
     const said = str(list(rec(answer).errorMessages)[0]) || Object.values(fields)[0] || `Jira answered ${res.status}`;
-    // Jira hides a ticket the person may not see behind "not found": that says nothing about the account.
+    // Outside (Jira): Jira hides a ticket the person may not see behind "not found": that says nothing about the account.
     throw new JiraError(said, res.status === 404 ? "not_found" : `http_${res.status}`, res.status, null, fields);
   }
 

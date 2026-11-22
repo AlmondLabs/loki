@@ -13,7 +13,7 @@ describe("global skills", () => {
     writeFileSync(join(dir, "plain", "SKILL.md"), '---\nname: plain\ndescription: "Does a thing"\n---\n# plain\n');
     mkdirSync(join(root, "elsewhere", "linked"), { recursive: true });
     writeFileSync(join(root, "elsewhere", "linked", "SKILL.md"), "# Linked skill\ntext\n");
-    // a junction on Windows (no privilege needed); the type is ignored elsewhere
+    // Outside (Windows): a junction needs no privilege on Windows; Node ignores the link type elsewhere.
     symlinkSync(join(root, "elsewhere", "linked"), join(dir, "linked"), "junction");
     mkdirSync(join(dir, "empty"));
     writeFileSync(join(dir, ".DS_Store"), "");

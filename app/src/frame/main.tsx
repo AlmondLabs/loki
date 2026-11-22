@@ -25,8 +25,7 @@ const post = (msg: Out) => {
   }
 };
 
-// Nothing the shell may have put on a window belongs here. The sandbox already keeps the page's own globals out;
-// these go too in case a webview injects its scripts into every frame.
+// Outside (Tauri): a webview may inject its scripts into every frame, so what the shell puts on a window is removed.
 for (const key of ["__LOKI__", "__TAURI_INTERNALS__", "__TAURI__", "__TAURI_IPC__", "__TAURI_METADATA__", "ipc"]) {
   try {
     Reflect.deleteProperty(window, key);
@@ -98,8 +97,8 @@ async function load(hash: string, source: { url: string } | { code: string }) {
       blob = URL.createObjectURL(new Blob([source.code], { type: "text/javascript" }));
       mod = (await import(/* @vite-ignore */ blob)) as Record<string, unknown>;
     } else {
-      // The page's manifest and the file on disk race by a few hundred ms, and a failed import is cached by URL:
-      // retry a few times, each under its own URL.
+      // Outside (HTML): a failed import is cached by its URL, so each retry, while the file on disk catches up with the
+      // page's manifest, asks under its own.
       for (let attempt = 0; ; attempt++) {
         try {
           mod = (await import(/* @vite-ignore */ attempt ? `${source.url}&r=${attempt}` : source.url)) as Record<string, unknown>;

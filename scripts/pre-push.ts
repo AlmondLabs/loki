@@ -3,27 +3,23 @@ import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { WORKFLOW_FILE } from "./lint.ts";
 
-/** One check the hook runs: a program and its arguments, run from the repository's root. */
 export interface Check {
   name: string;
   bin: string;
   args: string[];
-  // A Node script runs under this Node; anything else (bun) runs as itself.
   node: boolean;
+  nodeArgs?: string[];
 }
 
 const FORMATTED = /\.(c|m)?[jt]sx?$|\.(json|jsonc|css|ya?ml|toml)$/;
 const SCRIPT = /\.(c|m)?[jt]sx?$/;
 
-/**
- * The checks for a push that changes `files` (paths from the repository's root): format and lint on those files only,
- * and the typecheck on the whole project, since a change in one file can break the types of another and `bun check`
- * takes well under a second. Nothing to check gives an empty list.
- */
 export function checksFor(files: readonly string[], binOf: (pkg: string, bin: string) => string): Check[] {
   const formatted = files.filter((f) => FORMATTED.test(f));
   const scripts = files.filter((f) => SCRIPT.test(f));
+  const workflows = files.filter((f) => WORKFLOW_FILE.test(f));
   const bun = binOf("bun", "bin/bun.exe");
   const checks: Check[] = [];
   if (formatted.length)
@@ -33,13 +29,17 @@ export function checksFor(files: readonly string[], binOf: (pkg: string, bin: st
     checks.push({ name: "eslint", bin: binOf("eslint", "bin/eslint.js"), args: ["--no-warn-ignored", ...scripts], node: true });
     checks.push({ name: "types", bin: bun, args: ["check", "--no-script", "-p", "tsconfig.json"], node: false });
   }
+  if (workflows.length)
+    checks.push({
+      name: "workflows",
+      bin: "scripts/workflow-comments.ts",
+      args: workflows,
+      node: true,
+      nodeArgs: ["--experimental-strip-types", "--disable-warning=ExperimentalWarning"],
+    });
   return checks;
 }
 
-/**
- * The files a push changes: everything that differs from where this branch left main, uncommitted edits included. A
- * clone without origin/main has no such point, so every tracked file is checked.
- */
 export function changedFiles(git: (args: string[]) => string): string[] {
   let base: string;
   try {
@@ -59,10 +59,10 @@ interface Result {
   ms: number;
 }
 
-function run(check: Check, root: string): Promise<Result> {
+function runWithOutputHeld(check: Check, root: string): Promise<Result> {
   const start = performance.now();
   return new Promise((resolve) => {
-    const [bin, args] = check.node ? [process.execPath, [check.bin, ...check.args]] : [check.bin, check.args];
+    const [bin, args] = check.node ? [process.execPath, [...(check.nodeArgs ?? []), check.bin, ...check.args]] : [check.bin, check.args];
     const child = spawn(bin, args, { cwd: root, env: { ...process.env, FORCE_COLOR: "1" } });
     let output = "";
     child.stdout.on("data", (d: Buffer) => (output += d.toString()));
@@ -82,8 +82,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
   const binOf = (pkg: string, bin: string) => join(dirname(require.resolve(`${pkg}/package.json`)), bin);
   const files = changedFiles((args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }));
   const start = performance.now();
-  // Side by side, each one's output held until it ends so they never interleave.
-  const results = await Promise.all(checksFor(files, binOf).map((c) => run(c, root)));
+  const results = await Promise.all(checksFor(files, binOf).map((c) => runWithOutputHeld(c, root)));
   for (const r of results.filter((r) => r.code !== 0)) console.error(`\n✗ ${r.name}\n${r.output.trimEnd()}`);
   const summary = results.map((r) => `${r.code === 0 ? "✓" : "✗"} ${r.name} ${(r.ms / 1000).toFixed(1)}s`).join(", ");
   console.error(`pre-push: ${files.length} changed files; ${summary || "nothing to check"} (${((performance.now() - start) / 1000).toFixed(1)}s)`);

@@ -122,7 +122,7 @@ const modify: GoogleToolDef = {
     }
     if (!ids.length) throw new Error("name `messages` or `threads` to change");
     if (!add.length && !remove.length) throw new Error("say what to change: archive, read, add_labels or remove_labels");
-    // Gmail takes up to 1000 messages a call; the calls go one after another, so a failure stops before the rest and
+    // Outside (Gmail): Gmail takes up to 1000 messages a call; the calls go one after another, so a failure stops before the rest and
     // the per-user rate limit is not hit by a burst.
     for (let i = 0; i < ids.length; i += 1000)
       // react-doctor-disable-next-line react-doctor/async-await-in-loop
@@ -203,9 +203,8 @@ const attachment: GoogleToolDef = {
     const folder = optText(call.args, "drive_folder");
     if (!path && !folder) throw new Error("say where it goes: `path` or `drive_folder`");
     const client = call.deps.gmail(call.account.account_id);
-    // Its name and type, from the part of the message that holds it. Gmail gives an attachment a new id each time the
-    // message is read, so the part is found by its place in the tree (`part`, from google_gmail_read), then by that id,
-    // then as the message's only attachment.
+    // Outside (Gmail): an attachment gets a new id each time the message is read, so the part is found by its place in
+    // the tree (`part`, from google_gmail_read), then by that id, then as the message's only attachment.
     const message = await client.getMessage(messageId);
     const files = partsOf(message.payload).filter((p) => p.filename && p.body.attachmentId);
     const partId = optText(call.args, "part");

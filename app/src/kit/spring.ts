@@ -45,12 +45,13 @@ export function spring(name: SpringName, v0 = 0): { easing: string; ms: number }
   return springWith(SPRINGS[name], Math.max(-8, Math.min(8, v0)));
 }
 
+const KEEP_ON_ONE_LINE = "/* prettier-ignore */";
+
 export function springTokens(): string {
   return (Object.keys(SPRINGS) as SpringName[])
     .map((name) => {
       const { easing, ms } = spring(name);
-      // Generated data, kept on one line: the formatter would put each of the curve's points on a line of its own.
-      return `  /* prettier-ignore */\n  --spring-${name}: ${easing};\n  --spring-${name}-ms: ${ms}ms;`;
+      return `  ${KEEP_ON_ONE_LINE}\n  --spring-${name}: ${easing};\n  --spring-${name}-ms: ${ms}ms;`;
     })
     .join("\n");
 }

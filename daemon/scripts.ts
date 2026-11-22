@@ -106,7 +106,7 @@ export function withTimeLimit(source: string, limitMs: number): string {
   const { timeoutMs, maxOutputTokens } = parsed.options;
   if (timeoutMs !== undefined && timeoutMs <= limitMs) return source;
   const line = `${CODEMODE_OPTIONS_PREFIX} ${JSON.stringify({ ...(maxOutputTokens === undefined ? {} : { max_output_tokens: maxOutputTokens }), timeout_ms: limitMs })}`;
-  // parseCodemodeSource leaves an empty first line where the options line was, so the new line takes its place.
+  // Outside (pi-codemode): parseCodemodeSource leaves an empty first line where the options line was, so the new line takes its place.
   return source.trimStart().startsWith(CODEMODE_OPTIONS_PREFIX) ? `${line}${parsed.code}` : `${line}\n${source}`;
 }
 

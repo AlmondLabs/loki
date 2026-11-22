@@ -180,7 +180,7 @@ export class SlackSync implements AccountSync {
         continue;
       }
       const dm = dms.get(r.thread_id);
-      // A DM closed in Slack drops out of client.counts, so Slack is asked about it alone, else its card never ends.
+      // Outside (Slack): a DM closed in Slack drops out of client.counts, so Slack is asked about it alone, else its card never ends.
       const ended = dm ? !dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read)) : await this.closedDmEnded(r);
       if (ended) threads.markGoneOutThere(this.accountId, r.thread_id);
     }
@@ -402,7 +402,7 @@ export class SlackSync implements AccountSync {
     const now = (this.opts.now?.() ?? new Date()).getTime();
     const page = async (cursor: string | undefined) => {
       const p = await this.opts.client.activityFeed({ unreadOnly: true, types: SLACK_ACTIVITY_TYPES, cursor, limit: FEED_PAGE });
-      // Slack may send kinds that were not asked for; a reaction or anything else is never a card.
+      // Outside (Slack): Slack may send kinds that were not asked for; a reaction or anything else is never a card.
       return { items: p.items.filter((i) => i.is_unread && (SLACK_ACTIVITY_TYPES as readonly string[]).includes(i.type)), next: p.next_cursor };
     };
     if (!this.walk && now < this.nextFullWalk) {
@@ -506,19 +506,18 @@ export class SlackSync implements AccountSync {
     const mark = record?.dealt_message_id ?? null;
     const isNew = (ts: string, from: string | null) => !from || tsAfter(ts, from);
     const brought = new Set((record?.brought_ids ?? []).filter((id) => isNew(id, mark)));
-    // A card's items in one thread share a single read of it, up to the newest of them, since a long thread takes pages.
-    const newestIn = new Map<string, string>();
+    const newestItemPerThread = new Map<string, string>();
     for (const { channel, ts, thread_ts } of c.items) {
       if (!channel || !ts || !thread_ts) continue;
-      const was = newestIn.get(`${channel}:${thread_ts}`);
-      if (!was || tsAfter(ts, was)) newestIn.set(`${channel}:${thread_ts}`, ts);
+      const was = newestItemPerThread.get(`${channel}:${thread_ts}`);
+      if (!was || tsAfter(ts, was)) newestItemPerThread.set(`${channel}:${thread_ts}`, ts);
     }
     const threadsRead = new Map<string, SlackMessage[]>();
     const thread = async (channel: string, threadTs: string, ts: string) => {
       const key = `${channel}:${threadTs}`;
       const known = threadsRead.get(key);
       if (known) return known;
-      const messages = await this.threadUpTo(channel, threadTs, newestIn.get(key) ?? ts);
+      const messages = await this.threadUpTo(channel, threadTs, newestItemPerThread.get(key) ?? ts);
       threadsRead.set(key, messages);
       return messages;
     };
@@ -534,7 +533,7 @@ export class SlackSync implements AccountSync {
         if (isNew(ts, mark)) brought.add(ts);
         continue;
       }
-      // A followed thread's item names only its newest reply, so every reply by someone else since the mark, or since
+      // Outside (Slack): a followed thread's item names only its newest reply, so every reply by someone else since the mark, or since
       // the person last read the thread in Slack, brought the card.
       const root = page.messages.find((m) => m.ts === item.thread_ts);
       const read = mark ?? (typeof root?.raw.last_read === "string" && root.raw.last_read ? root.raw.last_read : null);

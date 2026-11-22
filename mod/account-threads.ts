@@ -509,7 +509,7 @@ export class AccountThreads {
     } catch {}
     const list = typeof raw === "object" && raw !== null ? (raw as { threads?: unknown }).threads : null;
     if (Array.isArray(list)) return list as unknown[];
-    // A colon is not allowed in a Windows file name, so the time is written without them.
+    // Outside (Windows): a file name may not hold a colon, so the time is written without them.
     const stamp = (this.opts.now?.() ?? new Date())
       .toISOString()
       .replace(/[-:]/g, "")

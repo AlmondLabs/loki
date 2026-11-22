@@ -261,8 +261,7 @@ describe("the frame table", () => {
   });
 });
 
-describe("the app's side is typed by the table", () => {
-  // Compile-time checks: vitest runs them as no-ops, `bun run typecheck` holds them.
+describe("the app's side is typed by the table, checked by the typecheck and no-ops at run time", () => {
   const request = <N extends RequestName>(_type: N, _payload: InputOf<N>): ReplyOf<N> | null => null;
   const send = <N extends SendName>(_frame: { type: N } & InputOf<N>): boolean => true;
   test("a request without a required field, or a send of a wrong field, does not compile", () => {

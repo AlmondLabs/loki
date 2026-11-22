@@ -11,7 +11,8 @@ import * as esbuild from "esbuild";
  * because the bundle is written inside it.
  */
 export default async function activate(api: unknown, host: unknown): Promise<unknown> {
-  const here = fileURLToPath(new URL(import.meta.url)); // query stripped by fileURLToPath
+  // Outside (Node): fileURLToPath drops the query on this module's URL.
+  const here = fileURLToPath(new URL(import.meta.url));
   const root = dirname(dirname(here));
   const outDir = join(root, ".loki-build");
   mkdirSync(outDir, { recursive: true });

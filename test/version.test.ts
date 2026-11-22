@@ -58,7 +58,6 @@ test("nightlies of one stable order by run number, as numbers", () => {
 });
 
 test("prerelease ties break by semver: words above numbers, longer above shorter, build metadata ignored", () => {
-  // A nightly installed before run numbers sorts above a run-numbered one of the same stable: semver ranks words above
   expect(compareVersions("2026.1011.1-nightly.a96ee85", "2026.1011.1-nightly.4821")).toBeGreaterThan(0);
   expect(compareVersions("1.0.0-nightly", "1.0.0-nightly.1")).toBeLessThan(0);
   expect(compareVersions("1.0.0+a", "1.0.0+b")).toBe(0);
@@ -82,14 +81,9 @@ test("stables and nightlies sort together by precedence", () => {
   ]);
 });
 
-/**
- * Windows (plan 014 U10): only stables are built for Windows (the Windows and Linux PR), but a nightly's number would do too.
- * Tauri's NSIS bundler takes the app version as is. It parses it as semver, drops the
- * pre-release, and writes `VIProductVersion "M.m.p.B"` with B the build metadata when numeric, else 0; each part
- * is a 16-bit word in the Windows version resource (tauri-bundler windows/nsis/mod.rs try_add_numeric_build_number,
- * tauri-build's to_winres_version). Only the MSI bundler rejects a non-numeric pre-release, and loki builds no MSI.
- * So no version needs a Windows-only number, as long as the versions keep to this shape.
- */
+// Outside (Tauri): Tauri's NSIS bundler parses the app version as semver, drops the pre-release, and writes
+// `VIProductVersion "M.m.p.B"`, B the build metadata when numeric, else 0; each part is a 16-bit word in the Windows
+// version resource. Only the MSI bundler rejects a non-numeric pre-release, and loki builds no MSI.
 test("stable and nightly versions build an NSIS installer as is: semver, no build metadata, parts within 16 bits", () => {
   const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
   const productVersion = (v: string) => {
@@ -103,7 +97,6 @@ test("stable and nightly versions build an NSIS installer as is: semver, no buil
   for (const d of days) {
     for (const n of [0, 1, 99]) expect(productVersion(stableVersion(d, n))).toBe(`${stableVersion(d, n)}.0`);
     for (const run of [1, 4821, 65536, 999999]) {
-      // the run number is in the prerelease, which NSIS drops, so it never meets the 16-bit cap
       expect(productVersion(nightlyVersion(stableVersion(d, 0), run))).toBe(`${stableVersion(d, 0)}.0`);
       expect(nightlyVersion(stableVersion(d, 0), run)).not.toContain("+");
     }

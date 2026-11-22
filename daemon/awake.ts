@@ -26,7 +26,7 @@ export class Awake {
         if (this.child === child) this.child = null;
       };
       child.on("exit", gone);
-      // A spawn that fails (too many processes or open files) is emitted as an error, thrown when nobody listens.
+      // Outside (Node): a spawn that fails (too many processes or open files) is emitted as an error, thrown when nobody listens.
       child.on("error", gone);
       this.child = child;
     } else if (!on && this.child) {

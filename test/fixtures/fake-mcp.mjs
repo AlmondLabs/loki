@@ -64,9 +64,10 @@ export async function serve(transport, opts = {}) {
   return transport;
 }
 
-// As a script: newline-delimited JSON-RPC on stdin and stdout, as MCP's stdio transport speaks it. "Run as a script"
-const same = (a, b) => (process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b);
-if (process.argv[1] && same(resolve(process.argv[1]), fileURLToPath(import.meta.url))) {
+// Outside (MCP): as a script it speaks MCP's stdio transport, newline-delimited JSON-RPC on stdin and stdout.
+const samePath = (a, b) => (process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b);
+const runAsScript = process.argv[1] && samePath(resolve(process.argv[1]), fileURLToPath(import.meta.url));
+if (runAsScript) {
   process.stderr.write("fake mcp server ready\n");
   const lines = createInterface({ input: process.stdin });
   lines.on("line", (line) => {
