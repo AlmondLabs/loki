@@ -54,7 +54,7 @@ on the files your branch changes and the whole project's types (`scripts/pre-pus
 bun run test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
 bun run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
 bun run typecheck                                 # bun check: TypeScript 7's checker, the whole project in about a second
-bun run format:check                              # oxfmt; bun run format fixes it
+bun run format:check                              # bun fmt; bun run format fixes it
 bun run lint                                      # uncached; bun run lint:fast caches results while you work
 bun run build:app && bun run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
 bun run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart

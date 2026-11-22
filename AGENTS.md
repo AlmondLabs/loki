@@ -7,7 +7,7 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 
 - Read [docs/style.md](docs/style.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
   code lives. Use the words in [glossary.md](glossary.md).
-- Match the code around you: its naming and idiom. Leave layout to oxfmt (`bun run format`).
+- Match the code around you: its naming and idiom. Leave layout to `bun fmt` (`bun run format`).
 - Work in this repository goes through the `ce-*` skills:
   - `ce-brainstorm` to scope an idea
   - `ce-plan` for the plan
