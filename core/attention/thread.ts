@@ -66,6 +66,7 @@ const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.tool === b.tool &&
   a.queued === b.queued &&
   a.link === b.link &&
+  a.advisor_chat === b.advisor_chat &&
   a.at === b.at;
 
 const sameValue = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
@@ -81,7 +82,8 @@ const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
   sameValue(a.images, b.images) &&
   sameValue(a.files, b.files) &&
   sameValue(a.tool, b.tool) &&
-  sameValue(a.link, b.link);
+  sameValue(a.link, b.link) &&
+  a.advisor_chat === b.advisor_chat;
 
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
 
@@ -440,7 +442,15 @@ export class ThreadModel {
   private user(raw: string, at: string | null, images: readonly string[] = []): { changed: boolean; spoke: string | null } {
     const events = extractHarnessEvents(raw);
     for (const ev of events)
-      this.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...(ev.link ? { link: ev.link } : {}), ...rowAt(at) });
+      this.push({
+        role: "event",
+        text: ev.text,
+        summary: ev.summary,
+        detail: ev.detail,
+        ...(ev.link ? { link: ev.link } : {}),
+        ...(ev.advisor_chat ? { advisor_chat: ev.advisor_chat } : {}),
+        ...rowAt(at),
+      });
     const typed = stripHarnessMarkup(raw).trim();
     const text = images.length ? withoutImageMarks(typed) : typed;
     const files = messageFiles(raw);

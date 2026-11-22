@@ -1,4 +1,5 @@
 import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
+import { answerOf, unansweredText, type AdvisorAnswer } from "./advisor.ts";
 
 export function stripHarnessMarkup(text: string): string {
   return text
@@ -58,6 +59,27 @@ export interface HarnessEvent {
   summary: string | null;
   detail: string | null;
   link?: { agent_id: string; conversation_id: string };
+  advisor_chat?: string;
+}
+
+const ANSWER_PREVIEW_LINES = 3;
+const ANSWER_PREVIEW_CHARS = 300;
+
+function answerPreview(text: string): string {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const shown = lines.slice(0, ANSWER_PREVIEW_LINES).join("\n");
+  if (shown.length > ANSWER_PREVIEW_CHARS) return `${shown.slice(0, ANSWER_PREVIEW_CHARS - 1).trimEnd()}…`;
+  return lines.length > ANSWER_PREVIEW_LINES ? `${shown}…` : shown;
+}
+
+function advisorEvent(a: AdvisorAnswer): HarnessEvent {
+  const text = a.from === "person" ? "From the advisor · you asked" : "From the advisor · the agent asked";
+  return a.state === "answered"
+    ? { text, summary: answerPreview(a.text), detail: a.text, advisor_chat: a.advisor_chat }
+    : { text, summary: unansweredText(a.reason), detail: null, advisor_chat: a.advisor_chat };
 }
 
 export function extractHarnessEvents(text: string): HarnessEvent[] {
@@ -101,6 +123,8 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       detail: message.text,
       link: { agent_id: message.from_agent, conversation_id: message.from_chat },
     });
+  const answer = answerOf(text);
+  if (answer) out.push(advisorEvent(answer));
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
     out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });
