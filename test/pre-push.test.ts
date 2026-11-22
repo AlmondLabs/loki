@@ -25,8 +25,9 @@ describe("the pre-push hook", () => {
     });
   });
 
-  test("a push of a stylesheet or a config is only formatted, and a push of docs alone checks nothing", () => {
-    expect(names(["app/src/kit/tokens.css", ".github/workflows/ci.yml"])).toEqual(["format"]);
+  test("a push of a stylesheet is only formatted, a workflow is formatted and its comments checked, and a push of docs alone checks nothing", () => {
+    expect(names(["app/src/kit/tokens.css"])).toEqual(["format"]);
+    expect(names([".github/workflows/ci.yml"])).toEqual(["format", "workflows"]);
     expect(names(["docs/manual.md", "app/public/icon.png"])).toEqual([]);
   });
 

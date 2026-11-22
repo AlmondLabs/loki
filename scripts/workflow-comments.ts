@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { markerVerdict } from "../eslint-comments.mjs";
+import { LINK, markerVerdict } from "../eslint-comments.mjs";
 
 export interface CommentProblem {
   line: number;
@@ -9,7 +9,6 @@ export interface CommentProblem {
 }
 
 const PINNED_VERSION = /^#\s*v\d+(\.\d+)*\s*$/;
-const LINK = /https?:\/\//;
 
 function commentStart(line: string): number {
   let quote: string | null = null;
@@ -17,7 +16,7 @@ function commentStart(line: string): number {
     const ch = line[i];
     if (quote) {
       if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'") quote = ch;
+    } else if ((ch === '"' || ch === "'") && !/\w/.test(line[i - 1] ?? "")) quote = ch;
     else if (ch === "#" && (i === 0 || /\s/.test(line[i - 1] ?? ""))) return i;
   }
   return -1;

@@ -49,7 +49,7 @@ export const OUTSIDE = [
 ];
 
 const MARKER = /^Outside \(([^)]+)\): \S/;
-const LINK = /https?:\/\//;
+export const LINK = /https?:\/\//;
 const LICENCE = /licen[cs]e|copyright|spdx-license-identifier/i;
 const DOC_AREAS = /^(core|daemon|mod|app\/src)\//;
 const OXLINT_DIRECTIVE = /^\s*oxlint-(disable|enable)/;
@@ -64,12 +64,14 @@ export function markerVerdict(firstLine) {
   return OUTSIDE.includes(marker[1]) ? "listed" : marker[1];
 }
 
-function groupsOf(comments) {
+function groupsOf(comments, ownLine) {
   const groups = [];
   for (const comment of comments) {
     const last = groups.at(-1)?.at(-1);
     const joins =
       last &&
+      ownLine(last) &&
+      ownLine(comment) &&
       last.type === "Line" &&
       comment.type === "Line" &&
       comment.loc.start.line === last.loc.end.line + 1 &&
@@ -99,7 +101,8 @@ export const commentsRule = {
     const firstCode = firstToken ? firstToken.range[0] : Infinity;
     return {
       Program() {
-        for (const group of groupsOf(source.getAllComments())) {
+        const ownLine = (comment) => source.lines[comment.loc.start.line - 1].slice(0, comment.loc.start.column).trim() === "";
+        for (const group of groupsOf(source.getAllComments(), ownLine)) {
           const [first] = group;
           const text = group.map((c) => c.value).join("\n");
           if (OXLINT_DIRECTIVE.test(first.value)) {

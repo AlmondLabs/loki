@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { RuleTester } from "eslint";
+import { ESLint, RuleTester } from "eslint";
 import tseslint from "typescript-eslint";
 import { commentsRule } from "../eslint-comments.mjs";
 
@@ -36,7 +36,19 @@ tester.run("loki/comments", commentsRule, {
     { code: inside("// Outside (Gremlins): they ate the cache."), errors: [{ messageId: "unlisted", data: { name: "Gremlins" } }] },
     { code: inside("// npx is a .cmd shim,\n// Outside (Windows): which runs only through a shell."), errors: [{ messageId: "comment" }] },
     { code: inside("// eslint-disable-next-line no-console -- old prefix"), errors: [{ messageId: "comment" }] },
+    { code: inside("// Outside (Node): an unhandled rejection ends the process.\nexport const z = 3; // a note"), errors: [{ messageId: "comment" }] },
+    { code: "export const a = 1; // Outside (Node): x\n// a note\nexport const b = 2;", errors: [{ messageId: "comment" }] },
+    { code: inside("// Copyright (c) 2024 someone"), errors: [{ messageId: "comment" }] },
   ],
+});
+
+describe("the lint as configured", () => {
+  const lintAs = async (text: string) => (await new ESLint().lintText(text, { filePath: "daemon/probe.ts" }))[0]?.messages.map((m) => m.ruleId) ?? [];
+
+  test("an ESLint directive cannot switch the rule off, on its own line or for the whole file", async () => {
+    expect(await lintAs("export const a = 1; // eslint-disable-line -- a note\n")).toContain("loki/comments");
+    expect(await lintAs("/* eslint-disable loki/comments */\n// a note\nexport const a = 1;\n")).toContain("loki/comments");
+  });
 });
 
 describe("the rule's words", () => {

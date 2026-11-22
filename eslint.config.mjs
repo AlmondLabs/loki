@@ -8,7 +8,7 @@ export default tseslint.config(
     languageOptions: { parser: tseslint.parser },
     plugins: { "@typescript-eslint": tseslint.plugin, loki },
     // Outside (oxlint): the disable comments in the code name oxlint's rules, which ESLint does not run.
-    linterOptions: { reportUnusedDisableDirectives: "off" },
+    linterOptions: { noInlineConfig: true, reportUnusedDisableDirectives: "off" },
     rules: {
       "loki/comments": "error",
       "@typescript-eslint/naming-convention": [

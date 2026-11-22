@@ -3,12 +3,14 @@ import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { WORKFLOW_FILE } from "./lint.ts";
 
 export interface Check {
   name: string;
   bin: string;
   args: string[];
   node: boolean;
+  nodeArgs?: string[];
 }
 
 const FORMATTED = /\.(c|m)?[jt]sx?$|\.(json|jsonc|css|ya?ml|toml)$/;
@@ -17,6 +19,7 @@ const SCRIPT = /\.(c|m)?[jt]sx?$/;
 export function checksFor(files: readonly string[], binOf: (pkg: string, bin: string) => string): Check[] {
   const formatted = files.filter((f) => FORMATTED.test(f));
   const scripts = files.filter((f) => SCRIPT.test(f));
+  const workflows = files.filter((f) => WORKFLOW_FILE.test(f));
   const bun = binOf("bun", "bin/bun.exe");
   const checks: Check[] = [];
   if (formatted.length)
@@ -26,6 +29,14 @@ export function checksFor(files: readonly string[], binOf: (pkg: string, bin: st
     checks.push({ name: "eslint", bin: binOf("eslint", "bin/eslint.js"), args: ["--no-warn-ignored", ...scripts], node: true });
     checks.push({ name: "types", bin: bun, args: ["check", "--no-script", "-p", "tsconfig.json"], node: false });
   }
+  if (workflows.length)
+    checks.push({
+      name: "workflows",
+      bin: "scripts/workflow-comments.ts",
+      args: workflows,
+      node: true,
+      nodeArgs: ["--experimental-strip-types", "--disable-warning=ExperimentalWarning"],
+    });
   return checks;
 }
 
@@ -51,7 +62,7 @@ interface Result {
 function runWithOutputHeld(check: Check, root: string): Promise<Result> {
   const start = performance.now();
   return new Promise((resolve) => {
-    const [bin, args] = check.node ? [process.execPath, [check.bin, ...check.args]] : [check.bin, check.args];
+    const [bin, args] = check.node ? [process.execPath, [...(check.nodeArgs ?? []), check.bin, ...check.args]] : [check.bin, check.args];
     const child = spawn(bin, args, { cwd: root, env: { ...process.env, FORCE_COLOR: "1" } });
     let output = "";
     child.stdout.on("data", (d: Buffer) => (output += d.toString()));

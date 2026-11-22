@@ -23,6 +23,10 @@ describe("comments in a workflow", () => {
     expect(lines(["jobs:", "  # side by side, not one after another", "  lint:", "    runs-on: ubuntu-latest # the fast one"].join("\n"))).toEqual([2, 4]);
   });
 
+  test("an apostrophe inside a plain value does not hide a comment after it", () => {
+    expect(lines(["  - name: find Node's major version # a note", "  - name: find the version # a note"].join("\n"))).toEqual([1, 2]);
+  });
+
   test("a hash inside quotes or a word is not a comment", () => {
     expect(lines(['  - run: echo "# not a comment"', "  - run: echo ${#PATH}", "  - run: open https://x.test/page#part"].join("\n"))).toEqual([]);
   });
