@@ -76,6 +76,11 @@ export type ChatInfo = {
    * mode is read from there on every call, so a mode changed while the helper runs holds for the helper too.
    */
   helper_for?: ConversationId;
+  /**
+   * An advisor chat's marker (daemon/advisor.ts): the id of the chat it advises. Such a chat only reads, and loki refuses
+   * every other call it makes (daemon/advisor-gate.ts), whatever its mode.
+   */
+  advisor_for?: string;
 };
 
 /**
@@ -136,6 +141,15 @@ export interface UsageAdd {
  */
 const AFTER_FAILED_RUN: HarnessSettings = { afterFailedRun: "continue" };
 
+export const ADVISOR_EXTENSION = "loki.advisor";
+const ADDED_ONLY: ReadonlySet<string> = new Set([ADVISOR_EXTENSION]);
+
+const chosenByDefault = (registry: StoreOptions["registry"]): HarnessSettings["extensions"] =>
+  registry
+    .snapshot()
+    .installed()
+    .filter((extension) => !ADDED_ONLY.has(extension.name));
+
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
 
 export class AgentStore {
@@ -149,7 +163,8 @@ export class AgentStore {
     const storage =
       "storage" in where ? where.storage : await (await import("@earendil-works/pi-durable/storage/sqlite/node")).openNodeSqliteStorage(where.file);
     const given = options.settings;
-    const settings = typeof given === "function" ? () => ({ ...AFTER_FAILED_RUN, ...given() }) : { ...AFTER_FAILED_RUN, ...given };
+    const current = typeof given === "function" ? given : () => given;
+    const settings = (): HarnessSettings => ({ ...AFTER_FAILED_RUN, extensions: chosenByDefault(options.registry), ...current() });
     return new AgentStore(await Harness.open(storage, { ...options, settings }, context));
   }
 
@@ -248,7 +263,14 @@ export class AgentStore {
 
   async createChat(
     id: string,
-    options: { title?: string | null; hidden?: boolean; agent?: Parameters<Harness["createConversation"]>[0]["agent"]; createdAt?: string },
+    options: {
+      title?: string | null;
+      hidden?: boolean;
+      agent?: Parameters<Harness["createConversation"]>[0]["agent"];
+      createdAt?: string;
+      mode?: string;
+      advisor_for?: string;
+    },
     context: Context,
   ): Promise<Conversation> {
     if (await this.chat(id, context)) throw new Error(`chat ${id} already exists`);
@@ -263,6 +285,8 @@ export class AgentStore {
           info.title = options.title ?? null;
           info.hidden = options.hidden ?? false;
           info.createdAt = options.createdAt ?? new Date().toISOString();
+          if (options.mode !== undefined) info.mode = options.mode;
+          if (options.advisor_for !== undefined) info.advisor_for = options.advisor_for;
         },
       },
       context,

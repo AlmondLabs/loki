@@ -21,7 +21,7 @@ export function modelRef(handle: string): { provider: string; modelId: string } 
   return slash > 0 && slash < handle.length - 1 ? { provider: handle.slice(0, slash), modelId: handle.slice(slash + 1) } : undefined;
 }
 
-function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
+export function thinkingLevel(effort: ReasoningEffort | null) {
   if (!effort) return undefined;
   return effort === "none" ? "off" : effort;
 }
@@ -111,7 +111,7 @@ export class LokiEngine implements Engine {
     const model = modelRef(p.handle);
     if (!model) throw new Error(`not a model handle: ${p.handle}`);
     const level = thinkingLevel(p.reasoning_effort);
-    await c.chat.configure({ model, ...(level ? { thinkingLevel: level as never } : {}) }, this.deps.context);
+    await c.chat.configure({ model, ...(level ? { thinkingLevel: level } : {}) }, this.deps.context);
   }
 
   async leave(c: EngineChat): Promise<void> {

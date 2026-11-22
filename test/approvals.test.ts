@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -13,6 +13,9 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
 import { offersAlways, type ChatEvent } from "../core/attention/model.ts";
 import { scriptExtensions, scriptSandbox } from "../daemon/scripts.ts";
+import { advisorRefusal } from "../daemon/advisor-gate.ts";
+import { resultsDirOf } from "../daemon/tool-results.ts";
+import { AGENT, advisorSetup } from "./fixtures/advisor.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -502,5 +505,162 @@ describe("approvals for scripts", () => {
   test("a script's card offers no always-allow; a command's does", () => {
     expect(offersAlways({ toolName: "codemode" })).toBe(false);
     expect(offersAlways({ toolName: "write" })).toBe(true);
+  });
+});
+
+describe("an advisor chat's gate", () => {
+  type Setup = Awaited<ReturnType<typeof advisorSetup>>;
+  const advisorOf = async (s: Setup, chatId: string, cwd?: string) => {
+    await s.store.createChat(chatId, { agent: { model: s.model, ...(cwd ? { cwd } : {}) } }, ctx);
+    const result = await s.advisors.open(AGENT, chatId);
+    if ("refused" in result) throw new Error(result.refused);
+    return result.chat;
+  };
+  const cards = (s: Setup) => s.pushed.filter((e) => e.kind === "approval");
+
+  test("a call to write is refused with a reason, changes nothing and shows no card, even once the advisor's tool list is lost", async () => {
+    const s = await advisorSetup();
+    try {
+      const chat = await advisorOf(s, "c", s.folder);
+      const [offList] = await s.turn(chat, [["write", { path: "a.ts", content: "gone" }]]);
+      expect(offList).toMatchObject({ failed: true, text: expect.stringContaining("Tool write is not available") as unknown });
+      await chat.configure({ tools: null, modelTools: null }, ctx);
+      expect((await chat.agent(ctx)).tools.map((t) => t.name)).toContain("write");
+      const [write] = await s.turn(chat, [["write", { path: "a.ts", content: "gone" }]]);
+      expect(write).toMatchObject({
+        failed: true,
+        text: expect.stringContaining("An advisor reads and never changes anything, so it cannot use write.") as unknown,
+      });
+      expect(readFileSync(join(s.folder, "a.ts"), "utf8")).toBe("export const answer = 42;\n");
+      expect(cards(s)).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("bash may run cat, and is refused rm and git status, with no card", async () => {
+    const s = await advisorSetup();
+    try {
+      const chat = await advisorOf(s, "c", s.folder);
+      const [rm, git] = await s.turn(chat, [
+        ["bash", { command: "rm a.ts" }],
+        ["bash", { command: "git status" }],
+      ]);
+      for (const result of [rm, git]) expect(result).toMatchObject({ failed: true, text: expect.stringContaining("only commands that read") as unknown });
+      expect(existsSync(join(s.folder, "a.ts"))).toBe(true);
+      expect(cards(s)).toEqual([]);
+      const folders = { dataDir: s.dataDir, backendDir: s.backend, home: s.home };
+      expect(await advisorRefusal({ name: "bash", args: { command: "cat a.ts" }, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, folders)).toBeNull();
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test.runIf(process.platform !== "win32")("bash's cat a.ts runs in the chat's folder", async () => {
+    const s = await advisorSetup();
+    try {
+      const [cat] = await s.turn(await advisorOf(s, "c", s.folder), [["bash", { command: "cat a.ts" }]]);
+      expect(cat.text).toContain("export const answer = 42;");
+      expect(cards(s)).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("read refuses a chat store in loki's data folder and reads a file in the chat's folder", async () => {
+    const s = await advisorSetup();
+    try {
+      const [store, file] = await s.turn(await advisorOf(s, "c", s.folder), [
+        ["read", { path: join(s.dataDir, "stores", `${AGENT}.sqlite`) }],
+        ["read", { path: "a.ts" }],
+      ]);
+      expect(store).toMatchObject({ failed: true, text: expect.stringContaining("inside loki's data folder") as unknown });
+      expect(store.text).not.toContain("the person's whole thread");
+      expect(file).toMatchObject({ failed: false, text: expect.stringContaining("export const answer = 42;") as unknown });
+      expect(cards(s)).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("the home folder's way in, a search above the data folder and a link into it are each refused with a reason and no card", async () => {
+    const s = await advisorSetup();
+    try {
+      symlinkSync(join(s.dataDir, "stores"), join(s.folder, "stores"), "junction");
+      const inFolder = await s.turn(await advisorOf(s, "c", s.folder), [["read", { path: join("stores", `${AGENT}.sqlite`) }]]);
+      const noFolder = await advisorOf(s, "n");
+      expect((await noFolder.agent(ctx)).cwd).toBe(s.home);
+      const fromHome = await s.turn(noFolder, [
+        ["bash", { command: `cat ~/.loki/stores/${AGENT}.sqlite` }],
+        ["bash", { command: "grep -r x ~" }],
+        ["grep", { pattern: "x" }],
+        ["bash", { command: "find ~" }],
+        ["find", { pattern: "*", path: "~" }],
+      ]);
+      for (const result of [...inFolder, ...fromHome]) {
+        expect(result.failed).toBe(true);
+        expect(result.text).toContain("loki's data folder");
+        expect(result.text).not.toContain("the person's whole thread");
+      }
+      expect(cards(s)).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("the agent's own skill and the advisor's own saved output read; another chat's saved output is refused", async () => {
+    const s = await advisorSetup();
+    try {
+      const own = resultsDirOf(s.dataDir, "advisor-c");
+      const other = resultsDirOf(s.dataDir, "c");
+      for (const [dir, text] of [
+        [own, "the advisor's long output"],
+        [other, "the chat's long output"],
+      ]) {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "bash-1.log"), text);
+      }
+      const [skill, mine, theirs] = await s.turn(await advisorOf(s, "c", s.folder), [
+        ["read", { path: join(s.memory, "skills", "review", "SKILL.md") }],
+        ["read", { path: join(own, "bash-1.log") }],
+        ["read", { path: join(other, "bash-1.log") }],
+      ]);
+      expect(skill).toMatchObject({ failed: false, text: expect.stringContaining("Read the diff first.") as unknown });
+      expect(mine).toMatchObject({ failed: false, text: expect.stringContaining("the advisor's long output") as unknown });
+      expect(theirs).toMatchObject({ failed: true, text: expect.stringContaining("loki's data folder") as unknown });
+      expect(cards(s)).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("globs, searches that follow links, another person's home and paths inside options are judged as the shell would reach them", async () => {
+    const s = await advisorSetup();
+    try {
+      const folders = { dataDir: s.dataDir, backendDir: s.backend, home: s.home };
+      const judge = (name: string, args: Record<string, unknown>) =>
+        advisorRefusal({ name, args, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, folders);
+      const bash = (command: string) => judge("bash", { command });
+      expect(await bash("cat ~/.lo*/stores/x")).toContain("loki's data folder");
+      expect(await bash("grep -f~/.loki/stores/x y a.ts")).toContain("loki's data folder");
+      expect(await bash("rg --ignore-file=~/.loki/stores/x y")).toContain("loki's data folder");
+      expect(await bash("grep -R x .")).toContain("may not follow links");
+      expect(await bash("rg -L x .")).toContain("may not follow links");
+      expect(await bash("cat ~someone/notes")).toContain("another home folder");
+      expect(await judge("changes_read", { kind: "diff", paths: [s.dataDir] })).toContain("loki's data folder");
+      for (const [name, args] of [
+        ["bash", { command: "cat *.ts | wc -l" }],
+        ["bash", { command: "grep -rn answer ." }],
+        ["changes_read", { kind: "status" }],
+        ["memory_read", { path: "system/persona.md" }],
+        ["web_search", { query: "loki" }],
+      ] as const)
+        expect(await judge(name, args), name).toBeNull();
+      expect(await advisorRefusal({ name: "read", args: { path: "a.ts" }, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, undefined)).toContain(
+        "cannot check",
+      );
+    } finally {
+      await s.cleanup();
+    }
   });
 });

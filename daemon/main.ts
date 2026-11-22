@@ -133,6 +133,7 @@ const approvals = new Approvals({
   widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
   kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
   alwaysPath: join(args.dir, "state", "approvals.json"),
+  advisorFolders: { dataDir: args.dir, backendDir: backend, home: homedir() },
   scriptMayCall: (name) =>
     mods.registry
       .snapshot()

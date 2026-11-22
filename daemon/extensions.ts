@@ -1,5 +1,6 @@
 import type { Extension } from "@earendil-works/pi-durable";
 import { createCodingTools } from "@earendil-works/pi-durable/tools";
+import { advisorExtension } from "./advisor.ts";
 import type { Approvals } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { backgroundExtension, type BackgroundTasks } from "./background.ts";
@@ -39,6 +40,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     historyExtension(deps.history),
     changesExtension(),
     repliesExtension(),
+    advisorExtension(deps.backendDir),
     ...(deps.scripts ?? []),
   ];
 }

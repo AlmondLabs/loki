@@ -1,3 +1,4 @@
+import { isAdvisorChat } from "../../core/advisor.ts";
 import type { PermissionMode } from "../../core/chat-links.ts";
 import type { MovedChat } from "../../daemon/chat-move.ts";
 import { missingFor } from "../requirements.ts";
@@ -74,7 +75,6 @@ export interface ChatDeps {
   usualModels?: { read: () => UsualModels; record: (agentId: string, handle: string, effort: ReasoningEffort | null) => UsualModels };
 }
 
-const ADVISOR_CHAT_PREFIX = "advisor-";
 const NOT_HERE = "chats are served by loki's daemon, not this host";
 const DONE: Replies["chat_done"] = {};
 
@@ -129,7 +129,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_model: (p, ctx) =>
       served(b, async (x) => {
         await x.model(p);
-        if (p.conversation_id.startsWith(ADVISOR_CHAT_PREFIX)) return DONE;
+        if (isAdvisorChat(p.conversation_id)) return DONE;
         const usual = deps.usualModels?.record(p.agent_id, p.handle, p.reasoning_effort ?? null);
         if (usual) ctx.broadcast({ type: "models_usual", usual });
         return DONE;
