@@ -15,7 +15,8 @@ export type LintPlan = { all: true; why: string } | { all: false; files: string[
 
 const SCRIPT = /\.(c|m)?[jt]sx?$/;
 // A change to how the lint is set up, or to what the types are built from, can change any file's result.
-const SETUP = /^(\.oxlintrc\.json|eslint\.config\.mjs|tsconfig(\.[\w-]+)?\.json|package\.json|bun\.lock|scripts\/lint(-pr)?\.ts)$/;
+const SETUP =
+  /^(\.oxlintrc\.json|eslint\.config\.mjs|tsconfig(\.[\w-]+)?\.json|package\.json|bun\.lock|scripts\/lint(-pr)?\.ts|eslint-comments\.(mjs|d\.mts)|scripts\/workflow-comments\.ts)$/;
 const IMPORT = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 
 const stem = (path: string) => path.replace(/\.(c|m)?[jt]sx?$/, "").replace(/\/index$/, "");

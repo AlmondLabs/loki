@@ -35,7 +35,17 @@ describe("a PR's lint", () => {
   });
 
   test("lints everything when the lint's setup or what the types are built from changes", () => {
-    for (const path of [".oxlintrc.json", "eslint.config.mjs", "tsconfig.json", "package.json", "bun.lock", "scripts/lint.ts", "scripts/lint-pr.ts"])
+    for (const path of [
+      ".oxlintrc.json",
+      "eslint.config.mjs",
+      "tsconfig.json",
+      "package.json",
+      "bun.lock",
+      "scripts/lint.ts",
+      "scripts/lint-pr.ts",
+      "eslint-comments.mjs",
+      "scripts/workflow-comments.ts",
+    ])
       expect(
         lintPlan(
           [
