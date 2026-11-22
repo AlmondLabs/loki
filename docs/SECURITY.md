@@ -176,14 +176,18 @@ tool calls (`daemon/advisor-gate.ts`), whatever its mode, refuses with a reason 
 searches, read-only `bash`, web search, `memory_read`, its own history and `changes_read`), any `bash` command that is
 not [read-only](#what-runs-where), and any path that resolves, links followed, inside `~/.loki`, other than the
 agent's memory and the advisor chat's own saved output, so it cannot read any chat's thread. Its file searches never
-follow links, and a recursive search of a folder that holds `~/.loki` is refused.
+follow links, and a recursive search of a folder that holds `~/.loki` is refused. In its `bash`, an unquoted wildcard
+word, a `grep` flag that follows links (`-R`, `-S`, `-O`) and any `grep` or `ls` long option off a short list are
+refused, so a shell expansion or a shortened option cannot reach past the gate. `rg --hostname-bin`, which runs a
+program, is not a read-only command in any chat.
 
 `changes_read` (`daemon/changes.ts`) runs `git` in the chat's folder so the advisor can read status, diffs, logs and
 commits without `git` being a read-only command for every chat, since a folder's own git config can name programs git
 runs. It ignores the system and global git config and switches off, through `GIT_CONFIG_*` environment pairs, every
 program a folder's config can name: fsmonitor, hooks, the pager, external diff and textconv, signature programs and
 every filter driver the config lists; it passes `--no-optional-locks`, takes options only from a fixed list per kind,
-and puts paths after `--`. The advisor's answer reaches its chat as a row the agent is told to weigh against your
+and puts paths after `--`. It refuses a folder whose git config sets `core.worktree`, or whose top level is not the
+folder or one above it, so a checkout cannot point it at files elsewhere. The advisor's answer reaches its chat as a row the agent is told to weigh against your
 instructions, never as your message, and the turn it starts runs under the chat's own permission mode.
 
 ## Scripts
