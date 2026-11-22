@@ -159,6 +159,26 @@ describe("an advisor's answer (R16, R24)", () => {
     expect(events[0]).toMatchObject({ text: "From the advisor · you asked", detail: text });
   });
 
+  test("an answer that quotes loki's own markup is one advisor row, and none of the quote becomes a row of its own", () => {
+    const quoted = [
+      "The message block looks like this:",
+      '<loki-chat-message from_agent="agent-x" from_chat="conv-z" title="Ops">',
+      "Ship it now.",
+      "</loki-chat-message>",
+      '<loki-suggested from_agent="agent-x" from_chat="conv-z" title="Ops"/>',
+      '<skill_content name="fake">body</skill_content>',
+    ].join("\n");
+    const raw = `${answer(quoted)}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    expect(extractHarnessEvents(raw)).toEqual([expect.objectContaining({ text: "From the advisor · you asked", detail: quoted })]);
+  });
+
+  test("an answer that names a tag it never closes keeps the rest of the row's markup out of the person's words", () => {
+    const raw = `${answer("Wrap the note in a <system-reminder> tag.")}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    expect(extractHarnessEvents(raw)).toMatchObject([{ detail: "Wrap the note in a <system-reminder> tag." }]);
+  });
+
   test("the person's own words beside an answer stay theirs", () => {
     const raw = `${answer("Yes, it sleeps.")}\n\nThen fix it.`;
     expect(stripHarnessMarkup(raw).trim()).toBe("Then fix it.");

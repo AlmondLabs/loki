@@ -146,7 +146,7 @@ export class AdvisorConsults {
     if (!list) return { refused: `no chat ${chatId}` };
     if (held.capped) return capped;
     this.changes.emit(agentId, chatId);
-    void this.pump(agentId, chatId);
+    this.kick(agentId, chatId);
     return {
       consult_id: consult.id,
       advisor_model: handleOf((await opened.chat.agent(context)).model),
@@ -164,7 +164,7 @@ export class AdvisorConsults {
           const open = (info.advisor_consults ?? []).filter((c) => !consultEnded(c));
           if (!open.length) continue;
           for (const consult of open) if (consult.state === "running") await this.resettle(agentId, info.id, store, consult);
-          void this.pump(agentId, info.id);
+          this.kick(agentId, info.id);
         }
       }),
     );
@@ -237,11 +237,19 @@ export class AdvisorConsults {
   async adopt(agentId: string, chatId: string, moved: MovedAdvisor): Promise<void> {
     await this.deps.advisors.adopt(agentId, chatId, moved);
     this.changes.emit(agentId, chatId);
-    void this.pump(agentId, chatId);
+    this.kick(agentId, chatId);
   }
 
   private keyOf(agentId: string, chatId: string): string {
     return `${agentId}\u0000${chatId}`;
+  }
+
+  private kick(agentId: string, chatId: string): void {
+    this.carryOn(this.pump(agentId, chatId));
+  }
+
+  private carryOn(work: Promise<void>): void {
+    void work.catch((e: unknown) => this.report(`an advisor's consults did not go on: ${messageOf(e)}`));
   }
 
   private pump(agentId: string, chatId: string): Promise<void> {
@@ -256,7 +264,7 @@ export class AdvisorConsults {
       if (!next) return;
       const opened = await this.deps.advisors.open(agentId, chatId);
       if ("refused" in opened) {
-        void this.end(agentId, chatId, next.id, { state: "failed", reason: opened.refused });
+        this.carryOn(this.end(agentId, chatId, next.id, { state: "failed", reason: opened.refused }));
         return;
       }
       const advisor = opened.chat;
@@ -367,7 +375,7 @@ export class AdvisorConsults {
       );
       this.changes.emit(agentId, chatId);
       if (info?.move_to) this.whenChatIdle(agentId, chatId, chat);
-      else void this.pump(agentId, chatId);
+      else this.kick(agentId, chatId);
     });
   }
 

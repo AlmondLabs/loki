@@ -1,15 +1,17 @@
 import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
 import { answerOf, unansweredText, type AdvisorAnswer } from "./advisor.ts";
 
+const ANSWER_BLOCK = /<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g;
+
 export function stripHarnessMarkup(text: string): string {
   return text
+    .replace(ANSWER_BLOCK, "")
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "")
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "")
     .replace(/<loki-moved\b[^>]*\/>/g, "")
     .replace(/<loki-suggested\b[^>]*\/>/g, "")
     .replace(/<loki-chat-message\b[^>]*>[\s\S]*?<\/loki-chat-message>/g, "")
-    .replace(/<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g, "")
     .replace(REPLIES_BLOCK, "")
     .replace(/<attachment\b[^>]*\/>/g, "")
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
@@ -82,7 +84,9 @@ function advisorEvent(a: AdvisorAnswer): HarnessEvent {
     : { text, summary: unansweredText(a.reason), detail: null, advisor_chat: a.advisor_chat };
 }
 
-export function extractHarnessEvents(text: string): HarnessEvent[] {
+export function extractHarnessEvents(whole: string): HarnessEvent[] {
+  const answers = [...whole.matchAll(ANSWER_BLOCK)].flatMap((m) => answerOf(m[0]) ?? []);
+  const text = whole.replace(ANSWER_BLOCK, "");
   const out: HarnessEvent[] = [];
   for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
     const desk = m.at(1) ?? null;
@@ -123,8 +127,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       detail: message.text,
       link: { agent_id: message.from_agent, conversation_id: message.from_chat },
     });
-  const answer = answerOf(text);
-  if (answer) out.push(advisorEvent(answer));
+  out.push(...answers.map(advisorEvent));
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
     out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });

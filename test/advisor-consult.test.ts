@@ -1,14 +1,23 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { join } from "node:path";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { answerBlock, answerOf, consultBlock, consultOf } from "../core/advisor.ts";
 import { stripHarnessMarkup } from "../core/harness.ts";
+import { Advisors, type AdvisorOpen } from "../daemon/advisor.ts";
 import { AGENT, consultSetup, gate, until } from "./fixtures/advisor-consult.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const HOUR = 3_600_000;
+
+function openFailing(call: number, instead: () => Promise<AdvisorOpen>) {
+  const real: Advisors["open"] = Reflect.get(Advisors.prototype, "open");
+  let calls = 0;
+  return vi.spyOn(Advisors.prototype, "open").mockImplementation(function (this: Advisors, agentId: string, chatId: string): Promise<AdvisorOpen> {
+    return ++calls === call ? instead() : real.call(this, agentId, chatId);
+  });
+}
 
 describe("the consult and answer blocks", () => {
   test("a consult carries its sender and text, with its closing tag escaped inside and restored when read", () => {
@@ -172,6 +181,80 @@ describe("consulting a chat's advisor", () => {
       expect(await d.chats.consult(ref, "agent", "an hour later")).toMatchObject({ left_this_hour: 5 });
       await s.settled(d);
     } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("the person stopping the advisor during a consult delivers a row saying it was stopped", async () => {
+    const s = await consultSetup();
+    try {
+      const d = s.first;
+      const held = gate();
+      s.replies.advisor = async () => (await held.wait, fauxAssistantMessage("too late"));
+      await d.chats.consult({ agent_id: AGENT, conversation_id: s.chatId }, "agent", "look at a.ts");
+      await until(() => s.seen.advisor.length === 1);
+      const stopping = d.chats.abort(AGENT, `advisor-${s.chatId}`);
+      held.open();
+      await stopping;
+      await s.settled(d);
+      const rows = await s.answers(d);
+      expect(rows.map((row) => answerOf(row))).toMatchObject([{ state: "stopped", reason: "it was stopped", asked: "look at a.ts" }]);
+      expect(rows[0]).toContain("The advisor couldn't answer: it was stopped");
+      expect(await s.ledger(d)).toMatchObject([{ state: "stopped", reason: "it was stopped" }]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("an advisor that ends its run with no words delivers a row saying it ended without an answer", async () => {
+    const s = await consultSetup();
+    try {
+      const d = s.first;
+      s.replies.advisor = () => fauxAssistantMessage("");
+      await d.chats.consult({ agent_id: AGENT, conversation_id: s.chatId }, "person", "anything?");
+      await s.settled(d);
+      expect((await s.answers(d)).map((row) => answerOf(row))).toMatchObject([{ state: "failed", reason: "it ended without an answer" }]);
+      expect(await s.ledger(d)).toMatchObject([{ state: "failed", reason: "it ended without an answer" }]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("an advisor that cannot be opened when its consult's turn comes delivers a row saying why", async () => {
+    const s = await consultSetup();
+    const open = openFailing(2, () => Promise.resolve({ refused: "its model cannot be reached" }));
+    try {
+      const d = s.first;
+      await d.chats.consult({ agent_id: AGENT, conversation_id: s.chatId }, "agent", "look at a.ts");
+      await s.settled(d);
+      expect((await s.answers(d)).map((row) => answerOf(row))).toMatchObject([{ state: "failed", reason: "its model cannot be reached" }]);
+      expect(s.seen.advisor).toEqual([]);
+    } finally {
+      open.mockRestore();
+      await s.cleanup();
+    }
+  });
+
+  test("a consult whose start throws is reported and leaves the daemon running, and goes on with the next consult", async () => {
+    const s = await consultSetup();
+    const open = openFailing(2, () => Promise.reject(new Error("the store is closed")));
+    const unhandled: unknown[] = [];
+    const listen = (e: unknown) => unhandled.push(e);
+    process.on("unhandledRejection", listen);
+    try {
+      const d = s.first;
+      const ref = { agent_id: AGENT, conversation_id: s.chatId };
+      await d.chats.consult(ref, "agent", "first question");
+      await until(() => d.reports.length === 1);
+      expect(d.reports).toEqual(["an advisor's consults did not go on: the store is closed"]);
+      expect((await s.ledger(d)).map((c) => c.state)).toEqual(["queued"]);
+      await d.chats.consult(ref, "person", "second question");
+      await s.settled(d);
+      expect((await s.answers(d)).map((row) => must(answerOf(row), "an answer").asked)).toEqual(["first question", "second question"]);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", listen);
+      open.mockRestore();
       await s.cleanup();
     }
   });
