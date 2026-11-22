@@ -10,6 +10,12 @@ describe("the pre-push hook", () => {
   test("formats, lints and typechecks a push that changes code, linting only the changed files", () => {
     const checks = checksFor(["core/x.ts", "app/src/y.tsx", "docs/z.md"], binOf);
     expect(checks.map((c) => c.name)).toEqual(["format", "oxlint", "eslint", "types"]);
+    expect(checks.find((c) => c.name === "format")).toEqual({
+      name: "format",
+      bin: "bun/bin/bun.exe",
+      args: ["fmt", "--no-script", "--check", "--no-error-on-unmatched-pattern", "core/x.ts", "app/src/y.tsx"],
+      node: false,
+    });
     expect(checks.find((c) => c.name === "oxlint")?.args).toEqual(["--no-error-on-unmatched-pattern", "core/x.ts", "app/src/y.tsx"]);
     // The types of one file can break in another, so the typecheck is the whole project's.
     expect(checks.find((c) => c.name === "types")).toEqual({

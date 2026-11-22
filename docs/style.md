@@ -12,7 +12,7 @@ The checks, all in CI and all to run before pushing. A pre-push hook (`scripts/p
 the files a push changes, so a push never carries a format, lint or type error:
 
 ```bash
-bun run format:check   # oxfmt; bun run format fixes it
+bun run format:check   # bun fmt; bun run format fixes it
 bun run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
 bun run typecheck      # bun check: TypeScript 7's checker on tsconfig.json, strict; the whole project in about a second
 bun run test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
@@ -27,8 +27,9 @@ there says why, and the ones that still fire somewhere carry their count until a
 
 ## 1. Formatting
 
-- **oxfmt formats** TypeScript, JavaScript, CSS, JSON and YAML (`.oxfmtrc.json`). Print width 160, double quotes,
-  semicolons, trailing commas everywhere. A `prettier-ignore` comment keeps a line as written; oxfmt reads that name. Nobody formats by hand and nobody argues about it. **checked**: `bun run format:check`.
+- **`bun fmt` formats** TypeScript, JavaScript, CSS, JSON, YAML and TOML, with the settings in `.oxfmtrc.json`. Bun reads
+  that file as an oxfmt config and builds on oxfmt's defaults, so it keeps its name. Print width 160, double quotes,
+  semicolons, trailing commas everywhere. A `prettier-ignore` comment keeps a line as written; Bun reads that name. Nobody formats by hand and nobody argues about it. **checked**: `bun run format:check`.
 - **Markdown is hand-written**: wrap prose near 120 characters, keep tables aligned enough to read in a terminal.
   **review**.
 - The commit that reformatted the whole tree is listed in `.git-blame-ignore-revs`; run
