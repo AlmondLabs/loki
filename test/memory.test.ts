@@ -139,7 +139,7 @@ describe("an agent's memory", () => {
         "notes/.GitAttributes",
         ".gitmodules",
         "../outside.md",
-        // On Windows, another drive: `relative` gives it back absolute, with no "..".
+        // Outside (Windows): `relative` to another drive gives the path back absolute, with no "..".
         ...(process.platform === "win32" ? ["D:\\outside.md"] : []),
       ])
         await expect(editMemoryFile(dir, agentId, path, "x")).rejects.toThrow("is not a memory file");

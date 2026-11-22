@@ -103,7 +103,8 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
   await lan.setPeersNeeded(true);
   const cloned: string[] = [];
   const holder: { memory: PeerMemory | null } = { memory: null };
-  // The pull a push started, awaited before the folder goes: Windows will not remove a folder git is still working in.
+  // Outside (Windows): Windows will not remove a folder git is still working in, so the pull a push started is awaited
+  // before the folder goes.
   let pulling: Promise<unknown> = Promise.resolve();
   const link = new PeerLink({
     macId: FAR,
@@ -135,7 +136,7 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
     write(farMemory, "notes/today.md", "met Ira\n");
     lan.broadcast({ type: "memory_changed", agent_id: FRIDAY });
     await until(() => existsSync(join(nearMemory, "notes", "today.md")));
-    // git writes the files before it moves the head, so the pull is awaited before the heads are compared.
+    // Outside (git): git writes the files before it moves the head, so the pull is awaited before the heads are compared.
     await pulling;
     const [a, b] = await Promise.all([memoryHead(nearMemory), memoryHead(farMemory)]);
     assert.equal(a, b);

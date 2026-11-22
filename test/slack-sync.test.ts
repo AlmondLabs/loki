@@ -54,10 +54,9 @@ interface FakeItem {
 function fakeWorkspace() {
   const kinds = new Map<string, "im" | "mpim" | "channel">();
   const lastRead = new Map<string, string>();
-  // Threads the person follows, by `channel:thread_ts`, with how far they have read each.
-  const followed = new Map<string, string>();
-  // DMs closed in Slack, which client.counts no longer lists.
-  const closed = new Set<string>();
+  const lastReadByFollowedThread = new Map<string, string>();
+  // Outside (Slack): client.counts no longer lists a DM closed in Slack.
+  const closedDms = new Set<string>();
   const messages = new Map<string, FakeMessage[]>();
   const activity: FakeItem[] = [];
   const beforeNextCallTo = new Map<string, () => Promise<void> | void>();
@@ -113,7 +112,7 @@ function fakeWorkspace() {
           const read = lastRead.get(id) ?? "0";
           return { id, has_unreads: latest !== null && latest > read, mention_count: 0, latest, last_read: read };
         };
-        const of = (k: "im" | "mpim") => [...kinds].filter(([id, v]) => v === k && !closed.has(id)).map(([id]) => count(id));
+        const of = (k: "im" | "mpim") => [...kinds].filter(([id, v]) => v === k && !closedDms.has(id)).map(([id]) => count(id));
         return { ok: true, ims: of("im"), mpims: of("mpim"), channels: [], threads: { has_unreads: false, mention_count: 0 } };
       }
       case "activity.feed": {
@@ -144,8 +143,8 @@ function fakeWorkspace() {
       }
       case "conversations.replies": {
         if (refuse.replies) return { ok: false, error: refuse.replies };
-        // Slack's order: the parent, then the replies oldest first, a page at a time; the parent of a followed thread
-        // carries how far the person has read it.
+        // Outside (Slack): Slack answers the parent, then the replies oldest first, a page at a time; the parent of a
+        // followed thread carries how far the person has read it.
         const list = (messages.get(p.channel ?? "") ?? []).filter((m) => m.ts === p.ts || m.thread_ts === p.ts);
         const from = Number(p.cursor ?? "0");
         const limit = Number(p.limit ?? "1000");
@@ -153,7 +152,7 @@ function fakeWorkspace() {
         return {
           ok: true,
           messages: list.slice(from, from + limit).map((m) => {
-            const read = m.ts === p.ts ? followed.get(`${p.channel ?? ""}:${m.ts}`) : undefined;
+            const read = m.ts === p.ts ? lastReadByFollowedThread.get(`${p.channel ?? ""}:${m.ts}`) : undefined;
             return read === undefined ? toMessage(m) : { ...toMessage(m), subscribed: true, last_read: read };
           }),
           has_more: more,
@@ -206,10 +205,10 @@ function fakeWorkspace() {
       }
       case "subscriptions.thread.mark":
         if (refuse.threadMark) return { ok: false, error: refuse.threadMark };
-        followed.set(`${p.channel ?? ""}:${p.thread_ts ?? ""}`, p.ts ?? "");
+        lastReadByFollowedThread.set(`${p.channel ?? ""}:${p.thread_ts ?? ""}`, p.ts ?? "");
         return { ok: true };
       case "chat.postMessage": {
-        // The person's own post, which Slack counts as read up to it, as the desktop app does.
+        // Outside (Slack): Slack counts a channel read up to the person's own post, as the desktop app does.
         const channel = p.channel ?? "";
         const ts = `${String(CONNECTED + 1000 + posts++)}.000100`;
         messages.set(channel, [...(messages.get(channel) ?? []), { ts, user: "U0ME", text: p.text ?? "", thread_ts: p.thread_ts }]);
@@ -242,7 +241,7 @@ function fakeWorkspace() {
       kinds.set(id, kind);
     },
     close(id: string) {
-      closed.add(id);
+      closedDms.add(id);
     },
     post(channel: string, m: FakeMessage) {
       if (!kinds.has(channel)) kinds.set(channel, "channel");
@@ -270,9 +269,9 @@ function fakeWorkspace() {
     },
     lastRead: (channel: string) => lastRead.get(channel) ?? null,
     follow(channel: string, threadTs: string, read: string) {
-      followed.set(`${channel}:${threadTs}`, read);
+      lastReadByFollowedThread.set(`${channel}:${threadTs}`, read);
     },
-    threadRead: (channel: string, threadTs: string) => followed.get(`${channel}:${threadTs}`) ?? null,
+    threadRead: (channel: string, threadTs: string) => lastReadByFollowedThread.get(`${channel}:${threadTs}`) ?? null,
     unread: (key: string) => activity.find((x) => x.key === key)?.unread ?? null,
   };
 }
@@ -946,7 +945,6 @@ describe("what brought a card (plan 077, KTD2)", () => {
     const replies = () => slack.sent.filter((s) => s.method === "conversations.replies").length;
     await sync.tick();
     expect(threads.get(ACCOUNT, `C0ENG:${at(5)}`)).toMatchObject({ newest_message_id: at(255), lines: ["reply 248", "reply 249", "reply 250"] });
-    // Two pages, read once for both items of the thread.
     expect(replies()).toBe(2);
     await sync.tick();
     expect(replies()).toBe(2);

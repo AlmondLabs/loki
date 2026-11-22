@@ -3,15 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-/**
- * A Slack desktop app's data folder, built in code for tests on any system: its Local Storage LevelDB (a log file and a
- * snappy-compressed table, the two shapes Chromium leaves on disk) holding `localConfig_v2`, and its Cookies database
- * holding the `d` cookie encrypted the way Chromium does on macOS. Every token is made up. The byte layouts follow
- * LevelDB's and Chromium's published formats, written here independently of the reader under test.
- */
-
 export const SAFE_STORAGE_PASSWORD = "fixture-safe-storage-password";
-/** The `d` cookie as Slack stores it: URL-encoded. */
 export const COOKIE_STORED = "xoxd-fixture%2Bcookie%2Fvalue%3D%3D";
 export const COOKIE_DECODED = "xoxd-fixture+cookie/value==";
 
@@ -30,10 +22,10 @@ export const directDownloadDir = (home: string) => join(home, "Library", "Applic
 export const appStoreDir = (home: string) =>
   join(home, "Library", "Containers", "com.tinyspeck.slackmacgap", "Data", "Library", "Application Support", "Slack");
 
-/** Chromium's Local Storage key for one item of app.slack.com. */
+// Outside (Chrome): Chromium's Local Storage key for one item of app.slack.com.
 export const storageKey = (name: string) => Buffer.concat([Buffer.from("_https://app.slack.com"), Buffer.from([0, 1]), Buffer.from(name)]);
 
-/** A Local Storage value: Chromium writes 1 then Latin-1 when every character fits, else 0 then UTF-16. */
+// Outside (Chrome): Chromium writes a Local Storage value as 1 then Latin-1 when every character fits, else 0 then UTF-16.
 export function storageValue(text: string, format: "latin1" | "utf16" = "latin1"): Buffer {
   return format === "latin1" ? Buffer.concat([Buffer.from([1]), Buffer.from(text, "latin1")]) : Buffer.concat([Buffer.from([0]), Buffer.from(text, "utf16le")]);
 }
@@ -55,10 +47,9 @@ const u32 = (n: number) => {
   return b;
 };
 
-/**
- * Snappy's raw format, from its format description: the length, then literals and back-references. This encoder looks
- * back for a 4-byte match so the reader's copy path is exercised, not only literals.
- */
+// https://github.com/google/snappy/blob/main/format_description.txt
+const SHORTEST_COPY = 4;
+const TWO_BYTE_OFFSET_COPY = 2;
 export function snappyCompress(input: Buffer): Buffer {
   const parts: Buffer[] = [varint(input.length)];
   const literal = (from: number, to: number) => {
@@ -82,10 +73,9 @@ export function snappyCompress(input: Buffer): Buffer {
         bestOff = i - j;
       }
     }
-    if (bestLen >= 4) {
+    if (bestLen >= SHORTEST_COPY) {
       literal(pending, i);
-      // A copy with a two-byte offset: tag 2, length - 1 in the upper six bits.
-      parts.push(Buffer.from([((bestLen - 1) << 2) | 2, bestOff & 0xff, bestOff >> 8]));
+      parts.push(Buffer.from([((bestLen - 1) << 2) | TWO_BYTE_OFFSET_COPY, bestOff & 0xff, bestOff >> 8]));
       i += bestLen;
       pending = i;
     } else i++;
@@ -99,7 +89,7 @@ export interface LevelWrite {
   value: Buffer | null;
 }
 
-/** A LevelDB log file holding one write batch per element, starting at sequence `seq`; records split across 32 KiB blocks. */
+// https://github.com/google/leveldb/blob/main/doc/log_format.md
 export function levelLog(batches: LevelWrite[][], seq = 1): Buffer {
   const BLOCK = 32768;
   const out: Buffer[] = [];
@@ -156,7 +146,7 @@ function block(entries: Array<{ key: Buffer; value: Buffer }>): Buffer {
   return Buffer.concat([...parts, u32(0), u32(1)]);
 }
 
-/** A LevelDB table (.ldb): each entry's user key gets the 8-byte trailer of its sequence and kind; blocks snappy-compressed when asked. */
+// https://github.com/google/leveldb/blob/main/doc/table_format.md
 export function levelTable(entries: Array<{ key: Buffer; value: Buffer; seq: number }>, opts: { snappy: boolean } = { snappy: true }): Buffer {
   const internal = entries.map((e) => {
     const trailer = Buffer.alloc(8);
@@ -181,7 +171,8 @@ export function levelTable(entries: Array<{ key: Buffer; value: Buffer; seq: num
   return Buffer.concat([...out, footer]);
 }
 
-/** The cookie's encrypted_value as Chromium writes it on macOS: "v10", then AES-128-CBC; meta version 24 and later prefix the host's SHA-256. */
+// Outside (Chrome): Chromium on macOS writes a cookie's encrypted_value as "v10", then AES-128-CBC; meta version 24 and
+// later prefix the host's SHA-256.
 export function encryptCookie(value: string, opts: { password?: string; host?: string; domainHash?: boolean } = {}): Buffer {
   const key = pbkdf2Sync(opts.password ?? SAFE_STORAGE_PASSWORD, "saltysalt", 1003, 16, "sha1");
   const cipher = createCipheriv("aes-128-cbc", key, Buffer.alloc(16, " "));

@@ -70,8 +70,9 @@ describe("file tools", () => {
   });
 });
 
-// ripgrep is there on a developer's Mac and may not be on a runner; a folder made unreadable reads anyway as root.
-const ripgrep = spawnSync("rg", ["--version"]).status === 0 && process.platform !== "win32" && process.getuid?.() !== 0;
+const ripgrepInstalled = spawnSync("rg", ["--version"]).status === 0;
+const unreadableFolderHolds = process.platform !== "win32" && process.getuid?.() !== 0;
+const ripgrep = ripgrepInstalled && unreadableFolderHolds;
 
 describe("grep when ripgrep cannot search all of the folder", () => {
   test.skipIf(!ripgrep)("a folder it may not read still answers with what it found elsewhere, and says so", async () => {

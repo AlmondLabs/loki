@@ -399,12 +399,12 @@ describe("the conversation page", () => {
     expect(keyboardInset(844, null)).toBe(0);
     expect(keyboardInset(844, { height: 844, offsetTop: 0, scale: 1 })).toBe(0);
     expect(keyboardInset(844, { height: 508, offsetTop: 0, scale: 1 })).toBe(336);
-    // iOS scrolls the visual viewport to show the caret: the keyboard is no smaller for it
+    // Outside (iOS): iOS scrolls the visual viewport to show the caret, and the keyboard is no smaller for it.
     expect(keyboardInset(844, { height: 508, offsetTop: 120, scale: 1 })).toBe(336);
-    // pinch zoom shrinks the visual viewport too; that is not a keyboard
-    expect(keyboardInset(844, { height: 400, offsetTop: 0, scale: 2 })).toBe(0);
-    // a browser that resizes the layout for the keyboard: nothing left to make up
-    expect(keyboardInset(508, { height: 508, offsetTop: 0, scale: 1 })).toBe(0);
+    const pinchZoomed = { height: 400, offsetTop: 0, scale: 2 };
+    expect(keyboardInset(844, pinchZoomed)).toBe(0);
+    const layoutResizedForTheKeyboard = 508;
+    expect(keyboardInset(layoutResizedForTheKeyboard, { height: 508, offsetTop: 0, scale: 1 })).toBe(0);
     expect(keyboardInset(844, { height: 843.4, offsetTop: 0, scale: 1 })).toBe(0);
   });
 });

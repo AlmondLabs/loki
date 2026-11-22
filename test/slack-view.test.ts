@@ -19,10 +19,8 @@ const run = (from: number, to: number, user = (_n: number) => "U2", extra: (n: n
   Array.from({ length: to - from + 1 }, (_, i) => msg(`${String(from + i)}.000000`, user(from + i), `m${String(from + i)}`, extra(from + i)));
 const ts = (n: number) => `${String(n)}.000000`;
 
-/**
- * A channel's history and its threads, answering as Slack does: history newest first, a limit, pages by cursor; a
- * thread's replies first message first, in pages of `limit` by cursor.
- */
+// Outside (Slack): Slack answers history newest first, up to a limit, in pages by cursor, and a thread's replies first
+// message first, in pages of `limit` by cursor.
 function fakeSlack(opts: { history: SlackMessage[]; threads?: Record<string, SlackMessage[]>; last_read?: string | null; emoji?: Record<string, string> }) {
   const calls: string[] = [];
   const newestFirst = [...opts.history].sort((a, b) => Number(b.ts) - Number(a.ts));

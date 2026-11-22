@@ -7,7 +7,8 @@ import { clockLabel, dayPills, holdMark, unreadBoundary } from "../app/src/share
 import { must } from "./fixtures/must.ts";
 
 describe("day pills", () => {
-  // Restored to the zone itself: with TZ unset, assigning the undefined back left Los Angeles in place, and the
+  // Outside (Node): process.env turns an assigned undefined into the string "undefined", which leaves the last zone in
+  // place, so TZ goes back to the zone itself.
   const tz = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   afterEach(() => {
     process.env.TZ = tz;

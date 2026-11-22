@@ -27,7 +27,7 @@ export function fakeWorkspace() {
     drafts: [] as Array<{ raw: string; threadId?: string }>,
     modified: [] as Array<Record<string, unknown>>,
     nextId: 1,
-    /** Answer each read of message m1 with a new attachment id, as Gmail does. */
+    // Outside (Gmail): Gmail gives an attachment a new id each time its message is read.
     freshAttachmentIds: false,
   };
   const json = (status: number, v: unknown) => new Response(JSON.stringify(v), { status, headers: { "content-type": "application/json" } });
@@ -101,7 +101,6 @@ export function fakeWorkspace() {
         return json(200, { threads: page, ...(from + 50 < state.threads.length ? { nextPageToken: String(from + 50) } : {}) });
       }
       if (/^\/threads\/[^/]+$/.test(gmail)) return json(200, { id: "t1", historyId: "1", messages: [MESSAGE] });
-      // Gmail gives an attachment a new id each time the message is read, as the real API does (state.freshAttachmentIds).
       if (gmail === "/messages/m1")
         return json(
           200,

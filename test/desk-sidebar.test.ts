@@ -34,7 +34,6 @@ import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({

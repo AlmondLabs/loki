@@ -15,6 +15,7 @@ export const OUTSIDE = [
   "GitHub Actions",
   "Gmail",
   "Google",
+  "Homebrew",
   "HTML",
   "iOS",
   "Jira",
@@ -44,6 +45,7 @@ export const OUTSIDE = [
   "vitest",
   "WebKit",
   "Windows",
+  "zsh",
 ];
 
 const MARKER = /^Outside \(([^)]+)\): \S/;

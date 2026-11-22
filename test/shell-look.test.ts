@@ -164,7 +164,8 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
 
   test("the page is clear in the Mac app, painted again under Reduce Transparency or Increase Contrast", () => {
     const styles = readFileSync(join(APP, "styles.css"), "utf8");
-    // WebKit does not know prefers-reduced-transparency, so the clear rule cannot hang on its no-preference
+    // Outside (WebKit): WebKit does not know prefers-reduced-transparency, so the clear rule cannot hang on its
+    // no-preference.
     expect(styles).not.toContain("prefers-reduced-transparency: no-preference");
     expect(styles).toMatch(/\n:root\[data-vibrant\]:not\(\[data-glass="solid"\]\) \{[\s\S]*?background: transparent;/);
     expect(styles).toMatch(
@@ -178,7 +179,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
   test("AppKit lays the traffic lights out in an empty unified toolbar, and the page lines its row up on them", async () => {
     const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
     const native = readFileSync(join(root, "src-tauri", "src", "native.rs"), "utf8");
-    // the toolbar is AppKit's own, so nothing moves the lights after a layout and they never show in the corner
+    // Outside (macOS): in AppKit's own toolbar nothing moves the lights after a layout, so they never show in the corner.
     expect(lib).toContain("native::add_unified_toolbar(&window);");
     expect(native).toContain("ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);");
     expect(lib).not.toContain("traffic_light_position");

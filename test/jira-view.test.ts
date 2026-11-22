@@ -7,7 +7,7 @@ import { JIRA_ADA, JIRA_BOB, fakeJira, type FakeJiraChange, type FakeJiraPerson 
 
 const MIN = 60_000;
 const START = Date.parse("2026-11-10T09:00:00.000Z");
-/** The person, with an Atlassian id that holds a colon, as real ones do. */
+// Outside (Jira): an Atlassian account id holds a colon.
 const ME: FakeJiraPerson = { account_id: "557058:6f1c2d3e-acme", display_name: "Mina Example" };
 const ID = `jira:acme.atlassian.net:${ME.account_id}`;
 

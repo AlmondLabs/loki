@@ -184,7 +184,7 @@ describe("notes and files", () => {
 describe("the update files: what the three builds made, staged for the release (KTD9, KTD10)", () => {
   const V = "2026.1116.0";
   const NOW = day("2026-11-16T09:00:00Z");
-  /** A download of the three builds' artifacts, laid out as actions/download-artifact merges them. */
+  // Outside (GitHub Actions): actions/download-artifact merges the three builds' artifacts into this layout.
   const builds = (version: string, leave: string[] = []) => {
     const dir = mkdtempSync(join(tmpdir(), "loki-builds-"));
     const files: Record<string, string> = {
@@ -628,8 +628,8 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
     const prune = at('bun run release prune-nightly "$VERSION"');
     expect(prune).toBeGreaterThan(at("git push --quiet origin main"));
     expect(pub.steps[prune]?.if).toBe("env.KIND == 'nightly'");
-    // A publish that stops (a re-run of an older nightly, say) fails its step, and nothing after it runs: no cask, no
-    for (const step of pub.steps.slice(pub.steps.indexOf(publishStep) + 1)) expect(step.if ?? "").not.toMatch(/always\(\)|failure\(\)|cancelled\(\)/);
+    const runsAfterFailedStep = /always\(\)|failure\(\)|cancelled\(\)/;
+    for (const step of pub.steps.slice(pub.steps.indexOf(publishStep) + 1)) expect(step.if ?? "").not.toMatch(runsAfterFailedStep);
   });
 
   test("only publish writes a release: uploads, moves the tag or prunes", () => {

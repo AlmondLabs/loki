@@ -21,7 +21,10 @@ const personal = lane("personal", [win("19:00", "23:30")]);
 const reading = lane("reading");
 const LANES = [work, comms, personal, reading];
 
-// 2026-11-17 is a Tuesday; local time is UTC in these tests unless a test sets another zone.
+const TUESDAY = 17;
+const FRIDAY = 20;
+const SATURDAY = 21;
+const SUNDAY = 22;
 const at = (day: number, hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
   return new Date(2026, 10, day, h, m);
@@ -30,26 +33,26 @@ const due = (lanes: Lane[], when: Date) => dueLane(lanes, when)?.id ?? "";
 
 describe("the lane due at a moment", () => {
   test("AE1: on a Tuesday the nested windows decide, and between windows it is Everything", () => {
-    const seen = ["08:59", "09:00", "09:29", "09:30", "16:00", "16:30", "18:00", "19:00"].map((t) => due(LANES, at(17, t)));
+    const seen = ["08:59", "09:00", "09:29", "09:30", "16:00", "16:30", "18:00", "19:00"].map((t) => due(LANES, at(TUESDAY, t)));
     expect(seen).toEqual(["", "comms", "comms", "work", "comms", "work", "", "personal"]);
   });
 
   test("AE5: a Friday window past midnight covers early Saturday, and not early Sunday", () => {
     const late = lane("late", [win("19:00", "01:00", [5])]);
-    expect(due([late], at(21, "00:30"))).toBe("late");
-    expect(due([late], at(21, "01:00"))).toBe("");
-    expect(due([late], at(22, "00:30"))).toBe("");
+    expect(due([late], at(SATURDAY, "00:30"))).toBe("late");
+    expect(due([late], at(SATURDAY, "01:00"))).toBe("");
+    expect(due([late], at(SUNDAY, "00:30"))).toBe("");
   });
 
   test("two lanes with the same window: the one listed first is due", () => {
     const a = lane("a", [win("10:00", "11:00")]);
     const b = lane("b", [win("10:00", "11:00")]);
-    expect(due([a, b], at(17, "10:30"))).toBe("a");
-    expect(due([b, a], at(17, "10:30"))).toBe("b");
+    expect(due([a, b], at(TUESDAY, "10:30"))).toBe("a");
+    expect(due([b, a], at(TUESDAY, "10:30"))).toBe("b");
   });
 
   test("a weekday outside the window's days is not covered", () => {
-    expect(due(LANES, at(21, "10:00"))).toBe("");
+    expect(due(LANES, at(SATURDAY, "10:00"))).toBe("");
   });
 });
 
@@ -57,43 +60,43 @@ describe("the latest start or end that has passed", () => {
   test("a window ending as another starts gives one edge at that moment", () => {
     const a = lane("a", [win("09:00", "09:30")]);
     const b = lane("b", [win("09:30", "10:00")]);
-    expect(latestEdge([a, b], at(17, "09:45"))).toBe(at(17, "09:30").getTime());
+    expect(latestEdge([a, b], at(TUESDAY, "09:45"))).toBe(at(TUESDAY, "09:30").getTime());
   });
 
   test("edges before a window's since do not count, and its later ones do", () => {
-    const added = lane("added", [win("10:00", "11:00", [2], at(17, "10:20").toISOString())]);
-    expect(latestEdge([added], at(17, "10:30"))).toBeNull();
-    expect(latestEdge([added], at(17, "11:05"))).toBe(at(17, "11:00").getTime());
+    const added = lane("added", [win("10:00", "11:00", [2], at(TUESDAY, "10:20").toISOString())]);
+    expect(latestEdge([added], at(TUESDAY, "10:30"))).toBeNull();
+    expect(latestEdge([added], at(TUESDAY, "11:05"))).toBe(at(TUESDAY, "11:00").getTime());
   });
 
   test("on a Sunday at noon the latest edge is Friday's end of Personal", () => {
-    expect(latestEdge(LANES, at(22, "12:00"))).toBe(at(20, "23:30").getTime());
+    expect(latestEdge(LANES, at(SUNDAY, "12:00"))).toBe(at(FRIDAY, "23:30").getTime());
   });
 });
 
 describe("until", () => {
   test("names the next moment the due lane changes, while the active lane is the lane due", () => {
-    expect(nextChange(LANES, at(17, "16:10"))).toEqual(at(17, "16:30"));
-    expect(untilTime(LANES, "comms", at(17, "16:10"))).toEqual(at(17, "16:30"));
-    expect(untilTime(LANES, "reading", at(17, "16:10"))).toBeNull();
-    expect(untilTime(LANES, "", at(17, "18:30"))).toBeNull();
+    expect(nextChange(LANES, at(TUESDAY, "16:10"))).toEqual(at(TUESDAY, "16:30"));
+    expect(untilTime(LANES, "comms", at(TUESDAY, "16:10"))).toEqual(at(TUESDAY, "16:30"));
+    expect(untilTime(LANES, "reading", at(TUESDAY, "16:10"))).toBeNull();
+    expect(untilTime(LANES, "", at(TUESDAY, "18:30"))).toBeNull();
   });
 
   test("a lane its windows keep due past the next day names its real end, and nothing when that is more than a day away", () => {
     const weekend = lane("weekend", [win("18:00", "06:00", [5, 6]), win("06:00", "18:00", [6, 0])]);
-    expect(dueLane([weekend], at(20, "19:00"))?.id).toBe("weekend");
-    expect(nextChange([weekend], at(20, "19:00"))).toEqual(at(22, "18:00"));
-    expect(untilTime([weekend], "weekend", at(20, "19:00"))).toBeNull();
-    expect(untilTime([weekend], "weekend", at(22, "07:00"))).toEqual(at(22, "18:00"));
+    expect(dueLane([weekend], at(FRIDAY, "19:00"))?.id).toBe("weekend");
+    expect(nextChange([weekend], at(FRIDAY, "19:00"))).toEqual(at(SUNDAY, "18:00"));
+    expect(untilTime([weekend], "weekend", at(FRIDAY, "19:00"))).toBeNull();
+    expect(untilTime([weekend], "weekend", at(SUNDAY, "07:00"))).toEqual(at(SUNDAY, "18:00"));
   });
 
   test("no change ahead is null", () => {
-    expect(nextChange([reading], at(17, "10:00"))).toBeNull();
+    expect(nextChange([reading], at(TUESDAY, "10:00"))).toBeNull();
   });
 
   test("skips an end the same lane carries on through", () => {
     const twice = lane("twice", [win("09:00", "09:30"), win("09:00", "10:00")]);
-    expect(untilTime([twice], "twice", at(17, "09:10"))).toEqual(at(17, "10:00"));
+    expect(untilTime([twice], "twice", at(TUESDAY, "09:10"))).toEqual(at(TUESDAY, "10:00"));
   });
 });
 
@@ -131,42 +134,42 @@ describe("whether a device follows the times now", () => {
   const ms = (d: Date) => d.getTime();
 
   test("AE2: a hand switch holds until the next start or end", () => {
-    expect(followLane(LANES, ms(at(17, "15:50")), false, at(17, "16:00"))).toBe("comms");
-    expect(followLane(LANES, ms(at(17, "16:10")), false, at(17, "16:20"))).toBeNull();
-    expect(followLane(LANES, ms(at(17, "16:10")), false, at(17, "16:30"))).toBe("work");
+    expect(followLane(LANES, ms(at(TUESDAY, "15:50")), false, at(TUESDAY, "16:00"))).toBe("comms");
+    expect(followLane(LANES, ms(at(TUESDAY, "16:10")), false, at(TUESDAY, "16:20"))).toBeNull();
+    expect(followLane(LANES, ms(at(TUESDAY, "16:10")), false, at(TUESDAY, "16:30"))).toBe("work");
   });
 
   test("AE3: a phone opened late catches up, and not after a hand switch since", () => {
-    expect(followLane(LANES, ms(at(17, "17:00")), false, at(17, "19:40"))).toBe("personal");
-    expect(followLane(LANES, ms(at(17, "19:45")), false, at(17, "19:50"))).toBeNull();
+    expect(followLane(LANES, ms(at(TUESDAY, "17:00")), false, at(TUESDAY, "19:40"))).toBe("personal");
+    expect(followLane(LANES, ms(at(TUESDAY, "19:45")), false, at(TUESDAY, "19:50"))).toBeNull();
   });
 
   test("AE3 over a weekend: a phone last switched on Friday evening opens on Sunday in Everything", () => {
-    expect(followLane(LANES, ms(at(20, "19:00")), false, at(22, "12:00"))).toBe("");
+    expect(followLane(LANES, ms(at(FRIDAY, "19:00")), false, at(SUNDAY, "12:00"))).toBe("");
   });
 
   test("AE6: a window saved after it started switches no one until its end", () => {
-    const edited = [work, lane("comms", [win("10:00", "11:00", [2], at(17, "10:20").toISOString())])];
-    expect(followLane(edited, ms(at(17, "09:00")), false, at(17, "10:20"))).toBeNull();
-    expect(followLane(edited, ms(at(17, "09:00")), false, at(17, "11:00"))).toBe("work");
+    const edited = [work, lane("comms", [win("10:00", "11:00", [2], at(TUESDAY, "10:20").toISOString())])];
+    expect(followLane(edited, ms(at(TUESDAY, "09:00")), false, at(TUESDAY, "10:20"))).toBeNull();
+    expect(followLane(edited, ms(at(TUESDAY, "09:00")), false, at(TUESDAY, "11:00"))).toBe("work");
   });
 
   test("AE4: a reply holds a due switch, and once dropped the device moves into the lane due then", () => {
-    expect(followLane(LANES, ms(at(17, "09:30")), true, at(17, "16:00"))).toBeNull();
-    expect(followLane(LANES, ms(at(17, "09:30")), false, at(17, "16:02"))).toBe("comms");
-    expect(followLane(LANES, ms(at(17, "09:30")), false, at(17, "16:40"))).toBe("work");
+    expect(followLane(LANES, ms(at(TUESDAY, "09:30")), true, at(TUESDAY, "16:00"))).toBeNull();
+    expect(followLane(LANES, ms(at(TUESDAY, "09:30")), false, at(TUESDAY, "16:02"))).toBe("comms");
+    expect(followLane(LANES, ms(at(TUESDAY, "09:30")), false, at(TUESDAY, "16:40"))).toBe("work");
   });
 
   test("nothing moves before the lanes load, or while a reply holds", () => {
-    expect(followLane(null, null, false, at(17, "16:00"))).toBeNull();
-    expect(followLane(LANES, ms(at(17, "15:50")), true, at(17, "16:00"))).toBeNull();
+    expect(followLane(null, null, false, at(TUESDAY, "16:00"))).toBeNull();
+    expect(followLane(LANES, ms(at(TUESDAY, "15:50")), true, at(TUESDAY, "16:00"))).toBeNull();
   });
 
   test("a device with no recorded switch keeps its lane until a counted start or end has passed", () => {
-    const fresh = [lane("comms", [win("16:00", "16:30", [2], at(17, "16:10").toISOString())])];
-    expect(followLane(fresh, null, false, at(17, "16:15"))).toBeNull();
-    expect(followLane(fresh, null, false, at(17, "16:30"))).toBe("");
-    expect(followLane([reading], null, false, at(17, "16:00"))).toBeNull();
+    const fresh = [lane("comms", [win("16:00", "16:30", [2], at(TUESDAY, "16:10").toISOString())])];
+    expect(followLane(fresh, null, false, at(TUESDAY, "16:15"))).toBeNull();
+    expect(followLane(fresh, null, false, at(TUESDAY, "16:30"))).toBe("");
+    expect(followLane([reading], null, false, at(TUESDAY, "16:00"))).toBeNull();
   });
 });
 
@@ -174,8 +177,8 @@ describe("what the follower does on a check", () => {
   const ms = (d: Date) => d.getTime();
 
   test("switches into the lane due, records when it is already there, and otherwise does nothing", () => {
-    expect(followStep(LANES, ms(at(17, "15:50")), false, "reading", at(17, "16:00"))).toEqual({ kind: "switch", to: "comms" });
-    expect(followStep(LANES, ms(at(17, "15:50")), false, "comms", at(17, "16:00"))).toEqual({ kind: "record" });
-    expect(followStep(LANES, ms(at(17, "16:00")), false, "comms", at(17, "16:10"))).toBeNull();
+    expect(followStep(LANES, ms(at(TUESDAY, "15:50")), false, "reading", at(TUESDAY, "16:00"))).toEqual({ kind: "switch", to: "comms" });
+    expect(followStep(LANES, ms(at(TUESDAY, "15:50")), false, "comms", at(TUESDAY, "16:00"))).toEqual({ kind: "record" });
+    expect(followStep(LANES, ms(at(TUESDAY, "16:00")), false, "comms", at(TUESDAY, "16:10"))).toBeNull();
   });
 });

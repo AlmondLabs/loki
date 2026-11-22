@@ -68,8 +68,9 @@ describe("tool results", () => {
     const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry, env: chatEnvs(dir) }, ctx);
     try {
       const chat = await store.createChat("c1", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id }, cwd: dir } }, ctx);
-      // 3,000 lines, past bash's 2,000; printed by node, which every platform's shell finds by its full path.
-      const command = `"${process.execPath.replaceAll("\\", "/")}" -e "process.stdout.write('a line of output\\n'.repeat(3000))"`;
+      const linesPastTheBashToolLimit = 3000;
+      const nodeByFullPath = process.execPath.replaceAll("\\", "/");
+      const command = `"${nodeByFullPath}" -e "process.stdout.write('a line of output\\n'.repeat(${String(linesPastTheBashToolLimit)}))"`;
       faux.setResponses([fauxAssistantMessage(fauxToolCall("bash", { command }), { stopReason: "toolUse" }), fauxAssistantMessage("done")]);
       await (await chat.submit({ type: "input", content: "print a lot" }, ctx)).wait(ctx);
       const [result] = (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model?.[0]));
@@ -77,7 +78,6 @@ describe("tool results", () => {
       const files = readdirSync(folder);
       expect(files).toHaveLength(1);
       expect(readFileSync(join(folder, files[0]), "utf8")).toBe("a line of output\n".repeat(3000));
-      // In JSON a Windows path's backslashes are doubled, so the result is searched for the file's name.
       expect(result).toContain("Full output:");
       expect(result).toContain(files[0]);
     } finally {

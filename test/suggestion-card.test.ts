@@ -24,7 +24,6 @@ import type { ConversationInfo } from "../core/attention/model.ts";
 import type { Suggestion } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 
-// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 const suggestion = (over: Partial<Suggestion> = {}): Suggestion => ({

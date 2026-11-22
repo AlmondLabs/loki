@@ -83,7 +83,8 @@ describe("list row markup", () => {
     expect(out).toContain('data-slot="tabs-list"');
     expect(out).toMatch(/role="tablist"[^>]*aria-label="Desk views"/);
     expect(out.match(/aria-selected="true"/g)?.length).toBe(1);
-    // Base UI gives the chosen tab the one tab stop once mounted; a static render shows which tab is chosen.
+    // Outside (Base UI): Base UI gives the chosen tab the one tab stop only once mounted, so a static render is read for
+    // which tab is chosen.
     expect(out).toMatch(/aria-selected="true"[^>]*>(<[^>]+>)*Desk/);
     expect(out).toContain('aria-controls="panel-desk"');
     expect(out).toContain('aria-controls="panel-messages"');

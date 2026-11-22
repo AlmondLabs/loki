@@ -6,7 +6,8 @@ import type { Recall as RecallModel } from "../app/src/shell/use-recall.ts";
 vi.hoisted(() => {
   Object.assign(globalThis, { sessionStorage: { getItem: () => "leads", setItem: () => {} } });
 });
-// The columns go to the shell's slots through portals, which a static render does not draw; here they draw in place.
+// Outside (React): a static render does not draw portals, so the columns, which reach the shell's slots through
+// portals, draw in place.
 vi.mock("../app/src/shell/place-columns.tsx", async () => {
   const { createElement, Fragment } = await import("react");
   return { PlaceColumns: ({ list, detail }: { list: ReactNode; detail: ReactNode }) => createElement(Fragment, null, list, detail) };

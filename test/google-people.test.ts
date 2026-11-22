@@ -25,10 +25,8 @@ interface FakePerson {
   organizations?: Array<{ title?: string }>;
 }
 
-/**
- * A People API that answers a cold contacts search with nobody, as Google's stale cache can, until the search has
- * been warmed with an empty query; a directory that refuses a personal account; and a token endpoint for refreshes.
- */
+// Outside (Google): the People API can answer a cold contacts search with nobody, from a stale cache, until the search
+// is warmed with an empty query, and its directory refuses a personal account.
 function fakePeople(opts: { contacts?: FakePerson[]; other?: FakePerson[]; directory?: FakePerson[] | "personal"; scopes?: string[]; refreshScope?: string }) {
   const requests: URL[] = [];
   const warmed = new Set<string>();

@@ -66,7 +66,7 @@ describe("daemon lock", () => {
     const d = dir();
     try {
       const file = join(d, "daemon.lock");
-      // A file: URL, not a path: Windows' C:\\… is no import specifier.
+      // Outside (Node): an import specifier is a URL, and a Windows path such as C:\\… is not one.
       const lock = new URL("../daemon/lock.ts", import.meta.url).href;
       for (let round = 0; round < 3; round++) {
         writeFileSync(file, "999999999");

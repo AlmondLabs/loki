@@ -454,7 +454,7 @@ describe("a reply with files (plan 2026-11-14-1134, U3)", () => {
           return Promise.resolve(Response.json({ ok: true, upload_url: uploadUrl, file_id: `F${n}` }));
         }
         if (url.endsWith("/api/files.completeUploadExternal")) return Promise.resolve(Response.json(opts.complete ?? { ok: true, files: [] }));
-        // The upload address answers with plain text, not JSON.
+        // Outside (Slack): the upload address answers with plain text, not JSON.
         return Promise.resolve(new Response("OK - 3"));
       },
     });

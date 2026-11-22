@@ -27,7 +27,6 @@ describe("the release bundle's build", () => {
     expect(readFileSync(new URL("../daemon/scripts.ts", import.meta.url), "utf8")).toContain('new URL("./codemode-worker.mjs", import.meta.url)');
   });
 
-  // quickjs-wasi and the keyring's prebuilt binary are dependencies of dependencies: bun and npm put them at the top of
   test("finds a dependency's own dependencies from that dependency, so a pnpm install builds too", () => {
     expect(src).toContain('packageDir("quickjs-wasi", codemode)');
     expect(src).toContain("findPackageDir(name, keyring)");
@@ -63,12 +62,8 @@ describe("the mod's bundle", () => {
   });
 });
 
-/**
- * pi-ai loads each sign-in flow through a variable path so a bundler cannot follow it; bundled into daemon.mjs, that
- * path pointed beside the bundle at files that are not there, and every release build's sign-in failed with "Cannot
- * find module …/openai-chatgpt.js" (2026.1011.1). The daemon registers the flows statically (daemon/main.ts); this
- * bundles the same way the release does, runs the bundle from a folder of its own, and asks for the ChatGPT flow.
- */
+// Outside (pi-ai): pi-ai loads each sign-in flow through a variable path a bundler cannot follow, so a bundled daemon
+// looks beside the bundle for files that are not there unless the flows are registered first.
 describe("sign-in flows in a bundle", () => {
   test("load from a bundle once registered, as daemon/main.ts does before anything asks", async () => {
     const { build } = await import("esbuild");
@@ -79,7 +74,8 @@ describe("sign-in flows in a bundle", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-oauth-bundle-"));
     try {
       const entry = join(dir, "entry.ts");
-      // the loader the providers call is internal to pi-ai: imported by its file, the one the helper registers into
+      // Outside (pi-ai): the loader the providers call is internal to pi-ai, so it is imported by its file, the one the
+      // helper registers into.
       const loader = join(import.meta.dirname, "..", "node_modules", "@earendil-works", "pi-ai", "dist", "auth", "oauth", "load.js");
       writeFileSync(
         entry,

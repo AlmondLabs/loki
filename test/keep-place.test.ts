@@ -1,12 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { holdPlace, placeAfterReveal } from "../app/src/item/use-keep-place.ts";
 
-/**
- * The desktop thread as layout numbers: its rows' heights in order, its offset, and whether MessageScroller marks it as
- * away from the end (`data-scrollable` holding "end", which it sets only while it is not following the bottom). Each row
- * is one element for as long as it is mounted, so a row put in again (a turn drawn under a new key) is a new element.
- */
-function thread(heights: number[], scrollTop: number, away = true) {
+function thread(heights: number[], scrollTop: number, awayFromBottom = true) {
   const view = { top: 100 };
   interface Row {
     h: number;
@@ -33,11 +28,11 @@ function thread(heights: number[], scrollTop: number, away = true) {
   };
   const el = {
     scrollTop,
-    away,
+    awayFromBottom,
     get scrollHeight() {
       return rows.reduce((n, r) => n + r.h, 0);
     },
-    getAttribute: (name: string) => (name === "data-scrollable" ? (el.away ? "start end" : "start") : null),
+    getAttribute: (name: string) => (name === "data-scrollable" ? (el.awayFromBottom ? "start end" : "start") : null),
     getBoundingClientRect: () => ({ top: view.top }),
     querySelectorAll: () => rows.filter((r) => r.node.isConnected).map((r) => r.node),
   };

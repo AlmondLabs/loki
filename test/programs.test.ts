@@ -20,7 +20,7 @@ describe("program lookup", () => {
     expect(found).toContain(String.raw`C:\Program Files\nodejs\letta.exe`);
     expect(found).toContain(String.raw`C:\Users\someone\AppData\Roaming\npm\letta.cmd`);
     expect(found).toHaveLength(12);
-    // No PATHEXT: Windows' own default list. A name with its extension is taken as is.
+    // Outside (Windows): with no PATHEXT, Windows' own default list of extensions applies.
     expect(onPath("letta", { platform: "win32", env: { PATH: "C:\\npm" } })).toEqual([
       "C:\\npm\\letta.com",
       "C:\\npm\\letta.exe",
@@ -34,7 +34,8 @@ describe("program lookup", () => {
     const bin = String.raw`C:\Users\some one\AppData\Roaming\npm\letta.cmd`;
     const c = commandFor(bin, ["install", "owner/repo&calc", "--agent", "agent-1"], "win32");
     expect(c.shell).toBe(true);
-    expect(c.args).toEqual([]); // one command line: Node would only concatenate args under a shell
+    // Outside (Node): under a shell, Node only concatenates args, so the command line is one string.
+    expect(c.args).toEqual([]);
     expect(c.file).toBe(
       String.raw`C:\Users\some^ one\AppData\Roaming\npm\letta.cmd ^^^"install^^^" ^^^"owner/repo^^^&calc^^^" ^^^"--agent^^^" ^^^"agent-1^^^"`,
     );
@@ -46,7 +47,8 @@ describe("program lookup", () => {
   test("argument escaping keeps quotes, backslashes and metacharacters", () => {
     expect(escapeArgument("plain", false)).toBe('^"plain^"');
     expect(escapeArgument('say "hi"', false)).toBe('^"say^ \\^"hi\\^"^"');
-    expect(escapeArgument("C:\\dir\\", false)).toBe('^"C:\\dir\\\\^"'); // the trailing backslash would eat the quote
+    // Outside (Windows): a trailing backslash would eat the closing quote.
+    expect(escapeArgument("C:\\dir\\", false)).toBe('^"C:\\dir\\\\^"');
     expect(escapeArgument("%PATH%!", false)).toBe('^"^%PATH^%^!^"');
     expect(escapeArgument("", false)).toBe('^"^"');
   });

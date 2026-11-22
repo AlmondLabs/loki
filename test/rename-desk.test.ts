@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { RenameDesk, cleanPurpose, saveRename } from "../app/src/desk/rename-desk.tsx";
 import { RenameSheet } from "../app/src/phone/rename-sheet.tsx";
 
-// A desktop sheet is Base UI's portalled Dialog, which a static render does not draw; here it draws in place.
 vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"));
 
 function calls(answers: { rename?: string | null; purpose?: string | null } = {}) {

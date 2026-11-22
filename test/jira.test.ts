@@ -566,7 +566,7 @@ describe("files attached to a ticket", () => {
     expect(req.url.href).toBe("https://acme.atlassian.net/rest/api/3/issue/OPS-1/attachments");
     expect(req.headers.get("x-atlassian-token")).toBe("no-check");
     expect(req.headers.get("authorization")).toBe(`Basic ${Buffer.from("mina@example.com:fixture-jira-token").toString("base64")}`);
-    // The multipart body sets its own content type, with the boundary in it.
+    // Outside (Node): fetch gives a multipart body its own content type, with the boundary in it.
     expect(req.headers.get("content-type")).toBeNull();
     const sent = await Promise.all(req.form.getAll("file").map(async (f) => (f instanceof File ? [f.name, await f.text()] : [])));
     expect(sent).toEqual([

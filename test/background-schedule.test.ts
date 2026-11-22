@@ -41,7 +41,8 @@ describe("background tasks", () => {
   test("a task takes input, can be stopped, and another agent cannot reach it", async () => {
     const notices: string[] = [];
     const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
-    // `sleep` stays a child of the shell in every shell (the echo after it keeps zsh from exec'ing it) and holds the
+    // Outside (zsh): zsh execs a script's last command in place of the shell; the echo after `sleep` keeps it a child
+    // that holds the output open, so a stop must end it too, not only the shell.
     const id = tasks.start("agent-a", "c", tmpdir(), "read line; echo got $line; sleep 30; echo after");
     tasks.write(id, "agent-a", "hello\n");
     expect(await tasks.wait(id, "agent-a", "got hello", 2000)).toContain("got hello");
@@ -55,7 +56,7 @@ describe("background tasks", () => {
   test("writing to a task whose input has closed does not take the daemon down", async () => {
     const tasks = new BackgroundTasks(() => {});
     const id = tasks.start("agent-a", "c", tmpdir(), "sleep 30");
-    // An EPIPE from a write arrives as an 'error' on the input stream; with no listener it would be thrown.
+    // Outside (Node): an EPIPE from a write arrives as an 'error' on the input stream; with no listener it would be thrown.
     must(must(tasks["tasks"].get(id), "the task").child.stdin, "the task's input").emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
     expect(await tasks.wait(id, "agent-a", "EPIPE", 2000)).toContain("EPIPE");
     tasks.stop(id, "agent-a");
@@ -109,7 +110,8 @@ describe("the background tools (plan 095)", () => {
 });
 
 describe("a stop the task's processes cannot all hear", () => {
-  // A child outside the task's process group keeps its output open after the shell is gone — on Windows, a Git Bash
+  // Outside (Windows): taskkill's tree misses a Git Bash child, which keeps the output open after the shell is gone;
+  // here a child outside the task's process group does the same.
   test.skipIf(process.platform === "win32")("a straggler holding the output does not keep a stopped task running", async () => {
     const tasks = new BackgroundTasks(() => {});
     const id = tasks.start("agent-a", "c", tmpdir(), "perl -e '$| = 1; setpgrp(0, 0); print qq(escaped\\n); sleep 5' & wait");
@@ -134,9 +136,8 @@ describe("tasks of an agent that is gone, and tasks at the daemon's exit", () =>
 
   test.skipIf(process.platform === "win32")("killAll ends a task that ignores the stop signal", async () => {
     const tasks = new BackgroundTasks(() => {});
-    const id = tasks.start("agent-a", "c", tmpdir(), "trap '' TERM; sleep 30 & echo up; wait; echo after");
-    // "up" comes after the shell has started its child: a group killed while its shell is still forking can miss the
-    await tasks.wait(id, "agent-a", "up", 2000);
+    const id = tasks.start("agent-a", "c", tmpdir(), "trap '' TERM; sleep 30 & echo child-started; wait; echo after");
+    await tasks.wait(id, "agent-a", "child-started", 2000);
     tasks.killAll();
     const out = await tasks.wait(id, "agent-a", undefined, 3000);
     expect(out).not.toContain("after");

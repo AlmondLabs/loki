@@ -137,7 +137,6 @@ describe("the limits of a socket", () => {
       token,
       {
         onConnect: (c) => c.send({ type: "hello" }),
-        // Far more than any system keeps for a socket nobody reads: once its buffers are full the rest waits in the
         onMessage: (c) => {
           const fill = "x".repeat(1024 * 1024);
           for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill }, () => steps++);
@@ -149,7 +148,6 @@ describe("the limits of a socket", () => {
       const ws = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
       ws.on("error", () => {});
       await hello(ws);
-      // A device that stopped reading, as a phone gone from the Wi-Fi has: how much its system buffers is not the
       ws.pause();
       ws.send(JSON.stringify({ type: "go" }));
       await until(() => bridge.clientCount() === 0);
@@ -208,9 +206,9 @@ describe("a refused upgrade", () => {
   test("a caller that hangs up on the refusal with a reset leaves the server serving", async () => {
     const s = await startServer({ port: 0 });
     const bridge = attachWs(s.server, "0123456789abcdef0123456789abcdef", { onConnect: () => {}, onMessage: () => {} });
-    // The server's end of the upgrade: an error on it with nobody listening would be thrown before it closes.
-    const ends: Duplex[] = [];
-    s.server.on("upgrade", (_req: IncomingMessage, socket: Duplex) => ends.push(socket));
+    // Outside (Node): an 'error' on a socket with no listener is thrown, so the server's end of the upgrade is held here.
+    const serverEnds: Duplex[] = [];
+    s.server.on("upgrade", (_req: IncomingMessage, socket: Duplex) => serverEnds.push(socket));
     const caller = connect(s.port, "127.0.0.1");
     try {
       caller.write(
@@ -219,8 +217,7 @@ describe("a refused upgrade", () => {
       );
       const answer = await new Promise<string>((resolve) => caller.once("data", (chunk: Buffer) => resolve(chunk.toString())));
       expect(answer).toMatch(/^HTTP\/1\.1 401/);
-      const closed = new Promise((resolve) => ends[0]?.once("close", resolve));
-      // Another Mac's link drops a refusal at once: a reset, which the server reads as ECONNRESET.
+      const closed = new Promise((resolve) => serverEnds[0]?.once("close", resolve));
       caller.resetAndDestroy();
       await closed;
       expect((await fetch(`http://127.0.0.1:${s.port}/health`)).status).toBe(200);

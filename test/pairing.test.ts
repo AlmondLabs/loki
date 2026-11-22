@@ -20,7 +20,8 @@ describe("pairing codes", () => {
     expect(expiresAt).toBe(new Date(now + PAIRING_TTL_MS).toISOString());
     expect(PAIRING_TTL_MS).toBe(10 * 60_000);
     expect(codes.redeem(code)).toBe(true);
-    expect(codes.redeem(code)).toBe(true); // a Home Screen web app has its own cookie jar
+    // Outside (iOS): a Home Screen web app has its own cookie jar, so it redeems the same code again.
+    expect(codes.redeem(code)).toBe(true);
     expect(codes.redeem(code.toLowerCase())).toBe(true);
     expect(codes.redeem("ZZZZZZ")).toBe(false);
     expect(codes.redeem("")).toBe(false);
