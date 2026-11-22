@@ -1,4 +1,5 @@
-import { isAdvisorChat } from "../../core/advisor.ts";
+import { isAdvisorChat, type ConsultFrom } from "../../core/advisor.ts";
+import type { ConsultReply } from "../../daemon/advisor-consults.ts";
 import type { PermissionMode } from "../../core/chat-links.ts";
 import type { MovedChat } from "../../daemon/chat-move.ts";
 import { missingFor } from "../requirements.ts";
@@ -45,6 +46,7 @@ export interface ChatBackend {
   setPasses(s: PayloadOf<"chat_passes_set">): Promise<Replies["chat_passes"]>;
   runLearn(): Promise<void>;
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
+  consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   approvals(): Promise<Replies["chat_approvals"]>;

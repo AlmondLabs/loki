@@ -112,7 +112,9 @@ export class AdvisorConsults {
     if (!info) return { refused: `no chat ${chatId}` };
     if (info.advisor_for !== undefined) return { refused: "an advisor chat has no advisor of its own" };
     if (info.hidden) return { refused: "a background chat has no advisor" };
-    const capped = { refused: `this chat consulted its advisor ${ADVISOR_CONSULTS_PER_HOUR} times in the last hour: wait, or tell the person` };
+    const capped = {
+      refused: `this chat consulted its advisor ${ADVISOR_CONSULTS_PER_HOUR} times in the last hour: wait, or tell the person, who can still ask with /advisor`,
+    };
     if (from === "agent" && agentConsultsInHour(info.advisor_consults ?? [], this.now()) >= ADVISOR_CONSULTS_PER_HOUR) return capped;
     const opened = await this.deps.advisors.open(agentId, chatId);
     if ("refused" in opened) return opened;

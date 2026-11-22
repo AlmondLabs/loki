@@ -22,6 +22,8 @@ import { GestureLog } from "../mod/gestures.ts";
 import { Suggestions } from "../mod/suggestions.ts";
 import { registerTools } from "../mod/tools.ts";
 import { sampleEntries } from "./fixtures/entries.ts";
+import { AGENT, consultSetup } from "./fixtures/advisor-consult.ts";
+import { isPassChat } from "../mod/recall-worker.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const cleanups: Array<() => Promise<void>> = [];
@@ -333,5 +335,44 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect([...stored.values()].flat()).toMatchObject([{ id: "sugg-1", status: "pending", target: { agent_id: "agent-local-ira", folder: "/work/site" } }]);
     expect(tools.readOnly()).toContain("mcp__loki__suggestion_create");
     expect(tools.readOnly()).not.toContain("mcp__loki__chat_list");
+  });
+
+  test("advisor_consult through the loopback server queues a consult from the calling chat, and runs without asking (R14)", async () => {
+    const s = await consultSetup();
+    const d = s.first;
+    const mods = new ModRegistry(() => {});
+    await mods.load({
+      name: "loki",
+      apiVersion: 1,
+      activate: (api) =>
+        registerTools(api, {
+          store: new DeskStore(),
+          gestures: new GestureLog(),
+          widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
+          widgetsDir: join(s.root, "widgets"),
+          activeScope: () => "shared",
+          broadcast: () => {},
+          chats: {
+            suggestions: { add: () => Promise.reject(new Error("no suggestions here")) },
+            agents: () => [],
+            chats: () => [],
+            passChat: isPassChat,
+            advisor: { consult: (ref, text) => d.chats.consult(ref, "agent", text), changes: () => Promise.reject(new Error("a text was given")) },
+          },
+        }),
+    });
+    const tools = new LokiTools({ tools: () => mods.chatTools(), stores: d.stores, context: ctx, version: "test" });
+    await tools.start();
+    cleanups.push(async () => {
+      await tools.stop();
+      await s.settled(d);
+      await s.cleanup();
+    });
+    const loki = await connect(http(tools.serverFor(AGENT, s.chatId) ?? undefined));
+    expect((await loki.listTools()).tools.map((t) => t.name)).toContain("advisor_consult");
+    const out = await loki.callTool({ name: "advisor_consult", arguments: { text: "Is /work/a.ts safe to ship?" } });
+    expect(JSON.stringify(out.content)).toContain("sent to your advisor");
+    expect(await s.ledger(d)).toMatchObject([{ from: "agent", first_line: "Is /work/a.ts safe to ship?" }]);
+    expect(tools.readOnly()).toContain("mcp__loki__advisor_consult");
   });
 });

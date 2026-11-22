@@ -22,6 +22,7 @@ import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay } from "./recall.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
+import { changesConsultText } from "../daemon/advisor-changes.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { readUsualModels, recordUsualModel } from "./usual-models.ts";
@@ -647,6 +648,10 @@ export default function activate(api: ModApi, host: Host): () => void {
           chats: () => macs.desks(),
           passChat,
           messages,
+          advisor: {
+            consult: (ref, text) => chatBackend.consult(ref, "agent", text),
+            changes: (folder) => changesConsultText(folder),
+          },
         }
       : undefined,
   });

@@ -164,7 +164,7 @@ describe("consulting a chat's advisor", () => {
       expect((await s.ledger(d)).every((c) => c.state === "failed")).toBe(true);
 
       expect(await d.chats.consult(ref, "agent", "question 7")).toEqual({
-        refused: "this chat consulted its advisor 6 times in the last hour: wait, or tell the person",
+        refused: "this chat consulted its advisor 6 times in the last hour: wait, or tell the person, who can still ask with /advisor",
       });
       expect(await d.chats.consult(ref, "person", "from the person")).toMatchObject({ left_this_hour: 0 });
       await s.settled(d);
