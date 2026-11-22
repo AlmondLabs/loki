@@ -167,7 +167,12 @@ export class FrameChatClient {
   }
 
   serverInfo() {
-    return Promise.resolve({ version: "loki daemon", protocol: null, commands: ["compact", "clear", "remember", "reflect", "doctor"], exclusive: true });
+    return Promise.resolve({
+      version: "loki daemon",
+      protocol: null,
+      commands: ["compact", "clear", "remember", "reflect", "doctor", "advisor"],
+      exclusive: true,
+    });
   }
 
   close(): void {

@@ -990,7 +990,7 @@ export const FRAMES = {
   }),
   chat_command: request(
     "chat_command_done",
-    "run a slash command in a chat: compact, clear, remember, reflect or doctor",
+    "run a slash command in a chat: compact, clear, remember, reflect, doctor or advisor",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;

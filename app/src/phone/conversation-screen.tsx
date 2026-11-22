@@ -29,6 +29,7 @@ import { navigate, openConversation } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "../shared/drafts";
 import { useTopClearance } from "./ui";
+import { phoneCommand } from "../../../core/attention/commands.ts";
 
 const noop = () => {};
 
@@ -78,6 +79,7 @@ export function ConversationScreen({
   onStop,
   onAnswer,
   onSend,
+  onCommand,
   onSeen,
   onNotDone,
   onViewed,
@@ -114,6 +116,7 @@ export function ConversationScreen({
   onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
   onSend: (rt: Runtime, text: string, images: Attachment[], desk: string | null) => void;
+  onCommand?: (rt: Runtime, id: string, args: string) => void;
   onSeen: (rt: Runtime) => void;
   onNotDone?: (item: AttentionItem) => void;
   onViewed?: (agentId: string, conversationId: string) => void;
@@ -191,7 +194,11 @@ export function ConversationScreen({
             actions={{
               onLoadModels,
               onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+              onSend: (text, images = []) => {
+                const command = images.length ? null : phoneCommand(text);
+                if (command && onCommand) onCommand(rt, command.id, command.args);
+                else onSend(rt, text, images, thread.title);
+              },
               onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
               onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
               onStop: onStop ? () => onStop(rt) : undefined,

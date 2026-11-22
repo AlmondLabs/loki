@@ -62,6 +62,7 @@ function surviving(storage: Storage): Storage {
 interface DaemonOptions {
   deliver?: (advice: Advice, real: () => Promise<void>) => Promise<void>;
   restartLimit?: number;
+  changes?: ConstructorParameters<typeof DaemonChats>[0]["changes"];
 }
 
 export async function consultSetup(firstOptions: DaemonOptions = {}) {
@@ -101,7 +102,7 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
   const clock = { now: Date.parse("2026-11-22T10:00:00Z") };
   let ids = 0;
 
-  const daemon = async ({ deliver, restartLimit }: DaemonOptions = {}) => {
+  const daemon = async ({ deliver, restartLimit, changes }: DaemonOptions = {}) => {
     const approvals = new Approvals({ advisorFolders: { dataDir, backendDir: backend, home } });
     const mods = new ModRegistry(() => {});
     const history = new ChatProjection(ctx, () => "Ada");
@@ -151,6 +152,7 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
       context: ctx,
       now: () => clock.now,
       advisors: consults,
+      ...(changes ? { changes } : {}),
     });
     chats.attach(() => {});
     const store = await stores.get(AGENT);

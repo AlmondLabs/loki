@@ -15,7 +15,12 @@ export const HARNESS_COMMANDS: SlashCommand[] = [
   { id: "remember", description: "remember something from this conversation", args: "[what]", where: "harness" },
   { id: "reflect", description: "reflect on this conversation now: a pass that commits what it keeps to memory", where: "harness" },
   { id: "doctor", description: "review the agent's memory and clean it up: duplicates, stale facts, contradictions", where: "harness" },
+  { id: "advisor", description: "ask this chat's advisor", args: "[question]", where: "harness" },
 ];
+
+const LOKI_RUN = new Set(["reflect", "doctor", "advisor"]);
+
+const PHONE_COMMANDS = new Set(["advisor"]);
 
 export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki", action: "chat.model" },
@@ -32,12 +37,12 @@ export function allCommands(advertised: SlashCommand[] = [], only?: string[]): S
 }
 
 export function engineCommands(engine: ChatEngineView): SlashCommand[] {
-  const passes = HARNESS_COMMANDS.filter((c) => c.id === "reflect" || c.id === "doctor");
-  const own = new Set([...LOKI_COMMANDS, ...passes].map((c) => c.id));
+  const lokiRun = HARNESS_COMMANDS.filter((c) => LOKI_RUN.has(c.id));
+  const own = new Set([...LOKI_COMMANDS, ...lokiRun].map((c) => c.id));
   const agents = engine.commands
     .filter((c) => !own.has(c.name))
     .map((c): SlashCommand => ({ id: c.name, description: c.description, where: "harness", ...(c.hint ? { args: c.hint } : {}) }));
-  return [...LOKI_COMMANDS, ...passes, ...agents];
+  return [...LOKI_COMMANDS, ...lokiRun, ...agents];
 }
 
 const HEAD = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/;
@@ -47,6 +52,11 @@ const ALIASES: Record<string, string> = { inbox: "flow" };
 export function parseSlash(text: string): { id: string; args: string } | null {
   const m = HEAD.exec(text.trim());
   return m ? { id: ALIASES[m[1]] ?? m[1], args: (m.at(2) ?? "").trim() } : null;
+}
+
+export function phoneCommand(text: string): { id: string; args: string } | null {
+  const cmd = parseSlash(text);
+  return cmd && PHONE_COMMANDS.has(cmd.id) ? cmd : null;
 }
 
 export function slashQuery(draft: string): string | null {

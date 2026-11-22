@@ -21,6 +21,9 @@ import { daemonTimeReminder } from "../core/attention/content.ts";
 import { readRecord, stampsOf } from "../daemon/store/agent-sync.ts";
 import type { PayloadOf } from "../core/frames.ts";
 import { must } from "./fixtures/must.ts";
+import { consultOf } from "../core/advisor.ts";
+import { writeRecord } from "../daemon/store/agents.ts";
+import { AGENT, consultSetup } from "./fixtures/advisor-consult.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -685,6 +688,68 @@ describe("the daemon's chats", () => {
       expect(saw).toContain("Local time on the user's Mac, as loki sends this:");
       expect(saw.indexOf("post the standup")).toBeLessThan(saw.indexOf("Local time on the user's Mac"));
       expect(isScheduledPrompt(`${prompt}\n\n${daemonTimeReminder()}`)).toBe(true);
+    } finally {
+      await s.cleanup();
+    }
+  });
+});
+
+describe("/advisor", () => {
+  const advisor = (s: Awaited<ReturnType<typeof consultSetup>>, args: string | null = null) =>
+    s.first.chats.command({ agent_id: AGENT, conversation_id: s.chatId, command: "advisor", args });
+
+  test("with a question, it sends the person's question to the chat's advisor and leaves the folder unread", async () => {
+    const read: Array<string | undefined> = [];
+    const s = await consultSetup({ changes: (folder) => (read.push(folder), Promise.resolve({ notice: "unused" })) });
+    try {
+      expect(await advisor(s, "is this migration safe?")).toEqual({ success: true, output: "sent to this chat's advisor; its answer comes back here" });
+      await s.settled(s.first);
+      expect(s.seen.advisor.map(consultOf)).toEqual([{ from: "person", text: "is this migration safe?" }]);
+      expect(await s.ledger(s.first)).toMatchObject([{ from: "person", first_line: "is this migration safe?", state: "answered" }]);
+      expect(read).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("alone, it sends the chat's folder's changes for review", async () => {
+    const read: Array<string | undefined> = [];
+    const list = "Review what changed in this chat's folder.\nUncommitted changes:\n- a.ts (+1 -0)";
+    const s = await consultSetup({ changes: (folder) => (read.push(folder), Promise.resolve({ text: list })) });
+    try {
+      expect((await advisor(s)).success).toBe(true);
+      await s.settled(s.first);
+      expect(read).toEqual([s.folder]);
+      expect(s.seen.advisor.map(consultOf)).toEqual([{ from: "person", text: list }]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("alone, with nothing to review, the row says so, and nothing goes to the advisor or the chat's model", async () => {
+    const s = await consultSetup({ changes: () => Promise.resolve({ notice: "Nothing has changed in this chat's folder to review." }) });
+    try {
+      expect(await advisor(s)).toEqual({ success: true, output: "Nothing has changed in this chat's folder to review." });
+      expect(await advisor(s, "   ")).toEqual({ success: true, output: "Nothing has changed in this chat's folder to review." });
+      expect(await s.ledger(s.first)).toEqual([]);
+      expect(await s.first.store.chat(`advisor-${s.chatId}`, BACKGROUND_CONTEXT)).toBeUndefined();
+      expect(s.seen).toMatchObject({ chat: [], advisor: [] });
+      expect(await s.userTexts(s.first)).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("for an agent on Claude Code with no advisor model, the row says to set one in Agents › Profile, and nothing is queued", async () => {
+    const s = await consultSetup();
+    try {
+      const backend = join(s.root, "home", ".loki", "backend");
+      writeRecord(backend, AGENT, { id: AGENT, name: "Ada", model: "acp:claude-code/default", model_settings: {}, tags: [] });
+      const r = await advisor(s, "is this safe?");
+      expect(r.success).toBe(false);
+      expect(r.output).toContain("set an advisor model in Agents › Profile");
+      expect(await s.ledger(s.first)).toEqual([]);
+      expect(s.seen).toMatchObject({ chat: [], advisor: [] });
     } finally {
       await s.cleanup();
     }

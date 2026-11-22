@@ -16,6 +16,7 @@ import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../cor
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import type { Advice, AdvisorConsults, ConsultReply } from "./advisor-consults.ts";
+import { changesConsultText, type ChangesConsult } from "./advisor-changes.ts";
 import type { Approvals } from "./approvals.ts";
 import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
@@ -62,6 +63,7 @@ interface Deps {
   now?: () => number;
   usualModel?: (agentId: string) => { handle: string; reasoning_effort: ReasoningEffort | null } | null;
   advisors?: AdvisorConsults;
+  changes?: (folder: string | undefined) => Promise<ChangesConsult>;
 }
 
 /**
@@ -485,9 +487,21 @@ export class DaemonChats implements ChatBackend {
           : "";
         return { success: r.outcome !== "failed" && r.outcome !== "skipped", output: `${r.report}${tail}` };
       }
+      case "advisor":
+        return this.askAdvisor(c, p);
       default:
         return engine.command(c, p);
     }
+  }
+
+  private async askAdvisor(c: EngineChat, p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
+    const question = p.args?.trim();
+    const consult = question ? { text: question } : await (this.deps.changes ?? changesConsultText)((await c.chat.agent(this.deps.context)).cwd);
+    if ("notice" in consult) return { success: true, output: consult.notice };
+    const reply = await this.consult(p, "person", consult.text);
+    return "refused" in reply
+      ? { success: false, output: reply.refused }
+      : { success: true, output: "sent to this chat's advisor; its answer comes back here" };
   }
 
   enableSkill(path: string): Promise<{ name: string; linkPath: string }> {

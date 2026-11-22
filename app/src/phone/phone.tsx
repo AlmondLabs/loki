@@ -524,6 +524,7 @@ function ConversationPage({
       onStop={catchUp.stop}
       onAnswer={catchUp.answer}
       onSend={(rt, text, images, deskTitle) => catchUp.send(rt, text, images, { desk: deskTitle, labels: convDesk?.labels ?? null })}
+      onCommand={(rt, id, args) => void catchUp.execute(rt, id, args)}
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
       onNotDone={catchUp.unread}
       onViewed={attention.markViewed}
