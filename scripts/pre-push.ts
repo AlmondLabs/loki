@@ -24,13 +24,14 @@ const SCRIPT = /\.(c|m)?[jt]sx?$/;
 export function checksFor(files: readonly string[], binOf: (pkg: string, bin: string) => string): Check[] {
   const formatted = files.filter((f) => FORMATTED.test(f));
   const scripts = files.filter((f) => SCRIPT.test(f));
+  const bun = binOf("bun", "bin/bun.exe");
   const checks: Check[] = [];
   if (formatted.length)
-    checks.push({ name: "format", bin: binOf("oxfmt", "bin/oxfmt"), args: ["--check", "--no-error-on-unmatched-pattern", ...formatted], node: true });
+    checks.push({ name: "format", bin: bun, args: ["fmt", "--no-script", "--check", "--no-error-on-unmatched-pattern", ...formatted], node: false });
   if (scripts.length) {
     checks.push({ name: "oxlint", bin: binOf("oxlint", "bin/oxlint"), args: ["--no-error-on-unmatched-pattern", ...scripts], node: true });
     checks.push({ name: "eslint", bin: binOf("eslint", "bin/eslint.js"), args: ["--no-warn-ignored", ...scripts], node: true });
-    checks.push({ name: "types", bin: binOf("bun", "bin/bun.exe"), args: ["check", "--no-script", "-p", "tsconfig.json"], node: false });
+    checks.push({ name: "types", bin: bun, args: ["check", "--no-script", "-p", "tsconfig.json"], node: false });
   }
   return checks;
 }
