@@ -59,8 +59,7 @@ describe("changes_read's runner", () => {
       .join("");
     const git = fakeGit((args) => (subcommandOf(args) === "config" ? listing : ""));
     const base = { PATH: "/usr/bin", HOME: "/home/someone", GIT_DIR: "/elsewhere/.git", GIT_EXTERNAL_DIFF: "evil", git_work_tree: "/elsewhere" };
-    for (const kind of ["status", "diff", "log", "show"])
-      expect((await readChanges("/work", { kind }, { exec: git.exec, env: base })).failed).toBe(false);
+    for (const kind of ["status", "diff", "log", "show"]) expect((await readChanges("/work", { kind }, { exec: git.exec, env: base })).failed).toBe(false);
 
     const ran = git.calls.filter((c) => subcommandOf(c.args) !== "config");
     expect(ran.map((c) => subcommandOf(c.args))).toEqual(["status", "diff", "log", "show"]);

@@ -246,7 +246,7 @@ function numstat(out: string): Map<string, { added: number | null; deleted: numb
   for (let i = 0; i < parts.length; i++) {
     const found = /^(\d+|-)\t(\d+|-)\t(.*)$/s.exec(parts[i] ?? "");
     if (!found) continue;
-    let path = found[3] ?? "";
+    let path = found[3];
     if (!path) {
       path = parts[i + 2] ?? "";
       i += 2;

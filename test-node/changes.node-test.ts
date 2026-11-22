@@ -41,7 +41,7 @@ function script(dir: string, name: string, body: string): string {
 
 const MARKERS = ["fsmonitor", "clean", "hook", "gpg"];
 
-test("no program the folder's git config names runs for status, diff, log or show", { skip: noSh }, async () => {
+void test("no program the folder's git config names runs for status, diff, log or show", { skip: noSh }, async () => {
   const root = scratch();
   const repo = join(root, "repo");
   const tools = join(root, "tools");
@@ -122,7 +122,7 @@ test("no program the folder's git config names runs for status, diff, log or sho
   );
 });
 
-test("the change list reads a real checkout: uncommitted files, then commits not on the upstream, then nothing", async () => {
+void test("the change list reads a real checkout: uncommitted files, then commits not on the upstream, then nothing", async () => {
   const root = scratch();
   const remote = join(root, "remote.git");
   const repo = join(root, "repo");
@@ -152,7 +152,6 @@ test("the change list reads a real checkout: uncommitted files, then commits not
   git(repo, "commit", "-q", "-m", "third");
   const list = await changeList(repo, { env: plainEnv });
   assert.equal(list.kind, "unpushed");
-  if (list.kind !== "unpushed") return;
   assert.equal(list.upstream, "origin/main");
   assert.deepEqual(
     list.commits.map((c) => c.subject),
