@@ -641,16 +641,23 @@ describe("an advisor chat's gate", () => {
       const judge = (name: string, args: Record<string, unknown>) =>
         advisorRefusal({ name, args, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, folders);
       const bash = (command: string) => judge("bash", { command });
-      expect(await bash("cat ~/.lo*/stores/x")).toContain("loki's data folder");
+      for (const command of ["cat ~/.lo*/stores/x", "cat [t]hread.ts", "cat *.ts | wc -l", "grep x *", "head -n 5 ./*"])
+        expect(await bash(command), command).toContain("may not use a wildcard");
       expect(await bash("grep -f~/.loki/stores/x y a.ts")).toContain("loki's data folder");
       expect(await bash("rg --ignore-file=~/.loki/stores/x y")).toContain("loki's data folder");
       expect(await bash("grep -R x .")).toContain("may not follow links");
       expect(await bash("rg -L x .")).toContain("may not follow links");
+      for (const command of ["grep -rS x .", "grep -rO x .", "grep -r -S x .", "grep -Sr x ."])
+        expect(await bash(command), command).toContain("may not follow links");
+      for (const command of ["grep --recur x .", "grep --dir=recurse x .", "grep --deref x .", "grep --directories recurse x .", "ls --recur ."])
+        expect(await bash(command), command).toContain("is not a long option");
       expect(await bash("cat ~someone/notes")).toContain("another home folder");
       expect(await judge("changes_read", { kind: "diff", paths: [s.dataDir] })).toContain("loki's data folder");
       for (const [name, args] of [
-        ["bash", { command: "cat *.ts | wc -l" }],
+        ["bash", { command: "cat a.ts | wc -l" }],
         ["bash", { command: "grep -rn answer ." }],
+        ["bash", { command: "grep -rn --ignore-case --include='*.ts' --context=2 answer ." }],
+        ["bash", { command: "find . -name '*.ts'" }],
         ["changes_read", { kind: "status" }],
         ["memory_read", { path: "system/persona.md" }],
         ["web_search", { query: "loki" }],

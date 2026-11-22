@@ -164,3 +164,35 @@ void test("the change list reads a real checkout: uncommitted files, then commit
 
   assert.deepEqual(await changeList(root, { env: plainEnv }), { kind: "not_a_checkout" });
 });
+
+void test("a folder whose git config moves its work tree outside the folder, or up to a folder above it, is refused before git reads a file there", async () => {
+  const root = scratch();
+  const data = join(root, "data");
+  mkdirSync(join(data, "chats"), { recursive: true });
+  writeFileSync(join(data, "chats", "t.txt"), "the whole thread\n");
+  const cases = [
+    { name: "outside", worktree: "../../data", tracked: "chats/t.txt" },
+    { name: "above", worktree: "../..", tracked: "data/chats/t.txt" },
+  ];
+  for (const { name, worktree, tracked } of cases) {
+    const repo = join(root, name);
+    const tree = join(repo, ".git", worktree);
+    git(root, "init", "-q", "-b", "main", repo);
+    const into = ["--git-dir", join(repo, ".git"), "--work-tree", tree];
+    git(tree, ...into, "add", tracked);
+    git(tree, ...into, "commit", "-q", "-m", "first");
+    git(repo, "config", "core.worktree", worktree);
+  }
+  writeFileSync(join(data, "chats", "t.txt"), "the whole thread, later\n");
+
+  for (const { name } of cases) {
+    const repo = join(root, name);
+    assert.match(git(repo, "diff"), /the whole thread, later/, `${name}: plain git reads the data folder, so the check below means something`);
+    for (const kind of ["status", "diff", "log", "show"]) {
+      const result = await readChanges(repo, { kind }, { env: plainEnv });
+      assert.equal(result.failed, true, `${name} ${kind}: ${result.text}`);
+      assert.doesNotMatch(result.text, /whole thread|chats/);
+    }
+    assert.deepEqual(await changeList(repo, { env: plainEnv }), { kind: "not_a_checkout" });
+  }
+});

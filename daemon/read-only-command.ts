@@ -2,7 +2,7 @@ export const READ_ONLY_PROGRAMS: ReadonlySet<string> = new Set(["ls", "find", "r
 
 const UNSAFE_FLAGS: Readonly<Partial<Record<string, (word: string) => boolean>>> = {
   find: (w) => /^-(exec|execdir|ok|okdir|delete|fprint|fprint0|fprintf|fls)$/.test(w),
-  rg: (w) => w === "--pre" || w.startsWith("--pre=") || w === "--pre-glob" || w.startsWith("--pre-glob="),
+  rg: (w) => /^--(pre|pre-glob|hostname-bin)(=|$)/.test(w),
 };
 
 const SHELL_SYNTAX = new Set([";", "&", ">", "<", "`", "$", "(", ")", "{", "}", "\\", "\n", "\r"]);

@@ -2,7 +2,9 @@ import type { Context } from "@earendil-works/chord";
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { execFile } from "node:child_process";
+import { realpath } from "node:fs/promises";
 import { devNull } from "node:os";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { messageOf } from "../core/errors.ts";
 import { isRecord, withKind } from "./tool-kinds.ts";
@@ -63,10 +65,11 @@ const SUBCOMMAND_FLAGS: Readonly<Record<Subcommand, readonly string[]>> = {
   show: [...DIFF_FLAGS, "--no-show-signature"],
 };
 
+const keysOf = (listing: string) => new Set(listing.split("\0").map((entry) => entry.split("\n", 1)[0] ?? ""));
+
 function filterDrivers(listing: string): Set<string> {
   const names = new Set<string>();
-  for (const entry of listing.split("\0")) {
-    const key = entry.split("\n", 1)[0] ?? "";
+  for (const key of keysOf(listing)) {
     const found = /^filter\.(.+)\.[^.]+$/s.exec(key);
     if (found?.[1]) names.add(found[1]);
   }
@@ -111,8 +114,20 @@ async function gitIn(folder: string, deps: GitDeps): Promise<Git> {
       })
     ).stdout;
   const listing = await call(gitEnv(base, new Set()), "config", ["--null", "--list", "--includes"]);
+  if (keysOf(listing).has("core.worktree")) throw new Error(MOVED_WORK_TREE);
   const env = gitEnv(base, filterDrivers(listing));
-  return (subcommand, rest) => call(env, subcommand, rest);
+  const git: Git = (subcommand, rest) => call(env, subcommand, rest);
+  if (!(await holds((await git("rev-parse", ["--show-toplevel"])).trim(), folder))) throw new Error(MOVED_WORK_TREE);
+  return git;
+}
+
+const MOVED_WORK_TREE = "changes_read refused: this folder's git config moves its work tree (core.worktree), which can lead outside the folder.";
+
+const realOf = (path: string) => realpath(path).catch(() => resolve(path));
+
+async function holds(top: string, folder: string): Promise<boolean> {
+  const rel = relative(await realOf(top), await realOf(folder));
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
 const KINDS = ["status", "diff", "log", "show"] as const;

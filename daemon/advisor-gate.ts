@@ -50,6 +50,10 @@ const inData = (asked: string) => `${shown(asked)} is inside loki's data folder,
 const aboveData = (asked: string) =>
   `A search of ${asked === WORKING_FOLDER ? "the working folder" : asked} would reach into loki's data folder, where chats are kept: search a folder within it instead, with the grep or find tool and a path.`;
 const FOLLOWS_LINKS = "An advisor's search may not follow links, since a link can lead into loki's data folder.";
+const WILDCARD =
+  "An advisor's shell command may not use a wildcard (*, ? or [), since the shell would follow a link it matches, which can lead into loki's data folder: list and search files with the find and grep tools, which do not follow links, or quote a pattern meant for find, grep or rg.";
+const notLongOption = (program: string, word: string, named: string) =>
+  `"${word}" is not a long option an advisor's ${program} takes, since a shortened one such as --recur can search a whole folder; it takes ${named}. Use the short letter, or the grep and find tools.`;
 const otherHome = (asked: string) => `An advisor may not read another home folder (${asked}).`;
 const UNCHECKED = "loki cannot check where this advisor's paths lead, so it refuses them.";
 
@@ -67,8 +71,18 @@ const RECURSIVE: Readonly<Partial<Record<string, (args: readonly string[]) => bo
 const FOLLOWS: Readonly<Partial<Record<string, (args: readonly string[]) => boolean>>> = {
   find: (a) => a.includes("-L") || a.includes("-follow"),
   rg: (a) => hasShort(a, /L/) || a.includes("--follow"),
-  grep: (a) => hasShort(a, /R/) || a.includes("--dereference-recursive"),
+  grep: (a) => hasShort(a, /[RSO]/) || a.includes("--dereference-recursive"),
   ls: (a) => hasShort(a, /L/) || a.includes("--dereference"),
+};
+
+const LONG_OPTIONS: Readonly<Partial<Record<string, { allowed: RegExp; named: string }>>> = {
+  grep: {
+    allowed:
+      /^--(line-number|ignore-case|count|files-with-matches|files-without-match|invert-match|word-regexp|line-regexp|fixed-strings|extended-regexp|basic-regexp|only-matching|no-filename|with-filename|no-messages|quiet|silent|text|null|colou?r(=\w+)?|(context|after-context|before-context|max-count)=\d+|(include|exclude|exclude-dir|regexp|file)=.*)?$/,
+    named:
+      "--line-number, --ignore-case, --count, --files-with-matches, --files-without-match, --invert-match, --word-regexp, --line-regexp, --fixed-strings, --extended-regexp, --basic-regexp, --only-matching, --no-filename, --with-filename, --no-messages, --quiet, --text, --null, --color, --context=<n>, --after-context=<n>, --before-context=<n>, --max-count=<n>, --include=, --exclude=, --exclude-dir=, --regexp= and --file=",
+  },
+  ls: { allowed: /^--(all|almost-all|human-readable|classify|colou?r(=\w+)?)?$/, named: "--all, --almost-all, --human-readable, --classify and --color" },
 };
 
 function candidates(word: string): string[] {
@@ -79,22 +93,18 @@ function candidates(word: string): string[] {
   return out.filter(Boolean);
 }
 
-function globRoot(word: string): string {
-  const at = word.search(/[*?[]/);
-  const before = at < 0 ? word : word.slice(0, at);
-  const cut = Math.max(before.lastIndexOf("/"), before.lastIndexOf("\\"));
-  return cut < 0 ? WORKING_FOLDER : before.slice(0, cut + 1);
-}
-
 function bashReach(command: unknown): Reach[] | string {
   const reach: Reach[] = [];
   for (const [program, ...rest] of commandWords(command) ?? []) {
+    if (rest.some((w) => w.glob)) return WILDCARD;
     const args = rest.map((w) => w.text);
+    const long = LONG_OPTIONS[program.text];
+    const unknownLong = long && args.find((w) => w.startsWith("--") && !long.allowed.test(w));
+    if (long && unknownLong !== undefined) return notLongOption(program.text, unknownLong, long.named);
     const recursive = RECURSIVE[program.text]?.(args) ?? false;
     if (recursive && FOLLOWS[program.text]?.(args)) return FOLLOWS_LINKS;
     if (recursive) reach.push({ asked: WORKING_FOLDER, recursive });
-    for (const word of rest)
-      for (const asked of candidates(word.text)) reach.push(word.glob ? { asked: globRoot(asked), recursive: true } : { asked, recursive });
+    for (const word of rest) for (const asked of candidates(word.text)) reach.push({ asked, recursive });
   }
   return reach;
 }

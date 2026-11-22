@@ -29,7 +29,7 @@ function fakeGit(answer: (args: readonly string[]) => Answer = () => "") {
   const exec: GitExec = (file, args, options) => {
     expect(file).toBe("git");
     calls.push({ args, env: { ...options.env }, cwd: options.cwd });
-    const out = answer(args);
+    const out = args.includes("--show-toplevel") ? "/work\n" : answer(args);
     return out instanceof Error ? Promise.reject(out) : Promise.resolve({ stdout: out, stderr: "" });
   };
   return { calls, exec };
@@ -61,7 +61,7 @@ describe("changes_read's runner", () => {
     const base = { PATH: "/usr/bin", HOME: "/home/someone", GIT_DIR: "/elsewhere/.git", GIT_EXTERNAL_DIFF: "evil", git_work_tree: "/elsewhere" };
     for (const kind of ["status", "diff", "log", "show"]) expect((await readChanges("/work", { kind }, { exec: git.exec, env: base })).failed).toBe(false);
 
-    const ran = git.calls.filter((c) => subcommandOf(c.args) !== "config");
+    const ran = git.calls.filter((c) => !["config", "rev-parse"].includes(subcommandOf(c.args)));
     expect(ran.map((c) => subcommandOf(c.args))).toEqual(["status", "diff", "log", "show"]);
     for (const call of git.calls) {
       expect(call.cwd).toBe("/work");
@@ -122,6 +122,19 @@ describe("changes_read's runner", () => {
     expect(result.failed).toBe(true);
     expect(result.text).toContain(reason);
     expect(git.calls).toEqual([]);
+  });
+
+  test("a folder whose config moves the work tree, or whose work tree does not hold it, is refused before git reads anything", async () => {
+    const moved = fakeGit((args) => (subcommandOf(args) === "config" ? "core.worktree\n../../data\0" : "diff output"));
+    const refused = await readChanges("/work", { kind: "diff" }, { exec: moved.exec, env: {} });
+    expect(refused).toMatchObject({ failed: true, text: expect.stringContaining("core.worktree") as unknown });
+    expect(moved.calls.map((c) => subcommandOf(c.args))).toEqual(["config"]);
+
+    const git = fakeGit(() => "diff output");
+    expect(await readChanges("/work/sub", { kind: "diff" }, { exec: git.exec, env: {} })).toEqual({ text: "diff output", failed: false });
+    expect((await readChanges("/elsewhere", { kind: "diff" }, { exec: git.exec, env: {} })).failed).toBe(true);
+    expect(await changeList("/elsewhere", { exec: git.exec, env: {} })).toEqual({ kind: "not_a_checkout" });
+    expect(git.calls.filter((c) => subcommandOf(c.args) === "diff")).toHaveLength(1);
   });
 
   test("git's own error comes back as the tool's error", async () => {
