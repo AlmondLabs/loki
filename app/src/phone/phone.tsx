@@ -48,6 +48,7 @@ import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
 import { conversationDirName, isMainChat, scopeFor } from "../../../core/desk-core.ts";
+import { isAdvisorChat } from "../../../core/advisor.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
@@ -252,7 +253,11 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const inboxFrom = tab === "inbox" && from && formatRoute(from) !== formatRoute(route) ? from : HOME;
 
   const onBack = () => back(route);
-  const backLabel = labelOf(backTarget(route, from));
+  const backTo = backTarget(route, from);
+  const backLabel =
+    conv && isAdvisorChat(conv.conversationId) && backTo.kind === "conversation"
+      ? (threadFor(backTo, desk.desks.list, catchUp.items, catchUp.agents).title ?? "chat")
+      : labelOf(backTo);
 
   const place = formatRoute(conv ? { ...conv, prefill: null } : route);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -434,6 +439,7 @@ function ConversationPage({
   const item = catchUp.items.find((i) => i.agent_id === thread.agentId && i.id === thread.conversationId) ?? null;
   const scope = scopeFor(thread.conversationId, thread.agentId);
   const view = catchUp.conversation(thread.agentId, thread.conversationId);
+  const advisor = isAdvisorChat(thread.conversationId);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
     if (!note) return;
@@ -474,7 +480,7 @@ function ConversationPage({
           : null
       }
       labels={
-        convDesk?.status !== "deleted"
+        !advisor && convDesk?.status !== "deleted"
           ? {
               current: convDesk?.labels ?? [],
               list: catchUp.labels.list,
@@ -490,7 +496,7 @@ function ConversationPage({
           : null
       }
       archive={
-        !isMainChat(thread.conversationId) && convDesk?.status !== "deleted"
+        !advisor && !isMainChat(thread.conversationId) && convDesk?.status !== "deleted"
           ? {
               archived: convDesk?.status === "archived",
               onArchive: onArchive
@@ -504,7 +510,7 @@ function ConversationPage({
           : null
       }
       folder={
-        attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
+        !advisor && attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
           ? {
               load: async () => {
                 const r = await attention.folders.recent();

@@ -1,4 +1,4 @@
-import { isAdvisorChat } from "../advisor.ts";
+import { isAdvisorChat, type AdvisorView } from "../advisor.ts";
 import { isMainChat } from "../desk-core.ts";
 import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
@@ -81,6 +81,7 @@ export interface Live {
   suggestions: Suggestion[];
   replyProposals: ReplyProposal[] | null;
   links?: ChatLink[];
+  advisor?: AdvisorView | null;
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -177,6 +178,7 @@ export function faceOf(l: Live): readonly unknown[] {
     l.suggestions,
     l.replyProposals,
     l.links,
+    l.advisor,
     l.thread.streaming,
   ];
 }
@@ -228,7 +230,9 @@ export type ChatEvent =
   /** The chat's open reply proposals (plan 067, KTD9), whole, on every change to any of them. */
   | { kind: "reply_proposals"; proposals: ReplyProposal[] }
   /** The chat's live links to other chats (plan 067), whole, on every change to any of them. */
-  | { kind: "links"; links: ChatLink[] };
+  | { kind: "links"; links: ChatLink[] }
+  /** The chat's advisor as its strip shows it, whole, on every change; null when the chat has none. */
+  | { kind: "advisor"; advisor: AdvisorView | null };
 
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
   switch (e.kind) {
@@ -312,6 +316,9 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       return { changed: true, userSpoke: false };
     case "links":
       l.links = e.links;
+      return { changed: true, userSpoke: false };
+    case "advisor":
+      l.advisor = e.advisor;
       return { changed: true, userSpoke: false };
     case "turn_end":
       if (e.turn_id) l.turnId = e.turn_id;

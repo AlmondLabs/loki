@@ -208,6 +208,7 @@ export class FrameChatClient {
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
       ...(state.reply_proposals ? [{ kind: "reply_proposals" as const, proposals: state.reply_proposals }] : []),
       ...(state.links ? [{ kind: "links" as const, links: state.links }] : []),
+      ...(state.advisor !== undefined ? [{ kind: "advisor" as const, advisor: state.advisor }] : []),
     ]);
     return { type: "chat_state" };
   }

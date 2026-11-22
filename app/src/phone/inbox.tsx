@@ -17,7 +17,7 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type FlowLane, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
 import { otherLanesCount } from "../../../core/attention/lanes.ts";
-import { OpenChat, type TranscriptRow } from "../chat/transcript";
+import { OpenAdvisor, OpenChat, type TranscriptRow } from "../chat/transcript";
 import { openConversation } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, Thread } from "../chat/conversation";
@@ -1095,47 +1095,49 @@ export function CardConversation({
   const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
   return message.wrap(
     <OpenChat.Provider value={openConversation}>
-      {message.sheet}
-      <Conversation
-        touch
-        dim={false}
-        view={{
-          rows: view.rows,
-          status: view.status,
-          error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null),
-          approval,
-          question,
-          model: model?.modelOf(item) ?? null,
-          reasoningEffort: model?.effortOf(item) ?? null,
-          older: view.older ?? null,
-          loadFailed: view.loadFailed ?? null,
-          loadStep: view.loadStep,
-        }}
-        models={model?.models ?? null}
-        actions={{
-          onLoadModels: model?.onLoad,
-          onPickModel: onPick ? (selection) => onPick(item, selection) : undefined,
-          onSend: (text, images = []) => card.onSend(item, text, images),
-          onAnswer: question
-            ? (answers) => {
-                card.onAnswer(item, question.requestId, answers);
-                onHold();
-              }
-            : undefined,
-          onCancelQueued: (text) => card.onCancelQueued(item, text),
-          onStop: onStop ? () => onStop(item) : undefined,
-        }}
-        agentName={agentName}
-        layout={layout}
-        notice={notice || null}
-        placeholder={replyPlaceholder(!!question, !!approval, agentName)}
-        draft={{ value: draft, onChange: setDraft }}
-        onSent={onHold}
-        suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}
-        suggestionsTick={suggestionsTick}
-        fold
-        describe={dragWords(item)}
-      />
+      <OpenAdvisor.Provider value={(advisorChat) => openConversation(item.agent_id, advisorChat)}>
+        {message.sheet}
+        <Conversation
+          touch
+          dim={false}
+          view={{
+            rows: view.rows,
+            status: view.status,
+            error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null),
+            approval,
+            question,
+            model: model?.modelOf(item) ?? null,
+            reasoningEffort: model?.effortOf(item) ?? null,
+            older: view.older ?? null,
+            loadFailed: view.loadFailed ?? null,
+            loadStep: view.loadStep,
+          }}
+          models={model?.models ?? null}
+          actions={{
+            onLoadModels: model?.onLoad,
+            onPickModel: onPick ? (selection) => onPick(item, selection) : undefined,
+            onSend: (text, images = []) => card.onSend(item, text, images),
+            onAnswer: question
+              ? (answers) => {
+                  card.onAnswer(item, question.requestId, answers);
+                  onHold();
+                }
+              : undefined,
+            onCancelQueued: (text) => card.onCancelQueued(item, text),
+            onStop: onStop ? () => onStop(item) : undefined,
+          }}
+          agentName={agentName}
+          layout={layout}
+          notice={notice || null}
+          placeholder={replyPlaceholder(!!question, !!approval, agentName)}
+          draft={{ value: draft, onChange: setDraft }}
+          onSent={onHold}
+          suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}
+          suggestionsTick={suggestionsTick}
+          fold
+          describe={dragWords(item)}
+        />
+      </OpenAdvisor.Provider>
     </OpenChat.Provider>,
   );
 }

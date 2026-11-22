@@ -53,7 +53,7 @@ import { startPeering, type Peering } from "./peering.ts";
 import { Accounts, perAccount, type AccountChange } from "./accounts.ts";
 import { AccountThreads, outsideCardId, type ThreadRecord } from "./account-threads.ts";
 import { outsideResting } from "../core/attention/rest.ts";
-import { keyOf } from "../core/attention/model.ts";
+import { keyOf, type ChatEvent } from "../core/attention/model.ts";
 import { AccountWatcher } from "./account-watcher.ts";
 import { GmailClient } from "./gmail.ts";
 import { GoogleAuth } from "./google-auth.ts";
@@ -77,6 +77,7 @@ import { jiraCardView, jiraThreadText } from "./jira-view.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
 import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
+import { AdvisorStrips, withAdvisorOnOpen } from "./chat-advisor.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
@@ -165,7 +166,13 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
 
   const { chats, chat: chatBackend } = host;
-  chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
+  const chatEvents = (agentId: string, conversationId: string, events: ChatEvent[]) =>
+    broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events });
+  const advisorStrips = new AdvisorStrips(chatBackend, chatEvents);
+  chatBackend.attach((agentId, conversationId, events) => {
+    chatEvents(agentId, conversationId, events);
+    advisorStrips.heard(agentId, conversationId, events);
+  });
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
 
@@ -469,7 +476,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     usualModels: { read: () => readUsualModels(), record: (agentId, handle, effort) => recordUsualModel(agentId, handle, effort, new Date()) },
-    chat: withRepliesOnOpen(withLinksOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, messages), replies),
+    chat: withRepliesOnOpen(withLinksOnOpen(withAdvisorOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend), messages), replies),
     suggestions,
     messages,
     replies,
@@ -573,7 +580,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   if (lan.enabled()) void lan.start();
   macs.start();
 
-  const eventDisposers: Array<() => void> = [];
+  const eventDisposers: Array<() => void> = [advisorStrips.start()];
   const titleRefreshes = new ScopeDebouncer(1200);
   const ignored = (e: ChatRef) => passChat(e.chatId);
 

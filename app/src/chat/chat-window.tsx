@@ -7,6 +7,7 @@ import type { SuggestionsProps } from "./suggestion-card";
 import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
 import { LinkHeader } from "./link-header";
+import { AdvisorHeader } from "./advisor-header";
 import { PanelLeftIcon, PanelRightIcon, XIcon, MessageSquareIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 
@@ -85,7 +86,14 @@ export function ChatWindow({
               agentName={agentName}
               agentId={agentId}
               below={
-                view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null
+                view.links?.length || view.advisor ? (
+                  <div className="loki-chat-strips">
+                    <AdvisorHeader advisor={view.advisor} />
+                    {view.links?.length ? (
+                      <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
+                    ) : null}
+                  </div>
+                ) : null
               }
               right={
                 <div className="flex flex-none items-center gap-0.5">

@@ -6,6 +6,8 @@ export const advisorChatId = (chatId: string): string => `${ADVISOR_CHAT_PREFIX}
 
 export const isAdvisorChat = (chatId: string): boolean => chatId.startsWith(ADVISOR_CHAT_PREFIX);
 
+export const advisedChat = (chatId: string): string | null => (isAdvisorChat(chatId) ? chatId.slice(ADVISOR_CHAT_PREFIX.length) : null);
+
 /** The request id of every consult loki submits to an advisor chat starts with this; usage reads it as the advisor's origin. */
 export const ADVISOR_REQUEST_PREFIX = "advisor:";
 

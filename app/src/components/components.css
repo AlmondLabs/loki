@@ -1635,6 +1635,15 @@ button.loki-list-section-toggle {
     margin-left: 8px;
     vertical-align: bottom;
   }
+  .loki-toolbar-sub .loki-chat-strips {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    margin-left: 8px;
+    vertical-align: bottom;
+  }
+  .loki-toolbar-sub .loki-chat-strips .loki-chat-links {
+    margin-left: 0;
+  }
   .loki-toolbar-sub .loki-chip {
     min-height: 0;
     padding: 0;

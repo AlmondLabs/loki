@@ -8,6 +8,7 @@ import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/mo
 import type { UsageReply } from "./usage.ts";
 import { isLinkDuration, isPermissionMode, parseLink, type ChatLink, type LinkDuration, type PermissionMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
+import type { AdvisorView } from "./advisor.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import { parseLanes, type Lane } from "./attention/lanes.ts";
 import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/rest.ts";
@@ -394,6 +395,8 @@ export interface ChatState {
   reply_proposals?: ReplyProposal[];
   /** The chat's live links to other chats (plan 067); absent from a mod that predates them. */
   links?: ChatLink[];
+  /** The chat's advisor as its strip shows it, null when it has none; absent from a mod that predates advisors. */
+  advisor?: AdvisorView | null;
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
