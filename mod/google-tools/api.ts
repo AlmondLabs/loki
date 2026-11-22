@@ -49,10 +49,11 @@ const api: GoogleToolDef = {
     if (!isService(service)) throw new Error(`\`service\` must be one of ${SERVICES.join(", ")}`);
     if (!isMethod(method)) throw new Error(`\`method\` must be one of ${METHODS.join(", ")}`);
     const host = HOSTS[service];
-    // Encoded dots and backslashes are refused too: URL parsing would turn them into a step out of the service's path.
+    // Outside (Node): URL parsing turns an encoded dot or a backslash into a step out of the service's path, so those
+    // are refused too.
     if (!path.startsWith("/") || path.includes("://") || /%2e|%5c|\\/i.test(path) || path.split(/[/?#]/).includes("..") || !host.paths.test(path))
       throw new Error(`${path} is not a path of the ${service} API: start it as ${String(host.paths).slice(2, -2).replace(/\\\//g, "/")}`);
-    // Google routes an empty segment or a trailing slash to the method it follows, so neither may reach it here.
+    // Outside (Gmail): Google routes an empty segment or a trailing slash to the method it follows, so neither may reach it here.
     if (service === "gmail" && (/[\x00-\x20\x7f%]/.test(path) || path.includes("//") || sendsMail(host.origin, path)))
       throw new Error("scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose");
     const query = Object.fromEntries(Object.entries(rec(call.args.query)).filter((e): e is [string, string] => typeof e[1] === "string"));

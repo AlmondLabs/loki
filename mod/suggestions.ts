@@ -141,7 +141,7 @@ export class Suggestions {
   async decide(source: ChatKey, id: string, action: SuggestionAction, by: string): Promise<Decided> {
     if (action === "reject") return this.reject(source, id, by);
     const flight = `${source.agent_id}/${source.conversation_id}/${id}`;
-    // A field rather than a local, as the claim sets it inside the change.
+    // Outside (TypeScript): a local set inside the change's callback would stay narrowed to false, so the claim is a field.
     const mine = { claimed: false };
     let claim: Decided;
     try {

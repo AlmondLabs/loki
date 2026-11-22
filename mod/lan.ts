@@ -193,8 +193,8 @@ export class LanListener {
       this.server = server;
       this.bindError = null;
       this.boundPort = (server.address() as { port: number }).port;
-      // A page on another site can open a WebSocket to this address, and the phone's cookie rides along:
-      // an upgrade naming a foreign Origin is refused, as /uploads is.
+      // Outside (WebKit): a page on another site can open a WebSocket to this address, and the phone's cookie rides
+      // along, so an upgrade naming a foreign Origin is refused, as /uploads is.
       this.ws = attachWs(
         server,
         (req, url) => (crossOrigin(req, this.allowedHosts()) ? { ok: false, refusal: 403 } : this.authorize(req, url)),

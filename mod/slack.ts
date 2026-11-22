@@ -509,7 +509,7 @@ export class SlackClient {
     const res = await (this.opts.fetch ?? fetch)(url, {
       method: "POST",
       headers: { ...filesHeaders(session), "content-type": "application/octet-stream" },
-      // A copy on its own ArrayBuffer, which fetch's types ask for; one copy of at most 17 MB is cheap.
+      // Outside (TypeScript): a copy on its own ArrayBuffer, which fetch's types ask for; one copy of at most 17 MB is cheap.
       body: new Uint8Array(data),
       signal: AbortSignal.timeout(uploadTimeoutMs(data.length)),
     });

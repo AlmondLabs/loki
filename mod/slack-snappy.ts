@@ -13,6 +13,10 @@ function varint(buf: Buffer, at: number): { value: number; next: number } {
   throw new Error("snappy: bad length");
 }
 
+function copyOverlapping(out: Buffer, at: number, offset: number, len: number): void {
+  for (let k = 0; k < len; k++) out[at + k] = out[at + k - offset] ?? 0;
+}
+
 export function snappyUncompress(input: Buffer): Buffer {
   const { value: length, next } = varint(input, 0);
   const out = Buffer.alloc(length);
@@ -29,12 +33,11 @@ export function snappyUncompress(input: Buffer): Buffer {
     if (kind === 0) {
       let len = (tag >> 2) + 1;
       if (len > 60) {
-        // 61 to 64: the length less one follows in 1 to 4 little-endian bytes.
-        const bytes = len - 60;
+        const lengthByteCount = len - 60;
         len = 0;
-        for (let k = 0; k < bytes; k++) len += byte(at + k) * 2 ** (8 * k);
+        for (let k = 0; k < lengthByteCount; k++) len += byte(at + k) * 2 ** (8 * k);
         len += 1;
-        at += bytes;
+        at += lengthByteCount;
       }
       if (at + len > input.length || written + len > length) throw new Error("snappy: literal runs past the end");
       input.copy(out, written, at, at + len);
@@ -58,8 +61,7 @@ export function snappyUncompress(input: Buffer): Buffer {
       at += 4;
     }
     if (offset === 0 || offset > written || written + len > length) throw new Error("snappy: copy points outside the output");
-    // Byte by byte: a copy may overlap what it is writing, which repeats a run.
-    for (let k = 0; k < len; k++) out[written + k] = out[written + k - offset] ?? 0;
+    copyOverlapping(out, written, offset, len);
     written += len;
   }
   if (written !== length) throw new Error("snappy: output shorter than its length");

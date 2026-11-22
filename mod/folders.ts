@@ -86,7 +86,8 @@ export function pickFolder(defaultPath?: string): Promise<string | null> {
   const script = `POSIX path of (choose folder with prompt "Folder for the new chat"${start})`;
   return new Promise((resolveP) => {
     execFile("/usr/bin/osascript", ["-e", script], { timeout: 120_000 }, (err, stdout) => {
-      if (err) return resolveP(null); // cancelled (osascript exits 1) or no UI session
+      // Outside (macOS): osascript fails when the person cancels (exit 1) or when there is no UI session.
+      if (err) return resolveP(null);
       const out = stdout.trim().replace(/\/$/, "");
       resolveP(out || null);
     });

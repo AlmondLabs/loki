@@ -154,7 +154,7 @@ async function saveDriveFile(call: GoogleCall, id: string, path: string, exportA
     name: str(meta.name),
     size: data.byteLength,
     md5: sum,
-    // A Google Doc, Sheet or Slides file is made on export and has no checksum of its own to match.
+    // Outside (Google): a Google Doc, Sheet or Slides file is made on export and has no checksum of its own to match.
     ...(drive ? { md5_matches: drive === sum } : { md5_matches: null, why: "an exported Google file has no checksum in Drive" }),
   };
 }

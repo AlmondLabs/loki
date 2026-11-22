@@ -102,7 +102,7 @@ export class GoogleSignIn {
       response_type: "code",
       scope: GOOGLE_SCOPES.join(" "),
       include_granted_scopes: "true",
-      // A refresh token, every time: Google gives one only on a consent, and the watcher needs it to keep reading.
+      // Outside (Google): a refresh token, every time: Google gives one only on a consent, and the watcher needs it to keep reading.
       access_type: "offline",
       prompt: "consent",
       code_challenge: createHash("sha256").update(verifier).digest("base64url"),

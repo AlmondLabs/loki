@@ -46,7 +46,8 @@ export function firstExisting(candidates: Array<string | undefined>, look: Look 
   return candidates.find((c): c is string => !!c && exists(c)) ?? null;
 }
 
-// cmd.exe's metacharacters, each escaped with ^ (the approach of cross-spawn, which npm tooling relies on).
+// Outside (Windows): cmd.exe's metacharacters, each escaped with ^ (the approach of cross-spawn, which npm tooling
+// relies on).
 const META = /([()\][%!^"`<>&|;, *?])/g;
 
 export function escapeCommand(path: string): string {

@@ -448,10 +448,12 @@ export function hostWithPort(host: string): string {
   return /:\d+$/.test(h) ? h : `${h}:${PEER_PORT}`;
 }
 
+const MAX_PORT = 65535;
+
 export function peerBase(host: string): string | null {
   const h = hostWithPort(host);
   const shaped = /^[A-Za-z0-9.-]+:\d+$/.test(h) || /^\[[0-9a-f:]+\]:\d+$/i.test(h);
-  // A port past 65535 has the shape but makes the socket throw when it is built.
   const port = Number(/:(\d+)$/.exec(h)?.[1]);
-  return shaped && port > 0 && port <= 65535 ? `http://${h}` : null;
+  const portInRange = port > 0 && port <= MAX_PORT;
+  return shaped && portInRange ? `http://${h}` : null;
 }

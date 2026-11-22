@@ -106,21 +106,19 @@ export class PeerLink {
     if (this.current !== "unreachable") this.setStatus("connecting");
     const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` }, handshakeTimeout: 8000 });
     this.ws = ws;
-    // The first reason this attempt fails is its reason: the socket's own "closed before it opened" follows a refusal.
-    let said = false;
-    const fail = (reason: string) => {
-      if (said) return;
-      said = true;
+    let reasonGiven = false;
+    const failWithFirstReason = (reason: string) => {
+      if (reasonGiven) return;
+      reasonGiven = true;
       this.failed(reason);
     };
     ws.on("unexpected-response", (_req, res) => {
       const status = res.statusCode ?? 0;
-      fail(`that Mac answered ${status}${REFUSALS.get(status) ?? ""}`);
+      failWithFirstReason(`that Mac answered ${status}${REFUSALS.get(status) ?? ""}`);
       if (status === 401) this.tell("refused", () => this.opts.onRefused?.());
       ws.terminate();
     });
-    // A close follows, which retries; the error is only the reason (a timeout, a refused or unreachable address).
-    ws.on("error", (err) => fail(messageOf(err)));
+    ws.on("error", (err) => failWithFirstReason(messageOf(err)));
     ws.on("open", () => {
       void this.ask({ type: "peer_ping" }, 8000, true).then(
         (pong) => {
@@ -129,7 +127,7 @@ export class PeerLink {
           this.setStatus(pong.protocol === this.opts.protocol ? "reachable" : "outdated");
         },
         (err: unknown) => {
-          fail(`that Mac did not answer its first ping: ${messageOf(err)}`);
+          failWithFirstReason(`that Mac did not answer its first ping: ${messageOf(err)}`);
           ws.terminate();
         },
       );

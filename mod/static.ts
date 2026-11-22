@@ -54,11 +54,12 @@ const TYPES: Record<string, string> = {
   ".map": "application/json; charset=utf-8",
 };
 
+const isViteBuild = (dir: string) => existsSync(join(dir, "index.html")) && existsSync(join(dir, "assets"));
+
 export function resolveAppDist(candidates: string[] = appDistCandidates): string | null {
   for (const dir of candidates) {
     try {
-      // A Vite build has index.html and assets/; the source app/ has only index.html and must be skipped.
-      if (existsSync(join(dir, "index.html")) && existsSync(join(dir, "assets"))) return resolve(dir);
+      if (isViteBuild(dir)) return resolve(dir);
     } catch {}
   }
   return null;
@@ -82,22 +83,22 @@ export function createStaticApp(dist: string | null): StaticHandler {
     const file = resolve(root, `.${pathname}`);
     const rel = relative(root, file);
     if (!rel || rel.startsWith("..") || rel.split(sep).includes("..") || resolve(root, rel) !== file) return notFound(res);
-    const immutable = rel.startsWith(`assets${sep}`); // Vite hashes everything under assets/
+    const hashedByVite = rel.startsWith(`assets${sep}`);
     let body: Buffer;
     try {
       if (!statSync(file).isFile()) return notFound(res);
       body = readFileSync(file);
     } catch {
-      // A hashed script from an earlier build: the page that asked for it is stale (a home-screen app on iOS
-      // launches from its cached start page when the network is slow to wake). Answer with a reload instead of
-      // a 404, so the phone picks up the current build rather than sitting on a blank screen.
-      if (immutable && (ext === ".js" || ext === ".mjs")) return serveStaleReload(res);
+      // Outside (iOS): a home-screen app launches from its cached start page when the network is slow to wake, so a
+      // stale page may ask for a hashed script from an earlier build. A reload instead of a 404 has the phone pick up
+      // the current build rather than sit on a blank screen.
+      if (hashedByVite && (ext === ".js" || ext === ".mjs")) return serveStaleReload(res);
       return notFound(res);
     }
     res.writeHead(200, {
       "content-type": TYPES[ext.toLowerCase()] ?? "application/octet-stream",
       "content-length": body.length,
-      "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+      "cache-control": hashedByVite ? "public, max-age=31536000, immutable" : "no-cache",
     });
     res.end(req.method === "HEAD" ? undefined : body);
   };

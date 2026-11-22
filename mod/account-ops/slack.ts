@@ -97,7 +97,7 @@ async function placeOf(account: AccountRecord, client: ReplySlackReads, referenc
   }
   const own = new URL((await client.authTest()).url || "https://invalid.example").hostname.toLowerCase();
   const host = url.hostname.toLowerCase();
-  // An Enterprise Grid link may carry the organisation's host rather than the workspace's.
+  // Outside (Slack): an Enterprise Grid link may carry the organisation's host rather than the workspace's.
   if (host !== own && !host.endsWith(".enterprise.slack.com")) throw new Error(`that link is not in ${account.address}, the workspace of this account`);
   const [, archives, channel = "", message = ""] = url.pathname.split("/");
   if (archives !== "archives" || !/^[A-Z0-9]+$/.test(channel)) throw new Error("that link names no conversation: give its id or #name instead");
