@@ -10,7 +10,7 @@ export default tseslint.config(
     // Outside (oxlint): the disable comments in the code name oxlint's rules, which ESLint does not run.
     linterOptions: { reportUnusedDisableDirectives: "off" },
     rules: {
-      "loki/comments": "off",
+      "loki/comments": "error",
       "@typescript-eslint/naming-convention": [
         "error",
         { selector: "default", format: ["strictCamelCase"], leadingUnderscore: "allow" },
@@ -44,4 +44,5 @@ export default tseslint.config(
       ],
     },
   },
+  { files: ["app/src/ui/**"], rules: { "loki/comments": "off" } },
 );

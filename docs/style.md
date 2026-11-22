@@ -13,7 +13,7 @@ the files a push changes, so a push never carries a format, lint or type error:
 
 ```bash
 bun run format:check   # bun fmt; bun run format fixes it
-bun run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), then ESLint for the two it lacks
+bun run lint           # oxlint (type-aware: typescript-eslint's strict + stylistic rules, React hooks and Compiler rules), ESLint for what it lacks, and the workflow comment check
 bun run typecheck      # bun check: TypeScript 7's checker on tsconfig.json, strict; the whole project in about a second
 bun run test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
 bun run test:node
@@ -22,7 +22,7 @@ bun run build:app && bun run build:mod && bun run smoke
 
 `.oxlintrc.json` turns on every oxlint category that finds bugs (correctness, suspicious, perf); a rule that is off
 there says why, and the ones that still fire somewhere carry their count until a PR fixes them and turns them on.
-`eslint.config.mjs` keeps the two rules oxlint has no version of: `naming-convention` and `no-restricted-syntax`. `bun run lint:fast` runs the same with ESLint's cache, for while you work;
+`eslint.config.mjs` keeps the rules oxlint has no version of: `naming-convention`, `no-restricted-syntax` and loki's own `loki/comments` (§5). `bun run lint:fast` runs the same with ESLint's cache, for while you work;
 `bun run lint` never uses the cache, and it is the one to run before pushing.
 
 ## 1. Formatting
@@ -145,7 +145,7 @@ Patterns the rules lead to:
 
 - A shape that must also be pi-durable's `JsonObject` (or any index-signature type) stays a `type` alias, since an
   interface with optional fields cannot extend one; the reason goes on an
-  `eslint-disable-next-line @typescript-eslint/consistent-type-definitions` comment above it (`ChatInfo` in
+  `oxlint-disable-next-line typescript/consistent-type-definitions` comment above it (`ChatInfo` in
   `daemon/kernel/index.ts`). That is the one disable comment the guide allows.
 - A parse function that returns literal types gets an annotated return type rather than `as` casts on its fields:
   TypeScript widens a narrowed literal back to `string` inside an object literal, and the cast hides that.
@@ -184,14 +184,19 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 - **The code says what it does and why; a comment is the exception.** A comment stays only when it is one of these:
   - a legal or licence header;
   - behaviour forced by something outside loki that we cannot reshape (a dependency, the platform, a vendor, a
-    protocol), true today on a live path;
-  - `// prettier-ignore`, or a lint suppression whose rule is faulty, pedantic or style-only;
+    protocol), true today on a live path. Its first line starts `Outside (<what>): `, naming that outside thing from
+    the list `OUTSIDE` in `eslint-comments.mjs`; a new name is added to the list in review;
+  - `// prettier-ignore`, or a lint suppression whose rule is faulty, pedantic or style-only: an
+    `oxlint-disable… -- reason`, a react-doctor directive, `@ts-expect-error` with its reason, or `@vite-ignore`;
   - a doc comment (`/** … */`, `///`) that states a contract across a process or disk boundary: the frames between the
     daemon and the app, files saved under `~/.loki`, the API the daemon hands the mod, the arguments of the agent's
     tools, and the Tauri commands the app calls;
   - an issue or RFC link that explains a constraint the code cannot express.
 
-  When it is not clear that one of these applies, the comment goes. **review**.
+  When it is not clear that one of these applies, the comment goes. **checked**: `bun run lint` fails on any other
+  comment in TypeScript and JavaScript (the `loki/comments` rule, `app/src/ui` aside) and in `.github` YAML
+  (`scripts/workflow-comments.ts`, where a pinned action's `# vX.Y.Z` also stays). A doc comment counts only in `core/`,
+  `daemon/`, `mod/` and `app/src/`; whether it really states a boundary's contract is **review**.
 - **A surprise in loki's own code is fixed, not explained**: rename, extract, add a type or change the design until the
   code reads plainly. A comment that would explain it marks the change still to make. **review**.
 - A suppression whose rule catches real bugs is not allowed; the code changes instead. **review**.

@@ -2,7 +2,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lintAll, linters, type Linter } from "./lint.ts";
+import { WORKFLOW_FILE, lintAll, linters, type Linter } from "./lint.ts";
 
 export interface Change {
   status: string;
@@ -38,8 +38,10 @@ export function importersOf(changed: ReadonlySet<string>, sources: ReadonlyMap<s
 export function lintPlan(changes: readonly Change[], sources: ReadonlyMap<string, string>): LintPlan {
   const setup = changes.find((c) => SETUP_THAT_REACHES_EVERY_FILE.test(c.path));
   if (setup) return { all: true, why: `${setup.path} changed` };
-  const changed = new Set(changes.filter((c) => c.status !== "D" && SCRIPT.test(c.path)).map((c) => c.path));
-  return { all: false, files: [...changed, ...importersOf(changed, sources)].sort() };
+  const kept = changes.filter((c) => c.status !== "D");
+  const changed = new Set(kept.filter((c) => SCRIPT.test(c.path)).map((c) => c.path));
+  const workflows = kept.filter((c) => WORKFLOW_FILE.test(c.path)).map((c) => c.path);
+  return { all: false, files: [...changed, ...importersOf(changed, sources), ...workflows].sort() };
 }
 
 function git(args: string[], cwd: string): string {
@@ -48,7 +50,7 @@ function git(args: string[], cwd: string): string {
 
 function runNode(l: Linter, cwd: string): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [l.bin, ...l.args], { cwd, stdio: "inherit" });
+    const child = spawn(process.execPath, [...(l.nodeArgs ?? []), l.bin, ...l.args], { cwd, stdio: "inherit" });
     child.on("error", () => resolve(1));
     child.on("exit", (code) => resolve(code ?? 1));
   });
