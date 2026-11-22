@@ -8,6 +8,7 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/<loki-moved\b[^>]*\/>/g, "")
     .replace(/<loki-suggested\b[^>]*\/>/g, "")
     .replace(/<loki-chat-message\b[^>]*>[\s\S]*?<\/loki-chat-message>/g, "")
+    .replace(/<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g, "")
     .replace(REPLIES_BLOCK, "")
     .replace(/<attachment\b[^>]*\/>/g, "")
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")

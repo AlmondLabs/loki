@@ -1,3 +1,4 @@
+import { isAdvisorChat } from "../advisor.ts";
 import { isMainChat } from "../desk-core.ts";
 import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
@@ -180,9 +181,9 @@ export function faceOf(l: Live): readonly unknown[] {
   ];
 }
 
-export function sendMode(l: Pick<Live, "inTurn" | "engine">): "now" | "steer" | "queue" {
+export function sendMode(l: Pick<Live, "inTurn" | "engine">, chatId = ""): "now" | "steer" | "queue" {
   if (!l.inTurn) return "now";
-  return l.engine ? "queue" : "steer";
+  return l.engine || isAdvisorChat(chatId) ? "queue" : "steer";
 }
 
 export function takeQueued(l: Live, now = new Date().toISOString()): QueuedSend | null {

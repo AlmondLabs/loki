@@ -324,6 +324,19 @@ describe("ACP agents (plan 020)", () => {
     expect(s.words()).toBe("mode default, model default | Hi there");
   });
 
+  test("an advisor's answer goes through the agent's own send, once per consult", async () => {
+    const s = setup();
+    const id = await s.chat();
+    const advice = { sendId: "consult-1", block: "<loki-advisor-answer>hello</loki-advisor-answer>", context: "<system-reminder>triage</system-reminder>" };
+    await s.chats.advise("ada", id, advice);
+    await s.chats.advise("ada", id, advice);
+    await until(() => s.events().filter((e) => e.kind === "turn_end").length === 1);
+    const users = (await s.stored(id)).entries.flatMap((e) => entrySteps(e)).filter((st) => st.kind === "user");
+    expect(users).toHaveLength(1);
+    expect(JSON.stringify(users[0])).toContain("loki-advisor-answer");
+    expect(JSON.stringify(users[0])).toContain("triage");
+  });
+
   test("a message the store refuses to write ends its turn: the chat says why and takes the next message", async () => {
     const t = setup();
     const id = await t.chat();

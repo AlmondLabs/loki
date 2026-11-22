@@ -286,6 +286,78 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("an advisor's answer goes in at the chat's own power, once per consult, and leaves the chat's draft alone", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      await s.chats.open(agent.id, conversationId);
+      const store = await s.stores.get(agent.id);
+      const info = async () => store.chatInfo(must(await store.chat(conversationId, ctx), "the chat").id, ctx);
+      s.faux.setResponses([s.reply("one"), s.reply("two"), s.reply("three")]);
+      const held = { agent_id: agent.id, conversation_id: conversationId, text: "from another chat", images: [], send_id: "m1", context: null };
+      expect(await s.chats.sendHeld(held, "standard")).toBeNull();
+      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 1);
+      const draft = { text: "half a thought", suggestion_id: "s1", source: { agent_id: agent.id, conversation_id: "elsewhere" } };
+      await s.chats.update({
+        agent_id: agent.id,
+        conversation_id: conversationId,
+        title: undefined,
+        archived: undefined,
+        hidden: undefined,
+        labels: undefined,
+        draft,
+      });
+      const advice = {
+        sendId: "consult-1",
+        block: "<loki-advisor-answer>the answer</loki-advisor-answer>",
+        context: "<system-reminder>triage</system-reminder>",
+      };
+      await s.chats.advise(agent.id, conversationId, advice);
+      await s.chats.advise(agent.id, conversationId, advice);
+      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 2);
+      expect((await info())?.turn_cap).toBeNull();
+      expect((await info())?.draft).toEqual(draft);
+      expect(s.sent).toHaveLength(2);
+      expect(s.sent[1].match(/the answer/g)).toHaveLength(1);
+      expect(s.sent[1]).toContain("triage");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a message to an advisor chat sent with steer waits for its running turn instead (KTD6)", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const store = await s.stores.get(agent.id);
+      await store.createChat("advisor-c", { hidden: true, advisor_for: "c", agent: { model: must(modelRef(s.handle), "a model") } }, ctx);
+      await s.chats.open(agent.id, "advisor-c");
+      let release = () => {};
+      const asked = { yet: false };
+      s.faux.setResponses([
+        async () => {
+          asked.yet = true;
+          await new Promise<void>((r) => (release = r));
+          return fauxAssistantMessage(fauxToolCall("read", { path: "nowhere.ts" }), { stopReason: "toolUse" });
+        },
+        s.reply("the consult's answer"),
+        s.reply("the person's answer"),
+      ]);
+      const send = { agent_id: agent.id, conversation_id: "advisor-c", images: [], context: null };
+      await s.chats.send({ ...send, text: "the consult", send_id: "c1" });
+      await until(() => asked.yet);
+      await s.chats.send({ ...send, text: "the person", send_id: "p1", steer: true });
+      release();
+      await until(() => s.sent.length === 2);
+      expect(s.sent).toHaveLength(2);
+      expect(s.sent[0]).not.toContain("the person");
+      expect(s.sent[1]).toContain("the person");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a message sent with steer while a tool runs joins that turn, read before the agent goes on", async () => {
     let typed = async () => {};
     const s = await setup({

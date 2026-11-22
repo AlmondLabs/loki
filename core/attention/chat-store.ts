@@ -508,7 +508,7 @@ export class ChatStore {
     });
     host.sent?.(rt);
     const at = new Date(this.now()).toISOString();
-    const mode = sendMode(l);
+    const mode = sendMode(l, rt.conversation_id);
     if (mode === "queue") {
       l.queued.push({ text, images, desk: env.desk, labels: env.labels });
       l.thread.queue(sentRow(text, images, at));

@@ -13,6 +13,7 @@ import {
   UsageDoc,
   type UsageState,
 } from "@earendil-works/pi-durable";
+import type { AdvisorConsult } from "../../core/advisor.ts";
 import type { SavedDraft, Suggestion } from "../../core/frame-types.ts";
 
 const smallDoc = (): boolean => false;
@@ -81,6 +82,11 @@ export type ChatInfo = {
    * every other call it makes (daemon/advisor-gate.ts), whatever its mode.
    */
   advisor_for?: string;
+  /**
+   * The consults this chat sent its advisor (core/advisor.ts): those not yet ended, and the ended ones of the last hour,
+   * which the agent's hourly cap counts, with the newest ended one; absent, none.
+   */
+  advisor_consults?: AdvisorConsult[];
 };
 
 /**
@@ -217,6 +223,23 @@ export class AgentStore {
       if (change.moved !== undefined) info.moved = change.moved;
     }, context);
     return true;
+  }
+
+  async updateConsults(
+    id: string,
+    change: (consults: readonly AdvisorConsult[]) => AdvisorConsult[] | null,
+    context: Context,
+  ): Promise<AdvisorConsult[] | undefined> {
+    const chat = await this.chat(id, context);
+    if (!chat) return undefined;
+    return chat.commit(async (tx) => {
+      const info = await tx.doc(ChatDoc, chat.id);
+      const was: AdvisorConsult[] = (info.advisor_consults ?? []).map((c) => ({ ...c }));
+      const next = change(was);
+      if (next === null) return was;
+      info.advisor_consults = next;
+      return next;
+    }, context);
   }
 
   async saveDraft(id: string, draft: SavedDraft, context: Context): Promise<"saved" | "held" | "missing"> {

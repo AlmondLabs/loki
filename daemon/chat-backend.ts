@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
-import type { Conversation } from "@earendil-works/pi-durable";
+import type { Conversation, Submission } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -8,12 +8,14 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
+import type { ConsultFrom } from "../core/advisor.ts";
 import { backendName, MAIN_CHAT_ID } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
+import type { Advice, AdvisorConsults, ConsultReply } from "./advisor-consults.ts";
 import type { Approvals } from "./approvals.ts";
 import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
@@ -59,6 +61,7 @@ interface Deps {
   background?: Pick<BackgroundTasks, "stopAgent">;
   now?: () => number;
   usualModel?: (agentId: string) => { handle: string; reasoning_effort: ReasoningEffort | null } | null;
+  advisors?: AdvisorConsults;
 }
 
 /**
@@ -261,13 +264,46 @@ export class DaemonChats implements ChatBackend {
 
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
+    const advisor = (await c.store.chatInfo(c.chat.id, this.deps.context))?.advisor_for !== undefined;
     await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
-      if (!c.engine && (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap && !(await engine.busy(c)))
-        await c.store.updateChat(p.conversation_id, { turn_cap: null }, this.deps.context);
-      await engine.send(c, p);
+      await this.uncap(c, engine);
+      await engine.send(c, advisor ? { ...p, steer: undefined } : p);
     });
     if ((await c.store.chatInfo(c.chat.id, this.deps.context))?.draft) await c.store.updateChat(p.conversation_id, { draft: null }, this.deps.context);
     return true;
+  }
+
+  private async uncap(c: EngineChat, engine: Engine): Promise<void> {
+    if (!c.engine && (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap && !(await engine.busy(c)))
+      await c.store.updateChat(c.conversationId, { turn_cap: null }, this.deps.context);
+  }
+
+  consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply> {
+    if (!this.deps.advisors) return Promise.resolve({ refused: "advisors are not running in this daemon" });
+    return this.deps.advisors.consult(p.agent_id, p.conversation_id, from, text);
+  }
+
+  async advise(agentId: string, conversationId: string, advice: Advice): Promise<void> {
+    const { c, engine } = await this.resolve(agentId, conversationId);
+    const p = { agent_id: agentId, conversation_id: conversationId, text: advice.block, images: [], send_id: advice.sendId, context: advice.context };
+    if (c.engine) return engine.send(c, p);
+    const submission = await this.capped(`${agentId}\u0000${conversationId}`, async () => {
+      await this.uncap(c, engine);
+      return this.loki.submit(c, p);
+    });
+    void this.keepIfWithdrawn(c, submission, advice).catch((e: unknown) => this.deps.report?.(`an advisor's answer was not kept: ${messageOf(e)}`));
+  }
+
+  private async keepIfWithdrawn(c: EngineChat, submission: Submission, advice: Advice): Promise<void> {
+    const settled = await submission.wait(this.deps.context);
+    if (settled.status !== "unanswered" || settled.entry !== undefined) return;
+    await c.chat.waitForIdle(this.deps.context);
+    const content = `${advice.context}\n\n${advice.block}`;
+    const timestamp = (this.deps.now ?? Date.now)();
+    await c.chat.submit(
+      { type: "write", requestId: `${advice.sendId}:kept`, entry: { kind: "pi.user", model: [{ role: "user", content, timestamp }] } },
+      this.deps.context,
+    );
   }
 
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<Delivery | null> {

@@ -6,6 +6,8 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { homedir } from "node:os";
+import { Advisors } from "./advisor.ts";
+import { AdvisorConsults } from "./advisor-consults.ts";
 import { DaemonChats } from "./chat-backend.ts";
 import { ChatImages } from "./chat-images.ts";
 import { Approvals, kindOf } from "./approvals.ts";
@@ -159,6 +161,12 @@ const providers = new Providers(models, credentials ?? new KeychainCredentials(m
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
 const passScratch = join(args.dir, "scratch");
+const canRun = async (handle: string): Promise<boolean> => {
+  const available = await models.getAvailable();
+  const slash = handle.indexOf("/");
+  if (slash <= 0) return available.length > 0;
+  return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
+};
 const passes = new PassRunner({
   stores,
   chats,
@@ -168,12 +176,7 @@ const passes = new PassRunner({
   context,
   jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })],
   busy,
-  canRun: async (handle) => {
-    const available = await models.getAvailable();
-    const slash = handle.indexOf("/");
-    if (slash <= 0) return available.length > 0;
-    return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
-  },
+  canRun,
   acp: {
     engineFor: async (agentId) => {
       const infos = await (await stores.get(agentId)).chats(context);
@@ -244,6 +247,14 @@ const acp = new AcpChats({
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
+const advisors = new AdvisorConsults({
+  advisors: new Advisors({ stores, registry: mods.registry, backendDir: backend, home: homedir(), context, canRun }),
+  stores,
+  agents: () => listAgents(backend),
+  context,
+  deliver: (agentId, chatId, advice) => chat.advise(agentId, chatId, advice),
+  report,
+});
 const chat: DaemonChats = new DaemonChats({
   stores,
   mods,
@@ -262,6 +273,7 @@ const chat: DaemonChats = new DaemonChats({
   schedules,
   background,
   usualModel: (agentId) => topUsualModel(agentId),
+  advisors,
 });
 chats.follow(stores, report);
 const analytics = createAnalytics({
@@ -360,6 +372,7 @@ const devReload: DevReload = new DevReload({
   report,
 });
 await loadCore();
+void advisors.start().catch((error: unknown) => report(`advisor consults did not settle: ${String(error)}`));
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout
   ? [
