@@ -54,6 +54,15 @@ describe("the outside thread's seam", () => {
     expect(out).toContain('data-mine="true"');
   });
 
+  test("a refused reaction says why under its message in the item's rows too", () => {
+    const text = "Couldn't remove the reaction: Slack reactions.remove failed: not_authed";
+    const controls = { load: () => {}, openThread: () => {}, busy: null, react: () => {}, refusal: { messageId: "1.0", text } };
+    const out = html(createElement(OutsideThread, { facts: facts(), state: { ...read(SLACK), controls }, items: true }));
+    const drawn = text.replace("'", "&#x27;");
+    expect(out.split(drawn)).toHaveLength(2);
+    expect(out.indexOf(drawn)).toBeLessThan(out.indexOf("The venue fell through."));
+  });
+
   test("a Jira comment has no reactions even when its message carries some", () => {
     const out = html(
       createElement(OutsideThread, {

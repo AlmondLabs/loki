@@ -43,7 +43,7 @@ import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } fro
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { NewLine, SlackThread, loadLabel } from "./slack-thread";
-import { toggleReaction, useQuickEmoji } from "./slack-reactions";
+import { toggleReaction, useQuickEmoji, type EmojiSearch } from "./slack-reactions";
 import { cardKey, type OpenedThread } from "./deck-moves";
 import { useSeededReply } from "./use-seeded-reply";
 import { OutsideItemActions, OutsideItemHeader, type OutsideMoveHandlers } from "./outside-toolbar";
@@ -73,8 +73,9 @@ export interface ThreadControls {
   back?: () => void;
   busy: "before" | "after" | null;
   react?: (messageId: string, choice: EmojiChoice, on: boolean) => void;
-  searchEmoji?: (query: string) => Promise<EmojiChoice[]>;
+  searchEmoji?: EmojiSearch;
   quick?: EmojiChoice[];
+  refusal?: { messageId: string; text: string };
 }
 
 export type OutsideThreadSource = Pick<
@@ -173,22 +174,27 @@ function useReactControls(
   source: OutsideThreadSource | null,
   setShown: (change: (now: Shown | null) => Shown | null) => void,
   tag: string,
-): Pick<ThreadControls, "react" | "quick" | "searchEmoji"> {
+): Pick<ThreadControls, "react" | "quick" | "searchEmoji" | "refusal"> {
   const o = item.outside;
   const search = source?.searchEmoji;
-  const searchEmoji = search ? (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) : null;
+  const searchEmoji = search ? (q: string) => search(item, q) : null;
   const reactOutside = source?.reactOutside;
   const quick = useQuickEmoji(o?.provider === "slack" && reactOutside ? o.account_id : null, searchEmoji);
+  const [refused, setRefused] = useState<{ tag: string; messageId: string; text: string } | null>(null);
   const setReactions = (messageId: string, change: (m: OutsideMessage) => OutsideMessage["reactions"]) =>
     setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
   const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
     if (!reactOutside) return;
+    setRefused(null);
     setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
-    void reactOutside(item, messageId, choice.name, on).then((refused) => {
-      if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
+    void reactOutside(item, messageId, choice.name, on).then((why) => {
+      if (why === null) return;
+      setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
+      setRefused({ tag, messageId, text: `Couldn't ${on ? "add" : "remove"} the reaction: ${why}` });
     });
   };
-  return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}) };
+  const refusal = refused?.tag === tag ? { messageId: refused.messageId, text: refused.text } : null;
+  return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}), ...(refusal ? { refusal } : {}) };
 }
 
 const REFRESH_MS = 60_000;

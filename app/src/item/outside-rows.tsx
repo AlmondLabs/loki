@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AccountProvider, OutsideMessage } from "../../../core/frame-types.ts";
-import { HoverBar, SlackReplies, type SlackRowAt } from "../desk/slack-thread";
+import { HoverBar, ReactionRefused, SlackReplies, type SlackRowAt } from "../desk/slack-thread";
 import { addressIn, mailWhen, senderName, sentToLine, snippet } from "../desk/mail-thread";
 import { outsideMessageEntry } from "./item-view";
 import { MessageEntry } from "./message-entry";
@@ -11,6 +11,7 @@ export function itemSlackRow(provider: AccountProvider) {
       <div className="loki-slack-row py-1" data-row-item>
         {at.reacting && <HoverBar reacting={at.reacting} />}
         <MessageEntry entry={outsideMessageEntry(m, provider)} source={provider} first={at.first} note={at.dayNote} onReact={at.reacting?.toggle}>
+          {at.reacting?.refused && <ReactionRefused text={at.reacting.refused} />}
           {at.reacting?.picker}
           {!at.jira && <SlackReplies m={m} onOpen={at.onOpen} />}
         </MessageEntry>

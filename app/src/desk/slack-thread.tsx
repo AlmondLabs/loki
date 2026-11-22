@@ -263,6 +263,7 @@ export interface RowReacting {
   quick: readonly EmojiChoice[];
   pick: (choice: EmojiChoice) => void;
   picker: ReactNode;
+  refused: string | null;
 }
 
 const BAR_QUICK = 3;
@@ -283,6 +284,14 @@ export function HoverBar({ reacting }: { reacting: RowReacting }) {
         <AddReactionMark />
       </button>
     </div>
+  );
+}
+
+export function ReactionRefused({ text }: { text: string }) {
+  return (
+    <p className="loki-emoji-note" role="status">
+      {text}
+    </p>
   );
 }
 
@@ -329,6 +338,7 @@ function SlackRow({
         )}
         {m.slack_files && <SlackFiles files={m.slack_files} where={jira ? "jira" : "Slack"} />}
         {!jira && <Reactions reactions={m.reactions ?? []} onToggle={reacting?.toggle} />}
+        {reacting?.refused && <ReactionRefused text={reacting.refused} />}
         {reacting?.picker}
         {!jira && <SlackReplies m={m} onOpen={onOpen} />}
       </div>
@@ -487,6 +497,7 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
       pick,
       toggle: (r) => react(m.id, { name: r.name, emoji: r.emoji ?? { kind: "emoji", text: `:${r.name}:` } }, !r.mine),
       picker: picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} quick={quick} onPick={pick} onClose={() => setPicking(null)} /> : null,
+      refused: controls.refusal?.messageId === m.id ? controls.refusal.text : null,
     };
   };
 }

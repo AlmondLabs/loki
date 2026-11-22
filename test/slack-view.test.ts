@@ -7,7 +7,7 @@ import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } fro
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
 import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
-import { QUICK_EMOJI, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
+import { QUICK_EMOJI, emojiNote, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
 
 const ACCOUNT = "slack:T1:UME";
 
@@ -483,6 +483,28 @@ describe("reactions on a Slack card (plan 079)", () => {
     const html = draw([m("a", "Ravi", 0, { reactions })], { load: () => {}, openThread: () => {}, busy: null });
     expect(html.match(/disabled=""/g)).toHaveLength(3);
     expect(html).not.toContain('class="loki-slack-hoverbar"');
+  });
+
+  test("a refused reaction says why under the message it was for, and nowhere else", () => {
+    const text = "Couldn't add the reaction: Slack reactions.add failed: message_not_found";
+    const html = draw([m("a", "Ravi", 0, { reactions }), m("b", "Ravi", 1)], {
+      load: () => {},
+      openThread: () => {},
+      busy: null,
+      react: () => {},
+      refusal: { messageId: "b", text },
+    });
+    const drawn = text.replace("'", "&#x27;");
+    expect(html.split(drawn)).toHaveLength(2);
+    expect(html.indexOf(drawn)).toBeGreaterThan(html.indexOf(">b<"));
+    expect(draw([m("a", "Ravi", 0)], { load: () => {}, openThread: () => {}, busy: null, react: () => {} })).not.toContain("Couldn't");
+  });
+
+  test("the picker says a search failed, and why, rather than that no emoji has the name", () => {
+    expect(emojiNote("that account is not connected now")).toBe("Couldn't search emoji: that account is not connected now");
+    expect(emojiNote([])).toBe("No emoji by that name");
+    expect(emojiNote(null)).toBe("Searching…");
+    expect(emojiNote([{ name: "eyes", emoji: eyes.emoji }])).toBeNull();
   });
 
   test("the hover bar shows the person's first three quick reactions and the add-reaction mark (plan 084)", () => {
