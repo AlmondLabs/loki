@@ -21,7 +21,6 @@ describe("harness markup", () => {
       {
         text: "background task bash_24 completed",
         summary: "aws sso login",
-        command: "aws sso login",
         detail: "$ cd /tmp\nnohup aws sso login > /tmp/x 2>&1 &",
       },
     ]);
@@ -43,6 +42,13 @@ describe("harness markup", () => {
     const raw = "cd /x && env -i A=1 bun run build > /tmp/b.log 2>&1; tail -5 /tmp/b.log; exit $r";
     const text = notice(`<summary>cd /x &amp;&amp; env -i A=1 bun run build &gt; /tmp/b.log 2&gt;&amp;1; tail -5 /tmp/b.log; exit $r</summary>`);
     expect(extractHarnessEvents(text)).toEqual([{ text: "background task bg-1 completed", summary: "bun run build", command: raw, detail: "ok" }]);
+  });
+
+  test("a notice without a command tag whose summary needs no trimming carries no separate command", () => {
+    const text = notice('<summary>Background command "npm run dev" completed (exit code 0)</summary>');
+    expect(extractHarnessEvents(text)).toEqual([
+      { text: "background task bg-1 completed", summary: 'Background command "npm run dev" completed (exit code 0)', detail: "ok" },
+    ]);
   });
 });
 

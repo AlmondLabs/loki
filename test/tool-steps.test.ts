@@ -143,6 +143,14 @@ describe("a step's title: the agent's description, else its command without the 
     expect(toolLabel("mcp__github__list_prs", prs)).toBe("mcp__github__list_prs");
   });
 
+  test("a tool's own multi-line description titles the step by its first line and stays whole in the input", () => {
+    const issue = { title: "Checkout fails", teamId: "web", description: "Safari 17 drops the cart.\n\nSteps:\n- add an item\n- pay" };
+    expect(toolStep("mcp__linear__create_issue", issue)).toMatchObject({
+      input: JSON.stringify(issue, null, 2),
+      description: "Safari 17 drops the cart.",
+    });
+  });
+
   test("a script reads by its description line", () => {
     expect(toolStep("codemode", { code: "// @description: Count open PRs\nreturn 1" }).description).toBe("Count open PRs");
     expect(toolStep("codemode", { code: '// @options: {"timeout_ms": 1000}\n// @description: Count open PRs\nreturn 1' }).description).toBe("Count open PRs");

@@ -143,9 +143,14 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
     const command = tag("command");
     const result = tag("result");
     const title = summary ? decodeEntities(summary) : null;
+    const trimmed = title && shellTitle(title);
     out.push({
       text: `background task${id ? ` ${id}` : ""}${status ? ` ${status}` : ""}`,
-      ...(command ? { summary: title, command: decodeEntities(command) } : title ? { summary: shellTitle(title), command: title } : { summary: null }),
+      ...(command
+        ? { summary: title, command: decodeEntities(command) }
+        : title && trimmed !== title
+          ? { summary: trimmed, command: title }
+          : { summary: title }),
       detail: result ? decodeEntities(result) : null,
     });
   }
@@ -268,12 +273,17 @@ const descriptionOf = (name: string, args: Record<string, unknown>): string | un
   return typeof said === "string" && said.trim() ? said.trim() : undefined;
 };
 
+const DESCRIPTION_MAX = 200;
+
+const isWholeTitle = (said: string): boolean => !said.includes("\n") && said.length <= DESCRIPTION_MAX;
+
 export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
   const pick = isQuestionTool(name) ? undefined : argOf(args);
   if (pick) return cap(pick);
-  const rest = descriptionOf(name, args) ? Object.fromEntries(Object.entries(args).filter(([k]) => k !== "description")) : args;
+  const said = descriptionOf(name, args);
+  const rest = said && isWholeTitle(said) ? Object.fromEntries(Object.entries(args).filter(([k]) => k !== "description")) : args;
   const json = JSON.stringify(rest, null, 2);
   return json === "{}" ? undefined : cap(json);
 }
@@ -296,8 +306,6 @@ export function toolOutput(raw: unknown): string | undefined {
   const text = toolText(raw);
   return text ? cap(text) : undefined;
 }
-
-const DESCRIPTION_MAX = 200;
 
 export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
   const step: ToolStep = { name };
