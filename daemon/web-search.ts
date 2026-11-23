@@ -19,7 +19,7 @@ const plain = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** DuckDuckGo wraps each link in a redirect (`/l/?uddg=<url>`): the real address. */
+// Outside (DuckDuckGo): each result link is wrapped in a redirect, `/l/?uddg=<url>`.
 function realUrl(href: string): string {
   const decoded = href.replace(/&amp;/g, "&");
   try {

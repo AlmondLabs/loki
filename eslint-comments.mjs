@@ -9,6 +9,7 @@ export const OUTSIDE = [
   "Chrome",
   "Claude Code",
   "CSS",
+  "DuckDuckGo",
   "esbuild",
   "git",
   "GitHub",
