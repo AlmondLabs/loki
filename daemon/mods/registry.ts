@@ -93,6 +93,12 @@ function listedFor(name: string, forAgent: (agentId: string) => boolean, agentId
   }
 }
 
+function keepingDescription(replacement: Record<string, unknown>, original: Record<string, unknown>): Record<string, unknown> {
+  return replacement.description === undefined && typeof original.description === "string"
+    ? { ...replacement, description: original.description }
+    : replacement;
+}
+
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && new Set([...a, ...b]).size === new Set(a).size;
 
 export class ModRegistry {
@@ -285,13 +291,14 @@ export class ModRegistry {
         hook(ToolTask, {
           beforeTool: async (call, api, context) => {
             const ref = await chatRef(api, api.conversationId, context);
-            let args = call.arguments as Record<string, unknown>;
+            const original = call.arguments as Record<string, unknown>;
+            let args = original;
             let changed = false;
             for (const handler of pieces.beforeTools) {
               const result = await handler({ ...ref, name: call.name, args, signal: context.abortSignal ?? NO_SIGNAL });
               if (result && "block" in result) return { block: result.block };
               if (result && "args" in result) {
-                args = result.args;
+                args = keepingDescription(result.args, original);
                 changed = true;
               }
             }

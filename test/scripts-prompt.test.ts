@@ -103,7 +103,7 @@ async function request(owns: "gmail" | "slack" | null): Promise<{ prompt: string
 
 const BEFORE = { none: 3927, gmail: 4533, slack: 4486 } as const;
 
-const AFTER = { none: 3421, gmail: 3584, slack: 3537 } as const;
+const AFTER = { none: 3574, gmail: 3746, slack: 3699 } as const;
 const SLACK = 50;
 
 const MOVED = ["history_search", "history_read", "schedule_create", "schedule_list", "schedule_delete", "canvas_read", "canvas_focus", "chat_list"];

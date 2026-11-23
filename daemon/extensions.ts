@@ -1,4 +1,4 @@
-import type { Extension } from "@earendil-works/pi-durable";
+import { defineExtension, wrapTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
 import { createCodingTools } from "@earendil-works/pi-durable/tools";
 import { advisorExtension } from "./advisor.ts";
 import type { Approvals } from "./approvals.ts";
@@ -11,6 +11,7 @@ import { memoryExtension } from "./memory.ts";
 import { repliesExtension } from "./replies.ts";
 import { scheduleExtension, type Schedules } from "./schedule.ts";
 import { skillsExtension } from "./skills.ts";
+import { withStepDescription } from "./step-description.ts";
 import { subagentExtension } from "./subagents.ts";
 import { CODING_TOOL_KINDS, declaredKind, type ToolKind } from "./tool-kinds.ts";
 import { fileToolsExtension } from "./tools.ts";
@@ -25,11 +26,18 @@ export interface BuiltinDeps {
   scripts?: readonly Extension[];
 }
 
+function describedCodingTools(): Extension[] {
+  const coding = createCodingTools({ images: shrinkingProcessor() });
+  const bash: ToolRegistration | undefined = coding.tools?.find((t) => t.name === "bash");
+  if (!bash) throw new Error("pi-durable's coding tools have no bash tool");
+  return [coding, defineExtension({ name: "loki.descriptions", wraps: [wrapTool(bash, (t) => withStepDescription(t, { drop: true }))] })];
+}
+
 export function builtinExtensions(deps: BuiltinDeps): Extension[] {
   return [
     deps.approvals.extension(),
     askExtension(deps.approvals),
-    createCodingTools({ images: shrinkingProcessor() }),
+    ...describedCodingTools(),
     fileToolsExtension(),
     memoryExtension(deps.backendDir),
     skillsExtension(deps.backendDir),
