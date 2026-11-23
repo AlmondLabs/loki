@@ -3,9 +3,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { AgentTurn } from "../app/src/item/agent-turn.tsx";
-import { StepOpened, Work } from "../app/src/item/work.tsx";
+import { Step, StepOpened, Work } from "../app/src/item/work.tsx";
 
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
+const times = (out: string, text: string) => out.split(text).length - 1;
 const bash = (over: Partial<NonNullable<TranscriptRow["tool"]>> = {}): TranscriptRow => ({
   role: "tool",
   text: "Bash · python chart.py",
@@ -53,7 +54,7 @@ describe("Work", () => {
 
   test("a failure the agent went on past is grey; one the turn stopped on is red (plan 2026-11-15-1035, R16)", () => {
     const rows = [bash(), bash({ failed: true, output: "boom" })];
-    const failureLine = (out: string) => /<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*failed<\/button>/.exec(out)?.[1] ?? "";
+    const failureLine = (out: string) => /<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*failed(?:<\/span>)*<\/button>/.exec(out)?.[1] ?? "";
     const went = html(createElement(Work, { rows, running: false, arrived: false }));
     expect(failureLine(went)).toContain("text-muted-foreground");
     expect(failureLine(went)).not.toContain("text-loki-negative");
@@ -93,14 +94,17 @@ describe("an opened step", () => {
     expect(out).toContain("nothing came back yet");
   });
 
-  test("a sub-agent's step is a Task: what it was asked and what it reported", () => {
+  test("a sub-agent's step is a Task titled by its description: the prompt it was given, under Asked, and what it reported", () => {
+    const prompt = "Open Safari, sign in twice and say where the cookie goes.";
     const row: TranscriptRow = {
       role: "tool",
       text: "Task · reproduce in Safari",
-      tool: { name: "Task", description: "reproduce the login loop in Safari", output: "Reproduced: SameSite=Strict drops the cookie." },
+      tool: { name: "Task", description: "Reproduce the login loop in Safari", input: prompt, output: "Reproduced: SameSite=Strict drops the cookie." },
     };
     const out = html(createElement(StepOpened, { row, running: false }));
-    expect(out).toContain("Asked: reproduce the login loop in Safari");
+    expect(out).toMatch(/>Asked<\/h4><p[^>]*>Open Safari, sign in twice and say where the cookie goes.<\/p>/);
+    expect(times(out, prompt)).toBe(1);
+    expect(times(out, "Reproduce the login loop in Safari")).toBe(1);
     expect(out).toContain("Reproduced: SameSite=Strict drops the cookie.");
     expect(out).not.toContain(">Command<");
   });
@@ -111,10 +115,63 @@ describe("an opened step", () => {
     expect(out).toContain("npm test: 245 passed");
   });
 
+  test("a background notice is titled once, by its short title, left-aligned and cut to a line; its whole command shows once", () => {
+    const row: TranscriptRow = {
+      role: "event",
+      text: "background task bg-1 completed",
+      summary: "uv run pytest -q tests/a.py",
+      command: "env -i HOME=/h uv run pytest -q tests/a.py",
+      detail: "42 passed",
+    };
+    const out = html(createElement(StepOpened, { row, running: false }));
+    expect(out).toMatch(/<button[^>]*class="[^"]*\btext-left\b[^"]*"/);
+    expect(out).toMatch(/<p class="[^"]*\btruncate\b[^"]*">uv run pytest -q tests\/a.py<\/p>/);
+    expect(times(out, ">uv run pytest -q tests/a.py<")).toBe(1);
+    expect(out).toMatch(/>Command<\/h4><pre[^>]*>env -i HOME=\/h uv run pytest -q tests\/a.py<\/pre>/);
+    expect(times(out, "env -i HOME=/h uv run pytest -q tests/a.py")).toBe(1);
+    expect(out.indexOf(">Command<")).toBeLessThan(out.indexOf("42 passed"));
+  });
+
+  test("an old notice opens on its title and its raw summary, each once; one with no command, its title alone", () => {
+    const raw = "cd /w &amp;&amp; npm test";
+    const old: TranscriptRow = { role: "event", text: "background task finished", summary: "npm test", command: "cd /w && npm test", detail: "245 passed" };
+    const out = html(createElement(StepOpened, { row: old, running: false }));
+    expect(times(out, ">npm test<")).toBe(1);
+    expect(times(out, raw)).toBe(1);
+    const bare = html(createElement(StepOpened, { row: { ...old, command: undefined }, running: false }));
+    expect(times(bare, "npm test")).toBe(1);
+    expect(bare).not.toContain(">Command<");
+  });
+
   test("a finished step reads at full strength, not faded as not yet run", () => {
     const read: TranscriptRow = { role: "tool", text: "Read · notes.txt", tool: { name: "Read", input: "notes.txt", output: "old" } };
     const out = html(createElement(Work, { rows: [bash(), read], running: false, arrived: false }));
     expect(out).not.toContain("text-muted-foreground/50");
+  });
+});
+
+describe("a step's title stays on one line (plan 2026-11-23-1851, KTD8)", () => {
+  const step = (row: TranscriptRow, active = false, waiting = false) => html(createElement(Step, { row, active, waiting, open: false, onToggle: () => {} }));
+  const crm = (over: Partial<NonNullable<TranscriptRow["tool"]>> = {}) => bash({ description: "Run the CRM tests", ...over });
+
+  test("a finished step's description is its title, cut inside its own element", () => {
+    expect(step(crm())).toMatch(/<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span>/);
+  });
+
+  test("a failed step's ending sits outside the cut title, and so does a waiting one's", () => {
+    expect(step(crm({ failed: true }))).toMatch(/<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span><span[^>]*> · failed<\/span>/);
+    expect(step(crm({ output: undefined }), true, true)).toMatch(
+      /<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span><span[^>]*> · waiting on you<\/span>/,
+    );
+  });
+
+  test("a running step's shimmering title is cut the same way", () => {
+    expect(step(crm({ output: undefined }), true)).toMatch(/<span class="shimmer[^"]*\btruncate\b[^"]*"[^>]*>Run the CRM tests<\/span>/);
+  });
+
+  test("the failure under a closed stretch cuts its title and keeps failed", () => {
+    const out = html(createElement(Work, { rows: [bash(), crm({ failed: true, output: "boom" })], running: false, arrived: false }));
+    expect(out).toMatch(/<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span><span[^>]*> failed<\/span>/);
   });
 });
 

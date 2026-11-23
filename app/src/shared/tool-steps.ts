@@ -158,7 +158,7 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
   const took = workDuration(rows);
   if (running) return took ? `Working · ${took}` : "Working";
   const only = rows.length === 1 ? rows[0] : null;
-  if (only?.tool?.description && stepKind(only) === "command") return `Ran ${only.tool.description}${only.tool.failed ? " · failed" : ""}`;
+  if (only?.tool?.description) return `${only.tool.description}${stepFailed(only) ? " · failed" : ""}`;
   const target = only?.role === "tool" && !["command", "background", "agent"].includes(stepKind(only)) ? stepTarget(only) : null;
   if (only && target) {
     const verb = stepVerb(stepName(only));

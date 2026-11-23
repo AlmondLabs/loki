@@ -1,4 +1,7 @@
 import { describe, expect, test } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { StepDetail, ToolSteps } from "../app/src/chat/tool-steps.tsx";
 import { TOOL_TEXT_MAX, toolInput, toolLabel, toolOutput, toolStep, withResult } from "../core/harness.ts";
 import { shownStep } from "../core/attention/pi-steps.ts";
 import { shellTitle } from "../core/shell-title.ts";
@@ -52,11 +55,15 @@ describe("the line for a run of tools", () => {
     expect(stepTitle("mcp__linear__list_issues")).toBe("linear.list_issues");
   });
 
-  test("a background task reads by its command as written, quotes and all", () => {
-    const notice = (summary: string): TranscriptRow => ({ role: "event", text: "background task bg-1 completed", summary });
-    expect(stepTarget(notice("Re-auth dev"))).toBe("Re-auth dev");
-    const command = `python3 -c "import re; print(re.findall(r'href=\\'([^\\']+)', open('a.html').read()))"`;
-    expect(stepTarget(notice(command))).toBe(command);
+  test("a background task reads by the description it was started with; its whole command rides along to be opened", () => {
+    const notice: TranscriptRow = {
+      role: "event",
+      text: "background task bg-1 completed",
+      summary: "Start the dev server",
+      command: "cd /w && PORT=1 bun run dev",
+    };
+    expect(stepTarget(notice)).toBe("Start the dev server");
+    expect(stepTarget({ ...notice, summary: "bun run dev" })).toBe("bun run dev");
   });
 
   test("a described command reads by its description; the command stays the step's input", () => {
@@ -64,8 +71,8 @@ describe("the line for a run of tools", () => {
     expect(step).toMatchObject({ input: "cd backend && grep -n x tests/*.py", description: "Find hard-coded names in tests" });
     const row: TranscriptRow = { role: "tool", text: "Bash · cd backend && grep -n x tests/*.py", tool: step };
     expect(stepTarget(row)).toBe("Find hard-coded names in tests");
-    expect(workSummary([row])).toBe("Ran Find hard-coded names in tests");
-    expect(workSummary([{ ...row, tool: { ...step, failed: true } }])).toBe("Ran Find hard-coded names in tests · failed");
+    expect(workSummary([row])).toBe("Find hard-coded names in tests");
+    expect(workSummary([{ ...row, tool: { ...step, failed: true } }])).toBe("Find hard-coded names in tests · failed");
     expect(workSummary([row, row])).toBe("Ran 2 commands");
     expect(workSummary([row], true)).toBe("Working");
   });
@@ -273,7 +280,7 @@ describe("Codex-style tools", () => {
     expect(toolLabel("exec_command", args)).toBe(`exec_command · ${args.command}`);
     const row: TranscriptRow = { role: "tool", text: toolLabel("exec_command", args), tool: step };
     expect(isNamedStep(row)).toBe(true);
-    expect(workSummary([row])).toBe("Ran Fetch prod and inspect new commits");
+    expect(workSummary([row])).toBe("Fetch prod and inspect new commits");
     expect(stepVerb("exec_command")).toBe("Ran");
     expect(stepVerb("ApplyPatch")).toBe("Edited");
     expect(stepVerb("memory_apply_patch")).toBe("Updated memory");
@@ -290,5 +297,54 @@ describe("skills", () => {
     expect(stepTarget(call("loki"))).toBe("loki");
     const rows = [call("loki"), body("loki"), call("show-me"), body("show-me"), call("never-came")];
     expect(withoutSkillCalls(rows).map((r) => `${r.role}:${stepTarget(r)}`)).toEqual(["event:loki", "event:show-me", "tool:never-came"]);
+  });
+});
+
+describe("a described step's line and what opens under it (plan 2026-11-23-1851, U6)", () => {
+  const described = (name: string, description: string, failed = false): TranscriptRow => ({
+    role: "tool",
+    text: `${name} · x`,
+    tool: { name, description, ...(failed ? { failed: true } : {}) },
+  });
+  const times = (out: string, text: string) => out.split(text).length - 1;
+
+  test("a one-step stretch reads as the step's description, of any kind of step", () => {
+    expect(workSummary([described("background_run", "Start the dev server")])).toBe("Start the dev server");
+    expect(workSummary([described("codemode", "Count open PRs", true)])).toBe("Count open PRs · failed");
+    expect(workSummary([described("mcp__github__list_prs", "List open PRs")])).toBe("List open PRs");
+    expect(workSummary([bash()])).toBe("Ran a command");
+  });
+
+  test("on the phone, a background notice opens on its whole command, once, then what it said", () => {
+    const row: TranscriptRow = {
+      role: "event",
+      text: "background task bg-1 completed",
+      summary: "uv run pytest -q tests/a.py",
+      command: "env -i HOME=/h uv run pytest -q tests/a.py",
+      detail: "42 passed",
+    };
+    const out = renderToStaticMarkup(createElement(StepDetail, { row }));
+    expect(out).toContain('<h3 class="loki-steps-heading">Command</h3><pre class="loki-steps-code">env -i HOME=/h uv run pytest -q tests/a.py</pre>');
+    expect(times(out, "env -i HOME=/h uv run pytest -q tests/a.py")).toBe(1);
+    expect(out.indexOf(">Command<")).toBeLessThan(out.indexOf(">Result<"));
+    expect(out).toContain("42 passed");
+  });
+
+  test("on the phone, a sub-agent's step shows the prompt it was given, once, under Asked", () => {
+    const prompt = "Open Safari, sign in twice and say where the cookie goes.";
+    const row: TranscriptRow = {
+      role: "tool",
+      text: "subagent · Reproduce the login loop",
+      tool: { name: "subagent", description: "Reproduce the login loop", input: prompt, output: "Reproduced." },
+    };
+    const out = renderToStaticMarkup(createElement(StepDetail, { row }));
+    expect(out).toContain(`<h3 class="loki-steps-heading">Asked</h3><pre class="loki-steps-code">${prompt}</pre>`);
+    expect(times(out, prompt)).toBe(1);
+    expect(out.indexOf(">Asked<")).toBeLessThan(out.indexOf(">Output<"));
+  });
+
+  test("on the phone, the failure under a closed stretch keeps failed beside its cut title", () => {
+    const out = renderToStaticMarkup(createElement(ToolSteps, { rows: [bash(), described("Bash", "Run the CRM tests", true)], running: false }));
+    expect(out).toContain('<span class="loki-truncate">Run the CRM tests</span><span>failed</span>');
   });
 });
