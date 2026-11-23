@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { shellTitle } from "../core/shell-title.ts";
 import { withStepDescription } from "./step-description.ts";
 import { withKind } from "./tool-kinds.ts";
 
@@ -31,6 +32,14 @@ interface Task {
 export type Notify = (agentId: string, chatId: string, text: string) => void;
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * The notice a finished task leaves in its chat, which the model reads as its next message and `extractHarnessEvents`
+ * (core/harness.ts) shows as an event. `<summary>` is the task's description, or its trimmed command when it had none;
+ * `<command>` is the whole command; `<result>` is the output's last 2000 characters. Each is entity-escaped.
+ */
+const taskNotification = (id: string, status: string, summary: string, command: string, tail: string) =>
+  `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(summary)}</summary>\n<command>${escape(command)}</command>\n<result>${escape(tail)}</result>\n</task-notification>`;
 
 const RESIGNAL_MS = 150;
 const GRACE_MS = 2_000;
@@ -105,11 +114,7 @@ export class BackgroundTasks {
       if (watched) return;
       const status = signal ? `stopped (${signal})` : code === 0 ? "completed" : `failed (exit ${code})`;
       const tail = task.output.slice(-2000).trim();
-      this.notify(
-        agentId,
-        chatId,
-        `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(command)}</summary>\n<result>${escape(tail)}</result>\n</task-notification>`,
-      );
+      this.notify(agentId, chatId, taskNotification(id, status, description || shellTitle(command), command, tail));
     });
     this.tasks.set(id, task);
     return id;

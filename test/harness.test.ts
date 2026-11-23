@@ -21,11 +21,28 @@ describe("harness markup", () => {
       {
         text: "background task bash_24 completed",
         summary: "aws sso login",
+        command: "aws sso login",
         detail: "$ cd /tmp\nnohup aws sso login > /tmp/x 2>&1 &",
       },
     ]);
     expect(stripHarnessMarkup(text).trim()).toBe("please continue");
     expect(decodeEntities("a &lt;b&gt; &amp;&quot;")).toBe('a <b> &"');
+  });
+
+  const notice = (inner: string) =>
+    `<task-notification>\n<task-id>bg-1</task-id>\n<status>completed</status>\n${inner}\n<result>ok</result>\n</task-notification>`;
+
+  test("a notice with a command tag reads its summary as written and its command whole", () => {
+    const text = notice("<summary>Run the CRM tests</summary>\n<command>cd crm &amp;&amp; bun test &gt; /tmp/t.log 2&gt;&amp;1</command>");
+    expect(extractHarnessEvents(text)).toEqual([
+      { text: "background task bg-1 completed", summary: "Run the CRM tests", command: "cd crm && bun test > /tmp/t.log 2>&1", detail: "ok" },
+    ]);
+  });
+
+  test("a notice from before the command tag is titled by its trimmed command and keeps the command whole", () => {
+    const raw = "cd /x && env -i A=1 bun run build > /tmp/b.log 2>&1; tail -5 /tmp/b.log; exit $r";
+    const text = notice(`<summary>cd /x &amp;&amp; env -i A=1 bun run build &gt; /tmp/b.log 2&gt;&amp;1; tail -5 /tmp/b.log; exit $r</summary>`);
+    expect(extractHarnessEvents(text)).toEqual([{ text: "background task bg-1 completed", summary: "bun run build", command: raw, detail: "ok" }]);
   });
 });
 

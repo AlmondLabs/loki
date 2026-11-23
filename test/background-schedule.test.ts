@@ -39,6 +39,29 @@ describe("background tasks", () => {
     expect(event.text).toBe(`background task ${id} completed`);
   });
 
+  const command = `cd . && echo "a<b" && true > /dev/null`;
+  const noticeOf = async (description?: string): Promise<string> => {
+    const notices: string[] = [];
+    const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
+    tasks.start("agent-a", "c", tmpdir(), command, description);
+    const until = Date.now() + 3000;
+    while (!notices.length && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
+    return must(notices[0], "notice");
+  };
+
+  test("a task's notice is titled by its description and carries the whole command, escaped", async () => {
+    const notice = await noticeOf("Run the CRM tests");
+    expect(notice).toContain("<summary>Run the CRM tests</summary>");
+    expect(notice).toContain(`<command>cd . &amp;&amp; echo "a&lt;b" &amp;&amp; true &gt; /dev/null</command>`);
+    expect(extractHarnessEvents(notice)[0]).toMatchObject({ summary: "Run the CRM tests", command });
+  });
+
+  test("a task started without a description is titled by its trimmed command", async () => {
+    const notice = await noticeOf();
+    expect(notice).toContain(`<summary>echo "a&lt;b" &amp;&amp; true</summary>`);
+    expect(extractHarnessEvents(notice)[0]).toMatchObject({ summary: `echo "a<b" && true`, command });
+  });
+
   test("a task takes input, can be stopped, and another agent cannot reach it", async () => {
     const notices: string[] = [];
     const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));

@@ -23,6 +23,16 @@ describe("history as a thread", () => {
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
   });
 
+  test("a background notice's row keeps the full command beside its description", () => {
+    const t = foldSteps([
+      user(
+        "<task-notification><task-id>b2</task-id><status>completed</status><summary>Build the web app</summary><command>cd web &amp;&amp; bun run build</command><result>ok</result></task-notification>",
+        at0,
+      ),
+    ]);
+    expect(t[0]).toMatchObject({ role: "event", summary: "Build the web app", command: "cd web && bun run build" });
+  });
+
   test("an old chat from Tasks' time reads cleanly: no <loki-tasks> markup, and its task_create call is a tool row (plan 049, U6)", () => {
     const t = foldSteps([
       user(

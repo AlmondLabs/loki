@@ -60,6 +60,7 @@ export function decodeEntities(text: string): string {
 export interface HarnessEvent {
   text: string;
   summary: string | null;
+  command?: string;
   detail: string | null;
   link?: { agent_id: string; conversation_id: string };
   advisor_chat?: string;
@@ -139,10 +140,12 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
     const id = tag("task-id");
     const status = tag("status");
     const summary = tag("summary");
+    const command = tag("command");
     const result = tag("result");
+    const title = summary ? decodeEntities(summary) : null;
     out.push({
       text: `background task${id ? ` ${id}` : ""}${status ? ` ${status}` : ""}`,
-      summary: summary ? decodeEntities(summary) : null,
+      ...(command ? { summary: title, command: decodeEntities(command) } : title ? { summary: shellTitle(title), command: title } : { summary: null }),
       detail: result ? decodeEntities(result) : null,
     });
   }

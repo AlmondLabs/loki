@@ -43,6 +43,8 @@ export interface TranscriptRow {
   /** On a tool row: the call, its input and its result, when they were seen. */
   tool?: ToolStep;
   summary?: string | null;
+  /** On a background task's finished notice: the whole command it ran, which the opened step shows. */
+  command?: string;
   detail?: string | null;
   /**
    * Set on an event a history page sent lean, without its long `detail` (plan 043): the row's position in the chat's

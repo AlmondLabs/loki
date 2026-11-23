@@ -67,6 +67,7 @@ const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.queued === b.queued &&
   a.link === b.link &&
   a.advisor_chat === b.advisor_chat &&
+  a.command === b.command &&
   a.at === b.at;
 
 const sameValue = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
@@ -83,7 +84,8 @@ const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
   sameValue(a.files, b.files) &&
   sameValue(a.tool, b.tool) &&
   sameValue(a.link, b.link) &&
-  a.advisor_chat === b.advisor_chat;
+  a.advisor_chat === b.advisor_chat &&
+  a.command === b.command;
 
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
 
@@ -449,6 +451,7 @@ export class ThreadModel {
         detail: ev.detail,
         ...(ev.link ? { link: ev.link } : {}),
         ...(ev.advisor_chat ? { advisor_chat: ev.advisor_chat } : {}),
+        ...(ev.command ? { command: ev.command } : {}),
         ...rowAt(at),
       });
     const typed = stripHarnessMarkup(raw).trim();
