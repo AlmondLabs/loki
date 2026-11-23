@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { TOOL_TEXT_MAX, toolInput, toolLabel, toolOutput, toolStep, withResult } from "../core/harness.ts";
 import { shownStep } from "../core/attention/pi-steps.ts";
+import { shellTitle } from "../core/shell-title.ts";
 import { must } from "./fixtures/must.ts";
 import {
   withoutSkillCalls,
@@ -72,8 +73,8 @@ describe("the line for a run of tools", () => {
   test("no description, or only a description so far: no second copy of it", () => {
     expect(toolStep("Bash", { command: "ls" }).description).toBeUndefined();
     const early = toolStep("Bash", { description: "List files" });
-    expect(early.input).toBe("List files");
-    expect(early.description).toBeUndefined();
+    expect(early.input).toBeUndefined();
+    expect(early.description).toBe("List files");
     expect(toolStep("Bash", { command: "ls", description: "  two\nlines " }).description).toBe("two");
   });
 
@@ -89,6 +90,50 @@ describe("the line for a run of tools", () => {
       [5, 7],
     ]);
     expect([...toolRuns(rows, 5)]).toEqual([[5, 7]]);
+  });
+});
+
+describe("a step's title: the agent's description, else its command without the shell wrapping (plan 2026-11-23-1851)", () => {
+  const wrapped = "cd /Users/x/worktrees/crm && env -i HOME=/h PATH=/p A=1 uv run pytest -q tests/a.py > /tmp/l 2>&1; result=$?; tail -12 /tmp/l; exit $result";
+
+  test("a command loses its cd, env, assignments, read-back redirect and exit code, and nothing else", () => {
+    expect(shellTitle(wrapped)).toBe("uv run pytest -q tests/a.py");
+    expect(shellTitle("PATH=/p bun run build")).toBe("bun run build");
+    expect(shellTitle("npm test")).toBe("npm test");
+    expect(shellTitle("echo x > config.json")).toBe("echo x > config.json");
+    expect(shellTitle("bun run build > /dev/null 2>&1")).toBe("bun run build");
+    expect(shellTitle("cd /x")).toBe("cd /x");
+    expect(shellTitle('echo "a && b"')).toBe('echo "a && b"');
+    expect(shellTitle('cd /x && echo "a && b; exit 1" > /tmp/o; cat /tmp/o')).toBe('echo "a && b; exit 1"');
+  });
+
+  test("a row's label is its trimmed command, cut after trimming", () => {
+    expect(toolLabel("bash", { command: wrapped })).toBe("bash · uv run pytest -q tests/a.py");
+    expect(toolStep("bash", { command: wrapped }).input).toBe(wrapped);
+  });
+
+  test("a ticket's description is its body, never its step's title", () => {
+    const ticket = { account: "jira", project: "OPS", type: "Task", title: "Rotate the keys", description: "The keys expire on Friday.\nRotate both." };
+    const step = toolStep("ticket_propose", ticket);
+    expect(step.description).toBeUndefined();
+    expect(step.input).toBe(JSON.stringify(ticket, null, 2));
+    expect(toolLabel("ticket_propose", ticket)).toBe("ticket_propose · Rotate the keys");
+    expect(toolStep("mcp__loki__ticket_propose", ticket).description).toBeUndefined();
+  });
+
+  test("an ACP agent's description still titles its row", () => {
+    const step = toolStep("ls -la", { command: "ls -la", description: "List files" });
+    expect(step).toMatchObject({ input: "ls -la", description: "List files" });
+  });
+
+  test("a described call's input is the rest of its arguments", () => {
+    const watch = toolStep("background_watch", { task_id: "bg-1", description: "Wait for the build" });
+    expect(watch).toMatchObject({ input: JSON.stringify({ task_id: "bg-1" }, null, 2), description: "Wait for the build" });
+    const prs = { owner: "loki", repo: "app", description: "List open PRs" };
+    const mcp = toolStep("mcp__github__list_prs", prs);
+    expect(mcp).toMatchObject({ input: JSON.stringify({ owner: "loki", repo: "app" }, null, 2), description: "List open PRs" });
+    expect(toolInput("mcp__github__list_prs", prs)).toBe(mcp.input);
+    expect(toolLabel("mcp__github__list_prs", prs)).toBe("mcp__github__list_prs");
   });
 });
 
