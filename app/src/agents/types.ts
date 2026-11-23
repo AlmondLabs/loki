@@ -1,4 +1,5 @@
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
+import type { ModelEntry, ReasoningEffort } from "../../../core/models.ts";
 
 import type { PassSettings, PassSettingsChange, Runtime } from "../../../core/attention/protocol.ts";
 import type {
@@ -47,9 +48,13 @@ export interface AgentsWrite {
   revertMemory: (agentId: string, sha: string) => Promise<string | null>;
 }
 
+export type ModelChoice = Pick<ModelEntry, "handle" | "reasoning_effort">;
+
 export interface AgentEdit {
   name?: string;
   description?: string;
   model?: string;
   home_mac?: string;
+  advisor_model?: string | null;
+  advisor_reasoning_effort?: ReasoningEffort | null;
 }

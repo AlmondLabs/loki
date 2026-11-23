@@ -13,9 +13,10 @@ export async function toolResultsDir(
   conversationId: ConversationId,
   context: Context,
 ): Promise<string> {
-  const chat = (await read.snapshot(ChatDoc, conversationId, context))?.id || `conversation-${conversationId}`;
-  return join(lokiDir, "tool-results", chat.replace(/[^A-Za-z0-9_.-]+/g, "_"));
+  return resultsDirOf(lokiDir, (await read.snapshot(ChatDoc, conversationId, context))?.id || `conversation-${conversationId}`);
 }
+
+export const resultsDirOf = (lokiDir: string, chatId: string): string => join(lokiDir, "tool-results", chatId.replace(/[^A-Za-z0-9_.-]+/g, "_"));
 
 let saved = 0;
 

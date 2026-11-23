@@ -3,6 +3,7 @@ import { applyChatEvent, chatStatusOf, emptyLive } from "../core/attention/model
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 import { suggestedMark } from "../core/harness.ts";
+import { answerBlock } from "../core/advisor.ts";
 import { approval, call, piece, push, result, said, user } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -462,6 +463,57 @@ describe("a message sent from a suggestion (plan 049, KTD6)", () => {
 
   test("no other event row carries a link", () => {
     expect(foldSteps([user('<skill_content name="unslop">\n# Unslop\n</skill_content>')])[0]).not.toHaveProperty("link");
+  });
+});
+
+describe("an advisor's answer (R16, R24)", () => {
+  const long = `The test sleeps.\n\nIt waits for a lock.\nThe CI box is slower.\n\n${"More detail. ".repeat(100).trim()}`;
+  const answered = answerBlock({ from: "person", asked: "Is it flaky?", advisor_chat: "advisor-data", state: "answered", text: long });
+  const row = {
+    role: "event",
+    text: "From the advisor · you asked",
+    summary: "The test sleeps.\nIt waits for a lock.\nThe CI box is slower.…",
+    advisor_chat: "advisor-data",
+  };
+
+  test("live, it is a row of its own from the advisor, and the person's words beside it are their bubble", () => {
+    const l = emptyLive();
+    push(l, user(`${answered}\n\nThen fix it.`));
+    expect(l.thread.rows()).toMatchObject([
+      { ...row, detail: long },
+      { role: "user", text: "Then fix it." },
+    ]);
+    expect(l.thread.rows()).toHaveLength(2);
+  });
+
+  test("alone, it leaves no bubble of the person's", () => {
+    const l = emptyLive();
+    push(l, user(answered));
+    expect(l.thread.rows()).toMatchObject([row]);
+    expect(l.thread.rows()).toHaveLength(1);
+  });
+
+  test("from a history page, the reloaded row keeps its advisor chat and loads its whole answer later", () => {
+    const page: HistoryRow[] = leanPage(foldSteps([user(answered, at0), said("Fixed.", at0)]), 0);
+    const t = new ThreadModel();
+    t.load(page, 0);
+    expect(rowsOf(t)).toMatchObject([
+      { ...row, detail: null, row: 0 },
+      { role: "assistant", text: "Fixed." },
+    ]);
+  });
+
+  test("a consult that ended without an answer is a row with the reason", () => {
+    const failed = answerBlock({ from: "agent", asked: "Is it flaky?", advisor_chat: "advisor-data", state: "stopped", reason: "it was stopped" });
+    expect(foldSteps([user(failed)])).toEqual([
+      {
+        role: "event",
+        text: "From the advisor · the agent asked",
+        summary: "The advisor couldn't answer: it was stopped",
+        detail: null,
+        advisor_chat: "advisor-data",
+      },
+    ]);
   });
 });
 

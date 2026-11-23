@@ -57,6 +57,8 @@ export interface TranscriptRow {
   queued?: boolean;
   /** On the event a message sent from a suggestion leaves (plan 049): the chat the suggestion was made in, which the row opens. */
   link?: { agent_id: string; conversation_id: string };
+  /** On the row an advisor's answer, or its failure, leaves: the advisor chat that answered, which the row opens. */
+  advisor_chat?: string;
   /**
    * What the agent thought before this row (plan 097, U9): an ACP agent's thought chunks, or a model's thinking kept
    * in its message, capped at THOUGHT_MAX here (the store keeps all of it). On the reply or the call that followed it.

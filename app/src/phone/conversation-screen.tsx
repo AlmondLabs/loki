@@ -1,5 +1,7 @@
 import { linksSeenFrom, type ChatLink } from "../../../core/chat-links.ts";
 import { LinkHeader } from "../chat/link-header";
+import { AdvisorHeader } from "../chat/advisor-header";
+import type { AdvisorView } from "../../../core/advisor.ts";
 import { useEffect, useEffectEvent, useState, type ComponentProps, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsSheet } from "./labels-sheet";
@@ -8,7 +10,7 @@ import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion }
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import { OpenChat } from "../chat/transcript";
+import { OpenAdvisor, OpenChat } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
 import type { SuggestionsProps } from "../chat/suggestion-card";
@@ -29,6 +31,7 @@ import { navigate, openConversation } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "../shared/drafts";
 import { useTopClearance } from "./ui";
+import { phoneCommand } from "../../../core/attention/commands.ts";
 
 const noop = () => {};
 
@@ -49,6 +52,7 @@ export interface ThreadView {
   loadFailed?: (() => void) | null;
   loadStep?: (row: number) => Promise<WholeRow | null>;
   links?: ChatLink[];
+  advisor?: AdvisorView | null;
 }
 
 export function ConversationScreen({
@@ -78,6 +82,7 @@ export function ConversationScreen({
   onStop,
   onAnswer,
   onSend,
+  onCommand,
   onSeen,
   onNotDone,
   onViewed,
@@ -114,6 +119,7 @@ export function ConversationScreen({
   onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
   onSend: (rt: Runtime, text: string, images: Attachment[], desk: string | null) => void;
+  onCommand?: (rt: Runtime, id: string, args: string) => void;
   onSeen: (rt: Runtime) => void;
   onNotDone?: (item: AttentionItem) => void;
   onViewed?: (agentId: string, conversationId: string) => void;
@@ -151,7 +157,7 @@ export function ConversationScreen({
   const canUndo = !!onNotDone && !!item && doneAction(item) === "undone";
 
   return (
-    <>
+    <OpenAdvisor.Provider value={(advisorChat) => openConversation(thread.agentId, advisorChat)}>
       <ThreadHeader
         thread={thread}
         view={view}
@@ -161,9 +167,12 @@ export function ConversationScreen({
         onBack={onBack}
         onActions={() => setActionsOpen(true)}
         links={
-          view.links?.length ? (
-            <div className="loki-phone-links">
-              <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
+          view.links?.length || view.advisor ? (
+            <div className="loki-phone-links loki-chat-strips">
+              <AdvisorHeader advisor={view.advisor} touch />
+              {view.links?.length ? (
+                <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
+              ) : null}
             </div>
           ) : null
         }
@@ -191,7 +200,11 @@ export function ConversationScreen({
             actions={{
               onLoadModels,
               onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+              onSend: (text, images = []) => {
+                const command = images.length ? null : phoneCommand(text);
+                if (command && onCommand) onCommand(rt, command.id, command.args);
+                else onSend(rt, text, images, thread.title);
+              },
               onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
               onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
               onStop: onStop ? () => onStop(rt) : undefined,
@@ -271,7 +284,7 @@ export function ConversationScreen({
       {labeling && labels?.onChange && (
         <LabelsSheet current={labels.current} list={labels.list} onChange={labels.onChange} onClose={() => setLabeling(false)} />
       )}
-    </>
+    </OpenAdvisor.Provider>
   );
 }
 

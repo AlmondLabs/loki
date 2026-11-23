@@ -8,7 +8,7 @@ import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
-import { OpenChat } from "../chat/transcript";
+import { OpenAdvisor, OpenChat } from "../chat/transcript";
 import { bumpTick, tickOf, waitingCount, type ChatTick, type SuggestionSource } from "../chat/suggestion-card";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
@@ -61,6 +61,7 @@ interface FlowPlaceProps {
   onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
+  onOpenAdvisor?: (agentId: string, conversationId: string, advisorChat: string) => void;
   modelFor?: (agentId: string, conversationId: string) => string | null;
   reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null;
   models?: ModelEntry[] | null;
@@ -314,7 +315,7 @@ function Card({
 }) {
   const { agent_id: agentId, id } = current;
   const thread = useConversation(deck.chats, agentId, id);
-  const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop } = deck;
+  const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop, onOpenAdvisor } = deck;
   const question = current.pendingQuestion;
   const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
@@ -324,55 +325,57 @@ function Card({
   return (
     <div className="loki-flow-card">
       <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
-        <Conversation
-          view={{
-            rows: thread.rows,
-            status: thread.status,
-            error: current.status === "failed" ? current.error : null,
-            model: modelFor?.(agentId, id) ?? null,
-            reasoningEffort: reasoningEffortFor?.(agentId, id) ?? null,
-            mode: thread.mode ?? modeFor?.(agentId, id) ?? null,
-            engine: thread.engine,
-            approval: current.pendingApproval ?? null,
-            question: current.pendingQuestion ?? null,
-            older: thread.older,
-            loadFailed: thread.loadFailed,
-            loadStep: thread.loadStep,
-          }}
-          actions={{
-            onSend: (text, images) => deck.onReply(current, text, images),
-            onStop: onStop ? () => onStop(current) : undefined,
-            onAnswer: question ? (answers) => deck.onAnswer(current, question.requestId, answers) : undefined,
-            onApprove: current.pendingApproval ? actions.approve : undefined,
-            commands: deck.commands,
-            onCommand,
-            onLoadModels: deck.onLoadModels,
-            onPickModel: onPickModel && modelFor ? (selection) => onPickModel(current, selection) : undefined,
-            onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
-          }}
-          models={deck.models ?? null}
-          layout={layout}
-          agentName={current.agent_name}
-          header={
-            <ChatItemHeader
-              current={current}
-              cameBack={cameBack}
-              flash={flash}
-              suggestions={waitingCount(deck.chats, current.runtime)}
-              onSuggestions={onSuggestions}
-              moves={moves}
-            />
-          }
-          hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
-          draft={{ value: draft, onChange: setDraft }}
-          inputRef={replyRef}
-          onTyping={setTyping}
-          onSent={actions.sent}
-          modelPickerTick={modelTick}
-          modeMenuTick={modeTick}
-          suggestionsTick={suggestionsTick}
-          suggestions={{ source: deck.chats, rt: current.runtime }}
-        />
+        <OpenAdvisor.Provider value={onOpenAdvisor ? (advisorChat) => (onOpenAdvisor(agentId, id, advisorChat), deck.onClose()) : null}>
+          <Conversation
+            view={{
+              rows: thread.rows,
+              status: thread.status,
+              error: current.status === "failed" ? current.error : null,
+              model: modelFor?.(agentId, id) ?? null,
+              reasoningEffort: reasoningEffortFor?.(agentId, id) ?? null,
+              mode: thread.mode ?? modeFor?.(agentId, id) ?? null,
+              engine: thread.engine,
+              approval: current.pendingApproval ?? null,
+              question: current.pendingQuestion ?? null,
+              older: thread.older,
+              loadFailed: thread.loadFailed,
+              loadStep: thread.loadStep,
+            }}
+            actions={{
+              onSend: (text, images) => deck.onReply(current, text, images),
+              onStop: onStop ? () => onStop(current) : undefined,
+              onAnswer: question ? (answers) => deck.onAnswer(current, question.requestId, answers) : undefined,
+              onApprove: current.pendingApproval ? actions.approve : undefined,
+              commands: deck.commands,
+              onCommand,
+              onLoadModels: deck.onLoadModels,
+              onPickModel: onPickModel && modelFor ? (selection) => onPickModel(current, selection) : undefined,
+              onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
+            }}
+            models={deck.models ?? null}
+            layout={layout}
+            agentName={current.agent_name}
+            header={
+              <ChatItemHeader
+                current={current}
+                cameBack={cameBack}
+                flash={flash}
+                suggestions={waitingCount(deck.chats, current.runtime)}
+                onSuggestions={onSuggestions}
+                moves={moves}
+              />
+            }
+            hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
+            draft={{ value: draft, onChange: setDraft }}
+            inputRef={replyRef}
+            onTyping={setTyping}
+            onSent={actions.sent}
+            modelPickerTick={modelTick}
+            modeMenuTick={modeTick}
+            suggestionsTick={suggestionsTick}
+            suggestions={{ source: deck.chats, rt: current.runtime }}
+          />
+        </OpenAdvisor.Provider>
       </OpenChat.Provider>
       {picker && <div className="loki-card-picker">{picker}</div>}
     </div>

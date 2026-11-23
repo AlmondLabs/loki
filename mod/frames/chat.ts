@@ -1,5 +1,8 @@
+import { isAdvisorChat, type AdvisorView, type ConsultFrom } from "../../core/advisor.ts";
+import type { ConsultReply } from "../../daemon/advisor-consults.ts";
 import type { PermissionMode } from "../../core/chat-links.ts";
 import type { MovedChat } from "../../daemon/chat-move.ts";
+import type { HeldMove } from "../chat-moves.ts";
 import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
@@ -44,6 +47,12 @@ export interface ChatBackend {
   setPasses(s: PayloadOf<"chat_passes_set">): Promise<Replies["chat_passes"]>;
   runLearn(): Promise<void>;
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
+  consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply>;
+  advisorView(agentId: string, chatId: string): Promise<AdvisorView | null>;
+  onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void;
+  holdMove(agentId: string, conversationId: string, to: string): Promise<boolean>;
+  heldMoves(): Promise<HeldMove[]>;
+  releaseMove(agentId: string, conversationId: string): Promise<void>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   approvals(): Promise<Replies["chat_approvals"]>;
@@ -128,6 +137,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_model: (p, ctx) =>
       served(b, async (x) => {
         await x.model(p);
+        if (isAdvisorChat(p.conversation_id)) return DONE;
         const usual = deps.usualModels?.record(p.agent_id, p.handle, p.reasoning_effort ?? null);
         if (usual) ctx.broadcast({ type: "models_usual", usual });
         return DONE;

@@ -132,6 +132,8 @@ describe("turn telemetry: one turn's event", () => {
     expect(originOf(turn({ entries: first("Scheduled task: water the plants") }))).toBe("schedule");
     expect(originOf(turn({ entries: first("<task-notification>\n<task-id>1</task-id>") }))).toBe("background");
     expect(originOf(turn({ requestId: "subagent:12" }))).toBe("subagent");
+    expect(originOf(turn({ requestId: "advisor:c1:3" }))).toBe("advisor");
+    expect(originOf(turn({ chatId: "advisor-c1" }))).toBe("advisor");
     expect(originOf(turn({ chatId: "recall-agent-local-a" }))).toBe("recall");
     expect(originOf(turn({ chatId: "c9", hidden: true, title: "recall" }))).toBe("recall");
     expect(originOf(turn({ chatId: "reflection-local-conv-1" }))).toBe("reflection");

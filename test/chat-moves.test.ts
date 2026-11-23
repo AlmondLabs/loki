@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { scopeFor } from "../core/desk-core.ts";
 import { MOVE_OUT_OF_REACH } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
-import { ChatMoves, writeWidgets } from "../mod/chat-moves.ts";
+import { ChatMoves, writeWidgets, type AdvisorHolds, type HeldMove } from "../mod/chat-moves.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -20,7 +20,41 @@ const moved = (id: string): MovedChat => ({
   cursors: {},
 });
 
-function macs(busy = new Set<string>(), miniUp = true) {
+async function until(check: () => boolean, ms = 4000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > end) throw new Error("timed out waiting");
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
+function advisorHolds() {
+  const answering = new Set<string>();
+  const ready: HeldMove[] = [];
+  const released: string[] = [];
+  const listeners: Array<(agentId: string, chatId: string) => void> = [];
+  const holds: AdvisorHolds = {
+    holdMove: (agentId, chatId, to) => {
+      if (!answering.has(chatId)) return Promise.resolve(false);
+      ready.push({ agent_id: agentId, conversation_id: chatId, to });
+      return Promise.resolve(true);
+    },
+    heldMoves: () => Promise.resolve(ready.filter((h) => !answering.has(h.conversation_id))),
+    releaseMove: (_a, chatId) => {
+      released.push(chatId);
+      ready.splice(0, ready.length, ...ready.filter((h) => h.conversation_id !== chatId));
+      return Promise.resolve();
+    },
+    onAdvisorChange: (listener) => (listeners.push(listener), () => {}),
+  };
+  const answered = (chatId: string) => {
+    answering.delete(chatId);
+    for (const l of listeners) l("agent-ira", chatId);
+  };
+  return { holds, answering, ready, released, answered };
+}
+
+function macs(busy = new Set<string>(), miniUp = true, held?: AdvisorHolds) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-moves-"));
   const bookWidgets = join(dir, "book-widgets");
   const miniWidgets = join(dir, "mini-widgets");
@@ -54,6 +88,7 @@ function macs(busy = new Set<string>(), miniUp = true) {
     new ChatMoves({
       here,
       chat: store(chats),
+      ...(held && here === BOOK ? { held } : {}),
       link: (id) => (names[id] && up() ? (link(here, other, otherChats) as never) : null),
       ...(file ? { file } : {}),
       widgetsDir,
@@ -313,6 +348,49 @@ describe("a move that never finishes (plan 096)", () => {
       expect(m.onBook.has("conv-1")).toBe(true);
       expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
       expect(JSON.parse(readFileSync(join(m.dir, "book-moves.json"), "utf8"))).toEqual({ version: 1, holds: [] });
+    } finally {
+      m.cleanup();
+    }
+  });
+});
+
+describe("a move held for the chat's advisor", () => {
+  test("asked while the advisor answers, it waits and says so, and goes on its own once the answer has landed", async () => {
+    const a = advisorHolds();
+    const m = macs(new Set(), true, a.holds);
+    try {
+      a.answering.add("conv-1");
+      expect(await m.book.offer(MINI, "agent-ira", "conv-1")).toBe("The chat moves to Mac mini when the advisor has answered.");
+      expect(m.onBook.has("conv-1")).toBe(true);
+      expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
+      a.answered("conv-1");
+      await until(() => m.onMini.has("conv-1"));
+      expect(m.onBook.has("conv-1")).toBe(false);
+      expect(m.imported.map((c) => [c.conversation_id, c.info.placed])).toEqual([["conv-1", true]]);
+      expect(a.released).toEqual([]);
+    } finally {
+      m.cleanup();
+    }
+  });
+
+  test("one whose answer landed while loki was closed goes at the next contact; one that cannot go is let go, so its consults run here", async () => {
+    const a = advisorHolds();
+    const busy = new Set(["conv-2"]);
+    const m = macs(busy, false, a.holds);
+    try {
+      a.ready.push({ agent_id: "agent-ira", conversation_id: "conv-1", to: MINI });
+      m.restartBook();
+      await m.book.settle(MINI);
+      expect(m.onMini.has("conv-1")).toBe(false);
+      m.reach.mini = true;
+      await m.book.settle(MINI);
+      expect(m.onMini.has("conv-1")).toBe(true);
+      a.ready.splice(0, a.ready.length);
+
+      a.ready.push({ agent_id: "agent-ira", conversation_id: "conv-2", to: MINI });
+      a.answered("conv-2");
+      await until(() => a.released.includes("conv-2"));
+      expect(m.onBook.has("conv-2")).toBe(true);
     } finally {
       m.cleanup();
     }

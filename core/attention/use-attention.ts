@@ -1,4 +1,5 @@
 import type { ChatLink } from "../chat-links.ts";
+import type { AdvisorView } from "../advisor.ts";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { WholeRow } from "./transcript.ts";
 import type { Runtime } from "./protocol.ts";
@@ -122,6 +123,7 @@ export interface ChatFace {
   suggestions: Suggestion[];
   replyProposals?: ReplyProposal[];
   links: ChatLink[];
+  advisor?: AdvisorView | null;
 }
 
 export interface ChatView extends ChatFace {
@@ -620,6 +622,7 @@ export function useAttention(opts: UseAttentionOptions) {
         suggestions: l?.suggestions ?? NO_SUGGESTIONS,
         replyProposals: l?.replyProposals ?? rowReplies.get(key) ?? NO_REPLIES,
         links: l?.links ?? NO_LINKS,
+        advisor: l?.advisor ?? null,
       };
     },
     [live, older, failed, store, rowReplies],

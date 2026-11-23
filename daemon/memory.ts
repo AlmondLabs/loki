@@ -75,7 +75,13 @@ function listed(root: string, path: string, shown: string): string {
   return `- ${shown}${description ? ` — ${briefDescription(description)}` : ""}`;
 }
 
-export function memorySection(root: string, how: "tools" | "files" = "tools"): string | undefined {
+const MEMORY_INTRO = {
+  tools: "This is your memory, kept as files you can change with the memory tools.",
+  read: "This is your memory. You are advising here, so read it with memory_read but never change it: what you see while advising stays out of memory.",
+  files: "This is your memory, kept as files by loki, which updates them from your conversations; read them, but do not edit them.",
+};
+
+export function memorySection(root: string, how: keyof typeof MEMORY_INTRO = "tools"): string | undefined {
   if (!existsSync(root)) return undefined;
   const all = files(root);
   const core = coreOf(all);
@@ -83,16 +89,12 @@ export function memorySection(root: string, how: "tools" | "files" = "tools"): s
   const rest = all.filter((f) => !core.includes(f) && !f.startsWith("skills/"));
   if (rest.length)
     parts.push(
-      `Other memory files (${how === "tools" ? "read one with memory_read" : "read one at its path"} when its description fits what you are doing):\n${rest
+      `Other memory files (${how === "files" ? "read one at its path" : "read one with memory_read"} when its description fits what you are doing):\n${rest
         .slice(0, LISTED)
-        .map((f) => listed(root, f, how === "tools" ? f : join(root, f)))
+        .map((f) => listed(root, f, how === "files" ? join(root, f) : f))
         .join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`,
     );
-  const intro =
-    how === "tools"
-      ? "This is your memory, kept as files you can change with the memory tools."
-      : "This is your memory, kept as files by loki, which updates them from your conversations; read them, but do not edit them.";
-  return parts.length ? `${intro}\n\n${parts.join("\n\n")}` : undefined;
+  return parts.length ? `${MEMORY_INTRO[how]}\n\n${parts.join("\n\n")}` : undefined;
 }
 
 /**

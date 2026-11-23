@@ -3,6 +3,7 @@ import { AgentDoc as PiAgentDoc, defineExtension, hook, ToolTask, type Extension
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
+import { advisorRefusal, type AdvisorFolders } from "./advisor-gate.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
@@ -11,7 +12,7 @@ import { CODING_TOOL_KINDS, type ToolKind } from "./tool-kinds.ts";
 
 export type { ToolKind } from "./tool-kinds.ts";
 
-const NEVER_ASK = new Set(["user_ask", "chat_list", "suggestion_create", "chat_message", "reply_propose"]);
+const NEVER_ASK = new Set(["user_ask", "chat_list", "suggestion_create", "chat_message", "advisor_consult", "reply_propose"]);
 
 export function kindOf(name: string, annotations?: { readOnly?: boolean; destructive?: boolean }): ToolKind {
   const coding = CODING_TOOL_KINDS[name];
@@ -65,9 +66,19 @@ export class Approvals {
   private readonly scriptRuns = new Map<string, { code: string; answer?: Promise<Decision> }>();
 
   private readonly scriptMayCall: ((name: string) => boolean) | undefined;
+  private readonly advisorFolders: AdvisorFolders | undefined;
 
-  constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind; alwaysPath?: string; scriptMayCall?: (name: string) => boolean } = {}) {
+  constructor(
+    opts: {
+      widgetsDir?: string;
+      kindOfTool?: (name: string) => ToolKind;
+      alwaysPath?: string;
+      scriptMayCall?: (name: string) => boolean;
+      advisorFolders?: AdvisorFolders;
+    } = {},
+  ) {
     this.widgetsDir = opts.widgetsDir;
+    this.advisorFolders = opts.advisorFolders;
     this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
@@ -155,6 +166,11 @@ export class Approvals {
       hooks: [
         hook(ToolTask, {
           beforeTool: async (call, api, context) => {
+            const own = await api.snapshot(ChatDoc, api.conversationId, context);
+            if (own?.advisor_for !== undefined) {
+              const refused = await this.advisorRefusal(own.id, call.name, call.arguments, api, context);
+              return refused === null ? undefined : { block: refused };
+            }
             const mayCall = call.parent === undefined ? undefined : this.scriptMayCall;
             if (mayCall && !mayCall(call.name)) return { block: `A script may not call ${call.name}.` };
             if (call.parent === undefined && call.name === SCRIPT_TOOL) this.scriptRuns.set(call.id, { code: scriptCode(call.arguments) });
@@ -176,6 +192,11 @@ export class Approvals {
         }),
       ],
     });
+  }
+
+  private async advisorRefusal(chatId: string, name: string, args: Record<string, unknown>, api: HookApi, context: Context): Promise<string | null> {
+    const [agent, settings] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(PiAgentDoc, api.conversationId, context)]);
+    return advisorRefusal({ name, args, cwd: settings?.cwd, agentId: agent?.id ?? "", chatId }, this.advisorFolders);
   }
 
   private async decideCall(

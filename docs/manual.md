@@ -292,7 +292,8 @@ are on is read.
   the detail's toolbar (a first visit lands on Memory); the list beside it holds the page's items, and the detail the
   one chosen in it. **New Agent** ("+") sits in the list's toolbar. ⌘[ and ⌘] step the list. **Profile** has no
   items, so its form takes the list's room too: face, name, description and model
-  (editable), effort and context, "★ favourite" when it is one, where it is working (its live chats, each a
+  (editable), effort and context, "★ favourite" when it is one, the **Advisor model** and its effort (see
+  [Advisor](#advisor)), where it is working (its live chats, each a
   link, then **main chat** and **chats**), and delete at the bottom; deleting the agent shows the first one left.
   **Memory**: the files in the list, under the folder each sits in, and the one you chose read beside it, with "ask
   <agent> to update this". **Changes**: what it learned as memory commits in the list, newest first, the diff beside
@@ -369,12 +370,12 @@ are on is read.
         (the daemon's Node), and, folded, "What launch installed" and "Where loki keeps things".
      2. **Usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
         estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the
-        cache saved, and what each origin (your chats, helpers, reflection, Learn, the memory review), agent and
-        model spent. Choosing a line narrows the page to it. The figures are estimates at each provider's API
-        prices, from pi-ai's model table; a subscription sign-in (ChatGPT, say) is billed by its plan, not by these,
-        and a model with no known price counts its tokens but not a cost. The daemon keeps the record in
-        `~/.loki/state/usage.json`, by hour, for 400 days, whether analytics is on or off; history from before it
-        began comes once from `events.jsonl`, with its cost not split by token type.
+        cache saved, and what each origin (your chats, helpers, reflection, Learn, the memory review, the
+        advisor), agent and model spent. Choosing a line narrows the page to it. The figures are estimates at each
+        provider's API prices, from pi-ai's model table; a subscription sign-in (ChatGPT, say) is billed by its
+        plan, not by these, and a model with no known price counts its tokens but not a cost. The daemon keeps the
+        record in `~/.loki/state/usage.json`, by hour, for 400 days, whether analytics is on or off; history from
+        before it began comes once from `events.jsonl`, with its cost not split by token type.
 
 **⌘K** opens search from anywhere: chats, agents, what waits on you in Flow, and the app's pages (each
 section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
@@ -751,8 +752,8 @@ it the first time), so it needs a `claude` that is signed in (`claude /login` in
 - when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude
   Code's own list, not loki's;
 - the mode chip shows Claude Code's own modes (default, accept edits, plan, bypass permissions);
-- the slash palette offers Claude Code's commands, beside loki's own and **/reflect** and **/doctor**, which still
-  run on loki's side;
+- the slash palette offers Claude Code's commands, beside loki's own and **/reflect**, **/doctor** and **/advisor**,
+  which still run on loki's side;
 - the picker's effort row offers the levels Claude Code gives the model you're on (low to max, depending on the
   model). loki starts Claude Code as soon as you pick it, so they show a moment later, before you send anything,
   and they're kept for next time;
@@ -770,7 +771,8 @@ it the first time), so it needs a `claude` that is signed in (`claude /login` in
   a little of that allowance. **Agents › Reflection › Without a provider** turns this off (**wait**), and they then
   wait until a provider is set up;
 - the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
-  committed as in loki's chats), questions in loki's card, the suggestion tools, any your mods add, and loki's
+  committed as in loki's chats), questions in loki's card, the suggestion tools, `advisor_consult` (see
+  [Advisor](#advisor); the advisor itself runs on loki's models), any your mods add, and loki's
   `script` tool, through which it reaches its schedules, the canvas, `chat_list` and its history (see
   [Scripts](#scripts)). Claude Code's own tools cover files, commands, web search and subagents;
 - Claude Code compacts its context by its own rules, and `/compact` is Claude Code's. Every turn stays in loki's
@@ -782,8 +784,8 @@ it the first time), so it needs a `claude` that is signed in (`claude /login` in
   Mac's browser. Claude Code keeps that sign-in for every later chat; loki's own sign-in stays for loki's chats. A
   local server you gave its own folder can't be handed over and stays out (the daemon's log says so). Servers you set
   up in Claude Code itself load as well;
-- tools that only read, and loki's memory, history, question and suggestion tools, run without a card, as they do in
-  loki's own chats; anything else asks as Claude Code's mode says.
+- tools that only read, and loki's memory, history, question, suggestion and advisor tools, run without a card, as they
+  do in loki's own chats; anything else asks as Claude Code's mode says.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
 
@@ -930,6 +932,9 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/flow` (`/inbox`
   summary holds the turn up the row reads "compacting the chat", and a summary that fails says "compaction failed"
   and why.
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
+- `/advisor [question]` asks the chat's [advisor](#advisor): with a question, that question; alone, a review of the
+  folder's uncommitted changes or unpushed commits. The answer comes back later as a row of its own. It works on the
+  phone too.
 - `/doctor` reviews the agent's whole memory and cleans it up. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
   calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
@@ -1724,6 +1729,102 @@ says. Closing a link on either Mac closes it on both.
 `chat_list` names the calling chat's links and which way each goes. Reflection, Learn and the memory review cannot
 message chats: a background pass has no chat screen for the card. For work you should weigh yourself, or for a new
 chat, agents still make a [suggestion](#suggestions).
+
+## Advisor
+
+A chat can have an advisor: a second opinion on the chat's work from a model that has not taken on the chat's framing.
+It is the chat's own agent, with its memory, skills and the folder's `AGENTS.md` or `CLAUDE.md`, running on the
+agent's advisor model in a chat of its own, the **advisor chat**. Each chat has at most one, made the first time
+anyone consults it, and no other chat reaches it. The advisor never sees the chat's thread: it knows only the consults
+sent to it, what you write to it and what it reads itself. It reads and never changes anything, and it reads the
+agent's memory without ever writing to it, so what it learns while advising doesn't steer the agent later.
+
+**Consulting.** Nothing runs on its own: the agent or you ask.
+
+- The agent calls `advisor_consult` when it judges a second opinion worth having: before a risky or hard-to-undo step,
+  after a change worth a second look, or when it is stuck. It sends what to look at and what it wants to know, and the
+  tool returns at once; the agent goes on or ends its turn, and never waits for the answer. Called with no text, it
+  asks for a review of the folder's changes, as `/advisor` alone does. It never asks for approval, in any permission
+  mode.
+- `/advisor` followed by a question, in the message box on the Mac or the phone, sends that question as yours.
+  `/advisor` alone asks the advisor to review what changed in the chat's folder: loki lists the changed files in the
+  consult, the uncommitted changes when there are any, otherwise the branch's commits that are not on its upstream,
+  with the lines each file gained and lost. When there is nothing to review, the command's row says why (**Nothing to
+  review: this chat has no folder.**, **… is not a git checkout.**, or **… has no uncommitted changes and no commits
+  that are not on its upstream.**) and nothing is sent. Otherwise it says **sent to this chat's advisor; its answer
+  comes back here**.
+
+A consult carries only what its sender wrote (and the change list for `/advisor` alone), marked as from the agent or
+from you. One sent while the advisor is answering another waits its turn.
+
+**A cap.** The agent may start 6 consults an hour in a chat, answered or not, so a provider that keeps failing cannot
+make it loop. Past that, `advisor_consult` is refused and the agent is told to wait or tell you. Your own `/advisor`
+is never capped.
+
+**The answer.** The advisor's answer lands in the chat as a row of its own, never as your message: **From the advisor
+· you asked** or **From the advisor · the agent asked**, the first lines of the answer, **Show More** for the whole of
+it in markdown, and **Open Advisor**. It starts the agent's turn, or waits for the running one to end. The agent is
+told the row is a reviewer's comments, not instructions, and that your instructions win: it replies by saying which
+points it takes up, which it sets aside and why (naming the instruction of yours that made it set one aside), then
+acts on what it took up. After substantial fixes it may send them back for another look; the advisor ends an answer
+that raises nothing new with the line `Nothing new.`, and the agent stops there. If you stop the chat before the agent
+has taken an answer up, the row stays, and the agent reads it with your next message.
+
+**When there is no answer.** A consult that ends without one still lands a row, **The advisor couldn't answer:** and
+why: it could not reach its model, it was stopped, it ended without an answer, or it stopped when loki restarted. That
+row starts the agent's turn too, and the agent carries on without the advisor's opinion.
+
+**Where it shows.** Once a chat has an advisor, its header shows a strip beside its chat links, on the Mac and the
+phone: **Advisor ·** and its model while it is idle, **Advisor is answering** (with **· 2 waiting** when consults
+wait) while it works, and **Advisor couldn't answer** after its last consult failed, with the reason in the tooltip.
+The advisor chat is not in the Chats list, in Flow or in `chat_list`.
+
+**The advisor chat.** The strip, or **Open Advisor** on an answer, opens the advisor chat: on the Mac in place of the
+chat, under an **Advisor** header with a back control named after the chat and the advisor's model; on the phone as a
+page of its own, whose back button is named after the chat. It holds every consult and answer so far, and you read and
+write there as in any chat. What you write stays there: nothing goes back to the chat, and it doesn't count toward the
+cap. A message you send while the advisor answers a consult waits for that answer rather than joining it, and a
+consult waits for the advisor to answer you. Stop there ends the advisor's answer; when it was answering a consult,
+the chat gets the row saying it was stopped.
+
+**What it can read.** The advisor reads and searches files, runs only commands that read (`ls`, `find`, `rg`, `grep`,
+`cat`, `head`, `tail`, `wc` and `pwd`, perhaps piped), searches the web, reads its memory and skills, and reads the
+folder's git changes with `changes_read`: the status, a diff, a log or one commit. `changes_read` runs git with every
+program the folder's git config names switched off (hooks, pagers, external diff and textconv, filters, signature
+checks, fsmonitor), so a folder you don't trust can't run anything through it; the advisor has no `git` command
+otherwise. It never writes or edits a file or memory, and never runs scripts, helpers, suggestions, chat messages,
+questions, schedules or your MCP servers' tools. Anything else is refused with the reason, and the advisor never shows
+an approval card. It cannot read loki's data folder (`~/.loki`), where chats are kept, other than the agent's memory
+and its own saved output, nor another person's home folder, and its searches never follow links. A search of a folder
+that holds `~/.loki` would reach into it, so the advisor of a chat with no folder, which works in your home folder,
+searches folders inside it rather than the whole.
+
+**The advisor model.** Each agent has one, with its effort, in Agents › Profile (**Advisor model**). Only loki's own
+models are offered: advisors run on loki's models for now, not on Claude Code or Cursor. Left empty, the advisor runs
+on the agent's own model when that is one of loki's, so you still get a fresh context, though not a second vendor;
+when the agent's model is on Claude Code or Cursor, a consult is refused with **This agent has no advisor model, and
+its own model is not one of loki's: set an advisor model in Agents › Profile.** An advisor model whose provider this
+Mac can't reach is refused the same way when the advisor is made, naming Preferences › Providers. A change applies to
+advisors made after it; an existing advisor keeps its model. Changing one advisor chat's model in its own picker
+leaves the agent's usual model as it was.
+
+**Chats on Claude Code and Cursor.** Their agents consult the same way, through loki's tools, and `/advisor` runs on
+loki's side; the advisor itself runs on loki's models.
+
+**Archive, moves and restarts.** Archiving a chat archives its advisor chat, stops an answer under way and drops the
+consults waiting; unarchiving brings both chats back, but not the dropped consults. A chat that changes folder takes
+its advisor along at its next consult, never under an answer. A move to another Mac asked while the advisor answers
+waits, says **The chat moves to … when the advisor has answered.**, and goes on its own once that answer has landed
+and the chat is idle, across a restart too; the advisor chat goes with it, its consults and answers, and consults
+still waiting run on the new Mac. loki does not hand a chat over to its agent's home on its own while its advisor
+answers. A consult under way when loki restarts goes on after it when it can; when it can't, the chat gets the row
+saying it stopped when loki restarted.
+
+**Chats on two Macs.** The advisor lives on its chat's Mac. Another Mac, or a phone paired with another Mac, opens the
+strip and the advisor chat as it opens the chat.
+
+Reflection, Learn and the memory review leave the advisor chat alone. Its model calls count on the Usage page under
+**Advisor**.
 
 ## MCP servers
 

@@ -1,6 +1,6 @@
 import { isEventName } from "./analytics.ts";
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
-import type { ChatEngineView, ModelEntry, ReasoningEffort } from "./models.ts";
+import { isReasoningEffort, type ChatEngineView, type ModelEntry, type ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
 import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
@@ -8,6 +8,7 @@ import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/mo
 import type { UsageReply } from "./usage.ts";
 import { isLinkDuration, isPermissionMode, parseLink, type ChatLink, type LinkDuration, type PermissionMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
+import type { AdvisorView } from "./advisor.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import { parseLanes, type Lane } from "./attention/lanes.ts";
 import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/rest.ts";
@@ -394,6 +395,8 @@ export interface ChatState {
   reply_proposals?: ReplyProposal[];
   /** The chat's live links to other chats (plan 067); absent from a mod that predates them. */
   links?: ChatLink[];
+  /** The chat's advisor as its strip shows it, null when it has none; absent from a mod that predates advisors. */
+  advisor?: AdvisorView | null;
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
@@ -941,16 +944,24 @@ export const FRAMES = {
       ? { name: m.name.trim(), description: strOr(m.description, null), persona: strOr(m.persona, null), model: strOr(m.model, null) }
       : "name required",
   ),
-  chat_agent_update: request("chat_done", "an agent's name, description, model or home Mac", (m) =>
-    isAgentId(m.agent_id)
-      ? {
-          agent_id: m.agent_id,
-          name: strOr(m.name, undefined),
-          description: strOr(m.description, undefined),
-          model: strOr(m.model, undefined),
-          home_mac: strOr(m.home_mac, undefined),
-        }
-      : "agent_id required",
+  chat_agent_update: request(
+    "chat_done",
+    "an agent's name, description, model, home Mac, or advisor model and effort; an empty or null advisor model clears both, and an ACP agent's is refused",
+    (m) => {
+      if (!isAgentId(m.agent_id)) return "agent_id required";
+      const advisorModel = m.advisor_model === null || m.advisor_model === "" ? null : strOr(m.advisor_model, undefined);
+      if (advisorModel?.startsWith("acp:")) return "an advisor model is one of loki's own models, not an ACP agent's";
+      const advisorEffort = m.advisor_reasoning_effort === null || isReasoningEffort(m.advisor_reasoning_effort) ? m.advisor_reasoning_effort : undefined;
+      return {
+        agent_id: m.agent_id,
+        name: strOr(m.name, undefined),
+        description: strOr(m.description, undefined),
+        model: strOr(m.model, undefined),
+        home_mac: strOr(m.home_mac, undefined),
+        ...(advisorModel === undefined ? {} : { advisor_model: advisorModel }),
+        ...(advisorEffort === undefined ? {} : { advisor_reasoning_effort: advisorEffort }),
+      };
+    },
   ),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
   chat_passes_get: request(
@@ -982,7 +993,7 @@ export const FRAMES = {
   }),
   chat_command: request(
     "chat_command_done",
-    "run a slash command in a chat: compact, clear, remember, reflect or doctor",
+    "run a slash command in a chat: compact, clear, remember, reflect, doctor or advisor",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;

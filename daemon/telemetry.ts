@@ -3,6 +3,7 @@ import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-w
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { ADVISOR_REQUEST_PREFIX, isAdvisorChat } from "../core/advisor.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt } from "../core/harness.ts";
 import { isWriterChat } from "../core/recall/model.ts";
@@ -11,7 +12,7 @@ import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { turnTimings, type Span } from "./timing.ts";
 
-export type TurnOrigin = "message" | "schedule" | "background" | "subagent" | "recall" | "reflection" | "doctor";
+export type TurnOrigin = "message" | "schedule" | "background" | "subagent" | "recall" | "reflection" | "doctor" | "advisor";
 
 export function turnIdOf(agentId: string, inputs: readonly unknown[]): string | null {
   return inputs.length ? `${agentId}:${String(inputs[0])}` : null;
@@ -64,6 +65,7 @@ export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "
   if (t.requestId?.startsWith("pass:learn:")) return "recall";
   if (t.requestId?.startsWith("pass:reflection:")) return "reflection";
   if (t.requestId?.startsWith("pass:doctor:") || t.chatId.startsWith("doctor-")) return "doctor";
+  if (t.requestId?.startsWith(ADVISOR_REQUEST_PREFIX) || isAdvisorChat(t.chatId)) return "advisor";
   if (isWriterChat(t.chatId) || (t.hidden && t.title === "recall")) return "recall";
   if (t.chatId.startsWith("reflection-")) return "reflection";
   const first = t.entries.find((e) => e.kind === "pi.user")?.model?.[0] as Message | undefined;

@@ -1,7 +1,11 @@
 import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
+import { answerOf, unansweredText, type AdvisorAnswer } from "./advisor.ts";
+
+const ANSWER_BLOCK = /<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g;
 
 export function stripHarnessMarkup(text: string): string {
   return text
+    .replace(ANSWER_BLOCK, "")
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "")
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "")
@@ -57,9 +61,32 @@ export interface HarnessEvent {
   summary: string | null;
   detail: string | null;
   link?: { agent_id: string; conversation_id: string };
+  advisor_chat?: string;
 }
 
-export function extractHarnessEvents(text: string): HarnessEvent[] {
+const ANSWER_PREVIEW_LINES = 3;
+const ANSWER_PREVIEW_CHARS = 300;
+
+function answerPreview(text: string): string {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const shown = lines.slice(0, ANSWER_PREVIEW_LINES).join("\n");
+  if (shown.length > ANSWER_PREVIEW_CHARS) return `${shown.slice(0, ANSWER_PREVIEW_CHARS - 1).trimEnd()}…`;
+  return lines.length > ANSWER_PREVIEW_LINES ? `${shown}…` : shown;
+}
+
+function advisorEvent(a: AdvisorAnswer): HarnessEvent {
+  const text = a.from === "person" ? "From the advisor · you asked" : "From the advisor · the agent asked";
+  return a.state === "answered"
+    ? { text, summary: answerPreview(a.text), detail: a.text, advisor_chat: a.advisor_chat }
+    : { text, summary: unansweredText(a.reason), detail: null, advisor_chat: a.advisor_chat };
+}
+
+export function extractHarnessEvents(whole: string): HarnessEvent[] {
+  const answers = [...whole.matchAll(ANSWER_BLOCK)].flatMap((m) => answerOf(m[0]) ?? []);
+  const text = whole.replace(ANSWER_BLOCK, "");
   const out: HarnessEvent[] = [];
   for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
     const desk = m.at(1) ?? null;
@@ -100,6 +127,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       detail: message.text,
       link: { agent_id: message.from_agent, conversation_id: message.from_chat },
     });
+  out.push(...answers.map(advisorEvent));
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
     out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });

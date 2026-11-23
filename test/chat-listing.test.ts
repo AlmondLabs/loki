@@ -102,6 +102,14 @@ describe("which chats show", () => {
     expect(l.inbox().map((r) => r.id)).toEqual(["conv-1"]);
   });
 
+  test("a chat's advisor chat stays out of the Chats list and Flow, even once a message to it remembered its scope (R22)", () => {
+    rows = [chat("conv-1", IRA), chat("advisor-conv-1", IRA, { hidden: true, lastMessageAt: "2026-11-22T10:00:00Z" })];
+    desks.remember("advisor-conv-1", IRA);
+    const l = listing();
+    expect(l.desks().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
+    expect(l.inbox().map((r) => r.id)).toEqual(["conv-1"]);
+  });
+
   test("the chat list keeps archived chats and lessons; the inbox, open chats only, newest first", () => {
     rows = [
       chat("conv-old", IRA, { lastMessageAt: "2026-10-18T09:00:00Z" }),

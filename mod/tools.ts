@@ -11,6 +11,7 @@ import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
 import { linkLines, type ChatMessages } from "./chat-links.ts";
 import { messageOf } from "../core/errors.ts";
+import { consultingSection, consultRefusal, sentText, type AdvisorConsulting } from "./advisor.ts";
 
 export interface ToolDeps {
   store: DeskStore;
@@ -36,6 +37,7 @@ export interface ChatToolDeps {
   chats(): DeskSummary[];
   passChat(conversationId: string): boolean;
   messages?: Pick<ChatMessages, "send" | "linksOf">;
+  advisor?: AdvisorConsulting;
 }
 
 export function scopeForCall(
@@ -220,7 +222,9 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
     }),
   );
 
-  if (deps.chats) disposers.push(...registerChatTools(tools, deps.chats));
+  const chats = deps.chats;
+  if (chats) disposers.push(...registerChatTools(tools, chats));
+  if (chats?.advisor) disposers.push(consultingSection(api, (id) => chats.passChat(id)));
 
   return disposers;
 }
@@ -385,5 +389,47 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
     },
   };
 
-  return [chatList, create, ...(deps.messages ? [message] : [])].map((tool) => tools.register(tool));
+  const advisor = deps.advisor;
+  const consult: LokiTool | null = advisor
+    ? {
+        name: "advisor_consult",
+        annotations: { readOnly: true },
+        description:
+          "Ask your advisor for a second opinion: another model that reads this chat's folder and your memory but never " +
+          "changes anything, and has never seen this chat. Consult it before a risky or hard-to-undo step, after a change " +
+          "worth a second look, or when you are stuck; not for every edit, and not for questions only the person can " +
+          "answer. It knows only what you send, so say what to look at (absolute paths, the change or commit range) and " +
+          "what you want to know, with the person's constraints that bear on it; leave out your own reasoning for why the " +
+          "work is right, so it judges afresh. Leave text out to have it review what changed in this chat's folder: loki " +
+          "lists the changed files for it. It returns at once. The answer comes back later as a row from your advisor and " +
+          "starts a new turn: do not wait or check for it; end your turn or go on with other work.",
+        parameters: {
+          type: "object",
+          properties: {
+            text: {
+              type: "string",
+              description: "What to look at and what you want to know, self-contained. Leave it out to have the advisor review the folder's changes.",
+            },
+          },
+          additionalProperties: false,
+        },
+        async run(ctx) {
+          const refused = consultRefusal(ctx.conversation.id, (id) => deps.passChat(id));
+          if (refused) return failed(refused);
+          const typed = argText(ctx.args.text);
+          const folder = ctx.cwd ?? openChats(deps.chats()).find((d) => d.conversation_id === ctx.conversation.id)?.cwd ?? undefined;
+          try {
+            const asked = typed.trim() ? { text: typed } : await advisor.changes(folder);
+            if ("notice" in asked) return failed(`${asked.notice} Nothing was sent: say in text what to look at.`);
+            const out = await advisor.consult(source(ctx), asked.text);
+            log("tool:advisor_consult", { conversation: ctx.conversation.id, sent: !("refused" in out), changes: !typed.trim() });
+            return "refused" in out ? failed(`not sent to your advisor: ${out.refused}`) : sentText(out);
+          } catch (err) {
+            return failed(reason(err));
+          }
+        },
+      }
+    : null;
+
+  return [chatList, create, ...(deps.messages ? [message] : []), ...(consult ? [consult] : [])].map((tool) => tools.register(tool));
 }

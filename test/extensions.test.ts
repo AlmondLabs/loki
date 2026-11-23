@@ -34,6 +34,7 @@ describe("the built-in tools", () => {
           "background_run",
           "background_watch",
           "bash",
+          "changes_read",
           "edit",
           "find",
           "grep",
@@ -57,6 +58,8 @@ describe("the built-in tools", () => {
       expect(scriptsOnly.map((t) => t.name).sort()).toEqual(
         ["find", "grep", "history_read", "history_search", "ls", "schedule_create", "schedule_delete", "schedule_list"].sort(),
       );
+      const deferred = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.deferred);
+      expect(deferred.map((t) => t.name)).toEqual(["changes_read"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

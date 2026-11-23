@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
-import type { Conversation } from "@earendil-works/pi-durable";
+import type { Conversation, Submission } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -8,12 +8,16 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
+import { advisorChatId, type AdvisorView, type ConsultFrom } from "../core/advisor.ts";
 import { backendName, MAIN_CHAT_ID } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
+import type { HeldMove } from "../mod/chat-moves.ts";
+import type { Advice, AdvisorConsults, ConsultReply } from "./advisor-consults.ts";
+import { changesConsultText, type ChangesConsult } from "./advisor-changes.ts";
 import type { Approvals } from "./approvals.ts";
 import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
@@ -28,7 +32,7 @@ import type { PassState } from "./passes-state.ts";
 import { editMemoryFile, isDoctorChat, isReflectionChat, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore, ChatInfo } from "./kernel/index.ts";
 import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
-import { exportChat, importChat, type MoveNames, type MovedChat } from "./chat-move.ts";
+import { exportChat, importChat, type MoveNames, type MovedAdvisor, type MovedChat } from "./chat-move.ts";
 import type { BackgroundTasks } from "./background.ts";
 import type { Schedules } from "./schedule.ts";
 import { homeOf, readRecord } from "./store/agent-sync.ts";
@@ -59,6 +63,8 @@ interface Deps {
   background?: Pick<BackgroundTasks, "stopAgent">;
   now?: () => number;
   usualModel?: (agentId: string) => { handle: string; reasoning_effort: ReasoningEffort | null } | null;
+  advisors?: AdvisorConsults;
+  changes?: (folder: string | undefined) => Promise<ChangesConsult>;
 }
 
 /**
@@ -261,13 +267,54 @@ export class DaemonChats implements ChatBackend {
 
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
+    const advisor = (await c.store.chatInfo(c.chat.id, this.deps.context))?.advisor_for !== undefined;
     await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
-      if (!c.engine && (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap && !(await engine.busy(c)))
-        await c.store.updateChat(p.conversation_id, { turn_cap: null }, this.deps.context);
-      await engine.send(c, p);
+      await this.uncap(c, engine);
+      await engine.send(c, advisor ? { ...p, steer: undefined } : p);
     });
     if ((await c.store.chatInfo(c.chat.id, this.deps.context))?.draft) await c.store.updateChat(p.conversation_id, { draft: null }, this.deps.context);
     return true;
+  }
+
+  private async uncap(c: EngineChat, engine: Engine): Promise<void> {
+    if (!c.engine && (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap && !(await engine.busy(c)))
+      await c.store.updateChat(c.conversationId, { turn_cap: null }, this.deps.context);
+  }
+
+  consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply> {
+    if (!this.deps.advisors) return Promise.resolve({ refused: "advisors are not running in this daemon" });
+    return this.deps.advisors.consult(p.agent_id, p.conversation_id, from, text);
+  }
+
+  advisorView(agentId: string, chatId: string): Promise<AdvisorView | null> {
+    return this.deps.advisors?.view(agentId, chatId) ?? Promise.resolve(null);
+  }
+
+  onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void {
+    return this.deps.advisors?.onChange(listener) ?? (() => {});
+  }
+
+  async advise(agentId: string, conversationId: string, advice: Advice): Promise<void> {
+    const { c, engine } = await this.resolve(agentId, conversationId);
+    const p = { agent_id: agentId, conversation_id: conversationId, text: advice.block, images: [], send_id: advice.sendId, context: advice.context };
+    if (c.engine) return engine.send(c, p);
+    const submission = await this.capped(`${agentId}\u0000${conversationId}`, async () => {
+      await this.uncap(c, engine);
+      return this.loki.submit(c, p);
+    });
+    void this.keepIfWithdrawn(c, submission, advice).catch((e: unknown) => this.deps.report?.(`an advisor's answer was not kept: ${messageOf(e)}`));
+  }
+
+  private async keepIfWithdrawn(c: EngineChat, submission: Submission, advice: Advice): Promise<void> {
+    const settled = await submission.wait(this.deps.context);
+    if (settled.status !== "unanswered" || settled.entry !== undefined) return;
+    await c.chat.waitForIdle(this.deps.context);
+    const content = `${advice.context}\n\n${advice.block}`;
+    const timestamp = (this.deps.now ?? Date.now)();
+    await c.chat.submit(
+      { type: "write", requestId: `${advice.sendId}:kept`, entry: { kind: "pi.user", model: [{ role: "user", content, timestamp }] } },
+      this.deps.context,
+    );
   }
 
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<Delivery | null> {
@@ -296,8 +343,18 @@ export class DaemonChats implements ChatBackend {
       ...(p.draft === null ? { draft: null } : {}),
     };
     if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
+    if (p.archived !== undefined) await this.archiveAdvisor(store, p.agent_id, p.conversation_id, p.archived);
     for (const label of p.labels ?? []) this.colors.colorOf(label);
     return p.draft ? { draft_suggestion_id: p.draft.suggestion_id } : {};
+  }
+
+  private async archiveAdvisor(store: AgentStore, agentId: string, chatId: string, archived: boolean): Promise<void> {
+    const advisorId = advisorChatId(chatId);
+    if (archived) {
+      await this.deps.advisors?.drop(agentId, chatId);
+      if (await this.busy(agentId, advisorId)) await this.abort(agentId, advisorId);
+    }
+    await store.updateChat(advisorId, { archived }, this.deps.context);
   }
 
   private async everyChat(): Promise<Array<{ store: AgentStore; info: ChatInfo }>> {
@@ -390,7 +447,10 @@ export class DaemonChats implements ChatBackend {
     const record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
     const changed = (["name", "description", "model", "home_mac"] as const).filter((f) => p[f] !== undefined);
     for (const f of changed) record[f] = p[f];
-    writeRecord(this.deps.backendDir, p.agent_id, stamp(record, changed, this.stampNow()));
+    const cleared = p.advisor_model === null;
+    const advisor = (["advisor_model", "advisor_reasoning_effort"] as const).filter((f) => cleared || p[f] !== undefined);
+    for (const f of advisor) record[f] = cleared ? undefined : (p[f] ?? undefined);
+    writeRecord(this.deps.backendDir, p.agent_id, stamp(record, [...changed, ...advisor], this.stampNow()));
     if (p.name !== undefined) await (await this.deps.stores.get(p.agent_id)).setAgent({ id: p.agent_id, name: p.name }, this.deps.context);
   }
 
@@ -446,9 +506,21 @@ export class DaemonChats implements ChatBackend {
           : "";
         return { success: r.outcome !== "failed" && r.outcome !== "skipped", output: `${r.report}${tail}` };
       }
+      case "advisor":
+        return this.askAdvisor(c, p);
       default:
         return engine.command(c, p);
     }
+  }
+
+  private async askAdvisor(c: EngineChat, p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
+    const question = p.args?.trim();
+    const consult = question ? { text: question } : await (this.deps.changes ?? changesConsultText)((await c.chat.agent(this.deps.context)).cwd);
+    if ("notice" in consult) return { success: true, output: consult.notice };
+    const reply = await this.consult(p, "person", consult.text);
+    return "refused" in reply
+      ? { success: false, output: reply.refused }
+      : { success: true, output: "sent to this chat's advisor; its answer comes back here" };
   }
 
   enableSkill(path: string): Promise<{ name: string; linkPath: string }> {
@@ -494,7 +566,8 @@ export class DaemonChats implements ChatBackend {
   }
 
   async exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }> {
-    if (await this.busy(agentId, chatId)) return { chat: null, busy: true };
+    const advising = (await this.busy(agentId, advisorChatId(chatId))) || (await this.deps.advisors?.running(agentId, chatId)) === true;
+    if (advising || (await this.busy(agentId, chatId))) return { chat: null, busy: true };
     const store = await this.deps.stores.get(agentId);
     const schedules = (this.deps.schedules?.list() ?? []).filter((t) => t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId);
     const cursors: Record<string, number> = {};
@@ -508,6 +581,7 @@ export class DaemonChats implements ChatBackend {
   async importChat(moved: MovedChat, names?: MoveNames): Promise<boolean> {
     const store = await this.deps.stores.get(moved.agent_id);
     const made = await importChat(store, moved, this.deps.context, names);
+    if (made && moved.advisor) await this.adoptAdvisor(store, moved, moved.advisor);
     if (made) await this.loki.forgetChat(moved.agent_id, moved.conversation_id);
     for (const task of moved.schedules) this.deps.schedules?.adopt(task);
     for (const [job, at] of Object.entries(moved.cursors))
@@ -515,11 +589,44 @@ export class DaemonChats implements ChatBackend {
     return made;
   }
 
+  private async adoptAdvisor(store: AgentStore, moved: MovedChat, advisor: MovedAdvisor): Promise<void> {
+    try {
+      if (!this.deps.advisors) throw new Error("advisors are not running in this daemon");
+      await this.deps.advisors.adopt(moved.agent_id, moved.conversation_id, advisor);
+    } catch (error) {
+      await store.retireChat(moved.conversation_id, this.deps.context).catch(() => false);
+      throw error;
+    }
+    await this.loki.forgetChat(moved.agent_id, advisorChatId(moved.conversation_id));
+  }
+
   async finishMove(agentId: string, chatId: string): Promise<void> {
     const store = await this.deps.stores.get(agentId);
-    await store.updateChat(chatId, { hidden: true }, this.deps.context);
+    await store.updateChat(chatId, { hidden: true, move_to: null }, this.deps.context);
+    await store.updateChat(advisorChatId(chatId), { hidden: true }, this.deps.context);
+    await this.deps.advisors?.drop(agentId, chatId);
     for (const t of this.deps.schedules?.list() ?? [])
       if (t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId) this.deps.schedules?.cancel(agentId, t.id);
+  }
+
+  holdMove(agentId: string, chatId: string, to: string): Promise<boolean> {
+    return this.deps.advisors?.hold(agentId, chatId, to) ?? Promise.resolve(false);
+  }
+
+  async heldMoves(): Promise<HeldMove[]> {
+    const out: HeldMove[] = [];
+    for (const agentId of listAgents(this.deps.backendDir)) {
+      const store = await this.deps.stores.get(agentId);
+      for (const info of await store.chats(this.deps.context)) {
+        if (!info.move_to || info.hidden || info.advisor_consults?.some((c) => c.state === "running")) continue;
+        if (!(await this.busy(agentId, info.id))) out.push({ agent_id: agentId, conversation_id: info.id, to: info.move_to });
+      }
+    }
+    return out;
+  }
+
+  releaseMove(agentId: string, chatId: string): Promise<void> {
+    return this.deps.advisors?.release(agentId, chatId) ?? Promise.resolve();
   }
 
   labelColors(): LabelColorsSnapshot {

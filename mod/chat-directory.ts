@@ -1,3 +1,4 @@
+import { advisedChat } from "../core/advisor.ts";
 import { scopeFor, type Scope } from "../core/desk-core.ts";
 
 export interface ChatRef {
@@ -35,9 +36,10 @@ export class ChatDirectory {
     const known = this.peek(scope);
     if (known) return known;
     const macs = this.opts.macs().filter((m) => this.opts.reachable(m));
+    const asked = typeof chat === "string" ? { conversation_id: chat } : holderOf(chat);
     const answers = await Promise.all(
       macs.map((mac) =>
-        this.opts.ask(mac, typeof chat === "string" ? { conversation_id: chat } : chat).then(
+        this.opts.ask(mac, asked).then(
           (a) => ({ mac, ...a }),
           () => null,
         ),
@@ -100,4 +102,13 @@ export class ChatDirectory {
   }
 }
 
-export const scopeOf = (chat: ChatRef | Scope): Scope => (typeof chat === "string" ? chat : scopeFor(chat.conversation_id, chat.agent_id ?? null));
+const holderOf = (chat: ChatRef): ChatRef => {
+  const advised = advisedChat(chat.conversation_id);
+  return advised === null ? chat : { ...chat, conversation_id: advised };
+};
+
+export const scopeOf = (chat: ChatRef | Scope): Scope => {
+  if (typeof chat === "string") return chat;
+  const holder = holderOf(chat);
+  return scopeFor(holder.conversation_id, holder.agent_id ?? null);
+};

@@ -13,6 +13,7 @@ import {
   UsageDoc,
   type UsageState,
 } from "@earendil-works/pi-durable";
+import type { AdvisorConsult } from "../../core/advisor.ts";
 import type { SavedDraft, Suggestion } from "../../core/frame-types.ts";
 
 const smallDoc = (): boolean => false;
@@ -76,6 +77,21 @@ export type ChatInfo = {
    * mode is read from there on every call, so a mode changed while the helper runs holds for the helper too.
    */
   helper_for?: ConversationId;
+  /**
+   * An advisor chat's marker (daemon/advisor.ts): the id of the chat it advises. Such a chat only reads, and loki refuses
+   * every other call it makes (daemon/advisor-gate.ts), whatever its mode.
+   */
+  advisor_for?: string;
+  /**
+   * The consults this chat sent its advisor (core/advisor.ts): those not yet ended, and the ended ones of the last hour,
+   * which the agent's hourly cap counts, with the newest ended one; absent, none.
+   */
+  advisor_consults?: AdvisorConsult[];
+  /**
+   * The paired Mac this chat moves to once its advisor's running consult has answered (daemon/advisor-consults.ts).
+   * While it is set, the consults still queued wait to travel with the chat. Absent or null, no move waits.
+   */
+  move_to?: string | null;
 };
 
 /**
@@ -136,6 +152,15 @@ export interface UsageAdd {
  */
 const AFTER_FAILED_RUN: HarnessSettings = { afterFailedRun: "continue" };
 
+export const ADVISOR_EXTENSION = "loki.advisor";
+const ADDED_ONLY: ReadonlySet<string> = new Set([ADVISOR_EXTENSION]);
+
+const chosenByDefault = (registry: StoreOptions["registry"]): HarnessSettings["extensions"] =>
+  registry
+    .snapshot()
+    .installed()
+    .filter((extension) => !ADDED_ONLY.has(extension.name));
+
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
 
 export class AgentStore {
@@ -149,7 +174,8 @@ export class AgentStore {
     const storage =
       "storage" in where ? where.storage : await (await import("@earendil-works/pi-durable/storage/sqlite/node")).openNodeSqliteStorage(where.file);
     const given = options.settings;
-    const settings = typeof given === "function" ? () => ({ ...AFTER_FAILED_RUN, ...given() }) : { ...AFTER_FAILED_RUN, ...given };
+    const current = typeof given === "function" ? given : () => given;
+    const settings = (): HarnessSettings => ({ ...AFTER_FAILED_RUN, extensions: chosenByDefault(options.registry), ...current() });
     return new AgentStore(await Harness.open(storage, { ...options, settings }, context));
   }
 
@@ -180,7 +206,10 @@ export class AgentStore {
   async updateChat(
     id: string,
     change: Partial<
-      Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved">
+      Pick<
+        ChatInfo,
+        "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved" | "move_to"
+      >
     >,
     context: Context,
   ): Promise<boolean> {
@@ -200,8 +229,26 @@ export class AgentStore {
       if (change.suggestions !== undefined) info.suggestions = change.suggestions;
       if (change.placed !== undefined) info.placed = change.placed;
       if (change.moved !== undefined) info.moved = change.moved;
+      if (change.move_to !== undefined) info.move_to = change.move_to;
     }, context);
     return true;
+  }
+
+  async updateConsults(
+    id: string,
+    change: (consults: readonly AdvisorConsult[]) => AdvisorConsult[] | null,
+    context: Context,
+  ): Promise<AdvisorConsult[] | undefined> {
+    const chat = await this.chat(id, context);
+    if (!chat) return undefined;
+    return chat.commit(async (tx) => {
+      const info = await tx.doc(ChatDoc, chat.id);
+      const was: AdvisorConsult[] = (info.advisor_consults ?? []).map((c) => ({ ...c }));
+      const next = change(was);
+      if (next === null) return was;
+      info.advisor_consults = next;
+      return next;
+    }, context);
   }
 
   async saveDraft(id: string, draft: SavedDraft, context: Context): Promise<"saved" | "held" | "missing"> {
@@ -248,7 +295,14 @@ export class AgentStore {
 
   async createChat(
     id: string,
-    options: { title?: string | null; hidden?: boolean; agent?: Parameters<Harness["createConversation"]>[0]["agent"]; createdAt?: string },
+    options: {
+      title?: string | null;
+      hidden?: boolean;
+      agent?: Parameters<Harness["createConversation"]>[0]["agent"];
+      createdAt?: string;
+      mode?: string;
+      advisor_for?: string;
+    },
     context: Context,
   ): Promise<Conversation> {
     if (await this.chat(id, context)) throw new Error(`chat ${id} already exists`);
@@ -263,6 +317,8 @@ export class AgentStore {
           info.title = options.title ?? null;
           info.hidden = options.hidden ?? false;
           info.createdAt = options.createdAt ?? new Date().toISOString();
+          if (options.mode !== undefined) info.mode = options.mode;
+          if (options.advisor_for !== undefined) info.advisor_for = options.advisor_for;
         },
       },
       context,

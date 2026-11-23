@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import type { Models } from "@earendil-works/pi-ai/models";
-import { LiveDoc, watchEvents, type AgentEventStream, type Conversation } from "@earendil-works/pi-durable";
+import { LiveDoc, watchEvents, type AgentEventStream, type Conversation, type Submission } from "@earendil-works/pi-durable";
 import { existsSync } from "node:fs";
 import type { ChatEvent } from "../core/attention/model.ts";
 import type { ImageNamer } from "../core/attention/pi-steps.ts";
@@ -21,7 +21,7 @@ export function modelRef(handle: string): { provider: string; modelId: string } 
   return slash > 0 && slash < handle.length - 1 ? { provider: handle.slice(0, slash), modelId: handle.slice(slash + 1) } : undefined;
 }
 
-function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
+export function thinkingLevel(effort: ReasoningEffort | null) {
   if (!effort) return undefined;
   return effort === "none" ? "off" : effort;
 }
@@ -66,6 +66,10 @@ export class LokiEngine implements Engine {
   }
 
   async send(c: EngineChat, p: PayloadOf<"chat_send">): Promise<void> {
+    await this.submit(c, p);
+  }
+
+  async submit(c: EngineChat, p: PayloadOf<"chat_send">): Promise<Submission> {
     await this.ready(c);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type }));
     const moved = await this.movedNote(c.store, c.chat);
@@ -84,7 +88,7 @@ export class LokiEngine implements Engine {
       typed: p.text.trim() !== "",
     });
     const whenBusy = p.steer ? { whenBusy: "steer" as const } : {};
-    await c.chat.submit({ type: "input", content: content as never, ...whenBusy, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
+    return c.chat.submit({ type: "input", content: content as never, ...whenBusy, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
   }
 
   async deliver(c: EngineChat, text: string, whenBusy: "steer" | "followUp"): Promise<Delivery> {
@@ -111,7 +115,7 @@ export class LokiEngine implements Engine {
     const model = modelRef(p.handle);
     if (!model) throw new Error(`not a model handle: ${p.handle}`);
     const level = thinkingLevel(p.reasoning_effort);
-    await c.chat.configure({ model, ...(level ? { thinkingLevel: level as never } : {}) }, this.deps.context);
+    await c.chat.configure({ model, ...(level ? { thinkingLevel: level } : {}) }, this.deps.context);
   }
 
   async leave(c: EngineChat): Promise<void> {

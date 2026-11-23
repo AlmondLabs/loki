@@ -24,6 +24,7 @@ const ORIGINS: Partial<Record<string, string>> & Record<UsageOrigin, string> = {
   reflection: "Reflection",
   learn: "Learn",
   doctor: "Memory review",
+  advisor: "Advisor",
 };
 
 export const originName = (o: string): string => ORIGINS[o] ?? o;

@@ -30,7 +30,7 @@ const usage = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => 
 });
 
 function fakeStore(
-  chats: Record<number, string | { id: string; helper_for: number } | undefined>,
+  chats: Record<number, string | { id: string; helper_for?: number; advisor_for?: string } | undefined>,
   totals: Partial<Record<number, Record<string, ReturnType<typeof usage>>>> = {},
 ) {
   let listener: ((p: CommitPublication) => void) | null = null;
@@ -137,19 +137,21 @@ describe("the usage ledger", () => {
         4: "doctor-a1",
         6: "default",
         8: { id: "reflection-a1", helper_for: 2 },
+        9: { id: "advisor-local-conv-1", advisor_for: "local-conv-1" },
       });
       ledger.attach("a1", store);
       await ledger.settled();
-      for (const id of [1, 2, 3, 4, 6, 8]) publish(id, { [MODEL]: usage(10, 1) });
+      for (const id of [1, 2, 3, 4, 6, 8, 9]) publish(id, { [MODEL]: usage(10, 1) });
       publish(7, {}, true);
       publish(7, { [MODEL]: usage(10, 1) });
       await ledger.settled();
       const byOrigin = Object.fromEntries(ledger.rows().map((r) => [r.origin, r.input_tokens]));
-      expect(byOrigin).toEqual({ chats: 20, reflection: 10, learn: 10, doctor: 10, helpers: 20 });
+      expect(byOrigin).toEqual({ chats: 20, reflection: 10, learn: 10, doctor: 10, helpers: 20, advisor: 10 });
       expect(originOfChat("reflection-a2", "a1")).toBe("chats");
       expect(originOfChat("reflection-a1-acp", "a1")).toBe("reflection");
       expect(originOfChat("doctor-a1-acp", "a1")).toBe("doctor");
       expect(originOfChat("recall-a1-acp", "a1")).toBe("learn");
+      expect(originOfChat("advisor-local-conv-1", "a1")).toBe("advisor");
     } finally {
       s.cleanup();
     }

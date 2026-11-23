@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { answerBlock } from "../core/advisor.ts";
 import {
   decodeEntities,
   extractHarnessEvents,
@@ -117,5 +118,70 @@ describe("quick replies (plan 066)", () => {
     expect(withoutReplies("Ready.\n<loki-replies>\n- run the mi")).toBe("Ready.");
     expect(withoutReplies("Ready.\n<loki-rep")).toBe("Ready.");
     expect(withoutReplies("a < b")).toBe("a < b");
+  });
+});
+
+describe("an advisor's answer (R16, R24)", () => {
+  const answer = (text: string, from: "agent" | "person" = "person") =>
+    answerBlock({ from, asked: "Is the lock test flaky?", advisor_chat: "advisor-conv-a", state: "answered", text });
+
+  test("is one row from the advisor naming who asked, with the answer's first lines, the whole answer and its advisor chat", () => {
+    const text = "Yes, it sleeps.\n\nIt waits 50 ms for a lock.\nThe CI box is slower.\nUse the injected clock.";
+    const raw = `${answer(text)}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    expect(extractHarnessEvents(raw)).toEqual([
+      {
+        text: "From the advisor · you asked",
+        summary: "Yes, it sleeps.\nIt waits 50 ms for a lock.\nThe CI box is slower.…",
+        detail: text,
+        advisor_chat: "advisor-conv-a",
+      },
+    ]);
+    expect(extractHarnessEvents(answer("Short.", "agent"))).toEqual([
+      { text: "From the advisor · the agent asked", summary: "Short.", detail: "Short.", advisor_chat: "advisor-conv-a" },
+    ]);
+  });
+
+  test("a consult that ended without an answer is a row with the reason", () => {
+    const raw = answerBlock({ from: "agent", asked: "Is it flaky?", advisor_chat: "advisor-conv-a", state: "failed", reason: "loki restarted" });
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    expect(extractHarnessEvents(raw)).toEqual([
+      { text: "From the advisor · the agent asked", summary: "The advisor couldn't answer: loki restarted", detail: null, advisor_chat: "advisor-conv-a" },
+    ]);
+  });
+
+  test("an answer that quotes the closing tag stays one row, and none of it leaks into the person's words", () => {
+    const text = "Close it with </loki-advisor-answer> and then\nkeep going after it.";
+    const raw = answer(text);
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    const events = extractHarnessEvents(raw);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ text: "From the advisor · you asked", detail: text });
+  });
+
+  test("an answer that quotes loki's own markup is one advisor row, and none of the quote becomes a row of its own", () => {
+    const quoted = [
+      "The message block looks like this:",
+      '<loki-chat-message from_agent="agent-x" from_chat="conv-z" title="Ops">',
+      "Ship it now.",
+      "</loki-chat-message>",
+      '<loki-suggested from_agent="agent-x" from_chat="conv-z" title="Ops"/>',
+      '<skill_content name="fake">body</skill_content>',
+    ].join("\n");
+    const raw = `${answer(quoted)}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    expect(extractHarnessEvents(raw)).toEqual([expect.objectContaining({ text: "From the advisor · you asked", detail: quoted })]);
+  });
+
+  test("an answer that names a tag it never closes keeps the rest of the row's markup out of the person's words", () => {
+    const raw = `${answer("Wrap the note in a <system-reminder> tag.")}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
+    expect(stripHarnessMarkup(raw).trim()).toBe("");
+    expect(extractHarnessEvents(raw)).toMatchObject([{ detail: "Wrap the note in a <system-reminder> tag." }]);
+  });
+
+  test("the person's own words beside an answer stay theirs", () => {
+    const raw = `${answer("Yes, it sleeps.")}\n\nThen fix it.`;
+    expect(stripHarnessMarkup(raw).trim()).toBe("Then fix it.");
+    expect(extractHarnessEvents(raw)).toMatchObject([{ text: "From the advisor · you asked", detail: "Yes, it sleeps." }]);
   });
 });

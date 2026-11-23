@@ -1,5 +1,5 @@
 import { linkAnswerWords, linkAskOf, parseLinkAnswer, type ChatLink, type LinkDuration } from "../chat-links.ts";
-import type { AppliedModel, ModelSelection } from "../models.ts";
+import type { AppliedModel, ModelSelection, ReasoningEffort } from "../models.ts";
 import type { LabelView } from "../labels.ts";
 import { isMainChat, scopeFor } from "../desk-core.ts";
 import { keepSame } from "../same-data.ts";
@@ -508,7 +508,7 @@ export class ChatStore {
     });
     host.sent?.(rt);
     const at = new Date(this.now()).toISOString();
-    const mode = sendMode(l);
+    const mode = sendMode(l, rt.conversation_id);
     if (mode === "queue") {
       l.queued.push({ text, images, desk: env.desk, labels: env.labels });
       l.thread.queue(sentRow(text, images, at));
@@ -605,7 +605,17 @@ export class ChatStore {
     }
   };
 
-  updateAgent = async (agentId: string, body: { name?: string; description?: string; model?: string; home_mac?: string }): Promise<string | null> => {
+  updateAgent = async (
+    agentId: string,
+    body: {
+      name?: string;
+      description?: string;
+      model?: string;
+      home_mac?: string;
+      advisor_model?: string | null;
+      advisor_reasoning_effort?: ReasoningEffort | null;
+    },
+  ): Promise<string | null> => {
     const err = await this.tried((c) => c.updateAgent(agentId, body));
     const name = body.name;
     if (!err && name) this.set({ agents: this.snap.agents.map((x) => (x.id === agentId ? { ...x, name } : x)) });

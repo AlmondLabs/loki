@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { advisedChat } from "../../../core/advisor.ts";
 import { activeControl, focusMemory } from "./session";
 import { expectPop, transition } from "./transitions";
 
@@ -114,6 +115,10 @@ export function ownerOf(r: Route): Tab {
 
 export function parentOf(r: Route): Route {
   if (r.kind === "file") return { kind: "agent", agentId: r.agentId };
+  if (r.kind === "conversation") {
+    const advised = advisedChat(r.conversationId);
+    if (advised !== null) return { kind: "conversation", agentId: r.agentId, conversationId: advised, prefill: null };
+  }
   if (r.kind === "learn" && r.view) return { kind: "learn" };
   return { kind: "tab", tab: ownerOf(r) };
 }

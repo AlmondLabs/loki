@@ -50,7 +50,20 @@ export interface PeeringDeps {
   secrets: SecretBackend;
   memory: MemoryRepos;
   chats: Pick<ChatSource, "list">;
-  chat: Pick<ChatBackend, "moveCandidates" | "exportChat" | "importChat" | "finishMove" | "removeAgent" | "labelColors" | "applyLabelColors">;
+  chat: Pick<
+    ChatBackend,
+    | "moveCandidates"
+    | "exportChat"
+    | "importChat"
+    | "finishMove"
+    | "removeAgent"
+    | "labelColors"
+    | "applyLabelColors"
+    | "holdMove"
+    | "heldMoves"
+    | "releaseMove"
+    | "onAdvisorChange"
+  >;
   seen: SeenStore;
   desks: Pick<DeskRegistry, "forgetConversations">;
   sockets: { push(msg: object, opts?: { to?: PushTo; scope?: Scope }): void; phoneListener(): PeerListener | null };
@@ -220,6 +233,7 @@ export function startPeering(deps: PeeringDeps): Peering {
   const chatMoves: ChatMoves = new ChatMoves({
     here: macId,
     chat: chatBackend,
+    held: chatBackend,
     link: (id) => (links.reachable(id) ? links.get(id) : null),
     widgetsDir: dirs.widgets,
     file: join(dirs.state, "chat-moves.json"),

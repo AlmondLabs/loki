@@ -1,4 +1,6 @@
 import { LinkHeader } from "../chat/link-header";
+import { AdvisorHeader } from "../chat/advisor-header";
+import { AdvisorPane } from "./advisor-pane";
 import {
   useCallback,
   useEffect,
@@ -18,7 +20,7 @@ import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
-import { OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
+import { OpenAdvisor, OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
@@ -40,7 +42,7 @@ import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
 import { chatItem } from "../item/item-view";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
-import { isMainChat } from "../../../core/desk-core.ts";
+import { isMainChat, scopeFor } from "../../../core/desk-core.ts";
 
 const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "messages", label: "Messages" },
@@ -72,6 +74,9 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   onFrameWidget?: (widgetId: string) => void;
   onShowLabel?: (name: string) => void;
   onOpenChat: (agentId: string, conversationId: string) => void;
+  advisorChat: string | null;
+  onOpenAdvisor: (advisorChat: string) => void;
+  onCloseAdvisor: () => void;
 }
 
 function useRouted(value: number, visible: PaneView | null): TickRoute {
@@ -139,9 +144,13 @@ export function DeskPane(props: DeskPaneProps) {
   useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Chat";
-  const links = view.links?.length ? (
-    <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
-  ) : null;
+  const links =
+    view.links?.length || view.advisor ? (
+      <span className="loki-chat-strips">
+        <AdvisorHeader advisor={view.advisor} />
+        {view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null}
+      </span>
+    ) : null;
   const itemView = item ? chatItem({ item, live: null, turns: [] }) : null;
   const toolbar = itemView && item;
   const itemLine = toolbar ? <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" /> : undefined;
@@ -167,110 +176,132 @@ export function DeskPane(props: DeskPaneProps) {
     </>
   ) : undefined;
 
-  return (
-    <div className="loki-desk-pane" ref={paneRef}>
-      <PaneHeader
-        title={name}
-        subtitle={purpose}
-        lead={<Icon name="desk" size={18} />}
-        aside={
-          <span className="loki-desk-pane-agent">
-            <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
-            <span>{agentName ?? "no agent"}</span>
-            {live && (
-              <>
-                <span className="loki-desk-pane-live" aria-hidden />
-                <span>{live}</span>
-              </>
-            )}
-            {runtime && (
-              <span className="loki-desk-pane-labels">
-                <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
-                <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="Label this chat (/label)">
-                  {chatLabels.length ? "Edit Labels" : "Add Label"}
-                </button>
-              </span>
-            )}
-            {links}
-          </span>
-        }
-        actions={tab === "desk" ? <DeskActions /> : undefined}
-        line={itemLine}
-        trailing={toolbarItems}
-        tabs={TABS}
-        tab={tab}
-        onTab={onTab}
-        tabsLabel={`${name} views`}
-        panelId={panelId}
+  if (props.advisorChat && agentId)
+    return (
+      <AdvisorPane
+        catchUp={catchUp}
+        agentId={agentId}
+        agentName={agentName}
+        advisorChat={props.advisorChat}
+        chatName={name}
+        advisor={view.advisor}
+        models={{
+          entries: models,
+          model: desk.modelOf(scopeFor(props.advisorChat, agentId)),
+          reasoningEffort: desk.reasoningEffortOf(scopeFor(props.advisorChat, agentId)),
+          onLoad: props.onLoadModels,
+          onPick: props.onPickModel,
+        }}
+        modelPickerTick={visible ? tickFor(model, visible) : 0}
+        onBack={props.onCloseAdvisor}
       />
-      <OpenChat.Provider value={props.onOpenChat}>
-        <div className="loki-desk-pane-body">
-          <div
-            id={panelId("messages")}
-            role="tabpanel"
-            aria-label="Messages"
-            className="loki-desk-pane-panel loki-desk-pane-messages"
-            style={{ visibility: tab === "messages" ? "inherit" : "hidden" }}
-            aria-hidden={tab !== "messages"}
-            onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
-          >
-            <DeskMessages
-              key={scope}
-              desk={desk}
-              catchUp={catchUp}
-              item={item}
-              heldLook={heldLook}
-              people={people}
-              onFrameWidget={frameWidget}
-              onShowDesk={() => onTab("desk")}
-              view={view}
-              actions={actions}
-              models={models}
-              draft={draft}
-              composer={onMessages}
-              dim={false}
-              focusTick={tickFor(focus, "messages")}
-              findTick={tickFor(find, "messages")}
-              modelPickerTick={tickFor(model, "messages")}
-              modeMenuTick={tickFor(mode, "messages")}
-              suggestionsTick={tickFor(suggest, "messages")}
-              prefill={prefillFor("messages")}
-              suggestions={runtime ? { source: catchUp, rt: runtime } : null}
-            />
-          </div>
-          <div
-            id={panelId("desk")}
-            role="tabpanel"
-            aria-label="Canvas"
-            className="loki-desk-pane-panel"
-            style={{ visibility: tab === "desk" ? "inherit" : "hidden" }}
-            aria-hidden={tab !== "desk"}
-          >
-            <Surface
-              {...props}
-              chat={chat}
-              active={visible === "inset"}
-              draft={draft}
-              focusChat={tickFor(focus, "inset")}
-              findChat={tickFor(find, "inset")}
-              modelPickerTick={tickFor(model, "inset")}
-              modeMenuTick={tickFor(mode, "inset")}
-              suggestionsTick={tickFor(suggest, "inset")}
-              chatPrefill={prefillFor("inset")}
-            />
-          </div>
-        </div>
-      </OpenChat.Provider>
-      {labeling && runtime && (
-        <LabelsDialog
+    );
+  return (
+    <OpenAdvisor.Provider value={props.onOpenAdvisor}>
+      <div className="loki-desk-pane" ref={paneRef}>
+        <PaneHeader
           title={name}
-          current={chatLabels}
-          list={catchUp.labels.list}
-          onChange={(next) => saveLabels(desk, catchUp, runtime, next)}
-          onClose={() => setLabeling(false)}
+          subtitle={purpose}
+          lead={<Icon name="desk" size={18} />}
+          aside={
+            <span className="loki-desk-pane-agent">
+              <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
+              <span>{agentName ?? "no agent"}</span>
+              {live && (
+                <>
+                  <span className="loki-desk-pane-live" aria-hidden />
+                  <span>{live}</span>
+                </>
+              )}
+              {runtime && (
+                <span className="loki-desk-pane-labels">
+                  <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
+                  <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="Label this chat (/label)">
+                    {chatLabels.length ? "Edit Labels" : "Add Label"}
+                  </button>
+                </span>
+              )}
+              {links}
+            </span>
+          }
+          actions={tab === "desk" ? <DeskActions /> : undefined}
+          line={itemLine}
+          trailing={toolbarItems}
+          tabs={TABS}
+          tab={tab}
+          onTab={onTab}
+          tabsLabel={`${name} views`}
+          panelId={panelId}
         />
-      )}
-    </div>
+        <OpenChat.Provider value={props.onOpenChat}>
+          <div className="loki-desk-pane-body">
+            <div
+              id={panelId("messages")}
+              role="tabpanel"
+              aria-label="Messages"
+              className="loki-desk-pane-panel loki-desk-pane-messages"
+              style={{ visibility: tab === "messages" ? "inherit" : "hidden" }}
+              aria-hidden={tab !== "messages"}
+              onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
+            >
+              <DeskMessages
+                key={scope}
+                desk={desk}
+                catchUp={catchUp}
+                item={item}
+                heldLook={heldLook}
+                people={people}
+                onFrameWidget={frameWidget}
+                onShowDesk={() => onTab("desk")}
+                view={view}
+                actions={actions}
+                models={models}
+                draft={draft}
+                composer={onMessages}
+                dim={false}
+                focusTick={tickFor(focus, "messages")}
+                findTick={tickFor(find, "messages")}
+                modelPickerTick={tickFor(model, "messages")}
+                modeMenuTick={tickFor(mode, "messages")}
+                suggestionsTick={tickFor(suggest, "messages")}
+                prefill={prefillFor("messages")}
+                suggestions={runtime ? { source: catchUp, rt: runtime } : null}
+              />
+            </div>
+            <div
+              id={panelId("desk")}
+              role="tabpanel"
+              aria-label="Canvas"
+              className="loki-desk-pane-panel"
+              style={{ visibility: tab === "desk" ? "inherit" : "hidden" }}
+              aria-hidden={tab !== "desk"}
+            >
+              <Surface
+                {...props}
+                chat={chat}
+                active={visible === "inset"}
+                draft={draft}
+                focusChat={tickFor(focus, "inset")}
+                findChat={tickFor(find, "inset")}
+                modelPickerTick={tickFor(model, "inset")}
+                modeMenuTick={tickFor(mode, "inset")}
+                suggestionsTick={tickFor(suggest, "inset")}
+                chatPrefill={prefillFor("inset")}
+              />
+            </div>
+          </div>
+        </OpenChat.Provider>
+        {labeling && runtime && (
+          <LabelsDialog
+            title={name}
+            current={chatLabels}
+            list={catchUp.labels.list}
+            onChange={(next) => saveLabels(desk, catchUp, runtime, next)}
+            onClose={() => setLabeling(false)}
+          />
+        )}
+      </div>
+    </OpenAdvisor.Provider>
   );
 }
 

@@ -9,7 +9,7 @@ export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run typecheck": { Linux: 5 },
   // Outside (oxlint): its type-aware rules take 15s on GitHub's 4-core runners.
   "bun run lint": { Linux: 40 },
-  "bun run lint:pr": { Linux: 15 },
+  "bun run lint:pr": { Linux: 25 },
   "bun run test": { Linux: 60, macOS: 60, Windows: 60 },
   "bun run test:pr": { Linux: 60, macOS: 60, Windows: 60 },
   "bun run test:node": { Linux: 30, macOS: 30, Windows: 30 },

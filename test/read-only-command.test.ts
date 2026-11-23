@@ -40,6 +40,8 @@ describe("a shell command that only reads (plan 094, KTD2)", () => {
       "find . -fprint out.txt",
       "rg --pre ./run.sh x",
       "rg --pre=./run.sh x",
+      "rg --hostname-bin ./run.sh x",
+      "rg --hostname-bin=./run.sh x",
       "FOO=1 ls",
       "/bin/ls",
       "ls 'unclosed",

@@ -64,6 +64,7 @@ export function InboxView({
   onPickModel,
   onPickMode,
   onOpenDesk,
+  onOpenAdvisor,
   onClose,
   onPass,
   notice,
@@ -80,6 +81,7 @@ export function InboxView({
   onPickModel: PickModel;
   onPickMode: PickMode;
   onOpenDesk: OpenDesk;
+  onOpenAdvisor: (agentId: string, conversationId: string, advisorChat: string) => void;
   onClose: () => void;
   onPass: PassSummaryHandler;
 }) {
@@ -116,6 +118,7 @@ export function InboxView({
         if (item) catchUp.decided(item, "open", via());
         onOpenDesk(agentId, conversationId, { chat: true });
       }}
+      onOpenAdvisor={onOpenAdvisor}
       chats={catchUp}
       loadHistory={(item) => void catchUp.loadHistory(item)}
       widgetSource={desk}

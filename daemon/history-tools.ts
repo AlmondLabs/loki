@@ -14,8 +14,9 @@ const HITS = 10;
 const EXCERPT = 300;
 const READ_CHARS = 8000;
 
-const SECTION =
-  "Earlier turns of this conversation were summarized; every one is stored. Find them with history_search and read them with history_read, in a script, before you guess.";
+const SUMMARIZED = "Earlier turns of this conversation were summarized; every one is stored.";
+const IN_A_SCRIPT = `${SUMMARIZED} Find them with history_search and read them with history_read, in a script, before you guess.`;
+const DIRECT = `${SUMMARIZED} Find them with history_search and read them with history_read before you guess.`;
 
 async function chatOf(read: DocumentReader, conversationId: ConversationId, context: Context): Promise<{ agentId: string; chatId: string } | null> {
   const [agent, chat] = await Promise.all([read.snapshot(AgentInfoDoc, context), read.snapshot(ChatDoc, conversationId, context)]);
@@ -137,9 +138,11 @@ export function historyExtension(history: ChatHistory): Extension {
     name: "loki.history",
     sections: [
       section("history", async (input, context) => {
-        if (!input.agent.tools.some((t) => t.name === SCRIPT_TOOL)) return undefined;
+        const offered = (name: string) => input.agent.tools.some((t) => t.name === name);
+        const note = offered(SCRIPT_TOOL) ? IN_A_SCRIPT : offered("history_search") ? DIRECT : undefined;
+        if (!note) return undefined;
         const chat = await chatOf(input.read, input.conversationId, context);
-        return chat && history.compactedSince(chat.chatId, chat.agentId, 0) ? SECTION : undefined;
+        return chat && history.compactedSince(chat.chatId, chat.agentId, 0) ? note : undefined;
       }),
     ],
     tools: historyTools(history).map(piTool),
