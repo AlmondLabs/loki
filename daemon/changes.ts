@@ -3,7 +3,6 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { execFile } from "node:child_process";
 import { realpath } from "node:fs/promises";
-import { devNull } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { messageOf } from "../core/errors.ts";
@@ -35,11 +34,15 @@ const SPILL_BYTES = 50 * 1024;
 const SPILL_LINES = 2000;
 const LIST_MAX = 200;
 
+// Outside (git): Git for Windows cannot open Node's `\\.\nul` as a config file but reads "/dev/null" as its null device,
+// and a path it cannot find counts as no config and no hooks, so this one spelling works everywhere.
+const NO_FILE = "/dev/null";
+
 const GLOBAL_FLAGS = ["--no-pager", "--no-optional-locks"];
 
 const SWITCHES: ReadonlyArray<readonly [string, string]> = [
   ["core.fsmonitor", "false"],
-  ["core.hooksPath", devNull],
+  ["core.hooksPath", NO_FILE],
   ["core.pager", ""],
   ["diff.external", ""],
   ["log.showSignature", "false"],
@@ -91,7 +94,7 @@ function gitEnv(base: Readonly<Record<string, string | undefined>>, drivers: Rea
     ...env,
     GIT_CONFIG_COUNT: String(pairs.length),
     GIT_CONFIG_NOSYSTEM: "1",
-    GIT_CONFIG_GLOBAL: devNull,
+    GIT_CONFIG_GLOBAL: NO_FILE,
     GIT_OPTIONAL_LOCKS: "0",
     GIT_TERMINAL_PROMPT: "0",
     GIT_NO_LAZY_FETCH: "1",

@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { devNull, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { changeList, readChanges } from "../daemon/changes.ts";
@@ -21,7 +21,7 @@ function scratch(): string {
 
 const plainEnv = {
   ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^git_/i.test(k))),
-  GIT_CONFIG_GLOBAL: devNull,
+  GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "Test",
   GIT_AUTHOR_EMAIL: "test@example.com",

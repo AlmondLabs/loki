@@ -3,7 +3,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { devNull, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Approvals } from "../daemon/approvals.ts";
 import { BackgroundTasks } from "../daemon/background.ts";
@@ -66,11 +66,11 @@ describe("changes_read's runner", () => {
     for (const call of git.calls) {
       expect(call.cwd).toBe("/work");
       expect(call.args.slice(0, 2)).toEqual(["--no-pager", "--no-optional-locks"]);
-      expect(call.env).toMatchObject({ PATH: "/usr/bin", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: devNull, GIT_OPTIONAL_LOCKS: "0" });
+      expect(call.env).toMatchObject({ PATH: "/usr/bin", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_OPTIONAL_LOCKS: "0" });
       expect(Object.keys(call.env).filter((k) => /^git_(dir|work_tree|external_diff)$/i.test(k))).toEqual([]);
       const pairs = configPairs(call.env);
       expect(pairs.get("core.fsmonitor")).toBe("false");
-      expect(pairs.get("core.hooksPath")).toBe(devNull);
+      expect(pairs.get("core.hooksPath")).toBe("/dev/null");
       expect(pairs.get("core.pager")).toBe("");
       expect(pairs.get("diff.external")).toBe("");
       expect(pairs.get("log.showSignature")).toBe("false");
@@ -231,7 +231,7 @@ describe("the change list for /advisor alone", () => {
     expect(git.calls.length).toBeGreaterThan(1);
     for (const call of git.calls) {
       expect(call.args.slice(0, 2)).toEqual(["--no-pager", "--no-optional-locks"]);
-      expect(configPairs(call.env).get("core.hooksPath")).toBe(devNull);
+      expect(configPairs(call.env).get("core.hooksPath")).toBe("/dev/null");
     }
   });
 });
