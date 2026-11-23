@@ -51,11 +51,13 @@ function whoWrote(message: GmailMessage | undefined, own: readonly string[]) {
 
 export const bareAddresses = (list: readonly string[]): string[] => [...new Set(list.flatMap((t) => people(t).map((p) => p.address)))];
 
-export function replyTarget(messages: readonly GmailMessage[]): GmailMessage | undefined {
-  return messages
-    .filter((m) => !m.labelIds.includes("DRAFT"))
-    .sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
-    .at(-1);
+export async function replyTarget(
+  messages: readonly GmailMessage[],
+  reactionOf: (m: GmailMessage) => string | null | Promise<string | null>,
+): Promise<GmailMessage | undefined> {
+  const sent = messages.filter((m) => !m.labelIds.includes("DRAFT")).sort((a, b) => Number(a.internalDate) - Number(b.internalDate));
+  for (const m of sent.reverse()) if ((await reactionOf(m)) === null) return m;
+  return undefined;
 }
 
 export const replySubject = (subject: string): string => (/^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim()}`.trim());

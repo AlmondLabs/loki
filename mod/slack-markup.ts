@@ -18,6 +18,8 @@ const skinToneModifier = (slackTone: string) => String.fromCodePoint(FIRST_SKIN_
 const STANDARD = new Map<string, string>();
 /** Each standard name to the emoji's first name in iamcal's list, the one Slack keeps a reaction under (`thumbsup` → `+1`). */
 const KEPT_NAME = new Map<string, string>();
+const NAME_OF_DRAWN = new Map<string, string>();
+const drawn = (char: string) => char.replaceAll(EMOJI_VARIATION_SELECTOR, "");
 for (const [hex, names] of Object.entries(shortcodes as Record<string, string | string[]>)) {
   const points = hex.split("-").map((h) => Number.parseInt(h, 16));
   const char = String.fromCodePoint(...points) + (drawsAsTextAlone(points) ? EMOJI_VARIATION_SELECTOR : "");
@@ -26,6 +28,27 @@ for (const [hex, names] of Object.entries(shortcodes as Record<string, string | 
     STANDARD.set(name, char);
     KEPT_NAME.set(name, all[0]);
   }
+  if (!NAME_OF_DRAWN.has(drawn(char))) NAME_OF_DRAWN.set(drawn(char), all[0]);
+}
+
+const CODE_POINT_NAME = /^cp(-[0-9a-f]{1,6})+$/;
+const SKIN_TONES = /^(.+?)([\u{1F3FB}-\u{1F3FF}])$/u;
+
+export function emojiName(char: string): string {
+  const plain = drawn(char);
+  const named = NAME_OF_DRAWN.get(plain);
+  if (named) return named;
+  const toned = SKIN_TONES.exec(plain);
+  const base = toned ? NAME_OF_DRAWN.get(toned[1]) : undefined;
+  const tone = toned?.[2].codePointAt(0);
+  if (base && tone !== undefined) return `${base}::skin-tone-${tone - FIRST_SKIN_TONE_MODIFIER + 2}`;
+  const points: string[] = [];
+  for (let i = 0; i < plain.length;) {
+    const point = plain.codePointAt(i) ?? 0;
+    points.push(point.toString(16));
+    i += point > 0xffff ? 2 : 1;
+  }
+  return `cp-${points.join("-")}`;
 }
 
 function emojiSpan(name: string, tone: string | undefined, names: SlackNames, depth = 0): SlackSpan | null {
@@ -37,10 +60,21 @@ function emojiSpan(name: string, tone: string | undefined, names: SlackNames, de
   return { kind: "emoji", text: tone ? char.replace(EMOJI_VARIATION_SELECTOR, "") + skinToneModifier(tone) : char };
 }
 
+const LAST_CODE_POINT = 0x10ffff;
+
+function codePointEmoji(name: string): Extract<SlackSpan, { kind: "emoji" }> | null {
+  if (!CODE_POINT_NAME.test(name)) return null;
+  const points = name
+    .split("-")
+    .slice(1)
+    .map((h) => Number.parseInt(h, 16));
+  return points.every((p) => p <= LAST_CODE_POINT) ? { kind: "emoji", text: String.fromCodePoint(...points) } : null;
+}
+
 export function reactionEmoji(name: string, names: Pick<SlackNames, "emoji">): Extract<SlackSpan, { kind: "emoji" }> | null {
   const [base = "", tone] = name.split("::skin-tone-");
   const span = emojiSpan(base, tone, { person: () => Promise.resolve(""), ...names });
-  return span?.kind === "emoji" ? span : null;
+  return span?.kind === "emoji" ? span : codePointEmoji(name);
 }
 
 function matchRank(name: string, query: string): number | null {

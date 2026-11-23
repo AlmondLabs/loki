@@ -27,6 +27,7 @@ import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type Held
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
+import { reactionOf, type MailReactions } from "./mail-reactions.ts";
 import { bareAddresses, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-addressing.ts";
 import { liveMentions } from "../core/mentions.ts";
 import { MAY_HAVE_GONE, checkedFiles } from "./reply-proposals.ts";
@@ -84,6 +85,7 @@ export interface OutsideThreadsOptions {
   outbox?: Omit<MailOutboxOptions, "send">;
   slackPeople?: Pick<SlackPeople, "search">;
   people?: Pick<MailPeople, "top" | "saw">;
+  mailReactions?: (accountId: string) => Pick<MailReactions, "of">;
   zone?: string;
   now?: () => Date;
 }
@@ -188,7 +190,8 @@ export class OutsideThreads {
     const sender = this.opts.clientFor(account);
     if (sender.provider !== "gmail") throw new Error("only a mail thread has recipients");
     const [thread, sendAs] = await Promise.all([sender.client.getThread(threadId, "metadata"), sender.client.sendAs()]);
-    const newest = replyTarget(thread.messages);
+    const reactions = this.opts.mailReactions?.(accountId);
+    const newest = await replyTarget(thread.messages, (m) => reactions?.of(m) ?? null);
     if (!newest) throw new Error("that thread is empty in Gmail now");
     const own = ownAddresses(account, sendAs);
     const here = thread.messages.flatMap((m) => ["From", "To", "Cc"].flatMap((h) => headerPeople(headerOf(m, h))));
@@ -308,6 +311,7 @@ export class OutsideThreads {
       ...(account.provider === "gmail" && m.to ? { to: m.to } : {}),
       ...(account.provider === "gmail" && m.cc ? { cc: m.cc } : {}),
       ...(account.provider === "gmail" && m.files?.length ? { files: m.files } : {}),
+      ...(account.provider === "gmail" && m.reactable ? { reactable: true as const } : {}),
       ...(m.avatar ? { avatar: m.avatar } : {}),
       ...(m.in_thread ? { in_thread: true } : {}),
       ...(m.unread ? { unread: true } : {}),
@@ -493,7 +497,7 @@ export class OutsideThreads {
     mentions: readonly ReplyMention[] = [],
   ): Promise<void> {
     const [thread, sendAs] = await Promise.all([client.getThread(threadId, "full"), client.sendAs()]);
-    const newest = replyTarget(thread.messages);
+    const newest = await replyTarget(thread.messages, reactionOf);
     if (!newest) throw new Error("that thread is empty in Gmail now");
     const own = ownAddresses(account, sendAs);
     if (agent && mail) {

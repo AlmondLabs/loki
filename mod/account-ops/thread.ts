@@ -17,6 +17,7 @@ export interface ThreadMessage {
   mentions_me?: boolean;
   new_replies?: number | true;
   reactions?: SlackReaction[];
+  reactable?: true;
   slack_files?: SlackFile[];
   html?: string;
   inline_images?: Record<string, string>;

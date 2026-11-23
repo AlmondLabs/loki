@@ -1,18 +1,19 @@
 import type { AccountRecord } from "../accounts.ts";
+import type { MailReactions } from "../mail-reactions.ts";
 import { gmailReplyDestination, type ReplyGmailReads } from "./gmail.ts";
 import { jiraReplyDestination, type ReplyJiraReads } from "./jira.ts";
 import { slackReplyDestination, type ReplySlackReads } from "./slack.ts";
 import type { FlowRecord, ReplyDestination } from "./thread.ts";
 
 export type ReplyReads =
-  | { provider: "gmail"; client: ReplyGmailReads }
+  | { provider: "gmail"; client: ReplyGmailReads; reactions?: Pick<MailReactions, "of"> }
   | { provider: "slack"; client: ReplySlackReads }
   | { provider: "jira"; client: ReplyJiraReads };
 
 export function readReplyDestination(account: AccountRecord, reads: ReplyReads, reference: string, flow: FlowRecord): Promise<ReplyDestination> {
   switch (reads.provider) {
     case "gmail":
-      return gmailReplyDestination(account, reads.client, reference, flow);
+      return gmailReplyDestination(account, reads.client, reference, flow, reads.reactions);
     case "slack":
       return slackReplyDestination(account, reads.client, reference, flow);
     case "jira":

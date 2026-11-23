@@ -1,9 +1,10 @@
 import { useState } from "react";
-import type { AccountProvider, OutsideMessage } from "../../../core/frame-types.ts";
+import type { AccountProvider, OutsideMessage, SlackReaction } from "../../../core/frame-types.ts";
 import { HoverBar, ReactionRefused, SlackReplies, type SlackRowAt } from "../desk/slack-thread";
 import { addressIn, mailWhen, senderName, sentToLine, snippet } from "../desk/mail-thread";
 import { outsideMessageEntry } from "./item-view";
 import { MessageEntry } from "./message-entry";
+import { emojiTitle } from "./reactions";
 
 export function itemSlackRow(provider: AccountProvider) {
   return function ItemSlackRow(m: OutsideMessage, at: SlackRowAt) {
@@ -45,6 +46,7 @@ function ItemMail({ m, own, folded, now }: { m: OutsideMessage; own: readonly st
       >
         <span className="shrink-0 font-semibold">{name}</span>
         <span className="loki-truncate flex-1 text-muted-foreground">{snippet(m.text)}</span>
+        {m.reactions?.length ? <FoldedReactions reactions={m.reactions} /> : null}
         {when && <span className="shrink-0 text-xs text-muted-foreground">{when}</span>}
       </button>
     );
@@ -56,5 +58,17 @@ function ItemMail({ m, own, folded, now }: { m: OutsideMessage; own: readonly st
     <div className="flex flex-col gap-1">
       <MessageEntry entry={entry} source="gmail" status={m.mine ? sentTo || null : null} note={!m.mine && line ? line : null} />
     </div>
+  );
+}
+
+function FoldedReactions({ reactions }: { reactions: readonly SlackReaction[] }) {
+  return (
+    <span className="flex shrink-0 gap-1 text-xs tabular-nums text-muted-foreground" data-folded-reactions>
+      {reactions.map((r) => (
+        <span key={r.name} title={emojiTitle(r)} data-mine={r.mine ? "true" : undefined}>
+          {r.emoji?.text ?? r.name} {r.count}
+        </span>
+      ))}
+    </span>
   );
 }

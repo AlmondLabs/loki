@@ -23,6 +23,9 @@ const callName = (what: GoogleCallFor): string => (what === "contacts" ? "Google
 
 export const CONTACTS_NOT_ALLOWED = "this Google account has not let loki look up people: sign in again in Preferences › Accounts";
 
+/** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
+export const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
+
 export class GoogleError extends Error {
   readonly status: number;
   readonly reason: string | null;

@@ -5,6 +5,7 @@ import type { AccountSyncFactory, AccountWatcher } from "./account-watcher.ts";
 import type { ThreadText } from "./account-ops/thread.ts";
 import type { SendClient, SendGmail, SendJira, SendSlack } from "./outside-threads.ts";
 import type { CardView } from "./slack-view.ts";
+import type { MailReactions } from "./mail-reactions.ts";
 
 /**
  * `LOKI_PREVIEW_ACCOUNTS=1`, which `npm run phone-preview` alone sets: its made-up accounts have no keychain and no
@@ -18,6 +19,7 @@ export interface AccountWiring {
   threadText: Record<AccountProvider, ThreadText>;
   cardView?: Partial<Record<AccountProvider, CardView<OutsideWindow | null>>>;
   clientFor: (account: AccountRecord) => SendClient;
+  mailReactions?: (accountId: string) => MailReactions;
 }
 
 export function recordOnlySource(): OutsideSource {

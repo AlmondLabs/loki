@@ -197,7 +197,7 @@ export function outsideMessageEntry(m: OutsideMessage, provider: AccountProvider
     avatar: m.avatar ?? null,
     at: m.at,
     parts: partsOf(m),
-    reactions: provider === "slack" ? (m.reactions ?? []) : [],
+    reactions: provider === "jira" ? [] : (m.reactions ?? []),
     mentions_you: provider === "jira" ? m.mentions_me === true : m.brought === true,
     in_thread: m.in_thread === true,
   };

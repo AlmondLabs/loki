@@ -8,6 +8,7 @@ interface Stored {
   at: number;
   headers: Record<string, string>;
   snippet: string;
+  reaction?: string;
 }
 
 interface HistoryEntry {
@@ -15,6 +16,7 @@ interface HistoryEntry {
   messagesAdded?: Array<{ message: { id: string; threadId: string; labelIds: string[] } }>;
   labelsAdded?: Array<{ message: { id: string; threadId: string; labelIds: string[] }; labelIds: string[] }>;
   labelsRemoved?: Array<{ message: { id: string; threadId: string; labelIds: string[] }; labelIds: string[] }>;
+  messagesDeleted?: Array<{ message: { id: string; threadId: string; labelIds: string[] } }>;
 }
 
 const LABELS = [
@@ -35,6 +37,7 @@ export interface Delivery {
   headers?: Record<string, string>;
   snippet?: string;
   labels?: string[];
+  reaction?: { emoji: string; to: string };
 }
 
 export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
@@ -49,23 +52,38 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
     failing: false,
     limited: null as { status: number; reason: string } | null,
     unreadable: new Set<string>(),
+    failingMessages: new Set<string>(),
     refuseModify: null as string | null,
     inboxListings: 0,
   };
 
   const json = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
   const view = (m: Stored) => ({ id: m.id, threadId: m.threadId, labelIds: [...m.labels] });
-  const full = (m: Stored) => ({
+  const text = (mimeType: string, value: string) => ({
+    mimeType,
+    filename: "",
+    headers: [],
+    body: { size: value.length, data: Buffer.from(value).toString("base64url") },
+    parts: [],
+  });
+  const full = (m: Stored, format: string | null) => ({
     ...view(m),
     snippet: m.snippet,
     historyId: String(state.historyId),
     internalDate: String(m.at),
     payload: {
-      mimeType: "text/plain",
+      mimeType: m.reaction === undefined ? "text/plain" : "multipart/alternative",
       filename: "",
       headers: Object.entries(m.headers).map(([name, value]) => ({ name, value })),
       body: { size: 0 },
-      parts: [],
+      parts:
+        m.reaction === undefined || format !== "full"
+          ? []
+          : [
+              text("text/plain", "reacted"),
+              text("text/vnd.google.email-reaction+json", JSON.stringify({ emoji: m.reaction, version: 1 })),
+              text("text/html", "<p>reacted</p>"),
+            ],
     },
   });
 
@@ -146,7 +164,13 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       if (state.unreadable.has(id)) return json(400, { error: { code: 400, message: "Invalid thread", errors: [{ reason: "invalidArgument" }] } });
       const list = [...messages.values()].filter((m) => m.threadId === id).sort((a, b) => a.at - b.at);
       if (!list.length) return json(404, { error: { code: 404, message: "Requested entity was not found." } });
-      return json(200, { id, historyId: String(state.historyId), messages: list.map(full) });
+      return json(200, { id, historyId: String(state.historyId), messages: list.map((m) => full(m, q.get("format"))) });
+    }
+    const one = /^\/messages\/([^/]+)$/.exec(path);
+    if (one && method === "GET") {
+      const m = messages.get(decodeURIComponent(one[1]));
+      if (m && state.failingMessages.has(m.id)) return json(503, { error: { code: 503, message: "Backend Error" } });
+      return m ? json(200, full(m, q.get("format"))) : json(404, { error: { code: 404, message: "Requested entity was not found." } });
     }
     if (path === "/messages/batchModify" && method === "POST") {
       if (state.refuseModify !== null) return json(403, { error: { code: 403, message: state.refuseModify, errors: [{ reason: "insufficientPermissions" }] } });
@@ -173,7 +197,8 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
     state,
     deliver(d: Delivery): string {
       const id = `m${String(++state.seq).padStart(5, "0")}`;
-      const headers: Record<string, string> = { From: d.from, Subject: d.subject ?? "hello", ...d.headers };
+      const headers: Record<string, string> = { From: d.from, Subject: d.subject ?? "hello", "Message-ID": `<${id}@mail.test>`, ...d.headers };
+      if (d.reaction) Object.assign(headers, { "In-Reply-To": `<${d.reaction.to}@mail.test>`, "Content-Type": 'multipart/alternative; boundary="r"' });
       if (d.to !== undefined) headers.To = d.to;
       if (d.cc !== undefined) headers.Cc = d.cc;
       const m: Stored = {
@@ -183,10 +208,17 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
         at: d.at.getTime(),
         headers,
         snippet: d.snippet ?? `${d.subject ?? "hello"} from ${d.from}`,
+        ...(d.reaction ? { reaction: d.reaction.emoji } : {}),
       };
       messages.set(id, m);
       history.push({ id: ++state.historyId, messagesAdded: [{ message: view(m) }] });
       return id;
+    },
+    deleteMessage: (id: string) => {
+      const m = messages.get(id);
+      if (!m) return;
+      messages.delete(id);
+      history.push({ id: ++state.historyId, messagesDeleted: [{ message: view(m) }] });
     },
     removeLabels: (thread: string, labels: string[]) =>
       removeLabels(

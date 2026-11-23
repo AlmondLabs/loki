@@ -75,6 +75,23 @@ describe("the outside thread's seam", () => {
     expect(out).not.toContain("data-reactions");
   });
 
+  test("a mail draws its Gmail reactions as pills titled by the emoji, folded mails too, where nothing can be pressed", () => {
+    const thumbs = { name: "+1::skin-tone-4", count: 2, mine: true, emoji: { kind: "emoji" as const, text: "👍🏽" } };
+    const odd = { name: "cp-1fae9", count: 1, mine: false, emoji: { kind: "emoji" as const, text: "\u{1FAE9}" } };
+    const mails = [
+      msg("m1", { sender: "Ana <ana@northwind.test>", text: "The draft is ready", reactions: [thumbs] }),
+      msg("m2", { sender: "Ben <ben@northwind.test>", text: "Looks good", reactions: [odd] }),
+    ];
+    const out = html(createElement(ItemMailThread, { messages: mails, own: ["ada@acme.com"] }));
+    expect(out).toContain("data-folded-reactions");
+    expect(out).toContain('title="👍🏽"');
+    expect(out).toContain('title="\u{1FAE9}"');
+    expect(out).not.toContain(":+1::skin-tone-4:");
+    expect(out).not.toContain(":cp-1fae9:");
+    expect(out).toContain('data-mine="true"');
+    expect(out.match(/<button/g)?.length).toBe(2);
+  });
+
   test("the phone keeps its own list whatever items says", () => {
     expect(html(createElement(OutsideThread, { facts: facts(), state: read(SLACK), touch: true, items: true }))).not.toContain("data-row-item");
   });

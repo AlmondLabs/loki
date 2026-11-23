@@ -56,6 +56,7 @@ import { outsideResting } from "../core/attention/rest.ts";
 import { keyOf, type ChatEvent } from "../core/attention/model.ts";
 import { AccountWatcher } from "./account-watcher.ts";
 import { GmailClient } from "./gmail.ts";
+import { MailReactions } from "./mail-reactions.ts";
 import { GoogleAuth } from "./google-auth.ts";
 import { GmailSync, gmailOutsideSource } from "./gmail-sync.ts";
 import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
@@ -248,6 +249,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const statusOnly = (change: AccountChange) => change.kind === "status";
   const googleAuth = perAccount(accounts, (accountId) => new GoogleAuth({ accounts, account_id: accountId }), statusOnly);
   const gmailClient = perAccount(accounts, (accountId) => new GmailClient({ accounts, account_id: accountId, auth: googleAuth(accountId) }), statusOnly);
+  const mailReactions = perAccount(accounts, (accountId) => new MailReactions(gmailClient(accountId)), statusOnly);
   const slackClient = perAccount(
     accounts,
     (accountId) => {
@@ -270,8 +272,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   const wiring: AccountWiring = previewAccounts(process.env)
     ? previewWiring(threads)
     : {
+        mailReactions,
         sources: (watcher) => ({
-          gmail: gmailOutsideSource(gmailClient),
+          gmail: gmailOutsideSource(gmailClient, mailReactions),
           jira: jiraOutsideSource(),
           slack: slackOutsideSource((accountId) => {
             const sync = watcher.syncOf(accountId);
@@ -280,13 +283,21 @@ export default function activate(api: ModApi, host: Host): () => void {
         }),
         factories: {
           gmail: (account) =>
-            new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople, resting: restingIn(account.account_id) }),
+            new GmailSync({
+              accounts,
+              threads,
+              account,
+              client: gmailClient(account.account_id),
+              people: mailPeople,
+              reactions: mailReactions(account.account_id),
+              resting: restingIn(account.account_id),
+            }),
           slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id), resting: restingIn(account.account_id) }),
           jira: (account) => new JiraSync({ accounts, threads, account, client: jiraClient(account.account_id), resting: restingIn(account.account_id) }),
         },
-        threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraThreadText(jiraClient) },
+        threadText: { gmail: gmailThreadText(gmailClient, mailReactions), slack: slackThreadText(slackClient), jira: jiraThreadText(jiraClient) },
         cardView: {
-          gmail: gmailCardView(gmailClient, (key, read) => previews.preview(key, read)),
+          gmail: gmailCardView(gmailClient, (key, read) => previews.preview(key, read), mailReactions),
           slack: slackChannelView(
             slackClient,
             slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),
@@ -356,6 +367,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     threadText,
     cardView: wiring.cardView,
     clientFor: wiring.clientFor,
+    ...(wiring.mailReactions ? { mailReactions: wiring.mailReactions } : {}),
   });
   const ledger = new InboxLedger({ path: join(paths.state, "inbox-ledger.jsonl"), accounts, threads });
   const replies = new ReplyProposals({
@@ -369,7 +381,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     clientFor: (account): ReplyReads => {
       switch (account.provider) {
         case "gmail":
-          return { provider: "gmail", client: gmailClient(account.account_id) };
+          return { provider: "gmail", client: gmailClient(account.account_id), reactions: mailReactions(account.account_id) };
         case "slack":
           return { provider: "slack", client: slackClient(account.account_id) };
         case "jira": {

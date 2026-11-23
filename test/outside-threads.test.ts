@@ -269,6 +269,12 @@ describe("reading a card's whole thread", () => {
     expect((await threads({ thread }).t.read(MAIL, "t1")).messages[0]).toMatchObject({ text: "Bill", html: '<p>Bill <a href="https://x.test">here</a></p>' });
     expect((await threads({ thread }).t.read(SLACK, "D1")).messages[0]).not.toHaveProperty("html");
   });
+  test("a mail's reactions and whether it takes one reach the card; Slack never carries reactable", async () => {
+    const reactions = [{ name: "+1", count: 2, mine: true, emoji: { kind: "emoji" as const, text: "👍" } }];
+    const thread = [{ sender: "Ann", at: "", text: "The draft", id: "m1", reactions, reactable: true as const }];
+    expect((await threads({ thread }).t.read(MAIL, "t1")).messages[0]).toMatchObject({ reactions, reactable: true });
+    expect((await threads({ thread }).t.read(SLACK, "D1")).messages[0]).not.toHaveProperty("reactable");
+  });
   test("a mail's pasted pictures reach the card by name beside its HTML; Slack has none", async () => {
     const name = `${"b".repeat(32)}.png`;
     const thread = [{ sender: "Bob", at: "", text: "See", id: "m1", html: '<img src="cid:ii_abc">', inline_images: { ii_abc: name } }];
@@ -417,6 +423,38 @@ describe("reading a card's whole thread", () => {
 });
 
 describe("the person's reply", () => {
+  const reactionMail = (id: string, at: number, headers: Record<string, string>): GmailMessage => {
+    const m = message(id, at, headers);
+    const data = (text: string) => ({ size: text.length, data: Buffer.from(text).toString("base64url") });
+    return {
+      ...m,
+      payload: m.payload && {
+        ...m.payload,
+        mimeType: "multipart/alternative",
+        parts: [
+          { mimeType: "text/plain", filename: "", headers: [], body: data("Ada reacted"), parts: [] },
+          { mimeType: "text/vnd.google.email-reaction+json", filename: "", headers: [], body: data('{"emoji":"👍","version":1}'), parts: [] },
+        ],
+      },
+    };
+  };
+  const BOB = { From: "Bob <bob@acme.com>", To: "ada@acme.com, Cy <cy@acme.com>", Subject: "Lunch", "Message-ID": "<m1@acme.com>" };
+  const OWN_REACTION = { From: "ada@acme.com", To: "bob@acme.com", Subject: "Re: Lunch", "Message-ID": "<r1@acme.com>", "In-Reply-To": "<m1@acme.com>" };
+
+  test("Gmail: a reply after the person's own reaction answers and quotes the newest real mail", async () => {
+    const { t, sentMail } = threads({ gmail: [message("m1", 1, BOB), reactionMail("r1", 2, OWN_REACTION)] });
+    await t.reply(MAIL, "t1", "Friday works.", "stay");
+    expect(sentMail[0]).toMatchObject({ inReplyTo: "<m1@acme.com>", to: ["Bob <bob@acme.com>", "Cy <cy@acme.com>"] });
+  });
+
+  test("Gmail: compose after a reaction offers the newest real mail's people", async () => {
+    const { t } = threads({
+      gmail: [message("m1", 1, BOB), message("r1", 2, OWN_REACTION)],
+      extra: { mailReactions: () => ({ of: (m) => Promise.resolve(m.id === "r1" ? "👍" : null) }) },
+    });
+    expect((await t.compose(MAIL, "t1")).modes.reply).toEqual({ to: ["Bob <bob@acme.com>"], cc: [] });
+  });
+
   test("Gmail: reply-all to the newest message that is not a draft, never to the person's own addresses, then the card is archived", async () => {
     const { t, sentMail, archived } = threads({
       gmail: [
