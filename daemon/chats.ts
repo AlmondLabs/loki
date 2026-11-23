@@ -57,8 +57,8 @@ function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: I
   return { steps, role: message.role, text: said === text ? text : ownText(said), at: messageAt(message) };
 }
 
-/** pi's thinking level as loki's reasoning effort; none set is pi's own default, off. */
-function effortOf(level: string | undefined): ReasoningEffort | null {
+// Outside (pi-ai): a thinking level left unset is pi's default, off.
+function effortOfThinkingLevel(level: string | undefined): ReasoningEffort | null {
   if (level === undefined || level === "off") return "none";
   return isReasoningEffort(level) ? level : null;
 }
@@ -233,7 +233,7 @@ export class ChatProjection implements ChatSource {
       lastMessageAt: this.lastMessageAt(chat),
       archived: chat.info?.archived === true,
       model,
-      reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOf(chat.settings.thinkingLevel),
+      reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOfThinkingLevel(chat.settings.thinkingLevel),
       mode: engine ? (chat.info?.mode ?? "default") : modeOf(chat.info?.mode),
       labels: chat.info?.labels ?? [],
       purpose: chat.info?.purpose ?? null,

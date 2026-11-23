@@ -2,10 +2,8 @@ type Placed = Pick<HTMLElement, "getBoundingClientRect">;
 
 type ScrollBox = Placed & Pick<HTMLElement, "scrollTop" | "clientHeight" | "clientTop">;
 
-/**
- * Scrolls `box` alone so that `el` sits at its middle or its end. `scrollIntoView` scrolls every box above as well,
- * the Inbox's own included, and pushed a tall card's header and controls off the top of the window.
- */
+// Outside (HTML): `scrollIntoView` scrolls every box above as well, the Inbox's own included, which pushed a tall card's
+// header off the top of the window; this scrolls `box` alone.
 export function scrollWithin(box: ScrollBox, el: Placed, block: "center" | "end"): void {
   const at = el.getBoundingClientRect();
   const top = at.top - box.getBoundingClientRect().top - box.clientTop + box.scrollTop;
