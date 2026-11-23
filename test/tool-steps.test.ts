@@ -135,6 +135,12 @@ describe("a step's title: the agent's description, else its command without the 
     expect(toolInput("mcp__github__list_prs", prs)).toBe(mcp.input);
     expect(toolLabel("mcp__github__list_prs", prs)).toBe("mcp__github__list_prs");
   });
+
+  test("a script reads by its description line", () => {
+    expect(toolStep("codemode", { code: "// @description: Count open PRs\nreturn 1" }).description).toBe("Count open PRs");
+    expect(toolStep("codemode", { code: '// @options: {"timeout_ms": 1000}\n// @description: Count open PRs\nreturn 1' }).description).toBe("Count open PRs");
+    expect(toolStep("codemode", { code: "return 1" }).description).toBeUndefined();
+  });
 });
 
 describe("loki's tools, and Claude Code's names for the same steps", () => {

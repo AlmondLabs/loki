@@ -19,6 +19,8 @@ import { commandPath } from "../acp/agents.ts";
 import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerConfig, type ServerEdit } from "./config.ts";
 import { OauthStore, ServerOauth, callbackUrl, oauthKey } from "./oauth.ts";
 import { toolResultsDir } from "../tool-results.ts";
+import { withStepDescription } from "../step-description.ts";
+import { isRecord } from "../tool-kinds.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
@@ -38,6 +40,8 @@ export interface Secrets {
 }
 
 export const usesOauth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
+
+const takesStepDescription = (schema: Record<string, unknown>): boolean => isRecord(schema.properties) && !("description" in schema.properties);
 
 export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
 
@@ -237,6 +241,11 @@ export class McpTools {
   }
 
   private callTool(t: McpTool): ToolRegistration {
+    const tool = this.serverTool(t);
+    return takesStepDescription(t.inputSchema) ? withStepDescription(tool, { drop: true }) : tool;
+  }
+
+  private serverTool(t: McpTool): ToolRegistration {
     return defineTool({
       name: t.key,
       description: `[${t.server}] ${t.title && !t.description.startsWith(t.title) ? `${t.title}: ` : ""}${t.description || t.name}`,

@@ -250,9 +250,21 @@ const isQuestionTool = (name: string): boolean => name === "user_ask";
 
 const NAMED_BY_INSTEAD_OF_DESCRIPTION: Partial<Record<string, string>> = { ticket_propose: "title", mcp__loki__ticket_propose: "title" };
 
+const SCRIPT_TOOL_NAME = "codemode";
+
+export const SCRIPT_DESCRIPTION_PREFIX = "// @description:";
+
+export const isScriptDescriptionLine = (line: string): boolean => line.trimStart().startsWith(SCRIPT_DESCRIPTION_PREFIX);
+
+const scriptDescriptionOf = (code: string): string | undefined =>
+  code.split("\n").find(isScriptDescriptionLine)?.trimStart().slice(SCRIPT_DESCRIPTION_PREFIX.length);
+
+const saidIn = (args: Record<string, unknown>, name: string): unknown =>
+  name === SCRIPT_TOOL_NAME && typeof args.code === "string" ? scriptDescriptionOf(args.code) : args.description;
+
 const descriptionOf = (name: string, args: Record<string, unknown>): string | undefined => {
   if (NAMED_BY_INSTEAD_OF_DESCRIPTION[name]) return undefined;
-  const said = args.description;
+  const said = saidIn(args, name);
   return typeof said === "string" && said.trim() ? said.trim() : undefined;
 };
 

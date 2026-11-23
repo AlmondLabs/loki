@@ -342,10 +342,10 @@ describe("MCP servers", () => {
 });
 
 describe("loki.mcp in a chat", () => {
-  async function setup(opts: { alwaysLoad?: string[] } = {}) {
+  async function setup(opts: { alwaysLoad?: string[]; tools?: unknown[] } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-chat-"));
     writeFileSync(join(dir, "mcp.json"), JSON.stringify({ mcpServers: { fake: { command: "x", alwaysLoad: opts.alwaysLoad ?? [] } } }));
-    const mem = inMemory();
+    const mem = inMemory({ tools: opts.tools });
     const registry = createRegistry();
     const mcp = new McpTools({ registry, configPath: join(dir, "mcp.json"), lokiDir: dir, servers: new McpServers({ connect: mem.connect }) });
     const captured: Array<[string, Record<string, unknown>]> = [];
@@ -379,7 +379,7 @@ describe("loki.mcp in a chat", () => {
       await store.close(ctx);
       rmSync(dir, { recursive: true, force: true });
     };
-    return { dir, mcp, store, chat, faux, reply, asked, results, captured, cleanup };
+    return { dir, registry, mcp, store, chat, faux, reply, asked, results, captured, cleanup };
   }
 
   test("the section names every server and tool; no MCP tool is offered until mcp_search loads it, then it is a real tool", async () => {
@@ -476,6 +476,85 @@ describe("loki.mcp in a chat", () => {
     } finally {
       await s.cleanup();
     }
+  });
+
+  describe("an MCP tool's step description", () => {
+    const STRICT = {
+      name: "strict_search",
+      description: "Search with no extra fields",
+      inputSchema: { type: "object", properties: { q: { type: "string" } }, required: ["q"], additionalProperties: false },
+    };
+    const NOTE = {
+      name: "create_note",
+      description: "Write a note",
+      inputSchema: { type: "object", properties: { title: { type: "string" }, description: { type: "string" } }, required: ["title"] },
+    };
+    const EITHER = {
+      name: "find_either",
+      description: "Find by id or by name",
+      inputSchema: { type: "object", oneOf: [{ properties: { id: { type: "string" } } }, { properties: { name: { type: "string" } } }] },
+    };
+    const tools = [...TOOLS, STRICT, NOTE, EITHER];
+
+    async function chatWith() {
+      const s = await setup({ tools, alwaysLoad: ["list_issues", "strict_search", "create_note", "find_either"] });
+      await until(() =>
+        s.registry
+          .snapshot()
+          .tools()
+          .some(({ tool }) => tool.name === "mcp__fake__find_either"),
+      );
+      const parameters = (name: string): unknown =>
+        s.registry
+          .snapshot()
+          .tools()
+          .find(({ tool }) => tool.name === name)?.tool.parameters;
+      return { ...s, parameters };
+    }
+
+    test("a tool without a description of its own asks for one as required, and its server never receives it", async () => {
+      const s = await chatWith();
+      try {
+        expect(s.parameters("mcp__fake__list_issues")).toMatchObject({
+          properties: { description: { type: "string" }, repo: { type: "string" } },
+          required: ["description", "repo"],
+        });
+        await s.mcp.prepare(s.store, s.chat, ctx);
+        s.faux.setResponses([
+          s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__list_issues", { repo: "loki", description: "List open issues" }), { stopReason: "toolUse" })),
+          s.reply(
+            fauxAssistantMessage(fauxToolCall("mcp__fake__strict_search", { q: "flaky", description: "Search for flaky tests" }), { stopReason: "toolUse" }),
+          ),
+          s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__list_issues", { repo: "loki" }), { stopReason: "toolUse" })),
+          s.reply(fauxAssistantMessage("done")),
+        ]);
+        await (await s.chat.submit({ type: "input", content: "what's open?" }, ctx)).wait(ctx);
+        const [described, strict, bare] = await s.results();
+        expect(described).toContain('list_issues {\\"repo\\":\\"loki\\"}');
+        expect(strict).toContain('strict_search {\\"q\\":\\"flaky\\"}');
+        expect(bare).toContain('list_issues {\\"repo\\":\\"loki\\"}');
+      } finally {
+        await s.cleanup();
+      }
+    });
+
+    test("a tool with its own description, or without top-level properties, keeps its schema, and its server gets its description", async () => {
+      const s = await chatWith();
+      try {
+        expect(s.parameters("mcp__fake__create_note")).toEqual(NOTE.inputSchema);
+        expect(s.parameters("mcp__fake__find_either")).toEqual(EITHER.inputSchema);
+        await s.mcp.prepare(s.store, s.chat, ctx);
+        s.faux.setResponses([
+          s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__create_note", { title: "Tea", description: "At four" }), { stopReason: "toolUse" })),
+          s.reply(fauxAssistantMessage("done")),
+        ]);
+        await (await s.chat.submit({ type: "input", content: "note it" }, ctx)).wait(ctx);
+        const [note] = await s.results();
+        expect(note).toContain('create_note {\\"title\\":\\"Tea\\",\\"description\\":\\"At four\\"}');
+      } finally {
+        await s.cleanup();
+      }
+    });
   });
 });
 

@@ -15,6 +15,7 @@ import { fileToolsExtension } from "../daemon/tools.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
 import { chatEnvs } from "../daemon/tool-results.ts";
 import { SCRIPT_DESCRIPTION, scriptExtensions, scriptSandbox, SCRIPT_TOOL, withTimeLimit } from "../daemon/scripts.ts";
+import { toolStep } from "../core/harness.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const OWNER = "agent-local-owner";
@@ -134,13 +135,13 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     expect(otherRequest).not.toContain("google_echo");
   });
 
-  test("plan 099, KTD6: the script tool carries loki's own description, under 250 tokens, naming how to find and call tools", async () => {
+  test("plan 099, KTD6: the script tool carries loki's own description, under 275 tokens, naming how to find and call tools", async () => {
     const d = await daemon();
     const chat = await chatOf(d, OTHER, folder());
     const tool = (await chat.agent(ctx)).tools.find((t) => t.name === SCRIPT_TOOL);
     expect(tool?.description).toBe(SCRIPT_DESCRIPTION);
-    expect(Math.ceil(JSON.stringify({ name: tool?.name, description: tool?.description, parameters: tool?.parameters }).length / 4)).toBeLessThan(250);
-    for (const words of ["tools.<name>", "searchTools", "describeTool", "console.log", "store(key, value)", "// @options:"])
+    expect(Math.ceil(JSON.stringify({ name: tool?.name, description: tool?.description, parameters: tool?.parameters }).length / 4)).toBeLessThan(275);
+    for (const words of ["tools.<name>", "searchTools", "describeTool", "console.log", "store(key, value)", "// @options:", "// @description:"])
       expect(SCRIPT_DESCRIPTION).toContain(words);
   });
 
@@ -344,5 +345,32 @@ describe("a script's time limit", () => {
     expect(withTimeLimit(short, 600_000)).toBe(short);
     expect(withTimeLimit('// @options: {"timeout_ms": 9000000}\nreturn 1', 600_000)).toBe('// @options: {"timeout_ms":600000}\nreturn 1');
     expect(withTimeLimit("", 600_000)).toBe("");
+  });
+});
+
+describe("a script's description line", () => {
+  test("a script runs with its options whether its description line comes after the options line, before it, or not at all", async () => {
+    const d = await daemon();
+    const owner = await chatOf(d, OWNER, folder());
+    const options = '// @options: {"max_output_tokens": 50}';
+    const description = "// @description: Print many words";
+    const body = "text('word '.repeat(2000)); return 'printed'";
+    d.faux.setResponses([
+      script(`${options}\n${description}\n${body}`),
+      script(`${description}\n${options}\n${body}`),
+      script(`${options}\n${body}`),
+      reply(fauxAssistantMessage("done")),
+    ]);
+    await run(d, owner, "print");
+    const results = await scriptResults(d, owner);
+    expect(results).toHaveLength(3);
+    for (const result of results) {
+      expect(result).not.toContain("must be the first line");
+      expect(result).toMatch(/full output|complete/i);
+    }
+  });
+
+  test("a script's step is titled by its description line", () => {
+    expect(toolStep(SCRIPT_TOOL, { code: "// @description: Count open PRs\nreturn 1" }).description).toBe("Count open PRs");
   });
 });
