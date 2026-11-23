@@ -235,21 +235,20 @@ function Identity({
           {d.agent.favourite && <span style={{ color: "var(--loki-accent)" }}>· ★ favourite</span>}
         </div>
         <div className="loki-meta loki-meta--wrap flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2">
-            Advisor model
-            <Field
-              inline
-              mono
-              list="loki-advisor-models"
-              value={advisorModel}
-              placeholder={isLokiModel(d.agent.model) ? "Same as the agent's model" : "One of loki's models"}
-              onFocus={onLoadModels}
-              onChange={(e) => setAdvisorModel(e.target.value)}
-              onBlur={() => advisorModel.trim() !== (d.agent.advisor_model ?? "") && void onSave({ advisor_model: advisorModel.trim() || null })}
-              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-              style={{ width: 240, fontSize: "var(--text-xs)" }}
-            />
-          </label>
+          <label htmlFor="loki-advisor-model">Advisor model</label>
+          <Field
+            id="loki-advisor-model"
+            inline
+            mono
+            list="loki-advisor-models"
+            value={advisorModel}
+            placeholder={isLokiModel(d.agent.model) ? "Same as the agent's model" : "One of loki's models"}
+            onFocus={onLoadModels}
+            onChange={(e) => setAdvisorModel(e.target.value)}
+            onBlur={() => advisorModel.trim() !== (d.agent.advisor_model ?? "") && void onSave({ advisor_model: advisorModel.trim() || null })}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            style={{ width: 240, fontSize: "var(--text-xs)" }}
+          />
           <datalist id="loki-advisor-models">
             {handles.filter(isLokiModel).map((m) => (
               <option key={m} value={m} />
