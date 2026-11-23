@@ -504,6 +504,7 @@ describe("reading a whole thread for a hand-off", () => {
         sender: "ada@acme.com",
         id: "m2",
         mine: true,
+        reactable: true,
         at: "2026-11-04T08:30:00.000Z",
         text: "Thanks & regards\n\nAda",
         html: "<div>Thanks &amp; regards</div><br>Ada",

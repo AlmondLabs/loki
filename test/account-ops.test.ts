@@ -216,6 +216,7 @@ describe("pictures pasted into a mail", () => {
       const view = gmailCardView(
         () => client,
         (key, read) => store.preview(key, read),
+        undefined,
         () => new Promise<void>(() => {}),
       );
       const facts = { dealt_message_id: null, brought_ids: [], newest_message_id: "m1" };
@@ -237,5 +238,133 @@ describe("pictures pasted into a mail", () => {
     const [m] = await gmailThreadText(() => ({ getThread: () => Promise.resolve(thread) }))("gmail:sam@acme.test", "t1");
     expect(m.inline_images).toBeUndefined();
     expect(m.files).toEqual([{ name: "image.png", size: 2048 }]);
+  });
+});
+
+describe("Gmail reactions on a card", () => {
+  const OWN = "gmail:sam@acme.test";
+  const mailFrom = (id: string, from: string, headers: Array<[string, string]>, parts: GmailMessagePart[], at = 0): GmailMessage => ({
+    id,
+    threadId: "t1",
+    labelIds: ["INBOX"],
+    snippet: "",
+    historyId: "1",
+    internalDate: String(Date.UTC(2026, 10, 13, 9, at)),
+    payload: {
+      mimeType: "multipart/alternative",
+      filename: "",
+      headers: [["From", from], ["Message-ID", `<${id}@mail.test>`], ...headers].map(([name, value]) => ({ name, value })),
+      body: { size: 0 },
+      parts,
+    },
+  });
+  const ana = (extra: Array<[string, string]> = [["To", "sam@acme.test"]]) =>
+    mailFrom("ana1", "Ana <ana@northwind.test>", extra, [part("text/plain", "The draft is ready")]);
+  const reaction = (id: string, from: string, emoji: string, to = "ana1", at = 5) =>
+    mailFrom(
+      id,
+      from,
+      [["In-Reply-To", `<${to}@mail.test>`]],
+      [
+        part("text/plain", "reacted via Gmail"),
+        part("text/vnd.google.email-reaction+json", JSON.stringify({ emoji, version: 1 })),
+        part("text/html", "<p>reacted via Gmail</p>"),
+      ],
+      at,
+    );
+  const read = (messages: GmailMessage[], aliases: string[] = []) =>
+    gmailThread({ getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages }), sendAsAddresses: () => Promise.resolve(aliases) }, OWN, "t1");
+
+  test("reactions become one pill on the mail they answer, yours marked, with no rows of their own", async () => {
+    const { messages } = await read([ana(), reaction("r1", "Ben <ben@northwind.test>", "👍"), reaction("r2", "Sam <sam@acme.test>", "👍", "ana1", 6)]);
+    expect(messages.map((m) => m.id)).toEqual(["ana1"]);
+    expect(messages[0].reactions).toEqual([{ name: "+1", count: 2, mine: true, emoji: { kind: "emoji", text: "👍" } }]);
+  });
+
+  test("a reaction sent from one of your send-as addresses is yours", async () => {
+    const { messages } = await read([ana(), reaction("r1", "Sam <sam.k@acme.test>", "✅")], ["sam.k@acme.test"]);
+    expect(messages[0].reactions?.[0]).toMatchObject({ name: "white_check_mark", mine: true, count: 1 });
+  });
+
+  test("a mail sent from one of your send-as addresses is yours, and a failing send-as list still reads the thread", async () => {
+    const yours = mailFrom("s1", "Sam <sam.k@acme.test>", [["To", "ana@northwind.test"]], [part("text/plain", "Sent from the alias")]);
+    expect((await read([ana(), yours], ["sam.k@acme.test"])).messages.map((m) => m.mine)).toEqual([false, true]);
+    const failing = await gmailThread(
+      { getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages: [ana(), yours] }), sendAsAddresses: () => Promise.reject(new Error("no")) },
+      OWN,
+      "t1",
+    );
+    expect(failing.messages.map((m) => m.mine)).toEqual([false, false]);
+  });
+
+  test("one person's same emoji twice counts once; another skin tone is its own pill", async () => {
+    const { messages } = await read([
+      ana(),
+      reaction("r1", "ben@northwind.test", "👍"),
+      reaction("r2", "ben@northwind.test", "👍"),
+      reaction("r3", "eve@northwind.test", "👍🏽"),
+    ]);
+    expect(messages[0].reactions?.map((r) => [r.name, r.count])).toEqual([
+      ["+1", 1],
+      ["+1::skin-tone-4", 1],
+    ]);
+  });
+
+  test("a reaction to a mail that is not in the thread leaves no row and no pill", async () => {
+    const { messages } = await read([ana(), reaction("r1", "ben@northwind.test", "👍", "gone")]);
+    expect(messages.map((m) => [m.id, m.reactions])).toEqual([["ana1", undefined]]);
+  });
+
+  test("a mail that forwards a reaction mail stays a row", async () => {
+    const forwarded: GmailMessagePart = {
+      mimeType: "message/rfc822",
+      filename: "",
+      headers: [],
+      body: { size: 0 },
+      parts: [part("text/vnd.google.email-reaction+json", '{"emoji":"👍","version":1}')],
+    };
+    const { messages } = await read([ana(), mailFrom("fw1", "ben@northwind.test", [["To", "sam@acme.test"]], [part("text/plain", "fyi"), forwarded])]);
+    expect(messages.map((m) => m.id)).toEqual(["ana1", "fw1"]);
+  });
+
+  test("a mail takes reactions unless Gmail refuses them there", async () => {
+    const many = Array.from({ length: 21 }, (_, i) => `p${i}@northwind.test`).join(", ");
+    const plain = ana();
+    const encrypted = { ...plain, payload: plain.payload && { ...plain.payload, mimeType: "multipart/encrypted" } };
+    const cases: Array<[string, GmailMessage]> = [
+      ["ordinary", ana()],
+      [
+        "list",
+        ana([
+          ["To", "sam@acme.test"],
+          ["List-Id", "<team.northwind.test>"],
+        ]),
+      ],
+      ["crowd", ana([["To", `sam@acme.test, ${many}`]])],
+      ["bcc", ana([["To", "someone@northwind.test"]])],
+      ["encrypted", encrypted],
+      ["yours", mailFrom("s1", "sam@acme.test", [["To", "ana@northwind.test"]], [part("text/plain", "Thanks")])],
+    ];
+    const reactable = await Promise.all(cases.map(async ([name, m]) => [name, (await read([m])).messages[0].reactable === true]));
+    expect(reactable).toEqual([
+      ["ordinary", true],
+      ["list", false],
+      ["crowd", false],
+      ["bcc", false],
+      ["encrypted", false],
+      ["yours", true],
+    ]);
+  });
+
+  test("after 20 of your reactions a mail takes no more", async () => {
+    const yours = Array.from({ length: 20 }, (_, i) => reaction(`r${i}`, "sam@acme.test", i % 2 ? "👍" : "👀"));
+    expect((await read([ana(), ...yours.slice(0, 19)])).messages[0].reactable).toBe(true);
+    expect((await read([ana(), ...yours])).messages[0].reactable).toBeUndefined();
+  });
+
+  test("a hand-off's text has no line for a reaction mail", async () => {
+    const messages = [ana(), reaction("r1", "ben@northwind.test", "👍")];
+    const lines = await gmailThreadText(() => ({ getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages }) }))(OWN, "t1");
+    expect(lines.map((m) => m.id)).toEqual(["ana1"]);
   });
 });

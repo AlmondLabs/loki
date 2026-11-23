@@ -15,7 +15,7 @@ import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
 import { shownText } from "../chat/transcript";
 import { ContentParts } from "./content-parts";
 import type { ItemEntry, ItemSource } from "./item-view";
-import { Reactions } from "./reactions";
+import { emojiTitle, Reactions } from "./reactions";
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -37,6 +37,7 @@ export function MessageEntry({
   children?: ReactNode;
 }) {
   const time = clockLabel(m.at);
+  const pills = <Reactions reactions={m.reactions} onToggle={onReact} title={source === "gmail" ? emojiTitle : undefined} />;
   const parts = <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />;
   if (m.from === "you" && source !== "slack" && source !== "jira")
     return (
@@ -49,7 +50,7 @@ export function MessageEntry({
           </div>
           {parts}
         </MessageContent>
-        <Reactions reactions={m.reactions} onToggle={onReact} />
+        {pills}
         {children}
       </Message>
     );
@@ -69,7 +70,7 @@ export function MessageEntry({
           </div>
         )}
         {parts}
-        <Reactions reactions={m.reactions} onToggle={onReact} />
+        {pills}
         {children}
       </div>
     </div>

@@ -257,6 +257,20 @@ describe("a Gmail reply's thread", () => {
     expect(d).toMatchObject({ thread_id: "t1", subject: "Re: Invoice", to: ["Bo <bo@x.com>", "Cy <cy@x.com>"], cc: [], in_flow: false });
   });
 
+  test("a reaction mail is never the one a reply answers", async () => {
+    const reaction = { ...mail("Dee <dee@x.com>", "bo@x.com", "Re: Invoice"), id: "r1", internalDate: "2" };
+    const reads: ReplyReads = {
+      provider: "gmail",
+      client: {
+        getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages: [mail("Bo <bo@x.com>", "ada@acme.com", "Invoice"), reaction] }),
+        sendAsAddresses: () => Promise.resolve([]),
+      },
+      reactions: { of: (m) => Promise.resolve(m.id === "r1" ? "👍" : null) },
+    };
+    const d = await readReplyDestination(MAIL, reads, "t1", flowOf());
+    expect(d).toMatchObject({ to: ["Bo <bo@x.com>"], cc: [] });
+  });
+
   test("a thread the mailbox does not have is refused as before", async () => {
     const reads: ReplyReads = {
       provider: "gmail",

@@ -711,8 +711,8 @@ Jira ticket (plans 096 and 097, in Apple's language since plan 2026-11-12-1505).
   an outside thread.
 - **The box**: Messages' (see [The window](#the-window)). Messages sent while the agent works wait above it, each with
   **Take Back**.
-- **Outside items**: a Slack thread or a Jira ticket draws its messages in the same rows (reactions on Slack only); an
-  email folds every mail but the newest to a line. The reply box says where a reply goes and keeps everything the
+- **Outside items**: a Slack thread or a Jira ticket draws its messages in the same rows (reactions on Slack and
+  mail, not Jira); an email folds every mail but the newest to a line. The reply box says where a reply goes and keeps everything the
   card's box does: its keys, a mail's recipients, signature and quoted mail.
 
 Not yet: asking the owning agent to write a reply from the box, posting a Slack reply to the channel as well, editing
@@ -1355,7 +1355,11 @@ the card's title. With more than one mailbox connected, the header ends with the
 you@work.example"). Each mail has its own header line with the sender's face, name and address, whom it went to ("to
 you, cc Dev Patel") and when it came. The mails before the newest fold to one line each, and a press opens one. A
 mail's files show as chips with their size under it; open them from Gmail. A picture shown in the mail is not among
-its files, as in Gmail. The reply box sits at the end of the thread,
+its files, as in Gmail. **Gmail reactions** show as pills under the mail they answer, as on Slack, with a folded mail's
+pills on its line; the mail a reaction comes in never shows as a mail of its own. A pill's tooltip is its emoji. A
+reaction shows the next time the card opens, and it never brings a card back, marks it new or makes one. Read and
+archive take the thread's reaction mails with them in Gmail. A reaction from Outlook or another client that has no
+reactions comes as an ordinary mail. The reply box sits at the end of the thread,
 under the newest mail. It holds the recipients line, your text, your signature and the quote, then **send** and
 **discard**, which clears the text and puts the recipients back. The card's moves (hand off, label, archive, later,
 read) stay in the row at the bottom. The phone keeps its own layout.

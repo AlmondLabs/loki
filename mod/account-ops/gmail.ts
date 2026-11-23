@@ -2,6 +2,7 @@ import { CID_SRC, cidOf, drawnBody } from "../../core/mail-pictures.ts";
 import { htmlToText, tidyMail } from "../../core/mail-text.ts";
 import type { AccountRecord } from "../accounts.ts";
 import type { GmailClient, GmailMessage, GmailMessagePart } from "../gmail.ts";
+import { foldReactions, reactionOf, type MailReactions } from "../mail-reactions.ts";
 import { GoogleError } from "../google-auth.ts";
 import { headerOf, replyAllOf, replySubject, replyTarget } from "../reply-addressing.ts";
 import type { CardView } from "../slack-view.ts";
@@ -77,16 +78,21 @@ async function namedPictures(accountId: string, wanted: PastedPicture[], picture
   return new Map(named);
 }
 
+export type GmailThreadReads = Pick<GmailClient, "getThread"> & Partial<Pick<GmailClient, "sendAsAddresses">>;
+
 export async function gmailThread(
-  client: Pick<GmailClient, "getThread">,
+  client: GmailThreadReads,
   accountId: string,
   threadId: string,
   pictures?: MailPictures,
+  reactions?: Pick<MailReactions, "saw">,
 ): Promise<{ subject: string; messages: ThreadMessage[] }> {
-  const thread = await client.getThread(threadId, "full");
+  const [thread, aliases] = await Promise.all([client.getThread(threadId, "full"), client.sendAsAddresses?.().catch(() => []) ?? []]);
   const own = accountId.startsWith("gmail:") ? accountId.slice("gmail:".length) : "";
+  const ownAddresses = [...new Set([own, ...aliases].map((a) => a.trim().toLowerCase()).filter(Boolean))];
   const opening = thread.messages.at(0);
-  const read = thread.messages.map((m) => {
+  const folded = foldReactions(thread.messages, (m) => (reactions ? reactions.saw(m) : reactionOf(m)), ownAddresses);
+  const read = folded.mails.map((m) => {
     const { text, html } = mailParts(m);
     const kept = html !== null && html.length <= MAIL_HTML_MAX ? html : null;
     return { m, text, html: kept, wanted: pictures && kept !== null ? pastedPictures(m.id, kept, m.payload) : [] };
@@ -112,10 +118,11 @@ export async function gmailThread(
       .filter((f) => !shownAttachments.has(f.attachmentId))
       .map((f) => ({ name: f.filename, size: f.size }));
     const inlineImages = Object.fromEntries(shown.map((s) => [s.picture.content_id, s.name]));
+    const reacted = folded.of.get(m.id);
     return {
       sender: from || "someone",
       id: m.id,
-      mine: own !== "" && addressOf(from) === own,
+      mine: ownAddresses.includes(addressOf(from)),
       at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
       text,
       ...(html !== null ? { html } : {}),
@@ -123,6 +130,8 @@ export async function gmailThread(
       ...(to ? { to } : {}),
       ...(cc ? { cc } : {}),
       ...(files.length ? { files } : {}),
+      ...(reacted?.reactions.length ? { reactions: reacted.reactions } : {}),
+      ...(reacted?.reactable ? { reactable: true as const } : {}),
     };
   });
   return { subject: opening ? mailHeader(opening, "subject") : "", messages };
@@ -133,19 +142,20 @@ const PICTURE_WAIT_MS = 5_000;
 const pictureWait = (): Promise<void> => new Promise((done) => setTimeout(done, PICTURE_WAIT_MS).unref());
 
 export function gmailCardView(
-  client: (accountId: string) => Pick<GmailClient, "getThread" | "attachment">,
+  client: (accountId: string) => GmailThreadReads & Pick<GmailClient, "attachment">,
   keep: MailPictures["keep"],
+  reactions?: (accountId: string) => Pick<MailReactions, "saw">,
   waited: MailPictures["waited"] = pictureWait,
 ): CardView<null> {
   return async (accountId, threadId) => {
     const gmail = client(accountId);
     const pictures = { keep, waited, attachment: (messageId: string, attachmentId: string) => gmail.attachment(messageId, attachmentId) };
-    return { messages: (await gmailThread(gmail, accountId, threadId, pictures)).messages, window: null };
+    return { messages: (await gmailThread(gmail, accountId, threadId, pictures, reactions?.(accountId))).messages, window: null };
   };
 }
 
-export function gmailThreadText(client: (accountId: string) => Pick<GmailClient, "getThread">): ThreadText {
-  return async (accountId, threadId) => (await gmailThread(client(accountId), accountId, threadId)).messages;
+export function gmailThreadText(client: (accountId: string) => GmailThreadReads, reactions?: (accountId: string) => Pick<MailReactions, "saw">): ThreadText {
+  return async (accountId, threadId) => (await gmailThread(client(accountId), accountId, threadId, undefined, reactions?.(accountId))).messages;
 }
 
 export function mailParts(m: GmailMessage): { text: string; html: string | null } {
@@ -174,14 +184,20 @@ function addressOf(from: string): string {
 
 export type ReplyGmailReads = Pick<GmailClient, "getThread" | "sendAsAddresses">;
 
-export async function gmailReplyDestination(account: AccountRecord, client: ReplyGmailReads, reference: string, flow: FlowRecord): Promise<ReplyDestination> {
+export async function gmailReplyDestination(
+  account: AccountRecord,
+  client: ReplyGmailReads,
+  reference: string,
+  flow: FlowRecord,
+  reactions?: Pick<MailReactions, "of">,
+): Promise<ReplyDestination> {
   const threadId = reference.trim();
   const thread = await client.getThread(threadId, "metadata").catch((err: unknown) => {
     if (err instanceof GoogleError && (err.status === 404 || err.status === 400)) throw new Error(`there is no thread ${threadId} in ${account.address}`);
     throw err;
   });
   const record = flow(account.account_id, threadId);
-  const newest = replyTarget(thread.messages);
+  const newest = await replyTarget(thread.messages, (m) => reactions?.of(m) ?? null);
   const own = [account.address, ...(await client.sendAsAddresses().catch(() => []))];
   return {
     thread_id: threadId,

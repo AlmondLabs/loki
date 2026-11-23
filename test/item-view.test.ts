@@ -188,15 +188,12 @@ describe("an email", () => {
     expect(outsideItem({ facts: facts({ provider: "gmail" }), messages: [], unread: false }).header.flags).toEqual([]);
   });
 
-  test("a message with no HTML is its plain text, and an email never carries reactions", () => {
-    const view = outsideItem({
-      facts: facts({ provider: "gmail" }),
-      messages: [msg("m1", { text: "Thanks", reactions: [{ name: "+1", count: 1, mine: false, emoji: null }] })],
-      unread: false,
-    });
+  test("a message with no HTML is its plain text, and an email carries its Gmail reactions", () => {
+    const reactions = [{ name: "+1", count: 1, mine: false, emoji: { kind: "emoji" as const, text: "👍" } }];
+    const view = outsideItem({ facts: facts({ provider: "gmail" }), messages: [msg("m1", { text: "Thanks", reactions })], unread: false });
     const m = view.entries[0];
     expect(m.kind === "message" && m.parts).toEqual([{ kind: "text", text: "Thanks" }]);
-    expect(m.kind === "message" && m.reactions).toEqual([]);
+    expect(m.kind === "message" && m.reactions).toEqual(reactions);
   });
 });
 

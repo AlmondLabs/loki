@@ -8,6 +8,7 @@ import { AccountWatcher } from "../mod/account-watcher.ts";
 import { Accounts } from "../mod/accounts.ts";
 import { GmailClient } from "../mod/gmail.ts";
 import { GmailSync, gmailOutsideSource } from "../mod/gmail-sync.ts";
+import { MailReactions } from "../mod/mail-reactions.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -37,10 +38,18 @@ async function setup(addresses = ["ada@acme.com"]) {
     clients.set(id, new GmailClient({ accounts, account_id: id, fetch: boxes[i].fetch, now: clock }));
   }
   const clientOf = (id: string) => must(clients.get(id), "the account's client");
-  threads.register("gmail", gmailOutsideSource(clientOf));
+  const reactions = new Map<string, MailReactions>();
+  const reactionsOf = (id: string) => {
+    const known = reactions.get(id);
+    if (known) return known;
+    const made = new MailReactions(clientOf(id));
+    reactions.set(id, made);
+    return made;
+  };
+  threads.register("gmail", gmailOutsideSource(clientOf, reactionsOf));
   const sync = (i = 0, resting?: (r: ThreadRecord) => boolean) => {
     const account = must(accounts.get(`gmail:${addresses[i]}`), "the account");
-    return new GmailSync({ accounts, threads, account, client: clientOf(account.account_id), now: clock, resting });
+    return new GmailSync({ accounts, threads, account, client: clientOf(account.account_id), reactions: reactionsOf(account.account_id), now: clock, resting });
   };
   const id = (i = 0) => `gmail:${addresses[i]}`;
   const cards = (i = 0) =>
@@ -508,5 +517,156 @@ describe("a Gmail account that fails (R22)", () => {
     box.state.limited = { status: 403, reason: "dailyLimitExceeded" };
     for (let i = 0; i < 3; i++) await watcher.tick();
     expect(must(accounts.get(id()), "ada").status).toEqual({ disconnected: "temporarily_failing" });
+  });
+});
+
+describe("Gmail reactions never move a card", () => {
+  const BEN = "Ben <ben@acme.com>";
+  const react = (box: ReturnType<typeof fakeMailbox>, thread: string, to: string, at: Date, from = BEN, labels = ["INBOX", "UNREAD"]) =>
+    box.deliver({ thread, at, from, to: "ada@acme.com", reaction: { emoji: "👍", to }, labels, snippet: "👍" });
+
+  test("Covers AE2. an archived card stays archived when a reaction to its last mail arrives", async () => {
+    const { box, sync, cards, ago, threads, id } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    await threads.archive(id(), "t1");
+    react(box, "t1", mail, ago(HOUR));
+    await s.tick();
+    expect(cards()).toEqual([]);
+    expect(threads.get(id(), "t1")?.state).toBe("archived");
+  });
+
+  test("a reaction to your own sent mail, or to an inbox thread with no card, makes no card", async () => {
+    const { box, sync, cards, ago } = await setup();
+    const t = (i: number) => `t${String(i).padStart(3, "0")}`;
+    for (let i = 0; i < 25; i++) box.deliver({ thread: t(i), at: ago(i * HOUR + 2 * DAY), from: GRACE, to: "ada@acme.com" });
+    const sent = box.deliver({ thread: "t-sent", at: ago(3 * HOUR), from: "Ada <ada@acme.com>", to: "grace@acme.com", labels: ["SENT"] });
+    const s = sync();
+    await s.tick();
+    expect(cards()).toHaveLength(20);
+    react(box, "t-sent", sent, ago(HOUR));
+    react(box, t(24), "m00025", ago(HOUR));
+    await s.tick();
+    expect(cards()).toHaveLength(20);
+    expect(cards()).not.toContain("t-sent");
+    expect(cards()).not.toContain(t(24));
+  });
+
+  test("a new mail and a reaction to it arriving in one sync make a card whose newest mail is the real one", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const s = sync();
+    await s.tick();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", snippet: "the numbers" });
+    react(box, "t1", mail, ago(HOUR));
+    await s.tick();
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", newest_message_id: mail, lines: ["the numbers"] });
+  });
+
+  test("a reaction's text is never a preview line, even after your own replies", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const ADA = "Ada <ada@acme.com>";
+    box.deliver({ thread: "t1", at: ago(6 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"], snippet: "first" });
+    const yours = box.deliver({ thread: "t1", at: ago(5 * HOUR), from: ADA, to: "grace@acme.com", labels: ["INBOX", "SENT"], snippet: "mine" });
+    react(box, "t1", yours, ago(4 * HOUR), BEN, ["INBOX"]);
+    box.deliver({ thread: "t1", at: ago(3 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"], snippet: "second" });
+    box.deliver({ thread: "t1", at: ago(2 * HOUR), from: ADA, to: "grace@acme.com", labels: ["SENT"], snippet: "again" });
+    box.deliver({ thread: "t1", at: ago(HOUR), from: ADA, to: "grace@acme.com", labels: ["SENT"], snippet: "and again" });
+    await sync().tick();
+    expect(threads.get(id(), "t1")?.lines).toEqual(["first", "mine", "second"]);
+  });
+
+  test("an unread reaction that is not the newest mail leaves the card read", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(3 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    react(box, "t1", mail, ago(2 * HOUR));
+    box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    await sync().tick();
+    expect(threads.get(id(), "t1")?.unread_out_there).toBe(false);
+  });
+
+  test("an open card's newest mail, new mark and unread mark stay as they were when a reaction arrives", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"], snippet: "the plan" });
+    const s = sync();
+    await s.tick();
+    const before = must(threads.get(id(), "t1"), "the card");
+    react(box, "t1", mail, ago(HOUR));
+    await s.tick();
+    expect(threads.get(id(), "t1")).toMatchObject({
+      newest_message_id: mail,
+      unread_out_there: false,
+      lines: ["the plan"],
+      dealt_message_id: before.dealt_message_id,
+    });
+  });
+
+  test("after a reaction's mail is deleted, the orphaned reaction never becomes the card's newest mail", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    box.deliver({ thread: "t1", at: ago(3 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const second = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const s = sync();
+    await s.tick();
+    const reaction = react(box, "t1", second, ago(HOUR));
+    await s.tick();
+    box.deleteMessage(second);
+    await s.tick();
+    const card = must(threads.get(id(), "t1"), "the card");
+    expect(card.state).toBe("open");
+    expect(card.newest_message_id).not.toBe(reaction);
+  });
+
+  test("a thread whose only inbox mail is a reaction closes as gone out there", async () => {
+    const { box, sync, cards, ago } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    box.removeLabels("t1", ["INBOX"]);
+    react(box, "t1", mail, ago(HOUR));
+    await s.tick();
+    expect(cards()).toEqual([]);
+  });
+
+  test("a rate limit while telling a reaction from a mail keeps sync's place, and the next tick finishes", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const s = sync();
+    await s.tick();
+    const reaction = react(box, "t1", mail, ago(HOUR));
+    const asked = box.requests.length;
+    box.state.limited = { status: 429, reason: "rateLimitExceeded" };
+    await expect(s.tick()).rejects.toThrow();
+    box.state.limited = null;
+    await s.tick();
+    expect(box.requests.slice(asked).some((r) => r.url.pathname.endsWith(`/messages/${reaction}`))).toBe(true);
+    expect(threads.get(id(), "t1")?.newest_message_id).toBe(mail);
+  });
+
+  test("archive and read take the reaction mails after the newest mail too; undo puts them back", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    const reaction = react(box, "t1", mail, ago(HOUR));
+    const change = must(await threads.archive(id(), "t1"), "the archive's change");
+    expect([mail, reaction].map((m) => box.labelsOfMessage(m))).toEqual([[], []]);
+    await threads.restore(id(), "t1", change);
+    expect([mail, reaction].map((m) => box.labelsOfMessage(m))).toEqual([
+      ["INBOX", "UNREAD"],
+      ["INBOX", "UNREAD"],
+    ]);
+    await threads.markRead(id(), "t1");
+    expect([mail, reaction].map((m) => box.labelsOfMessage(m))).toEqual([["INBOX"], ["INBOX"]]);
+  });
+
+  test("archive still archives the card's mail when a reaction can't be told from a mail", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const mail = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    const reaction = react(box, "t1", mail, ago(HOUR));
+    box.state.failingMessages.add(reaction);
+    await threads.archive(id(), "t1");
+    expect([mail, reaction].map((m) => box.labelsOfMessage(m))).toEqual([[], ["INBOX", "UNREAD"]]);
   });
 });

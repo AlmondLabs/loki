@@ -251,7 +251,8 @@ agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
 - **What loki changes in Gmail on your moves.** Only labels, and only on your move on a card (plan 070): read removes UNREAD,
   later adds UNREAD to the thread's newest incoming message, archive and a hand-off remove INBOX and UNREAD, label
   adds a label of yours that you pick, and undo puts back exactly the labels the move changed. Each touches messages
-  up to the card's newest only. loki lists the account's labels for the picker and never creates, renames or deletes
+  up to the card's newest only, except that read and archive also take the thread's Gmail reaction mails that came
+  after it. loki lists the account's labels for the picker and never creates, renames or deletes
   one; nothing deletes or moves mail to the trash. A label move or an undo that names TRASH, SPAM, SENT, DRAFT or
   CHAT leaves that label alone, whichever device sent it. A script is not bound by this list (Scripts below).
 - **Whose Google app.** By default the shared Desktop client of loki's own Google Cloud project, whose id and secret

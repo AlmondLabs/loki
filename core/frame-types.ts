@@ -402,8 +402,16 @@ export interface OutsideMessage {
    * could not be counted. The card offers to open that thread.
    */
   new_replies?: number | true;
-  /** A Slack message's reactions as Slack shows them under it (plan 079), in Slack's order; absent when it has none. */
+  /**
+   * A message's reactions as Slack shows them under it (plan 079), in Slack's order, or a mail's Gmail reactions folded
+   * from the reaction mails that answer it, in the order they came; absent when it has none.
+   */
   reactions?: SlackReaction[];
+  /**
+   * True when Gmail takes a reaction to this mail. Absent for list mail, more than 20 people in To and Cc, mail where
+   * the person is only in Bcc, encrypted mail, a mail with 20 of the person's reactions, Slack, Jira, and an older loki.
+   */
+  reactable?: true;
   /**
    * The files shared in a Slack message (plan 080) or a Jira comment (plan 093), shown as chips under it; absent when
    * it has none.
