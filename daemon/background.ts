@@ -6,6 +6,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { shellTitle } from "../core/shell-title.ts";
+import { withStepDescription } from "./step-description.ts";
 import { withKind } from "./tool-kinds.ts";
 
 const KEEP = 256 * 1024;
@@ -17,6 +19,7 @@ interface Task {
   agentId: string;
   chatId: string;
   command: string;
+  description: string;
   child: ChildProcess;
   output: string;
   read: number;
@@ -29,6 +32,14 @@ interface Task {
 export type Notify = (agentId: string, chatId: string, text: string) => void;
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * The notice a finished task leaves in its chat, which the model reads as its next message and `extractHarnessEvents`
+ * (core/harness.ts) shows as an event. `<summary>` is the task's description, or its trimmed command when it had none;
+ * `<command>` is the whole command; `<result>` is the output's last 2000 characters. Each is entity-escaped.
+ */
+const taskNotification = (id: string, status: string, summary: string, command: string, tail: string) =>
+  `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(summary)}</summary>\n<command>${escape(command)}</command>\n<result>${escape(tail)}</result>\n</task-notification>`;
 
 const RESIGNAL_MS = 150;
 const GRACE_MS = 2_000;
@@ -61,13 +72,13 @@ export class BackgroundTasks {
     this.notify = notify;
   }
 
-  start(agentId: string, chatId: string, cwd: string, command: string): string {
+  start(agentId: string, chatId: string, cwd: string, command: string, description = ""): string {
     this.prune();
     const id = `bg-${randomBytes(3).toString("hex")}`;
     // Outside (bash): it keeps `sleep 30`, a dev server under `npm run`, as children that hold the output open after the
     // shell itself is gone, so off Windows the task gets its own process group, and stopping it stops them too.
     const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
-    const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, endedAt: 0, waiters: new Set() };
+    const task: Task = { id, agentId, chatId, command, description, child, output: "", read: 0, exit: null, endedAt: 0, waiters: new Set() };
     const take = (text: string) => {
       if (!text) return;
       task.output += text;
@@ -103,11 +114,7 @@ export class BackgroundTasks {
       if (watched) return;
       const status = signal ? `stopped (${signal})` : code === 0 ? "completed" : `failed (exit ${code})`;
       const tail = task.output.slice(-2000).trim();
-      this.notify(
-        agentId,
-        chatId,
-        `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(command)}</summary>\n<result>${escape(tail)}</result>\n</task-notification>`,
-      );
+      this.notify(agentId, chatId, taskNotification(id, status, description || shellTitle(command), command, tail));
     });
     this.tasks.set(id, task);
     return id;
@@ -245,38 +252,43 @@ export function backgroundExtension(tasks: BackgroundTasks): Extension {
     tools: [
       withKind(
         "command",
-        defineTool({
-          name: "background_run",
-          description:
-            "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
-          parameters: { type: "object", properties: { command: { type: "string" }, description: { type: "string" } }, required: ["command"] } as never,
-          execute: async (args, api, context) => {
-            const { agentId, chatId, cwd } = await caller(api, context);
-            const id = tasks.start(agentId, chatId, cwd, (args as { command: string }).command);
-            return text(`started background task ${id}`);
-          },
-        }),
+        withStepDescription(
+          defineTool({
+            name: "background_run",
+            description:
+              "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
+            parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } as never,
+            execute: async (args, api, context) => {
+              const { command, description } = args as { command: string; description: string };
+              const { agentId, chatId, cwd } = await caller(api, context);
+              const id = tasks.start(agentId, chatId, cwd, command, description);
+              return text(`started background task ${id}`);
+            },
+          }),
+        ),
       ),
       withKind(
         "read",
-        defineTool({
-          name: "background_watch",
-          description:
-            "A background task's output since you last read it, and whether it is still running. It waits first: until the output matches `pattern` (a regular expression), the task ends, or `timeout_ms` runs out (default 30000; 0 reads at once). `input` is written to the task's input before the wait (add \\n to end a line); `stop: true` stops the task and waits for it to end.",
-          parameters: {
-            type: "object",
-            properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" }, input: { type: "string" }, stop: { type: "boolean" } },
-            required: ["task_id"],
-          } as never,
-          execute: async (args, api, context) => {
-            const a = args as { task_id: string; pattern?: string; timeout_ms?: number; input?: string; stop?: boolean };
-            const { agentId } = await caller(api, context);
-            if (a.input !== undefined) tasks.write(a.task_id, agentId, a.input);
-            if (a.stop) tasks.stop(a.task_id, agentId);
-            const ms = a.stop ? STOP_WAIT_MS : Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000);
-            return text(await tasks.wait(a.task_id, agentId, a.stop ? undefined : a.pattern, ms, context.abortSignal));
-          },
-        }),
+        withStepDescription(
+          defineTool({
+            name: "background_watch",
+            description:
+              "A background task's output since you last read it, and whether it is still running. It waits first: until the output matches `pattern` (a regular expression), the task ends, or `timeout_ms` runs out (default 30000; 0 reads at once). `input` is written to the task's input before the wait (add \\n to end a line); `stop: true` stops the task and waits for it to end.",
+            parameters: {
+              type: "object",
+              properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" }, input: { type: "string" }, stop: { type: "boolean" } },
+              required: ["task_id"],
+            } as never,
+            execute: async (args, api, context) => {
+              const a = args as { task_id: string; pattern?: string; timeout_ms?: number; input?: string; stop?: boolean };
+              const { agentId } = await caller(api, context);
+              if (a.input !== undefined) tasks.write(a.task_id, agentId, a.input);
+              if (a.stop) tasks.stop(a.task_id, agentId);
+              const ms = a.stop ? STOP_WAIT_MS : Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000);
+              return text(await tasks.wait(a.task_id, agentId, a.stop ? undefined : a.pattern, ms, context.abortSignal));
+            },
+          }),
+        ),
       ),
     ],
   });

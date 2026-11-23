@@ -147,11 +147,17 @@ export const Work = memo(
         {failure !== null && !open && (
           <button
             type="button"
-            className={cn("flex w-fit cursor-pointer items-center gap-2 text-xs", stopped ? "text-loki-negative" : "text-muted-foreground")}
+            className={cn(
+              "flex w-fit max-w-full cursor-pointer items-center gap-2 text-left text-xs",
+              stopped ? "text-loki-negative" : "text-muted-foreground",
+            )}
             onClick={() => show(failure)}
           >
-            <XIcon className="size-3" aria-hidden />
-            {stepTarget(rows[failure]) ?? stepName(rows[failure])} failed
+            <XIcon className="size-3 shrink-0" aria-hidden />
+            <span className="flex min-w-0">
+              <span className="truncate">{stepTarget(rows[failure]) ?? stepName(rows[failure])}</span>
+              <span className="shrink-0 whitespace-pre"> failed</span>
+            </span>
           </button>
         )}
       </div>
@@ -203,28 +209,31 @@ function PlanAsBefore({ items }: { items: readonly PlanItem[] }) {
   );
 }
 
-function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; active: boolean; waiting: boolean; open: boolean; onToggle: () => void }) {
+export function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; active: boolean; waiting: boolean; open: boolean; onToggle: () => void }) {
   const failed = stepFailed(row);
   const target = stepTarget(row);
   const verb = stepVerb(stepName(row));
+  const title = target ?? verb;
   return (
     <ChainOfThoughtStep
       icon={failed ? XIcon : ICON[stepKind(row)]}
       status={active ? "active" : "complete"}
       className={failed ? "text-loki-negative" : !active && isNamedStep(row) ? "text-foreground" : undefined}
       label={
-        <button type="button" aria-expanded={open} onClick={onToggle} className="cursor-pointer text-left hover:text-foreground">
+        <button type="button" aria-expanded={open} onClick={onToggle} className="flex max-w-full cursor-pointer text-left hover:text-foreground">
           {active && waiting ? (
             <>
-              {target ?? verb}
-              <span className="text-loki-attention"> · waiting on you</span>
+              <span className="truncate">{title}</span>
+              <span className="shrink-0 whitespace-pre text-loki-attention"> · waiting on you</span>
             </>
           ) : active ? (
-            <Shimmer as="span">{target ?? verb}</Shimmer>
+            <Shimmer as="span" className="truncate">
+              {title}
+            </Shimmer>
           ) : (
             <>
-              {target ?? verb}
-              {failed && " · failed"}
+              <span className="truncate">{title}</span>
+              {failed && <span className="shrink-0 whitespace-pre"> · failed</span>}
             </>
           )}
         </button>
@@ -252,13 +261,25 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
   const failed = stepFailed(row);
   if (row.role === "event" || kind === "agent" || kind === "background") {
     const t = whole?.step ?? null;
-    const asked = t?.description ?? t?.input ?? null;
+    const command = row.role === "event" ? row.command : undefined;
+    const asked = row.role === "event" ? undefined : t?.input;
     const said = whole?.detail ?? t?.output ?? null;
     return (
       <Task defaultOpen>
         <TaskTrigger title={stepTarget(row) ?? stepName(row)} icon={ICON[kind]} />
         <TaskContent>
-          {asked && <TaskItem>Asked: {asked}</TaskItem>}
+          {command && (
+            <TaskItem className="space-y-2">
+              <h4 className="font-semibold text-xs">Command</h4>
+              <pre className="m-0 font-mono text-xs whitespace-pre-wrap">{command}</pre>
+            </TaskItem>
+          )}
+          {asked && (
+            <TaskItem className="space-y-2">
+              <h4 className="font-semibold text-xs">Asked</h4>
+              <p className="m-0 whitespace-pre-wrap">{asked}</p>
+            </TaskItem>
+          )}
           {said ? (
             <TaskItem>
               <pre className={failed ? "m-0 font-mono text-xs whitespace-pre-wrap text-loki-negative" : "m-0 font-mono text-xs whitespace-pre-wrap"}>

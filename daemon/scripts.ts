@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME, createCodemodeExtension, type CodemodeNamespace } from "@earendil-works/pi-durable/codemode";
 import { CODEMODE_OPTIONS_PREFIX, CodemodeSandbox, parseCodemodeSource, type CodemodeSandboxBase } from "@earendil-works/pi-codemode";
+import { isScriptDescriptionLine, SCRIPT_DESCRIPTION_PREFIX } from "../core/harness.ts";
 import { fenceScriptAnswer } from "../mod/account-ops/fence.ts";
 import { withKind } from "./tool-kinds.ts";
 
@@ -48,6 +49,7 @@ export const SCRIPT_DESCRIPTION = [
   "- The `codemode` section names the namespaces. Find a tool with `await searchTools(query)` and read how to call it with `await describeTool(name)`.",
   "- `return`, `text(value)` and `console.log(...)` give output. `store(key, value)` and `load(key)` keep JSON values between scripts.",
   '- An optional first line sets limits: `// @options: {"timeout_ms": 60000, "max_output_tokens": 10000}`.',
+  `- Then a few words on what it does, its title for the person: \`${SCRIPT_DESCRIPTION_PREFIX} Count open PRs\`.`,
 ].join("\n");
 
 export function isScriptOnly(tool: Pick<ToolRegistration, "callers">): boolean {
@@ -110,6 +112,16 @@ export function withTimeLimit(source: string, limitMs: number): string {
   return source.trimStart().startsWith(CODEMODE_OPTIONS_PREFIX) ? `${line}${parsed.code}` : `${line}\n${source}`;
 }
 
+function withOptionsFirst(source: string): string {
+  const lines = source.split("\n");
+  const options = lines.findIndex((line) => line.trimStart().startsWith(CODEMODE_OPTIONS_PREFIX));
+  const description = lines.findIndex(isScriptDescriptionLine);
+  if (description === -1 || options === -1 || description > options) return source;
+  const moved = lines.splice(description, 1);
+  lines.splice(options, 0, ...moved);
+  return lines.join("\n");
+}
+
 export function fencedIfRead<Result extends ToolExecutionResult>(result: Result, strangerText: (tool: string) => boolean): Result {
   const details: unknown = result.details;
   const calls = typeof details === "object" && details !== null && "calls" in details && Array.isArray(details.calls) ? (details.calls as unknown[]) : [];
@@ -160,7 +172,7 @@ export function scriptExtensions(
         executionMode: "sequential",
         execute: async (args, api, context) =>
           fencedIfRead(
-            await t.execute(isScript(args) ? { ...args, code: withTimeLimit(args.code, timeLimitMs) } : args, confinedApi(api), context),
+            await t.execute(isScript(args) ? { ...args, code: withTimeLimit(withOptionsFirst(args.code), timeLimitMs) } : args, confinedApi(api), context),
             strangerText,
           ),
       })),

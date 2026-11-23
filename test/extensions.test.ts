@@ -2,10 +2,16 @@ import { describe, expect, test } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { createModels } from "@earendil-works/pi-ai/models";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { Approvals, kindOf } from "../daemon/approvals.ts";
 import { BackgroundTasks } from "../daemon/background.ts";
 import { builtinExtensions, builtinKinds } from "../daemon/extensions.ts";
+import { AgentStore } from "../daemon/kernel/index.ts";
 import { Schedules } from "../daemon/schedule.ts";
+import { subagentExtension } from "../daemon/subagents.ts";
 
 function builtins() {
   const dir = mkdtempSync(join(tmpdir(), "loki-extensions-"));
@@ -84,6 +90,26 @@ describe("the built-in tools", () => {
     }
   });
 
+  test("run, watch and subagent ask for a description of the call, as a required string", () => {
+    const { extensions, dir } = builtins();
+    try {
+      const described = extensions
+        .flatMap((e) => e.tools ?? [])
+        .filter((t) => ["background_run", "background_watch", "subagent"].includes(t.name))
+        .map((t) => {
+          const schema = t.parameters as { properties?: Partial<Record<string, { type?: string }>>; required?: string[] };
+          return [t.name, schema.properties?.description?.type, schema.required?.includes("description")];
+        });
+      expect(described.sort()).toEqual([
+        ["background_run", "string", true],
+        ["background_watch", "string", true],
+        ["subagent", "string", true],
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("every name is snake_case", () => {
     const { extensions, dir } = builtins();
     try {
@@ -112,6 +138,41 @@ describe("tools allowed always", () => {
       expect(readFileSync(path, "utf8")).toBe(saved);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a sub-agent call's description", () => {
+  test("a call without one still runs, and one with it hands the helper only its prompt", async () => {
+    const ctx = BACKGROUND_CONTEXT;
+    const faux = fauxProvider();
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const registry = createRegistry();
+    registry.install(subagentExtension());
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
+    try {
+      const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+      const sent: string[] = [];
+      const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { messages: unknown[] }) => (sent.push(JSON.stringify(c)), m);
+      faux.setResponses([
+        reply(fauxAssistantMessage(fauxToolCall("subagent", { prompt: "Count to two." }), { stopReason: "toolUse" })),
+        reply(fauxAssistantMessage("one, two")),
+        reply(fauxAssistantMessage("Counted to two.")),
+        reply(fauxAssistantMessage(fauxToolCall("subagent", { description: "Count with a helper", prompt: "Count to three." }), { stopReason: "toolUse" })),
+        reply(fauxAssistantMessage("one, two, three")),
+        reply(fauxAssistantMessage("Counted to three.")),
+      ]);
+      await (await chat.submit({ type: "input", content: "count to two" }, ctx)).wait(ctx);
+      await (await chat.submit({ type: "input", content: "count to three" }, ctx)).wait(ctx);
+      const results = (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
+      expect(results).toHaveLength(2);
+      expect(results[0]).toContain("one, two");
+      expect(results[1]).toContain("one, two, three");
+      expect(sent[4]).toContain("Count to three.");
+      expect(sent[4]).not.toContain("Count with a helper");
+    } finally {
+      await store.close(ctx);
     }
   });
 });

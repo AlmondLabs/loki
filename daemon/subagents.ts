@@ -1,6 +1,7 @@
 import { configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
 import { unansweredWhy } from "./chat-events.ts";
 import { ChatDoc } from "./kernel/index.ts";
+import { withStepDescription } from "./step-description.ts";
 import { withKind } from "./tool-kinds.ts";
 
 export function subagentExtension(withoutAlso: readonly Extension[] = []): Extension {
@@ -9,50 +10,52 @@ export function subagentExtension(withoutAlso: readonly Extension[] = []): Exten
     tools: [
       withKind(
         "read",
-        defineTool({
-          name: "subagent",
-          description:
-            "Hand a self-contained task to a helper agent and get its final answer back. Give it everything it needs in the prompt: it does not see this conversation.",
-          parameters: {
-            type: "object",
-            properties: { description: { type: "string", description: "A few words naming the task" }, prompt: { type: "string" } },
-            required: ["prompt"],
-          } as never,
-          replay: "safe",
-          execute: async (args, api, context) => {
-            const { prompt } = args as { prompt: string };
-            const parentInfo = await api.snapshot(ChatDoc, api.conversationId, context);
-            const child = await api.commit(async (tx) => {
-              const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items.at(0);
-              if (existing) return existing.id;
-              const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
-              await configure(tx, created.id, { extensions: { remove: [extension, ...withoutAlso] } });
-              const info = await tx.doc(ChatDoc, created.id);
-              Object.assign(info, { id: parentInfo?.id ?? "", hidden: true, helper_for: api.conversationId });
-              return created.id;
-            }, context);
-            await api.details({ conversationId: child }, context);
-            const handle = await api.conversation(child, context);
-            if (!handle) throw new Error("the helper's conversation is gone");
-            const settled = await (await handle.submit({ type: "input", content: prompt, requestId: `subagent:${api.taskId}` }, context)).wait(context);
-            if (settled.status !== "done") throw new Error(`the helper did not finish: ${unansweredWhy(settled)}`);
-            const answer = await api.commit(async (tx) => {
-              for (const entry of (await tx.scanEntries({ conversationId: child }, 50)).items) {
-                const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
-                if (entry.kind === "pi.assistant" && m?.role === "assistant") {
-                  const text = (m.content ?? [])
-                    .filter((p) => p.type === "text")
-                    .map((p) => p.text)
-                    .join("")
-                    .trim();
-                  if (text) return text;
+        withStepDescription(
+          defineTool({
+            name: "subagent",
+            description:
+              "Hand a self-contained task to a helper agent and get its final answer back. Give it everything it needs in the prompt: it does not see this conversation.",
+            parameters: {
+              type: "object",
+              properties: { prompt: { type: "string" } },
+              required: ["prompt"],
+            } as never,
+            replay: "safe",
+            execute: async (args, api, context) => {
+              const { prompt } = args as { prompt: string };
+              const parentInfo = await api.snapshot(ChatDoc, api.conversationId, context);
+              const child = await api.commit(async (tx) => {
+                const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items.at(0);
+                if (existing) return existing.id;
+                const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
+                await configure(tx, created.id, { extensions: { remove: [extension, ...withoutAlso] } });
+                const info = await tx.doc(ChatDoc, created.id);
+                Object.assign(info, { id: parentInfo?.id ?? "", hidden: true, helper_for: api.conversationId });
+                return created.id;
+              }, context);
+              await api.details({ conversationId: child }, context);
+              const handle = await api.conversation(child, context);
+              if (!handle) throw new Error("the helper's conversation is gone");
+              const settled = await (await handle.submit({ type: "input", content: prompt, requestId: `subagent:${api.taskId}` }, context)).wait(context);
+              if (settled.status !== "done") throw new Error(`the helper did not finish: ${unansweredWhy(settled)}`);
+              const answer = await api.commit(async (tx) => {
+                for (const entry of (await tx.scanEntries({ conversationId: child }, 50)).items) {
+                  const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
+                  if (entry.kind === "pi.assistant" && m?.role === "assistant") {
+                    const text = (m.content ?? [])
+                      .filter((p) => p.type === "text")
+                      .map((p) => p.text)
+                      .join("")
+                      .trim();
+                    if (text) return text;
+                  }
                 }
-              }
-              return "";
-            }, context);
-            return { output: [{ type: "text", text: answer || "The helper finished without an answer." }] };
-          },
-        }),
+                return "";
+              }, context);
+              return { output: [{ type: "text", text: answer || "The helper finished without an answer." }] };
+            },
+          }),
+        ),
       ),
     ],
   });

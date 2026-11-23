@@ -17,6 +17,8 @@ const ALLOWED: ReadonlyArray<[string, string]> = [
   ["desk/catch-up-parts.tsx", "draft"],
   ["desk/outside-toolbar.tsx", "in"],
   ["desk/outside-toolbar.tsx", "back · new since"],
+  ["chat/tool-steps.tsx", "failed"],
+  ["item/work.tsx", "failed"],
 ];
 
 const exempt = (text: string) => /^loki\b/.test(text) || /^[\w.-]+\/|^https?:|^[\w-]+\.(com|org|app|io)\b/.test(text);

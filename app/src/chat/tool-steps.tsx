@@ -93,7 +93,8 @@ export const ToolSteps = memo(
         {failure !== null && (!open || touch) && (
           <button type="button" className="loki-steps-failure" onClick={() => show(failure)}>
             <Icon name="close" size={12} />
-            <span className="loki-truncate">{stepTarget(rows[failure]) ?? stepName(rows[failure])} failed</span>
+            <span className="loki-truncate">{stepTarget(rows[failure]) ?? stepName(rows[failure])}</span>
+            <span>failed</span>
           </button>
         )}
         {open &&
@@ -114,8 +115,8 @@ function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: 
   const [first, second] = verbFirst || !target ? [verb, target] : [target, verb];
   return (
     <span className="loki-steps-text">
-      <span className="loki-steps-verb">
-        {first}
+      <span className="loki-steps-verb loki-truncate">
+        <span className="loki-truncate">{first}</span>
         {stepFailed(row) && <span className="loki-steps-failed">Failed</span>}
       </span>
       {second && <span className="loki-steps-target loki-truncate">{second}</span>}
@@ -131,17 +132,26 @@ function EventResult({ row }: { row: TranscriptRow }) {
   const { whole, state, retry } = useWhole(row);
   if (state === "loading") return <p className="loki-steps-none">Loading this step…</p>;
   if (state === "failed") return <NotLoaded retry={retry} />;
-  return whole?.detail ? (
+  if (!whole?.detail && !row.command) return <p className="loki-steps-none">Nothing more was recorded for this step.</p>;
+  return (
     <div className="loki-steps-detail">
-      <section>
-        <h3 className="loki-steps-heading">{stepKind(row) === "skill" ? "Skill" : stepFailed(row) ? "Result · failed" : "Result"}</h3>
-        <pre className="loki-steps-code" data-failed={stepFailed(row) || undefined}>
-          {whole.detail}
-        </pre>
-      </section>
+      {row.command && (
+        <section>
+          <h3 className="loki-steps-heading">Command</h3>
+          <pre className="loki-steps-code">{row.command}</pre>
+        </section>
+      )}
+      {whole?.detail ? (
+        <section>
+          <h3 className="loki-steps-heading">{stepKind(row) === "skill" ? "Skill" : stepFailed(row) ? "Result · failed" : "Result"}</h3>
+          <pre className="loki-steps-code" data-failed={stepFailed(row) || undefined}>
+            {whole.detail}
+          </pre>
+        </section>
+      ) : (
+        <p className="loki-steps-none">Nothing more was recorded for this step.</p>
+      )}
     </div>
-  ) : (
-    <p className="loki-steps-none">Nothing more was recorded for this step.</p>
   );
 }
 
@@ -155,7 +165,8 @@ export function EventDetail({ row }: { row: TranscriptRow }) {
 function ToolDetail({ row }: { row: TranscriptRow }) {
   const { whole, state, retry } = useWhole(row);
   const t = whole?.step ?? undefined;
-  const shell = stepIcon(stepName(row)) === "terminal";
+  const kind = stepKind(row);
+  const inputHeading = kind === "agent" ? "Asked" : stepIcon(stepName(row)) === "terminal" ? "Command" : "Input";
   if (state === "loading") return <p className="loki-steps-none">Loading this step…</p>;
   if (state === "failed") return <NotLoaded retry={retry} />;
   if (!t?.input && !t?.output && !t?.description) return <p className="loki-steps-none">No input or output was recorded for this step.</p>;
@@ -169,7 +180,7 @@ function ToolDetail({ row }: { row: TranscriptRow }) {
       )}
       {t.input && (
         <section>
-          <h3 className="loki-steps-heading">{shell ? "Command" : "Input"}</h3>
+          <h3 className="loki-steps-heading">{inputHeading}</h3>
           <pre className="loki-steps-code">{t.input}</pre>
         </section>
       )}

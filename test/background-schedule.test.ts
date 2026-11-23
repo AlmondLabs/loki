@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Context } from "@earendil-works/chord";
-import type { ToolExecutionApi } from "@earendil-works/pi-durable";
+import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
+import type { JsonObject, ToolExecutionApi } from "@earendil-works/pi-durable";
 import { BackgroundTasks, backgroundExtension, shell } from "../daemon/background.ts";
 import { AgentInfoDoc } from "../daemon/kernel/index.ts";
 import { dueBetween, matches, parseCron, Schedules } from "../daemon/schedule.ts";
@@ -36,6 +37,29 @@ describe("background tasks", () => {
     expect(notices[0].chatId).toBe("c");
     const [event] = extractHarnessEvents(notices[0].text);
     expect(event.text).toBe(`background task ${id} completed`);
+  });
+
+  const command = `cd . && echo "a<b" && true > /dev/null`;
+  const noticeOf = async (description?: string): Promise<string> => {
+    const notices: string[] = [];
+    const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
+    tasks.start("agent-a", "c", tmpdir(), command, description);
+    const until = Date.now() + 3000;
+    while (!notices.length && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
+    return must(notices[0], "notice");
+  };
+
+  test("a task's notice is titled by its description and carries the whole command, escaped", async () => {
+    const notice = await noticeOf("Run the CRM tests");
+    expect(notice).toContain("<summary>Run the CRM tests</summary>");
+    expect(notice).toContain(`<command>cd . &amp;&amp; echo "a&lt;b" &amp;&amp; true &gt; /dev/null</command>`);
+    expect(extractHarnessEvents(notice)[0]).toMatchObject({ summary: "Run the CRM tests", command });
+  });
+
+  test("a task started without a description is titled by its trimmed command", async () => {
+    const notice = await noticeOf();
+    expect(notice).toContain(`<summary>echo "a&lt;b" &amp;&amp; true</summary>`);
+    expect(extractHarnessEvents(notice)[0]).toMatchObject({ summary: `echo "a<b" && true`, command });
   });
 
   test("a task takes input, can be stopped, and another agent cannot reach it", async () => {
@@ -106,6 +130,25 @@ describe("the background tools (plan 095)", () => {
     expect(await call(tasks, "background_watch", { task_id: id, input: "hello\n", pattern: "got hello", timeout_ms: 2000 })).toContain("got hello");
     expect(await call(tasks, "background_watch", { task_id: id, stop: true })).toContain("[stopped (SIGTERM)]");
     expect(notices).toEqual([]);
+  });
+
+  test("a call without a description is given an empty one before it is checked, and passes; one with a description keeps it", () => {
+    const run = tool(new BackgroundTasks(() => {}), "background_run");
+    const check = (args: JsonObject): unknown => validateToolArguments(run, { type: "toolCall", id: "call-1", name: "background_run", arguments: args });
+    expect(() => check({ command: "ls" })).toThrow("description");
+    expect(run.prepareArguments?.({ command: "ls" })).toEqual({ command: "ls", description: "" });
+    expect(check({ command: "ls", description: "" })).toEqual({ command: "ls", description: "" });
+    expect(run.prepareArguments?.({ command: "ls", description: "List files" })).toEqual({ command: "ls", description: "List files" });
+  });
+
+  test("a task keeps the description it was started with, and an empty one when it had none", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const described = must(/bg-\w+/.exec(await call(tasks, "background_run", { command: "true", description: "Do nothing" }))?.[0], "id");
+    const bare = tasks.start("agent-a", "c", tmpdir(), "true");
+    expect(tasks["tasks"].get(described)?.description).toBe("Do nothing");
+    expect(tasks["tasks"].get(bare)?.description).toBe("");
+    await tasks.wait(described, "agent-a", undefined, 3000);
+    await tasks.wait(bare, "agent-a", undefined, 3000);
   });
 });
 

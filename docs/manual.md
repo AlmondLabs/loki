@@ -516,8 +516,8 @@ changed, so it pairs once more.
 
 **The agent's work on the phone.** A run of tool calls is one line in the chat ("Ran 4 commands, used 3 tools · 2
 failed"). Tapping it opens a sheet, as in Claude's app: each step is what kind it was ("Ran", "Read memory", "Asked an
-agent") over what it was for on one line, and a step opens to its description, command and output under the tool's
-name. A chat's history arrives without each step's command and output, which were most of its size, and without a
+agent") over what it was for on one line (the few words the agent gave the call, or its trimmed command), and a step
+opens to its description, command and output under the tool's name. A chat's history arrives without each step's command and output, which were most of its size, and without a
 background task's or loaded skill's result longer than 1,000 characters; opening a step or that line asks the Mac the
 chat lives on for them ("Loading this step…"), on the phone and the desktop alike. Find in a chat does not search what
 has not been opened yet.
@@ -702,7 +702,9 @@ Jira ticket (plans 096 and 097, in Apple's language since plan 2026-11-12-1505).
   where a gap of a quarter of an hour or more opens; everything the agent did until your next message is one turn,
   its header saying only how long it worked and, while it is not simply finished, where it stands (working, needs
   you, or failed when its last step failed). A stretch of tool calls is one line ("Worked 2 min · 3 commands");
-  opened, each step opens to its input and output. An agent's **plan** shows as a card with how far it is ("1 of 3
+  opened, each step is one line, titled by the few words the agent gave the call ("Run the CRM tests") or, when it
+  gave none, by its command with the `cd`, `env` and log-reading wrapping trimmed off, and opens to its whole input and
+  output. A finished background task opens to the whole command it ran, then its output. An agent's **plan** shows as a card with how far it is ("1 of 3
   done"); a later turn whose plan has not changed says "plan as before" on one line. What an agent **thought** shows
   folded as "Thought for 12 seconds" (or "Thought" when its time was not heard live), opening to the thought.
 - **Decisions** sit above the box: an approval (Deny, Always Allow…, Allow), a question, a reply the agent proposes on
@@ -1555,7 +1557,9 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 Every agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool. A script
 runs in a sandbox with no files, network or programs of its own; it reaches anything only by calling the tools only
 scripts may call and loki's file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have:
-the model uses `bash`), never `bash`. The tools only scripts may call are:
+the model uses `bash`), never `bash`. A script's first line may set its limits (`// @options: {"timeout_ms": 60000}`),
+and the next says in a few words what it does (`// @description: Count open PRs`), which titles its step. The tools only
+scripts may call are:
 
 - every agent's: its chat's history (`history_search`, `history_read`), its scheduled tasks (`schedule_create`,
   `schedule_list`, `schedule_delete`), the canvas (`canvas_read`, `canvas_focus`) and the list of your agents and
@@ -1847,6 +1851,10 @@ server, header values for a remote one) stores each environment or header value 
 in its place, filled in only when the server starts. Edits keep whatever else the file holds. **Agents › Profile ›
 MCP servers** switches a server off (or on again) for one agent: its chats stop seeing it from their next message,
 and switched back on, a chat searches again for what it needs.
+
+An agent on loki's own engine gives each MCP call a few words on what it does, which title its step in the chat; loki
+takes them off before the call reaches the server. A tool whose own arguments already have a `description` keeps it
+as its own, and its step is titled by it.
 
 A **local** server (`command`, `args`, `env`, `cwd`) is a program loki starts with the daemon and starts again, after
 a growing pause, when it exits; its `env` adds to the usual environment (PATH, HOME…). A **remote** server (`url`,

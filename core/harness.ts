@@ -1,5 +1,6 @@
 import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
 import { answerOf, unansweredText, type AdvisorAnswer } from "./advisor.ts";
+import { shellTitle } from "./shell-title.ts";
 
 const ANSWER_BLOCK = /<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g;
 
@@ -59,6 +60,7 @@ export function decodeEntities(text: string): string {
 export interface HarnessEvent {
   text: string;
   summary: string | null;
+  command?: string;
   detail: string | null;
   link?: { agent_id: string; conversation_id: string };
   advisor_chat?: string;
@@ -138,10 +140,17 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
     const id = tag("task-id");
     const status = tag("status");
     const summary = tag("summary");
+    const command = tag("command");
     const result = tag("result");
+    const title = summary ? decodeEntities(summary) : null;
+    const trimmed = title && shellTitle(title);
     out.push({
       text: `background task${id ? ` ${id}` : ""}${status ? ` ${status}` : ""}`,
-      summary: summary ? decodeEntities(summary) : null,
+      ...(command
+        ? { summary: title, command: decodeEntities(command) }
+        : title && trimmed !== title
+          ? { summary: trimmed, command: title }
+          : { summary: title }),
       detail: result ? decodeEntities(result) : null,
     });
   }
@@ -236,7 +245,7 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
   }
 };
 
-const ARG_KEYS = ["command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
+const ARG_KEYS = ["command", "file_path", "path", "pattern", "query", "url", "skill", "prompt"];
 const argOf = (args: Record<string, unknown>): string | undefined => {
   const key = ARG_KEYS.find((k) => typeof args[k] === "string" && args[k].trim());
   return key ? (args[key] as string).trim() : undefined;
@@ -244,12 +253,38 @@ const argOf = (args: Record<string, unknown>): string | undefined => {
 
 const isQuestionTool = (name: string): boolean => name === "user_ask";
 
+const NAMED_BY_INSTEAD_OF_DESCRIPTION: Partial<Record<string, string>> = { ticket_propose: "title", mcp__loki__ticket_propose: "title" };
+
+const SCRIPT_TOOL_NAME = "codemode";
+
+export const SCRIPT_DESCRIPTION_PREFIX = "// @description:";
+
+export const isScriptDescriptionLine = (line: string): boolean => line.trimStart().startsWith(SCRIPT_DESCRIPTION_PREFIX);
+
+const scriptDescriptionOf = (code: string): string | undefined =>
+  code.split("\n").find(isScriptDescriptionLine)?.trimStart().slice(SCRIPT_DESCRIPTION_PREFIX.length);
+
+const saidIn = (args: Record<string, unknown>, name: string): unknown =>
+  name === SCRIPT_TOOL_NAME && typeof args.code === "string" ? scriptDescriptionOf(args.code) : args.description;
+
+const descriptionOf = (name: string, args: Record<string, unknown>): string | undefined => {
+  if (NAMED_BY_INSTEAD_OF_DESCRIPTION[name]) return undefined;
+  const said = saidIn(args, name);
+  return typeof said === "string" && said.trim() ? said.trim() : undefined;
+};
+
+const DESCRIPTION_MAX = 200;
+
+const isWholeTitle = (said: string): boolean => !said.includes("\n") && said.length <= DESCRIPTION_MAX;
+
 export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
   const pick = isQuestionTool(name) ? undefined : argOf(args);
   if (pick) return cap(pick);
-  const json = JSON.stringify(args, null, 2);
+  const said = descriptionOf(name, args);
+  const rest = said && isWholeTitle(said) ? Object.fromEntries(Object.entries(args).filter(([k]) => k !== "description")) : args;
+  const json = JSON.stringify(rest, null, 2);
   return json === "{}" ? undefined : cap(json);
 }
 
@@ -272,15 +307,14 @@ export function toolOutput(raw: unknown): string | undefined {
   return text ? cap(text) : undefined;
 }
 
-const DESCRIPTION_MAX = 200;
-
 export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
   const step: ToolStep = { name };
   if (id) step.id = id;
   const given = toolInput(name, input);
   if (given !== undefined) step.input = given;
-  const said = argsOf(input)?.description;
-  if (typeof said === "string" && said.trim() && said.trim() !== given) step.description = said.trim().split("\n")[0].slice(0, DESCRIPTION_MAX);
+  const args = argsOf(input);
+  const said = args && descriptionOf(name, args);
+  if (said && said !== given) step.description = said.split("\n")[0].slice(0, DESCRIPTION_MAX);
   return step;
 }
 
@@ -336,7 +370,10 @@ export function toolLabel(name: string, input: unknown): string {
   const args = argsOf(input);
   if (!args) return name;
   const question = isQuestionTool(name) ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
-  const target = question || argOf(args)?.split("\n")[0];
+  const arg = typeof args.command === "string" && args.command.trim() ? shellTitle(args.command.trim()) : argOf(args);
+  const namedBy = NAMED_BY_INSTEAD_OF_DESCRIPTION[name];
+  const ownName = namedBy && typeof args[namedBy] === "string" ? args[namedBy].trim() : undefined;
+  const target = question || (arg ?? ownName)?.split("\n")[0];
   if (!target) return name;
   return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;
 }

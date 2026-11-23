@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowUpIcon, PlusIcon, SearchIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import { toolLabel } from "../../../core/harness.ts";
 import type { OutsideFacts } from "../../../core/frame-types.ts";
 import { OutsideItemActions, OutsideItemHeader } from "../desk/outside-toolbar";
 import { Badge } from "@/ui/badge";
@@ -47,6 +48,9 @@ const tool = (name: string, input: string, output: string, over: Partial<NonNull
   tool: { name, input, output, ...over },
 });
 
+const WRAPPED =
+  "cd /Users/ada/worktrees/crm/projects/rapid_voice && env -i HOME=/Users/ada PATH=/opt/homebrew/bin:/usr/bin:/bin APP_ENV=dev uv run --offline --no-sync pytest -q tests/test_crm_calls_*.py > /tmp/crm-ds.log 2>&1; result=$?; tail -12 /tmp/crm-ds.log; exit $result";
+
 const ROWS: TranscriptRow[] = [
   tool("plan", "", "", {
     plan: [
@@ -58,6 +62,19 @@ const ROWS: TranscriptRow[] = [
   tool("Read", "signups.csv", "week,signups"),
   tool("Bash", "python chart.py --by iso-week", "wrote chart.png", { description: "Group signups by week" }),
   tool("Bash", "python summary.py", "ModuleNotFoundError: No module named 'pandas'", { failed: true }),
+  {
+    role: "tool",
+    text: toolLabel("bash", { command: WRAPPED }),
+    tool: { name: "bash", input: WRAPPED, output: "3 passed in 1.2s" },
+  },
+  {
+    role: "event",
+    text: "background task bg-7f3a21 completed",
+    summary: "Build the web app",
+    command:
+      "cd /Users/ada/worktrees/crm/web && PATH=/opt/homebrew/bin:/usr/bin:/bin bun --no-env-file run build > /tmp/web-build.log 2>&1; result=$?; tail -30 /tmp/web-build.log; exit $result",
+    detail: "✓ built in 10.50s",
+  },
 ];
 
 const ANSWER: TranscriptRow = {
