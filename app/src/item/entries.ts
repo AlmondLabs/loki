@@ -115,6 +115,7 @@ export type TurnState = "working" | "needs you" | "failed" | "done";
 export type TurnEntry =
   | Extract<ThreadEntry, { kind: "day" | "new" }>
   | Extract<ThreadEntry, { kind: "message" }>
+  | { kind: "command"; key: string; row: TranscriptRow; arrived: boolean }
   | { kind: "turn"; key: string; parts: TurnPart[]; state: TurnState; failed: number; took: string | null };
 
 const opensTurn = (p: TurnPart): boolean => p.kind === "event" && (p.row.event === "advisor" || p.row.event === "chat_message");
@@ -141,6 +142,10 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
     } else if (e.kind === "message" && e.row.role === "user") {
       close();
       out.push(...held, e);
+      held = [];
+    } else if (e.kind === "event" && e.row.event === "command") {
+      close();
+      out.push(...held, { kind: "command", key: e.key, row: e.row, arrived: e.arrived });
       held = [];
     } else if (opensTurn(e) && open !== null && !onlyOpeners(open)) {
       close();

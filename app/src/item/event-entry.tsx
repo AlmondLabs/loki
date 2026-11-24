@@ -7,7 +7,7 @@ import { Marker, MarkerContent, MarkerIcon } from "@/ui/marker";
 import { Trace, TraceCollapsible, TraceCollapsibleContent, TraceCollapsibleTrigger, TraceLine, TraceTitle } from "@/ui/trace";
 import { clockLabel } from "../shared/thread";
 import { EventDetail } from "../chat/tool-steps";
-import { AdvisorAnswerRow, OpenChat, SUGGESTED, suggestedSource } from "../chat/transcript";
+import { AdvisorAnswerRow, kindedEvent, OpenChat, SUGGESTED, suggestedSource } from "../chat/transcript";
 
 export function DayMarker({ label }: { label: string }) {
   return (
@@ -49,6 +49,8 @@ export function ChangeEntry({ who, text, at }: { who: string | null; text: strin
 export function EventEntry({ row: m, arrived }: { row: TranscriptRow; arrived: boolean }) {
   const openChat = useContext(OpenChat);
   const [open, setOpen] = useState(false);
+  const kinded = kindedEvent(m, arrived || undefined);
+  if (kinded) return kinded;
   if (m.advisor_chat) return <AdvisorAnswerRow row={m} arrived={arrived || undefined} />;
   if (m.text === SUGGESTED) {
     const from = suggestedSource(m);

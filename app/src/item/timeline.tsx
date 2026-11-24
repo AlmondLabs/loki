@@ -32,7 +32,7 @@ import type { ThreadHandle, ThreadProps } from "../chat/conversation";
 import { ThreadError } from "../chat/thread-error";
 import { ThreadAnnouncer } from "../chat/thread-announcer";
 import { StepsLoad } from "../chat/tool-steps";
-import { useArrivedFrom } from "../chat/transcript";
+import { CommandRow, useArrivedFrom } from "../chat/transcript";
 import { findStart, keepStart, openStart, threadId } from "../chat/transcript-window";
 import { threadEntries, threadTurns, thoughtsIntoWork, type TurnPart } from "./entries";
 import { WidgetArtifact } from "./content-parts";
@@ -199,6 +199,8 @@ function ThreadBody({
         return null;
       case "event":
         return <ChangeEntry who={e.who} text={e.text} at={e.at} />;
+      case "command":
+        return <CommandRow row={e.row} arrived={e.arrived || undefined} />;
       case "turn":
         return <AgentTurn agentName={who} state={e.state} failed={e.failed} took={e.took} parts={e.parts} draw={part} />;
     }

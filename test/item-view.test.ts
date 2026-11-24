@@ -105,6 +105,17 @@ describe("an agent chat", () => {
     expect(turns.map((t) => t.kind).filter((k) => k !== "day")).toEqual(["message", "turn", "new", "turn"]);
   });
 
+  test("a command you ran ends the agent's turn and sits outside it; the agent's next work is a turn below it (R5)", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const turns = turnsOf([
+      { role: "user", text: "go", at },
+      { role: "assistant", text: "Done.", at },
+      { role: "event", text: "/compact", summary: "Done", event: "command", at },
+      { role: "assistant", text: "Compacted, carrying on.", at },
+    ]);
+    expect(turns.map((t) => t.kind).filter((k) => k !== "day")).toEqual(["message", "turn", "command", "turn"]);
+  });
+
   test("a background notice, a suggestion chip and an untyped event stay inside the turn they arrive in", () => {
     const at = "2026-11-11T10:00:00.000Z";
     const turns = turnsOf([

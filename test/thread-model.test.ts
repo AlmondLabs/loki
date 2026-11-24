@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { applyChatEvent, chatStatusOf, emptyLive } from "../core/attention/model.ts";
-import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow } from "../core/attention/thread.ts";
+import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 import { suggestedMark } from "../core/harness.ts";
 import { answerBlock } from "../core/advisor.ts";
@@ -216,31 +216,31 @@ describe("slash command rows", () => {
     t.beginCommand("/compact all", at);
     t.beginCommand("/reload", at);
     t.finishCommand("/reload", true, "done", at);
-    expect(rowsOf(t).map((r) => r.summary)).toEqual(["running…", "done"]);
+    expect(rowsOf(t).map((r) => r.summary)).toEqual(["Running", "done"]);
   });
   test("settleCommands after the link came back: /reload is the success case, anything else failed; nothing running is a no-op", () => {
     const t = new ThreadModel();
     t.beginCommand("reload", at);
     t.beginCommand("/compact", at);
     expect(t.settleCommands()).toBe(true);
-    expect(rowsOf(t)[0].summary).toMatch(/^reloaded/);
-    expect(rowsOf(t)[1].summary).toBe("failed");
+    expect(rowsOf(t)[0].summary).toMatch(/^Reloaded/);
+    expect(rowsOf(t)[1].summary).toBe("Failed");
     expect(rowsOf(t)[1].detail).toMatch(/link.*dropped/);
     expect(t.settleCommands()).toBe(false);
   });
   test("a command's start and end events become one event row: running, then the outcome", () => {
     const l = emptyLive();
     applyChatEvent(l, { kind: "command", phase: "start", input: "/reload" });
-    expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "running…" }]);
+    expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "Running", event: "command" }]);
     applyChatEvent(l, { kind: "command", phase: "end", input: "/reload", output: "Reloaded 2 mods.", success: true });
     expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "Reloaded 2 mods.", detail: null }]);
     applyChatEvent(l, { kind: "command", phase: "start", input: "/compact all" });
     applyChatEvent(l, { kind: "command", phase: "end", input: "/compact all", output: "line one\nline two", success: false });
-    expect(rowsOf(l.thread)[1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
+    expect(rowsOf(l.thread)[1]).toMatchObject({ role: "event", text: "/compact all", summary: "Failed", detail: "line one\nline two" });
     applyChatEvent(l, { kind: "command", phase: "start", input: "/doctor" });
     applyChatEvent(l, { kind: "command", phase: "end", input: "/doctor", output: "a memory review of this agent is already running", success: false });
     expect(rowsOf(l.thread).find((r) => r.text === "/doctor")).toMatchObject({
-      summary: "failed: a memory review of this agent is already running",
+      summary: "Failed: a memory review of this agent is already running",
       detail: null,
     });
     applyChatEvent(l, { kind: "command", phase: "end", input: "/clear", output: "Cleared.", success: true });
@@ -592,6 +592,21 @@ describe("an imported skill's text is its call's result (plan 2026-11-24-1736, K
   test("a skill's text with no call for it stays a row of its own", () => {
     const rows = foldSteps([call("Skill", "s1", { skill: "other" }), user('<skill_content name="ce-plan">\n# Plan\n</skill_content>')]);
     expect(rows.map((r) => r.role)).toEqual(["tool", "event"]);
+  });
+});
+
+describe("an unreachable model's row (plan 2026-11-24-1736, R7)", () => {
+  const failed = (message: string): Step => ({ kind: "failed", message, at: null });
+
+  test("goes once the agent goes on with a step, as it does with words", () => {
+    expect(foldSteps([user("go"), failed("timed out"), call("Bash", "c1")]).map((r) => r.role)).toEqual(["user", "tool"]);
+    expect(foldSteps([user("go"), failed("timed out"), said("Done.")]).map((r) => r.role)).toEqual(["user", "assistant"]);
+  });
+
+  test("stays, counting its tries, when nothing follows", () => {
+    const rows = foldSteps([user("go"), failed("timed out"), failed("timed out")]);
+    expect(rows.map((r) => r.role)).toEqual(["user", "event"]);
+    expect(rows[1].summary).toBe("2 tries");
   });
 });
 
