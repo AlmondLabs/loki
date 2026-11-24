@@ -8,7 +8,7 @@ import {
   useState,
   type KeyboardEvent,
   type Ref,
-  type TouchEvent,
+  type RefObject,
   type UIEvent,
   type WheelEvent,
 } from "react";
@@ -42,7 +42,7 @@ import { ChatMessage } from "./message-entry";
 import { Work, samePlan, stretchPlan } from "./work";
 import { AgentTurn } from "./agent-turn";
 import { useKeepPlace } from "./use-keep-place";
-import { drawnRows, keepsFollowing, lastShown, newSince, nextAbove, readerScrolling, revealFrom } from "./thread-follow";
+import { drawnRows, keepsFollowing, lastShown, newSince, nextAbove, restTimer, revealFrom } from "./thread-follow";
 import { isNewSend } from "../chat/use-transcript-scroll";
 
 const TIME_GAP = 15 * 60_000;
@@ -81,8 +81,15 @@ function ThreadBody({
   const arrivedFrom = useArrivedFrom(rows);
   const dividerAt = layout?.dividerAt ?? null;
   const widgets = layout?.widgets ?? [];
-  const { start, above, nearTop, readerScrolled, reveal, fold } = useThreadWindow(list, dividerAt, widgets, older);
-  const { viewportRef, contentRef, onScroll: holdOnScroll, beforeReveal } = useKeepPlace(start);
+  const { start, above, nearTop, reveal, fold } = useThreadWindow(list, dividerAt, widgets, older);
+  const atRest = useRef(() => {});
+  const rest = useRest(atRest, start, list.length);
+  const { viewportRef, contentRef, onScroll: holdOnScroll, beforeReveal } = useKeepPlace(start, rest.moving);
+  useEffect(() => {
+    atRest.current = () => {
+      if (viewportRef.current) nearTop(viewportRef.current, beforeReveal);
+    };
+  });
   const fresh = useFresh(drawn, above);
   useFollowSend(list);
   const { scrollToEnd } = useMessageScroller();
@@ -209,8 +216,8 @@ function ThreadBody({
         preserveScrollOnPrepend
         onScroll={(ev: UIEvent<HTMLDivElement>) => {
           const el = ev.currentTarget;
+          rest.moved();
           holdOnScroll(el);
-          nearTop(el, ev.timeStamp, beforeReveal);
           if (foldAtEnd.current && el.scrollHeight - el.scrollTop - el.clientHeight < 1) {
             foldAtEnd.current = false;
             fold();
@@ -219,14 +226,14 @@ function ThreadBody({
         // Outside (shadcn): MessageScroller stops following on any wheel or scroll key; at the bottom, one that goes
         // nowhere follows again.
         onWheel={(ev: WheelEvent<HTMLDivElement>) => {
-          readerScrolled(ev.timeStamp);
+          rest.moved();
           if (keepsFollowing(ev.currentTarget, ev)) scrollToEnd();
         }}
         onKeyDown={(ev: KeyboardEvent<HTMLDivElement>) => {
-          readerScrolled(ev.timeStamp);
+          rest.moved();
           if (keepsFollowing(ev.currentTarget, ev)) scrollToEnd();
         }}
-        onTouchMove={(ev: TouchEvent<HTMLDivElement>) => readerScrolled(ev.timeStamp)}
+        onTouchMove={rest.moved}
         data-thread-scroll
         // Outside (Chrome): its scroll anchoring would move the row being read a second time, after the thread's own.
         className="[overflow-anchor:none]"
@@ -294,16 +301,8 @@ function useThreadWindow(
   const above = win.id === id ? win.above : shift > 0 ? win.above + shift : 0;
   if (win.id !== id || win.start !== start) setWin({ id, start, first: list.length ? list[0] : null, above });
   const asked = useRef<number | null>(null);
-  const readerAt = useRef(Number.NEGATIVE_INFINITY);
-  const readerScrolled = (at: number) => {
-    readerAt.current = at;
-  };
-  const nearTop = (el: HTMLElement, at: number, beforeReveal: (el: HTMLElement) => void) => {
-    const next = nextAbove(el, {
-      scrolling: readerScrolling(at, readerAt.current),
-      hiddenAbove: start > 0,
-      olderToAsk: older !== null && asked.current !== list.length,
-    });
+  const nearTop = (el: HTMLElement, beforeReveal: (el: HTMLElement) => void) => {
+    const next = nextAbove(el, { hiddenAbove: start > 0, olderToAsk: older !== null && asked.current !== list.length });
     if (next === "far") asked.current = null;
     else if (next === "reveal") {
       beforeReveal(el);
@@ -324,7 +323,18 @@ function useThreadWindow(
     const at = openStart(list.length, dividerAt);
     setWin((w) => (w.start === at ? w : { ...w, start: at }));
   };
-  return { start, above, nearTop, readerScrolled, reveal, fold };
+  return { start, above, nearTop, reveal, fold };
+}
+
+function useRest(atRest: RefObject<() => void>, start: number, length: number) {
+  const [rest] = useState(() =>
+    restTimer(() => atRest.current(), { set: (run, ms) => window.setTimeout(run, ms), clear: (timer: number) => window.clearTimeout(timer) }),
+  );
+  useEffect(() => {
+    rest.moved();
+  }, [rest, start, length]);
+  useEffect(() => rest.stop, [rest]);
+  return rest;
 }
 
 function useFresh(list: TranscriptRow[], above: number): number {

@@ -108,6 +108,17 @@ describe("the desktop thread keeps your place when something above changes heigh
     expect(t.raw.scrollTop).toBe(410);
   });
 
+  test("while the thread moves the offset is not written, and the place is taken afresh for the next change at rest", () => {
+    const t = thread([100, 100, 100, 100], 350);
+    const reading = holdPlace(t.el, null);
+    t.rows[0].h += 160;
+    const moved = holdPlace(t.el, reading, true);
+    expect(t.raw.scrollTop).toBe(350);
+    t.rows[0].h += 40;
+    holdPlace(t.el, moved);
+    expect(t.raw.scrollTop).toBe(390);
+  });
+
   test("following the bottom, a change above is left to MessageScroller, which keeps the bottom in view", () => {
     const t = thread([100, 100, 100, 100], 250, false);
     const reading = holdPlace(t.el, null);
