@@ -40,11 +40,11 @@ export class PeerGroup {
           joined.push(m.mac_id);
           log("peers:joined-group", { via, mac: m.mac_id });
         } catch (err) {
-          log("peers:join-failed", { via, mac: m.mac_id, error: messageOf(err) });
+          log.error("peers:join-failed", { via, mac: m.mac_id, error: messageOf(err) });
         }
       }
     } catch (err) {
-      log("peers:group-failed", { via, error: messageOf(err) });
+      log.error("peers:group-failed", { via, error: messageOf(err) });
     } finally {
       this.running.delete(via);
     }

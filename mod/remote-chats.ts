@@ -81,7 +81,7 @@ export class RemoteChats {
 
   startRefresh(macId: string): void {
     this.refresh(macId).catch((err: unknown) => {
-      log("peers:chats_failed", { mac: macId, reason: messageOf(err) });
+      log.error("peers:chats_failed", { mac: macId, reason: messageOf(err) });
       this.retryLater(macId);
     });
   }

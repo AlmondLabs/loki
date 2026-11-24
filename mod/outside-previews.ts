@@ -59,7 +59,7 @@ export class OutsidePreviews {
         return name;
       })
       .catch((err: unknown) => {
-        log("outside:preview-failed", { error: messageOf(err) });
+        log.error("outside:preview-failed", { error: messageOf(err) });
         this.missed.set(key, this.now());
         return null;
       })

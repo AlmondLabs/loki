@@ -541,14 +541,14 @@ export class SlackClient {
     try {
       return await this.opts.session(fresh);
     } catch (err) {
-      log("slack:session-failed", { error: messageOf(err) });
+      log.error("slack:session-failed", { error: messageOf(err) });
       return null;
     }
   }
 
   private signedOut(why: string): never {
     this.current = null;
-    log("slack:signed-out", { why });
+    log.warning("slack:signed-out", { why });
     this.opts.setStatus({ disconnected: "slack_signed_out" });
     throw new SlackError("Slack signed out: open the Slack app, sign in, then reconnect in Preferences › Accounts", "signed_out");
   }
@@ -581,7 +581,7 @@ export class SlackClient {
     const seconds = Number(retryAfter);
     const wait = retryAfter !== null && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RETRY_MS;
     this.holdUntil.set(method, this.now() + wait);
-    log("slack:rate-limited", { method, wait_ms: wait });
+    log.warning("slack:rate-limited", { method, wait_ms: wait });
     throw new SlackError(`Slack asked loki to wait ${Math.ceil(wait / 1000)} s`, "ratelimited", wait);
   }
 }

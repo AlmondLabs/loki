@@ -104,7 +104,7 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
       opts.expect?.(`${scope}/lesson`, existsSync(join(dir, "lesson.json")) ? "changed" : "added");
       writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
     } catch (err) {
-      log("recall:lesson-card-failed", { message: messageOf(err) });
+      log.error("recall:lesson-card-failed", { message: messageOf(err) });
     }
     const lesson = opts.store.startLesson(leadId, rt);
     log("recall:lesson-started", { lead: leadId, conversation: rt.conversationId });

@@ -139,7 +139,7 @@ export function startPeering(deps: PeeringDeps): Peering {
       void sync.heard(id, frame);
     },
     onRefused: (id) => {
-      peers.contact(id).catch((err: unknown) => log("peers:contact_failed", { mac: id, reason: messageOf(err) }));
+      peers.contact(id).catch((err: unknown) => log.error("peers:contact_failed", { mac: id, reason: messageOf(err) }));
     },
   });
   const sync: PeerSync = new PeerSync(
@@ -196,7 +196,7 @@ export function startPeering(deps: PeeringDeps): Peering {
         },
       },
     ],
-    (syncer, id, err) => log("peers:sync-failed", { syncer, mac: id, error: messageOf(err) }),
+    (syncer, id, err) => log.error("peers:sync-failed", { syncer, mac: id, error: messageOf(err) }),
   );
   const remoteChats: RemoteChats = new RemoteChats({
     link: (id) => links.get(id),

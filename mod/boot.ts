@@ -3,14 +3,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
 
+type Activate = (api: unknown, host: unknown) => unknown;
+
 /**
  * The mod's entry in a checkout, which the daemon loads in development (src-tauri/src/lib.rs start_daemon). Node
  * caches ES modules by URL for the life of the process, so re-importing mod/index.ts would refresh only that file —
  * every file it imports would still be the old copy. Bundling the mod's own files into a uniquely named file on each
- * activate gives a reload a genuinely fresh module graph. node_modules stay external and resolve from the project
- * because the bundle is written inside it.
+ * build gives a reload a genuinely fresh module graph. node_modules stay external and resolve from the project
+ * because the bundle is written inside it. The daemon calls `build` before it stops the mod that is running, so source
+ * that does not build never replaces it; the default export is for a host that only knows how to activate.
  */
-export default async function activate(api: unknown, host: unknown): Promise<unknown> {
+export async function build(): Promise<Activate> {
   // Outside (Node): fileURLToPath drops the query on this module's URL.
   const here = fileURLToPath(new URL(import.meta.url));
   const root = dirname(dirname(here));
@@ -37,6 +40,10 @@ export default async function activate(api: unknown, host: unknown): Promise<unk
     }
   } catch {}
 
-  const mod = (await import(pathToFileURL(outfile).href)) as { default: (api: unknown, host: unknown) => unknown };
-  return mod.default(api, host);
+  const mod = (await import(pathToFileURL(outfile).href)) as { default: Activate };
+  return mod.default;
+}
+
+export default async function activate(api: unknown, host: unknown): Promise<unknown> {
+  return (await build())(api, host);
 }

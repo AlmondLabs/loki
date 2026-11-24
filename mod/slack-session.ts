@@ -186,7 +186,7 @@ export class SlackSessions {
         for (const s of await this.readDir(dir)) if (!sessions.some((o) => o.team_id === s.team_id)) sessions.push(s);
       } catch (err) {
         const error = err instanceof SlackSessionError ? err : new SlackSessionError(`cannot read Slack session: ${messageOf(err)}`, "unreadable");
-        log("slack:session-unreadable", { build: dir.includes("Containers") ? "app_store" : "direct_download", reason: error.reason });
+        log.error("slack:session-unreadable", { build: dir.includes("Containers") ? "app_store" : "direct_download", reason: error.reason });
         failure ??= error;
       }
     }

@@ -472,7 +472,7 @@ export class JiraClient {
       const data = Buffer.from(await res.arrayBuffer());
       return data.length <= THUMBNAIL_MAX_BYTES ? { data, type } : null;
     } catch (err) {
-      log("jira:thumbnail-failed", { error: messageOf(err) });
+      log.error("jira:thumbnail-failed", { error: messageOf(err) });
       return null;
     }
   }
@@ -645,7 +645,7 @@ export class JiraClient {
   }
 
   private rejected(why: string, status: number): never {
-    log("jira:rejected", { why });
+    log.warning("jira:rejected", { why });
     this.opts.setStatus({ disconnected: "sign_in_again" });
     throw new JiraError("Jira did not accept the API token: reconnect with a new one in Preferences › Accounts", "rejected", status);
   }
@@ -654,7 +654,7 @@ export class JiraClient {
     const seconds = Number(retryAfter);
     const wait = retryAfter !== null && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RETRY_MS;
     this.holdUntil = this.now() + wait;
-    log("jira:rate-limited", { wait_ms: wait });
+    log.warning("jira:rate-limited", { wait_ms: wait });
     return wait;
   }
 

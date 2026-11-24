@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { messageOf } from "../core/errors.ts";
+import { logLine, type Severity } from "../core/log-line.ts";
 
 let target: string | null = null;
 let sinceCheck = 0;
@@ -28,7 +29,7 @@ export function rotateIfLarge(path: string, max = LOG_MAX_BYTES): boolean {
   }
 }
 
-export function log(event: string, detail?: unknown): void {
+function write(severity: Severity, event: string, detail?: unknown): void {
   if (!target) return;
   try {
     if (++sinceCheck >= LOG_CHECK_EVERY) {
@@ -36,13 +37,21 @@ export function log(event: string, detail?: unknown): void {
       rotateIfLarge(target);
     }
     const line = detail === undefined ? event : `${event} ${typeof detail === "string" ? detail : JSON.stringify(detail)}`;
-    appendFileSync(target, `${new Date().toISOString()} ${line}\n`);
+    appendFileSync(target, `${logLine(new Date(), severity, line)}\n`);
   } catch {}
 }
+
+type Log = (event: string, detail?: unknown) => void;
+
+export const log: Log & { warning: Log; error: Log } = Object.assign((event: string, detail?: unknown) => write("info", event, detail), {
+  warning: (event: string, detail?: unknown) => write("warning", event, detail),
+  error: (event: string, detail?: unknown) => write("error", event, detail),
+});
+
 export function withTimeout<T>(p: Promise<T>, ms: number, label: string, fallback: T): Promise<T> {
   return new Promise<T>((resolve) => {
     const t = setTimeout(() => {
-      log("timeout", { label, ms });
+      log.warning("timeout", { label, ms });
       resolve(fallback);
     }, ms);
     p.then(
@@ -52,7 +61,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string, fallbac
       },
       (err: unknown) => {
         clearTimeout(t);
-        log("error", { label, error: messageOf(err) });
+        log.error("error", { label, error: messageOf(err) });
         resolve(fallback);
       },
     );

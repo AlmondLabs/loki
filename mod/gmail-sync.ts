@@ -57,7 +57,7 @@ export function gmailOutsideSource(
       const verdicts = await Promise.all(later.map((m) => reactions.of(m)));
       return later.filter((_, i) => verdicts[i] !== null);
     } catch (error) {
-      log("gmail:reactions-unread", { account_id: accountId, error: messageOf(error) });
+      log.warning("gmail:reactions-unread", { account_id: accountId, error: messageOf(error) });
       return [];
     }
   };
@@ -185,7 +185,7 @@ export class GmailSync implements AccountSync {
 
   askedToWait(error: unknown): boolean {
     if (!(error instanceof GoogleError) || !(error.status === 429 || (error.reason !== null && WAITS.includes(error.reason)))) return false;
-    log("gmail:rate-limited", { account_id: this.accountId, status: error.status, reason: error.reason });
+    log.warning("gmail:rate-limited", { account_id: this.accountId, status: error.status, reason: error.reason });
     return true;
   }
 
@@ -276,7 +276,7 @@ export class GmailSync implements AccountSync {
         return null;
       }
       if (!this.unreadable(error)) throw error;
-      log("gmail:thread-unreadable", { account_id: this.accountId, thread_id: threadId, error: messageOf(error) });
+      log.error("gmail:thread-unreadable", { account_id: this.accountId, thread_id: threadId, error: messageOf(error) });
       return null;
     }
   }

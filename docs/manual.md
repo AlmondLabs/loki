@@ -638,7 +638,8 @@ waits for the mod: if nothing answers on its port after a minute and a half, it 
 log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it.
 
 `bun run start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
-in place when `mod/` or `core/` changes. A change to `app/`, `daemon/` or `core/` waits: the window shows "loki's code
+in place when `mod/` or `core/` changes, a moment after the last file changed. A mod that does not build or does not
+start is reported in the log, and the one that was running keeps serving, so the window stays connected. A change to `app/`, `daemon/` or `core/` waits: the window shows "loki's code
 changed" with **update** and **later**, and loki never updates by itself. **update** builds the page if it changed
 (the window and the phone reload on the new build) and restarts the daemon if its code changed (the window reconnects
 a second later). A page that does not build stays as it was, and the notice says what failed. While a chat is working
@@ -1947,7 +1948,8 @@ never the system keychain: for tests and scratch runs). A few move one folder or
 already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
 Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product
-analytics on loki itself; see "Analytics").
+analytics on loki itself; see "Analytics"). Each line of the first two starts with its time in UTC and its severity,
+`info`, `warning` or `error`, so `grep " error " ~/.loki/logs/daemon.log` lists what went wrong and when.
 
 ## Hard rules
 

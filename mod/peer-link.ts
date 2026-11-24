@@ -187,7 +187,7 @@ export class PeerLink {
   private failed(reason: string): void {
     if (this.stopped || reason === this.lastFailure) return;
     this.lastFailure = reason;
-    log("peers:link_failed", { mac: this.opts.macId, reason });
+    log.error("peers:link_failed", { mac: this.opts.macId, reason });
   }
 
   private setStatus(status: LinkStatus): void {
@@ -202,7 +202,7 @@ export class PeerLink {
     try {
       listener();
     } catch (err) {
-      log("peers:listener_failed", { mac: this.opts.macId, event, reason: messageOf(err) });
+      log.error("peers:listener_failed", { mac: this.opts.macId, event, reason: messageOf(err) });
     }
   }
 }

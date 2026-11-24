@@ -12,6 +12,7 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { sameServer, type ServerConfig } from "./config.ts";
 import { Listeners } from "../../core/listeners.ts";
 import { messageOf } from "../../core/errors.ts";
+import type { Report } from "../report.ts";
 
 export interface McpTool {
   key: string;
@@ -88,7 +89,7 @@ export class McpServers {
   private readonly connect: Connector;
   private readonly resolve: (config: ServerConfig) => Promise<ServerConfig>;
   private readonly oauthFor: (config: ServerConfig) => OAuthClientProvider | undefined;
-  private readonly report: (message: string) => void;
+  private readonly report: Report;
   private readonly version: string;
   private closed = false;
 
@@ -97,7 +98,7 @@ export class McpServers {
       connect?: Connector;
       resolve?: (config: ServerConfig) => Promise<ServerConfig>;
       oauthFor?: (config: ServerConfig) => OAuthClientProvider | undefined;
-      report?: (message: string) => void;
+      report?: Report;
       version?: string;
     } = {},
   ) {
@@ -209,7 +210,7 @@ export class McpServers {
   }
 
   private needsSignIn(entry: Entry): void {
-    if (entry.state !== "signin") this.report(`mcp ${entry.config.name}: needs a sign-in (Preferences › MCP servers)`);
+    if (entry.state !== "signin") this.report(`mcp ${entry.config.name}: needs a sign-in (Preferences › MCP servers)`, "warning");
     entry.state = "signin";
     entry.error = "needs a sign-in: Preferences › MCP servers";
     entry.tools = [];

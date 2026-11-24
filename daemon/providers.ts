@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ConnectProvider } from "../core/attention/protocol.ts";
+import type { Report } from "./report.ts";
 
 const NO_SIGN_IN = new Set(["anthropic"]);
 export const SIGN_IN_MS = 10 * 60_000;
@@ -16,11 +17,11 @@ interface Waiting {
 export class Providers {
   private readonly models: Models;
   private readonly credentials: CredentialStore;
-  private readonly report: (message: string) => void;
+  private readonly report: Report;
   private readonly deviceId: () => string;
   private readonly waiting = new Map<string, Waiting>();
 
-  constructor(models: Models, credentials: CredentialStore, report: (message: string) => void = () => {}, deviceId: () => string = () => randomUUID()) {
+  constructor(models: Models, credentials: CredentialStore, report: Report = () => {}, deviceId: () => string = () => randomUUID()) {
     this.models = models;
     this.credentials = credentials;
     this.report = report;
@@ -120,7 +121,7 @@ export class Providers {
       );
       done
         .then(
-          () => this.report(`signed in to ${providerId}`),
+          () => this.report(`signed in to ${providerId}`, "info"),
           (error: unknown) => {
             this.report(`sign-in to ${providerId} ended: ${String(error)}`);
             if (!named) reject(error instanceof Error ? error : new Error(String(error)));

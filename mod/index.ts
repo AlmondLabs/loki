@@ -210,7 +210,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       void widgets.rescan();
       return abs;
     } catch (err) {
-      log("widget:trash-failed", { id, error: messageOf(err) });
+      log.error("widget:trash-failed", { id, error: messageOf(err) });
       return null;
     }
   };
@@ -555,7 +555,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       log("server:listening", { port: s.port });
       return s;
     } catch (err) {
-      log("server:failed", messageOf(err));
+      log.error("server:failed", messageOf(err));
       api.diagnostics.report({
         message: `loki: server failed to start on ${modPort} (${messageOf(err)})`,
         severity: "error",
@@ -563,7 +563,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       throw err;
     }
   };
-  void serve().catch((err: unknown) => log("server:error", messageOf(err)));
+  void serve().catch((err: unknown) => log.error("server:error", messageOf(err)));
 
   const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
   const lan: LanListener = new LanListener({

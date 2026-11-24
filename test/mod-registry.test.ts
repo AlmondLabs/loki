@@ -137,6 +137,41 @@ describe("mod registry", () => {
     ).toEqual(["echo"]);
   });
 
+  test("a mod that throws while reloading leaves the one that was running in place", async () => {
+    const reports: Array<[string, string | undefined]> = [];
+    const mods = new ModRegistry((m, severity) => reports.push([m, severity]));
+    const running: string[] = [];
+    const version = (name: string) => () => {
+      running.push(name);
+      return () => void running.splice(running.indexOf(name), 1);
+    };
+    await mods.load({ name: "loki", apiVersion: 1, activate: version("first") });
+    const result = await mods.load({
+      name: "loki",
+      apiVersion: 1,
+      activate: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(result).toEqual({ refused: expect.stringContaining("boom") as unknown });
+    expect(mods.names()).toEqual(["loki"]);
+    expect(running).toEqual(["first"]);
+    expect(reports).toEqual([
+      ["mod loki failed to load: boom", undefined],
+      ["mod loki: the one that was running is back", "info"],
+    ]);
+
+    await mods.load({ name: "loki", apiVersion: 1, activate: version("second") });
+    expect(running).toEqual(["second"]);
+  });
+
+  test("a mod's diagnostics keep their severity", async () => {
+    const reports: Array<[string, string | undefined]> = [];
+    const mods = new ModRegistry((m, severity) => reports.push([m, severity]));
+    await mods.load({ name: "loud", apiVersion: 1, activate: (api) => api.diagnostics.report({ severity: "warning", message: "the port is busy" }) });
+    expect(reports).toEqual([["loud: the port is busy", "warning"]]);
+  });
+
   test("one load reaches the chats of two agents' stores", async () => {
     const mods = new ModRegistry(() => {});
     const seen: Array<{ agentId: string }> = [];

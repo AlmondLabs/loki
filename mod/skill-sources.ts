@@ -88,7 +88,7 @@ export class SkillSources {
     try {
       writeJsonAtomic(this.opts.sourcesFile, all, { pretty: true, newline: true, pidTemp: true });
     } catch (err) {
-      log("skills:sources-write-failed", messageOf(err));
+      log.error("skills:sources-write-failed", messageOf(err));
     }
     return parsed;
   }
@@ -130,7 +130,7 @@ export class SkillSources {
       try {
         await this.exec("git", ["pull", "--ff-only", "--quiet"], { cwd: source.repo, timeoutMs: 30_000 });
       } catch (err) {
-        log("skills:pull-failed", { repo: source.repo, error: messageOf(err) });
+        log.error("skills:pull-failed", { repo: source.repo, error: messageOf(err) });
       }
       dir = join(source.repo, source.rel);
     } else if (source.kind === "folder") {

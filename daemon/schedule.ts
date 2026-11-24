@@ -6,6 +6,7 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import type { Delivery } from "./engine.ts";
 import { piTool, type ChatCall, type ChatTool } from "./chat-tools.ts";
 import { writeJsonAtomic } from "../mod/json-file.ts";
+import type { Report } from "./report.ts";
 
 /** One scheduled task, as the file keeps it (snake_case). A one-time task is `done` once it fires; `cancelled` is a deleted one, kept in the file. */
 export interface ScheduledTask {
@@ -139,14 +140,14 @@ function promptOf(task: ScheduledTask, retry: boolean): string {
 export class Schedules {
   private readonly file: string;
   private readonly fire: Fire;
-  private readonly report: (message: string) => void;
+  private readonly report: Report;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
   private readonly quiet = new Map<string, { from: number; to: number }>();
 
   private readonly now: () => Date;
 
-  constructor(file: string, fire: Fire, report: (message: string) => void = () => {}, now: () => Date = () => new Date()) {
+  constructor(file: string, fire: Fire, report: Report = () => {}, now: () => Date = () => new Date()) {
     this.file = file;
     this.fire = fire;
     this.report = report;
@@ -266,7 +267,7 @@ export class Schedules {
     const wait = outcome.status === "unanswered" && outcome.reason === "model_error" ? RETRY_AFTER_MINUTES[tries] : undefined;
     task.retry_at = wait === undefined ? null : new Date(this.now().getTime() + wait * 60_000).toISOString();
     if (wait === undefined) task.retries = 0;
-    else this.report(`schedule ${task.name}: the model could not be reached; trying again in ${wait} minutes`);
+    else this.report(`schedule ${task.name}: the model could not be reached; trying again in ${wait} minutes`, "warning");
     this.save(tasks);
   }
 

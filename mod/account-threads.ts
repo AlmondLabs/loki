@@ -517,7 +517,7 @@ export class AccountThreads {
     const aside = `${file}.bad-${stamp}`;
     renameSync(file, aside);
     chmodSync(aside, 0o600);
-    log("account-threads:file-unreadable", { account_id: accountId, moved_to: aside });
+    log.error("account-threads:file-unreadable", { account_id: accountId, moved_to: aside });
     return [];
   }
 

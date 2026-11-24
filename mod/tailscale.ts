@@ -190,7 +190,7 @@ export class Tailscale {
       log("tailscale:serve", { enabled, port: this.port });
     } catch (err) {
       failure = clip(err);
-      log("tailscale:serve-failed", { enabled, error: failure });
+      log.error("tailscale:serve-failed", { enabled, error: failure });
     }
     const status = await this.status();
     return failure ? { ...status, error: failure } : status;

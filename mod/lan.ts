@@ -186,7 +186,7 @@ export class LanListener {
       } catch (err) {
         const e = err as NodeJS.ErrnoException;
         this.bindError = `${e.code ?? "error"}: ${e.code === "EADDRINUSE" ? `port ${this.configuredPort} is already in use` : e.message}`;
-        log("lan:bind-failed", { port: this.configuredPort, error: this.bindError });
+        log.error("lan:bind-failed", { port: this.configuredPort, error: this.bindError });
         server.close();
         return;
       }
@@ -206,7 +206,7 @@ export class LanListener {
       if (this.tailscale) {
         await this.refresh();
         this.tailscalePoll = setInterval(
-          () => void this.refresh().catch((err: unknown) => log("lan:tailscale-poll-failed", messageOf(err))),
+          () => void this.refresh().catch((err: unknown) => log.error("lan:tailscale-poll-failed", messageOf(err))),
           this.opts.tailscalePollMs ?? 60_000,
         );
       }
@@ -245,7 +245,7 @@ export class LanListener {
     try {
       this.opts.onChange?.(what, status);
     } catch (err) {
-      log("lan:listener-failed", { what, reason: messageOf(err) });
+      log.error("lan:listener-failed", { what, reason: messageOf(err) });
     }
   }
 
@@ -353,7 +353,7 @@ export class LanListener {
       }
       this.serveStatic(req, res, url);
     } catch (err) {
-      log("lan:request-error", messageOf(err));
+      log.error("lan:request-error", messageOf(err));
       if (!res.headersSent) res.writeHead(500).end();
     }
   }
@@ -670,6 +670,6 @@ function writeState(file: string, state: LanState): void {
   try {
     writeJsonAtomic(file, state.via ? state : { enabled: state.enabled }, { pretty: true, newline: true, pidTemp: true });
   } catch (err) {
-    log("lan:state-write-failed", messageOf(err));
+    log.error("lan:state-write-failed", messageOf(err));
   }
 }

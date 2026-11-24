@@ -101,7 +101,7 @@ export class MailOutbox {
     w.cancel();
     this.waiting.delete(outboxId);
     this.remove(outboxId);
-    log("outside:unsent", {});
+    log.warning("outside:unsent", {});
     w.settle({ sent: false, undone: true });
     return true;
   }
@@ -111,7 +111,7 @@ export class MailOutbox {
       for (const held of this.read()) {
         if (this.waiting.has(held.outbox_id)) continue;
         if (!key || !sealed(key, held)) {
-          log("outside:resume-refused", { reason: key ? "seal" : "no key" });
+          log.warning("outside:resume-refused", { reason: key ? "seal" : "no key" });
           this.remove(held.outbox_id);
           continue;
         }
@@ -132,7 +132,7 @@ export class MailOutbox {
           continue;
         }
         this.wait(held, (r) => {
-          if (r instanceof Error) log("outside:resumed-send-failed", { error: r.message });
+          if (r instanceof Error) log.error("outside:resumed-send-failed", { error: r.message });
         });
       }
     });
@@ -240,7 +240,7 @@ export class MailOutbox {
   private fail(held: HeldReply, reason: string): void {
     const at = new Date(this.now()).toISOString();
     void this.keep(held, { state: "failed", reason, failed_at: at });
-    log("outside:not-sent", { error: reason });
+    log.error("outside:not-sent", { error: reason });
     this.opts.onNotSent?.(held, { reason, at });
   }
 
@@ -326,7 +326,7 @@ export async function outboxKey(secrets: {
     await secrets.set(KEY_ACCOUNT, made);
     return made;
   } catch (err) {
-    log("outside:outbox-key-failed", { error: messageOf(err) });
+    log.error("outside:outbox-key-failed", { error: messageOf(err) });
     return null;
   }
 }
