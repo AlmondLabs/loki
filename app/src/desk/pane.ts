@@ -1,5 +1,5 @@
-export type DeskTab = "messages" | "desk";
-export type PaneView = "messages" | "inset";
+export type DeskTab = "messages" | "advisor" | "desk";
+export type PaneView = "messages" | "advisor" | "inset";
 
 export interface PaneState {
   readonly tabs: Readonly<Record<string, DeskTab>>;
@@ -15,16 +15,24 @@ export function chooseTab(s: PaneState, scope: string, tab: DeskTab): PaneState 
 
 export const openTab = (s: PaneState, scope: string): PaneState => chooseTab(s, scope, "messages");
 
-export function escapeTab(s: PaneState, scope: string, { typing }: { typing: boolean }): PaneState | null {
-  if (typing || tabOf(s, scope) !== "desk") return null;
+export const shownTab = (tab: DeskTab, hasAdvisor: boolean): DeskTab => (tab === "advisor" && !hasAdvisor ? "messages" : tab);
+
+export function escapeTab(s: PaneState, scope: string, shown: DeskTab, { typing }: { typing: boolean }): PaneState | null {
+  if (typing || shown === "messages") return null;
   return chooseTab(s, scope, "messages");
 }
 
-export const paneView = (active: boolean, tab: DeskTab): PaneView | null => (!active ? null : tab === "messages" ? "messages" : "inset");
+const VIEW: Record<DeskTab, PaneView> = { messages: "messages", advisor: "advisor", desk: "inset" };
+
+export const paneView = (active: boolean, tab: DeskTab): PaneView | null => (active ? VIEW[tab] : null);
+
+const ADVISOR_KEYS = new Set(["chat.focus", "chat.find", "chat.model"]);
+const MESSAGES_KEYS = new Set([...ADVISOR_KEYS, "chat.mode", "chat.suggestions"]);
 
 export function chatKeyTarget(id: string, tab: DeskTab): PaneView | null {
   if (tab === "desk") return "inset";
-  return id === "chat.focus" || id === "chat.find" || id === "chat.model" || id === "chat.mode" || id === "chat.suggestions" ? "messages" : null;
+  if (tab === "advisor") return ADVISOR_KEYS.has(id) ? "advisor" : null;
+  return MESSAGES_KEYS.has(id) ? "messages" : null;
 }
 
 export interface TickRoute {

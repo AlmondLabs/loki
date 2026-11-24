@@ -1,6 +1,7 @@
 import { LinkHeader } from "../chat/link-header";
-import { AdvisorHeader } from "../chat/advisor-header";
-import { AdvisorPane } from "./advisor-pane";
+import { advisorTabStatus } from "../chat/advisor-header";
+import { AdvisorPanel } from "./advisor-pane";
+import type { AdvisorView } from "../../../core/advisor.ts";
 import {
   useCallback,
   useEffect,
@@ -44,8 +45,9 @@ import { chatItem } from "../item/item-view";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 import { isMainChat, scopeFor } from "../../../core/desk-core.ts";
 
-const TABS: ReadonlyArray<Tab<DeskTab>> = [
+export const paneTabs = (advisor: AdvisorView | null | undefined): ReadonlyArray<Tab<DeskTab>> => [
   { id: "messages", label: "Messages" },
+  ...(advisor ? [{ id: "advisor" as const, label: "Advisor", status: advisorTabStatus(advisor) }] : []),
   { id: "desk", label: "Canvas" },
 ];
 const panelId = (t: DeskTab) => `loki-desk-panel-${t}`;
@@ -74,9 +76,6 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   onFrameWidget?: (widgetId: string) => void;
   onShowLabel?: (name: string) => void;
   onOpenChat: (agentId: string, conversationId: string) => void;
-  advisorChat: string | null;
-  onOpenAdvisor: (advisorChat: string) => void;
-  onCloseAdvisor: () => void;
 }
 
 function useRouted(value: number, visible: PaneView | null, chat: string): TickRoute {
@@ -144,13 +143,11 @@ export function DeskPane(props: DeskPaneProps) {
   useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Chat";
-  const links =
-    view.links?.length || view.advisor ? (
-      <span className="loki-chat-strips">
-        <AdvisorHeader advisor={view.advisor} />
-        {view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null}
-      </span>
-    ) : null;
+  const links = view.links?.length ? (
+    <span className="loki-chat-strips">
+      <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
+    </span>
+  ) : null;
   const itemView = item ? chatItem({ item, live: null, turns: [] }) : null;
   const toolbar = itemView && item;
   const itemLine = toolbar ? <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" /> : undefined;
@@ -176,28 +173,10 @@ export function DeskPane(props: DeskPaneProps) {
     </>
   ) : undefined;
 
-  if (props.advisorChat && agentId)
-    return (
-      <AdvisorPane
-        catchUp={catchUp}
-        agentId={agentId}
-        agentName={agentName}
-        advisorChat={props.advisorChat}
-        chatName={name}
-        advisor={view.advisor}
-        models={{
-          entries: models,
-          model: desk.modelOf(scopeFor(props.advisorChat, agentId)),
-          reasoningEffort: desk.reasoningEffortOf(scopeFor(props.advisorChat, agentId)),
-          onLoad: props.onLoadModels,
-          onPick: props.onPickModel,
-        }}
-        modelPickerTick={visible ? tickFor(model, visible) : 0}
-        onBack={props.onCloseAdvisor}
-      />
-    );
+  const advisor = view.advisor;
+  const advisorScope = advisor && agentId ? scopeFor(advisor.advisor_chat, agentId) : null;
   return (
-    <OpenAdvisor.Provider value={props.onOpenAdvisor}>
+    <OpenAdvisor.Provider value={() => onTab("advisor")}>
       <div className="loki-desk-pane" ref={paneRef}>
         <PaneHeader
           title={name}
@@ -227,7 +206,7 @@ export function DeskPane(props: DeskPaneProps) {
           actions={tab === "desk" ? <DeskActions /> : undefined}
           line={itemLine}
           trailing={toolbarItems}
-          tabs={TABS}
+          tabs={paneTabs(advisor)}
           tab={tab}
           onTab={onTab}
           tabsLabel={`${name} views`}
@@ -268,6 +247,37 @@ export function DeskPane(props: DeskPaneProps) {
                 suggestions={runtime ? { source: catchUp, rt: runtime } : null}
               />
             </div>
+            {advisor && agentId && advisorScope && (
+              <div
+                id={panelId("advisor")}
+                role="tabpanel"
+                aria-label="Advisor"
+                className="loki-desk-pane-panel loki-desk-pane-messages"
+                style={{ visibility: tab === "advisor" ? "inherit" : "hidden" }}
+                aria-hidden={tab !== "advisor"}
+              >
+                {tab === "advisor" && (
+                  <AdvisorPanel
+                    key={advisor.advisor_chat}
+                    catchUp={catchUp}
+                    agentId={agentId}
+                    agentName={agentName}
+                    advisorChat={advisor.advisor_chat}
+                    advisor={advisor}
+                    models={{
+                      entries: models,
+                      model: desk.modelOf(advisorScope),
+                      reasoningEffort: desk.reasoningEffortOf(advisorScope),
+                      onLoad: props.onLoadModels,
+                      onPick: props.onPickModel,
+                    }}
+                    focusTick={tickFor(focus, "advisor")}
+                    findTick={tickFor(find, "advisor")}
+                    modelPickerTick={tickFor(model, "advisor")}
+                  />
+                )}
+              </div>
+            )}
             <div
               id={panelId("desk")}
               role="tabpanel"
@@ -341,6 +351,8 @@ function DeskMessages({
   );
 }
 
+const TAB_OF: Record<PaneView, DeskTab> = { messages: "messages", advisor: "advisor", inset: "desk" };
+
 function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | null>, last: RefObject<HTMLElement | null>) {
   const prev = useRef(visible);
   useEffect(() => {
@@ -349,11 +361,16 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
     const el = root.current;
     if (!el || was === visible) return;
     const active = document.activeElement as HTMLElement | null;
-    const focusLeftWith = (t: DeskTab) =>
-      !active || active === document.body || !!document.getElementById(panelId(t))?.contains(active) || active.getAttribute("aria-controls") === panelId(t);
-    if (was === "messages" && visible === "inset" && focusLeftWith("messages"))
-      el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
-    else if (was === "inset" && visible === "messages" && focusLeftWith("desk") && last.current?.isConnected) last.current.focus({ preventScroll: true });
+    if (!was || !visible) return;
+    const left = TAB_OF[was];
+    const focusLeftWith =
+      !active ||
+      active === document.body ||
+      !!document.getElementById(panelId(left))?.contains(active) ||
+      active.getAttribute("aria-controls") === panelId(left);
+    if (!focusLeftWith) return;
+    if (visible !== "messages") el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+    else if (last.current?.isConnected) last.current.focus({ preventScroll: true });
   }, [visible, root, last]);
 }
 

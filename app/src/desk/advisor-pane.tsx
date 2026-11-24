@@ -1,32 +1,13 @@
 import { useMemo } from "react";
-import { ChevronLeftIcon } from "lucide-react";
 import type { AdvisorView } from "../../../core/advisor.ts";
 import { harnessOf, type ModelEntry, type ModelSelection, type ReasoningEffort } from "../../../core/models.ts";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
-import { PaneHeader } from "../components";
-import { Glyph } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { Conversation, type ConversationActions, type ConversationView } from "../chat/conversation";
-import { shortModel } from "../chat/model-picker";
 import { avatarUrl } from "./env";
 import { useDeskChat, type DeskChatModel } from "./use-desk-chat";
-
-export function AdvisorPaneHeader({ chatName, model, onBack }: { chatName: string; model: string | null; onBack: () => void }) {
-  return (
-    <PaneHeader
-      title="Advisor"
-      lead={
-        <button type="button" className="loki-advisor-back" aria-label={`Back to ${chatName}`} title={`Back to ${chatName}`} onClick={onBack}>
-          <Glyph icon={ChevronLeftIcon} />
-          <span className="loki-truncate">{chatName}</span>
-        </button>
-      }
-      aside={model ? shortModel(model) : null}
-    />
-  );
-}
 
 interface Rt {
   agent_id: string;
@@ -81,26 +62,26 @@ export function advisorConversation(
   return { view, actions };
 }
 
-export function AdvisorPane({
+export function AdvisorPanel({
   catchUp,
   agentId,
   agentName,
   advisorChat,
-  chatName,
   advisor,
   models,
+  focusTick,
+  findTick,
   modelPickerTick,
-  onBack,
 }: {
   catchUp: ReturnType<typeof useAttention>;
   agentId: string;
   agentName: string | null;
   advisorChat: string;
-  chatName: string;
   advisor: AdvisorView | null | undefined;
   models: AdvisorModels;
+  focusTick: number;
+  findTick: number;
   modelPickerTick: number;
-  onBack: () => void;
 }) {
   const chat = useDeskChat({ agentId, conversationId: advisorChat, showing: true, catchUp });
   const rows = useThreadRows(catchUp, agentId, advisorChat);
@@ -112,22 +93,17 @@ export function AdvisorPane({
   const offered = useMemo(() => lokiModels(models.entries), [models.entries]);
   const { view, actions } = advisorConversation(catchUp, chat, advisor, models, rows);
   return (
-    <div className="loki-desk-pane">
-      <AdvisorPaneHeader chatName={chatName} model={view.model ?? null} onBack={onBack} />
-      <div className="loki-desk-pane-body">
-        <div className="loki-desk-pane-panel loki-desk-pane-messages">
-          <Conversation
-            view={view}
-            actions={actions}
-            models={offered}
-            modelPickerTick={modelPickerTick}
-            agentName={agentName}
-            layout={{ people }}
-            draft={{ value: draftValue, onChange: setDraft }}
-            dim={false}
-          />
-        </div>
-      </div>
-    </div>
+    <Conversation
+      view={view}
+      actions={actions}
+      models={offered}
+      focusTick={focusTick}
+      findTick={findTick}
+      modelPickerTick={modelPickerTick}
+      agentName={agentName}
+      layout={{ people }}
+      draft={{ value: draftValue, onChange: setDraft }}
+      dim={false}
+    />
   );
 }

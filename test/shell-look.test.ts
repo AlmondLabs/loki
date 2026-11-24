@@ -257,9 +257,9 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
     expect(css).not.toContain("--loki-toolbar-room");
   });
 
-  test("Messages and Canvas sit in the chat toolbar's centred slot", () => {
+  test("Messages, Advisor and Canvas sit in the chat toolbar's centred slot", () => {
     const pane = readFileSync(join(APP, "desk", "desk-pane.tsx"), "utf8");
-    expect(pane).toContain("tabs={TABS}");
+    expect(pane).toContain("tabs={paneTabs(advisor)}");
     expect(glass).toMatch(/\.loki-pane-header \.loki-tabs \{[^}]*grid-area: tabs;/);
   });
 });

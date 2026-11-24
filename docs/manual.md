@@ -246,7 +246,7 @@ are on is read.
   file the chat under; only you set them.
   Opening a chat — from the list, ⌘K, Flow, Agents or Learn — shows it with a Mac toolbar: its name over a grey
   line of its agent, what the agent is doing, its folder and labels, then **Messages** and **Canvas** as a segmented
-  control in the middle of the toolbar and its moves as symbols at its right edge (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
+  control in the middle of the toolbar, with **Advisor** between them once the chat has an [advisor](#advisor) and its moves as symbols at its right edge (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
   Canvas tab, a ⋯ menu to arrange, fit and toggle the chat; find is ⌘F). **Messages** is the conversation, the message
   box focused: your messages as bubbles and the agent's turns as prose, the time told at gaps, a **New** line before
   what came since you last looked (it stays put while the chat is open and moves on the next open), a copy button on
@@ -391,7 +391,7 @@ Backspace in the empty field, or the chip's ×, steps back out.
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
-same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Canvas tab
+same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Canvas or Advisor tab
 back to Messages, then focus from the detail back to the list; it never changes the place. A popover (a chat's folded
 links, New Chat's folder) opens beside the button that shows it, on whichever side has room, and closes on Esc, a click
 outside or the button again, leaving the focus on the button. Outside the Mac app, where loki draws a menu itself (More
@@ -1791,14 +1791,16 @@ has taken an answer up, the row stays, and the agent reads it with your next mes
 why: it could not reach its model, it was stopped, it ended without an answer, or it stopped when loki restarted. That
 row starts the agent's turn too, and the agent carries on without the advisor's opinion.
 
-**Where it shows.** Once a chat has an advisor, its header shows a strip beside its chat links, on the Mac and the
-phone: **Advisor ·** and its model while it is idle, **Advisor is answering** (with **· 2 waiting** when consults
-wait) while it works, and **Advisor couldn't answer** after its last consult failed, with the reason in the tooltip.
+**Where it shows.** Once a chat has an advisor, its chat pane on the Mac gains an **Advisor** tab between **Messages**
+and **Canvas**, and the floating chat on the Canvas tab and the phone show a strip beside its chat links. Each says the
+advisor's state: **Advisor ·** and its model while it is idle, **Advisor is answering** (with **· 2 waiting** when
+consults wait) while it works, and **Advisor couldn't answer** after its last consult failed, with the reason in the
+tooltip. The tab says it in its tooltip, with a mark while the advisor works and a warning mark after a failure.
 The advisor chat is not in the Chats list, in Flow or in `chat_list`.
 
-**The advisor chat.** The strip, or **Open Advisor** on an answer, opens the advisor chat: on the Mac in place of the
-chat, under an **Advisor** header with a back control named after the chat and the advisor's model; on the phone as a
-page of its own, whose back button is named after the chat. It holds every consult and answer so far, and you read and
+**The advisor chat.** The tab, the strip, or **Open Advisor** on an answer, opens the advisor chat: on the Mac on the
+chat's **Advisor** tab, under the chat's own header (Esc goes back to Messages); on the phone as a page of its own,
+whose back button is named after the chat. It holds every consult and answer so far, and you read and
 write there as in any chat. What you write stays there: nothing goes back to the chat, and it doesn't count toward the
 cap. A message you send while the advisor answers a consult waits for that answer rather than joining it, and a
 consult waits for the advisor to answer you. Stop there ends the advisor's answer; when it was answering a consult,

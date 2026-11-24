@@ -4,8 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { AdvisorView } from "../core/advisor.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
 import type { ChatState } from "../core/frames.ts";
-import { AdvisorHeader } from "../app/src/chat/advisor-header.tsx";
-import { AdvisorPaneHeader } from "../app/src/desk/advisor-pane.tsx";
+import { AdvisorHeader, advisorTabStatus } from "../app/src/chat/advisor-header.tsx";
+import { TabRow, type Tab } from "../app/src/components/index.tsx";
+import { paneTabs } from "../app/src/desk/desk-pane.tsx";
 import { OpenAdvisor } from "../app/src/chat/transcript.tsx";
 import { AdvisorStrips, withAdvisorOnOpen } from "../mod/chat-advisor.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
@@ -46,12 +47,48 @@ describe("the advisor strip (R23)", () => {
     expect(html).not.toContain("<button");
   });
 
-  test("the advisor's view on the Mac goes back to its chat, named", () => {
-    const html = renderToStaticMarkup(createElement(AdvisorPaneHeader, { chatName: "Fix the flaky test", model: IDLE.model, onBack: () => {} }));
-    expect(html).toMatch(/<button[^>]*aria-label="Back to Fix the flaky test"/);
-    expect(html).toContain("Fix the flaky test");
-    expect(html).toContain(">Advisor<");
-    expect(html).toContain("gpt-6");
+  test("on the Mac, a chat with an advisor gets Messages, Advisor, Canvas; one without keeps two tabs", () => {
+    expect(paneTabs(null).map((t) => t.label)).toEqual(["Messages", "Canvas"]);
+    expect(paneTabs(IDLE).map((t) => t.label)).toEqual(["Messages", "Advisor", "Canvas"]);
+    expect(paneTabs(IDLE)[1]).toMatchObject({ id: "advisor", status: { words: "Advisor · gpt-6" } });
+  });
+});
+
+describe("the Advisor tab carries the advisor's state (plan 2026-11-24-1641, R3)", () => {
+  const row = (tabs: readonly Tab[]) => renderToStaticMarkup(createElement(TabRow<string>, { label: "Views", tabs, current: "messages", onChange: () => {} }));
+  const advisorTab = (advisor: AdvisorView): Tab => ({ id: "advisor", label: "Advisor", status: advisorTabStatus(advisor) });
+  const trigger = (html: string) => /<button[^>]*>.*?Advisor.*?<\/button>/.exec(html)?.[0] ?? "";
+
+  test("a tab with no status renders as before", () => {
+    const html = row([
+      { id: "messages", label: "Messages" },
+      { id: "desk", label: "Canvas" },
+    ]);
+    expect(html).not.toContain("title=");
+    expect(html).not.toContain("aria-describedby");
+    expect(html).not.toContain("loki-icon");
+  });
+
+  test("idle: no mark, the model in its tooltip and description", () => {
+    const html = trigger(row([advisorTab(IDLE)]));
+    expect(html).toContain('title="Advisor · gpt-6"');
+    const described = /aria-describedby="([^"]+)"/.exec(html)?.[1];
+    expect(described).toBeTruthy();
+    expect(html).toContain(`id="${String(described)}" hidden="">Advisor · gpt-6</span>`);
+    expect(html).not.toContain("loki-icon");
+  });
+
+  test("working with two waiting: a mark, and the words in tooltip and description", () => {
+    const html = row([advisorTab({ ...IDLE, working: true, waiting: 2 })]);
+    expect(trigger(html)).toContain('title="Advisor is answering · 2 waiting"');
+    expect(trigger(html)).toContain('data-state="working"');
+    expect(html).toMatch(/<span[^>]*id="[^"]+"[^>]*>Advisor is answering · 2 waiting<\/span>/);
+  });
+
+  test("a failure: a warning mark, with why in tooltip and description", () => {
+    const html = trigger(row([advisorTab({ ...IDLE, last_failure: "it was stopped" })]));
+    expect(html).toContain('data-state="failed"');
+    expect(html).toContain('title="Advisor couldn&#x27;t answer: it was stopped"');
   });
 });
 

@@ -10,7 +10,7 @@ import type {
   Ref,
   TextareaHTMLAttributes,
 } from "react";
-import { forwardRef, useRef, useState } from "react";
+import { forwardRef, useId, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { cx, firstControl } from "./parts";
 import { BottomSheet, PhoneButton, PhoneChip, PhoneIconButton, PhonePopover, PhoneSwitch } from "./phone";
@@ -668,11 +668,17 @@ export function ListSection({
   );
 }
 
+export interface TabStatus {
+  glyph: ReactNode;
+  words: string;
+}
+
 export interface Tab<T extends string = string> {
   id: T;
   label: string;
   icon?: IconName;
   count?: number | null;
+  status?: TabStatus | null;
 }
 
 export function TabRow<T extends string>({
@@ -688,6 +694,7 @@ export function TabRow<T extends string>({
   onChange: (id: T) => void;
   panelId?: (id: T) => string;
 }) {
+  const described = useId();
   return (
     <Tabs
       value={current}
@@ -703,11 +710,19 @@ export function TabRow<T extends string>({
             key={t.id}
             value={t.id}
             aria-controls={panelId?.(t.id)}
+            title={t.status?.words}
+            aria-describedby={t.status ? `${described}-${t.id}` : undefined}
             className="loki-tab flex-none gap-2 rounded-full px-3 dark:data-active:border-transparent"
           >
             {t.icon && <Icon name={t.icon} size={14} />}
             {t.label}
+            {t.status?.glyph}
             {t.count != null && t.count > 0 && <span className="loki-tab-count">{countText(t.count)}</span>}
+            {t.status && (
+              <span id={`${described}-${t.id}`} hidden>
+                {t.status.words}
+              </span>
+            )}
           </TabsTrigger>
         ))}
       </TabsList>
