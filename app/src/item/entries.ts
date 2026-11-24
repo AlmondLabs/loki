@@ -144,8 +144,9 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
       held = [];
     } else if (opensTurn(e) && open !== null && !onlyOpeners(open)) {
       close();
-      open = [...held, e];
+      out.push(...held);
       held = [];
+      open = [e];
     } else {
       (open ??= []).push(...held, e);
       held = [];

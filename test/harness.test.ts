@@ -93,6 +93,26 @@ describe("the words an event row carries (plan 2026-11-24-1736, KTD1)", () => {
     expect(extractHarnessEvents(desk('resized "A" (c/a) to 300×200'))[0]).toMatchObject({ text: "You changed 1 widget" });
   });
 
+  test("a set gesture counts the widget it was on, not the value it set", () => {
+    const sets = desk('set title = "Shopping" (was "Todo") on "Notes" (c/notes)', 'set body = "milk" on "Notes" (c/notes)');
+    expect(extractHarnessEvents(sets)[0]).toMatchObject({ text: "You changed 1 widget" });
+    const two = desk('set title = "A" on "Notes" (c/notes)', 'set title = "A" on "Other" (c/other)');
+    expect(extractHarnessEvents(two)[0]).toMatchObject({ text: "You changed 2 widgets" });
+  });
+
+  test("an answer that opens with code, or has no words, gives no made-up first line", () => {
+    const fenced = answerBlock({
+      from: "agent",
+      asked: "Review",
+      advisor_chat: "advisor-c",
+      state: "answered",
+      text: "```ts\nconst a = 1;\n```\nThe constant is fine.",
+    });
+    expect(extractHarnessEvents(fenced)[0]).toMatchObject({ summary: "const a = 1;" });
+    const marks = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text: "**\n---" });
+    expect(extractHarnessEvents(marks)[0]).toMatchObject({ text: "Advisor answered · the agent asked" });
+  });
+
   test("an advisor answer's first line is plain words: no markdown marks", () => {
     const text = "**The runner follows the plan, but cleanup can leak.**\n### High\n1. An ambiguous response…";
     const raw = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text });

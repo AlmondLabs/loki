@@ -74,6 +74,7 @@ const LINE_CHARS = 300;
 function plainLine(text: string): string | null {
   const first = text
     .split("\n")
+    .filter((l) => !l.trimStart().startsWith("```"))
     .map((l) =>
       l
         .replace(/^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)/, "")
@@ -93,7 +94,7 @@ function advisorEvent(a: AdvisorAnswer): HarnessEvent {
 }
 
 function canvasWords(lines: readonly string[]): string {
-  const widgets = new Set(lines.map((l) => /"[^"]*"(?: \([^)]*\))?/.exec(l)?.[0] ?? l));
+  const widgets = new Set(lines.map((l) => [...l.matchAll(/"[^"]*" \(([^)]*)\)/g)].at(-1)?.[1] ?? [...l.matchAll(/"[^"]*"/g)].at(-1)?.[0] ?? l));
   const moved = lines.length > 0 && lines.every((l) => l.startsWith("moved "));
   return `You ${moved ? "moved" : "changed"} ${String(widgets.size)} ${widgets.size === 1 ? "widget" : "widgets"}`;
 }

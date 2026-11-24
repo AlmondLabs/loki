@@ -87,6 +87,24 @@ describe("an agent chat", () => {
     expect(both[1].parts.map((p) => p.kind)).toEqual(["event", "event", "message"]);
   });
 
+  test("a New line before an advisor answer that opens a turn stays above the turn, not inside it", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const rows: TranscriptRow[] = [
+      { role: "user", text: "go", at },
+      { role: "assistant", text: "Asked.", at },
+      { role: "event", text: "Advisor answered · the agent asked", event: "advisor", at },
+      { role: "assistant", text: "Read it.", at },
+    ];
+    const turns = threadTurns(
+      threadEntries({ rows, from: 0, above: 0, dividerAt: 2, dividerDay: null, widgets: [], busy: false, arrivedFrom: rows.length, now: NOW }),
+      {
+        busy: false,
+        waiting: false,
+      },
+    );
+    expect(turns.map((t) => t.kind).filter((k) => k !== "day")).toEqual(["message", "turn", "new", "turn"]);
+  });
+
   test("a background notice, a suggestion chip and an untyped event stay inside the turn they arrive in", () => {
     const at = "2026-11-11T10:00:00.000Z";
     const turns = turnsOf([

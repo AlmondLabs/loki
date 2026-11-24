@@ -548,6 +548,22 @@ describe("rows from one message, placed by who they are for (plan 2026-11-24-173
     expect(rowsOf(l.thread).filter((r) => r.role === "user")).toHaveLength(1);
   });
 
+  test("an event-only message keeps gestures first, and a suggestion's chip comes before the words it was sent with", () => {
+    const l = emptyLive();
+    push(l, user(`${advice}\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "advisor"]);
+    const s = emptyLive();
+    push(s, user(`${suggestedMark({ from_agent: "f", from_chat: "d", title: "T" })}\n\nship it\n\n${advice}`));
+    expect(rowsOf(s.thread).map((r) => r.event ?? r.text)).toEqual(["suggested in another chat", "ship it", "advisor"]);
+  });
+
+  test("an echo with no row shown for it (a queued send) places its rows around the words it adds", () => {
+    const l = emptyLive();
+    l.thread.expectEcho(ownSendKey("ship it"));
+    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "advisor"]);
+  });
+
   test("history folds the same message to the same order", () => {
     expect(order(foldSteps([user(`${advice}\n\nship it\n\n${gestures}`, at0)]))).toEqual(["canvas", "user", "advisor"]);
   });

@@ -43,9 +43,9 @@ export interface FileRef {
 }
 
 /**
- * What an event row is, for the rows the thread draws in a way of their own (plan 2026-11-24-1736, KTD1). Set where the
- * row is built (core/harness.ts, ThreadModel) and carried in history pages from the daemon; a row without it is drawn
- * as a plain event.
+ * What an event row is, for the rows the thread draws in a way of their own. Set where the row is built
+ * (core/harness.ts, ThreadModel) and carried in history pages from the daemon; a row without it is drawn as a plain
+ * event.
  */
 export type EventKind = "advisor" | "chat_message" | "canvas" | "moved" | "command";
 
