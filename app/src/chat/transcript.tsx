@@ -1,4 +1,4 @@
-import { Fragment, createContext, memo, useContext, useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
@@ -13,9 +13,10 @@ import { Icon, Glyph } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
-import { EventDetail, ToolSteps, useWhole } from "./tool-steps";
+import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, LightbulbIcon } from "lucide-react";
+import { Marker, MarkerContent, MarkerIcon } from "@/ui/marker";
 
 export type { TranscriptRow };
 
@@ -415,48 +416,18 @@ export const OpenAdvisor = createContext<((advisorChat: string) => void) | null>
 
 export function AdvisorAnswerRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   const open = useContext(OpenAdvisor);
-  const [whole, setWhole] = useState(false);
-  const title = useId();
   const advisorChat = m.advisor_chat;
-  const more = m.row !== undefined || (!!m.detail && m.detail !== m.summary);
+  const go = open && advisorChat ? () => open(advisorChat) : undefined;
   return (
-    <div data-row="event" data-arrived={arrived} className="loki-event-row" role="group" aria-labelledby={title}>
-      <div className="loki-event-summary flex flex-wrap items-center gap-2">
-        <span id={title}>{m.text}</span>
-        {open && advisorChat && (
-          <Button bare size="sm" onClick={() => open(advisorChat)} title="Open the advisor chat">
-            Open Advisor
-          </Button>
-        )}
-      </div>
-      {whole ? <AdvisorAnswerWhole row={m} /> : m.summary && <p className="whitespace-pre-line text-foreground">{m.summary}</p>}
-      {more && (
-        <Button bare size="sm" aria-expanded={whole} onClick={() => setWhole(!whole)}>
-          {whole ? "Show Less" : "Show More"}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function AdvisorAnswerWhole({ row }: { row: TranscriptRow }) {
-  const { whole, state, retry } = useWhole(row);
-  if (state === "loading") return <p className="loki-steps-none">Loading the answer…</p>;
-  if (state === "failed")
-    return (
-      <p className="loki-steps-none">
-        Could not load the answer.{" "}
-        <Button size="sm" onClick={retry}>
-          Try Again
-        </Button>
-      </p>
-    );
-  return (
-    <div className="loki-md text-foreground">
-      <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-        {whole?.detail ?? row.summary ?? ""}
-      </Markdown>
-    </div>
+    <Marker data-row="event" data-arrived={arrived} render={go ? <button type="button" onClick={go} title="Open the advisor chat" /> : undefined}>
+      <MarkerIcon>
+        <LightbulbIcon />
+      </MarkerIcon>
+      <MarkerContent className="truncate">
+        {m.text}
+        {m.summary && <span className="text-foreground"> · {m.summary}</span>}
+      </MarkerContent>
+    </Marker>
   );
 }
 
