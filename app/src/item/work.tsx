@@ -1,39 +1,28 @@
 import { cn } from "@/lib/utils";
 import { memo, useState } from "react";
-import {
-  BotIcon,
-  BrainIcon,
-  FileTextIcon,
-  GlobeIcon,
-  ListChecksIcon,
-  PencilIcon,
-  SearchIcon,
-  SparklesIcon,
-  TerminalIcon,
-  WrenchIcon,
-  XIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { BrainIcon, ListChecksIcon, WrenchIcon } from "lucide-react";
 import type { PlanItem, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { ChainOfThought, ChainOfThoughtContent, ChainOfThoughtHeader, ChainOfThoughtStep } from "@/ui/ai-elements/chain-of-thought";
 import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
 import {
   isNamedStep,
-  lastFailure,
   stepFailed,
   stepKind,
   stepName,
   stepTarget,
-  stepVerb,
+  stepTitle,
+  stepIconOf,
+  stepLines,
   withoutSkillCalls,
   workSummary,
-  type StepKind,
+  type StepLine,
 } from "../shared/tool-steps";
 import { Button } from "@/ui/button";
 import { Shimmer } from "@/ui/ai-elements/shimmer";
 import { Task, TaskContent, TaskItem, TaskTrigger } from "@/ui/ai-elements/task";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/ui/ai-elements/tool";
 import { useWhole } from "../chat/tool-steps";
+import { glyphOf } from "../shared/icons";
 import { AgentPlan, planProgress } from "./agent-plan";
 import { thoughtOf, thoughtWords } from "./thought";
 
@@ -48,19 +37,6 @@ const FILTERS: ReadonlyArray<[Filter, string]> = [
 const KEEP: Record<Filter, (row: TranscriptRow) => boolean> = { all: () => true, failed: stepFailed, steps: isNamedStep, housekeeping: (r) => !isNamedStep(r) };
 const isFilter = (v: unknown): v is Filter => FILTERS.some(([f]) => f === v);
 
-const ICON: Record<StepKind, LucideIcon> = {
-  background: ListChecksIcon,
-  command: TerminalIcon,
-  agent: BotIcon,
-  skill: SparklesIcon,
-  read: FileTextIcon,
-  edit: PencilIcon,
-  search: SearchIcon,
-  web: GlobeIcon,
-  plan: ListChecksIcon,
-  tool: WrenchIcon,
-};
-
 export const Work = memo(
   function Work({
     rows: all,
@@ -69,7 +45,6 @@ export const Work = memo(
     arrived,
     waiting = false,
     planAsBefore = false,
-    stopped = false,
   }: {
     rows: TranscriptRow[];
     thoughts?: readonly TranscriptRow[];
@@ -77,17 +52,16 @@ export const Work = memo(
     arrived: boolean;
     waiting?: boolean;
     planAsBefore?: boolean;
-    stopped?: boolean;
   }) {
     const plan = stretchPlan(all);
     const rows = withoutSkillCalls(all).filter((r) => !r.tool?.plan);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);
     const [filter, setFilter] = useState<Filter>("all");
-    const failure = running ? null : lastFailure(rows);
-    const show = (step: number | null) => {
-      setAt(step);
-      setFilter(step !== null && stepFailed(rows[step]) && rows.length > FILTER_FROM ? "failed" : "all");
+    const lines = stepLines(rows);
+    const show = () => {
+      setAt(null);
+      setFilter("all");
       setOpen(true);
     };
     const listed: Array<{ step: number } | { thought: TranscriptRow }> = [
@@ -101,7 +75,7 @@ export const Work = memo(
       <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-2">
         {plan && (planAsBefore ? <PlanAsBefore items={plan} /> : <AgentPlan items={plan} />)}
         {rows.length > 0 && (
-          <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
+          <ChainOfThought open={open} onOpenChange={(next) => (next ? show() : setOpen(false))} className="max-w-none space-y-0">
             <ChainOfThoughtHeader icon={running ? WrenchIcon : ListChecksIcon} className={running && !waiting ? "shimmer" : undefined}>
               {waiting ? "Waiting on you" : workSummary(rows, running)}
             </ChainOfThoughtHeader>
@@ -132,6 +106,7 @@ export const Work = memo(
                   <Step
                     key={`s${item.step}`}
                     row={rows[item.step]}
+                    line={lines[item.step]}
                     active={running && item.step === rows.length - 1}
                     waiting={waiting}
                     open={at === item.step}
@@ -143,22 +118,6 @@ export const Work = memo(
               )}
             </ChainOfThoughtContent>
           </ChainOfThought>
-        )}
-        {failure !== null && !open && (
-          <button
-            type="button"
-            className={cn(
-              "flex w-fit max-w-full cursor-pointer items-center gap-2 text-left text-xs",
-              stopped ? "text-loki-negative" : "text-muted-foreground",
-            )}
-            onClick={() => show(failure)}
-          >
-            <XIcon className="size-3 shrink-0" aria-hidden />
-            <span className="flex min-w-0">
-              <span className="truncate">{stepTarget(rows[failure]) ?? stepName(rows[failure])}</span>
-              <span className="shrink-0 whitespace-pre"> failed</span>
-            </span>
-          </button>
         )}
       </div>
     );
@@ -209,36 +168,50 @@ function PlanAsBefore({ items }: { items: readonly PlanItem[] }) {
   );
 }
 
-export function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; active: boolean; waiting: boolean; open: boolean; onToggle: () => void }) {
+export function Step({
+  row,
+  line,
+  active,
+  waiting,
+  open,
+  onToggle,
+}: {
+  row: TranscriptRow;
+  line: StepLine;
+  active: boolean;
+  waiting: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const failed = stepFailed(row);
-  const target = stepTarget(row);
-  const verb = stepVerb(stepName(row));
-  const title = target ?? verb;
+  const asking = active && waiting;
+  const tag = asking ? "Waiting" : line.tag;
   return (
     <ChainOfThoughtStep
-      icon={failed ? XIcon : ICON[stepKind(row)]}
+      icon={glyphOf(line.icon)}
       status={active ? "active" : "complete"}
-      className={failed ? "text-loki-negative" : !active && isNamedStep(row) ? "text-foreground" : undefined}
+      className={!active && !failed && isNamedStep(row) ? "text-foreground" : undefined}
       label={
-        <button type="button" aria-expanded={open} onClick={onToggle} className="flex max-w-full cursor-pointer text-left hover:text-foreground">
-          {active && waiting ? (
-            <>
-              <span className="truncate">{title}</span>
-              <span className="shrink-0 whitespace-pre text-loki-attention"> · waiting on you</span>
-            </>
-          ) : active ? (
-            <Shimmer as="span" className="truncate">
-              {title}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={`${line.full}, ${tag}`}
+          title={line.full}
+          onClick={onToggle}
+          className="flex w-full min-w-0 cursor-pointer items-baseline gap-3 text-left hover:text-foreground"
+        >
+          {active && !waiting ? (
+            <Shimmer as="span" className="min-w-0 truncate">
+              {line.title}
             </Shimmer>
           ) : (
-            <>
-              <span className="truncate">{title}</span>
-              {failed && <span className="shrink-0 whitespace-pre"> · failed</span>}
-            </>
+            <span className="min-w-0 truncate">{line.title}</span>
           )}
+          <span className={cn("ml-auto shrink-0 text-xs", failed ? "text-loki-negative" : asking ? "text-loki-attention" : "text-muted-foreground")}>
+            {tag}
+          </span>
         </button>
       }
-      description={target ? verb : undefined}
     >
       {open && <StepOpened row={row} running={active} />}
     </ChainOfThoughtStep>
@@ -266,7 +239,7 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
     const said = whole?.detail ?? t?.output ?? null;
     return (
       <Task defaultOpen>
-        <TaskTrigger title={stepTarget(row) ?? stepName(row)} icon={ICON[kind]} />
+        <TaskTrigger title={stepTarget(row) ?? stepName(row)} icon={glyphOf(stepIconOf(row))} />
         <TaskContent>
           {command && (
             <TaskItem className="space-y-2">
@@ -299,7 +272,7 @@ export function StepOpened({ row, running }: { row: TranscriptRow; running: bool
     <Tool open className="mb-0">
       <ToolHeader
         chevron={false}
-        title={stepName(row)}
+        title={stepTitle(stepName(row))}
         type={`tool-${kind}`}
         state={running ? "input-available" : failed ? "output-error" : "output-available"}
       />

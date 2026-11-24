@@ -9,6 +9,11 @@ export interface ToolStep {
   input?: string;
   /** What the agent said the call is for (Bash's `description`), shown as the step's line when it gave one. */
   description?: string;
+  /**
+   * On an ACP agent's call: the kind the agent gave it (`read`, `edit`, `delete`, `move`, `search`, `execute`, `think`,
+   * `fetch`, `other`), which picks the step's icon and tag, since its name is the agent's own title.
+   */
+  acp_kind?: string;
   output?: string;
   failed?: boolean;
   /** On a failed call: what went wrong, one line from the end of its whole result (core/harness.ts errorOf). */

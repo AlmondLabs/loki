@@ -12,8 +12,10 @@ import {
   stepName,
   stepTarget,
   stepTitle,
+  stepLines,
   stepVerb,
   workSummary,
+  type StepLine as StepLineText,
 } from "../shared/tool-steps";
 
 export const StepsTouch = createContext(false);
@@ -90,7 +92,7 @@ export const ToolSteps = memo(
           <span className="loki-steps-label">{workSummary(rows, running)}</span>
           <Icon name={!touch && open ? "chevron-down" : "chevron-right"} size={14} className="loki-steps-chev" />
         </button>
-        {failure !== null && (!open || touch) && (
+        {failure !== null && touch && (
           <button type="button" className="loki-steps-failure" onClick={() => show(failure)}>
             <Icon name="close" size={12} />
             <span className="loki-truncate">{stepTarget(rows[failure]) ?? stepName(rows[failure])}</span>
@@ -109,17 +111,25 @@ export const ToolSteps = memo(
   (a, b) => a.running === b.running && a.arrived === b.arrived && a.rows.length === b.rows.length && a.rows.every((r, i) => r === b.rows[i]),
 );
 
-function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: boolean }) {
-  const target = stepTarget(row);
-  const verb = stepVerb(stepName(row));
-  const [first, second] = verbFirst || !target ? [verb, target] : [target, verb];
+function StepText({ row, line }: { row: TranscriptRow; line: StepLineText }) {
   return (
     <span className="loki-steps-text">
       <span className="loki-steps-verb loki-truncate">
-        <span className="loki-truncate">{first}</span>
+        <span className="loki-truncate">{stepVerb(stepName(row))}</span>
         {stepFailed(row) && <span className="loki-steps-failed">Failed</span>}
       </span>
-      {second && <span className="loki-steps-target loki-truncate">{second}</span>}
+      <span className="loki-steps-target loki-truncate">{line.title}</span>
+    </span>
+  );
+}
+
+function StepOneLine({ row, line }: { row: TranscriptRow; line: StepLineText }) {
+  return (
+    <span className="loki-steps-oneline">
+      <span className="loki-steps-verb loki-truncate">{line.title}</span>
+      <span className="loki-steps-tag" data-failed={stepFailed(row) || undefined}>
+        {line.tag}
+      </span>
     </span>
   );
 }
@@ -227,17 +237,18 @@ function Filters({ rows, value, onChange }: { rows: TranscriptRow[]; value: Filt
   );
 }
 
-function StepLine({ row, size, verbFirst = false }: { row: TranscriptRow; size: number; verbFirst?: boolean }) {
+function StepLine({ row, line, size, twoLines = false }: { row: TranscriptRow; line: StepLineText; size: number; twoLines?: boolean }) {
   return (
     <>
-      <Icon name={stepFailed(row) ? "close" : stepIcon(stepName(row))} size={size} className="loki-steps-icon" />
-      <StepText row={row} verbFirst={verbFirst} />
+      <Icon name={line.icon} size={size} className="loki-steps-icon" />
+      {twoLines ? <StepText row={row} line={line} /> : <StepOneLine row={row} line={line} />}
     </>
   );
 }
 
 function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: number | null; onOpen: (at: number | null) => void }) {
   const [filter, setFilter] = useState<Filter>(openAt !== null && stepFailed(rows[openAt]) && rows.length > FILTER_FROM ? "failed" : "all");
+  const lines = stepLines(rows);
   return (
     <div className="loki-steps-open">
       <Filters rows={rows} value={filter} onChange={setFilter} />
@@ -249,9 +260,11 @@ function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: nu
               className="loki-steps-step"
               data-minor={!isNamedStep(rows[at]) || undefined}
               aria-expanded={openAt === at}
+              aria-label={`${lines[at].full}, ${lines[at].tag}`}
+              title={lines[at].full}
               onClick={() => onOpen(openAt === at ? null : at)}
             >
-              <StepLine row={rows[at]} size={16} />
+              <StepLine row={rows[at]} line={lines[at]} size={16} />
             </button>
             {openAt === at && <StepDetail row={rows[at]} />}
           </li>
@@ -264,6 +277,7 @@ function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: nu
 function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; title: string; start: number | null; onClose: () => void }) {
   const [at, setAt] = useState<number | null>(start);
   const step = at === null ? null : rows[at];
+  const lines = stepLines(rows);
   return (
     <Sheet label={step ? stepName(step) : title} onClose={onClose} placement="bottom" className="loki-phone-sheet loki-steps-sheet">
       <div className="loki-steps-head">
@@ -288,7 +302,7 @@ function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; ti
           {rows.map((row, k) => (
             <li key={k}>
               <button type="button" className="loki-steps-step" data-minor={!isNamedStep(row) || undefined} onClick={() => setAt(k)}>
-                <StepLine row={row} size={20} verbFirst />
+                <StepLine row={row} line={lines[k]} size={20} twoLines />
                 <Icon name="chevron-right" size={18} className="loki-steps-open-chev" />
               </button>
             </li>

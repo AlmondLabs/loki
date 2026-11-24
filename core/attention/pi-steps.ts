@@ -36,9 +36,18 @@ export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageN
   const thought = thinkingText(m.content);
   const out: StoredStep[] = [...(thought ? [{ kind: "thinking" as const, text: thought, at }] : []), { kind: "assistant", text, at }];
   for (const part of Array.isArray(m.content) ? m.content : []) {
-    const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
+    const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown; tool_kind?: unknown } | null;
     if (p?.type === "toolCall" && p.name)
-      out.push(shownStep({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at }));
+      out.push(
+        shownStep({
+          kind: "call",
+          name: p.name,
+          args: p.arguments,
+          id: typeof p.id === "string" ? p.id : null,
+          at,
+          ...(typeof p.tool_kind === "string" ? { tool_kind: p.tool_kind } : {}),
+        }),
+      );
   }
   if (out.length === (thought ? 2 : 1) && !text.trim() && m.stopReason === "error" && typeof m.errorMessage === "string" && m.errorMessage.trim())
     return [{ kind: "failed", message: m.errorMessage.trim().replace(/\s+/g, " "), at }];

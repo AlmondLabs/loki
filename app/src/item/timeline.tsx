@@ -141,11 +141,6 @@ function ThreadBody({
         if (samePlan(plan, lastPlan)) repeated.add(p.key);
         lastPlan = plan;
       }
-  const stopped = new Set<string>();
-  for (const e of entries) {
-    const last = e.kind === "turn" && e.failed ? e.parts.at(-1) : undefined;
-    if (last?.kind === "steps") stopped.add(last.key);
-  }
   const thoughts = thoughtsIntoWork(entries.flatMap((e) => (e.kind === "turn" ? [e.parts] : [])));
   const tailEntry = entries.at(-1);
   const turnWorking = tailEntry?.kind === "turn" && tailEntry.state === "working";
@@ -179,7 +174,6 @@ function ThreadBody({
             arrived={p.arrived}
             waiting={paused(p.rows)}
             planAsBefore={repeated.has(p.key)}
-            stopped={stopped.has(p.key)}
           />
         );
       case "event":

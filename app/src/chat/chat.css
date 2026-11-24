@@ -326,6 +326,22 @@
 .loki-steps-failed {
   color: var(--loki-negative);
 }
+.loki-steps-oneline {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.loki-steps-tag {
+  flex: none;
+  margin-left: auto;
+  color: var(--loki-muted);
+  font-size: var(--text-xs);
+}
+.loki-steps-tag[data-failed] {
+  color: var(--loki-negative);
+}
 .loki-steps-detail {
   display: grid;
   gap: 8px;

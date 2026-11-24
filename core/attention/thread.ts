@@ -15,8 +15,11 @@ export type Step =
    * rides the reply or call that follows it as that row's `thought`.
    */
   | { kind: "thinking"; text: string; at: string | null; chunk?: boolean }
-  /** A tool call; the same id again carries more of its arguments as they stream in. */
-  | { kind: "call"; name: string; args: unknown; id: string | null; at: string | null }
+  /**
+   * A tool call; the same id again carries more of its arguments as they stream in. `tool_kind` is an ACP agent's kind
+   * for the call (`read`, `edit`, `execute`…), kept on the stored call too.
+   */
+  | { kind: "call"; name: string; args: unknown; id: string | null; at: string | null; tool_kind?: string }
   /** The approval request for a call: it belongs to the open call of that tool when there is one. */
   | { kind: "approval"; name: string; args: unknown; id: string | null; at: string | null }
   /** What came back from the call with this id. */
@@ -179,7 +182,7 @@ export class ThreadModel {
         this.thinking = step.chunk ? this.thinking + step.text : step.text;
         return { changed: false, spoke: null };
       case "call":
-        return { changed: this.call(step.name, step.args, step.id, step.at), spoke: null };
+        return { changed: this.call(step.name, step.args, step.id, step.at, step.tool_kind), spoke: null };
       case "approval":
         if ((step.id && this.seen.has(step.id)) || this.openCall(step.name)) return { changed: false, spoke: null };
         return { changed: this.call(step.name, step.args, step.id, step.at), spoke: null };
@@ -465,11 +468,11 @@ export class ThreadModel {
     return { changed: true, spoke: text };
   }
 
-  private call(name: string, args: unknown, id: string | null, at: string | null): boolean {
+  private call(name: string, args: unknown, id: string | null, at: string | null, kind?: string): boolean {
     if (id && this.seen.has(id)) {
       const sofar = typeof args === "string" ? (this.args.get(id) ?? "") + args : args;
       if (typeof sofar === "string") this.args.set(id, sofar);
-      return this.updateInput(id, name, sofar);
+      return this.updateInput(id, name, sofar, kind);
     }
     if (!id && this.openCall(name)) return false;
     if (id) {
@@ -477,7 +480,7 @@ export class ThreadModel {
       if (typeof args === "string") this.args.set(id, args);
     }
     this.settle(at);
-    this.push({ role: "tool", text: toolLabel(name, args), ...rowAt(at), tool: toolStep(name, args, id) });
+    this.push({ role: "tool", text: toolLabel(name, args), ...rowAt(at), tool: toolStep(name, args, id, kind) });
     return true;
   }
 
@@ -493,13 +496,13 @@ export class ThreadModel {
     return null;
   }
 
-  private updateInput(id: string, name: string, args: unknown): boolean {
+  private updateInput(id: string, name: string, args: unknown, kind?: string): boolean {
     const at = this.tail.findIndex((row) => row.tool?.id === id);
     if (at < 0) return false;
     const row = this.tail[at];
-    const step = toolStep(name, args, id);
+    const step = toolStep(name, args, id, kind);
     const text = toolLabel(name, args);
-    if (step.input === row.tool?.input && step.description === row.tool?.description && text === row.text) return false;
+    if (step.input === row.tool?.input && step.description === row.tool?.description && step.acp_kind === row.tool?.acp_kind && text === row.text) return false;
     this.tail[at] = { ...row, text, tool: { ...row.tool, ...step } };
     this.touch();
     return true;

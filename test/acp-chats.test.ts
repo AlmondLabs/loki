@@ -548,6 +548,20 @@ describe("ACP agents (plan 020)", () => {
     expect(result).toMatchObject({ step: { output: "--- a.txt\n+++ a.txt\n+a" } });
   });
 
+  test("a call keeps the kind the agent gave it, live and once stored (plan 2026-11-24-1701, U4)", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "write");
+    const calls = s.events().flatMap((e) => (e.kind === "step" && e.step.kind === "call" ? [e.step] : []));
+    expect(calls.every((c) => c.tool_kind === "edit")).toBe(true);
+    const rows = foldSteps((await s.stored(id)).entries.flatMap((e) => entrySteps(e)));
+    expect(rows.find((r) => r.tool?.name === "Write a.txt")?.tool?.acp_kind).toBe("edit");
+  });
+
+  test("a call the agent gave no kind has none", () => {
+    expect(foldSteps([{ kind: "call", name: "Look around", args: {}, id: "c1", at: null }]).find((r) => r.role === "tool")?.tool?.acp_kind).toBeUndefined();
+  });
+
   test("Preferences › Engines: how each agent stands, and adding, changing, trying and removing one", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-acp-engines-"));
     const file = join(dir, "state", "acp.json");

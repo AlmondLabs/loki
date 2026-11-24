@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { StepDetail, ToolSteps } from "../app/src/chat/tool-steps.tsx";
+import { StepDetail, StepsTouch, ToolSteps } from "../app/src/chat/tool-steps.tsx";
 import { TOOL_TEXT_MAX, toolInput, toolLabel, toolOutput, toolStep, withResult } from "../core/harness.ts";
 import { shownStep } from "../core/attention/pi-steps.ts";
 import { shellTitle } from "../core/shell-title.ts";
@@ -13,6 +13,8 @@ import {
   lastFailure,
   stepFailed,
   stepIcon,
+  stepLine,
+  stepLines,
   stepTarget,
   stepTitle,
   stepVerb,
@@ -40,7 +42,7 @@ describe("the line for a run of tools", () => {
   test("a step reads as a verb and what it was done to; old rows without a step still read by their label", () => {
     expect(stepVerb("Bash")).toBe("Ran");
     expect(stepVerb("Grep")).toBe("Searched");
-    expect(stepVerb("mcp_thing")).toBe("Used mcp_thing");
+    expect(stepVerb("mcp_thing")).toBe("Used mcp thing");
     expect(stepVerb("Read signups.csv")).toBe("Read signups.csv");
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
@@ -173,9 +175,9 @@ describe("loki's tools, and Claude Code's names for the same steps", () => {
     expect(stepVerb("background_run")).toBe("Started in background");
     expect(stepVerb("TaskOutput")).toBe("Read a command's output");
     expect(stepVerb("TaskStop")).toBe("Stopped a command");
-    expect(stepVerb("background_output")).toBe("Used background_output");
-    expect(stepVerb("bash_background")).toBe("Used bash_background");
-    expect(stepVerb("ask_user")).toBe("Used ask_user");
+    expect(stepVerb("background_output")).toBe("Used background output");
+    expect(stepVerb("bash_background")).toBe("Used bash background");
+    expect(stepVerb("ask_user")).toBe("Used ask user");
   });
 
   test("the question card's tool shows its whole input, the questions with their options", () => {
@@ -352,7 +354,97 @@ describe("a described step's line and what opens under it (plan 2026-11-23-1851,
   });
 
   test("on the phone, the failure under a closed stretch keeps failed beside its cut title", () => {
-    const out = renderToStaticMarkup(createElement(ToolSteps, { rows: [bash(), described("Bash", "Run the CRM tests", true)], running: false }));
+    const steps = createElement(ToolSteps, { rows: [bash(), described("Bash", "Run the CRM tests", true)], running: false });
+    const out = renderToStaticMarkup(createElement(StepsTouch.Provider, { value: true }, steps));
     expect(out).toContain('<span class="loki-truncate">Run the CRM tests</span><span>failed</span>');
+  });
+
+  test("on the desktop, no failure is named under a closed stretch; the line counts it (plan 2026-11-24-1701)", () => {
+    const out = renderToStaticMarkup(createElement(ToolSteps, { rows: [bash(), described("Bash", "Run the CRM tests", true)], running: false }));
+    expect(out).toContain("· 1 failed");
+    expect(out).not.toContain("loki-steps-failure");
+  });
+});
+
+const tool = (name: string, label: string, more: Partial<NonNullable<TranscriptRow["tool"]>> = {}): TranscriptRow => ({
+  role: "tool",
+  text: label ? `${name} · ${label}` : name,
+  tool: { name, ...more },
+});
+const line = (row: TranscriptRow) => {
+  const { title, tag, icon } = stepLine(row);
+  return [title, tag, icon];
+};
+
+describe("one line for every step: title, tag, icon", () => {
+  test("loki's own tools", () => {
+    expect(line(tool("bash", "uv run pytest"))).toEqual(["uv run pytest", "Ran", "terminal"]);
+    expect(line(tool("read", "/tmp/crm/test_seed.py"))).toEqual(["test_seed.py", "Read", "file"]);
+    expect(line(tool("write", "/tmp/crm/out.json"))).toEqual(["out.json", "Wrote", "file"]);
+    expect(line(tool("edit", "/tmp/crm/a.ts"))).toEqual(["a.ts", "Edited", "pencil"]);
+    expect(line(tool("ls", "/Users/x/loki/app/"))).toEqual(["app", "Listed", "folder"]);
+    expect(line(tool("grep", "TODO"))).toEqual(["TODO", "Searched", "search"]);
+    expect(line(tool("find", "*.md"))).toEqual(["*.md", "Found", "search"]);
+    expect(line(tool("memory_read", "reference/farmart/crm.md"))).toEqual(["crm.md", "Memory", "file"]);
+    expect(line(tool("memory_edit", "reference/farmart/crm.md"))).toEqual(["crm.md", "Memory", "pencil"]);
+    expect(line(tool("web_search", "bun 1.3 release"))).toEqual(["bun 1.3 release", "Web", "globe"]);
+    expect(line(tool("subagent", "", { description: "Fix the forecast helper" }))).toEqual(["Fix the forecast helper", "Agent", "bot"]);
+    expect(line(tool("advisor_consult", "Is this safe?"))).toEqual(["Is this safe?", "Advisor", "bot"]);
+    expect(line(tool("advisor_consult", ""))).toEqual(["Review the changes", "Advisor", "bot"]);
+    expect(line(tool("user_ask", "Which branch?"))).toEqual(["Which branch?", "Asked you", "question"]);
+    expect(line(tool("codemode", ""))).toEqual(["A script", "Script", "code"]);
+    expect(line(tool("codemode", "", { description: "Count open PRs" }))).toEqual(["Count open PRs", "Script", "code"]);
+    expect(line(tool("background_run", "bun run dev"))).toEqual(["bun run dev", "Started", "terminal"]);
+    expect(line(tool("background_watch", ""))).toEqual(["A command", "Waited", "terminal"]);
+    expect(line(tool("suggestion_create", "Review the CRM plan"))).toEqual(["Review the CRM plan", "Suggested", "learn"]);
+    expect(line(tool("chat_message", "The tests pass now"))).toEqual(["The tests pass now", "Message", "desk"]);
+    expect(line(tool("reply_propose", "Thanks, merged"))).toEqual(["Thanks, merged", "Draft", "mail"]);
+    expect(line(tool("ticket_propose", "Fix login"))).toEqual(["Fix login", "Ticket", "ticket"]);
+  });
+
+  test("Claude Code's and Codex's tools", () => {
+    expect(line(tool("Read", "/a/b/c.ts"))).toEqual(["c.ts", "Read", "file"]);
+    expect(line(tool("MultiEdit", "/a/b/c.ts"))).toEqual(["c.ts", "Edited", "pencil"]);
+    expect(line(tool("Glob", "**/*.ts"))).toEqual(["**/*.ts", "Found", "search"]);
+    expect(line(tool("WebFetch", "https://bun.sh/docs/"))).toEqual(["bun.sh/docs", "Fetched", "globe"]);
+    expect(line(tool("exec_command", "npm test"))).toEqual(["npm test", "Ran", "terminal"]);
+    expect(line(tool("apply_patch", "src/app.ts"))).toEqual(["app.ts", "Edited", "pencil"]);
+    expect(line(tool("Skill", "ce-plan"))).toEqual(["ce-plan", "Skill", "skill"]);
+  });
+
+  test("MCP tools read as words with their server as the tag, and unknown tools as words", () => {
+    expect(line(tool("mcp__github__list_pull_requests", ""))).toEqual(["List pull requests", "Github", "wrench"]);
+    expect(line(tool("frobnicate_widget", ""))).toEqual(["Frobnicate widget", "Tool", "wrench"]);
+  });
+
+  test("an ACP agent's step keeps its own title and takes its icon and tag from the kind it gave", () => {
+    expect(line(tool("Read signups.csv", "/a/signups.csv", { acp_kind: "read" }))).toEqual(["signups.csv", "Read", "file"]);
+    expect(line(tool("Run tests", "npm test", { acp_kind: "execute" }))).toEqual(["npm test", "Ran", "terminal"]);
+    expect(line(tool("Look around", ""))).toEqual(["Look around", "Tool", "wrench"]);
+  });
+
+  test("a failed step's tag says so, in place of its usual one", () => {
+    expect(line(tool("read", "/a/b.ts", { failed: true }))).toEqual(["b.ts", "Failed", "close"]);
+  });
+
+  test("a file name shared by two steps shows its folder; the whole path stays for hover", () => {
+    const lines = stepLines([tool("memory_edit", "a/x.md"), tool("memory_edit", "b/x.md"), tool("read", "/c/y.md"), tool("read", "/c/y.md")]);
+    expect(lines.map((l) => l.title)).toEqual(["a/x.md", "b/x.md", "y.md", "y.md"]);
+    expect(lines[0].full).toBe("a/x.md");
+    expect(stepLine(tool("read", "C:\\work\\loki\\notes.md")).title).toBe("notes.md");
+  });
+
+  test("a described step keeps its description whole, not cut to a file name", () => {
+    expect(stepLine(tool("edit", "/a/b.ts", { description: "Fix the parser/lexer bug" })).title).toBe("Fix the parser/lexer bug");
+  });
+});
+
+describe("core titles the tools whose few words live in their own argument", () => {
+  test("by text, title, subject, message or a patch's first file", () => {
+    expect(toolLabel("advisor_consult", { text: "Is this safe?\nmore" })).toBe("advisor_consult · Is this safe?");
+    expect(toolLabel("suggestion_create", { title: "Review the plan", text: "…", agent_id: "a" })).toBe("suggestion_create · Review the plan");
+    expect(toolLabel("message_propose", { account: "x", subject: "Lunch", text: "Hi" })).toBe("message_propose · Lunch");
+    expect(toolLabel("memory_apply_patch", { patch: "*** Begin Patch\n*** Update File: people/ada.md\n@@" })).toBe("memory_apply_patch · people/ada.md");
+    expect(toolLabel("advisor_consult", {})).toBe("advisor_consult");
   });
 });
