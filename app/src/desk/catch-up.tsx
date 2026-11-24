@@ -61,7 +61,7 @@ interface FlowPlaceProps {
   onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
-  onOpenAdvisor?: (agentId: string, conversationId: string, advisorChat: string) => void;
+  onOpenAdvisor?: (agentId: string, conversationId: string) => void;
   modelFor?: (agentId: string, conversationId: string) => string | null;
   reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null;
   models?: ModelEntry[] | null;
@@ -325,7 +325,7 @@ function Card({
   return (
     <div className="loki-flow-card">
       <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
-        <OpenAdvisor.Provider value={onOpenAdvisor ? (advisorChat) => (onOpenAdvisor(agentId, id, advisorChat), deck.onClose()) : null}>
+        <OpenAdvisor.Provider value={onOpenAdvisor ? () => (onOpenAdvisor(agentId, id), deck.onClose()) : null}>
           <Conversation
             view={{
               rows: thread.rows,

@@ -197,15 +197,9 @@ export function Shell() {
     },
     [setSegment, paneOpen, switchTo, chatSource, chatState, sidebarQuery, deskList, agentList, catchUp.items],
   );
-  const [advising, setAdvising] = useState<{ scope: string; advisorChat: string } | null>(null);
-  const [advisingOn, setAdvisingOn] = useState(desk.scope);
-  if (advisingOn !== desk.scope) {
-    setAdvisingOn(desk.scope);
-    if (advising && advising.scope !== desk.scope) setAdvising(null);
-  }
-  const openAdvisor = (agentId: string, conversationId: string, advisorChat: string) => {
+  const openAdvisor = (agentId: string, conversationId: string) => {
     openDesk(agentId, conversationId);
-    setAdvising({ scope: scopeFor(conversationId, agentId), advisorChat });
+    pane.showAdvisor(scopeFor(conversationId, agentId));
   };
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
     openDesk(agentId, conversationId, { chat: true });
@@ -621,9 +615,6 @@ export function Shell() {
               modeMenuTick={modeMenuTick}
               suggestionsTick={suggestionsTick}
               onShowLabel={showLabel}
-              advisorChat={advising?.scope === desk.scope ? advising.advisorChat : null}
-              onOpenAdvisor={(advisorChat) => setAdvising({ scope: desk.scope, advisorChat })}
-              onCloseAdvisor={() => setAdvising(null)}
             />
           </div>
 

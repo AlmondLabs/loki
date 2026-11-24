@@ -81,7 +81,7 @@ export function InboxView({
   onPickModel: PickModel;
   onPickMode: PickMode;
   onOpenDesk: OpenDesk;
-  onOpenAdvisor: (agentId: string, conversationId: string, advisorChat: string) => void;
+  onOpenAdvisor: (agentId: string, conversationId: string) => void;
   onClose: () => void;
   onPass: PassSummaryHandler;
 }) {

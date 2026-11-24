@@ -6,7 +6,7 @@ import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/mod
 import type { ChatState } from "../core/frames.ts";
 import { AdvisorHeader, advisorTabStatus } from "../app/src/chat/advisor-header.tsx";
 import { TabRow, type Tab } from "../app/src/components/index.tsx";
-import { AdvisorPaneHeader } from "../app/src/desk/advisor-pane.tsx";
+import { paneTabs } from "../app/src/desk/desk-pane.tsx";
 import { OpenAdvisor } from "../app/src/chat/transcript.tsx";
 import { AdvisorStrips, withAdvisorOnOpen } from "../mod/chat-advisor.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
@@ -47,20 +47,17 @@ describe("the advisor strip (R23)", () => {
     expect(html).not.toContain("<button");
   });
 
-  test("the advisor's view on the Mac goes back to its chat, named", () => {
-    const html = renderToStaticMarkup(createElement(AdvisorPaneHeader, { chatName: "Fix the flaky test", model: IDLE.model, onBack: () => {} }));
-    expect(html).toMatch(/<button[^>]*aria-label="Back to Fix the flaky test"/);
-    expect(html).toContain("Fix the flaky test");
-    expect(html).toContain(">Advisor<");
-    expect(html).toContain("gpt-6");
+  test("on the Mac, a chat with an advisor gets Messages, Advisor, Canvas; one without keeps two tabs", () => {
+    expect(paneTabs(null).map((t) => t.label)).toEqual(["Messages", "Canvas"]);
+    expect(paneTabs(IDLE).map((t) => t.label)).toEqual(["Messages", "Advisor", "Canvas"]);
+    expect(paneTabs(IDLE)[1]).toMatchObject({ id: "advisor", status: { words: "Advisor · gpt-6" } });
   });
 });
 
 describe("the Advisor tab carries the advisor's state (plan 2026-11-24-1641, R3)", () => {
-  const row = (tabs: ReadonlyArray<Tab<string>>) =>
-    renderToStaticMarkup(createElement(TabRow<string>, { label: "Views", tabs, current: "messages", onChange: () => {} }));
-  const advisorTab = (advisor: AdvisorView): Tab<string> => ({ id: "advisor", label: "Advisor", status: advisorTabStatus(advisor) });
-  const trigger = (html: string) => html.match(/<button[^>]*>.*?Advisor.*?<\/button>/)?.[0] ?? "";
+  const row = (tabs: readonly Tab[]) => renderToStaticMarkup(createElement(TabRow<string>, { label: "Views", tabs, current: "messages", onChange: () => {} }));
+  const advisorTab = (advisor: AdvisorView): Tab => ({ id: "advisor", label: "Advisor", status: advisorTabStatus(advisor) });
+  const trigger = (html: string) => /<button[^>]*>.*?Advisor.*?<\/button>/.exec(html)?.[0] ?? "";
 
   test("a tab with no status renders as before", () => {
     const html = row([
