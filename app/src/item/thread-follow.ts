@@ -1,4 +1,26 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import { REVEAL_PX, revealStart } from "../chat/transcript-window";
+
+const SCREENS_AHEAD = 3;
+const READER_MS = 1000;
+
+export function readerScrolling(at: number, lastInputAt: number): boolean {
+  return at - lastInputAt < READER_MS;
+}
+
+export function nextAbove(
+  view: { scrollTop: number; clientHeight: number },
+  at: { scrolling: boolean; hiddenAbove: boolean; olderToAsk: boolean },
+): "far" | "reveal" | "older" | null {
+  const ahead = at.scrolling ? Math.max(REVEAL_PX, SCREENS_AHEAD * view.clientHeight) : REVEAL_PX;
+  if (view.clientHeight === 0 || view.scrollTop >= ahead) return "far";
+  if (at.hiddenAbove) return "reveal";
+  return at.olderToAsk ? "older" : null;
+}
+
+export function revealFrom(from: number) {
+  return <W extends { start: number }>(w: W): W => (w.start === from ? { ...w, start: revealStart(from) } : w);
+}
 
 /**
  * Whether the desktop thread is away from its end. MessageScroller writes `data-scrollable` on its viewport after every
