@@ -269,8 +269,8 @@ first draws (`adoptTrafficLights`), and centres the panes' 52px title bars and t
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
 "· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead: a chat's is a Mac toolbar
-(plan 2026-11-12-1505, U13), its name over a grey line of its facts, Messages and Canvas as a glass segmented control
-centred in the toolbar and its moves as a glass group of symbols at the trailing edge (plan 2026-11-14-1330, KTD11: one
+(plan 2026-11-12-1505, U13), its name over a grey line of its facts, Messages and Canvas (with Advisor between them once the chat has one,
+plan 2026-11-24-1641) as a glass segmented control centred in the toolbar and its moves as a glass group of symbols at the trailing edge (plan 2026-11-14-1330, KTD11: one
 band, as Mail's; where the detail is too narrow to centre them, the tabs fall in line just before the symbols and the
 title gives way); other panes keep a name line with a quiet aside and a tab row. The name line drags the window too, so anything clickable in it is a real
 button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), and on the
@@ -352,8 +352,8 @@ Internals keep the name desk.
   source, one roving tab stop on the selected row; the detail, the window's one `<main>`, its toolbar before its
   content. From the list, Return goes into the detail's content (the message box) and Tab to the first control in its
   toolbar (`content-list.tsx` `toolbarControl`), or into the content where the toolbar has none, as Learn's. Esc is the same in every place: in the detail (not typing, or in Flow's reply box) it moves focus to the
-  list's selected row; in the list it does nothing; it never changes the place. Chats' Canvas tab goes back to
-  Messages first. Until 2026-11-14 Esc in Agents and Learn went to Chats, and Flow's closed the deck.
+  list's selected row; in the list it does nothing; it never changes the place. Chats' Canvas and Advisor tabs go
+  back to Messages first. Until 2026-11-14 Esc in Agents and Learn went to Chats, and Flow's closed the deck.
 - **Chats list.** Chats on the three columns (plan 2026-11-14-1330, U3): the sidebar's source chosen, its chats in the
   list column on `ContentList`, the chat in the detail. The toolbar names the source, with New Chat (an agent's starts
   one with that agent) and Search (⌥⌘F; chat or agent names and `label:`, the source's rows only). Every chat's list

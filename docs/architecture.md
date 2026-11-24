@@ -631,7 +631,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
    `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the most older items an account keeps open).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (the sidebar with its places, ⌘K,
-   keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames) and the
+   keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages, Advisor and Canvas tabs, widget frames) and the
    Inbox deck, whose `deck-moves.ts` makes read, later, archive, label and undo the same on every card and sends a
    typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the

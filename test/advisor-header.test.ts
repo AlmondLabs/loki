@@ -72,7 +72,9 @@ describe("the Advisor tab carries the advisor's state (plan 2026-11-24-1641, R3)
   test("idle: no mark, the model in its tooltip and description", () => {
     const html = trigger(row([advisorTab(IDLE)]));
     expect(html).toContain('title="Advisor · gpt-6"');
-    expect(html).toContain("aria-describedby=");
+    const described = /aria-describedby="([^"]+)"/.exec(html)?.[1];
+    expect(described).toBeTruthy();
+    expect(html).toContain(`id="${String(described)}" hidden="">Advisor · gpt-6</span>`);
     expect(html).not.toContain("loki-icon");
   });
 
