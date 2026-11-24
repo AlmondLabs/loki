@@ -63,6 +63,7 @@ export interface PeeringDeps {
     | "heldMoves"
     | "releaseMove"
     | "onAdvisorChange"
+    | "onAnswerLanded"
   >;
   seen: SeenStore;
   desks: Pick<DeskRegistry, "forgetConversations">;

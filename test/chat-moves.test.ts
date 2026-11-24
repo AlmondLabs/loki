@@ -33,25 +33,35 @@ function advisorHolds() {
   const ready: HeldMove[] = [];
   const released: string[] = [];
   const listeners: Array<(agentId: string, chatId: string) => void> = [];
+  const landings: Array<(agentId: string, chatId: string) => void> = [];
+  const looks = { count: 0 };
   const holds: AdvisorHolds = {
     holdMove: (agentId, chatId, to) => {
       if (!answering.has(chatId)) return Promise.resolve(false);
       ready.push({ agent_id: agentId, conversation_id: chatId, to });
       return Promise.resolve(true);
     },
-    heldMoves: () => Promise.resolve(ready.filter((h) => !answering.has(h.conversation_id))),
+    heldMoves: () => {
+      looks.count++;
+      return Promise.resolve(ready.filter((h) => !answering.has(h.conversation_id)));
+    },
     releaseMove: (_a, chatId) => {
       released.push(chatId);
       ready.splice(0, ready.length, ...ready.filter((h) => h.conversation_id !== chatId));
       return Promise.resolve();
     },
     onAdvisorChange: (listener) => (listeners.push(listener), () => {}),
+    onAnswerLanded: (listener) => (landings.push(listener), () => {}),
   };
   const answered = (chatId: string) => {
     answering.delete(chatId);
     for (const l of listeners) l("agent-ira", chatId);
+    for (const l of landings) l("agent-ira", chatId);
   };
-  return { holds, answering, ready, released, answered };
+  const changed = (chatId: string) => {
+    for (const l of listeners) l("agent-ira", chatId);
+  };
+  return { holds, answering, ready, released, answered, changed, looks };
 }
 
 function macs(busy = new Set<string>(), miniUp = true, held?: AdvisorHolds) {
@@ -360,7 +370,9 @@ describe("a move held for the chat's advisor", () => {
     const m = macs(new Set(), true, a.holds);
     try {
       a.answering.add("conv-1");
-      expect(await m.book.offer(MINI, "agent-ira", "conv-1")).toBe("The chat moves to Mac mini when the advisor has answered.");
+      expect(await m.book.offer(MINI, "agent-ira", "conv-1")).toBe(
+        "The chat moves to Mac mini when the advisor has answered. If Mac mini is out of reach then, the chat stays here.",
+      );
       expect(m.onBook.has("conv-1")).toBe(true);
       expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
       a.answered("conv-1");
@@ -368,6 +380,45 @@ describe("a move held for the chat's advisor", () => {
       expect(m.onBook.has("conv-1")).toBe(false);
       expect(m.imported.map((c) => [c.conversation_id, c.info.placed])).toEqual([["conv-1", true]]);
       expect(a.released).toEqual([]);
+    } finally {
+      m.cleanup();
+    }
+  });
+
+  test("one whose Mac is out of reach as its answer lands is let go, so the chat stays and its consults run here; another held move waits", async () => {
+    const a = advisorHolds();
+    const m = macs(new Set(), true, a.holds);
+    try {
+      a.answering.add("conv-1");
+      a.answering.add("conv-2");
+      await m.book.offer(MINI, "agent-ira", "conv-1");
+      await m.book.offer(MINI, "agent-ira", "conv-2");
+      a.answering.delete("conv-1");
+      m.reach.mini = false;
+      a.answered("conv-2");
+      await until(() => a.released.includes("conv-2"));
+      expect(a.released).toEqual(["conv-2"]);
+      expect(m.onBook.has("conv-2")).toBe(true);
+      m.reach.mini = true;
+      await m.book.settle(MINI);
+      expect(m.onMini.has("conv-1")).toBe(true);
+      expect(m.onMini.has("conv-2")).toBe(false);
+    } finally {
+      m.cleanup();
+    }
+  });
+
+  test("a held move whose Mac is out of reach is kept when the advisor changes without an answer landing", async () => {
+    const a = advisorHolds();
+    const m = macs(new Set(), false, a.holds);
+    try {
+      a.ready.push({ agent_id: "agent-ira", conversation_id: "conv-1", to: MINI });
+      a.changed("conv-1");
+      await until(() => a.looks.count > 0);
+      expect(a.released).toEqual([]);
+      m.reach.mini = true;
+      await m.book.settle(MINI);
+      expect(m.onMini.has("conv-1")).toBe(true);
     } finally {
       m.cleanup();
     }

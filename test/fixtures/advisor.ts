@@ -32,6 +32,7 @@ interface RecordFields {
   model?: string | null;
   advisor_model?: string;
   advisor_reasoning_effort?: string;
+  model_settings?: Record<string, unknown>;
 }
 
 export async function advisorSetup(fields: (handle: string) => RecordFields = () => ({})) {
@@ -54,7 +55,7 @@ export async function advisorSetup(fields: (handle: string) => RecordFields = ()
   const models = createModels();
   models.setProvider(faux.provider);
   const handle = `${faux.provider.id}/${faux.getModel().id}`;
-  writeRecord(backend, AGENT, { id: AGENT, name: "Ada", model: handle, ...fields(handle), model_settings: {}, tags: [] });
+  writeRecord(backend, AGENT, { id: AGENT, name: "Ada", model: handle, model_settings: {}, tags: [], ...fields(handle) });
 
   const approvals = new Approvals({ advisorFolders: { dataDir, backendDir: backend, home } });
   const pushed: ChatEvent[] = [];

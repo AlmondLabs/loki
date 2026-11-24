@@ -1824,9 +1824,10 @@ consults waiting; unarchiving brings both chats back, but not the dropped consul
 its advisor along at its next consult, never under an answer. A move to another Mac asked while the advisor answers
 waits, says **The chat moves to … when the advisor has answered.**, and goes on its own once that answer has landed
 and the chat is idle, across a restart too; the advisor chat goes with it, its consults and answers, and consults
-still waiting run on the new Mac. loki does not hand a chat over to its agent's home on its own while its advisor
-answers. A consult under way when loki restarts goes on after it when it can; when it can't, the chat gets the row
-saying it stopped when loki restarted.
+still waiting run on the new Mac. When that Mac is out of reach as the answer lands, the chat stays here and its
+consults go on; move it again once the Mac is back. loki does not hand a chat over to its agent's home on its own
+while its advisor answers. A consult under way when loki restarts goes on after it when it can; when it can't, the
+chat gets the row saying it stopped when loki restarted.
 
 **Chats on two Macs.** The advisor lives on its chat's Mac. Another Mac, or a phone paired with another Mac, opens the
 strip and the advisor chat as it opens the chat.

@@ -70,6 +70,29 @@ describe("consulting a chat's advisor", () => {
     }
   });
 
+  test("an answer reaches mods as a message the person did not type", async () => {
+    const s = await consultSetup();
+    try {
+      const d = s.first;
+      const seen: Array<{ typed: boolean; answer: boolean }> = [];
+      await d.mods.load({
+        name: "typed-test",
+        apiVersion: 1,
+        activate: (api) => {
+          api.message.transform((m) => {
+            seen.push({ typed: m.typed, answer: JSON.stringify(m.content).includes("<loki-advisor-answer") });
+            return undefined;
+          });
+        },
+      });
+      await d.chats.consult({ agent_id: AGENT, conversation_id: s.chatId }, "agent", "look at a.ts");
+      await s.settled(d);
+      expect(seen.filter((m) => m.answer)).toEqual([{ typed: false, answer: true }]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("two consults are answered in order, and the second one was told one was ahead of it", async () => {
     const s = await consultSetup();
     try {
@@ -361,7 +384,8 @@ describe("consults across a restart", () => {
   });
 
   test("a consult whose run finished before the restart, but whose answer had not reached the chat, delivers it once; settling twice delivers once", async () => {
-    const s = await consultSetup({ deliver: () => Promise.reject(new Error("loki stopped")) });
+    const stopped = gate();
+    const s = await consultSetup({ deliver: () => stopped.wait });
     try {
       await s.first.chats.consult({ agent_id: AGENT, conversation_id: s.chatId }, "agent", "look at a.ts");
       await until(() => s.seen.advisor.length === 1);
@@ -381,12 +405,49 @@ describe("consults across a restart", () => {
         await after.stores.closeAll();
       }
     } finally {
+      stopped.open();
+      await s.cleanup();
+    }
+  });
+
+  test("an answer that cannot reach its chat ends the consult as failed, saying where to read it, and the next consult goes", async () => {
+    const s = await consultSetup({ deliver: (advice, real) => (advice.sendId === "consult-1" ? Promise.reject(new Error("the chat is gone")) : real()) });
+    try {
+      const d = s.first;
+      const ref = { agent_id: AGENT, conversation_id: s.chatId };
+      await d.chats.consult(ref, "agent", "first question");
+      await d.chats.consult(ref, "person", "second question");
+      await s.settled(d);
+      expect((await s.ledger(d)).map((c) => [c.state, c.reason])).toEqual([
+        ["failed", "its answer did not reach this chat (the chat is gone): read it in the advisor chat"],
+        ["answered", null],
+      ]);
+      expect(d.reports).toEqual([`an advisor's answer did not reach chat ${s.chatId}: the chat is gone`]);
+      expect((await s.answers(d)).map((row) => must(answerOf(row), "an answer").asked)).toEqual(["second question"]);
+    } finally {
       await s.cleanup();
     }
   });
 });
 
 describe("what later steps read of an advisor", () => {
+  test("picking the advisor chat's model updates its view at once and tells the strip", async () => {
+    const s = await consultSetup();
+    try {
+      const d = s.first;
+      await d.chats.consult({ agent_id: AGENT, conversation_id: s.chatId }, "agent", "look at a.ts");
+      await s.settled(d);
+      expect((await d.consults.view(AGENT, s.chatId))?.model).toBe(s.advice);
+      const told: string[] = [];
+      d.chats.onAdvisorChange((agentId, chatId) => told.push(`${agentId}/${chatId}`));
+      await d.chats.model({ agent_id: AGENT, conversation_id: `advisor-${s.chatId}`, handle: s.main, reasoning_effort: null });
+      expect(told).toEqual([`${AGENT}/${s.chatId}`]);
+      expect((await d.consults.view(AGENT, s.chatId))?.model).toBe(s.main);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("its view says its model, whether it works, how many wait, and its last failure", async () => {
     const s = await consultSetup();
     try {

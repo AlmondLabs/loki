@@ -20,13 +20,14 @@ export interface HeldMove {
 /**
  * What the daemon keeps of a move that waits for a chat's advisor (daemon/chat-backend.ts): `holdMove` holds it when a
  * consult is running, saving the Mac on the chat; `releaseMove` lets go of one that cannot go; `onAdvisorChange` fires
- * when a held move may have become ready.
+ * when a held move may have become ready; `onAnswerLanded` fires when a consult's answer has landed and its chat is idle.
  */
 export interface AdvisorHolds {
   holdMove(agentId: string, conversationId: string, to: string): Promise<boolean>;
   heldMoves(): Promise<HeldMove[]>;
   releaseMove(agentId: string, conversationId: string): Promise<void>;
   onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void;
+  onAnswerLanded(listener: (agentId: string, chatId: string) => void): () => void;
 }
 
 export class ChatMoves implements PeerMoves {
@@ -52,6 +53,7 @@ export class ChatMoves implements PeerMoves {
     this.opts = opts;
     this.moving = new Map(opts.file ? readHolds(opts.file) : []);
     opts.held?.onAdvisorChange(() => void this.goHeld());
+    opts.held?.onAnswerLanded((agentId, chatId) => void this.goHeld(`${agentId}/${chatId}`));
   }
 
   blocked(agentId: string, conversationId: string): string | null {
@@ -150,19 +152,25 @@ export class ChatMoves implements PeerMoves {
     if (!link) return `${name} is out of reach: move the chat once it is back`;
     if (await this.opts.held?.holdMove(agentId, conversationId, to)) {
       log("peers:chat-move-held", { agent: agentId, chat: conversationId, to });
-      return `The chat moves to ${name} when the advisor has answered.`;
+      return `The chat moves to ${name} when the advisor has answered. If ${name} is out of reach then, the chat stays here.`;
     }
     return this.send(to, name, link, agentId, conversationId);
   }
 
-  private async goHeld(): Promise<void> {
+  private async goHeld(answered?: string): Promise<void> {
     const held = this.opts.held;
     if (!held) return;
     try {
       for (const move of await held.heldMoves()) {
         const key = `${move.agent_id}/${move.conversation_id}`;
         const link = this.opts.link(move.to);
-        if (!link || this.going.has(key)) continue;
+        if (this.going.has(key)) continue;
+        if (!link && key === answered) {
+          // react-doctor-disable-next-line react-doctor/async-await-in-loop
+          await held.releaseMove(move.agent_id, move.conversation_id);
+          log("peers:chat-held-move-out-of-reach", { agent: move.agent_id, chat: move.conversation_id, to: move.to });
+        }
+        if (!link) continue;
         this.going.add(key);
         try {
           // react-doctor-disable-next-line react-doctor/async-await-in-loop

@@ -478,8 +478,9 @@ bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats 
    peer frames' `moves`; its tests join two of them with an in-memory link. A chat's advisor chat and its consult
    ledger go inside its moved record (`MovedAdvisor`). A chat whose advisor is answering is busy, so the hand-over
    skips it, and a move by hand is held instead: `AdvisorHolds.holdMove` saves the target on the chat (`move_to`),
-   and `ChatMoves` starts the move when `onAdvisorChange` says the answer has landed and the chat is idle, or at
-   start for a held move with nothing running.
+   and `ChatMoves` starts the move when `onAnswerLanded` says the answer has landed and the chat is idle, or at
+   start for a held move with nothing running. When the target is out of reach as the answer lands, the move is let
+   go (`releaseMove`) so the chat's consults go on.
 8. **What wakes each syncer** (`mod/peer-sync.ts`). The links hand every status and push to `PeerSync`, where each
    syncer (agents, memory, moves, state, group, directory) names the pushes that wake it, what it does when a Mac
    comes into reach, and the syncer it waits for: agents, then their memory, then the chats that move with them;

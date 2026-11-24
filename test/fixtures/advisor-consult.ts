@@ -161,7 +161,7 @@ export async function consultSetup(firstOptions: DaemonOptions = {}) {
     chats.attach(() => {});
     const store = await stores.get(AGENT);
     await store.setAgent({ id: AGENT, name: "Ada" }, ctx);
-    return { approvals, stores, store, chats, consults, reports };
+    return { approvals, stores, store, chats, consults, reports, mods };
   };
 
   const first = await daemon(firstOptions);

@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { advisorChatId } from "../core/advisor.ts";
 import type { LocalAgent } from "../core/frame-types.ts";
-import { harnessOf, type ReasoningEffort } from "../core/models.ts";
+import { harnessOf, reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ADVISOR_TOOLS } from "./advisor-gate.ts";
@@ -70,7 +70,7 @@ export async function advisorModel(agent: LocalAgent | null, canRun: (handle: st
     return {
       refused: `${handle} cannot be reached on this Mac: connect its provider in Preferences › Providers, or pick another advisor model in ${PROFILE}.`,
     };
-  return { handle, effort: agent?.advisor_model ? agent.advisor_reasoning_effort : null };
+  return { handle, effort: agent?.advisor_model ? agent.advisor_reasoning_effort : reasoningEffortFromSettings(agent?.model_settings) };
 }
 
 export type AdvisorOpen = { chat: Conversation; advisorId: string; created: boolean } | { refused: string };

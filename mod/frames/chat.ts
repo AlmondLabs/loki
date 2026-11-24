@@ -50,6 +50,7 @@ export interface ChatBackend {
   consult(p: { agent_id: string; conversation_id: string }, from: ConsultFrom, text: string): Promise<ConsultReply>;
   advisorView(agentId: string, chatId: string): Promise<AdvisorView | null>;
   onAdvisorChange(listener: (agentId: string, chatId: string) => void): () => void;
+  onAnswerLanded(listener: (agentId: string, chatId: string) => void): () => void;
   holdMove(agentId: string, conversationId: string, to: string): Promise<boolean>;
   heldMoves(): Promise<HeldMove[]>;
   releaseMove(agentId: string, conversationId: string): Promise<void>;
