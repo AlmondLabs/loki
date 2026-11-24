@@ -251,6 +251,27 @@ const argOf = (args: Record<string, unknown>): string | undefined => {
   return key ? (args[key] as string).trim() : undefined;
 };
 
+const TITLED_BY: Partial<Record<string, readonly string[]>> = {
+  advisor_consult: ["text"],
+  suggestion_create: ["title"],
+  chat_message: ["text"],
+  reply_propose: ["text"],
+  message_propose: ["subject", "text"],
+  SendAgentMessage: ["message"],
+};
+
+const PATCH_FILE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m;
+
+const titleOf = (name: string, args: Record<string, unknown>): string | undefined => {
+  const key = TITLED_BY[name]?.find((k) => typeof args[k] === "string" && args[k].trim());
+  if (key) return (args[key] as string).trim();
+  for (const v of Object.values(args)) {
+    const file = typeof v === "string" ? PATCH_FILE.exec(v)?.[1]?.trim() : undefined;
+    if (file) return file;
+  }
+  return undefined;
+};
+
 const isQuestionTool = (name: string): boolean => name === "user_ask";
 
 const NAMED_BY_INSTEAD_OF_DESCRIPTION: Partial<Record<string, string>> = { ticket_propose: "title", mcp__loki__ticket_propose: "title" };
@@ -307,9 +328,10 @@ export function toolOutput(raw: unknown): string | undefined {
   return text ? cap(text) : undefined;
 }
 
-export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
+export function toolStep(name: string, input: unknown, id?: string | null, kind?: string): ToolStep {
   const step: ToolStep = { name };
   if (id) step.id = id;
+  if (kind) step.acp_kind = kind;
   const given = toolInput(name, input);
   if (given !== undefined) step.input = given;
   const args = argsOf(input);
@@ -370,7 +392,7 @@ export function toolLabel(name: string, input: unknown): string {
   const args = argsOf(input);
   if (!args) return name;
   const question = isQuestionTool(name) ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
-  const arg = typeof args.command === "string" && args.command.trim() ? shellTitle(args.command.trim()) : argOf(args);
+  const arg = typeof args.command === "string" && args.command.trim() ? shellTitle(args.command.trim()) : (argOf(args) ?? titleOf(name, args));
   const namedBy = NAMED_BY_INSTEAD_OF_DESCRIPTION[name];
   const ownName = namedBy && typeof args[namedBy] === "string" ? args[namedBy].trim() : undefined;
   const target = question || (arg ?? ownName)?.split("\n")[0];

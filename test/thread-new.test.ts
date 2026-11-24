@@ -157,10 +157,10 @@ describe("turns: everything the agent did between two of your messages", () => {
 });
 
 describe("the new thread's pieces", () => {
-  test("a stretch of work is one closed line in today's wording, with the failed step named under it", () => {
+  test("a stretch of work is one closed line in today's wording, counting its failed step and naming none under it", () => {
     const html = renderToStaticMarkup(createElement(Work, { rows: [bash(), bash(true)], running: false, arrived: false }));
     expect(html).toContain("Ran 2 commands · 1 failed");
-    expect(html.replace(/<[^>]+>/g, "")).toContain("ls failed");
+    expect(html.replace(/<[^>]+>/g, "")).not.toContain("ls failed");
     expect(html).toContain('data-row="tool"');
   });
 

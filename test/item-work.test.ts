@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { AgentTurn } from "../app/src/item/agent-turn.tsx";
 import { Step, StepOpened, Work } from "../app/src/item/work.tsx";
+import { stepLine } from "../app/src/shared/tool-steps.ts";
 
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const times = (out: string, text: string) => out.split(text).length - 1;
@@ -46,20 +47,11 @@ describe("Work", () => {
     expect(out).toContain("shimmer");
   });
 
-  test("a done stretch does not shimmer, and names its failure under the closed line", () => {
+  test("a done stretch does not shimmer; its failure is counted on the line, not named under it (plan 2026-11-24-1701)", () => {
     const out = html(createElement(Work, { rows: [bash(), bash({ failed: true, output: "boom" })], running: false, arrived: false }));
     expect(out).not.toContain("shimmer");
-    expect(out).toContain("failed");
-  });
-
-  test("a failure the agent went on past is grey; one the turn stopped on is red (plan 2026-11-15-1035, R16)", () => {
-    const rows = [bash(), bash({ failed: true, output: "boom" })];
-    const failureLine = (out: string) => /<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*failed(?:<\/span>)*<\/button>/.exec(out)?.[1] ?? "";
-    const went = html(createElement(Work, { rows, running: false, arrived: false }));
-    expect(failureLine(went)).toContain("text-muted-foreground");
-    expect(failureLine(went)).not.toContain("text-loki-negative");
-    const stopped = html(createElement(Work, { rows, running: false, arrived: false, stopped: true }));
-    expect(failureLine(stopped)).toContain("text-loki-negative");
+    expect(out).toContain("· 1 failed");
+    expect(out).not.toContain("lucide-x");
   });
 
   test("a finished stretch is marked with a checklist, not a terminal's prompt (R16)", () => {
@@ -150,28 +142,34 @@ describe("an opened step", () => {
   });
 });
 
-describe("a step's title stays on one line (plan 2026-11-23-1851, KTD8)", () => {
-  const step = (row: TranscriptRow, active = false, waiting = false) => html(createElement(Step, { row, active, waiting, open: false, onToggle: () => {} }));
+describe("a step is one line: its title cut, its tag kept (plan 2026-11-24-1701)", () => {
+  const step = (row: TranscriptRow, active = false, waiting = false) =>
+    html(createElement(Step, { row, line: stepLine(row), active, waiting, open: false, onToggle: () => {} }));
   const crm = (over: Partial<NonNullable<TranscriptRow["tool"]>> = {}) => bash({ description: "Run the CRM tests", ...over });
+  const tagged = (title: string, tag: string) => new RegExp(`<span class="[^"]*\\btruncate\\b[^"]*">${title}</span><span class="[^"]*">${tag}</span>`);
 
-  test("a finished step's description is its title, cut inside its own element", () => {
-    expect(step(crm())).toMatch(/<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span>/);
+  test("a finished step is its title, cut inside its own element, then its tag", () => {
+    expect(step(crm())).toMatch(tagged("Run the CRM tests", "Ran"));
   });
 
-  test("a failed step's ending sits outside the cut title, and so does a waiting one's", () => {
-    expect(step(crm({ failed: true }))).toMatch(/<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span><span[^>]*> · failed<\/span>/);
-    expect(step(crm({ output: undefined }), true, true)).toMatch(
-      /<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span><span[^>]*> · waiting on you<\/span>/,
-    );
+  test("a failed step's tag says Failed, a waiting one's Waiting, and no ending follows the title", () => {
+    const failed = step(crm({ failed: true }));
+    expect(failed).toMatch(tagged("Run the CRM tests", "Failed"));
+    expect(failed).not.toContain("· failed");
+    expect(step(crm({ output: undefined }), true, true)).toMatch(tagged("Run the CRM tests", "Waiting"));
   });
 
-  test("a running step's shimmering title is cut the same way", () => {
-    expect(step(crm({ output: undefined }), true)).toMatch(/<span class="shimmer[^"]*\btruncate\b[^"]*"[^>]*>Run the CRM tests<\/span>/);
+  test("a running step's shimmering title is cut the same way and keeps its tag", () => {
+    const out = step(crm({ output: undefined }), true);
+    expect(out).toMatch(/<span class="shimmer[^"]*\btruncate\b[^"]*"[^>]*>Run the CRM tests<\/span>/);
+    expect(out).toContain(">Ran</span>");
   });
 
-  test("the failure under a closed stretch cuts its title and keeps failed", () => {
-    const out = html(createElement(Work, { rows: [bash(), crm({ failed: true, output: "boom" })], running: false, arrived: false }));
-    expect(out).toMatch(/<span class="[^"]*\btruncate\b[^"]*">Run the CRM tests<\/span><span[^>]*> failed<\/span>/);
+  test("a file step shows the file's name, with the whole path on hover and in its accessible name", () => {
+    const out = step({ role: "tool", text: "read · /tmp/crm/test_seed.py", tool: { name: "read" } });
+    expect(out).toMatch(tagged("test_seed.py", "Read"));
+    expect(out).toContain('title="/tmp/crm/test_seed.py"');
+    expect(out).toContain('aria-label="/tmp/crm/test_seed.py, Read"');
   });
 });
 

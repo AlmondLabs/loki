@@ -1,6 +1,13 @@
 import type { SVGProps } from "react";
 import {
   ArchiveIcon,
+  BotIcon,
+  BrainIcon,
+  CodeIcon,
+  GlobeIcon,
+  ListChecksIcon,
+  MessageCircleQuestionMarkIcon,
+  WrenchIcon,
   ChartColumnIcon,
   CpuIcon,
   KeyboardIcon,
@@ -107,9 +114,18 @@ const ICONS = {
   tag: TagIcon,
   chart: ChartColumnIcon,
   trash: Trash2Icon,
+  globe: GlobeIcon,
+  bot: BotIcon,
+  code: CodeIcon,
+  wrench: WrenchIcon,
+  question: MessageCircleQuestionMarkIcon,
+  brain: BrainIcon,
+  checklist: ListChecksIcon,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;
+
+export const glyphOf = (name: IconName): LucideIcon => ICONS[name];
 
 const FILLED: ReadonlySet<IconName> = new Set(["stop"]);
 

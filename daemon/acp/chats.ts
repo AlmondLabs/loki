@@ -44,12 +44,15 @@ export interface AcpChatsDeps {
 interface Call {
   name: string;
   args: unknown;
+  toolKind?: string;
   textBefore: string;
   thoughtBefore: string;
   output: string;
   done: boolean;
   failed?: boolean;
 }
+
+const kindOf = (call: Call): { tool_kind?: string } => (call.toolKind ? { tool_kind: call.toolKind } : {});
 
 /** Whether a call's arguments say anything yet (Claude's adapter opens a call as "Preparing file…" with none). */
 const hasArgs = (args: unknown) => args !== undefined && args !== null && !(typeof args === "object" && Object.keys(args).length === 0);
@@ -744,11 +747,11 @@ export class AcpChats {
     const content = [
       ...(call.thoughtBefore ? [{ type: "thinking", thinking: call.thoughtBefore }] : []),
       ...(call.textBefore ? [{ type: "text", text: call.textBefore }] : []),
-      { type: "toolCall", id, name: call.name, arguments: call.args ?? {} },
+      { type: "toolCall", id, name: call.name, arguments: call.args ?? {}, ...kindOf(call) },
     ];
     const result = [{ type: "text", text: output }];
     this.push(live.agentId, live.conversationId, [
-      { kind: "step", step: { kind: "call", name: call.name, args: call.args, id, at: new Date(at).toISOString() } },
+      { kind: "step", step: { kind: "call", name: call.name, args: call.args, id, at: new Date(at).toISOString(), ...kindOf(call) } },
       { kind: "step", step: { kind: "result", id, output: result, failed } },
     ]);
     await store.appendEntries(
@@ -825,6 +828,7 @@ export class AcpChats {
         const call: Call = {
           name: u.title || u.name || u.kind || "tool",
           args: u.rawInput ?? {},
+          ...(u.kind ? { toolKind: u.kind } : {}),
           textBefore: turn.text,
           thoughtBefore: turn.thought,
           output: contentOutput(u.content),
@@ -836,7 +840,7 @@ export class AcpChats {
         turn.at = null;
         turn.calls.set(u.toolCallId, call);
         if (hasArgs(call.args)) {
-          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now } }]);
+          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now, ...kindOf(call) } }]);
         }
         if (u.status === "completed" || u.status === "failed") this.completeCall(live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
         return;
@@ -845,12 +849,13 @@ export class AcpChats {
         const call = turn.calls.get(u.toolCallId);
         if (!call || call.done) return;
         if (u.title) call.name = u.title;
+        if (u.kind) call.toolKind = u.kind;
         if (u.rawInput !== undefined) call.args = u.rawInput;
         const output = contentOutput(u.content);
         if (output) call.output = output;
         if (u.status === "completed" || u.status === "failed") this.completeCall(live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
         else if ((u.title || u.rawInput !== undefined) && hasArgs(call.args)) {
-          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now } }]);
+          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now, ...kindOf(call) } }]);
         }
         return;
       }

@@ -1,121 +1,199 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import type { IconName } from "./icons";
 
-const SHELL = new Set(["Bash", "bash", "background_run", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
-const EDITS = new Set([
-  "Edit",
-  "MultiEdit",
-  "NotebookEdit",
-  "Write",
-  "ApplyPatch",
-  "apply_patch",
-  "memory_apply_patch",
-  "memory",
-  "memory_write",
-  "memory_edit",
-  "memory_delete",
-]);
-const BACKGROUND = new Set(["background_watch", "TaskOutput", "Monitor", "TaskStop"]);
-const isSkillTool = (name: string): boolean => name === "skill" || name === "Skill";
-const AGENTS = new Set(["Task", "subagent", "Agent", "SendAgentMessage"]);
+export type StepKind = "background" | "command" | "agent" | "skill" | "read" | "edit" | "search" | "web" | "plan" | "tool";
+
+interface Entry {
+  readonly verb: string;
+  readonly tag: string;
+  readonly icon: IconName;
+  readonly kind: StepKind;
+  readonly path?: boolean;
+  readonly url?: boolean;
+  readonly untitled?: string;
+}
+
+const entry = (verb: string, tag: string, icon: IconName, kind: StepKind, more: Partial<Entry> = {}): Entry => ({ verb, tag, icon, kind, ...more });
+
+const RAN = entry("Ran", "Ran", "terminal", "command");
+const WAITED = entry("Waited on a command", "Waited", "terminal", "tool", { untitled: "A command" });
+const EDITED = entry("Edited", "Edited", "pencil", "edit", { path: true });
+const MEMORY_EDIT = entry("Updated memory", "Memory", "pencil", "edit", { path: true });
+const AGENT = entry("Asked an agent", "Agent", "bot", "agent");
+const ASKED = entry("Asked you", "Asked you", "question", "tool");
+const SKILL = entry("Loaded skill", "Skill", "skill", "skill");
+const PLAN = entry("Updated the plan", "Plan", "checklist", "plan");
+const DRAFT = entry("Drafted a message", "Draft", "mail", "tool");
+
+const CATALOGUE: Readonly<Partial<Record<string, Entry>>> = {
+  bash: RAN,
+  Bash: RAN,
+  Shell: RAN,
+  shell: RAN,
+  local_shell: RAN,
+  exec_command: RAN,
+  run_command: RAN,
+  execute_command: RAN,
+  background_run: entry("Started in background", "Started", "terminal", "command"),
+  "Background task": entry("Ran in background", "Finished", "checklist", "background"),
+  background_watch: WAITED,
+  Monitor: WAITED,
+  BashOutput: entry("Read a command's output", "Waited", "terminal", "command", { untitled: "A command" }),
+  TaskOutput: entry("Read a command's output", "Waited", "terminal", "tool", { untitled: "A command" }),
+  TaskStop: entry("Stopped a command", "Stopped", "terminal", "tool", { untitled: "A command" }),
+  read: entry("Read", "Read", "file", "read", { path: true }),
+  Read: entry("Read", "Read", "file", "read", { path: true }),
+  write: entry("Wrote", "Wrote", "file", "edit", { path: true }),
+  Write: entry("Wrote", "Wrote", "file", "edit", { path: true }),
+  edit: EDITED,
+  Edit: EDITED,
+  MultiEdit: EDITED,
+  NotebookEdit: EDITED,
+  apply_patch: EDITED,
+  ApplyPatch: EDITED,
+  memory_read: entry("Read memory", "Memory", "file", "read", { path: true }),
+  memory_write: MEMORY_EDIT,
+  memory_edit: MEMORY_EDIT,
+  memory_delete: MEMORY_EDIT,
+  memory_apply_patch: MEMORY_EDIT,
+  memory: MEMORY_EDIT,
+  ls: entry("Listed", "Listed", "folder", "search", { path: true }),
+  find: entry("Found", "Found", "search", "search"),
+  Glob: entry("Searched", "Found", "search", "search"),
+  grep: entry("Searched", "Searched", "search", "search"),
+  Grep: entry("Searched", "Searched", "search", "search"),
+  web_search: entry("Searched the web", "Web", "globe", "web"),
+  WebSearch: entry("Searched the web", "Web", "globe", "web"),
+  WebFetch: entry("Fetched", "Fetched", "globe", "web", { url: true }),
+  subagent: AGENT,
+  Task: AGENT,
+  Agent: AGENT,
+  SendAgentMessage: entry("Messaged an agent", "Agent", "bot", "agent"),
+  advisor_consult: entry("Asked the advisor", "Advisor", "bot", "tool", { untitled: "Review the changes" }),
+  user_ask: ASKED,
+  AskUserQuestion: ASKED,
+  codemode: entry("Ran a script", "Script", "code", "tool", { untitled: "A script" }),
+  skill: SKILL,
+  Skill: SKILL,
+  suggestion_create: entry("Suggested work", "Suggested", "learn", "tool"),
+  chat_message: entry("Messaged a chat", "Message", "desk", "tool"),
+  reply_propose: DRAFT,
+  message_propose: DRAFT,
+  ticket_propose: entry("Proposed a ticket", "Ticket", "ticket", "tool"),
+  mcp_search: entry("Loaded MCP tools", "Tools", "wrench", "tool"),
+  plan: PLAN,
+  TodoWrite: PLAN,
+  UpdatePlan: PLAN,
+  update_plan: PLAN,
+};
+
+const ACP_KINDS: Readonly<Partial<Record<string, Entry>>> = {
+  read: entry("Read", "Read", "file", "read", { path: true }),
+  edit: EDITED,
+  delete: entry("Deleted", "Deleted", "pencil", "edit", { path: true }),
+  move: entry("Moved", "Moved", "pencil", "edit", { path: true }),
+  execute: RAN,
+  search: entry("Searched", "Searched", "search", "search"),
+  fetch: entry("Fetched", "Fetched", "globe", "web", { url: true }),
+  think: entry("Thought", "Thought", "brain", "tool"),
+};
+
+const MCP = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/;
+
+export const nameAsWords = (name: string): string => {
+  const words = name.replace(/_+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+const isAgentTitle = (name: string): boolean => name.includes(" ");
+
+function entryOf(name: string, acpKind?: string): Entry {
+  const listed = CATALOGUE[name];
+  if (listed) return listed;
+  const acp = acpKind ? ACP_KINDS[acpKind] : undefined;
+  if (acp) return acp;
+  const mcp = MCP.exec(name);
+  if (mcp) return entry(`Used ${mcp[1]}.${mcp[2]}`, nameAsWords(mcp[1]), "wrench", "tool");
+  if (isAgentTitle(name)) return entry(name, "Tool", "wrench", "tool");
+  return entry(`Used ${nameAsWords(name).toLowerCase()}`, "Tool", "wrench", "tool");
+}
+
+const entryOfRow = (row: TranscriptRow): Entry => entryOf(stepName(row), row.tool?.acp_kind);
 
 export function stepTitle(name: string): string {
-  const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
+  const mcp = MCP.exec(name);
   if (mcp) return `${mcp[1]}.${mcp[2]}`;
-  const words = name.replace(/_/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  return nameAsWords(name);
 }
 
-export function stepVerb(name: string): string {
-  if (name === "Background task") return "Ran in background";
-  if (name === "mcp_search") return "Loaded MCP tools";
-  const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
-  if (mcp) return `Used ${mcp[1]}.${mcp[2]}`;
-  if (name === "background_run") return "Started in background";
-  if (isSkillTool(name)) return "Loaded skill";
-  if (SHELL.has(name)) return "Ran";
-  switch (name) {
-    case "Read":
-      return "Read";
-    case "Edit":
-    case "MultiEdit":
-    case "NotebookEdit":
-    case "ApplyPatch":
-    case "apply_patch":
-      return "Edited";
-    case "memory_apply_patch":
-    case "memory":
-    case "memory_write":
-    case "memory_edit":
-    case "memory_delete":
-      return "Updated memory";
-    case "memory_read":
-      return "Read memory";
-    case "Write":
-      return "Wrote";
-    case "Grep":
-    case "Glob":
-      return "Searched";
-    case "WebSearch":
-    case "web_search":
-      return "Searched the web";
-    case "WebFetch":
-      return "Fetched";
-    case "Task":
-    case "subagent":
-    case "Agent":
-      return "Asked an agent";
-    case "SendAgentMessage":
-      return "Messaged an agent";
-    case "TodoWrite":
-    case "UpdatePlan":
-      return "Updated the plan";
-    case "TaskOutput":
-      return "Read a command's output";
-    case "background_watch":
-    case "Monitor":
-      return "Waited on a command";
-    case "TaskStop":
-      return "Stopped a command";
-    case "user_ask":
-    case "AskUserQuestion":
-      return "Asked you";
-    default:
-      // Outside (ACP): an agent names a step by its title ("Read signups.csv"), which already says what it did.
-      return name.includes(" ") ? name : `Used ${name}`;
+export const stepVerb = (name: string): string => entryOf(name).verb;
+
+export const stepIcon = (name: string): IconName => entryOf(name).icon;
+
+export const stepIconOf = (row: TranscriptRow): IconName => entryOfRow(row).icon;
+
+const untitledOf = (name: string, e: Entry): string => {
+  if (e.untitled) return e.untitled;
+  const mcp = MCP.exec(name);
+  if (mcp) return nameAsWords(mcp[2]);
+  return isAgentTitle(name) ? name : nameAsWords(name);
+};
+
+const fileName = (path: string): string =>
+  path
+    .replace(/[\\/]+$/, "")
+    .split(/[\\/]/)
+    .pop() || path;
+const withFolder = (path: string): string =>
+  path
+    .replace(/[\\/]+$/, "")
+    .split(/[\\/]/)
+    .slice(-2)
+    .join("/");
+const withoutScheme = (url: string): string => url.replace(/^[a-z]+:\/\//i, "").replace(/\/$/, "");
+
+export interface StepLine {
+  title: string;
+  tag: string;
+  icon: IconName;
+  full: string;
+}
+
+function lineOf(row: TranscriptRow): StepLine & { path: string | null } {
+  const name = stepName(row);
+  const e = entryOfRow(row);
+  const failed = stepFailed(row);
+  const tag = failed ? "Failed" : e.tag;
+  const icon: IconName = failed ? "close" : e.icon;
+  const target = stepTarget(row);
+  const described = row.role === "tool" && !!row.tool?.description;
+  if (!target) {
+    const title = untitledOf(name, e);
+    return { title, tag, icon, full: title, path: null };
   }
+  const oneLine = target.split("\n")[0];
+  if (!described && e.path) return { title: fileName(oneLine), tag, icon, full: oneLine, path: oneLine };
+  if (!described && e.url) return { title: withoutScheme(oneLine), tag, icon, full: oneLine, path: null };
+  return { title: oneLine, tag, icon, full: oneLine, path: null };
 }
 
-export function stepIcon(name: string): IconName {
-  if (name === "Background task") return "terminal";
-  if (isSkillTool(name)) return "skill";
-  if (SHELL.has(name) || BACKGROUND.has(name)) return "terminal";
-  if (name === "Read" || name === "Write") return "file";
-  if (EDITS.has(name)) return "compose";
-  if (name === "Grep" || name === "Glob" || name === "WebSearch" || name === "web_search") return "search";
-  if (name === "WebFetch") return "link";
-  if (AGENTS.has(name)) return "agents";
-  return "widget";
+export function stepLines(rows: readonly TranscriptRow[]): StepLine[] {
+  const lines = rows.map(lineOf);
+  const names = new Map<string, Set<string>>();
+  for (const l of lines) if (l.path) names.set(l.title, (names.get(l.title) ?? new Set()).add(l.path));
+  return lines.map(({ path, ...l }) => (path && (names.get(l.title)?.size ?? 0) > 1 ? { ...l, title: withFolder(path) } : l));
 }
+
+export const stepLine = (row: TranscriptRow): StepLine => stepLines([row])[0];
 
 export function isWorkRow(row: TranscriptRow): boolean {
   return row.role === "tool" || (row.role === "event" && (isBackgroundTask(row) || row.text === "skill loaded"));
 }
 const isBackgroundTask = (row: TranscriptRow): boolean => row.role === "event" && row.text.startsWith("background task");
 
-export type StepKind = "background" | "command" | "agent" | "skill" | "read" | "edit" | "search" | "web" | "plan" | "tool";
-
 export function stepKind(row: TranscriptRow): StepKind {
   if (row.role === "event") return isBackgroundTask(row) ? "background" : "skill";
-  const name = stepName(row);
-  if (SHELL.has(name)) return "command";
-  if (AGENTS.has(name)) return "agent";
-  if (name === "Read") return "read";
-  if (EDITS.has(name)) return "edit";
-  if (name === "Grep" || name === "Glob") return "search";
-  if (name === "WebSearch" || name === "WebFetch" || name === "web_search") return "web";
-  if (name === "TodoWrite" || name === "UpdatePlan") return "plan";
-  return "tool";
+  return entryOfRow(row).kind;
 }
 
 export const stepFailed = (row: TranscriptRow): boolean =>
@@ -193,5 +271,5 @@ export function lastFailure(rows: TranscriptRow[]): number | null {
 
 export function withoutSkillCalls(rows: TranscriptRow[]): TranscriptRow[] {
   const loaded = new Set(rows.filter((r) => r.role === "event" && r.text === "skill loaded").map((r) => r.summary ?? ""));
-  return rows.filter((r) => !(r.role === "tool" && isSkillTool(stepName(r)) && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));
+  return rows.filter((r) => !(r.role === "tool" && entryOf(stepName(r)) === SKILL && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));
 }
