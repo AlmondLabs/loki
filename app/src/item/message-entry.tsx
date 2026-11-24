@@ -26,6 +26,7 @@ export function MessageEntry({
   onReact,
   first = true,
   note = null,
+  undoable = true,
   children,
 }: {
   entry: Extract<ItemEntry, { kind: "message" }>;
@@ -34,10 +35,11 @@ export function MessageEntry({
   onReact?: (r: SlackReaction) => void;
   first?: boolean;
   note?: string | null;
+  undoable?: boolean;
   children?: ReactNode;
 }) {
   const time = clockLabel(m.at);
-  const pills = <Reactions reactions={m.reactions} onToggle={onReact} title={source === "gmail" ? emojiTitle : undefined} />;
+  const pills = <Reactions reactions={m.reactions} onToggle={onReact} title={source === "gmail" ? emojiTitle : undefined} undoable={undoable} />;
   const parts = <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />;
   if (m.from === "you" && source !== "slack" && source !== "jira")
     return (

@@ -239,6 +239,25 @@ describe("the body Gmail would write", () => {
     expect(raw).toContain(Buffer.from("png").toString("base64"));
     expect(raw.trimEnd().endsWith("--loki-mix--")).toBe(true);
   });
+  test("a reaction is plain text, the reaction part, then HTML, in that order, as Gmail lays it out", () => {
+    const raw = rfc2822({
+      threadId: "t1",
+      inReplyTo: "<p1@x>",
+      references: [],
+      to: ["p@x.example"],
+      cc: [],
+      subject: "Re: Help",
+      body: "Reacted with 👍",
+      html: "<p>Reacted with 👍</p>",
+      reaction: "👍",
+    });
+    expect(raw).toContain('Content-Type: multipart/alternative; boundary="loki-alt"');
+    const parts = raw.split("--loki-alt\r\n").slice(1);
+    expect(parts.map((p) => /^Content-Type: ([^;\r\n]+)/.exec(p)?.[1])).toEqual(["text/plain", "text/vnd.google.email-reaction+json", "text/html"]);
+    const body = (parts[1] ?? "").split("\r\n\r\n")[1]?.replace(/\r\n/g, "") ?? "";
+    expect(JSON.parse(Buffer.from(body, "base64").toString("utf8"))).toEqual({ emoji: "👍", version: 1 });
+    expect(raw.trimEnd().endsWith("--loki-alt--")).toBe(true);
+  });
 });
 
 describe("who each mode goes to", () => {

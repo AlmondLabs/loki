@@ -93,7 +93,7 @@ const ENCRYPTED = ["multipart/encrypted", "application/pkcs7-mime", "application
 
 const addressOf = (from: string) => (/<([^>]+)>/.exec(from)?.[1] ?? from).trim().toLowerCase();
 const messageIdOf = (m: GmailMessage, name: string) => header(m, name).trim().toLowerCase();
-const drawnEmoji = (emoji: string) => emoji.replaceAll("\u{FE0F}", "");
+export const drawnEmoji = (emoji: string) => emoji.replaceAll("\u{FE0F}", "");
 
 export interface MailReactionsOf {
   reactions: SlackReaction[];

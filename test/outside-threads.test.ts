@@ -708,9 +708,10 @@ describe("the person's reactions on a Slack card (plan 079)", () => {
     expect(moves).toEqual([]);
   });
 
-  test("a mail takes no reaction", async () => {
-    const { t, reacted } = threads();
-    await expect(t.react(MAIL, "t1", "m1", "eyes", true)).rejects.toThrow("only a Slack message takes a reaction");
+  test("a Jira comment takes no reaction", async () => {
+    const { t, reacted } = threads({ accounts: [account(JIRA)] });
+    await expect(t.react(JIRA, "ACME-1", "30001", "eyes", true)).rejects.toThrow("a Jira comment takes no reaction");
+    await expect(t.searchEmoji(JIRA, "eyes")).rejects.toThrow("a Jira comment takes no reaction");
     expect(reacted).toEqual([]);
   });
 
@@ -744,6 +745,112 @@ describe("the person's reactions on a Slack card (plan 079)", () => {
     expect(await t.searchEmoji(SLACK, "")).toEqual([]);
     await t.searchEmoji(SLACK, "");
     expect(frequentReads.n).toBe(2);
+  });
+});
+
+describe("the person's reactions on a mail card (plan 2026-11-23-1800, U6)", () => {
+  const ANA = { From: "Ana <ana@acme.com>", To: "ada@acme.com, Ben <ben@acme.com>", Cc: "cy@acme.com", Subject: "Plan", "Message-ID": "<m1@acme.com>" };
+  const BEN = {
+    From: "Ben <ben@acme.com>",
+    To: "ada@acme.com",
+    Subject: "Re: Plan",
+    "Message-ID": "<m2@acme.com>",
+    "In-Reply-To": "<m1@acme.com>",
+    References: "<m1@acme.com>",
+  };
+  const reaction = (id: string, from: string, emoji: string, inReplyTo = "<m1@acme.com>"): GmailMessage => {
+    const m = message(id, 10, { From: from, To: "ana@acme.com", Subject: "Re: Plan", "Message-ID": `<${id}@acme.com>`, "In-Reply-To": inReplyTo });
+    const data = (text: string) => ({ size: text.length, data: Buffer.from(text).toString("base64url") });
+    return {
+      ...m,
+      payload: m.payload && {
+        ...m.payload,
+        mimeType: "multipart/alternative",
+        parts: [{ mimeType: "text/vnd.google.email-reaction+json", filename: "", headers: [], body: data(JSON.stringify({ emoji, version: 1 })), parts: [] }],
+      },
+    };
+  };
+
+  test("a reaction answers the chosen mail, from the main address to everyone on it, and leaves the card where it is", async () => {
+    const sendAs: GmailSendAs[] = [
+      { address: "ada@acme.com", name: "Ada", signature: "-- Ada", isDefault: false },
+      { address: "ada@work.example", name: "Ada", signature: "", isDefault: true },
+    ];
+    const { t, sentMail, moves } = threads({ gmail: [message("m1", 1, ANA), message("m2", 2, BEN)], sendAs });
+    await t.react(MAIL, "t1", "m1", "+1", true);
+    expect(sentMail).toEqual([
+      expect.objectContaining({
+        threadId: "t1",
+        inReplyTo: "<m1@acme.com>",
+        references: [],
+        from: '"Ada" <ada@acme.com>',
+        to: ["Ana <ana@acme.com>", "Ben <ben@acme.com>"],
+        cc: ["cy@acme.com"],
+        subject: "Re: Plan",
+        reaction: "👍",
+      }),
+    ]);
+    expect(sentMail[0]?.outboxId).toBeUndefined();
+    expect(sentMail[0]?.body).toContain("👍");
+    expect(moves).toEqual([]);
+  });
+
+  test("taking a mail reaction back is refused, and nothing is sent", async () => {
+    const { t, sentMail } = threads({ gmail: [message("m1", 1, ANA), reaction("r1", "ada@acme.com", "👍")] });
+    await expect(t.react(MAIL, "t1", "m1", "+1", false)).rejects.toThrow("a mail reaction can't be taken back");
+    expect(sentMail).toEqual([]);
+  });
+
+  test("a list mail, and a mail the person already reacted to 20 times, are refused; nothing is sent", async () => {
+    const list = threads({ gmail: [message("m1", 1, { ...ANA, "List-Id": "<team.acme.com>" })] });
+    await expect(list.t.react(MAIL, "t1", "m1", "+1", true)).rejects.toThrow("Gmail takes no reaction on that mail");
+    expect(list.sentMail).toEqual([]);
+    const many = Array.from({ length: 20 }, (_, i) => reaction(`r${String(i)}`, "ada@acme.com", "👀"));
+    const full = threads({ gmail: [message("m1", 1, ANA), ...many] });
+    await expect(full.t.react(MAIL, "t1", "m1", "+1", true)).rejects.toThrow("Gmail takes no reaction on that mail");
+    expect(full.sentMail).toEqual([]);
+  });
+
+  test("a reaction the thread already holds from the person, by any of their addresses, sends nothing and succeeds", async () => {
+    const { t, sentMail } = threads({ gmail: [message("m1", 1, ANA), reaction("r1", "Ada <ada@work.example>", "👍")] });
+    await t.react(MAIL, "t1", "m1", "+1", true);
+    await t.react(MAIL, "t1", "m1", "thumbsup", true);
+    expect(sentMail).toEqual([]);
+  });
+
+  test("someone else's reaction with that emoji is no reason not to send the person's", async () => {
+    const { t, sentMail } = threads({ gmail: [message("m1", 1, ANA), reaction("r1", "Ben <ben@acme.com>", "👍")] });
+    await t.react(MAIL, "t1", "m1", "+1", true);
+    expect(sentMail).toHaveLength(1);
+  });
+
+  test("two presses at once send one mail", async () => {
+    const { t, sentMail } = threads({ gmail: [message("m1", 1, ANA)] });
+    await Promise.all([t.react(MAIL, "t1", "m1", "+1", true), t.react(MAIL, "t1", "m1", "+1", true)]);
+    expect(sentMail).toHaveLength(1);
+  });
+
+  test("a mail no longer in the thread, and an emoji Gmail can't send, are refused", async () => {
+    const { t, sentMail } = threads({ gmail: [message("m1", 1, ANA)] });
+    await expect(t.react(MAIL, "t1", "m9", "+1", true)).rejects.toThrow("that mail is not in the thread in Gmail now");
+    await expect(t.react(MAIL, "t1", "m1", "shipit", true)).rejects.toThrow("that emoji can't go in a mail reaction");
+    expect(sentMail).toEqual([]);
+  });
+
+  test("a send Gmail refuses rejects with Gmail's reason, and pressing again tries again", async () => {
+    const { t, calls } = threads({ gmail: [message("m1", 1, ANA)], sendFails: "Gmail said no" });
+    await expect(t.react(MAIL, "t1", "m1", "+1", true)).rejects.toThrow("Gmail said no");
+    await expect(t.react(MAIL, "t1", "m1", "+1", true)).rejects.toThrow("Gmail said no");
+    expect(calls.filter((c) => c === "sendReply t1")).toHaveLength(2);
+  });
+
+  test("the mail emoji search is standard emoji only, and an empty search is none", async () => {
+    const { t, emojiReads } = threads();
+    const thumbs = await t.searchEmoji(MAIL, "thumbs");
+    expect(thumbs.map((c) => c.emoji.text)).toEqual(["👍", "👎"]);
+    expect(await t.searchEmoji(MAIL, "shipit")).toEqual([]);
+    expect(await t.searchEmoji(MAIL, "")).toEqual([]);
+    expect(emojiReads.n).toBe(0);
   });
 });
 

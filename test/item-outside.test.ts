@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest";
+import { must } from "./fixtures/must.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MailCompose, OutsideFacts, OutsideMessage } from "../core/frame-types.ts";
 import { OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
 import { ItemMailThread } from "../app/src/item/outside-rows.tsx";
+import { reactTarget, rowReacting } from "../app/src/desk/slack-thread.tsx";
+import { QUICK_EMOJI } from "../app/src/desk/slack-reactions.tsx";
 
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({
@@ -188,5 +191,63 @@ describe("the outside reply box on the Composer", () => {
     expect(out).toContain('aria-label="Show the Quoted Mail"');
     expect(out).toContain(">Discard<");
     expect(out).not.toContain("the moves");
+  });
+});
+
+describe("reacting on a mail card (plan 2026-11-23-1800, U7)", () => {
+  const thumbs = (mine: boolean) => ({ name: "+1", count: 1, mine, emoji: { kind: "emoji" as const, text: "👍" } });
+  const mails = (over: Partial<OutsideMessage> = {}) => [
+    msg("m1", { sender: "Ana <ana@northwind.test>", text: "The draft", reactable: true }),
+    msg("m2", { sender: "Ben <ben@northwind.test>", text: "Looks good", reactable: true, ...over }),
+  ];
+  const controls = () => {
+    const sent: Array<[string, string, boolean]> = [];
+    return { sent, react: (id: string, c: { name: string }, on: boolean) => void sent.push([id, c.name, on]), quick: [...QUICK_EMOJI] };
+  };
+  const row = (m: OutsideMessage, c: ReturnType<typeof controls>) => rowReacting(m, c, { picking: null, setPicking: () => {}, final: true });
+
+  test("Covers AE3. a mail that takes reactions has the hover bar with 👀 ✅ 👍 and the picker", () => {
+    const out = html(createElement(ItemMailThread, { messages: mails(), own: [], newest: "m2", reacting: controls() }));
+    expect(out).toContain("loki-slack-hoverbar");
+    expect(out.indexOf("👀")).toBeLessThan(out.indexOf("✅"));
+    expect(out.indexOf("✅")).toBeLessThan(out.indexOf("👍"));
+    expect(out).not.toContain("🙏");
+    expect(out).toContain('aria-label="Add a reaction"');
+  });
+
+  test("Covers AE3. the person's own pill says a mail reaction can't be taken back, and neither it nor that emoji sends anything", () => {
+    const c = controls();
+    const messages = mails({ reactions: [thumbs(true)] });
+    const out = html(createElement(ItemMailThread, { messages, own: [], newest: "m2", reacting: c }));
+    expect(out).toContain('title="A mail reaction can&#x27;t be taken back"');
+    expect(out).toContain('aria-disabled="true"');
+    const r = must(row(must(messages[1], "Ben's mail"), c), "Ben's mail reacting");
+    r.toggle(thumbs(true));
+    r.pick({ name: "thumbsup", emoji: { kind: "emoji", text: "👍" } });
+    expect(c.sent).toEqual([]);
+  });
+
+  test("pressing someone else's 👍 pill adds the person's", () => {
+    const c = controls();
+    const messages = mails({ reactions: [thumbs(false)] });
+    must(row(must(messages[1], "Ben's mail"), c), "Ben's mail reacting").toggle(thumbs(false));
+    expect(c.sent).toEqual([["m2", "+1", true]]);
+  });
+
+  test("Covers AE4. a mail Gmail takes no reaction for has no hover bar, its pills don't respond, and ⌘⇧\\ opens nothing", () => {
+    const c = controls();
+    const messages = mails({ reactable: undefined, reactions: [thumbs(false)] });
+    const out = html(createElement(ItemMailThread, { messages, own: [], newest: "m2", reacting: c }));
+    expect(out).not.toContain("loki-slack-hoverbar");
+    expect(out).toMatch(/<button[^>]*\sdisabled=""/);
+    expect(row(must(messages[1], "Ben's mail"), c)).toBeUndefined();
+    expect(reactTarget(messages, "m2", true)).toBeNull();
+    expect(reactTarget(mails(), "m2", true)).toBe("m2");
+  });
+
+  test("Covers AE5. a refused reaction says why under that mail", () => {
+    const reacting = { ...controls(), refusal: { messageId: "m2", text: "Couldn't add the reaction: Gmail said no" } };
+    const out = html(createElement(ItemMailThread, { messages: mails(), own: [], newest: "m2", reacting }));
+    expect(out).toContain("Couldn&#x27;t add the reaction: Gmail said no");
   });
 });

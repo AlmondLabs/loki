@@ -314,7 +314,7 @@ export class FrameChatClient {
   }
 
   async reactOutside(accountId: string, threadId: string, messageId: string, name: string, on: boolean, home: string | null): Promise<void> {
-    await this.call("account_thread_react", { account_id: accountId, thread_id: threadId, message_id: messageId, name, on, home });
+    await this.call("account_thread_react", { account_id: accountId, thread_id: threadId, message_id: messageId, name, on, home }, 30_000);
   }
 
   async searchEmoji(accountId: string, query: string, home: string | null): Promise<EmojiChoice[]> {

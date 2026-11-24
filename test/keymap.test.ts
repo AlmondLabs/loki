@@ -614,6 +614,9 @@ describe("reacting on a Slack card (plan 079)", () => {
     expect(matches(ev("|", { meta: true, shift: true }), spec)).toBe(true);
     expect(matches(ev("|", { meta: true }), spec)).toBe(false);
   });
+  test("the key names no service, since a mail card reacts with it too (plan 2026-11-23-1800, U7)", () => {
+    expect(must(KEYMAP.find((b) => b.id === "inbox.react")).label).toBe("react with an emoji");
+  });
 });
 
 describe("the Go menu", () => {

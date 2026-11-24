@@ -41,6 +41,10 @@ describe("waits that must outlast what they wait on", () => {
     expect(peerMeaning("account_thread_resend")).toEqual(peerMeaning("account_thread_reply"));
     expect(peerMeaning("account_thread_handoff")?.timeout_ms).toBe(HANDOFF_WAIT_MS);
   });
+  test("a reaction waits as long as compose, since a mail reaction reads the thread in full before it sends (plan 2026-11-23-1800)", () => {
+    expect(peerMeaning("account_thread_react")?.timeout_ms).toBe(30_000);
+    expect(peerMeaning("account_thread_react")?.timeout_ms).toBe(peerMeaning("account_thread_compose")?.timeout_ms);
+  });
 });
 
 describe("the frame table", () => {
