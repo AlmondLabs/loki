@@ -87,25 +87,37 @@ describe("desk pane: chat keys act on the visible view", () => {
 
 describe("desk pane: ticks reach only the view that showed when they were bumped", () => {
   test("a bump goes to the visible view", () => {
-    const r = routeTick(EMPTY_ROUTE, 1, "messages");
+    const r = routeTick(EMPTY_ROUTE, 1, "messages", "a");
     expect(tickFor(r, "messages")).toBe(1);
     expect(tickFor(r, "inset")).toBe(0);
   });
   test("switching views without a bump delivers nothing, so a remount does not replay it", () => {
-    let r = routeTick(EMPTY_ROUTE, 3, "messages");
-    r = routeTick(r, 3, "inset");
+    let r = routeTick(EMPTY_ROUTE, 3, "messages", "a");
+    r = routeTick(r, 3, "inset", "a");
     expect(tickFor(r, "inset")).toBe(0);
-    r = routeTick(r, 3, "messages");
+    r = routeTick(r, 3, "messages", "a");
     expect(tickFor(r, "messages")).toBe(0);
   });
   test("opening from the Inbox: the segment and the bump change together, and Messages gets it", () => {
-    let r = routeTick(EMPTY_ROUTE, 2, null);
-    r = routeTick(r, 3, "messages");
+    let r = routeTick(EMPTY_ROUTE, 2, null, "a");
+    r = routeTick(r, 3, "messages", "a");
     expect(tickFor(r, "messages")).toBe(3);
   });
+  test("switching chats without a bump delivers nothing, so ⌘K does not reopen in the next chat", () => {
+    let r = routeTick(EMPTY_ROUTE, 1, "messages", "a");
+    r = routeTick(r, 1, "messages", "b");
+    expect(tickFor(r, "messages")).toBe(0);
+    r = routeTick(r, 1, "messages", "a");
+    expect(tickFor(r, "messages")).toBe(0);
+  });
+  test("opening another chat with a bump delivers it there", () => {
+    let r = routeTick(EMPTY_ROUTE, 1, "messages", "a");
+    r = routeTick(r, 2, "messages", "b");
+    expect(tickFor(r, "messages")).toBe(2);
+  });
   test("an unchanged render keeps the same route", () => {
-    const r = routeTick(EMPTY_ROUTE, 1, "messages");
-    expect(routeTick(r, 1, "messages")).toBe(r);
+    const r = routeTick(EMPTY_ROUTE, 1, "messages", "a");
+    expect(routeTick(r, 1, "messages", "a")).toBe(r);
   });
 });
 

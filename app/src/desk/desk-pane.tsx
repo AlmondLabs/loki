@@ -79,9 +79,9 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   onCloseAdvisor: () => void;
 }
 
-function useRouted(value: number, visible: PaneView | null): TickRoute {
-  const [route, setRoute] = useState<TickRoute>(() => ({ ...EMPTY_ROUTE, value }));
-  const next = routeTick(route, value, visible);
+function useRouted(value: number, visible: PaneView | null, chat: string): TickRoute {
+  const [route, setRoute] = useState<TickRoute>(() => ({ ...EMPTY_ROUTE, value, chat }));
+  const next = routeTick(route, value, visible, chat);
   if (next !== route) setRoute(next);
   return next;
 }
@@ -97,12 +97,12 @@ export function DeskPane(props: DeskPaneProps) {
   const [draftValue, setDraft] = useDraft(key);
   const draft = useMemo(() => (key ? { value: draftValue, onChange: setDraft } : undefined), [key, draftValue, setDraft]);
 
-  const focus = useRouted(props.focusChat, visible);
-  const find = useRouted(props.findChat, visible);
-  const model = useRouted(props.modelPickerTick, visible);
-  const mode = useRouted(props.modeMenuTick, visible);
-  const suggest = useRouted(props.suggestionsTick, visible);
-  const prefill = useRouted(props.chatPrefill?.tick ?? 0, visible);
+  const focus = useRouted(props.focusChat, visible, scope);
+  const find = useRouted(props.findChat, visible, scope);
+  const model = useRouted(props.modelPickerTick, visible, scope);
+  const mode = useRouted(props.modeMenuTick, visible, scope);
+  const suggest = useRouted(props.suggestionsTick, visible, scope);
+  const prefill = useRouted(props.chatPrefill?.tick ?? 0, visible, scope);
   const prefillFor = (v: PaneView) => (props.chatPrefill && tickFor(prefill, v) ? props.chatPrefill : null);
 
   const [labeling, setLabeling] = useState(false);
