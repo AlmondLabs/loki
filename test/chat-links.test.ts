@@ -122,10 +122,11 @@ describe("a chat message in the thread", () => {
     expect(chatMessageOf(block)).toEqual({ from_agent: A.agent_id, from_chat: A.conversation_id, title: 'repo "main"', text });
     const [row] = extractHarnessEvents(block);
     expect(row).toEqual({
-      text: 'from repo "main"',
+      text: 'From repo "main"',
       summary: "Is the cert renewed?",
       detail: text,
       link: { agent_id: A.agent_id, conversation_id: A.conversation_id },
+      event: "chat_message",
     });
   });
 

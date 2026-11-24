@@ -1,5 +1,5 @@
-import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
-import { answerOf, unansweredText, type AdvisorAnswer } from "./advisor.ts";
+import type { EventKind, FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
+import { answerOf, type AdvisorAnswer } from "./advisor.ts";
 import { shellTitle } from "./shell-title.ts";
 
 const ANSWER_BLOCK = /<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g;
@@ -64,49 +64,56 @@ export interface HarnessEvent {
   detail: string | null;
   link?: { agent_id: string; conversation_id: string };
   advisor_chat?: string;
+  event?: EventKind;
+  /** Set on what the person did before writing (their canvas gestures, the suggestion they sent from): placed before their words. */
+  yours?: true;
 }
 
-const ANSWER_PREVIEW_LINES = 3;
-const ANSWER_PREVIEW_CHARS = 300;
+const LINE_CHARS = 300;
 
-function answerPreview(text: string): string {
-  const lines = text
+function plainLine(text: string): string | null {
+  const first = text
     .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const shown = lines.slice(0, ANSWER_PREVIEW_LINES).join("\n");
-  if (shown.length > ANSWER_PREVIEW_CHARS) return `${shown.slice(0, ANSWER_PREVIEW_CHARS - 1).trimEnd()}…`;
-  return lines.length > ANSWER_PREVIEW_LINES ? `${shown}…` : shown;
+    .map((l) =>
+      l
+        .replace(/^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)/, "")
+        .replace(/(\*\*|__|`)/g, "")
+        .trim(),
+    )
+    .find(Boolean);
+  if (!first) return null;
+  return first.length > LINE_CHARS ? `${first.slice(0, LINE_CHARS - 1).trimEnd()}…` : first;
 }
 
 function advisorEvent(a: AdvisorAnswer): HarnessEvent {
-  const text = a.from === "person" ? "From the advisor · you asked" : "From the advisor · the agent asked";
+  const who = a.from === "person" ? "you asked" : "the agent asked";
   return a.state === "answered"
-    ? { text, summary: answerPreview(a.text), detail: a.text, advisor_chat: a.advisor_chat }
-    : { text, summary: unansweredText(a.reason), detail: null, advisor_chat: a.advisor_chat };
+    ? { text: `Advisor answered · ${who}`, summary: plainLine(a.text), detail: a.text, advisor_chat: a.advisor_chat, event: "advisor" }
+    : { text: `Advisor couldn't answer · ${who}`, summary: a.reason, detail: null, advisor_chat: a.advisor_chat, event: "advisor" };
+}
+
+function canvasWords(lines: readonly string[]): string {
+  const widgets = new Set(lines.map((l) => /"[^"]*"(?: \([^)]*\))?/.exec(l)?.[0] ?? l));
+  const moved = lines.length > 0 && lines.every((l) => l.startsWith("moved "));
+  return `You ${moved ? "moved" : "changed"} ${String(widgets.size)} ${widgets.size === 1 ? "widget" : "widgets"}`;
 }
 
 export function extractHarnessEvents(whole: string): HarnessEvent[] {
   const answers = [...whole.matchAll(ANSWER_BLOCK)].flatMap((m) => answerOf(m[0]) ?? []);
   const text = whole.replace(ANSWER_BLOCK, "");
   const out: HarnessEvent[] = [];
-  for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
-    const desk = m.at(1) ?? null;
-    const lines = m[2]
+  for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="[^"]*")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
+    const lines = m[1]
       .split("\n")
       .map((l) => l.trim())
       .filter((l) => l.startsWith("- "))
       .map((l) => l.slice(2));
-    out.push({
-      text: "canvas activity",
-      summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
-      detail: lines.length ? lines.join("\n") : null,
-    });
+    out.push({ text: canvasWords(lines), summary: null, detail: lines.length ? lines.join("\n") : null, event: "canvas", yours: true });
   }
   for (const m of text.matchAll(/<loki-moved\b([^>]*)\/>/g)) {
     const was = decodeEntities(/\bfrom="([^"]*)"/.exec(m[1])?.[1] ?? "");
     const now = decodeEntities(/\bto="([^"]*)"/.exec(m[1])?.[1] ?? "");
-    out.push({ text: `moved to ${now || "this Mac"}`, summary: was ? `came over from ${was}` : null, detail: null });
+    out.push({ text: `Moved to ${now || "this Mac"}`, summary: was ? `from ${was}` : null, detail: null, event: "moved" });
   }
   const suggested = suggestedOf(text);
   if (suggested)
@@ -115,11 +122,12 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
       summary: suggested.title || null,
       detail: null,
       link: { agent_id: suggested.from_agent, conversation_id: suggested.from_chat },
+      yours: true,
     });
   const message = chatMessageOf(text);
   if (message)
     out.push({
-      text: `from ${message.title || "another chat"}`,
+      text: `From ${message.title || "another chat"}`,
       summary:
         message.text
           .split("\n")
@@ -128,6 +136,7 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
           .slice(0, 120) ?? null,
       detail: message.text,
       link: { agent_id: message.from_agent, conversation_id: message.from_chat },
+      event: "chat_message",
     });
   out.push(...answers.map(advisorEvent));
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
