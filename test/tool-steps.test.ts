@@ -121,11 +121,13 @@ describe("a step's title: the agent's description, else its command without the 
   });
 
   test("a long path keeps its end, so the step's file name survives the cut; other long targets keep their start", () => {
-    const path = `/Users/someone/.agents/skills/${"deep/".repeat(12)}fmt-docs-writer/SKILL.md`;
-    const label = toolLabel("read", { path });
-    expect(label.endsWith("/fmt-docs-writer/SKILL.md")).toBe(true);
+    const deep = `/Users/someone/projects/${"deep/".repeat(12)}`;
+    const label = toolLabel("read", { path: `${deep}docs/outline-guide.md` });
+    expect(label.endsWith("/docs/outline-guide.md")).toBe(true);
     expect(label).toContain("read · …");
-    expect(stepLine({ role: "tool", text: label, tool: { name: "read" } }).title).toBe("SKILL.md");
+    expect(stepLine({ role: "tool", text: label, tool: { name: "read" } }).title).toBe("outline-guide.md");
+    const skill = toolLabel("read", { path: `${deep}fmt-docs-writer/SKILL.md` });
+    expect(stepLine({ role: "tool", text: skill, tool: { name: "read" } }).title).toBe("fmt-docs-writer");
     const query = "x".repeat(100);
     expect(toolLabel("web_search", { query })).toBe(`web_search · ${"x".repeat(77)}…`);
   });
