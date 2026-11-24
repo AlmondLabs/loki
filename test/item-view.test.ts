@@ -105,6 +105,46 @@ describe("an agent chat", () => {
     expect(turns.map((t) => t.kind).filter((k) => k !== "day")).toEqual(["message", "turn", "new", "turn"]);
   });
 
+  test("a command you ran ends the agent's turn and sits outside it; the agent's next work is a turn below it (R5)", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const turns = turnsOf([
+      { role: "user", text: "go", at },
+      { role: "assistant", text: "Done.", at },
+      { role: "event", text: "/compact", summary: "Done", event: "command", at },
+      { role: "assistant", text: "Compacted, carrying on.", at },
+    ]);
+    expect(turns.map((t) => t.kind).filter((k) => k !== "day")).toEqual(["message", "turn", "command", "turn"]);
+  });
+
+  test("a command run while the agent works leaves that turn working, or needing you, with its step still running", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const rows: TranscriptRow[] = [
+      { role: "user", text: "go", at },
+      { role: "tool", text: "Bash · npm test", tool: { name: "Bash" }, at },
+      { role: "event", text: "/advisor is it right?", summary: "Running", event: "command", at },
+    ];
+    for (const [busy, waiting, state] of [
+      [true, false, "working"],
+      [false, true, "needs you"],
+    ] as const) {
+      const turns = threadTurns(
+        threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, widgets: [], busy, arrivedFrom: rows.length, now: NOW }),
+        { busy, waiting },
+      );
+      const turn = turns.find((t) => t.kind === "turn");
+      expect(turn?.kind === "turn" && turn.state).toBe(state);
+      expect(turns.at(-1)?.kind).toBe("command");
+    }
+    const busyTurn = threadTurns(
+      threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, widgets: [], busy: true, arrivedFrom: rows.length, now: NOW }),
+      {
+        busy: true,
+        waiting: false,
+      },
+    ).find((t) => t.kind === "turn");
+    expect(busyTurn?.kind === "turn" && busyTurn.parts.some((p) => p.kind === "steps" && p.running)).toBe(true);
+  });
+
   test("a background notice, a suggestion chip and an untyped event stay inside the turn they arrive in", () => {
     const at = "2026-11-11T10:00:00.000Z";
     const turns = turnsOf([

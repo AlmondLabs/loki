@@ -63,7 +63,7 @@ export type ItemEntry =
       in_thread: boolean;
     }
   | { kind: "event"; key: string; who: string | null; text: string; at: string }
-  | Extract<TurnEntry, { kind: "turn" | "day" | "new" }>
+  | Extract<TurnEntry, { kind: "turn" | "day" | "new" | "command" }>
   | { kind: "chat_message"; key: string; entry: Extract<TurnEntry, { kind: "message" }> };
 
 export type ProposalView =

@@ -25,6 +25,8 @@ export interface EntryInput {
 }
 
 export function threadEntries({ rows, from, above, dividerAt, dividerDay, widgets, busy, arrivedFrom, gaps, now = Date.now() }: EntryInput): ThreadEntry[] {
+  let liveEnd = rows.length;
+  while (liveEnd > 0 && rows[liveEnd - 1].event === "command") liveEnd--;
   const first = Math.max(0, Math.min(from, rows.length));
   const marks = new Map<number, WidgetMark[]>();
   for (const w of widgets) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
@@ -93,7 +95,7 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
       if (end === undefined) return;
       const run = rows.slice(i, end);
       const tail = run[run.length - 1];
-      const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output && tail.tool?.row === undefined;
+      const running = busy && end === liveEnd && tail.role === "tool" && !tail.tool?.output && tail.tool?.row === undefined;
       out.push({ kind: "steps", key, rows: run, running, arrived });
       return;
     }
@@ -115,6 +117,7 @@ export type TurnState = "working" | "needs you" | "failed" | "done";
 export type TurnEntry =
   | Extract<ThreadEntry, { kind: "day" | "new" }>
   | Extract<ThreadEntry, { kind: "message" }>
+  | { kind: "command"; key: string; row: TranscriptRow; arrived: boolean }
   | { kind: "turn"; key: string; parts: TurnPart[]; state: TurnState; failed: number; took: string | null };
 
 const opensTurn = (p: TurnPart): boolean => p.kind === "event" && (p.row.event === "advisor" || p.row.event === "chat_message");
@@ -142,6 +145,10 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
       close();
       out.push(...held, e);
       held = [];
+    } else if (e.kind === "event" && e.row.event === "command") {
+      close();
+      out.push(...held, { kind: "command", key: e.key, row: e.row, arrived: e.arrived });
+      held = [];
     } else if (opensTurn(e) && open !== null && !onlyOpeners(open)) {
       close();
       out.push(...held);
@@ -153,8 +160,9 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
     }
   }
   close();
-  const at = out.length - 1;
-  const last = out.at(-1);
+  let at = out.length - 1;
+  while (at >= 0 && out[at].kind === "command") at--;
+  const last = out.at(at);
   if (last?.kind === "turn" && (busy || waiting)) out[at] = { ...last, state: waiting ? "needs you" : "working" };
   out.push(...held);
   return out;

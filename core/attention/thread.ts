@@ -45,7 +45,13 @@ export function commandIdOf(input: string): string {
   return input.trim().replace(/^\//, "").split(/\s+/)[0]?.toLowerCase() ?? "";
 }
 
-const RUNNING = "running…";
+const RUNNING = "Running";
+const FAILED = "Failed";
+export const RELOADED = "Reloaded: the mod restarted and the link is back";
+
+export const commandRunning = (row: TranscriptRow): boolean => row.event === "command" && row.summary === RUNNING;
+
+export const commandFailed = (row: TranscriptRow): boolean => row.event === "command" && (row.summary === FAILED || !!row.summary?.startsWith(`${FAILED}: `));
 
 export const COMPACTED_TEXT = "chat compacted";
 const COMPACTING_TEXT = "compacting the chat";
@@ -118,6 +124,9 @@ function eventRow(ev: HarnessEvent, at: string | null): TranscriptRow {
     ...rowAt(at),
   };
 }
+
+const SKILL_LOADED = "skill loaded";
+const SKILL_TOOLS: ReadonlySet<string> = new Set(["Skill", "skill"]);
 
 export class ThreadModel {
   private history: TranscriptRow[] | null = null;
@@ -320,7 +329,7 @@ export class ThreadModel {
   finishCommand(input: string, success: boolean, output: string, at: string): void {
     const text = output.trim();
     const oneLine = text.split("\n").length === 1 && text.length <= 90;
-    const summary = !success ? (oneLine && text ? `failed: ${text}` : "failed") : oneLine ? text || "done" : "done";
+    const summary = !success ? (oneLine && text ? `${FAILED}: ${text}` : FAILED) : oneLine ? text || "Done" : "Done";
     const detail = !oneLine && text ? text : null;
     const row = this.runningRow(input);
     if (!row) return this.push({ role: "event", text: input, summary, detail, event: "command", at });
@@ -338,10 +347,10 @@ export class ThreadModel {
     for (const r of this.tail) {
       if (r.role !== "event" || r.summary !== RUNNING) continue;
       if (commandIdOf(r.text) === "reload") {
-        r.summary = "reloaded — the mod restarted and the link is back";
+        r.summary = RELOADED;
         r.detail = null;
       } else {
-        r.summary = "failed";
+        r.summary = FAILED;
         r.detail = "the link to loki's daemon dropped while this ran; its answer was lost";
       }
       changed = true;
@@ -459,7 +468,9 @@ export class ThreadModel {
   }
 
   private user(raw: string, at: string | null, images: readonly string[] = []): { changed: boolean; spoke: string | null } {
-    const events = extractHarnessEvents(raw).map((ev) => ({ yours: ev.yours === true, row: eventRow(ev, at) }));
+    const events = extractHarnessEvents(raw)
+      .filter((ev) => !this.skillAnswered(ev))
+      .map((ev) => ({ yours: ev.yours === true, row: eventRow(ev, at) }));
     const before = events.filter((e) => e.yours).map((e) => e.row);
     const after = events.filter((e) => !e.yours).map((e) => e.row);
     const typed = stripHarnessMarkup(raw).trim();
@@ -481,6 +492,19 @@ export class ThreadModel {
     }
     for (const row of after) this.push(row);
     return { changed: true, spoke: text };
+  }
+
+  private skillAnswered(ev: HarnessEvent): boolean {
+    if (ev.text !== SKILL_LOADED || !ev.summary || ev.detail === null) return false;
+    for (let i = this.tail.length - 1; i >= 0; i--) {
+      const r = this.tail[i];
+      if (r.role !== "tool" || !r.tool || !SKILL_TOOLS.has(r.tool.name) || r.text !== `${r.tool.name} · ${ev.summary}`) continue;
+      if (r.tool.output !== undefined && !r.tool.output.startsWith("Launching skill")) return false;
+      this.tail[i] = { ...r, tool: { ...r.tool, output: ev.detail } };
+      this.touch();
+      return true;
+    }
+    return false;
   }
 
   private shownSend(key: string): number {
@@ -513,6 +537,8 @@ export class ThreadModel {
       if (typeof args === "string") this.args.set(id, args);
     }
     this.settle(at);
+    const last = this.tail.at(-1);
+    if (last && this.modelErrors.has(last)) this.tail.pop();
     this.push({ role: "tool", text: toolLabel(name, args), ...rowAt(at), tool: toolStep(name, args, id, kind) });
     return true;
   }

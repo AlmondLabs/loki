@@ -7,7 +7,6 @@ import { shownStep } from "../core/attention/pi-steps.ts";
 import { shellTitle } from "../core/shell-title.ts";
 import { must } from "./fixtures/must.ts";
 import {
-  withoutSkillCalls,
   isNamedStep,
   isWorkRow,
   lastFailure,
@@ -165,7 +164,7 @@ describe("loki's tools, and Claude Code's names for the same steps", () => {
     for (const [loki, claude, verb] of [
       ["background_watch", "Monitor", "Waited on a command"],
       ["subagent", "Agent", "Asked an agent"],
-      ["skill", "Skill", "Loaded skill"],
+      ["skill", "Skill", "Read skill"],
       ["user_ask", "AskUserQuestion", "Asked you"],
     ] as const) {
       expect(stepVerb(loki), loki).toBe(verb);
@@ -299,14 +298,18 @@ describe("Codex-style tools", () => {
   });
 });
 
-describe("skills", () => {
-  test("the Skill call is dropped when the skill's body follows: one line per skill", async () => {
-    const { toolStep, toolLabel } = await import("../core/harness.ts");
-    const call = (name: string): TranscriptRow => ({ role: "tool", text: toolLabel("Skill", { skill: name }), tool: toolStep("Skill", { skill: name }) });
-    const body = (name: string): TranscriptRow => ({ role: "event", text: "skill loaded", summary: name, detail: "# body" });
-    expect(stepTarget(call("loki"))).toBe("loki");
-    const rows = [call("loki"), body("loki"), call("show-me"), body("show-me"), call("never-came")];
-    expect(withoutSkillCalls(rows).map((r) => `${r.role}:${stepTarget(r)}`)).toEqual(["event:loki", "event:show-me", "tool:never-came"]);
+describe("skills are read steps (plan 2026-11-24-1736, R4)", () => {
+  test("Claude Code's skill call, loki's read of a SKILL.md and an old Skill call each read as the skill", () => {
+    expect(line(tool("Load skill: ce-plan", ""))).toEqual(["ce-plan", "Skill", "skill"]);
+    expect(line(tool("read", "/Users/me/.agents/skills/apple-hig/SKILL.md"))).toEqual(["apple-hig", "Skill", "skill"]);
+    expect(line(tool("Read", "C:\\skills\\unslop\\SKILL.md"))).toEqual(["unslop", "Skill", "skill"]);
+    expect(line(tool("Skill", "ce-plan"))).toEqual(["ce-plan", "Skill", "skill"]);
+    expect(line(tool("read", "/a/b/README.md"))).toEqual(["README.md", "Read", "file"]);
+  });
+
+  test("a lone skill step sums up as reading that skill", () => {
+    expect(workSummary([tool("Load skill: ce-plan", "")])).toBe("Read skill ce-plan");
+    expect(workSummary([tool("read", "/x/skills/apple-hig/SKILL.md")])).toBe("Read skill apple-hig");
   });
 });
 

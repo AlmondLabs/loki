@@ -4,19 +4,7 @@ import { BrainIcon, ListChecksIcon, WrenchIcon } from "lucide-react";
 import type { PlanItem, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { ChainOfThought, ChainOfThoughtContent, ChainOfThoughtHeader, ChainOfThoughtStep } from "@/ui/ai-elements/chain-of-thought";
 import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
-import {
-  isNamedStep,
-  stepFailed,
-  stepKind,
-  stepName,
-  stepTarget,
-  stepTitle,
-  stepIconOf,
-  stepLines,
-  withoutSkillCalls,
-  workSummary,
-  type StepLine,
-} from "../shared/tool-steps";
+import { isNamedStep, stepFailed, stepKind, stepName, stepTarget, stepTitle, stepIconOf, stepLines, workSummary, type StepLine } from "../shared/tool-steps";
 import { Button } from "@/ui/button";
 import { Shimmer } from "@/ui/ai-elements/shimmer";
 import { Task, TaskContent, TaskItem, TaskTrigger } from "@/ui/ai-elements/task";
@@ -54,7 +42,7 @@ export const Work = memo(
     planAsBefore?: boolean;
   }) {
     const plan = stretchPlan(all);
-    const rows = withoutSkillCalls(all).filter((r) => !r.tool?.plan);
+    const rows = all.filter((r) => !r.tool?.plan);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);
     const [filter, setFilter] = useState<Filter>("all");

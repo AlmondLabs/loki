@@ -304,7 +304,7 @@ are on is read.
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
   compacted); the list holds reflection's runs among the latest changes, and the one you choose is read under the
-  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
+  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest; the chat shows that read as a step named after the skill (**Read skill** in a summary), as it does a Claude Code chat's skill. **Skills**:
   one row each in the list, in two groups — **self**, the ones the agent (or you) wrote ("write" over the skill adds one, "install" takes a
   source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
@@ -519,7 +519,7 @@ failed"). Tapping it opens a sheet, as in Claude's app: each step is what kind i
 agent") over what it was for on one line (the few words the agent gave the call, its trimmed command, or a file's
 name), and a step
 opens to its description, command and output under the tool's name. A chat's history arrives without each step's command and output, which were most of its size, and without a
-background task's or loaded skill's result longer than 1,000 characters; opening a step or that line asks the Mac the
+background task's or skill's result longer than 1,000 characters; opening a step or that line asks the Mac the
 chat lives on for them ("Loading this step…"), on the phone and the desktop alike. Find in a chat does not search what
 has not been opened yet.
 
@@ -607,7 +607,7 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 - serves each conversation's full transcript (`history_get`), which survives compaction, and keeps the read
   (`seen_mark`), viewed (`viewed_mark`) and focus marks Flow and the sidebar need
 - keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
-  to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
+  to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget; your own gestures on the canvas show as one line before the message they went with ("You moved 2 widgets", or "You changed…" when they were not all moves), which opens to the list
 - keeps pins in `~/.loki/state/pins.json`
 - tools, for scripts: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes, which every chat's prompt explains.
 - keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` (for scripts)
@@ -954,7 +954,9 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/flow` (`/inbox`
   run it again.
 
 ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away. A command lands
-in the transcript as one quiet row: the command line, then its outcome. `core/attention/commands.ts` is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
+in the transcript on your side, as you ran it: the command line, then its outcome under it (**Running**, its
+one-line answer or **Done**, or **Failed** and why), with **Show Output** when there is more. On the Mac it sits
+between the agent's turns, not inside one. `core/attention/commands.ts` is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
 message on the clipboard as the markdown it was written in, not the rendering.
 
 ### Learn (⌘5)
@@ -1631,7 +1633,8 @@ next start.
 A run that cannot reach the model (the Mac had no network, the provider was down) tries again after 5, 15 and 60
 minutes, its prompt saying it is another try. A turn that got through, or ended any other way, is not tried again, and
 the next slot due replaces a try still waiting. Any chat whose model could not be reached says so in its thread, with
-the provider's message ("the model could not be reached · 4 tries"), after a reload too.
+the provider's message ("the model could not be reached · 4 tries"), after a reload too, until the agent goes on:
+once a try gets through, with words or a step, the line goes.
 
 The agent has no clock: the app tells it the time in a hidden note on what you send. Everything loki sends a chat
 itself carries the Mac's local time too, after its text and hidden in the thread like yours: a scheduled task's
@@ -1722,8 +1725,9 @@ agent, and its Mac when that is another) and shows the message. You pick:
 The card asks in every permission mode, unrestricted included, and **always allow** never covers `chat_message`: a
 link is opened only on this card. While a link is open, messages along it go without asking.
 
-**What the other chat gets.** The message lands as a row of its own, **from** the chat that sent it, with a link back;
-never as your message. It starts a turn there, or waits for the running one to end, as a message you typed would. That
+**What the other chat gets.** The message lands as one line of its own, **From** the chat that sent it and its first
+line, which opens to the whole message and an **Open Chat** button; never as your message. On the Mac, one that comes
+on its own heads the agent's turn it starts. It starts a turn there, or waits for the running one to end, as a message you typed would. That
 agent is told the message comes from another agent, that it may decline, and whether it may answer: along a link that
 runs both ways it answers with `chat_message`, and along a one-way link it cannot. The sending chat shows the call as
 a step, with its text.

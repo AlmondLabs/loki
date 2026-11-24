@@ -1,21 +1,22 @@
-import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
 
 import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
+import { commandFailed, commandRunning } from "../../../core/attention/thread.ts";
 import { withoutReplies } from "../../../core/harness.ts";
 import { chatImageUrl, inTauri } from "../desk/env";
 import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/agent-chip";
-import { Icon, Glyph } from "../shared/icons";
+import { Icon, Glyph, type IconName } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
 import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
-import { CheckIcon, CopyIcon, LightbulbIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, LightbulbIcon, LoaderCircleIcon } from "lucide-react";
 import { Marker, MarkerContent, MarkerIcon } from "@/ui/marker";
 
 export type { TranscriptRow };
@@ -431,7 +432,116 @@ export function AdvisorAnswerRow({ row: m, arrived }: { row: TranscriptRow; arri
   );
 }
 
+const opens = (m: TranscriptRow): boolean => !!m.detail || m.row !== undefined;
+
+export function DisclosureLine({ row: m, icon, arrived, more }: { row: TranscriptRow; icon: IconName; arrived?: true; more?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const panel = useId();
+  const words = (
+    <>
+      <MarkerIcon>
+        <Icon name={icon} size={16} />
+      </MarkerIcon>
+      <MarkerContent className="truncate">
+        {m.text}
+        {m.summary && <span className="text-foreground"> · {m.summary}</span>}
+      </MarkerContent>
+    </>
+  );
+  if (!opens(m) && !more)
+    return (
+      <Marker data-row="event" data-arrived={arrived}>
+        {words}
+      </Marker>
+    );
+  return (
+    <div data-row="event" data-arrived={arrived} className="flex flex-col gap-2">
+      <Marker render={<button type="button" aria-expanded={open} aria-controls={panel} onClick={() => setOpen(!open)} />}>{words}</Marker>
+      {open && (
+        <div id={panel} className="flex flex-col items-start gap-2 pl-6">
+          {opens(m) && <EventDetail row={m} />}
+          {more}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ChatMessageLine({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const open = useContext(OpenChat);
+  const from = m.link;
+  const go = open && from ? () => open(from.agent_id, from.conversation_id) : null;
+  return (
+    <DisclosureLine
+      row={m}
+      icon="desk"
+      arrived={arrived}
+      more={
+        go && (
+          <Button size="sm" onClick={go}>
+            Open Chat
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+export function MovedLine({ row: m }: { row: TranscriptRow }) {
+  const words = m.summary ? `${m.text} · ${m.summary}` : m.text;
+  return (
+    <Marker variant="separator" role="separator" aria-label={words} data-row="event" className="text-xs">
+      <MarkerContent>{words}</MarkerContent>
+    </Marker>
+  );
+}
+
+export function CommandRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const [open, setOpen] = useState(false);
+  const panel = useId();
+  const running = commandRunning(m);
+  const failed = commandFailed(m);
+  return (
+    <div data-row="command" data-arrived={arrived} className="ml-auto flex max-w-[85%] flex-col items-end gap-1">
+      <code className="rounded-lg bg-accent px-3 py-2 text-sm text-foreground">{m.text}</code>
+      <div className={`flex items-center gap-2 text-xs ${failed ? "text-loki-negative" : "text-muted-foreground"}`}>
+        {running && <LoaderCircleIcon aria-hidden className="size-3 animate-spin motion-reduce:animate-none" />}
+        <span>{m.summary}</span>
+        {opens(m) && (
+          <Button bare size="sm" aria-expanded={open} aria-controls={panel} onClick={() => setOpen(!open)}>
+            {open ? "Hide Output" : "Show Output"}
+          </Button>
+        )}
+      </div>
+      {open && (
+        <div id={panel} className="self-stretch">
+          <EventDetail row={m} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function kindedEvent(m: TranscriptRow, arrived?: true): ReactNode {
+  switch (m.event) {
+    case "advisor":
+      return <AdvisorAnswerRow row={m} arrived={arrived} />;
+    case "command":
+      return <CommandRow row={m} arrived={arrived} />;
+    case "canvas":
+      return <DisclosureLine row={m} icon="widget" arrived={arrived} />;
+    case "chat_message":
+      return <ChatMessageLine row={m} arrived={arrived} />;
+    case "moved":
+      return <MovedLine row={m} />;
+    case undefined:
+      return null;
+  }
+}
+
 function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const kinded = kindedEvent(m, arrived);
+  if (kinded) return kinded;
   if (m.advisor_chat) return <AdvisorAnswerRow row={m} arrived={arrived} />;
   if (m.text === SUGGESTED) return <SuggestedRow row={m} arrived={arrived} />;
   return <DetailEventRow row={m} arrived={arrived} />;
