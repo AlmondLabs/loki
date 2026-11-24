@@ -124,6 +124,26 @@ describe("an email thread on the item components", () => {
     expect(out).toContain("invoice-2026-11.pdf");
   });
 
+  test("a folded and an opened mail share one head: a face, the name, and the date after it", () => {
+    const out = html(createElement(ItemMailThread, { messages: mails, own: ["ada@example.com"], now: new Date("2026-11-12T12:00:00Z") }));
+    expect(out.match(/>N</g)?.length).toBe(2);
+    expect(out.indexOf("Northwind billing")).toBeLessThan(out.indexOf(">11 Oct<"));
+    expect(out.indexOf(">11 Oct<")).toBeLessThan(out.indexOf("October&#x27;s invoice."));
+    expect(out.indexOf("billing@northwind.example")).toBeLessThan(out.indexOf(">11 Nov<"));
+    expect(out.indexOf(">11 Nov<")).toBeLessThan(out.indexOf("to you"));
+  });
+
+  test("your own mail opens with the same head, and where it went on its line", () => {
+    const sent = [
+      msg("m3", { sender: "Ada <ada@example.com>", mine: true, text: "Paid, thanks.", at: "2026-11-11T09:00:00Z", to: "billing@northwind.example" }),
+    ];
+    const out = html(createElement(ItemMailThread, { messages: sent, own: ["ada@example.com"], now: new Date("2026-11-12T12:00:00Z") }));
+    expect(out).toContain('data-row="person"');
+    expect(out).toContain(">You<");
+    expect(out).not.toContain("ada@example.com");
+    expect(out).toContain("to billing@northwind.example");
+  });
+
   test("the seam draws it for a mail card with items on", () => {
     const out = html(createElement(OutsideThread, { facts: facts({ provider: "gmail", place: null }), state: read(mails), items: true }));
     expect(out).toContain("data-mail-thread");

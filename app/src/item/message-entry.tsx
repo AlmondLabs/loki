@@ -22,67 +22,113 @@ const REMARK_PLUGINS = [remarkGfm];
 export function MessageEntry({
   entry: m,
   source,
-  status = null,
+  when,
+  detail = null,
+  line = null,
   onReact,
   first = true,
-  note = null,
   undoable = true,
   children,
 }: {
   entry: Extract<ItemEntry, { kind: "message" }>;
   source: ItemSource;
-  status?: string | null;
+  when?: string | null;
+  detail?: string | null;
+  line?: string | null;
   onReact?: (r: SlackReaction) => void;
   first?: boolean;
-  note?: string | null;
   undoable?: boolean;
   children?: ReactNode;
 }) {
-  const time = clockLabel(m.at);
-  const pills = <Reactions reactions={m.reactions} onToggle={onReact} title={source === "gmail" ? emojiTitle : undefined} undoable={undoable} />;
-  const parts = <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />;
-  if (m.from === "you" && source !== "slack" && source !== "jira")
-    return (
-      <Message from="user" data-row="user" className="max-w-full">
-        <MessageContent className="w-full gap-1 bg-accent! px-4! py-2!">
-          <div className="flex min-h-6 items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">You</span>
-            {time && <time dateTime={m.at}>{time}</time>}
-            {status && <span>· {status}</span>}
-          </div>
-          {parts}
-        </MessageContent>
-        {pills}
-        {children}
-      </Message>
-    );
   return (
     <div
       data-row="person"
       data-mentions={m.mentions_you || undefined}
-      className={cn("grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2", m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
+      className={cn(ENTRY_GRID, m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
     >
-      {first ? <Avatar who={m.who} src={m.avatar} /> : <span aria-hidden />}
+      {first ? <Face who={m.who} src={m.avatar} /> : <span aria-hidden />}
       <div className="flex min-w-0 flex-col gap-1">
         {first && (
-          <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
-            <span className="text-sm font-semibold text-foreground">{m.who}</span>
-            {time && <time dateTime={m.at}>{time}</time>}
-            {note && <span>{note}</span>}
+          <div className="flex min-w-0 flex-col">
+            <EntryHead who={m.who} detail={detail} when={when === undefined ? clockLabel(m.at) : when} at={m.at} />
+            {line && <EntryLine text={line} />}
           </div>
         )}
-        {parts}
-        {pills}
+        <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />
+        <Reactions reactions={m.reactions} onToggle={onReact} title={source === "gmail" ? emojiTitle : undefined} undoable={undoable} />
         {children}
       </div>
     </div>
   );
 }
 
-function Avatar({ who, src }: { who: string; src: string | null }) {
+export function FoldedEntry({
+  who,
+  avatar = null,
+  when,
+  at,
+  line,
+  onOpen,
+  children,
+}: {
+  who: string;
+  avatar?: string | null;
+  when: string | null;
+  at: string;
+  line: string;
+  onOpen: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-row="folded"
+      aria-expanded={false}
+      onClick={onOpen}
+      className={cn(ENTRY_GRID, "w-full cursor-pointer rounded-md px-2 py-1 text-left hover:bg-muted")}
+    >
+      <Face who={who} src={avatar} />
+      <span className="flex min-w-0 flex-col">
+        <EntryHead who={who} when={when} at={at} />
+        <span className="flex min-w-0 items-baseline gap-2">
+          <EntryLine text={line} />
+          {children}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+const ENTRY_GRID = "grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2";
+
+function EntryHead({ who, detail = null, when, at }: { who: string; detail?: string | null; when: string | null; at: string }) {
+  const t = at ? new Date(at) : null;
+  const full = t && !Number.isNaN(t.getTime()) ? t.toLocaleString() : undefined;
+  return (
+    <span className="flex min-w-0 items-baseline gap-2 text-xs text-muted-foreground">
+      <span className="loki-truncate text-sm font-semibold text-foreground">{who}</span>
+      {detail && <span className="loki-truncate flex-1 basis-0">{detail}</span>}
+      {when && (
+        <time dateTime={at} title={full} className="ml-auto shrink-0">
+          {when}
+        </time>
+      )}
+    </span>
+  );
+}
+
+function EntryLine({ text }: { text: string }) {
+  return (
+    <span title={text} className="loki-truncate block flex-1 text-xs text-muted-foreground">
+      {text}
+    </span>
+  );
+}
+
+function Face({ who, src }: { who: string; src: string | null }) {
   if (src) return <img src={src} alt="" className="size-8 rounded-md object-cover" />;
   return (
-    <span aria-hidden className="grid size-8 place-items-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
+    <span aria-hidden className="grid size-8 place-items-center rounded-md border border-border bg-accent text-xs font-semibold text-muted-foreground">
       {who.trim().charAt(0).toUpperCase() || "?"}
     </span>
   );

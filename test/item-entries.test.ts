@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { COMPACTED_TEXT } from "../core/attention/thread.ts";
 import type { SlackReaction } from "../core/frame-types.ts";
-import { ChatMessage, MessageEntry } from "../app/src/item/message-entry.tsx";
+import { ChatMessage, FoldedEntry, MessageEntry } from "../app/src/item/message-entry.tsx";
 import { ContentParts, WidgetArtifact } from "../app/src/item/content-parts.tsx";
 import { Reactions } from "../app/src/item/reactions.tsx";
 import { ChangeEntry, EventEntry } from "../app/src/item/event-entry.tsx";
@@ -56,10 +56,38 @@ describe("MessageEntry", () => {
     expect(html(createElement(MessageEntry, { entry: message({ in_thread: true }), source: "slack" }))).toContain("pl-6");
   });
 
-  test("yours is the block with where it went", () => {
-    const out = html(createElement(MessageEntry, { entry: message({ from: "you", who: "You" }), source: "gmail", status: "to billing@northwind.example" }));
-    expect(out).toContain('data-row="user"');
-    expect(out).toContain("· to billing@northwind.example");
+  test("the head is the name, then the detail, with when it was sent last; the line sits under it", () => {
+    const out = html(
+      createElement(MessageEntry, { entry: message(), source: "gmail", when: "14 Nov", detail: "priya@northwind.example", line: "to you, cc Ben" }),
+    );
+    expect(out.indexOf("Priya Raman")).toBeLessThan(out.indexOf("priya@northwind.example"));
+    expect(out.indexOf("priya@northwind.example")).toBeLessThan(out.indexOf(">14 Nov<"));
+    expect(out.indexOf(">14 Nov<")).toBeLessThan(out.indexOf("to you, cc Ben"));
+    expect(out.indexOf("to you, cc Ben")).toBeLessThan(out.indexOf("Thursday?"));
+  });
+
+  test("a message later in a run has no head and no line", () => {
+    const out = html(createElement(MessageEntry, { entry: message(), source: "slack", first: false, when: "10:12 AM", line: "to you" }));
+    expect(out).not.toContain("Priya Raman");
+    expect(out).not.toContain("10:12 AM");
+    expect(out).not.toContain("to you");
+    expect(out).toContain("Thursday?");
+  });
+
+  test("yours in mail has the same head as anyone's, with where it went on the line", () => {
+    const out = html(createElement(MessageEntry, { entry: message({ from: "you", who: "You" }), source: "gmail", line: "to billing@northwind.example" }));
+    expect(out).toContain('data-row="person"');
+    expect(out).toContain(">You<");
+    expect(out).toContain("to billing@northwind.example");
+  });
+
+  test("a folded entry is one button with the same head and one line, and no body", () => {
+    const out = html(createElement(FoldedEntry, { who: "Priya Raman", when: "14 Nov", at: "2026-11-14T08:15:00Z", line: "Can we move it?", onOpen: () => {} }));
+    expect(out).toContain('data-row="folded"');
+    expect(out).toContain('aria-expanded="false"');
+    expect(out).toContain(">P<");
+    expect(out.indexOf("Priya Raman")).toBeLessThan(out.indexOf(">14 Nov<"));
+    expect(out.indexOf(">14 Nov<")).toBeLessThan(out.indexOf("Can we move it?"));
   });
 
   test("yours in Slack and Jira sits in the run with your picture, as everyone else's does", () => {

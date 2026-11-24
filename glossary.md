@@ -240,6 +240,17 @@ an email or a Jira ticket, each turned into one `ItemView` by `item-view.ts`. It
 properties), its moves, a timeline of entries, its proposals and a Composer. _Avoid_: card (a Flow card is how an
 item sits in Flow's deck), conversation, thread (one part of an item).
 
+**Entry** (`app/src/item/message-entry.tsx`): one message in an item's timeline: a Slack message, a mail, a Jira
+comment. Its parts, in the order they read: the **face** (the sender's picture or initial), the **name**, the
+**detail** (muted words after the name: a mail's address), **when** (the date or time, always at the right edge), the
+**line** (one cut-off line under those) and the **body**. Face, name and when are the **head**. _Avoid_: row (a
+ThreadModel row, or a row of a list), header (an item's header), note, status.
+
+**Folded**, **opened**: an entry's two states. Folded, it is the head and one line, the body's first words, and
+pressing it opens it. Opened, it is the head with its detail, its line (who a mail went to) and its body. The head is
+the same in both, so only what sits under it changes. Mails before the newest start folded; a Slack message and a Jira
+comment are always opened. _Avoid_: collapsed, expanded, preview.
+
 **Proposal** (`app/src/item/proposal.tsx`, plan 097): anything an agent asks the person to decide, drawn above the
 Composer: an approval, a question, a reply proposal. _Avoid_: suggestion, which is loki's word for a message an agent
 writes for another chat (Suggestion), and AI Elements' word for a quick reply chip.
