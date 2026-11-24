@@ -4,7 +4,6 @@ import { Button, Sheet } from "../components";
 import { Icon } from "../shared/icons";
 import {
   isNamedStep,
-  withoutSkillCalls,
   lastFailure,
   stepFailed,
   stepIcon,
@@ -70,8 +69,7 @@ function NotLoaded({ retry }: { retry: () => void }) {
 }
 
 export const ToolSteps = memo(
-  function ToolSteps({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived?: true }) {
-    const rows = withoutSkillCalls(all);
+  function ToolSteps({ rows, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived?: true }) {
     const touch = useContext(StepsTouch);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);

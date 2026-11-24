@@ -577,6 +577,24 @@ describe("rows from one message, placed by who they are for (plan 2026-11-24-173
   });
 });
 
+describe("an imported skill's text is its call's result (plan 2026-11-24-1736, KTD4)", () => {
+  test("the Skill call takes the whole text, past the step cap, and no event row is left", () => {
+    const body = `# Plan\n${"x".repeat(6000)}`;
+    const rows = foldSteps([
+      call("Skill", "s1", { skill: "ce-plan" }),
+      result("s1", "Launching skill: ce-plan"),
+      user(`<skill_content name="ce-plan">\n${body}\n</skill_content>`),
+    ]);
+    expect(rows.map((r) => r.role)).toEqual(["tool"]);
+    expect(rows[0].tool?.output).toBe(body);
+  });
+
+  test("a skill's text with no call for it stays a row of its own", () => {
+    const rows = foldSteps([call("Skill", "s1", { skill: "other" }), user('<skill_content name="ce-plan">\n# Plan\n</skill_content>')]);
+    expect(rows.map((r) => r.role)).toEqual(["tool", "event"]);
+  });
+});
+
 describe("every source makes the same thread", () => {
   const report = '<attachment kind="file" local_path="/tmp/r.pdf" name="r.pdf" />';
   const dates = [

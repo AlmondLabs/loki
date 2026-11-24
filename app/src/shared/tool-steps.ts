@@ -21,7 +21,7 @@ const EDITED = entry("Edited", "Edited", "pencil", "edit", { path: true });
 const MEMORY_EDIT = entry("Updated memory", "Memory", "pencil", "edit", { path: true });
 const AGENT = entry("Asked an agent", "Agent", "bot", "agent");
 const ASKED = entry("Asked you", "Asked you", "question", "tool");
-const SKILL = entry("Loaded skill", "Skill", "skill", "skill");
+const SKILL = entry("Read skill", "Skill", "skill", "skill");
 const PLAN = entry("Updated the plan", "Plan", "checklist", "plan");
 const DRAFT = entry("Drafted a message", "Draft", "mail", "tool");
 
@@ -118,7 +118,19 @@ function entryOf(name: string, acpKind?: string): Entry {
   return entry(`Used ${nameAsWords(name).toLowerCase()}`, "Tool", "wrench", "tool");
 }
 
-const entryOfRow = (row: TranscriptRow): Entry => entryOf(stepName(row), row.tool?.acp_kind);
+const ACP_SKILL = /^Load skill: (.+)$/;
+const SKILL_FILE = /[\\/]([^\\/]+)[\\/]SKILL\.md$/;
+
+function skillOf(row: TranscriptRow): string | null {
+  if (row.role !== "tool") return null;
+  const name = stepName(row);
+  const acp = ACP_SKILL.exec(name);
+  if (acp) return acp[1].trim();
+  if (entryOf(name, row.tool?.acp_kind).kind !== "read") return null;
+  return SKILL_FILE.exec(plainTarget(row) ?? "")?.[1] ?? null;
+}
+
+const entryOfRow = (row: TranscriptRow): Entry => (skillOf(row) ? SKILL : entryOf(stepName(row), row.tool?.acp_kind));
 
 export function stepTitle(name: string): string {
   const mcp = MCP.exec(name);
@@ -202,12 +214,14 @@ export const stepFailed = (row: TranscriptRow): boolean =>
 export const stepName = (row: TranscriptRow): string =>
   row.role === "event" ? (isBackgroundTask(row) ? "Background task" : "Skill") : (row.tool?.name ?? row.text.split(" · ")[0].trim());
 
-export function stepTarget(row: TranscriptRow): string | null {
+function plainTarget(row: TranscriptRow): string | null {
   if (row.role === "event") return row.summary ?? null;
   if (row.tool?.description) return row.tool.description;
   const i = row.text.indexOf(" · ");
   return i >= 0 ? row.text.slice(i + 3).trim() || null : null;
 }
+
+export const stepTarget = (row: TranscriptRow): string | null => skillOf(row) ?? plainTarget(row);
 
 export function toolRuns(rows: TranscriptRow[], from = 0, breaks?: (i: number) => boolean): Map<number, number> {
   const runs = new Map<number, number>();
@@ -239,7 +253,7 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
   if (only?.tool?.description) return `${only.tool.description}${stepFailed(only) ? " · failed" : ""}`;
   const target = only?.role === "tool" && !["command", "background", "agent"].includes(stepKind(only)) ? stepTarget(only) : null;
   if (only && target) {
-    const verb = stepVerb(stepName(only));
+    const verb = entryOfRow(only).verb;
     return `${verb.endsWith(target) ? verb : `${verb} ${target}`}${stepFailed(only) ? " · failed" : ""}`;
   }
   const count = (k: StepKind) => rows.filter((r) => stepKind(r) === k).length;
@@ -267,9 +281,4 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
 export function lastFailure(rows: TranscriptRow[]): number | null {
   for (let k = rows.length - 1; k >= 0; k--) if (stepFailed(rows[k])) return k;
   return null;
-}
-
-export function withoutSkillCalls(rows: TranscriptRow[]): TranscriptRow[] {
-  const loaded = new Set(rows.filter((r) => r.role === "event" && r.text === "skill loaded").map((r) => r.summary ?? ""));
-  return rows.filter((r) => !(r.role === "tool" && entryOf(stepName(r)) === SKILL && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));
 }

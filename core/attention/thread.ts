@@ -119,6 +119,9 @@ function eventRow(ev: HarnessEvent, at: string | null): TranscriptRow {
   };
 }
 
+const SKILL_LOADED = "skill loaded";
+const SKILL_TOOLS: ReadonlySet<string> = new Set(["Skill", "skill"]);
+
 export class ThreadModel {
   private history: TranscriptRow[] | null = null;
   private historyStart: number | null = null;
@@ -459,7 +462,9 @@ export class ThreadModel {
   }
 
   private user(raw: string, at: string | null, images: readonly string[] = []): { changed: boolean; spoke: string | null } {
-    const events = extractHarnessEvents(raw).map((ev) => ({ yours: ev.yours === true, row: eventRow(ev, at) }));
+    const events = extractHarnessEvents(raw)
+      .filter((ev) => !this.skillAnswered(ev))
+      .map((ev) => ({ yours: ev.yours === true, row: eventRow(ev, at) }));
     const before = events.filter((e) => e.yours).map((e) => e.row);
     const after = events.filter((e) => !e.yours).map((e) => e.row);
     const typed = stripHarnessMarkup(raw).trim();
@@ -481,6 +486,19 @@ export class ThreadModel {
     }
     for (const row of after) this.push(row);
     return { changed: true, spoke: text };
+  }
+
+  private skillAnswered(ev: HarnessEvent): boolean {
+    if (ev.text !== SKILL_LOADED || !ev.summary || ev.detail === null) return false;
+    for (let i = this.tail.length - 1; i >= 0; i--) {
+      const r = this.tail[i];
+      if (r.role !== "tool" || !r.tool || !SKILL_TOOLS.has(r.tool.name) || r.text !== `${r.tool.name} · ${ev.summary}`) continue;
+      if (r.tool.output !== undefined && !r.tool.output.startsWith("Launching skill")) return false;
+      this.tail[i] = { ...r, tool: { ...r.tool, output: ev.detail } };
+      this.touch();
+      return true;
+    }
+    return false;
   }
 
   private shownSend(key: string): number {
