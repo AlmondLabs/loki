@@ -96,6 +96,18 @@ describe("a chat's advisor", () => {
     }
   });
 
+  test("with no advisor model, the advisor takes the agent's own effort with its model", async () => {
+    const s = await advisorSetup(() => ({ model_settings: { reasoning_effort: "high" } }));
+    try {
+      await s.store.createChat("c", { agent: { cwd: s.folder } }, ctx);
+      const agent = await opened(await s.advisors.open(AGENT, "c")).chat.agent(ctx);
+      expect(agent.model).toEqual(s.model);
+      expect(agent.thinkingLevel).toBe("high");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("an agent on Claude Code with no advisor model is refused with a note to set one in Agents › Profile, and no advisor is made (AE6)", async () => {
     const s = await advisorSetup(() => ({ model: "acp:claude/sonnet" }));
     try {

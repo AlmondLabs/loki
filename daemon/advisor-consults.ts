@@ -9,6 +9,7 @@ import {
   answerBlock,
   consultBlock,
   consultEnded,
+  consultRunning,
   firstLine,
   keptConsults,
   type AdvisorAnswer,
@@ -22,7 +23,7 @@ import { keyedQueue } from "../core/serial.ts";
 import type { Advisors } from "./advisor.ts";
 import type { MovedAdvisor } from "./chat-move.ts";
 import { unansweredWhy } from "./chat-events.ts";
-import type { AgentStore } from "./kernel/index.ts";
+import type { AgentStore, ChatInfo } from "./kernel/index.ts";
 
 export interface Advice {
   sendId: string;
@@ -87,6 +88,7 @@ export class AdvisorConsults {
   private readonly following = new Set<string>();
   private readonly waitingIdle = new Set<string>();
   private readonly changes = new Listeners<[agentId: string, chatId: string]>();
+  private readonly landed = new Listeners<[agentId: string, chatId: string]>();
 
   constructor(deps: ConsultDeps) {
     this.deps = deps;
@@ -94,6 +96,14 @@ export class AdvisorConsults {
 
   onChange(listener: (agentId: string, chatId: string) => void): () => void {
     return this.changes.add(listener);
+  }
+
+  onAnswerLanded(listener: (agentId: string, chatId: string) => void): () => void {
+    return this.landed.add(listener);
+  }
+
+  changed(agentId: string, chatId: string): void {
+    this.changes.emit(agentId, chatId);
   }
 
   private now(): Date {
@@ -104,12 +114,18 @@ export class AdvisorConsults {
     this.deps.report?.(message);
   }
 
-  async consult(agentId: string, chatId: string, from: ConsultFrom, text: string): Promise<ConsultReply> {
+  private async ledger(agentId: string, chatId: string): Promise<{ store: AgentStore; chat?: Conversation; info?: ChatInfo; consults: AdvisorConsult[] }> {
     const { context } = this.deps;
-    if (!text.trim()) return { refused: "a consult needs a text" };
     const store = await this.deps.stores.get(agentId);
     const chat = await store.chat(chatId, context);
     const info = chat ? await store.chatInfo(chat.id, context) : undefined;
+    return { store, chat, info, consults: info?.advisor_consults ?? [] };
+  }
+
+  async consult(agentId: string, chatId: string, from: ConsultFrom, text: string): Promise<ConsultReply> {
+    const { context } = this.deps;
+    if (!text.trim()) return { refused: "a consult needs a text" };
+    const { store, info } = await this.ledger(agentId, chatId);
     if (!info) return { refused: `no chat ${chatId}` };
     if (info.advisor_for !== undefined) return { refused: "an advisor chat has no advisor of its own" };
     if (info.hidden) return { refused: "a background chat has no advisor" };
@@ -172,27 +188,22 @@ export class AdvisorConsults {
 
   async view(agentId: string, chatId: string): Promise<AdvisorView | null> {
     const { context } = this.deps;
-    const store = await this.deps.stores.get(agentId);
+    const { store, chat, consults } = await this.ledger(agentId, chatId);
     const advisor = await store.chat(advisorChatId(chatId), context);
-    const chat = await store.chat(chatId, context);
     if (!advisor || !chat) return null;
-    const consults = (await store.chatInfo(chat.id, context))?.advisor_consults ?? [];
     const run = (await store.harness.snapshot(LiveDoc, advisor.id, context))?.run;
     const newest = [...consults].reverse().find((c) => consultEnded(c) && c.state !== "dropped");
     return {
       advisor_chat: advisorChatId(chatId),
       model: handleOf((await advisor.agent(context)).model),
-      working: run !== undefined || consults.some((c) => c.state === "running"),
+      working: run !== undefined || consultRunning(consults),
       waiting: consults.filter((c) => c.state === "queued").length,
       last_failure: newest?.state === "failed" || newest?.state === "stopped" ? newest.reason : null,
     };
   }
 
   async running(agentId: string, chatId: string): Promise<boolean> {
-    const store = await this.deps.stores.get(agentId);
-    const chat = await store.chat(chatId, this.deps.context);
-    const consults = chat ? ((await store.chatInfo(chat.id, this.deps.context))?.advisor_consults ?? []) : [];
-    return consults.some((c) => c.state === "running");
+    return consultRunning((await this.ledger(agentId, chatId)).consults);
   }
 
   drop(agentId: string, chatId: string): Promise<void> {
@@ -218,12 +229,9 @@ export class AdvisorConsults {
 
   hold(agentId: string, chatId: string, to: string): Promise<boolean> {
     return this.serial(this.keyOf(agentId, chatId), async () => {
-      const { context } = this.deps;
-      const store = await this.deps.stores.get(agentId);
-      const chat = await store.chat(chatId, context);
-      const consults = chat ? ((await store.chatInfo(chat.id, context))?.advisor_consults ?? []) : [];
-      if (!consults.some((c) => c.state === "running")) return false;
-      await store.updateChat(chatId, { move_to: to }, context);
+      const { store, consults } = await this.ledger(agentId, chatId);
+      if (!consultRunning(consults)) return false;
+      await store.updateChat(chatId, { move_to: to }, this.deps.context);
       return true;
     });
   }
@@ -255,11 +263,8 @@ export class AdvisorConsults {
   private pump(agentId: string, chatId: string): Promise<void> {
     return this.serial(this.keyOf(agentId, chatId), async () => {
       const { context } = this.deps;
-      const store = await this.deps.stores.get(agentId);
-      const chat = await store.chat(chatId, context);
-      const info = chat ? await store.chatInfo(chat.id, context) : undefined;
-      const consults = info?.advisor_consults ?? [];
-      if (info?.move_to || consults.some((c) => c.state === "running")) return;
+      const { store, info, consults } = await this.ledger(agentId, chatId);
+      if (info?.move_to || consultRunning(consults)) return;
       const next = consults.find((c) => c.state === "queued");
       if (!next) return;
       const opened = await this.deps.advisors.open(agentId, chatId);
@@ -343,22 +348,11 @@ export class AdvisorConsults {
   private end(agentId: string, chatId: string, consultId: string, outcome: Outcome): Promise<void> {
     return this.serial(this.keyOf(agentId, chatId), async () => {
       const { context } = this.deps;
-      const store = await this.deps.stores.get(agentId);
-      const chat = await store.chat(chatId, context);
-      const info = chat ? await store.chatInfo(chat.id, context) : undefined;
-      const consult = info?.advisor_consults?.find((c) => c.id === consultId);
+      const { store, chat, info, consults } = await this.ledger(agentId, chatId);
+      const consult = consults.find((c) => c.id === consultId);
       if (!chat || !consult || consultEnded(consult)) return;
       const answer: AdvisorAnswer = { from: consult.from, asked: consult.first_line, advisor_chat: advisorChatId(chatId), ...outcome };
-      try {
-        await this.deps.deliver(agentId, chatId, {
-          sendId: consult.id,
-          block: answerBlock(answer),
-          context: outcome.state === "answered" ? ANSWER_REMINDER : UNANSWERED_REMINDER,
-        });
-      } catch (e) {
-        this.report(`an advisor's answer did not reach chat ${chatId}: ${messageOf(e)}`);
-        return;
-      }
+      const ended = await this.delivered(agentId, chatId, consult.id, answer, outcome);
       const now = this.now();
       await store.updateConsults(
         chatId,
@@ -366,7 +360,7 @@ export class AdvisorConsults {
           keptConsults(
             list.map((c) =>
               c.id === consultId && !consultEnded(c)
-                ? { ...c, state: outcome.state, ended_at: now.toISOString(), reason: outcome.state === "answered" ? null : outcome.reason, text: null }
+                ? { ...c, state: ended.state, ended_at: now.toISOString(), reason: ended.state === "answered" ? null : ended.reason, text: null }
                 : c,
             ),
             now,
@@ -379,10 +373,28 @@ export class AdvisorConsults {
     });
   }
 
+  private async delivered(agentId: string, chatId: string, sendId: string, answer: AdvisorAnswer, outcome: Outcome): Promise<Outcome> {
+    try {
+      await this.deps.deliver(agentId, chatId, {
+        sendId,
+        block: answerBlock(answer),
+        context: outcome.state === "answered" ? ANSWER_REMINDER : UNANSWERED_REMINDER,
+      });
+      return outcome;
+    } catch (e) {
+      this.report(`an advisor's answer did not reach chat ${chatId}: ${messageOf(e)}`);
+      if (outcome.state !== "answered") return outcome;
+      return { state: "failed", reason: `its answer did not reach this chat (${messageOf(e)}): read it in the advisor chat` };
+    }
+  }
+
   private whenChatIdle(agentId: string, chatId: string, chat: Conversation): void {
     void chat
       .waitForIdle(this.deps.context)
-      .then(() => this.changes.emit(agentId, chatId))
+      .then(() => {
+        this.changes.emit(agentId, chatId);
+        this.landed.emit(agentId, chatId);
+      })
       .catch((e: unknown) => this.report(`a move waiting on an advisor did not go on: ${messageOf(e)}`));
   }
 }

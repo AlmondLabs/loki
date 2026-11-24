@@ -23,6 +23,9 @@ const ENDED: ReadonlySet<ConsultState> = new Set(["answered", "failed", "stopped
 
 export const consultEnded = (c: Pick<AdvisorConsult, "state">): boolean => ENDED.has(c.state);
 
+export const consultRunning = (consults: ReadonlyArray<Pick<AdvisorConsult, "state">> | undefined): boolean =>
+  (consults ?? []).some((c) => c.state === "running");
+
 /**
  * One consult in a chat's ledger (`advisor_consults` on the chat's info, in its agent's store under ~/.loki). It runs
  * queued → running → answered, failed or stopped, or ends dropped when its chat is archived. `text` is what was sent,

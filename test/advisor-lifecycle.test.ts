@@ -197,7 +197,9 @@ describe("a chat with an advisor moving to another Mac", () => {
       await book.chats.consult(ref, "person", "second look");
       await until(() => s.seen.advisor.length === 1);
 
-      expect(await macs.book.offer(MINI, AGENT, s.chatId)).toBe("The chat moves to Mac mini when the advisor has answered.");
+      expect(await macs.book.offer(MINI, AGENT, s.chatId)).toBe(
+        "The chat moves to Mac mini when the advisor has answered. If Mac mini is out of reach then, the chat stays here.",
+      );
       expect(await mini.store.chat(s.chatId, ctx)).toBeUndefined();
       s.replies.advisor = advise;
       held.open();

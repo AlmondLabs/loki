@@ -8,7 +8,7 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
-import { advisorChatId, type AdvisorView, type ConsultFrom } from "../core/advisor.ts";
+import { advisedChat, advisorChatId, consultRunning, type AdvisorView, type ConsultFrom } from "../core/advisor.ts";
 import { backendName, MAIN_CHAT_ID } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
@@ -72,6 +72,8 @@ interface Deps {
  * so a caller's catch still sees it.
  */
 const settled = <T>(work: () => T): Promise<T> => new Promise((resolve) => resolve(work()));
+
+const adviceText = (advice: Advice): string => `${advice.context}\n\n${advice.block}`;
 
 export function lokiModelEntries(available: ReadonlyArray<Parameters<typeof getSupportedThinkingLevels>[0]>): ModelEntry[] {
   return available.flatMap((m) => {
@@ -294,9 +296,13 @@ export class DaemonChats implements ChatBackend {
     return this.deps.advisors?.onChange(listener) ?? (() => {});
   }
 
+  onAnswerLanded(listener: (agentId: string, chatId: string) => void): () => void {
+    return this.deps.advisors?.onAnswerLanded(listener) ?? (() => {});
+  }
+
   async advise(agentId: string, conversationId: string, advice: Advice): Promise<void> {
     const { c, engine } = await this.resolve(agentId, conversationId);
-    const p = { agent_id: agentId, conversation_id: conversationId, text: advice.block, images: [], send_id: advice.sendId, context: advice.context };
+    const p = { agent_id: agentId, conversation_id: conversationId, text: "", images: [], send_id: advice.sendId, context: adviceText(advice) };
     if (c.engine) return engine.send(c, p);
     const submission = await this.capped(`${agentId}\u0000${conversationId}`, async () => {
       await this.uncap(c, engine);
@@ -309,7 +315,7 @@ export class DaemonChats implements ChatBackend {
     const settled = await submission.wait(this.deps.context);
     if (settled.status !== "unanswered" || settled.entry !== undefined) return;
     await c.chat.waitForIdle(this.deps.context);
-    const content = `${advice.context}\n\n${advice.block}`;
+    const content = adviceText(advice);
     const timestamp = (this.deps.now ?? Date.now)();
     await c.chat.submit(
       { type: "write", requestId: `${advice.sendId}:kept`, entry: { kind: "pi.user", model: [{ role: "user", content, timestamp }] } },
@@ -405,6 +411,8 @@ export class DaemonChats implements ChatBackend {
     if (refused) throw new Error(refused);
     if (from !== to) await from.leave(c);
     await to.setModel(c, p, started);
+    const advised = advisedChat(p.conversation_id);
+    if (advised) this.deps.advisors?.changed(p.agent_id, advised);
   }
 
   async models(): Promise<ModelEntry[]> {
@@ -618,7 +626,7 @@ export class DaemonChats implements ChatBackend {
     for (const agentId of listAgents(this.deps.backendDir)) {
       const store = await this.deps.stores.get(agentId);
       for (const info of await store.chats(this.deps.context)) {
-        if (!info.move_to || info.hidden || info.advisor_consults?.some((c) => c.state === "running")) continue;
+        if (!info.move_to || info.hidden || consultRunning(info.advisor_consults)) continue;
         if (!(await this.busy(agentId, info.id))) out.push({ agent_id: agentId, conversation_id: info.id, to: info.move_to });
       }
     }
