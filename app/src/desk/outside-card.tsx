@@ -42,7 +42,7 @@ import { LinkedText, MailHtml } from "./mail-html";
 import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } from "./mail-address";
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
-import { NewLine, SlackThread, loadLabel } from "./slack-thread";
+import { NewLine, SlackThread, loadLabel, type ReactControls } from "./slack-thread";
 import { toggleReaction, useQuickEmoji, type EmojiSearch } from "./slack-reactions";
 import { cardKey, type OpenedThread } from "./deck-moves";
 import { useSeededReply } from "./use-seeded-reply";
@@ -104,6 +104,7 @@ export type ThreadState =
       messages: OutsideMessage[];
       window?: OutsideWindow | null;
       controls?: ThreadControls;
+      reacting?: ReactControls;
       opened?: string | null;
       link?: string | null;
       ticket?: JiraCardTicket | null;
@@ -324,7 +325,7 @@ export function useOutsideThread(
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
   const messages = [...shown.messages, ...sent.standIns];
   const w = shown.window;
-  if (!w) return { kind: "read", messages, link: shown.link, ticket: shown.ticket };
+  if (!w) return { kind: "read", messages, link: shown.link, ticket: shown.ticket, ...(o?.provider === "gmail" && reacting.react ? { reacting } : {}) };
   const load = (direction: "before" | "after") => {
     if (shown.busy) return;
     const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
@@ -434,7 +435,11 @@ export function OutsideThread({
   if (facts.provider === "gmail")
     return (
       <>
-        {items ? <ItemMailThread messages={state.messages} own={own} /> : <MailThread messages={state.messages} own={own} />}
+        {items ? (
+          <ItemMailThread messages={state.messages} own={own} newest={facts.newest_message_id} {...(state.reacting ? { reacting: state.reacting } : {})} />
+        ) : (
+          <MailThread messages={state.messages} own={own} />
+        )}
         <div ref={end} />
       </>
     );

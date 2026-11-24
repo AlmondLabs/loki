@@ -809,14 +809,16 @@ export class ChatStore {
 
   reactOutside = async (card: Pick<ConversationInfo, "outside" | "home">, messageId: string, name: string, on: boolean): Promise<string | null> => {
     const o = card.outside;
-    if (o?.provider !== "slack") return "only a Slack message takes a reaction";
+    if (!o) return "only a Slack message or a mail takes a reaction";
+    if (o.provider === "jira") return "a Jira comment takes no reaction";
     const r = await this.attempt((c) => c.reactOutside(o.account_id, o.thread_id, messageId, name, on, card.home ?? null));
     return typeof r === "string" ? r : null;
   };
 
   searchEmoji = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<EmojiChoice[] | string> => {
     const o = card.outside;
-    if (o?.provider !== "slack") return "only a Slack message takes a reaction";
+    if (!o) return "only a Slack message or a mail takes a reaction";
+    if (o.provider === "jira") return "a Jira comment takes no reaction";
     return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
   };
 

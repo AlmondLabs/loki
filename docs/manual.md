@@ -1359,7 +1359,15 @@ its files, as in Gmail. **Gmail reactions** show as pills under the mail they an
 pills on its line; the mail a reaction comes in never shows as a mail of its own. A pill's tooltip is its emoji. A
 reaction shows the next time the card opens, and it never brings a card back, marks it new or makes one. Read and
 archive take the thread's reaction mails with them in Gmail. A reaction from Outlook or another client that has no
-reactions comes as an ordinary mail. The reply box sits at the end of the thread,
+reactions comes as an ordinary mail. You react to a mail as to a Slack message: hover over an open mail for the bar
+with 👀 ✅ 👍 and the add-reaction face, whose picker offers 👀 ✅ 👍 🙏 🙌 first and searches every standard emoji
+(a Slack workspace's own never show); ⌘⇧\ opens it on the newest mail; pressing someone's pill adds yours. loki
+sends a Gmail reaction from your main address to everyone on that mail, and the card stays where it is. A mail
+reaction can't be taken back: your pill does nothing when pressed and its tooltip says so, and choosing an emoji you
+already sent sends nothing. A mail Gmail won't take a reaction on shows no bar: a list mail, one with more than 20
+people in To and Cc, one that reached you only in Bcc, an encrypted one, or one you have reacted to 20 times. Its
+reactions still show. When Gmail refuses one, the pill goes back and a line under the mail says why. A Workspace
+whose admin turned reactions off gets it as an ordinary mail saying you reacted. The reply box sits at the end of the thread,
 under the newest mail. It holds the recipients line, your text, your signature and the quote, then **send** and
 **discard**, which clears the text and puts the recipients back. The card's moves (hand off, label, archive, later,
 read) stay in the row at the bottom. The phone keeps its own layout.

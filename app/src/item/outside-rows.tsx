@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AccountProvider, OutsideMessage, SlackReaction } from "../../../core/frame-types.ts";
-import { HoverBar, ReactionRefused, SlackReplies, type SlackRowAt } from "../desk/slack-thread";
+import { HoverBar, ReactionRefused, SlackReplies, useReacting, type ReactControls, type RowReacting, type SlackRowAt } from "../desk/slack-thread";
 import { addressIn, mailWhen, senderName, sentToLine, snippet } from "../desk/mail-thread";
 import { outsideMessageEntry } from "./item-view";
 import { MessageEntry } from "./message-entry";
@@ -21,22 +21,35 @@ export function itemSlackRow(provider: AccountProvider) {
   };
 }
 
-// oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
-export function ItemMailThread({ messages, own, now = new Date() }: { messages: readonly OutsideMessage[]; own: readonly string[]; now?: Date }) {
+export function ItemMailThread({
+  messages,
+  own,
+  // oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
+  now = new Date(),
+  newest = "",
+  reacting = null,
+}: {
+  messages: readonly OutsideMessage[];
+  own: readonly string[];
+  now?: Date;
+  newest?: string;
+  reacting?: ReactControls | null;
+}) {
+  const reactingOn = useReacting(messages, newest, reacting, true);
   return (
     <div className="flex flex-col gap-3" data-mail-thread>
       {messages.map((m, i) => (
-        <ItemMail key={m.id} m={m} own={own} folded={i < messages.length - 1} now={now} />
+        <ItemMail key={m.id} m={m} own={own} folded={i < messages.length - 1} now={now} reacting={reactingOn(m)} />
       ))}
     </div>
   );
 }
 
-function ItemMail({ m, own, folded, now }: { m: OutsideMessage; own: readonly string[]; folded: boolean; now: Date }) {
+function ItemMail({ m, own, folded, now, reacting }: { m: OutsideMessage; own: readonly string[]; folded: boolean; now: Date; reacting?: RowReacting }) {
   const [opened, setOpened] = useState(false);
   const name = m.mine ? "you" : senderName(m.sender);
   const when = m.at ? mailWhen(m.at, now) : "";
-  if (folded && !opened)
+  if (folded && !opened && !reacting?.picker)
     return (
       <button
         type="button"
@@ -55,8 +68,19 @@ function ItemMail({ m, own, folded, now }: { m: OutsideMessage; own: readonly st
   const line = [address && address !== name ? address : null, sentTo || null].filter(Boolean).join(" · ");
   const entry = { ...outsideMessageEntry(m, "gmail"), who: m.mine ? "You" : senderName(m.sender) };
   return (
-    <div className="flex flex-col gap-1">
-      <MessageEntry entry={entry} source="gmail" status={m.mine ? sentTo || null : null} note={!m.mine && line ? line : null} />
+    <div className="loki-slack-row flex flex-col gap-1" data-row-item>
+      {reacting && <HoverBar reacting={reacting} />}
+      <MessageEntry
+        entry={entry}
+        source="gmail"
+        status={m.mine ? sentTo || null : null}
+        note={!m.mine && line ? line : null}
+        onReact={reacting?.toggle}
+        undoable={false}
+      >
+        {reacting?.refused && <ReactionRefused text={reacting.refused} />}
+        {reacting?.picker}
+      </MessageEntry>
     </div>
   );
 }

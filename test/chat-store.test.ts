@@ -41,6 +41,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const replyExtras: unknown[] = [];
   const replyAnswer = { refused: null as string | null, thenError: null as string | null };
   const writes: unknown[][] = [];
+  const reacted: unknown[][] = [];
   const readEnds = { value: false };
   const change = (move: OutsideWrite, ended: boolean): OutsideChange => ({
     move,
@@ -80,6 +81,9 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     labelOutside: (accountId: string, threadId: string, labels: string[], home: string | null) => write("label", accountId, threadId, home, labels),
     restoreOutside: (accountId: string, threadId: string, c: unknown, home: string | null) =>
       refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve(void writes.push(["restore", accountId, threadId, home, c])),
+    reactOutside: (accountId: string, threadId: string, messageId: string, name: string, on: boolean, home: string | null) =>
+      Promise.resolve(void reacted.push([accountId, threadId, messageId, name, on, home])),
+    searchEmoji: (accountId: string, query: string, home: string | null) => Promise.resolve((reacted.push(["search", accountId, query, home]), [])),
     labelsOutside: (accountId: string) =>
       refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve([{ id: `${accountId}:L1`, name: "Clients", type: "user" }]),
     updateConversation: (id: string, body: Record<string, unknown>, agentId?: string) => Promise.resolve(void updates.push([id, body, agentId])),
@@ -136,6 +140,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     replyExtras,
     replyAnswer,
     writes,
+    reacted,
     readEnds,
   };
 }
@@ -576,6 +581,24 @@ describe("the chat store (plan 052)", () => {
     expect(d.replyExtras.at(-1)).toMatchObject({ mentions: [{ display: "Grace Lee", id: "U5", address: null }] });
     await d.store.replyOutside(card, "can you look", "stay");
     expect(d.replyExtras.at(-1)).toMatchObject({ mentions: [] });
+  });
+
+  test("a mail card reacts through its Mac as a Slack card does; a Jira card is refused before asking (plan 2026-11-23-1800, U6)", async () => {
+    const jira = ticket();
+    const mail = {
+      ...jira,
+      outside: { ...must(jira.outside, "the card's account"), account_id: "gmail:ada@acme.com", provider: "gmail" as const, thread_id: "t1" },
+    };
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z")]);
+    await flush();
+    expect(await d.store.reactOutside(mail, "m1", "+1", true)).toBeNull();
+    expect(await d.store.searchEmoji(mail, "thumbs")).toEqual([]);
+    expect(await d.store.reactOutside(jira, "c1", "+1", true)).toBe("a Jira comment takes no reaction");
+    expect(await d.store.searchEmoji(jira, "thumbs")).toBe("a Jira comment takes no reaction");
+    expect(d.reacted).toEqual([
+      ["gmail:ada@acme.com", "t1", "m1", "+1", true, "mac-mini"],
+      ["search", "gmail:ada@acme.com", "thumbs", "mac-mini"],
+    ]);
   });
 
   test("a Jira card is never archived: the store refuses before asking its Mac, and the card stays (R19, KTD12)", async () => {

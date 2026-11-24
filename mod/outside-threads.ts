@@ -22,12 +22,12 @@ import { mailAttachments, mailParts } from "./account-ops/gmail.ts";
 import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
-import { forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
+import { escapeHtml, forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
 import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type HeldTarget, type MailOutboxOptions } from "./mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
-import { reactionOf, type MailReactions } from "./mail-reactions.ts";
+import { drawnEmoji, foldReactions, reactionOf, type MailReactions } from "./mail-reactions.ts";
 import { bareAddresses, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-addressing.ts";
 import { liveMentions } from "../core/mentions.ts";
 import { MAY_HAVE_GONE, checkedFiles } from "./reply-proposals.ts";
@@ -108,6 +108,7 @@ export class OutsideThreads {
   private readonly frequent = new Map<string, { at: number; names: Promise<string[]> }>();
   private reports: AgentReplyReports | null = null;
   private readonly changedPeople = new Map<string, PeopleChanged>();
+  private readonly mailReacting = new Map<string, Promise<void>>();
 
   constructor(opts: OutsideThreadsOptions) {
     this.opts = opts;
@@ -207,14 +208,57 @@ export class OutsideThreads {
   }
 
   async react(accountId: string, threadId: string, messageId: string, name: string, on: boolean): Promise<void> {
-    const sender = this.slackSender(accountId);
+    const sender = this.reactor(accountId);
+    if (sender.provider === "gmail") return this.reactToMail(accountId, sender.client, threadId, messageId, name, on);
     const { channel } = slackPlace(threadId);
-    await sender.react({ channel, ts: messageId, name, on });
+    await sender.client.react({ channel, ts: messageId, name, on });
     log("outside:reacted", { provider: "slack", on });
   }
 
+  private reactToMail(accountId: string, client: SendGmail, threadId: string, messageId: string, name: string, on: boolean): Promise<void> {
+    if (!on) return Promise.reject(new Error("a mail reaction can't be taken back"));
+    const emoji = reactionEmoji(name, { emoji: () => null });
+    if (!emoji) return Promise.reject(new Error("that emoji can't go in a mail reaction"));
+    const key = `${accountId}\n${threadId}\n${messageId}\n${drawnEmoji(emoji.text)}`;
+    const sending = this.mailReacting.get(key);
+    if (sending) return sending;
+    const sent = this.sendReaction(this.need(accountId), client, threadId, messageId, emoji.text).finally(() => this.mailReacting.delete(key));
+    this.mailReacting.set(key, sent);
+    return sent;
+  }
+
+  private async sendReaction(account: AccountRecord, client: SendGmail, threadId: string, messageId: string, emoji: string): Promise<void> {
+    const [thread, sendAs] = await Promise.all([client.getThread(threadId, "full"), client.sendAs()]);
+    const own = ownAddresses(account, sendAs);
+    const { mails, of } = foldReactions(thread.messages, reactionOf, own);
+    const target = mails.find((m) => m.id === messageId);
+    if (!target) throw new Error("that mail is not in the thread in Gmail now");
+    const folded = of.get(target.id);
+    if (folded?.reactions.some((r) => r.mine && r.emoji && drawnEmoji(r.emoji.text) === drawnEmoji(emoji))) return;
+    if (!folded?.reactable) throw new Error("Gmail takes no reaction on that mail");
+    const { to, cc } = replyAllOf(target, own);
+    if (to.length + cc.length === 0) throw new Error("no one in that thread to send the reaction to");
+    const main = sendAs.find((s) => s.address.toLowerCase() === account.address.toLowerCase());
+    const words = `Reacted with ${emoji}`;
+    await client.sendReply({
+      threadId,
+      inReplyTo: headerOf(target, "Message-ID"),
+      references: headerOf(target, "References").split(/\s+/).filter(Boolean),
+      from: main ? fromHeader(main.address, main.name) : account.address,
+      to,
+      cc,
+      subject: replySubject(headerOf(target, "Subject") || headerOf(thread.messages.at(0), "Subject")),
+      body: words,
+      html: `<p>${escapeHtml(words)}</p>`,
+      reaction: emoji,
+    });
+    log("outside:reacted", { provider: "gmail", on: true });
+  }
+
   async searchEmoji(accountId: string, query: string): Promise<EmojiChoice[]> {
-    const sender = this.slackSender(accountId);
+    const reactor = this.reactor(accountId);
+    if (reactor.provider === "gmail") return searchEmoji(query, {});
+    const sender = reactor.client;
     let own = this.ownEmoji.get(accountId);
     if (!own) {
       own = sender.emojiList().catch(() => {
@@ -252,13 +296,13 @@ export class OutsideThreads {
     return this.opts.slackPeople.search(accountId, query);
   }
 
-  private slackSender(accountId: string): SendSlack {
+  private reactor(accountId: string): Exclude<SendClient, { provider: "jira" }> {
     const account = this.need(accountId);
-    if (account.provider !== "slack") throw new Error("only a Slack message takes a reaction");
+    if (account.provider === "jira") throw new Error("a Jira comment takes no reaction");
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     const sender = this.opts.clientFor(account);
-    if (sender.provider !== "slack") throw new Error("only a Slack message takes a reaction");
-    return sender.client;
+    if (sender.provider === "jira") throw new Error("a Jira comment takes no reaction");
+    return sender;
   }
 
   unsend(accountId: string, outboxId: string): boolean {

@@ -476,30 +476,47 @@ export function mainMessage(messages: readonly OutsideMessage[], newest: string)
   return messages.some((m) => m.id === newest) ? newest : (messages.at(-1)?.id ?? null);
 }
 
-function useReacting(messages: readonly OutsideMessage[], newest: string, controls: ThreadControls | null) {
-  const [picking, setPicking] = useState<string | null>(null);
-  const react = controls?.react;
-  const quick = controls?.quick ?? QUICK_EMOJI;
+export type ReactControls = Pick<ThreadControls, "react" | "quick" | "searchEmoji" | "refusal">;
+
+export function reactTarget(messages: readonly OutsideMessage[], newest: string, final: boolean): string | null {
   const main = mainMessage(messages, newest);
-  const openMain = useEffectEvent(() => setPicking(main));
-  const canReact = !!react;
-  useEffect(() => (canReact ? registerActions({ "inbox.react": () => openMain() }) : undefined), [canReact]);
-  return (m: OutsideMessage): RowReacting | undefined => {
-    if (!react) return undefined;
-    const pick = (choice: EmojiChoice) => {
-      setPicking(null);
-      const picked = pickReaction(m.reactions ?? [], choice);
-      react(m.id, picked.choice, picked.on);
-    };
-    return {
-      open: () => setPicking(m.id),
-      quick,
-      pick,
-      toggle: (r) => react(m.id, { name: r.name, emoji: r.emoji ?? { kind: "emoji", text: `:${r.name}:` } }, !r.mine),
-      picker: picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} quick={quick} onPick={pick} onClose={() => setPicking(null)} /> : null,
-      refused: controls.refusal?.messageId === m.id ? controls.refusal.text : null,
-    };
+  return final && messages.find((m) => m.id === main)?.reactable !== true ? null : main;
+}
+
+export function rowReacting(
+  m: OutsideMessage,
+  controls: ReactControls,
+  at: { picking: string | null; setPicking: (id: string | null) => void; final: boolean },
+): RowReacting | undefined {
+  const { react } = controls;
+  if (!react || (at.final && m.reactable !== true)) return undefined;
+  const quick = controls.quick ?? QUICK_EMOJI;
+  const pick = (choice: EmojiChoice) => {
+    at.setPicking(null);
+    const picked = pickReaction(m.reactions ?? [], choice);
+    if (at.final && !picked.on) return;
+    react(m.id, picked.choice, picked.on);
   };
+  return {
+    open: () => at.setPicking(m.id),
+    quick,
+    pick,
+    toggle: (r) => {
+      if (at.final && r.mine) return;
+      react(m.id, { name: r.name, emoji: r.emoji ?? { kind: "emoji", text: `:${r.name}:` } }, !r.mine);
+    },
+    picker: at.picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} quick={quick} onPick={pick} onClose={() => at.setPicking(null)} /> : null,
+    refused: controls.refusal?.messageId === m.id ? controls.refusal.text : null,
+  };
+}
+
+export function useReacting(messages: readonly OutsideMessage[], newest: string, controls: ReactControls | null, final = false) {
+  const [picking, setPicking] = useState<string | null>(null);
+  const target = reactTarget(messages, newest, final);
+  const openMain = useEffectEvent(() => setPicking(target));
+  const canReact = !!controls?.react;
+  useEffect(() => (canReact ? registerActions({ "inbox.react": () => openMain() }) : undefined), [canReact]);
+  return (m: OutsideMessage): RowReacting | undefined => (controls ? rowReacting(m, controls, { picking, setPicking, final }) : undefined);
 }
 
 export function SlackThread({

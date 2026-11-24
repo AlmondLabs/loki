@@ -127,7 +127,7 @@ export const KEYMAP: Binding[] = [
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
   { id: "inbox.reply_sender", keys: ["shift+r"], where: "inbox", label: "reply to the sender only (mail)" },
   { id: "inbox.forward", keys: ["f"], where: "inbox", label: "forward (mail)" },
-  { id: "inbox.react", keys: ["cmd+shift+\\"], where: "inbox", label: "react with an emoji (Slack)" },
+  { id: "inbox.react", keys: ["cmd+shift+\\"], where: "inbox", label: "react with an emoji" },
   { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Flow/go", menuAccel: false },
 
   { id: "recall.reveal", keys: ["space", "enter", "down"], where: "learn", label: "show the answer (then: got it)" },

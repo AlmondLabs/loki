@@ -237,7 +237,10 @@ agent proposes with `message_propose` (plan 2026-11-14-1530). The owner's script
 send calendar invites (plan 2026-11-11 scripts, see Scripts below). `mod/outside-threads.ts` is the only caller of each
 client's send calls (`GmailClient.sendReply`, `SlackClient.postReply`, `postWithFiles` and `openDm`,
 `JiraClient.postComment` and `attachFiles`; tests check there is no other). No tool the model calls directly sends: an
-agent's reply or new message reaches Gmail, Slack or Jira only by your Send.
+agent's reply or new message reaches Gmail, Slack or Jira only by your Send. A reaction you add on a card goes through
+`account_thread_react`, which only your devices send and no agent tool reaches; on a mail it is a Gmail reaction mail
+sent at once from your main address to everyone on that mail, with no hold, and loki sends at most one of yours per
+emoji per mail (plan 2026-11-23-1800).
 
 - **Google sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on

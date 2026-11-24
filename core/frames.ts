@@ -1383,7 +1383,7 @@ export const FRAMES = {
   ),
   account_thread_react: request(
     "account_thread_reacted",
-    "add the person's emoji reaction to a message on a Slack card, or take it back with `on: false` (plan 079); `name` is Slack's name for the emoji; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    "add the person's emoji reaction to a message on a Slack card, or take it back with `on: false` (plan 079), or send a Gmail reaction to a mail on a mail card, which can't be taken back (plan 2026-11-23-1800); `name` is Slack's name for the emoji; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.message_id) || !m.message_id)
         return "account_id, thread_id and message_id required";
@@ -1393,11 +1393,11 @@ export const FRAMES = {
       return { account_id: m.account_id, thread_id: m.thread_id, message_id: m.message_id, name: m.name, on: m.on, home: strOr(m.home, null) };
     },
     PHONE,
-    BY_HOME,
+    { ...BY_HOME, timeout_ms: 30_000 },
   ),
   account_emoji_search: request(
     "account_emoji",
-    "the emoji a Slack account can react with whose names hold `query` (plan 079), the workspace's own included, best matches first; sent to the Mac the account lives on by `home`",
+    "the emoji an account can react with whose names hold `query` (plan 079), best matches first: a Slack workspace's own included, standard emoji only for mail; sent to the Mac the account lives on by `home`",
     (m) =>
       str(m.account_id) && m.account_id && str(m.query) && m.query.length <= 100
         ? { account_id: m.account_id, query: m.query, home: strOr(m.home, null) }

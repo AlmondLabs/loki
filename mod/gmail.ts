@@ -102,6 +102,7 @@ export interface GmailDraftInput {
   attachments?: GmailAttachment[];
   outboxId?: string;
   messageId?: string;
+  reaction?: string;
 }
 
 export const OUTBOX_HEADER = "X-Loki-Outbox";
@@ -219,13 +220,21 @@ export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
     "MIME-Version: 1.0",
   ].filter(Boolean);
   const plain = part(["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.body));
+  // Outside (Gmail): a reaction is its own part between the plain text and the HTML (developers.google.com/workspace/gmail/reactions/format).
+  const reaction =
+    d.reaction === undefined
+      ? []
+      : [
+          part(
+            ["Content-Type: text/vnd.google.email-reaction+json; charset=UTF-8", "Content-Transfer-Encoding: base64"],
+            textBody(JSON.stringify({ emoji: d.reaction, version: 1 })),
+          ),
+        ];
+  const html = d.html === undefined ? [] : [part(["Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.html))];
   const text =
-    d.html === undefined
+    reaction.length + html.length === 0
       ? plain
-      : part(
-          [`Content-Type: multipart/alternative; boundary="${boundary}-alt"`],
-          multipart(`${boundary}-alt`, [plain, part(["Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.html))]),
-        );
+      : part([`Content-Type: multipart/alternative; boundary="${boundary}-alt"`], multipart(`${boundary}-alt`, [plain, ...reaction, ...html]));
   const files = d.attachments ?? [];
   const whole =
     files.length === 0
