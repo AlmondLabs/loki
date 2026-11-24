@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { isNewSend } from "../app/src/chat/use-transcript-scroll.ts";
-import { drawnRows, keepsFollowing, lastShown, newSince, nextAbove, readerScrolling, revealFrom } from "../app/src/item/thread-follow.ts";
+import { drawnRows, keepsFollowing, lastShown, newSince, nextAbove, REST_MS, restTimer, revealFrom } from "../app/src/item/thread-follow.ts";
 import { CHUNK } from "../app/src/chat/transcript-window.ts";
 
 const viewport = (awayFromBottom: boolean) =>
@@ -76,43 +76,107 @@ describe("only a new message of yours re-pins the thread", () => {
   });
 });
 
-describe("older rows load a few screens before you reach them while you scroll up", () => {
-  const scrolling = { scrolling: true, hiddenAbove: true, olderToAsk: false };
-  const opening = { ...scrolling, scrolling: false };
+describe("older rows load until five screens are loaded above the reader", () => {
+  const rowsAbove = { hiddenAbove: true, olderToAsk: false };
 
-  test("scrolling, three screens from the top of what is loaded mounts the next rows, well before the old 800px", () => {
-    expect(nextAbove({ scrollTop: 1500, clientHeight: 700 }, scrolling)).toBe("reveal");
-    expect(nextAbove({ scrollTop: 2500, clientHeight: 700 }, scrolling)).toBe("far");
+  test("inside five screens of the top of what is loaded, the next rows mount; beyond it, nothing", () => {
+    expect(nextAbove({ scrollTop: 3000, clientHeight: 700 }, rowsAbove)).toBe("reveal");
+    expect(nextAbove({ scrollTop: 3600, clientHeight: 700 }, rowsAbove)).toBe("far");
   });
 
   test("in a short window the distance is never less than 800px", () => {
-    expect(nextAbove({ scrollTop: 600, clientHeight: 200 }, scrolling)).toBe("reveal");
-  });
-
-  test("without the reader scrolling (opening, find, Latest) the distance stays 800px", () => {
-    expect(nextAbove({ scrollTop: 1500, clientHeight: 700 }, opening)).toBe("far");
-    expect(nextAbove({ scrollTop: 700, clientHeight: 700 }, opening)).toBe("reveal");
+    expect(nextAbove({ scrollTop: 600, clientHeight: 100 }, rowsAbove)).toBe("reveal");
   });
 
   test("with every row drawn, the daemon is asked for an older page from the same distance, once per length", () => {
-    expect(nextAbove({ scrollTop: 2500, clientHeight: 700 }, { scrolling: true, hiddenAbove: false, olderToAsk: true })).toBe("far");
-    expect(nextAbove({ scrollTop: 1500, clientHeight: 700 }, { scrolling: true, hiddenAbove: false, olderToAsk: true })).toBe("older");
-    expect(nextAbove({ scrollTop: 1500, clientHeight: 700 }, { scrolling: true, hiddenAbove: false, olderToAsk: false })).toBeNull();
+    expect(nextAbove({ scrollTop: 3600, clientHeight: 700 }, { hiddenAbove: false, olderToAsk: true })).toBe("far");
+    expect(nextAbove({ scrollTop: 3000, clientHeight: 700 }, { hiddenAbove: false, olderToAsk: true })).toBe("older");
+    expect(nextAbove({ scrollTop: 3000, clientHeight: 700 }, { hiddenAbove: false, olderToAsk: false })).toBeNull();
   });
 
   test("a hidden pane counts as far from the top, so nothing is mounted or asked for", () => {
-    expect(nextAbove({ scrollTop: 0, clientHeight: 0 }, scrolling)).toBe("far");
+    expect(nextAbove({ scrollTop: 0, clientHeight: 0 }, rowsAbove)).toBe("far");
   });
 });
 
-describe("the reader counts as scrolling for a second after their own wheel, key or touch", () => {
-  test("before any input of theirs (a chat opening), a scroll is the code's own", () => {
-    expect(readerScrolling(500, Number.NEGATIVE_INFINITY)).toBe(false);
+describe("the thread is still once nothing has moved it for a moment", () => {
+  function clock() {
+    const due = new Map<number, { run: () => void; at: number }>();
+    let now = 0;
+    let ids = 0;
+    return {
+      scheduler: {
+        set: (run: () => void, ms: number) => {
+          due.set(++ids, { run, at: now + ms });
+          return ids;
+        },
+        clear: (id: number) => void due.delete(id),
+      },
+      pass: (ms: number) => {
+        now += ms;
+        for (const [id, timer] of [...due]) {
+          if (timer.at > now) continue;
+          due.delete(id);
+          timer.run();
+        }
+      },
+    };
+  }
+
+  test("before anything moves it, it is not moving and nothing is called", () => {
+    const c = clock();
+    let rests = 0;
+    const rest = restTimer(() => rests++, c.scheduler);
+    c.pass(REST_MS * 2);
+    expect(rest.moving()).toBe(false);
+    expect(rests).toBe(0);
   });
 
-  test("a scroll within the second after their input is theirs, one a second later is not", () => {
-    expect(readerScrolling(1999, 1000)).toBe(true);
-    expect(readerScrolling(2000, 1000)).toBe(false);
+  test("it is moving from an event until the moment has passed, then at rest once", () => {
+    const c = clock();
+    let rests = 0;
+    const rest = restTimer(() => rests++, c.scheduler);
+    rest.moved();
+    c.pass(REST_MS - 1);
+    expect(rest.moving()).toBe(true);
+    expect(rests).toBe(0);
+    c.pass(1);
+    expect(rest.moving()).toBe(false);
+    c.pass(REST_MS * 2);
+    expect(rests).toBe(1);
+  });
+
+  test("each event of a flick postpones the rest", () => {
+    const c = clock();
+    let rests = 0;
+    const rest = restTimer(() => rests++, c.scheduler);
+    rest.moved();
+    c.pass(REST_MS - 1);
+    rest.moved();
+    c.pass(REST_MS - 1);
+    expect(rests).toBe(0);
+    c.pass(1);
+    expect(rests).toBe(1);
+  });
+
+  test("at rest it is already not moving, so a place corrected there is written", () => {
+    const c = clock();
+    const seen: boolean[] = [];
+    const rest = restTimer(() => seen.push(rest.moving()), c.scheduler);
+    rest.moved();
+    c.pass(REST_MS);
+    expect(seen).toEqual([false]);
+  });
+
+  test("stopping it (the thread closing) cancels the rest", () => {
+    const c = clock();
+    let rests = 0;
+    const rest = restTimer(() => rests++, c.scheduler);
+    rest.moved();
+    rest.stop();
+    c.pass(REST_MS * 2);
+    expect(rest.moving()).toBe(false);
+    expect(rests).toBe(0);
   });
 });
 

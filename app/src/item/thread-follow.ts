@@ -1,21 +1,40 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { REVEAL_PX, revealStart } from "../chat/transcript-window";
 
-const SCREENS_AHEAD = 3;
-const READER_MS = 1000;
-
-export function readerScrolling(at: number, lastInputAt: number): boolean {
-  return at - lastInputAt < READER_MS;
-}
+const SCREENS_AHEAD = 5;
+export const REST_MS = 150;
 
 export function nextAbove(
   view: { scrollTop: number; clientHeight: number },
-  at: { scrolling: boolean; hiddenAbove: boolean; olderToAsk: boolean },
+  at: { hiddenAbove: boolean; olderToAsk: boolean },
 ): "far" | "reveal" | "older" | null {
-  const ahead = at.scrolling ? Math.max(REVEAL_PX, SCREENS_AHEAD * view.clientHeight) : REVEAL_PX;
-  if (view.clientHeight === 0 || view.scrollTop >= ahead) return "far";
+  if (view.clientHeight === 0 || view.scrollTop >= Math.max(REVEAL_PX, SCREENS_AHEAD * view.clientHeight)) return "far";
   if (at.hiddenAbove) return "reveal";
   return at.olderToAsk ? "older" : null;
+}
+
+export interface Scheduler<T> {
+  set: (run: () => void, ms: number) => T;
+  clear: (timer: T) => void;
+}
+
+export function restTimer<T>(atRest: () => void, scheduler: Scheduler<T>) {
+  let timer: T | null = null;
+  const stop = () => {
+    if (timer !== null) scheduler.clear(timer);
+    timer = null;
+  };
+  return {
+    moved: () => {
+      stop();
+      timer = scheduler.set(() => {
+        timer = null;
+        atRest();
+      }, REST_MS);
+    },
+    moving: () => timer !== null,
+    stop,
+  };
 }
 
 export function revealFrom(from: number) {
