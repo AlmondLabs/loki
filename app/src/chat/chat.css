@@ -996,7 +996,8 @@ button.loki-file-chip {
   display: inline-flex;
   min-width: 0;
 }
-.loki-advisor-strip[data-state="failed"] .loki-icon {
+.loki-advisor-strip[data-state="failed"] .loki-icon,
+.loki-advisor-mark[data-state="failed"] .loki-icon {
   color: var(--loki-negative);
 }
 .loki-advisor-back {

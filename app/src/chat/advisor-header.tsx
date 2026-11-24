@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import { CircleAlertIcon, LightbulbIcon, LoaderCircleIcon, type LucideIcon } from "lucide-react";
 import type { AdvisorView } from "../../../core/advisor.ts";
-import { Chip } from "../components";
+import { Chip, type TabStatus } from "../components";
 import { Glyph } from "../shared/icons";
 import { shortModel } from "./model-picker";
 import { OpenAdvisor } from "./transcript";
@@ -10,14 +10,28 @@ type StripState = "idle" | "working" | "failed";
 
 const ICON: Record<StripState, LucideIcon> = { idle: LightbulbIcon, working: LoaderCircleIcon, failed: CircleAlertIcon };
 
-function stripOf(a: AdvisorView): { state: StripState; text: string; label: string } {
+function stripOf(a: AdvisorView): { state: StripState; text: string; detail: string; label: string } {
   if (a.working) {
     const text = a.waiting > 0 ? `Advisor is answering · ${String(a.waiting)} waiting` : "Advisor is answering";
-    return { state: "working", text, label: `${text}: open the advisor chat` };
+    return { state: "working", text, detail: text, label: `${text}: open the advisor chat` };
   }
-  if (a.last_failure) return { state: "failed", text: "Advisor couldn't answer", label: `Advisor couldn't answer: ${a.last_failure}. Open the advisor chat` };
+  if (a.last_failure) {
+    const detail = `Advisor couldn't answer: ${a.last_failure}`;
+    return { state: "failed", text: "Advisor couldn't answer", detail, label: `${detail}. Open the advisor chat` };
+  }
   const text = a.model ? `Advisor · ${shortModel(a.model)}` : "Advisor";
-  return { state: "idle", text, label: `${text}: open the advisor chat` };
+  return { state: "idle", text, detail: text, label: `${text}: open the advisor chat` };
+}
+
+export function advisorTabStatus(advisor: AdvisorView): TabStatus {
+  const { state, detail } = stripOf(advisor);
+  const glyph =
+    state === "idle" ? null : (
+      <span className="loki-advisor-mark" data-state={state}>
+        <Glyph icon={ICON[state]} inline />
+      </span>
+    );
+  return { glyph, words: detail };
 }
 
 export function AdvisorHeader({ advisor, touch = false }: { advisor: AdvisorView | null | undefined; touch?: boolean }) {

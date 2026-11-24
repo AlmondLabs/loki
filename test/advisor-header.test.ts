@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { AdvisorView } from "../core/advisor.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
 import type { ChatState } from "../core/frames.ts";
-import { AdvisorHeader } from "../app/src/chat/advisor-header.tsx";
+import { AdvisorHeader, advisorTabStatus } from "../app/src/chat/advisor-header.tsx";
+import { TabRow, type Tab } from "../app/src/components/index.tsx";
 import { AdvisorPaneHeader } from "../app/src/desk/advisor-pane.tsx";
 import { OpenAdvisor } from "../app/src/chat/transcript.tsx";
 import { AdvisorStrips, withAdvisorOnOpen } from "../mod/chat-advisor.ts";
@@ -52,6 +53,43 @@ describe("the advisor strip (R23)", () => {
     expect(html).toContain("Fix the flaky test");
     expect(html).toContain(">Advisor<");
     expect(html).toContain("gpt-6");
+  });
+});
+
+describe("the Advisor tab carries the advisor's state (plan 2026-11-24-1641, R3)", () => {
+  const row = (tabs: ReadonlyArray<Tab<string>>) =>
+    renderToStaticMarkup(createElement(TabRow<string>, { label: "Views", tabs, current: "messages", onChange: () => {} }));
+  const advisorTab = (advisor: AdvisorView): Tab<string> => ({ id: "advisor", label: "Advisor", status: advisorTabStatus(advisor) });
+  const trigger = (html: string) => html.match(/<button[^>]*>.*?Advisor.*?<\/button>/)?.[0] ?? "";
+
+  test("a tab with no status renders as before", () => {
+    const html = row([
+      { id: "messages", label: "Messages" },
+      { id: "desk", label: "Canvas" },
+    ]);
+    expect(html).not.toContain("title=");
+    expect(html).not.toContain("aria-describedby");
+    expect(html).not.toContain("loki-icon");
+  });
+
+  test("idle: no mark, the model in its tooltip and description", () => {
+    const html = trigger(row([advisorTab(IDLE)]));
+    expect(html).toContain('title="Advisor · gpt-6"');
+    expect(html).toContain("aria-describedby=");
+    expect(html).not.toContain("loki-icon");
+  });
+
+  test("working with two waiting: a mark, and the words in tooltip and description", () => {
+    const html = row([advisorTab({ ...IDLE, working: true, waiting: 2 })]);
+    expect(trigger(html)).toContain('title="Advisor is answering · 2 waiting"');
+    expect(trigger(html)).toContain('data-state="working"');
+    expect(html).toMatch(/<span[^>]*id="[^"]+"[^>]*>Advisor is answering · 2 waiting<\/span>/);
+  });
+
+  test("a failure: a warning mark, with why in tooltip and description", () => {
+    const html = trigger(row([advisorTab({ ...IDLE, last_failure: "it was stopped" })]));
+    expect(html).toContain('data-state="failed"');
+    expect(html).toContain('title="Advisor couldn&#x27;t answer: it was stopped"');
   });
 });
 
