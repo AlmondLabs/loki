@@ -57,6 +57,49 @@ describe("an agent chat", () => {
     expect(turn?.kind === "turn" && turn.parts.map((p) => p.kind)).toEqual(["steps", "event", "message"]);
   });
 
+  test("an advisor answer with no words of yours starts the agent's next turn, and heads it (plan 2026-11-24-1736, R3)", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const advisor: TranscriptRow = { role: "event", text: "Advisor answered · the agent asked", summary: "Looks right.", event: "advisor", at };
+    const turns = turnsOf([
+      { role: "user", text: "fix it", at },
+      { role: "assistant", text: "Asked the advisor.", at },
+      advisor,
+      { role: "tool", text: "Edit", tool: { name: "Edit", output: "ok" }, at },
+      { role: "assistant", text: "Done.", at },
+    ]).filter((t) => t.kind === "turn");
+    expect(turns).toHaveLength(2);
+    expect(turns[1].parts.map((p) => p.kind)).toEqual(["event", "steps", "message"]);
+  });
+
+  test("after your words, the advisor's line opens the turn your words began; two such lines head one turn", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const line = (event: "advisor" | "chat_message"): TranscriptRow => ({ role: "event", text: event, event, at });
+    const yours = turnsOf([{ role: "user", text: "go", at }, line("advisor"), { role: "assistant", text: "On it.", at }]).filter((t) => t.kind === "turn");
+    expect(yours).toHaveLength(1);
+    const both = turnsOf([
+      { role: "user", text: "go", at },
+      { role: "assistant", text: "Ok.", at },
+      line("advisor"),
+      line("chat_message"),
+      { role: "assistant", text: "Both read.", at },
+    ]).filter((t) => t.kind === "turn");
+    expect(both).toHaveLength(2);
+    expect(both[1].parts.map((p) => p.kind)).toEqual(["event", "event", "message"]);
+  });
+
+  test("a background notice, a suggestion chip and an untyped event stay inside the turn they arrive in", () => {
+    const at = "2026-11-11T10:00:00.000Z";
+    const turns = turnsOf([
+      { role: "user", text: "go", at },
+      { role: "tool", text: "Bash", tool: { name: "Bash", output: "started" }, at },
+      { role: "event", text: "background task b1 completed", summary: "build", at },
+      { role: "event", text: "suggested in another chat", summary: "x", at },
+      { role: "event", text: "chat compacted", at },
+      { role: "assistant", text: "Built.", at },
+    ]).filter((t) => t.kind === "turn");
+    expect(turns).toHaveLength(1);
+  });
+
   test("a waiting approval, question, reply and suggestion each become a proposal of their own kind", () => {
     const reply: ReplyProposal = {
       id: "rp1",
