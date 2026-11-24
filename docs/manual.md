@@ -258,8 +258,8 @@ are on is read.
   and opening or closing a left chat slides the sheet so nothing ends up under it. Esc (outside a text box) or
   the Messages tab goes back to the conversation where you left it. Both tabs are the same conversation with the
   same draft. ⌘L focuses the message box and ⌘F finds in the transcript, on whichever tab shows. A long thread
-  opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
-  as you scroll up, keeping your place; find reaches the older ones too, and ↓ Latest folds it back. A conversation has
+  opens on its newest 60 rows (back to the New line when that is older) and, as you scroll up, loads older ones
+  20 at a time a few screens before you reach them, keeping your place; find reaches the older ones too, and ↓ Latest folds it back. A conversation has
   a **permission mode** (strict, standard, accept edits, unrestricted;
   ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking"; a shell command made only of
   `ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd` counts as a read, so it asks only in strict) and a **model** (⌘⇧M); on the phone they are two chips under the
