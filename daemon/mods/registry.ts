@@ -33,6 +33,7 @@ import {
 } from "./api.ts";
 import { messageOf } from "../../core/errors.ts";
 import { keyedQueue } from "../../core/serial.ts";
+import type { Report } from "../report.ts";
 
 interface Pieces {
   tools: ModTool[];
@@ -105,9 +106,9 @@ export class ModRegistry {
   readonly registry: Registry = createRegistry();
   private readonly loaded = new Map<string, Loaded>();
   private readonly loading = keyedQueue();
-  private readonly report: (message: string) => void;
+  private readonly report: Report;
 
-  constructor(report: (message: string) => void = (m) => console.error(`loki-daemon: ${m}`)) {
+  constructor(report: Report) {
     this.report = report;
   }
 
@@ -153,24 +154,29 @@ export class ModRegistry {
           };
         },
       },
-      diagnostics: { report: (d) => this.report(`${mod.name}: ${d.severity}: ${d.message}`) },
+      diagnostics: { report: (d) => this.report(`${mod.name}: ${d.message}`, d.severity) },
       signal: abort.signal,
     };
-    const replacing = this.loaded.has(mod.name);
+    const previous = this.loaded.get(mod.name);
     this.retire(mod.name);
     let dispose: unknown;
     try {
       dispose = await mod.activate(api);
     } catch (error) {
       abort.abort();
-      if (replacing) this.unload(mod.name);
       const refused = `mod ${mod.name} failed to load: ${messageOf(error)}`;
       this.report(refused);
+      if (previous) await this.putBack(previous.mod);
       return { refused };
     }
     this.loaded.set(mod.name, { mod, pieces, abort, ...(typeof dispose === "function" ? { dispose: dispose as () => void } : {}) });
     this.install(mod.name);
     return { loaded: true };
+  }
+
+  private async putBack(mod: LokiMod): Promise<void> {
+    if ("loaded" in (await this.loadNow(mod))) this.report(`mod ${mod.name}: the one that was running is back`, "info");
+    else this.unload(mod.name);
   }
 
   unload(name: string): void {

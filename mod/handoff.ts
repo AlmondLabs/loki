@@ -142,7 +142,7 @@ export class Handoff {
       try {
         await this.opts.threads.archiveHandedOff(accountId, threadId);
       } catch (error) {
-        log("handoff:archive-failed", { account_id: accountId, thread_id: threadId, error: messageOf(error) });
+        log.error("handoff:archive-failed", { account_id: accountId, thread_id: threadId, error: messageOf(error) });
       }
       return { agent_id: owner, conversation_id: conversationId };
     });

@@ -173,7 +173,7 @@ export class JiraSync implements AccountSync {
       events = await this.events(ticket.id, floor);
     } catch (error) {
       if (!(error instanceof JiraError && error.code === "not_found")) throw error;
-      log("jira:ticket-unreadable", { account_id: this.accountId, thread_id: ticket.id, error: messageOf(error) });
+      log.error("jira:ticket-unreadable", { account_id: this.accountId, thread_id: ticket.id, error: messageOf(error) });
       return;
     }
     this.record(ticket, events, floor);

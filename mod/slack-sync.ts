@@ -227,7 +227,7 @@ export class SlackSync implements AccountSync {
         if (now === null || tsKey(now) !== tsKey(t.marked_to)) continue;
         await this.opts.client.markThread(t.channel, t.thread_ts, t.last_read);
       } catch (err) {
-        log("slack:thread-mark-failed", {
+        log.error("slack:thread-mark-failed", {
           account_id: this.accountId,
           thread_id: record.thread_id,
           thread_ts: t.thread_ts,
@@ -282,7 +282,7 @@ export class SlackSync implements AccountSync {
       };
     } catch (err) {
       if (err instanceof SlackError && err.code === "signed_out") throw err;
-      log("slack:thread-unreadable", { account_id: this.accountId, thread_id: record.thread_id, error: messageOf(err) });
+      log.error("slack:thread-unreadable", { account_id: this.accountId, thread_id: record.thread_id, error: messageOf(err) });
       return null;
     }
   }
@@ -318,7 +318,7 @@ export class SlackSync implements AccountSync {
       if (m) this.opts.threads.observe(this.accountId, { ...m, reach: record.reach ?? m.reach, place: record.place ?? m.place, from_backfill: false });
     } catch (err) {
       if (err instanceof SlackError && err.code === "signed_out") throw err;
-      log("slack:item-unreadable", { account_id: this.accountId, thread_id: record.thread_id, error: messageOf(err) });
+      log.error("slack:item-unreadable", { account_id: this.accountId, thread_id: record.thread_id, error: messageOf(err) });
     }
   }
 
@@ -340,7 +340,7 @@ export class SlackSync implements AccountSync {
       }
     } catch (err) {
       if (err instanceof SlackError && err.code === "signed_out") throw err;
-      log("slack:activity-read-held", { account_id: this.accountId, thread_id: record.thread_id, error: messageOf(err) });
+      log.warning("slack:activity-read-held", { account_id: this.accountId, thread_id: record.thread_id, error: messageOf(err) });
     }
     const all = [...byKey.values()];
     return { card: all.filter(makesCards), related: all.filter((i) => !makesCards(i)) };
@@ -357,7 +357,7 @@ export class SlackSync implements AccountSync {
       await this.opts.client.markActivity(items, read);
       return items;
     } catch (err) {
-      log("slack:activity-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, read, error: messageOf(err) });
+      log.error("slack:activity-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, read, error: messageOf(err) });
       return [];
     }
   }
@@ -381,7 +381,13 @@ export class SlackSync implements AccountSync {
         await this.opts.client.markThread(t.channel, t.thread_ts, upTo);
         moved.push({ ...t, last_read: read, marked_to: upTo });
       } catch (err) {
-        log("slack:thread-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, thread_ts: t.thread_ts, read: true, error: messageOf(err) });
+        log.error("slack:thread-mark-failed", {
+          account_id: this.accountId,
+          thread_id: record.thread_id,
+          thread_ts: t.thread_ts,
+          read: true,
+          error: messageOf(err),
+        });
       }
     }
     if (moved.length > 0) this.threadsMarked.set(record.thread_id, moved);
@@ -487,7 +493,7 @@ export class SlackSync implements AccountSync {
       if (m) this.opts.threads.observe(this.accountId, { ...m, from_backfill: fromBackfill });
     } catch (err) {
       if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
-      log("slack:item-unreadable", { account_id: this.accountId, thread_id: c.thread_id, error: messageOf(err) });
+      log.error("slack:item-unreadable", { account_id: this.accountId, thread_id: c.thread_id, error: messageOf(err) });
       if (!(err instanceof SlackError) || err.code.startsWith("http_") || PASSING_ERRORS.includes(err.code)) return "failed";
     }
     if (this.opts.threads.get(this.accountId, c.thread_id)?.state === "open") return "card";
@@ -589,7 +595,7 @@ export class SlackSync implements AccountSync {
     } catch (err) {
       if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
       if (err instanceof SlackError && err.code === "channel_not_found") return true;
-      log("slack:dm-unreadable", { account_id: this.accountId, thread_id: r.thread_id, error: messageOf(err) });
+      log.error("slack:dm-unreadable", { account_id: this.accountId, thread_id: r.thread_id, error: messageOf(err) });
       return false;
     }
   }

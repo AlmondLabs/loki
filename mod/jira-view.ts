@@ -51,7 +51,7 @@ async function fileOf(
 
 function unreadAttachments(err: unknown): JiraAttachment[] {
   if (err instanceof JiraError && err.code === "rejected") throw err;
-  log("jira:attachments-unread", { error: errorText(err) });
+  log.warning("jira:attachments-unread", { error: errorText(err) });
   return [];
 }
 
@@ -196,7 +196,7 @@ export function jiraCardView(
 
 function unreadTicket(err: unknown): null {
   if (err instanceof JiraError && err.code === "rejected") throw err;
-  log("jira:ticket-unread", { error: errorText(err) });
+  log.warning("jira:ticket-unread", { error: errorText(err) });
   return null;
 }
 

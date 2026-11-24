@@ -51,7 +51,9 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build runs the
    checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to `~/.loki/logs/daemon.log`. A
    checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it reloads the mod when `mod/` or
-   `core/` changes, and a change to `daemon/` or `core/` makes a restart due (`restart_due`), which the window offers;
+   `core/` changes, once the files have been still for `MOD_SETTLE_MS`, so a pull is one reload. The new mod is built
+   before the running one stops; one that does not build, or throws as it starts, leaves the running one serving
+   (`registry.ts` puts it back). A change to `daemon/` or `core/` makes a restart due (`restart_due`), which the window offers;
    `daemon_restart` stops it cleanly for the supervisor to start again. Under `bun run start`, which runs the built page, a
    change to `app/` or `core/` also makes a build due (`daemon/page-build.ts`).
 2. **A daemon that dies is started again, with backoff.** The supervisor (`supervise_daemon` in `lib.rs`) waits one
@@ -202,7 +204,8 @@ every chat gets, the chats, then the mods.
     turn events. Each mod becomes one pi-durable extension shared by every agent's store, so one install reaches every
     chat (`registry.ts`). loki's own mod (`mod/index.ts`) is loaded first; then any file in `~/.loki/mods`, bundled
     afresh and watched (`files.ts`). Editing a mod reloads it in place: work already under way finishes on the old code
-    and the next step uses the new. A mod built for a newer major API version is refused.
+    and the next step uses the new. A mod that throws as it reloads is reported, and the one that was running is
+    activated again. A mod built for a newer major API version is refused.
 11. **MCP (`daemon/mcp/`).** One `@modelcontextprotocol/client` per server in `~/.loki/mcp.json` (read by `config.ts`,
     in the `mcpServers` shape other MCP clients use; `servers.ts`: local over stdio, remote over Streamable HTTP,
     restarted with backoff, tools re-read when a server says they changed). `index.ts` registers every tool as
@@ -528,6 +531,9 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
    to notice changes), and in each agent's memory `conflicts/sync.md` while a clash waits for reflection.
 13. `logs/`: `daemon.log` (the daemon's output, appended across restarts, and set aside as `daemon.log.1` once past
     10 MB) and `events.jsonl` (the local usage events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
+    A line of either log is the time in UTC, a severity (`info`, `warning` or `error`) and the message
+    (`core/log-line.ts`); the daemon's lines also name its process, `loki-daemon[<pid>]:` (`daemon/report.ts`), since
+    more than one daemon can write to the file over time. What Node prints by itself, a stack trace say, has neither.
 14. `updates.json`: the update channel, Stable or Nightly, and the last install that failed as loki quit, which the
     shell keeps (`update.rs`).
 

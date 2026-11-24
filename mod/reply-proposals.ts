@@ -306,7 +306,8 @@ export class ReplyProposals implements AgentReplyReports {
     const list = typeof raw === "object" && raw !== null ? (raw as { chats?: unknown }).chats : null;
     for (const c of Array.isArray(list) ? list.map(parseChat) : []) if (c) this.chats.set(keyOf(c), c);
     this.stopMoves = opts.accounts.onChange((change) => {
-      if (change.kind === "moved") void this.withdrawMoved(change.account_id, change.from).catch((err: unknown) => log("replies:move-failed", messageOf(err)));
+      if (change.kind === "moved")
+        void this.withdrawMoved(change.account_id, change.from).catch((err: unknown) => log.error("replies:move-failed", messageOf(err)));
     });
   }
 
@@ -640,7 +641,7 @@ export class ReplyProposals implements AgentReplyReports {
         decided_at: null,
         ...((p.kind === "dm" || p.kind === "ticket") && !mayHaveGone(note.reason) ? { outbox_id: null } : {}),
       };
-      log("replies:not-sent", { provider: p.provider, people: people !== null });
+      log.error("replies:not-sent", { provider: p.provider, people: people !== null });
       return { next: people ? { ...next, to: people.to, cc: people.cc, people_added: people.added, people_removed: people.removed } : next, notice: null };
     });
   }
@@ -655,7 +656,7 @@ export class ReplyProposals implements AgentReplyReports {
         this.save(chat, { ...r, proposals: r.proposals.map((x) => (x.id === p.id ? next : x)) });
       }
       return Promise.resolve();
-    }).catch((err: unknown) => log("replies:report-failed", messageOf(err)));
+    }).catch((err: unknown) => log.error("replies:report-failed", messageOf(err)));
   }
 
   private async report(
@@ -677,7 +678,7 @@ export class ReplyProposals implements AgentReplyReports {
       });
       this.opts.outside.acknowledge(outboxId);
     } catch (err) {
-      log("replies:report-failed", messageOf(err));
+      log.error("replies:report-failed", messageOf(err));
     }
   }
 

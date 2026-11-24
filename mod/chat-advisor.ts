@@ -53,7 +53,7 @@ export class AdvisorStrips {
       (advisor: AdvisorView | null) => {
         if (this.asked.get(key) === n) this.push(agentId, chatId, [{ kind: "advisor", advisor }]);
       },
-      (err: unknown) => log("advisor:view-failed", { chat: chatId, error: messageOf(err) }),
+      (err: unknown) => log.error("advisor:view-failed", { chat: chatId, error: messageOf(err) }),
     );
   }
 }

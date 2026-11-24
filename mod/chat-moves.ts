@@ -96,7 +96,7 @@ export class ChatMoves implements PeerMoves {
           log("peers:chat-move-undone", { agent: hold.agent_id, chat: hold.conversation_id, to: macId });
         }
       } catch (err) {
-        log("peers:chat-settle-failed", { agent: hold.agent_id, chat: hold.conversation_id, error: messageOf(err) });
+        log.error("peers:chat-settle-failed", { agent: hold.agent_id, chat: hold.conversation_id, error: messageOf(err) });
       }
     }
   }
@@ -138,7 +138,7 @@ export class ChatMoves implements PeerMoves {
       }
       if (!waiting) this.opts.markDone(macId);
     } catch (err) {
-      log("peers:chat-move-failed", { from: macId, error: messageOf(err) });
+      log.error("peers:chat-move-failed", { from: macId, error: messageOf(err) });
     } finally {
       this.running.delete(macId);
     }
@@ -151,7 +151,7 @@ export class ChatMoves implements PeerMoves {
     const link = this.opts.link(to);
     if (!link) return `${name} is out of reach: move the chat once it is back`;
     if (await this.opts.held?.holdMove(agentId, conversationId, to)) {
-      log("peers:chat-move-held", { agent: agentId, chat: conversationId, to });
+      log.warning("peers:chat-move-held", { agent: agentId, chat: conversationId, to });
       return `The chat moves to ${name} when the advisor has answered. If ${name} is out of reach then, the chat stays here.`;
     }
     return this.send(to, name, link, agentId, conversationId);
@@ -168,7 +168,7 @@ export class ChatMoves implements PeerMoves {
         if (!link && key === answered) {
           // react-doctor-disable-next-line react-doctor/async-await-in-loop
           await held.releaseMove(move.agent_id, move.conversation_id);
-          log("peers:chat-held-move-out-of-reach", { agent: move.agent_id, chat: move.conversation_id, to: move.to });
+          log.warning("peers:chat-held-move-out-of-reach", { agent: move.agent_id, chat: move.conversation_id, to: move.to });
         }
         if (!link) continue;
         this.going.add(key);
@@ -182,7 +182,7 @@ export class ChatMoves implements PeerMoves {
         }
       }
     } catch (err) {
-      log("peers:chat-held-moves-failed", { error: messageOf(err) });
+      log.error("peers:chat-held-moves-failed", { error: messageOf(err) });
     }
   }
 

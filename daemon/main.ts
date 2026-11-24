@@ -51,6 +51,8 @@ import { AcpChats } from "./acp/chats.ts";
 import { LokiTools } from "./acp/loki-tools.ts";
 import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
+import { reporter } from "./report.ts";
+import { messageOf } from "../core/errors.ts";
 import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
 export const EXIT_HELD = 3;
@@ -62,6 +64,8 @@ export const EXIT_OLD_DATA = 4;
  * `src-tauri/src/procs.rs` matches it, with the token file, on a leftover daemon's command line. The daemon never reads it.
  */
 const DAEMON_MARKER = "loki-daemon";
+
+const report = reporter({ pid: process.pid, write: (line) => console.error(line) });
 
 const { values: args } = parseArgs({
   options: {
@@ -77,19 +81,18 @@ if (args["check-scripts"]) {
   process.exit(0);
 }
 if (!args.dir || !args.mod) {
-  console.error("loki-daemon: --dir and --mod are required");
+  report("--dir and --mod are required");
   process.exit(2);
 }
 
 mkdirSync(args.dir, { recursive: true });
 const taken = acquire(join(args.dir, "daemon.lock"));
 if (!("release" in taken)) {
-  console.error(`loki-daemon: another daemon (pid ${taken.heldBy}) is serving ${args.dir}`);
+  report(`another daemon (pid ${taken.heldBy}) is serving ${args.dir}`);
   process.exit(EXIT_HELD);
 }
 const lock: Lock = taken;
 
-const report = (message: string) => console.error(`loki-daemon: ${message}`);
 const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
@@ -308,13 +311,22 @@ await Promise.all(
   }),
 );
 
-const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
-const loadCore = (): Promise<LoadResult> =>
-  mods.load({
+type CoreActivate = (api: ModApi, host: Host) => unknown;
+const core = (await import(pathToFileURL(args.mod).href)) as { default: CoreActivate; build?: () => Promise<CoreActivate> };
+const loadCore = async (): Promise<LoadResult> => {
+  let built: CoreActivate;
+  try {
+    built = core.build ? await core.build() : core.default;
+  } catch (error) {
+    const refused = `mod loki did not build, so the one running stays: ${messageOf(error)}`;
+    report(refused);
+    return { refused };
+  }
+  return mods.load({
     name: "loki",
     apiVersion: MOD_API_VERSION,
     activate: (api) =>
-      core.default(api, {
+      built(api, {
         chats,
         chat,
         analytics,
@@ -356,6 +368,7 @@ const loadCore = (): Promise<LoadResult> =>
         },
       }),
   });
+};
 const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
 const builtPage = checkout && process.env.LOKI_BUILT_PAGE === "1" ? checkout : null;
 const devReload: DevReload = new DevReload({
@@ -394,13 +407,13 @@ schedules.start();
 void startPassCursors()
   .then(() => passes.start())
   .catch((error: unknown) => report(`background passes did not start: ${String(error)}`));
-console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
+report(`serving ${args.dir} with mods ${mods.names().join(", ")}`, "info");
 
 let stopping = false;
 function stop(signal: string) {
   if (stopping) return;
   stopping = true;
-  console.error(`loki-daemon: ${signal}, stopping`);
+  report(`${signal}, stopping`, "info");
   try {
     stopWatchingCore();
     stopWatchingMods();

@@ -38,7 +38,7 @@ export function chatImageRoute(opts: {
       // event nobody listens for, which ends the daemon. pipeline ends this answer instead, and a client that goes away
       // part-way closes the file.
       pipeline(createReadStream(file), res, (err) => {
-        if (err && err.code !== "ERR_STREAM_PREMATURE_CLOSE") log("chat-images:read-failed", { error: err.message });
+        if (err && err.code !== "ERR_STREAM_PREMATURE_CLOSE") log.error("chat-images:read-failed", { error: err.message });
       });
     };
     if (existsSync(file)) {
@@ -52,7 +52,7 @@ export function chatImageRoute(opts: {
         try {
           writeFileAtomic(file, data);
         } catch (err) {
-          log("chat-images:keep-failed", { name, error: messageOf(err) });
+          log.error("chat-images:keep-failed", { name, error: messageOf(err) });
           return void res.writeHead(200, { "content-type": typeOf(name), "access-control-allow-origin": "*" }).end(data);
         }
         send();

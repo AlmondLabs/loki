@@ -90,7 +90,7 @@ export class InboxLedger {
       rotateIfLarge(path, this.opts.maxBytes ?? LEDGER_MAX_BYTES);
       appendFileSync(path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
     } catch (err) {
-      log("inbox-ledger:write-failed", { error: messageOf(err) });
+      log.error("inbox-ledger:write-failed", { error: messageOf(err) });
     }
     return entry;
   }
