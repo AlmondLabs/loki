@@ -47,6 +47,7 @@ export function commandIdOf(input: string): string {
 
 const RUNNING = "Running";
 const FAILED = "Failed";
+export const RELOADED = "Reloaded: the mod restarted and the link is back";
 
 export const commandRunning = (row: TranscriptRow): boolean => row.event === "command" && row.summary === RUNNING;
 
@@ -346,7 +347,7 @@ export class ThreadModel {
     for (const r of this.tail) {
       if (r.role !== "event" || r.summary !== RUNNING) continue;
       if (commandIdOf(r.text) === "reload") {
-        r.summary = "Reloaded: the mod restarted and the link is back";
+        r.summary = RELOADED;
         r.detail = null;
       } else {
         r.summary = FAILED;

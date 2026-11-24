@@ -142,7 +142,7 @@ function ThreadBody({
         lastPlan = plan;
       }
   const thoughts = thoughtsIntoWork(entries.flatMap((e) => (e.kind === "turn" ? [e.parts] : [])));
-  const tailEntry = entries.at(-1);
+  const tailEntry = [...entries].reverse().find((e) => e.kind !== "command");
   const turnWorking = tailEntry?.kind === "turn" && tailEntry.state === "working";
   const message = (e: Extract<TurnPart, { kind: "message" }>) => (
     <ChatMessage

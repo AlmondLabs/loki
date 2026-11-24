@@ -39,7 +39,7 @@ import type {
   SuggestionTarget,
 } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
-import { ownSendKey, type HistoryRow } from "./thread.ts";
+import { ownSendKey, RELOADED, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
 import { coalesce } from "../timers.ts";
 import { Listeners } from "../listeners.ts";
@@ -599,7 +599,7 @@ export class ChatStore {
     } catch (err) {
       const message = messageOf(err);
       const reloaded = commandId === "reload" && /link closed/i.test(message);
-      l.thread.finishCommand(input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message, at());
+      l.thread.finishCommand(input, reloaded, reloaded ? RELOADED : message, at());
       this.bump();
       return { success: reloaded, output: reloaded ? "reloaded" : message };
     }

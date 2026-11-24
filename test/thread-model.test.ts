@@ -589,6 +589,16 @@ describe("an imported skill's text is its call's result (plan 2026-11-24-1736, K
     expect(rows[0].tool?.output).toBe(body);
   });
 
+  test("a Skill call that already has a real result keeps it, and the text stays a row of its own", () => {
+    const rows = foldSteps([
+      call("Skill", "s1", { skill: "ce-plan" }),
+      result("s1", "Loaded it already."),
+      user('<skill_content name="ce-plan">\n# Plan\n</skill_content>'),
+    ]);
+    expect(rows.map((r) => r.role)).toEqual(["tool", "event"]);
+    expect(rows[0].tool?.output).toBe("Loaded it already.");
+  });
+
   test("a skill's text with no call for it stays a row of its own", () => {
     const rows = foldSteps([call("Skill", "s1", { skill: "other" }), user('<skill_content name="ce-plan">\n# Plan\n</skill_content>')]);
     expect(rows.map((r) => r.role)).toEqual(["tool", "event"]);

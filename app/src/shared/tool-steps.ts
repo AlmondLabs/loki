@@ -140,6 +140,8 @@ export function stepTitle(name: string): string {
 
 export const stepVerb = (name: string): string => entryOf(name).verb;
 
+export const stepVerbOf = (row: TranscriptRow): string => entryOfRow(row).verb;
+
 export const stepIcon = (name: string): IconName => entryOf(name).icon;
 
 export const stepIconOf = (row: TranscriptRow): IconName => entryOfRow(row).icon;

@@ -12,7 +12,7 @@ import {
   stepTarget,
   stepTitle,
   stepLines,
-  stepVerb,
+  stepVerbOf,
   workSummary,
   type StepLine as StepLineText,
 } from "../shared/tool-steps";
@@ -113,7 +113,7 @@ function StepText({ row, line }: { row: TranscriptRow; line: StepLineText }) {
   return (
     <span className="loki-steps-text">
       <span className="loki-steps-verb loki-truncate">
-        <span className="loki-truncate">{stepVerb(stepName(row))}</span>
+        <span className="loki-truncate">{stepVerbOf(row)}</span>
         {stepFailed(row) && <span className="loki-steps-failed">Failed</span>}
       </span>
       <span className="loki-steps-target loki-truncate">{line.title}</span>
