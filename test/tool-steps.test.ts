@@ -120,6 +120,16 @@ describe("a step's title: the agent's description, else its command without the 
     expect(toolStep("bash", { command: wrapped }).input).toBe(wrapped);
   });
 
+  test("a long path keeps its end, so the step's file name survives the cut; other long targets keep their start", () => {
+    const path = `/Users/someone/.agents/skills/${"deep/".repeat(12)}fmt-docs-writer/SKILL.md`;
+    const label = toolLabel("read", { path });
+    expect(label.endsWith("/fmt-docs-writer/SKILL.md")).toBe(true);
+    expect(label).toContain("read · …");
+    expect(stepLine({ role: "tool", text: label, tool: { name: "read" } }).title).toBe("SKILL.md");
+    const query = "x".repeat(100);
+    expect(toolLabel("web_search", { query })).toBe(`web_search · ${"x".repeat(77)}…`);
+  });
+
   test("a ticket's description is its body, never its step's title", () => {
     const ticket = { account: "jira", project: "OPS", type: "Task", title: "Rotate the keys", description: "The keys expire on Friday.\nRotate both." };
     const step = toolStep("ticket_propose", ticket);

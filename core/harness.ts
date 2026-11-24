@@ -256,9 +256,17 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
 };
 
 const ARG_KEYS = ["command", "file_path", "path", "pattern", "query", "url", "skill", "prompt"];
+const PATH_KEYS: ReadonlySet<string> = new Set(["file_path", "path"]);
+const argKey = (args: Record<string, unknown>): string | undefined => ARG_KEYS.find((k) => typeof args[k] === "string" && args[k].trim());
 const argOf = (args: Record<string, unknown>): string | undefined => {
-  const key = ARG_KEYS.find((k) => typeof args[k] === "string" && args[k].trim());
+  const key = argKey(args);
   return key ? (args[key] as string).trim() : undefined;
+};
+
+const LABEL_MAX = 80;
+const capLabel = (target: string, keepEnd: boolean): string => {
+  if (target.length <= LABEL_MAX) return target;
+  return keepEnd ? `…${target.slice(-(LABEL_MAX - 1))}` : `${target.slice(0, LABEL_MAX - 3)}…`;
 };
 
 const TITLED_BY: Partial<Record<string, readonly string[]>> = {
@@ -407,7 +415,9 @@ export function toolLabel(name: string, input: unknown): string {
   const ownName = namedBy && typeof args[namedBy] === "string" ? args[namedBy].trim() : undefined;
   const target = question || (arg ?? ownName)?.split("\n")[0];
   if (!target) return name;
-  return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;
+  const key = argKey(args);
+  const isPath = !question && target === arg && key !== undefined && PATH_KEYS.has(key);
+  return `${name} · ${capLabel(target, isPath)}`;
 }
 
 export function movedMark(from: string, to: string): string {
