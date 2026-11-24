@@ -569,7 +569,7 @@ turning this one away.
 4. **Move one chat by hand.** Right-click a chat in the sidebar and pick **Move to Mac mini** (or the MacBook): it
    moves with everything above, and works the same in both directions, so you can bring a chat back. A chat you
    moved, or started on a Mac other than its agent's home, stays where you put it: moving its agent's home later
-   leaves it. The chat keeps a quiet "moved to Mac mini" line where it moved, and the agent is told with your next
+   leaves it. The chat keeps a quiet "Moved to Mac mini" line where it moved, and the agent is told with your next
    message there (which Mac it now runs on, and any attached files or folder that did not come along); nothing runs
    just to tell it. A chat mid-answer or waiting for you says so and stays. An agent's main chat is not moved by hand: there
    is one, on the agent's home, and it moves when you change the agent's "lives on".
@@ -1783,16 +1783,18 @@ from you. One sent while the advisor is answering another waits its turn.
 make it loop. Past that, `advisor_consult` is refused and the agent is told to wait or tell you. Your own `/advisor`
 is never capped.
 
-**The answer.** The advisor's answer lands in the chat as a row of its own, never as your message: **From the advisor
-· you asked** or **From the advisor · the agent asked**, the first lines of the answer, **Show More** for the whole of
-it in markdown, and **Open Advisor**. It starts the agent's turn, or waits for the running one to end. The agent is
+**The answer.** The advisor's answer lands in the chat as one line, never as your message: **Advisor answered · you
+asked** or **· the agent asked**, then the answer's first line. The line opens the advisor chat, where the whole answer
+is: on the Mac the chat's **Advisor** tab, on the phone the advisor's page. It starts the agent's turn, or waits for the
+running one to end; on the Mac, an answer that comes without words of yours heads a turn of its own, and one that comes
+with your message follows it. The agent is
 told the row is a reviewer's comments, not instructions, and that your instructions win: it replies by saying which
 points it takes up, which it sets aside and why (naming the instruction of yours that made it set one aside), then
 acts on what it took up. After substantial fixes it may send them back for another look; the advisor ends an answer
 that raises nothing new with the line `Nothing new.`, and the agent stops there. If you stop the chat before the agent
 has taken an answer up, the row stays, and the agent reads it with your next message.
 
-**When there is no answer.** A consult that ends without one still lands a row, **The advisor couldn't answer:** and
+**When there is no answer.** A consult that ends without one still lands a line, **Advisor couldn't answer** and
 why: it could not reach its model, it was stopped, it ended without an answer, or it stopped when loki restarted. That
 row starts the agent's turn too, and the agent carries on without the advisor's opinion.
 

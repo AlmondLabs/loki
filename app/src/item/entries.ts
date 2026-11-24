@@ -117,6 +117,9 @@ export type TurnEntry =
   | Extract<ThreadEntry, { kind: "message" }>
   | { kind: "turn"; key: string; parts: TurnPart[]; state: TurnState; failed: number; took: string | null };
 
+const opensTurn = (p: TurnPart): boolean => p.kind === "event" && (p.row.event === "advisor" || p.row.event === "chat_message");
+const onlyOpeners = (parts: readonly TurnPart[]): boolean => parts.every((p) => p.kind === "day" || p.kind === "new" || opensTurn(p));
+
 export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: boolean; waiting: boolean }): TurnEntry[] {
   const out: TurnEntry[] = [];
   let open: TurnPart[] | null = null;
@@ -139,6 +142,11 @@ export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: b
       close();
       out.push(...held, e);
       held = [];
+    } else if (opensTurn(e) && open !== null && !onlyOpeners(open)) {
+      close();
+      out.push(...held);
+      held = [];
+      open = [e];
     } else {
       (open ??= []).push(...held, e);
       held = [];

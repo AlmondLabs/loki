@@ -1,4 +1,4 @@
-import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../harness.ts";
+import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult, type HarnessEvent } from "../harness.ts";
 import { THOUGHT_MAX, type FileRef, type TranscriptRow } from "./transcript.ts";
 
 /** One thing the harness reported, in the shape every source is parsed into. `at` is when it was written, null when unknown. */
@@ -103,6 +103,20 @@ function fromHistory(m: HistoryRow): TranscriptRow {
   if (!row.files?.length) delete row.files;
   if (at) row.at = at;
   return row;
+}
+
+function eventRow(ev: HarnessEvent, at: string | null): TranscriptRow {
+  return {
+    role: "event",
+    text: ev.text,
+    summary: ev.summary,
+    detail: ev.detail,
+    ...(ev.link ? { link: ev.link } : {}),
+    ...(ev.advisor_chat ? { advisor_chat: ev.advisor_chat } : {}),
+    ...(ev.command ? { command: ev.command } : {}),
+    ...(ev.event ? { event: ev.event } : {}),
+    ...rowAt(at),
+  };
 }
 
 export class ThreadModel {
@@ -300,7 +314,7 @@ export class ThreadModel {
 
   beginCommand(input: string, at: string): void {
     this.settle(at);
-    this.push({ role: "event", text: input, summary: RUNNING, at });
+    this.push({ role: "event", text: input, summary: RUNNING, event: "command", at });
   }
 
   finishCommand(input: string, success: boolean, output: string, at: string): void {
@@ -309,7 +323,7 @@ export class ThreadModel {
     const summary = !success ? (oneLine && text ? `failed: ${text}` : "failed") : oneLine ? text || "done" : "done";
     const detail = !oneLine && text ? text : null;
     const row = this.runningRow(input);
-    if (!row) return this.push({ role: "event", text: input, summary, detail, at });
+    if (!row) return this.push({ role: "event", text: input, summary, detail, event: "command", at });
     row.summary = summary;
     row.detail = detail;
     this.touch();
@@ -445,27 +459,46 @@ export class ThreadModel {
   }
 
   private user(raw: string, at: string | null, images: readonly string[] = []): { changed: boolean; spoke: string | null } {
-    const events = extractHarnessEvents(raw);
-    for (const ev of events)
-      this.push({
-        role: "event",
-        text: ev.text,
-        summary: ev.summary,
-        detail: ev.detail,
-        ...(ev.link ? { link: ev.link } : {}),
-        ...(ev.advisor_chat ? { advisor_chat: ev.advisor_chat } : {}),
-        ...(ev.command ? { command: ev.command } : {}),
-        ...rowAt(at),
-      });
+    const events = extractHarnessEvents(raw).map((ev) => ({ yours: ev.yours === true, row: eventRow(ev, at) }));
+    const before = events.filter((e) => e.yours).map((e) => e.row);
+    const after = events.filter((e) => !e.yours).map((e) => e.row);
     const typed = stripHarnessMarkup(raw).trim();
     const text = images.length ? withoutImageMarks(typed) : typed;
     const files = messageFiles(raw);
-    if (!text && !files.length && !images.length) return { changed: events.length > 0, spoke: null };
+    if (!text && !files.length && !images.length) {
+      for (const row of [...before, ...after]) this.push(row);
+      return { changed: events.length > 0, spoke: null };
+    }
     this.settle(at);
-    const own = this.echoes.indexOf(ownSendKey(withoutImageMarks(text), files));
-    if (own >= 0) this.echoes.splice(own, 1);
-    else this.push({ role: "user", text, ...rowAt(at), ...(files.length ? { files } : {}), ...(images.length ? { images: [...images] } : {}) });
+    const key = ownSendKey(withoutImageMarks(text), files);
+    const own = this.echoes.indexOf(key);
+    if (own >= 0) {
+      this.echoes.splice(own, 1);
+      this.insertBefore(this.shownSend(key), before);
+    } else {
+      for (const row of before) this.push(row);
+      this.push({ role: "user", text, ...rowAt(at), ...(files.length ? { files } : {}), ...(images.length ? { images: [...images] } : {}) });
+    }
+    for (const row of after) this.push(row);
     return { changed: true, spoke: text };
+  }
+
+  private shownSend(key: string): number {
+    for (let i = this.tail.length - 1; i >= 0; i--) {
+      const r = this.tail[i];
+      if (r.role === "user" && !r.queued && ownSendKey(withoutImageMarks(r.text), r.files ?? []) === key) return i;
+    }
+    return -1;
+  }
+
+  private insertBefore(at: number, rows: TranscriptRow[]): void {
+    if (!rows.length) return;
+    if (at < 0) {
+      for (const row of rows) this.push(row);
+      return;
+    }
+    this.tail.splice(at, 0, ...rows);
+    this.touch();
   }
 
   private call(name: string, args: unknown, id: string | null, at: string | null, kind?: string): boolean {

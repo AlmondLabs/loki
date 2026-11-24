@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { answerBlock } from "../core/advisor.ts";
 import {
+  chatMessageBlock,
   decodeEntities,
   extractHarnessEvents,
   movedMark,
@@ -58,9 +59,11 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
       'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.loki/widgets/local-conv-1/; read the canvas with canvas_read in a script for the full picture.\n</loci-desk>';
     expect(extractHarnessEvents(text)).toEqual([
       {
-        text: "canvas activity",
-        summary: "2 gestures on local-conv-1",
+        text: "You changed 2 widgets",
+        summary: null,
         detail: 'moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\nclosed "loci" (shared/welcome) — the file still exists',
+        event: "canvas",
+        yours: true,
       },
     ]);
     expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
@@ -79,10 +82,63 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
   });
 });
 
+describe("the words an event row carries (plan 2026-11-24-1736, KTD1)", () => {
+  const desk = (...lines: string[]) =>
+    `go\n\n<loki-desk desk="c">\nCanvas activity since your last turn:\n${lines.map((l) => `- ${l}`).join("\n")}\n</loki-desk>`;
+
+  test("canvas gestures count the widgets touched, and say moved only when every gesture was a move", () => {
+    const moves = desk('moved "A" (c/a) to (1, 2)', 'moved "A" (c/a) to (3, 4)', 'moved "B" (c/b) to (5, 6)');
+    expect(extractHarnessEvents(moves)[0]).toMatchObject({ text: "You moved 2 widgets", event: "canvas" });
+    expect(extractHarnessEvents(desk('moved "A" (c/a) to (1, 2)', 'resized "B" (c/b) to 300×200'))[0]).toMatchObject({ text: "You changed 2 widgets" });
+    expect(extractHarnessEvents(desk('resized "A" (c/a) to 300×200'))[0]).toMatchObject({ text: "You changed 1 widget" });
+  });
+
+  test("a set gesture counts the widget it was on, not the value it set", () => {
+    const sets = desk('set title = "Shopping" (was "Todo") on "Notes" (c/notes)', 'set body = "milk" on "Notes" (c/notes)');
+    expect(extractHarnessEvents(sets)[0]).toMatchObject({ text: "You changed 1 widget" });
+    const two = desk('set title = "A" on "Notes" (c/notes)', 'set title = "A" on "Other" (c/other)');
+    expect(extractHarnessEvents(two)[0]).toMatchObject({ text: "You changed 2 widgets" });
+  });
+
+  test("an answer that opens with code, or has no words, gives no made-up first line", () => {
+    const fenced = answerBlock({
+      from: "agent",
+      asked: "Review",
+      advisor_chat: "advisor-c",
+      state: "answered",
+      text: "```ts\nconst a = 1;\n```\nThe constant is fine.",
+    });
+    expect(extractHarnessEvents(fenced)[0]).toMatchObject({ summary: "const a = 1;" });
+    const marks = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text: "**\n---" });
+    expect(extractHarnessEvents(marks)[0]).toMatchObject({ text: "Advisor answered · the agent asked" });
+  });
+
+  test("an advisor answer's first line is plain words: no markdown marks", () => {
+    const text = "**The runner follows the plan, but cleanup can leak.**\n### High\n1. An ambiguous response…";
+    const raw = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text });
+    expect(extractHarnessEvents(raw)[0]).toMatchObject({ summary: "The runner follows the plan, but cleanup can leak.", detail: text });
+    const heading = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text: "## `lock.ts` is fine\nmore" });
+    expect(extractHarnessEvents(heading)[0]).toMatchObject({ summary: "lock.ts is fine" });
+  });
+
+  test("a message from another chat is from that chat, by name", () => {
+    const raw = chatMessageBlock({ from_agent: "friday", from_chat: "data", title: "Data pipeline" }, "The import is done.\nRows: 12");
+    expect(extractHarnessEvents(raw)).toEqual([
+      {
+        text: "From Data pipeline",
+        summary: "The import is done.",
+        detail: "The import is done.\nRows: 12",
+        link: { agent_id: "friday", conversation_id: "data" },
+        event: "chat_message",
+      },
+    ]);
+  });
+});
+
 describe("a chat's move mark (plan 023, addendum A5)", () => {
   test("is a quiet row naming both Macs, and no words in a bubble", () => {
     const mark = movedMark("Deepak's MacBook", 'Mac "mini"');
-    expect(extractHarnessEvents(mark)).toEqual([{ text: 'moved to Mac "mini"', summary: "came over from Deepak's MacBook", detail: null }]);
+    expect(extractHarnessEvents(mark)).toEqual([{ text: 'Moved to Mac "mini"', summary: "from Deepak's MacBook", detail: null, event: "moved" }]);
     expect(stripHarnessMarkup(mark).trim()).toBe("");
   });
 });
@@ -100,6 +156,7 @@ describe("a sent suggestion's link back (plan 049, KTD6)", () => {
         summary: 'Fix the "lock" test',
         detail: null,
         link: { agent_id: "agent-local-friday", conversation_id: "conv-source" },
+        yours: true,
       },
     ]);
   });
@@ -153,15 +210,10 @@ describe("an advisor's answer (R16, R24)", () => {
     const raw = `${answer(text)}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
     expect(stripHarnessMarkup(raw).trim()).toBe("");
     expect(extractHarnessEvents(raw)).toEqual([
-      {
-        text: "From the advisor · you asked",
-        summary: "Yes, it sleeps.\nIt waits 50 ms for a lock.\nThe CI box is slower.…",
-        detail: text,
-        advisor_chat: "advisor-conv-a",
-      },
+      { text: "Advisor answered · you asked", summary: "Yes, it sleeps.", detail: text, advisor_chat: "advisor-conv-a", event: "advisor" },
     ]);
     expect(extractHarnessEvents(answer("Short.", "agent"))).toEqual([
-      { text: "From the advisor · the agent asked", summary: "Short.", detail: "Short.", advisor_chat: "advisor-conv-a" },
+      { text: "Advisor answered · the agent asked", summary: "Short.", detail: "Short.", advisor_chat: "advisor-conv-a", event: "advisor" },
     ]);
   });
 
@@ -169,7 +221,7 @@ describe("an advisor's answer (R16, R24)", () => {
     const raw = answerBlock({ from: "agent", asked: "Is it flaky?", advisor_chat: "advisor-conv-a", state: "failed", reason: "loki restarted" });
     expect(stripHarnessMarkup(raw).trim()).toBe("");
     expect(extractHarnessEvents(raw)).toEqual([
-      { text: "From the advisor · the agent asked", summary: "The advisor couldn't answer: loki restarted", detail: null, advisor_chat: "advisor-conv-a" },
+      { text: "Advisor couldn't answer · the agent asked", summary: "loki restarted", detail: null, advisor_chat: "advisor-conv-a", event: "advisor" },
     ]);
   });
 
@@ -179,7 +231,7 @@ describe("an advisor's answer (R16, R24)", () => {
     expect(stripHarnessMarkup(raw).trim()).toBe("");
     const events = extractHarnessEvents(raw);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ text: "From the advisor · you asked", detail: text });
+    expect(events[0]).toMatchObject({ text: "Advisor answered · you asked", detail: text });
   });
 
   test("an answer that quotes loki's own markup is one advisor row, and none of the quote becomes a row of its own", () => {
@@ -193,7 +245,7 @@ describe("an advisor's answer (R16, R24)", () => {
     ].join("\n");
     const raw = `${answer(quoted)}\n<system-reminder>Weigh the advisor's answer.</system-reminder>`;
     expect(stripHarnessMarkup(raw).trim()).toBe("");
-    expect(extractHarnessEvents(raw)).toEqual([expect.objectContaining({ text: "From the advisor · you asked", detail: quoted })]);
+    expect(extractHarnessEvents(raw)).toEqual([expect.objectContaining({ text: "Advisor answered · you asked", detail: quoted })]);
   });
 
   test("an answer that names a tag it never closes keeps the rest of the row's markup out of the person's words", () => {
@@ -205,6 +257,6 @@ describe("an advisor's answer (R16, R24)", () => {
   test("the person's own words beside an answer stay theirs", () => {
     const raw = `${answer("Yes, it sleeps.")}\n\nThen fix it.`;
     expect(stripHarnessMarkup(raw).trim()).toBe("Then fix it.");
-    expect(extractHarnessEvents(raw)).toMatchObject([{ text: "From the advisor · you asked", detail: "Yes, it sleeps." }]);
+    expect(extractHarnessEvents(raw)).toMatchObject([{ text: "Advisor answered · you asked", detail: "Yes, it sleeps." }]);
   });
 });

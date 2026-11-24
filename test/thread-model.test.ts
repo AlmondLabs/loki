@@ -142,7 +142,7 @@ describe("the live thread", () => {
     const l = emptyLive();
     push(l, user('build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>'));
     expect(l.thread.rows()).toMatchObject([
-      { role: "event", text: "canvas activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
+      { role: "event", text: "You moved 1 widget", summary: null, detail: 'moved "x" to (1, 2)', event: "canvas" },
       { role: "user", text: "build it" },
     ]);
     const r = push(l, user('<skill_content name="unslop">\n# Unslop\n</skill_content>'));
@@ -481,17 +481,18 @@ describe("an advisor's answer (R16, R24)", () => {
   const answered = answerBlock({ from: "person", asked: "Is it flaky?", advisor_chat: "advisor-data", state: "answered", text: long });
   const row = {
     role: "event",
-    text: "From the advisor · you asked",
-    summary: "The test sleeps.\nIt waits for a lock.\nThe CI box is slower.…",
+    text: "Advisor answered · you asked",
+    summary: "The test sleeps.",
     advisor_chat: "advisor-data",
+    event: "advisor",
   };
 
-  test("live, it is a row of its own from the advisor, and the person's words beside it are their bubble", () => {
+  test("live, it is a row of its own from the advisor after the person's words, which are their bubble", () => {
     const l = emptyLive();
     push(l, user(`${answered}\n\nThen fix it.`));
     expect(l.thread.rows()).toMatchObject([
-      { ...row, detail: long },
       { role: "user", text: "Then fix it." },
+      { ...row, detail: long },
     ]);
     expect(l.thread.rows()).toHaveLength(2);
   });
@@ -518,12 +519,61 @@ describe("an advisor's answer (R16, R24)", () => {
     expect(foldSteps([user(failed)])).toEqual([
       {
         role: "event",
-        text: "From the advisor · the agent asked",
-        summary: "The advisor couldn't answer: it was stopped",
+        text: "Advisor couldn't answer · the agent asked",
+        summary: "it was stopped",
         detail: null,
         advisor_chat: "advisor-data",
+        event: "advisor",
       },
     ]);
+  });
+});
+
+describe("rows from one message, placed by who they are for (plan 2026-11-24-1736, KTD2)", () => {
+  const advice = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text: "Looks right." });
+  const gestures = '<loki-desk desk="c">\n- moved "A" (c/a) to (1, 2)\n</loki-desk>';
+  const order = (rows: TranscriptRow[] | undefined) => (rows ?? []).map((r) => r.event ?? r.role);
+
+  test("your canvas gestures, then your words, then what the agent was told", () => {
+    const l = emptyLive();
+    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "user", "advisor"]);
+  });
+
+  test("the echo of your own send puts the gestures before the words already shown, and the rest after", () => {
+    const l = emptyLive();
+    l.thread.own({ role: "user", text: "ship it" }, ownSendKey("ship it"));
+    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "user", "advisor"]);
+    expect(rowsOf(l.thread).filter((r) => r.role === "user")).toHaveLength(1);
+  });
+
+  test("an event-only message keeps gestures first, and a suggestion's chip comes before the words it was sent with", () => {
+    const l = emptyLive();
+    push(l, user(`${advice}\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "advisor"]);
+    const s = emptyLive();
+    push(s, user(`${suggestedMark({ from_agent: "f", from_chat: "d", title: "T" })}\n\nship it\n\n${advice}`));
+    expect(rowsOf(s.thread).map((r) => r.event ?? r.text)).toEqual(["suggested in another chat", "ship it", "advisor"]);
+  });
+
+  test("an echo with no row shown for it (a queued send) places its rows around the words it adds", () => {
+    const l = emptyLive();
+    l.thread.expectEcho(ownSendKey("ship it"));
+    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "advisor"]);
+  });
+
+  test("history folds the same message to the same order", () => {
+    expect(order(foldSteps([user(`${advice}\n\nship it\n\n${gestures}`, at0)]))).toEqual(["canvas", "user", "advisor"]);
+  });
+
+  test("a command's row says it is one", () => {
+    const l = emptyLive();
+    applyChatEvent(l, { kind: "command", phase: "start", input: "/compact" });
+    expect(rowsOf(l.thread)[0]).toMatchObject({ role: "event", text: "/compact", event: "command" });
+    applyChatEvent(l, { kind: "command", phase: "end", input: "/doctor", output: "ok", success: true });
+    expect(rowsOf(l.thread)[1]).toMatchObject({ text: "/doctor", event: "command" });
   });
 });
 

@@ -42,6 +42,13 @@ export interface FileRef {
   mime?: string;
 }
 
+/**
+ * What an event row is, for the rows the thread draws in a way of their own. Set where the row is built
+ * (core/harness.ts, ThreadModel) and carried in history pages from the daemon; a row without it is drawn as a plain
+ * event.
+ */
+export type EventKind = "advisor" | "chat_message" | "canvas" | "moved" | "command";
+
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";
   text: string;
@@ -66,6 +73,8 @@ export interface TranscriptRow {
   link?: { agent_id: string; conversation_id: string };
   /** On the row an advisor's answer, or its failure, leaves: the advisor chat that answered, which the row opens. */
   advisor_chat?: string;
+  /** On an event row: what kind it is, when it is one drawn in a way of its own (EventKind). */
+  event?: EventKind;
   /**
    * What the agent thought before this row (plan 097, U9): an ACP agent's thought chunks, or a model's thinking kept
    * in its message, capped at THOUGHT_MAX here (the store keeps all of it). On the reply or the call that followed it.
