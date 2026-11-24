@@ -1270,8 +1270,11 @@ their name, kind and size; press one to open it in Slack, which holds the file. 
 by 240, with its name under it: the Mac that holds the account fetches Slack's small copy once and keeps it with your
 chats' pictures. A file deleted since says so, and a
 message of only a file names the file on its card. A hand-off still sends the thread alone, now with each link's
-address and what apps attached. In a mail thread, each mail before the newest starts folded to its
-sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **Your Gmail inbox is the list of email cards**: every thread in it, read or unread, in every tab, is a card until
+address and what apps attached. In a mail thread, each mail before the newest starts folded, as a mail
+client shows it: the sender's picture and name with the date at the right edge, and the mail's first line under them;
+press one to open it. An opened mail keeps that same head, adds the sender's address after the name and who it went
+to on the line under it (rest the pointer there for the whole list), and shows the mail. Your own mail reads the same
+way, as **You**. Slack messages and Jira comments carry their time at the right edge too. While the thread is read, or if it cannot be, the card shows its last few lines. **Your Gmail inbox is the list of email cards**: every thread in it, read or unread, in every tab, is a card until
 you archive it, here or in Gmail. Connecting brings the newest of them, and while the account has fewer than 20 open
 cards waiting on you (not resting after read or later), the rest of the inbox fills it up to 20, newest first;
 closing cards makes room for more, so the whole inbox comes in time. A Slack workspace fills the same way from its
