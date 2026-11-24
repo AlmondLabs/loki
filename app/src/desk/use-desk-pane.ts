@@ -1,14 +1,15 @@
 import { useCallback, useState } from "react";
-import { EMPTY_PANE, chooseTab, escapeTab, nextFrame, openTab, tabOf, type DeskTab, type FrameRequest, type PaneState } from "./pane";
+import { EMPTY_PANE, chooseTab, escapeTab, nextFrame, openTab, shownTab, tabOf, type DeskTab, type FrameRequest, type PaneState } from "./pane";
 
-export function useDeskPane(scope: string) {
+export function useDeskPane(scope: string, hasAdvisor: boolean) {
   const [state, setState] = useState<PaneState>(EMPTY_PANE);
   const [frameRequest, setFrameRequest] = useState<FrameRequest | null>(null);
-  const tab = tabOf(state, scope);
+  const tab = shownTab(tabOf(state, scope), hasAdvisor);
   const setTab = useCallback((t: DeskTab) => setState((s) => chooseTab(s, scope, t)), [scope]);
   const open = useCallback((target: string) => setState((s) => openTab(s, target)), []);
+  const showAdvisor = useCallback((target: string) => setState((s) => chooseTab(s, target, "advisor")), []);
   const escape = (typing: boolean): boolean => {
-    const next = escapeTab(state, scope, { typing });
+    const next = escapeTab(state, scope, tab, { typing });
     if (!next) return false;
     setState(next);
     return true;
@@ -20,7 +21,7 @@ export function useDeskPane(scope: string) {
     },
     [scope],
   );
-  return { tab, setTab, open, escape, frame, frameRequest };
+  return { tab, setTab, open, showAdvisor, escape, frame, frameRequest };
 }
 
 export type DeskPaneModel = ReturnType<typeof useDeskPane>;

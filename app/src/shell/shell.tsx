@@ -118,7 +118,8 @@ export function Shell() {
   }, [desk.scope, capture]);
   const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
   const chat = useChatLayout(desk);
-  const pane = useDeskPane(desk.scope);
+  const hasAdvisor = !!(desk.agentId && desk.conversationId && catchUp.conversation(desk.agentId, desk.conversationId).advisor);
+  const pane = useDeskPane(desk.scope, hasAdvisor);
   const { chatOpen, setChatOpen } = chat;
   const prevChatOpen = useRef<boolean | null>(null);
   useEffect(() => {

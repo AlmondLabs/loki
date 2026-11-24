@@ -11,6 +11,7 @@ import {
   openTab,
   paneView,
   routeTick,
+  shownTab,
   tabOf,
   tickFor,
 } from "../app/src/desk/pane.ts";
@@ -38,19 +39,49 @@ describe("desk pane: which tab", () => {
   test("choosing the tab already showing returns the same state", () => {
     expect(chooseTab(EMPTY_PANE, "ira/abc", "messages")).toBe(EMPTY_PANE);
   });
+  test("opening a chat left on Advisor lands on Messages; a switch that is not an open reads Advisor", () => {
+    const left = chooseTab(EMPTY_PANE, "ira/abc", "advisor");
+    expect(tabOf(openTab(left, "ira/abc"), "ira/abc")).toBe("messages");
+    expect(tabOf(left, "ira/abc")).toBe("advisor");
+  });
+  test("choosing Advisor for another chat leaves the current one's tab alone", () => {
+    const s = chooseTab(chooseTab(EMPTY_PANE, "ira/abc", "desk"), "friday/xyz", "advisor");
+    expect(tabOf(s, "friday/xyz")).toBe("advisor");
+    expect(tabOf(s, "ira/abc")).toBe("desk");
+  });
+});
+
+describe("desk pane: the tab shown", () => {
+  test("Advisor shows only while the chat has an advisor; Messages and Canvas show as stored", () => {
+    expect(shownTab("advisor", true)).toBe("advisor");
+    expect(shownTab("advisor", false)).toBe("messages");
+    expect(shownTab("desk", false)).toBe("desk");
+    expect(shownTab("messages", true)).toBe("messages");
+  });
+  test("stored Advisor with no advisor known: keys reach Messages and Esc is not the pane's", () => {
+    const shown = shownTab("advisor", false);
+    expect(chatKeyTarget("chat.mode", shown)).toBe("messages");
+    expect(escapeTab(chooseTab(EMPTY_PANE, "ira/abc", "advisor"), "ira/abc", shown, { typing: false })).toBeNull();
+  });
 });
 
 describe("desk pane: Esc", () => {
   const onDesk = chooseTab(EMPTY_PANE, "ira/abc", "desk");
+  const onAdvisor = chooseTab(EMPTY_PANE, "ira/abc", "advisor");
   test("Esc on the Desk tab goes back to Messages", () => {
-    const s = escapeTab(onDesk, "ira/abc", { typing: false });
+    const s = escapeTab(onDesk, "ira/abc", "desk", { typing: false });
+    expect(s && tabOf(s, "ira/abc")).toBe("messages");
+  });
+  test("Esc on the Advisor tab goes back to Messages", () => {
+    const s = escapeTab(onAdvisor, "ira/abc", "advisor", { typing: false });
     expect(s && tabOf(s, "ira/abc")).toBe("messages");
   });
   test("Esc while typing belongs to the box", () => {
-    expect(escapeTab(onDesk, "ira/abc", { typing: true })).toBeNull();
+    expect(escapeTab(onDesk, "ira/abc", "desk", { typing: true })).toBeNull();
+    expect(escapeTab(onAdvisor, "ira/abc", "advisor", { typing: true })).toBeNull();
   });
   test("Esc on Messages is not the pane's", () => {
-    expect(escapeTab(EMPTY_PANE, "ira/abc", { typing: false })).toBeNull();
+    expect(escapeTab(EMPTY_PANE, "ira/abc", "messages", { typing: false })).toBeNull();
   });
 });
 
@@ -63,10 +94,12 @@ describe("desk pane: the sidebar", () => {
 });
 
 describe("desk pane: the visible view", () => {
-  test("Messages, the Desk tab's inset, or nothing when another section shows", () => {
+  test("Messages, the Advisor tab, the Desk tab's inset, or nothing when another section shows", () => {
     expect(paneView(true, "messages")).toBe("messages");
+    expect(paneView(true, "advisor")).toBe("advisor");
     expect(paneView(true, "desk")).toBe("inset");
     expect(paneView(false, "messages")).toBeNull();
+    expect(paneView(false, "advisor")).toBeNull();
   });
 });
 
@@ -82,6 +115,10 @@ describe("desk pane: chat keys act on the visible view", () => {
       expect(chatKeyTarget(id, "messages")).toBeNull();
       expect(chatKeyTarget(id, "desk")).toBe("inset");
     }
+  });
+  test("on the Advisor tab, ⌘L, ⌘F and ⌘⇧M reach the advisor; mode, suggestions and the inset's keys reach nothing", () => {
+    for (const id of ["chat.focus", "chat.find", "chat.model"]) expect(chatKeyTarget(id, "advisor")).toBe("advisor");
+    for (const id of ["chat.mode", "chat.suggestions", "chat.toggle", "chat.close", "chat.left", "chat.right"]) expect(chatKeyTarget(id, "advisor")).toBeNull();
   });
 });
 
@@ -114,6 +151,13 @@ describe("desk pane: ticks reach only the view that showed when they were bumped
     let r = routeTick(EMPTY_ROUTE, 1, "messages", "a");
     r = routeTick(r, 2, "messages", "b");
     expect(tickFor(r, "messages")).toBe(2);
+  });
+  test("a bump on Advisor reaches the advisor only, and going to Messages without one delivers nothing", () => {
+    let r = routeTick(EMPTY_ROUTE, 1, "advisor", "a");
+    expect(tickFor(r, "advisor")).toBe(1);
+    expect(tickFor(r, "messages")).toBe(0);
+    r = routeTick(r, 1, "messages", "a");
+    expect(tickFor(r, "messages")).toBe(0);
   });
   test("an unchanged render keeps the same route", () => {
     const r = routeTick(EMPTY_ROUTE, 1, "messages", "a");
