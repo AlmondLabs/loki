@@ -125,6 +125,11 @@ itself only from a folder you can change, such as `/Applications` on an administ
 anywhere else, About says to move it there rather than downloading an update it could not install. If installing at
 quit fails, About says so the next time loki opens.
 
+loki is moving to a new desktop shell, and this version can't update to it. Once the new loki is out on your channel, a
+notice says **A new loki is ready to install**, with **Copy Install Command**: run that command (or `brew reinstall
+--cask loki` if you installed with Homebrew) and the new loki opens with your agents, chats and settings as they were.
+On the Mac, the keychain may ask once to let it read loki's keys.
+
 Preferences › About offers **Stable** (each release) or **Nightly** (each nightly of `main`); the choice takes effect at
 the next check. Switching from Nightly to Stable never installs an older build: loki stays on its nightly until a stable
 newer than it ships. The Windows installer and the Linux AppImage update the same way; the Linux `.deb` does not, and

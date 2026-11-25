@@ -2,6 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
+import { MoveNotice } from "./move-notice";
 import { conversationDirName, isMainChat, MAIN_CHAT_ID, scopeFor, SHARED_SCOPE } from "../../../core/desk-core.ts";
 import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
@@ -698,6 +699,7 @@ export function Shell() {
       <Notices />
       <RestartNotice due={desk.daemon.restartDue} restart={desk.daemon.restart} />
       <UpdateNotice update={update} working={working} />
+      <MoveNotice update={update} />
     </div>
   );
 }
