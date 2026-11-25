@@ -52,6 +52,7 @@ import { LokiTools } from "./acp/loki-tools.ts";
 import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
 import { reporter } from "./report.ts";
+import { watchParent } from "./parent-watch.ts";
 import { messageOf } from "../core/errors.ts";
 import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
@@ -73,6 +74,7 @@ const { values: args } = parseArgs({
     dir: { type: "string" },
     mod: { type: "string" },
     "token-file": { type: "string" },
+    "parent-pid": { type: "string" },
     "check-scripts": { type: "boolean" },
   },
 });
@@ -438,6 +440,13 @@ function stop(signal: string) {
 }
 process.on("SIGTERM", () => stop("SIGTERM"));
 process.on("SIGINT", () => stop("SIGINT"));
+process.on("message", (message) => {
+  if (message === "stop") stop("asked to stop");
+});
+process.on("disconnect", () => stop("loki is gone"));
+const parentPid = Number(args["parent-pid"]);
+if (Number.isInteger(parentPid) && parentPid > 0) watchParent({ pid: parentPid, gone: () => stop("loki is gone") });
+for (const stream of [process.stdout, process.stderr]) stream.on("error", () => {});
 process.on("exit", () => {
   background.killAll();
   lock.release();

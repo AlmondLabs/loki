@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable";
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -159,7 +159,7 @@ export class BackgroundTasks {
       if (task.exit || pid === undefined) continue;
       task.stopping ??= "SIGKILL";
       try {
-        if (process.platform === "win32") task.child.kill();
+        if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
         else process.kill(-pid, "SIGKILL");
       } catch {}
     }
