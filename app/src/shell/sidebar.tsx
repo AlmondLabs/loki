@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { SEGMENTS } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { countText } from "../components";
-import { inTauri, platform, type Platform } from "../desk/env";
+import { inDesktop, platform, type Platform } from "../desk/env";
+import { currentWindow, invoke } from "./desktop";
 import { ariaShortcut, keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
 import { PanelLeftIcon } from "lucide-react";
@@ -10,7 +11,7 @@ import { Glyph, Icon, type IconName } from "../shared/icons";
 import { columnsStore } from "./columns";
 import { loadSidebar, saveSidebar, toggleFold, type SidebarPref } from "./sidebar-model";
 
-export function titlebarHeight(shell: boolean = inTauri, os: Platform = platform): number {
+export function titlebarHeight(shell: boolean = inDesktop, os: Platform = platform): number {
   return !shell ? 0 : os === "macos" ? 28 : 32;
 }
 export const TITLEBAR_HEIGHT = titlebarHeight();
@@ -19,14 +20,13 @@ export const GLASS_INSET = 8;
 export const GLASS_HEAD = 44;
 /**
  * The Mac window's traffic lights, in px from its top-left corner: the close button's left edge, the zoom button's
- * right edge and the buttons' centre line. AppKit lays them out itself in the window's toolbar (src-tauri native.rs
- * add_unified_toolbar), and the page puts its toolbar row on them, read at boot (`adoptTrafficLights`); until then
- * these are where a 52 pt unified title bar has them.
+ * right edge and the buttons' centre line. AppKit lays them out itself in the window's title bar, the shell's
+ * `traffic_lights` command says where, and the page puts its toolbar row on them, read at boot (`adoptTrafficLights`);
+ * until then these are where a 52 pt unified title bar has them.
  */
 export const GLASS_LIGHTS = { left: 20, right: 74, middle: 26 };
-export async function adoptTrafficLights(): Promise<void> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const said: unknown = await invoke("traffic_lights").catch(() => null);
+export async function adoptTrafficLights(ask: () => Promise<unknown> = () => invoke("traffic_lights")): Promise<void> {
+  const said = await ask().catch(() => null);
   if (typeof said !== "object" || said === null) return;
   const { left, right, middle } = said as Record<string, unknown>;
   if (typeof left === "number" && typeof right === "number" && typeof middle === "number" && right > left && middle > 0) {
@@ -34,44 +34,44 @@ export async function adoptTrafficLights(): Promise<void> {
   }
 }
 const LIGHTS_GAP = 18;
-export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
+export function sidebarToggleLeft(shell: boolean = inDesktop, os: Platform = platform): number {
   return shell && os === "macos" ? GLASS_LIGHTS.right + LIGHTS_GAP : 16;
 }
 export const PLACES_INSET = 12;
 export const PLACE_PADDING = 8;
 const TOGGLE = { box: 28, symbolInset: 5 };
-export function sidebarToggleLeftShown(sidebarWidth: number, shell: boolean = inTauri, os: Platform = platform): number {
+export function sidebarToggleLeftShown(sidebarWidth: number, shell: boolean = inDesktop, os: Platform = platform): number {
   if (!(shell && os === "macos")) return sidebarToggleLeft(shell, os);
   return GLASS_INSET + sidebarWidth - (PLACES_INSET + PLACE_PADDING - TOGGLE.symbolInset) - TOGGLE.box;
 }
-export function sidebarClearance(shell: boolean = inTauri, os: Platform = platform): number {
+export function sidebarClearance(shell: boolean = inDesktop, os: Platform = platform): number {
   if (shell && os === "macos") return GLASS_INSET - LIST_BOX_INSET;
   return sidebarToggleLeft(shell, os) + 36 + (shell ? 0 : 32);
 }
 const LIST_BOX_INSET = 4;
 export const LIST_BAR = { padding: 16, gap: 8 };
-export function sidebarLeadRoom(shell: boolean = inTauri, os: Platform = platform): number {
+export function sidebarLeadRoom(shell: boolean = inDesktop, os: Platform = platform): number {
   if (!(shell && os === "macos")) return 0;
   return sidebarToggleLeft(shell, os) + TOGGLE.box + 8 - sidebarClearance(shell, os) - LIST_BAR.padding - LIST_BAR.gap;
 }
-export function paneTop(shell: boolean = inTauri, os: Platform = platform): number {
+export function paneTop(shell: boolean = inDesktop, os: Platform = platform): number {
   return shell && os === "macos" ? Math.max(0, GLASS_LIGHTS.middle - 26) : titlebarHeight(shell, os);
 }
-export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
+export function sidebarToggleTop(shell: boolean = inDesktop, os: Platform = platform): number {
   return shell && os === "macos" ? GLASS_LIGHTS.middle - 14 : GLASS_INSET + 8;
 }
 
-export function TitleStrip({ os = platform, shell = inTauri, menuLabels = {} }: { os?: Platform; shell?: boolean; menuLabels?: Record<string, string> }) {
+export function TitleStrip({ os = platform, shell = inDesktop, menuLabels = {} }: { os?: Platform; shell?: boolean; menuLabels?: Record<string, string> }) {
   const height = titlebarHeight(shell, os);
   if (!height) return null;
-  if (os === "macos") return <div data-tauri-drag-region aria-hidden className="loki-title-strip" style={{ height, zIndex: LAYER.rail }} />;
+  if (os === "macos") return <div data-drag-region="" aria-hidden className="loki-title-strip" style={{ height, zIndex: LAYER.rail }} />;
   return <OwnTitleStrip os={os} height={height} menuLabels={menuLabels} />;
 }
 
 function OwnTitleStrip({ os, height, menuLabels }: { os: Platform; height: number; menuLabels: Record<string, string> }) {
   const maximized = useMaximized();
   return (
-    <div data-tauri-drag-region className="loki-title-strip loki-title-strip--own" style={{ height, zIndex: LAYER.strip }}>
+    <div data-drag-region="" className="loki-title-strip loki-title-strip--own" style={{ height, zIndex: LAYER.strip }}>
       <TitleMenu os={os} labels={menuLabels} />
       <WindowControls maximized={maximized} onAction={windowAction} />
     </div>
@@ -80,12 +80,9 @@ function OwnTitleStrip({ os, height, menuLabels }: { os: Platform; height: numbe
 
 export type WindowAction = "minimize" | "toggleMaximize" | "close";
 
-const currentWindow = () => import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow());
-
 function windowAction(action: WindowAction) {
-  void currentWindow()
-    .then((win) => win[action]())
-    .catch((e: unknown) => console.warn(`loki: window ${action}`, e));
+  const win = currentWindow();
+  void win[action]().catch((e: unknown) => console.warn(`loki: window ${action}`, e));
 }
 
 function useMaximized(): boolean {
@@ -93,11 +90,11 @@ function useMaximized(): boolean {
   useEffect(() => {
     let live = true;
     let off: (() => void) | null = null;
-    void currentWindow()
-      .then(async (win) => {
-        const read = () => win.isMaximized().then((m) => live && setMaximized(m));
-        await read();
-        const unlisten = await win.onResized(() => void read());
+    const win = currentWindow();
+    const read = () => win.isMaximized().then((m) => live && setMaximized(m));
+    void read()
+      .then(() => win.onResized(() => void read()))
+      .then((unlisten) => {
         if (live) off = unlisten;
         else unlisten();
       })

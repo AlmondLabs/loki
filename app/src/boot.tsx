@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { inLan, inTauri, installShellLogging, openExternal, platform, settingsWindow } from "./desk/env";
+import { inLan, inDesktop, installShellLogging, openExternal, platform, settingsWindow } from "./desk/env";
 
 installShellLogging();
 import { ThemeProvider } from "./theme";
@@ -22,7 +22,7 @@ document.addEventListener(
 
 const root = document.getElementById("root");
 if (!root) throw new Error("loki: index.html has no #root element");
-if (!inLan && !settingsWindow && inTauri && platform === "macos") await (await import("./shell/sidebar")).adoptTrafficLights();
+if (!inLan && !settingsWindow && inDesktop && platform === "macos") await (await import("./shell/sidebar")).adoptTrafficLights();
 const Surface = inLan
   ? (await import("./phone/phone")).Phone
   : settingsWindow

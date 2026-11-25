@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { inTauri } from "../desk/env";
+import { inDesktop } from "../desk/env";
+import { invoke } from "./desktop";
 
-/** What launch did about the mod, the skill and the phone canvas (src-tauri/src/install.rs). */
+/** What launch did about the mod, the skill and the phone canvas: the shell's `install_status` answer. */
 export type InstallState = "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
 export interface InstallReport {
   mod: InstallState;
@@ -15,15 +16,13 @@ export interface InstallReport {
 export function useHarnessFacts(): { install: InstallReport | null } {
   const [install, setInstall] = useState<InstallReport | null>(null);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!inDesktop) return;
     let cancelled = false;
-    void import("@tauri-apps/api/core")
-      .then(async ({ invoke }) => {
-        const report = await invoke<InstallReport>("install_status").catch(() => null);
-        if (cancelled) return;
-        setInstall(report);
-      })
-      .catch(() => {});
+    void invoke("install_status")
+      .catch(() => null)
+      .then((report) => {
+        if (!cancelled) setInstall(report);
+      });
     return () => {
       cancelled = true;
     };

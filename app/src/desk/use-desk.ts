@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { applyGesture, MAIN_CHAT_ID, mainChatAgent, emptyDesk, scopeFor, scopeOfId, SHARED_SCOPE } from "../../../core/desk-core.ts";
-import { inTauri } from "./env";
+import { openExternal } from "./env";
 import { useDeskSocket } from "./use-desk-socket";
 import { PHONE_DEMO, phoneDemo, withReasoningEffort } from "./desk-pushes";
 import { FrameChatClient } from "../../../core/attention/chat-client.ts";
@@ -284,11 +284,7 @@ export function useDesk() {
           return staleListeners.add(fn);
         },
         agentOf: (conversationId) => deskListRef.current.find((d) => d.conversation_id === conversationId)?.agent_id ?? null,
-        openUrl: (url) => {
-          if (inTauri)
-            void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err: unknown) => console.warn("loki: open sign-in", err));
-          else window.open(url, "_blank", "noopener,noreferrer");
-        },
+        openUrl: openExternal,
       }),
     capture,
     seen: seenMap,

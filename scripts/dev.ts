@@ -1,9 +1,11 @@
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, watch } from "node:fs";
+import { spawn, type ChildProcess } from "node:child_process";
+import { watch } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPage, pageStale } from "../daemon/page-build.ts";
+import { buildDesktop, DESKTOP_OUT } from "./build-desktop.ts";
 
 const DEV_PORT = 5173;
 const DEV_URL = `http://127.0.0.1:${DEV_PORT}`;
@@ -14,45 +16,13 @@ const MOD_HEALTH = `http://127.0.0.1:${process.env.LOKI_PORT ?? "41414"}/health`
 const MOD_WAIT_MS = 90_000;
 const root = fileURLToPath(new URL("..", import.meta.url));
 const windows = process.platform === "win32";
-const mac = process.platform === "darwin";
-const exeNames = (name: string): string[] => (windows ? [`${name}.exe`, `${name}.cmd`, name] : [name]);
 // Outside (Windows): node_modules/.bin holds .cmd shims, which spawn cannot start without a shell, so the JS entry
 // runs directly with this script's runtime.
-const ENTRIES: Record<string, string> = { vite: "../node_modules/vite/bin/vite.js", tauri: "../node_modules/@tauri-apps/cli/tauri.js" };
+const ENTRIES: Record<string, string> = { vite: "../node_modules/vite/bin/vite.js" };
 const bin = (name: string) => fileURLToPath(new URL(windows ? ENTRIES[name] : `../node_modules/.bin/${name}`, import.meta.url));
+const electron = createRequire(import.meta.url)("electron") as string;
 const home = homedir();
 const daemonLog = join(home, ".loki", "logs", "daemon.log");
-
-function onPath(name: string, path = process.env.PATH ?? ""): string | null {
-  for (const dir of path.split(delimiter)) {
-    for (const n of exeNames(name)) if (dir && existsSync(join(dir, n))) return join(dir, n);
-  }
-  return null;
-}
-
-// Outside (Tauri): `tauri dev` runs `cargo metadata` first and dies with a bare "No such file or directory" without
-// cargo. rustup installs to ~/.cargo/bin, which only the next shell has on PATH.
-function rustPreflight(): string | null {
-  const path = process.env.PATH ?? "";
-  if (onPath("cargo", path)) return path;
-  const cargoBin = join(home, ".cargo", "bin");
-  if (onPath("cargo", cargoBin)) {
-    console.error(`loki dev: cargo is at ${cargoBin} but not on PATH (a new terminal would have it) — using it for this run`);
-    return `${cargoBin}${delimiter}${path}`;
-  }
-  console.error(
-    [
-      "loki dev: the Tauri window is a Rust program and this machine has no Rust toolchain (no `cargo` on PATH, none in ~/.cargo/bin).",
-      `  Install it, then open a new terminal${windows ? "" : " (or `source ~/.cargo/env`)"} and run \`${command}\` again:`,
-      windows
-        ? "    winget install Rustlang.Rustup   (rustup-init also offers the Visual Studio C++ build tools cargo links with)"
-        : "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
-      ...(mac ? ["  Building also needs Xcode's command line tools: `xcode-select --install` if clang is missing."] : []),
-      "  Without Rust, `bun run dev:vite` serves the canvas alone at " + DEV_URL + " for a browser tab.",
-    ].join("\n"),
-  );
-  return null;
-}
 
 async function answering(url: string): Promise<boolean> {
   try {
@@ -73,13 +43,6 @@ async function viteThere(url: string): Promise<"ours" | "other" | "none"> {
   }
 }
 
-// Outside (macOS): cargo links through Xcode's command line tools, and without them the build dies much later with an
-// `xcrun` or linker error that names nothing. `xcode-select -p` succeeds when either the tools or Xcode is installed.
-function xcodeToolsPresent(): boolean {
-  const r = spawnSync("xcode-select", ["-p"], { stdio: "ignore" });
-  return r.status === 0;
-}
-
 async function waitFor(url: string, ms: number, alive: () => boolean = () => true): Promise<boolean> {
   const until = Date.now() + ms;
   while (Date.now() < until && alive()) {
@@ -91,10 +54,9 @@ async function waitFor(url: string, ms: number, alive: () => boolean = () => tru
 
 const children: ChildProcess[] = [];
 let env = process.env;
-function run(cmd: string, args: string[]): ChildProcess {
-  const child = windows
-    ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env })
-    : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
+function run(cmd: string, args: string[], direct = false): ChildProcess {
+  const child =
+    windows && !direct ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
   children.push(child);
   return child;
 }
@@ -108,19 +70,10 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
   });
 }
 
-const vite = await viteThere(DEV_URL);
-const firstBuild = !existsSync(join(root, "src-tauri", "target"));
-const tauriArgs = hot ? ["dev", "--config", JSON.stringify({ build: { devUrl: DEV_URL } })] : ["dev", "--port", String(DEV_PORT)];
+const vite = hot ? await viteThere(DEV_URL) : "none";
+const electronArgs = [join(DESKTOP_OUT, "main.cjs")];
 if (process.argv.includes("--check")) {
-  const homeCargo = onPath("cargo", join(home, ".cargo", "bin"));
-  const cargo = onPath("cargo") ?? (homeCargo ? homeCargo + " (not on PATH)" : null);
-  console.log(cargo ? `rust: cargo at ${cargo}` : `rust: no cargo — \`${command}\` would stop and say how to install it`);
-  if (mac)
-    console.log(
-      xcodeToolsPresent()
-        ? "xcode: command line tools present"
-        : `xcode: no command line tools — \`${command}\` would stop and say to run \`xcode-select --install\``,
-    );
+  console.log(`electron: would bundle desktop/ into ${DESKTOP_OUT} and run ${electron} ${electronArgs.join(" ")}`);
   console.log(`node: ${process.version} at ${process.execPath}`);
   if (hot) {
     console.log(
@@ -132,50 +85,28 @@ if (process.argv.includes("--check")) {
     );
     console.log(`phone: would run ${bin("vite")} build --watch --emptyOutDir=false --config app/vite.config.ts, so app/dist follows the code`);
   } else {
-    console.log(
-      vite === "none"
-        ? `page: ${pageStale(root) ? "app/dist older than its sources — would build it" : "app/dist up to date"}, served at ${DEV_URL} by the Tauri CLI`
-        : `page: something already answers at ${DEV_URL} — \`${command}\` would stop`,
-    );
+    console.log(`page: ${pageStale(root) ? "app/dist older than its sources — would build it" : "app/dist up to date"}, served to the window from loki://app`);
   }
-  console.log(
-    `tauri: would run ${bin("tauri")} ${tauriArgs.join(" ")} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`,
-  );
   console.log(
     `mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts the daemon`,
   );
   process.exit(0);
 }
 
-const path = rustPreflight();
-if (!path) process.exit(1);
-if (mac && !xcodeToolsPresent()) {
-  console.error(
-    [
-      "loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.",
-      `  Run \`xcode-select --install\`, finish the dialog, then \`${command}\` again.`,
-    ].join("\n"),
-  );
-  process.exit(1);
+env = { ...process.env };
+if (hot) {
+  delete env.LOKI_BUILT_PAGE;
+  env.LOKI_DEV_URL = DEV_URL;
+} else {
+  env.LOKI_BUILT_PAGE = "1";
+  delete env.LOKI_DEV_URL;
 }
-env = { ...process.env, PATH: path };
-if (hot) delete env.LOKI_BUILT_PAGE;
-else env.LOKI_BUILT_PAGE = "1";
 
 if (vite === "other") {
   console.error(
     [
       `loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`,
       `  The window would show that page. Stop that server, or start it on another port, then \`${command}\` again.`,
-    ].join("\n"),
-  );
-  process.exit(1);
-}
-if (!hot && vite === "ours") {
-  console.error(
-    [
-      `loki dev: loki's page is already served at ${DEV_URL} — a Vite (\`bun run dev:vite\`) or another \`bun run start\`.`,
-      `  \`bun run start\` serves the built page on that port itself: stop the other one, then \`bun run start\` again.`,
     ].join("\n"),
   );
   process.exit(1);
@@ -189,7 +120,7 @@ if (!hot) {
       process.exit(1);
     }
   }
-  console.error(`loki dev: serving the built page at ${DEV_URL}; a change to it waits for update in the window`);
+  console.error("loki dev: the window shows the built page (app/dist) and reloads when update rebuilds it");
 } else if (vite === "ours") {
   console.error(`loki dev: loki's Vite is already answering at ${DEV_URL} — using it`);
 } else {
@@ -207,9 +138,9 @@ if (!hot) {
   }
 }
 
-if (firstBuild) console.error("loki dev: first build — cargo compiles the shell once, a few minutes; later starts take seconds");
-const tauri = run(bin("tauri"), tauriArgs);
-tauri.on("exit", (code) => {
+await buildDesktop();
+const shell = run(electron, electronArgs, true);
+shell.on("exit", (code) => {
   stopAll();
   process.exit(code ?? 0);
 });
@@ -226,7 +157,7 @@ function watchPhoneBuild(): void {
     phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
     phoneBuild.on("exit", (code) => {
       if (restarting) return;
-      if (tauri.exitCode === null)
+      if (shell.exitCode === null)
         console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
     });
   };
@@ -235,7 +166,7 @@ function watchPhoneBuild(): void {
   watch(join(root, "app", "vite.config.ts"), () => {
     if (configTimer) clearTimeout(configTimer);
     configTimer = setTimeout(() => {
-      if (tauri.exitCode !== null) return;
+      if (shell.exitCode !== null) return;
       console.error("loki dev: app/vite.config.ts changed — restarting the phone's build watch");
       restarting = true;
       phoneBuild.once("exit", () => {
@@ -248,7 +179,7 @@ function watchPhoneBuild(): void {
 }
 
 void (async () => {
-  const alive = () => tauri.exitCode === null;
+  const alive = () => shell.exitCode === null;
   const modUp = await waitFor(MOD_HEALTH, MOD_WAIT_MS, alive);
   if (modUp || !alive()) return;
   console.error(

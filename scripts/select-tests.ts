@@ -11,7 +11,7 @@ export interface Change {
 
 export type Selection = { all: true; why: string } | { all: false; files: string[] };
 
-const CODE = /^(app\/src|mod|core|daemon|site\/src|scripts|test|test-node)\/.+\.(ts|tsx|mts)$/;
+const CODE = /^(app\/src|mod|core|daemon|desktop|site\/src|scripts|test|test-node)\/.+\.(ts|tsx|mts)$/;
 // Outside (vitest): `vitest related` follows the module graph, which cannot see a test that reads the tree from disk,
 // so such a test runs on every PR.
 const READS_TREE = /import\.meta\.dirname|new URL\(\s*["'`]\.\.\/|process\.cwd\(\)/;

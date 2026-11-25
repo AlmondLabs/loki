@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 const CORE = resolve(import.meta.dirname, "..", "core");
-const LEAKS = /(?<![\w-])window\.|(?<![\w-])document\.|localStorage|(?<![\w-])navigator\.|@tauri-apps/;
+const LEAKS = /(?<![\w-])window\.|(?<![\w-])document\.|localStorage|(?<![\w-])navigator\.|@tauri-apps|electron|lokiDesktop|shell\/desktop/;
 const ALLOWED_BARE = new Set(["react"]);
 
 function tsFiles(dir: string): string[] {
@@ -24,7 +24,7 @@ describe("core/ is portable", () => {
   test("the package has files", () => {
     expect(files.length).toBeGreaterThan(0);
   });
-  test("no browser or Tauri references", () => {
+  test("no browser, desktop shell or page bridge references", () => {
     const hits = files.flatMap((f) =>
       f.text
         .split("\n")

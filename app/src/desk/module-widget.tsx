@@ -1,7 +1,7 @@
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { WIDGET_MAX_WIDTH, getPath, mergeData } from "../../../core/desk-core.ts";
-import { inTauri, openExternal, platform } from "./env";
+import { inDesktop, openExternal } from "./env";
 import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widget-bridge";
 import { messageOf } from "../../../core/errors.ts";
 
@@ -68,7 +68,7 @@ export function ModuleWidget({
           setLoaded({ hash: m.hash, data: m.data });
           setError(null);
           onError(entry.id, null);
-          if (inTauri) console.info(`widget loaded: ${entry.id}`);
+          if (inDesktop) console.info(`widget loaded: ${entry.id}`);
           return;
         case "error":
           if (m.hash !== entry.hash && m.hash !== "boot") return;
@@ -129,7 +129,7 @@ export function ModuleWidget({
       setError(msg);
       live.current.onError(entry.id, msg);
     };
-    const source = widgetSource(entry.file, entry.hash, { tauri: inTauri, os: platform, dev: import.meta.env.DEV });
+    const source = widgetSource(entry.file, entry.hash, { desktop: inDesktop, dev: import.meta.env.DEV });
     if (!source) fail("custom widgets run in the loki app");
     else if ("url" in source) send({ type: "load", hash: entry.hash, url: source.url });
     else {

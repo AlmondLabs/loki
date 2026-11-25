@@ -39,9 +39,7 @@ const key = (k: string, mods: Partial<{ meta: boolean; ctrl: boolean; shift: boo
 
 describe("the title strip (plan 014 U4, KTD4)", () => {
   test("the Mac's strip is the bare drag region it always was: no buttons, the lights are the system's", () => {
-    expect(strip("macos")).toBe(
-      `<div data-tauri-drag-region="true" aria-hidden="true" class="loki-title-strip" style="height:28px;z-index:${LAYER.rail}"></div>`,
-    );
+    expect(strip("macos")).toBe(`<div data-drag-region="" aria-hidden="true" class="loki-title-strip" style="height:28px;z-index:${LAYER.rail}"></div>`);
     expect(titlebarHeight(true, "macos")).toBe(28);
   });
 
@@ -55,7 +53,7 @@ describe("the title strip (plan 014 U4, KTD4)", () => {
   test("Windows and Linux: ☰ on the left, then minimise, maximise and close with their names, and the strip still drags", () => {
     for (const os of ["windows", "linux"] as const) {
       const out = strip(os);
-      expect(out).toContain("data-tauri-drag-region");
+      expect(out).toContain("data-drag-region");
       expect(out).not.toContain('aria-hidden="true" class="loki-title-strip"');
       const labels = [...out.matchAll(/<button[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
       expect(labels).toEqual(["Menu", "Minimise", "Maximise", "Close"]);

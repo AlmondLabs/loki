@@ -4,6 +4,9 @@ node_modules/
 .loki-build/
 app/dist
 site/dist
+desktop/dist
+desktop/resources
+desktop/release
 app/.dist-next
 app/.dist-old
 src-tauri/resources/

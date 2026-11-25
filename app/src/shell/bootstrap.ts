@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
-import { inTauri } from "../desk/env";
+import { inDesktop } from "../desk/env";
+import { messageOf } from "../../../core/errors.ts";
+import { invoke, listen } from "./desktop";
 import { welcomeStep } from "../settings/provider-model";
 
 /**
- * Mirrors the shell's `daemon_status` (lib.rs `DaemonStatus`): the Node loki's daemon runs on, why it could not start,
+ * The shell's `daemon_status` answer, and what its `loki:runtime` event carries: the Node loki's daemon runs on, why it could not start,
  * and what comes before it starts (plan 2026-11-15-2319, KTD7).
  */
 export interface DaemonStatus {
@@ -14,35 +16,46 @@ export interface DaemonStatus {
   preparing: Preparing | null;
   /** The system whose git is missing: the Mac's command line tools, or Linux's package. */
   toolsMissing: "macos" | "linux" | null;
+  /** No Node new enough on this machine: the newest one found, if any, and where, and the version needed. */
+  needsNode: NeedsNode | null;
+  /** Another loki's daemon is serving `~/.loki`, so this one waits for it to go. */
+  otherLoki: { pid: number; command: string } | null;
 }
 
-/** Mirrors lib.rs `Preparing`: what the shell is fetching (Node, or PortableGit on Windows) and how far along it is. */
+export interface NeedsNode {
+  found: string | null;
+  at: string | null;
+  needed: string;
+}
+
+/** What the shell is fetching (PortableGit on Windows) and how far along it is. */
 export interface Preparing {
-  name: "node" | "git";
+  name: "git";
   version: string;
   done: number;
   /** The download's size, once its server has said it. */
   total: number | null;
 }
 
-/** The event the shell sends each change of the status on (lib.rs `RUNTIME_EVENT`), carrying the whole status. */
-const RUNTIME_EVENT = "loki:runtime";
-
 /** How often the status is asked again until the daemon runs: the fallback for an event sent before the page listened. */
 const RECHECK_MS = 4000;
 
 const settled = (s: DaemonStatus | null) => !!s?.node && !s.error;
 
-export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => Promise<void>; installTools: () => Promise<string | null> } {
+export function useDaemonStatus(): {
+  status: DaemonStatus | null;
+  retry: () => Promise<void>;
+  installTools: () => Promise<string | null>;
+  installNode: () => Promise<string | null>;
+} {
   const [status, setStatus] = useState<DaemonStatus | null>(null);
-  const waiting = inTauri && !settled(status);
+  const waiting = inDesktop && !settled(status);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!inDesktop) return;
     let off: (() => void) | null = null;
     let live = true;
-    void import("@tauri-apps/api/event")
-      .then(async ({ listen }) => {
-        const unlisten = await listen<DaemonStatus>(RUNTIME_EVENT, (e) => setStatus(e.payload));
+    void listen("loki:runtime", (e) => setStatus(e.payload))
+      .then((unlisten) => {
         if (live) off = unlisten;
         else unlisten();
       })
@@ -53,11 +66,10 @@ export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => P
     };
   }, []);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!inDesktop) return;
     let cancelled = false;
     const refresh = () =>
-      void import("@tauri-apps/api/core")
-        .then(({ invoke }) => invoke<DaemonStatus>("daemon_status"))
+      void invoke("daemon_status")
         .then((s) => !cancelled && setStatus(s))
         .catch(() => {});
     refresh();
@@ -68,25 +80,33 @@ export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => P
     };
   }, [waiting]);
   const retry = useCallback(async () => {
-    if (!inTauri) return;
-    const { invoke } = await import("@tauri-apps/api/core");
+    if (!inDesktop) return;
     try {
-      setStatus(await invoke<DaemonStatus>("retry_daemon"));
+      setStatus(await invoke("retry_daemon"));
     } catch (e) {
-      setStatus((s) => ({ node: s?.node ?? null, preparing: null, toolsMissing: null, error: String(e) }));
+      setStatus((s) => ({ node: s?.node ?? null, preparing: null, toolsMissing: null, needsNode: s?.needsNode ?? null, otherLoki: null, error: messageOf(e) }));
     }
   }, []);
   const installTools = useCallback(async () => {
-    if (!inTauri) return null;
-    const { invoke } = await import("@tauri-apps/api/core");
+    if (!inDesktop) return null;
     try {
       await invoke("install_tools");
       return null;
     } catch (e) {
-      return String(e);
+      return messageOf(e);
     }
   }, []);
-  return { status, retry, installTools };
+  const installNode = useCallback(async () => {
+    if (!inDesktop) return null;
+    try {
+      await invoke("install_node");
+      setStatus(await invoke("daemon_status"));
+      return null;
+    } catch (e) {
+      return messageOf(e);
+    }
+  }, []);
+  return { status, retry, installTools, installNode };
 }
 
 export type WelcomeStep = "prepare" | "provider" | "agent";
@@ -99,6 +119,6 @@ export interface DaemonLink {
 }
 
 export function welcomeFor(daemon: DaemonStatus | null, link: DaemonLink): WelcomeStep | null {
-  if (link.status !== "open") return (daemon?.error ?? daemon?.preparing ?? daemon?.toolsMissing) ? "prepare" : null;
+  if (link.status !== "open") return (daemon?.error ?? daemon?.preparing ?? daemon?.toolsMissing ?? daemon?.needsNode) ? "prepare" : null;
   return link.agentsLoaded ? welcomeStep({ agents: link.agents.length, providers: link.providers }) : null;
 }

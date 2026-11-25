@@ -265,6 +265,7 @@ export function WelcomeView({
   daemon,
   onRetryDaemon,
   onInstallTools,
+  onInstallNode,
   models,
   onLoadModels,
   onModelsChanged,
@@ -275,6 +276,7 @@ export function WelcomeView({
   daemon: DaemonStatus | null;
   onRetryDaemon: () => Promise<void>;
   onInstallTools: () => Promise<string | null>;
+  onInstallNode: () => Promise<string | null>;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
   onModelsChanged: () => void;
@@ -294,6 +296,7 @@ export function WelcomeView({
       daemon={daemon}
       onRetryDaemon={onRetryDaemon}
       onInstallTools={onInstallTools}
+      onInstallNode={onInstallNode}
       onDone={onDone}
     />
   );

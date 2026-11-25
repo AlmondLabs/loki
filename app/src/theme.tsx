@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { inLan, inTauri, platform, type Platform } from "./desk/env";
+import { inLan, inDesktop, platform, type Platform } from "./desk/env";
+import { currentWindow } from "./shell/desktop";
 
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
@@ -10,7 +11,7 @@ const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 export const GLASS_ON: Record<Platform, "glass" | "solid"> = { macos: "glass", windows: "glass", linux: "solid" };
 
-export const VIBRANT = inTauri && platform === "macos";
+export const VIBRANT = inDesktop && platform === "macos";
 
 export function isThemePreference(value: unknown): value is ThemePreference {
   return typeof value === "string" && (THEME_PREFERENCES as readonly string[]).includes(value);
@@ -56,9 +57,9 @@ function applyTheme(preference: ThemePreference): void {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (background && meta) meta.content = background;
   });
-  if (inTauri) {
-    void import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) => getCurrentWindow().setTheme(preference === "system" ? null : preference))
+  if (inDesktop) {
+    void currentWindow()
+      .setTheme(preference === "system" ? null : preference)
       .catch((error: unknown) => console.warn("loki: set native theme", error));
   }
 }

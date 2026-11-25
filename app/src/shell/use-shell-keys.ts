@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { inTauri, keyboard, type Platform } from "../desk/env";
+import { inDesktop, keyboard, type Platform } from "../desk/env";
+import { invoke, listen } from "./desktop";
 import {
   chordIds,
   dialogState,
@@ -51,7 +52,7 @@ const BROWSER_KEYS = new Set([
 export function guardBrowserKey(
   e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">,
   os: Platform = keyboard,
-  release: boolean = inTauri && import.meta.env.PROD,
+  release: boolean = inDesktop && import.meta.env.PROD,
 ): void {
   if (!release || os === "macos" || e.metaKey || !e.key) return;
   const chord = [e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift", e.key.toLowerCase()].filter(Boolean).join("+");
@@ -123,24 +124,31 @@ export function useShellKeys(
 
   const labels = JSON.stringify(menuLabels);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!inDesktop) return;
     const menus = menuSpec(undefined, undefined, JSON.parse(labels) as Record<string, string>);
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus })).catch((e: unknown) => console.warn("loki: menu", e));
+    void invoke("set_menu", { menus }).catch((e: unknown) => console.warn("loki: menu", e));
   }, [labels]);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!inDesktop) return;
     let off: (() => void) | null = null;
-    void import("@tauri-apps/api/event").then(async ({ listen }) => {
-      off = await listen<string>("loki:menu", (ev) => {
-        const id = ev.payload;
-        const last = lastKeyFired.current;
-        // Outside (macOS): it also fires a menu's accelerator for a chord the key handler already ran, so that echo,
-        // within a beat, is dropped, even when the menu's item for the chord is another binding (⌘] is "next desk" in
-        // the Desk menu and "read the card" in the inbox).
-        if (last && last.ids.has(id) && Date.now() - last.at < 250) return;
-        if (!runAction(id)) console.warn("loki: menu item without an action", id);
-      });
-    });
-    return () => off?.();
+    let live = true;
+    void listen("loki:menu", (ev) => {
+      const id = ev.payload;
+      const last = lastKeyFired.current;
+      // Outside (macOS): it also fires a menu's accelerator for a chord the key handler already ran, so that echo,
+      // within a beat, is dropped, even when the menu's item for the chord is another binding (⌘] is "next desk" in
+      // the Desk menu and "read the card" in the inbox).
+      if (last && last.ids.has(id) && Date.now() - last.at < 250) return;
+      if (!runAction(id)) console.warn("loki: menu item without an action", id);
+    })
+      .then((unlisten) => {
+        if (live) off = unlisten;
+        else unlisten();
+      })
+      .catch((e: unknown) => console.warn("loki: menu", e));
+    return () => {
+      live = false;
+      off?.();
+    };
   }, []);
 }
