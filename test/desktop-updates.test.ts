@@ -398,16 +398,12 @@ describe("the wall clock", () => {
 
 describe("the status the page reads", () => {
   test("is snake_case JSON with the state named by kind, and moved always false", () => {
-    const json = (state: UpdateState): unknown => JSON.parse(JSON.stringify({ channel: "nightly", current: "2026.1116.0-nightly.12", state, moved: false }));
-    expect(json({ kind: "downloading", done: 5, total: null })).toEqual({
-      channel: "nightly",
-      current: "2026.1116.0-nightly.12",
-      state: { kind: "downloading", done: 5, total: null },
-      moved: false,
-    });
-    expect(json({ kind: "failed", stage: "signature", message: "bad" })).toMatchObject({ state: { kind: "failed", stage: "signature", message: "bad" } });
-    expect(json({ kind: "unsupported", reason: "package" })).toMatchObject({ state: { kind: "unsupported", reason: "package" } });
-    expect(updates("nightly").status()).toEqual({ channel: "nightly", current: "2026.1116.0", state: { kind: "idle" }, moved: false });
+    expect(JSON.stringify(updates("nightly").status())).toBe('{"channel":"nightly","current":"2026.1116.0","state":{"kind":"idle"},"moved":false}');
+    const status = { channel: "nightly", current: "2026.1116.0-nightly.12", moved: false } as const;
+    const wire = (state: UpdateState) => JSON.stringify({ ...status, state });
+    expect(wire({ kind: "downloading", done: 5, total: null })).toContain('"state":{"kind":"downloading","done":5,"total":null}');
+    expect(wire({ kind: "failed", stage: "signature", message: "bad" })).toContain('"state":{"kind":"failed","stage":"signature","message":"bad"}');
+    expect(wire({ kind: "unsupported", reason: "package" })).toContain('"state":{"kind":"unsupported","reason":"package"}');
   });
 });
 
