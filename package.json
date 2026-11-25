@@ -98,6 +98,9 @@
   },
   "packageManager": "bun@1.4.4",
   "trustedDependencies": [
-    "electron"
+    "bun",
+    "electron",
+    "esbuild",
+    "protobufjs"
   ]
 }
