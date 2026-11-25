@@ -71,10 +71,10 @@ describe("a menu as data", () => {
   test("the menu bar's handler takes every click it hears: pop-up menus answer the page directly", () => {
     const keys = readFileSync(join(ROOT, "app", "src", "shell", "use-shell-keys.ts"), "utf8");
     expect(keys).not.toContain("POPUP");
-    const menu = readFileSync(join(ROOT, "src-tauri", "src", "menu.rs"), "utf8");
+    const menu = readFileSync(join(ROOT, "desktop", "menus.ts"), "utf8");
     expect(menu).not.toContain('"Settings…"');
-    expect(menu).toContain('const APP_MENU: &str = "loki";');
-    expect(readFileSync(join(ROOT, "src-tauri", "src", "lib.rs"), "utf8")).toContain("popup::popup_menu");
+    expect(menu).toContain('const APP_MENU = "loki";');
+    expect(readFileSync(join(ROOT, "desktop", "main.ts"), "utf8")).toContain("popup_menu: (args, sender)");
   });
 });
 

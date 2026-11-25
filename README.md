@@ -28,25 +28,24 @@ you did rides along on your next message, so the agent sees the canvas the way y
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
-Cloned the repo and want it running on a Mac? Four tools, then two commands (Windows and Linux need other
-tools first; see [Development](#development)):
+Cloned the repo and want it running on a Mac? Three tools, then two commands (Windows and Linux: see
+[Development](#development)):
 
 ```bash
-xcode-select --install                                              # Xcode's command line tools (and git), once
-brew install node                                                   # Node 22.19 or newer: loki's daemon, Vite, the tests
-brew install oven-sh/bun/bun                                        # bun: installs the packages and runs the scripts
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh      # Rust; then open a new terminal
+xcode-select --install          # Xcode's command line tools (and git), once
+brew install node               # Node 22.19 or newer: loki's daemon, Vite, the tests
+brew install oven-sh/bun/bun    # bun: installs the packages and runs the scripts
 bun install && bun run start
 ```
 
-loki runs its agents in its own daemon, a Node process the window starts; the same Node runs Vite, the Tauri CLI and the
-tests, and bun installs the packages and starts the scripts. git keeps each agent's memory. `bun run start` says what is missing before it
-builds. The first start compiles the shell, a few
-minutes; the window then asks for a model provider: an API key you already have with Anthropic, OpenAI, Google,
-OpenRouter, Ollama for local models, or another provider, or signing in through the browser (ChatGPT, GitHub
-Copilot, OpenRouter and others). loki checks the key with the
-provider and keeps it in your system's keychain; each turn costs whatever that provider charges. Everything else,
-including the one-line install of the finished app, is under [Install](#install) and [Development](#development).
+loki runs its agents in its own daemon, a Node process the window starts; the same Node runs Vite and the tests, and
+bun installs the packages and starts the scripts. git keeps each agent's memory. The window is Electron, which
+`bun install` brings, so there is nothing to compile; the first start builds the page, about fifteen seconds. The
+window then asks for a model provider: an API key you already have with Anthropic, OpenAI, Google, OpenRouter, Ollama
+for local models, or another provider, or signing in through the browser (ChatGPT, GitHub Copilot, OpenRouter and
+others). loki checks the key with the provider and keeps it in your system's keychain; each turn costs whatever that
+provider charges. Everything else, including the one-line install of the finished app, is under [Install](#install)
+and [Development](#development).
 
 ## What you get
 
@@ -142,16 +141,18 @@ Both systems are built and tested in CI, not yet tried on real machines; please
 [report what you find](https://github.com/AlmondLabs/loki/issues) ([what to try](docs/preview-checklist.md)). There is
 no winget or Flatpak package.
 
-**From source**: Node, Rust and Xcode's command line tools, then `bun run start` to run the checkout, or
-`bun run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
+**From source**: Node, bun and Xcode's command line tools, then `bun run start` to run the checkout, or
+electron-builder for a `.app` and `.dmg` of your own ([Contributing](docs/CONTRIBUTING.md#setup) has the steps). A
+build made on your own Mac never carries the flag.
 
 ### What you need
 
 You need a Mac with Apple silicon and macOS 13.3 or later (Intel Macs are not supported), 64-bit Windows 10 or 11, or
 a current 64-bit desktop Linux, and:
 
-1. **Nothing for Node.** loki downloads the Node its daemon runs on into `~/.loki/runtime` on first launch, and checks
-   it before it runs it; Welcome shows the download.
+1. **Node 22.19 or newer**, which loki's daemon and agents run on. loki finds the one you have, wherever an
+   installer put it; when there is none, Welcome offers **Install Node**, which runs nodejs.org's official installer
+   on a Mac or Windows, and on Linux shows the commands to install it.
 2. **git**, which keeps each agent's memory as a repo with history. On a Mac it comes with Apple's command line
    tools, which Welcome offers to install; on Windows loki fetches PortableGit when git is missing; on Linux, your
    distribution's package.
@@ -192,7 +193,8 @@ flowchart LR
   app -->|"what you did on the canvas<br/>rides on your next message"| daemon
 ```
 
-Three parts, one repo. A **Rust shell** opens the window and keeps loki's **daemon** running: one Node process,
+Three parts, one repo. An **Electron shell** opens the window and keeps loki's **daemon** running: one process on
+your machine's Node,
 built on Earendil's Pi libraries (pi-durable for the agent loop, pi-ai for the models), that holds every agent's
 chats in a SQLite store per agent, runs the tools under your permission mode, keeps memory as git repos, and saves
 each step before it shows it, so a turn cut off by a crash picks up where it stopped. Inside the daemon runs
@@ -213,45 +215,43 @@ core/           desk-core (types + the pure gesture reducer both halves use), th
                 portable, no browser globals
 app/            Vite + React: the desktop views, the canvas and the phone
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
-src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): fetches Node, starts and supervises the daemon, hosts
-                the canvas
-scripts/        dev (`bun run start`), build-mod (the daemon and mod bundles the app ships), trial (the timing trial), cask
-                (Homebrew), release (date versions, notes), analytics (the local usage report)
+desktop/        the desktop shell (Electron, TypeScript; macOS, Windows, Linux): finds Node, starts and supervises
+                the daemon, hosts the canvas, updates the app
+scripts/        dev (`bun run start`), build-desktop (the shell's bundle), build-mod (the daemon and mod bundles the app
+                ships), trial (the timing trial), cask (Homebrew), release (date versions, notes), analytics (the local
+                usage report)
 test/           vitest tests, on Node; test-node/ the tests that need Node's own runner (SQLite stores, resuming after a crash)
 docs/           the manual, learn (the mental model), architecture, design direction, dated plans and research; CONTRIBUTING, SECURITY and RELEASING
 ```
 
 ## Development
 
-You need Node 22.19 or newer (`brew install node`: it runs Vite, the Tauri CLI, the tests and loki's daemon), bun
-(`brew install oven-sh/bun/bun`: it installs the packages and runs package.json's scripts, each on Node),
-Rust from [rustup](https://rustup.rs) (stable; open a new terminal after installing it) and Xcode's command line tools
-(`xcode-select --install`). A development window runs the checkout's own daemon, `daemon/main.ts` with
-`mod/boot.ts`, so an edit to the mod reloads it in place. On a machine that has never run loki, it also links
-`~/.agents/skills/loki` to `skills/loki`, and leaves anything already there alone.
+You need Node 22.19 or newer (`brew install node`: it runs Vite, the tests and loki's daemon), bun
+(`brew install oven-sh/bun/bun`: it installs the packages and runs package.json's scripts, each on Node) and Xcode's
+command line tools (`xcode-select --install`, for git). A development window runs the checkout's own daemon,
+`daemon/main.ts` with `mod/boot.ts`, so an edit to the mod reloads it in place. On a machine that has never run loki,
+it also links `~/.agents/skills/loki` to `skills/loki`, and leaves anything already there alone.
 
 ```bash
 bun install
-bun run start                                         # the Tauri window on the built page (app/dist); changes wait for update in the window; Ctrl-C stops it
+bun run start                                     # the Electron window on the built page (app/dist); changes wait for update in the window; Ctrl-C stops it
 bun run dev                                       # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
 bun run dev:vite                                  # Vite alone, for a browser tab
-bun run desktop:dev                               # the Tauri window against a Vite already running
-bun run test && bun run typecheck && bun run lint     # vitest, bun check (TypeScript 7), oxlint (typescript-eslint + React compiler rules) and eslint
+bun run test && bun run typecheck && bun run lint # vitest (the shell's tests too), bun check (TypeScript 7), oxlint (typescript-eslint + React compiler rules) and eslint
 bun run test:node                                 # the tests that need Node: SQLite stores, resuming after a crash, mod reloads
-bun run build:mod                                 # the daemon and mod bundles the app ships (tauri runs it before dev and build)
-cargo test --manifest-path src-tauri/Cargo.toml   # the shell
-bun run desktop:build                             # the .app and .dmg
+bun run build:mod                                 # the daemon and mod bundles the app ships
 ```
+
+Both window commands bundle the shell (`desktop/`) with esbuild as they start, so a change to it shows at the next
+start, with nothing to compile.
 
 The app is built with the React Compiler, so memo boundaries hold without hand-written `useCallback`;
 `LOKI_COMPILER_LOG=1 bun run build:app` lists what it declined to compile. In development, `?scan` on the dev
 URL loads React Scan and outlines every needless re-render.
 
-On **Windows**, install the Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the
-WebView2 runtime (Windows 11 has it) in place of Xcode's tools, and run the commands from Git Bash. On
-**Linux**, Tauri's WebKitGTK build packages; on Ubuntu 22.04 the list is the one in
-[`.github/workflows/shell.yml`](.github/workflows/shell.yml). On every system `cargo test` wants an `app/dist` to
-exist first (`bun run build:app`; the shell embeds the built app). [Contributing](docs/CONTRIBUTING.md) has the rest.
+On **Windows** and **Linux** you need Node, bun and git, and nothing in place of Xcode's tools: Electron brings its
+own Chromium. On Windows run the commands from Git Bash. [Contributing](docs/CONTRIBUTING.md) has the rest, the
+release's files included.
 
 ## Read on
 

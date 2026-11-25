@@ -101,9 +101,11 @@ export interface Blake2b {
   digest: () => Uint8Array;
 }
 
-export function createBlake2b512(): Blake2b {
+export function createBlake2b(digestBytes: number): Blake2b {
+  if (!Number.isInteger(digestBytes) || digestBytes < 1 || digestBytes > DIGEST_BYTES)
+    throw new Error(`BLAKE2b digests 1 to ${DIGEST_BYTES} bytes, not ${digestBytes}`);
   const hashing: Hashing = { h: IV.slice(), v: new Uint32Array(32), m: new Uint32Array(32) };
-  hashing.h[0] ^= 0x01010000 ^ DIGEST_BYTES;
+  hashing.h[0] ^= 0x01010000 ^ digestBytes;
   const pending = new Uint8Array(BLOCK_BYTES);
   let filled = 0;
   let counted = 0;
@@ -128,15 +130,19 @@ export function createBlake2b512(): Blake2b {
   const digest = () => {
     pending.fill(0, filled);
     compress(hashing, pending, 0, counted, true);
-    const out = new Uint8Array(DIGEST_BYTES);
-    for (let i = 0; i < DIGEST_BYTES; i++) out[i] = hashing.h[i >> 2] >>> (8 * (i & 3));
+    const out = new Uint8Array(digestBytes);
+    for (let i = 0; i < digestBytes; i++) out[i] = hashing.h[i >> 2] >>> (8 * (i & 3));
     return out;
   };
   return { update, digest };
 }
 
-export function blake2b512(data: Uint8Array): Uint8Array {
-  const hash = createBlake2b512();
+export const createBlake2b512 = (): Blake2b => createBlake2b(DIGEST_BYTES);
+
+export function blake2b(data: Uint8Array, digestBytes: number): Uint8Array {
+  const hash = createBlake2b(digestBytes);
   hash.update(data);
   return hash.digest();
 }
+
+export const blake2b512 = (data: Uint8Array): Uint8Array => blake2b(data, DIGEST_BYTES);

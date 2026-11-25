@@ -23,7 +23,7 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 
 - **No `any`, no `x!`, no floating promises.** Parse `unknown` at the edge; narrow instead of asserting; `await`,
   return, or `void` every promise.
-- **Named exports only**, `import type` for types, `.ts` extensions on imports in `core/`, `mod/` and `daemon/`.
+- **Named exports only**, `import type` for types, `.ts` extensions on imports in `core/`, `mod/`, `daemon/` and `desktop/`.
 - **Names**: every file kebab-case, components and hooks too (`suggestion-card.tsx`, `use-desk.ts`); identifiers camelCase,
   types and components PascalCase, acronyms as words (`agentUrl`); data loki owns (frames, saved files, suggestions,
   tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
@@ -32,7 +32,7 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 - **Comments are the exception**: a licence header, a gotcha forced by something outside loki (its first line
   `Outside (<what>): `, `<what>` from `OUTSIDE` in `eslint-comments.mjs`), `prettier-ignore` or a style-only lint
   suppression with its reason, a doc comment stating a contract across a process or disk boundary (frames, `~/.loki`
-  files, the mod API, tool arguments, Tauri commands), or an issue or RFC link. A surprise in loki's own code is fixed
+  files, the mod API, tool arguments, the shell's commands), or an issue or RFC link. A surprise in loki's own code is fixed
   by renaming, extracting or typing it, not explained. No commented-out code, no `TODO`, no plan tags. `bun run lint`
   fails on any other comment.
 - **Words on screen**: Apple's (the Human Interface Guidelines): controls in title case (`Mark as Read`), everything else
@@ -63,8 +63,6 @@ Run every check, with CI's toolchain (the newest Node 22, the bun in package.jso
 bun run format:check && bun run lint && bun run typecheck && bun run test && bun run test:node
 bun run build:app && bun run build:mod && bun run smoke
 ```
-
-When `src-tauri/` changed, the cargo lines in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#checks) too.
 
 A failure is reproduced and fixed, never called flaky without evidence. After pushing, read the PR's CI, Windows
 included, before saying it is done.

@@ -81,9 +81,9 @@ test("stables and nightlies sort together by precedence", () => {
   ]);
 });
 
-// Outside (Tauri): Tauri's NSIS bundler parses the app version as semver, drops the pre-release, and writes
-// `VIProductVersion "M.m.p.B"`, B the build metadata when numeric, else 0; each part is a 16-bit word in the Windows
-// version resource. Only the MSI bundler rejects a non-numeric pre-release, and loki builds no MSI.
+// Outside (Windows): the NSIS installer's version resource is `VIProductVersion "M.m.p.B"`, written from the app's
+// semver with the pre-release dropped, each part a 16-bit word; an MSI would reject a non-numeric pre-release, and
+// loki builds no MSI.
 test("stable and nightly versions build an NSIS installer as is: semver, no build metadata, parts within 16 bits", () => {
   const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
   const productVersion = (v: string) => {

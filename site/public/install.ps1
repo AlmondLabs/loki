@@ -77,14 +77,24 @@ function Install-Loki {
       return $false
     }
 
-    $folder = Join-Path $env:LOCALAPPDATA "loki"
-    $binary = "loki.exe"
-    $key = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\loki" -ErrorAction SilentlyContinue
-    if ($key -and $key.InstallLocation) { $folder = $key.InstallLocation.Trim('"') }
-    if ($key -and $key.MainBinaryName) { $binary = $key.MainBinaryName }
-    $exe = Join-Path $folder $binary
+    # The setup installs for this user alone, into Programs\loki, and lists itself under a key named for a GUID with
+    # the display name "loki <version>". The Tauri loki's key was named loki, and the setup removes it.
+    $folder = Join-Path $env:LOCALAPPDATA "Programs\loki"
+    $exe = Join-Path $folder "loki.exe"
+    $entry = Get-ChildItem -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall" -ErrorAction SilentlyContinue |
+      Get-ItemProperty -ErrorAction SilentlyContinue |
+      Where-Object { $_.PSChildName -ne "loki" -and $_.DisplayName -match '^loki \d' } |
+      Select-Object -First 1
+    if ($entry -and $entry.DisplayIcon) {
+      $exe = ($entry.DisplayIcon -replace ',-?\d+$', '').Trim('"')
+      $folder = Split-Path -Parent $exe
+    }
     if (-not (Test-Path $exe)) {
       Write-Failure "The setup finished, but loki isn't at $exe." "Run the line again; if it fails again, tell us at https://github.com/AlmondLabs/loki/issues."
+      return $false
+    }
+    if (-not $entry) {
+      Write-Failure "The setup finished, but Windows doesn't list loki under Installed apps." "Run the line again; if it fails again, tell us at https://github.com/AlmondLabs/loki/issues."
       return $false
     }
 

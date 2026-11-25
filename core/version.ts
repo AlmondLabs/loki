@@ -19,7 +19,7 @@ const compareIdentifiers = (a: string, b: string): number => {
 };
 
 /**
- * Semver precedence, the order Tauri's updater applies, so the release script and the updater agree: the
+ * Semver precedence, the order loki's updater applies (desktop/update/remote.ts), so the release script and the updater agree: the
  * three numbers first, then a release above its prereleases (a stable above the nightlies that led up to it), then
  * the prerelease identifiers one by one (a nightly's run number as a number). Negative when `a` comes first, positive
  * when `b` does, 0 when they rank alike; null when either is not a version.

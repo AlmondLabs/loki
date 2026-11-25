@@ -53,7 +53,7 @@ AA on every working surface. The roles:
 No literal colour appears in a component; even the agent chip takes the label colour nearest its name's hue. `data-theme`
 selects dark or light values, and the saved `system` preference follows the operating system; there is one palette.
 An inline initializer applies it before first paint; the grounds are repeated in `index.html`, the web manifest and
-the native window (`src-tauri`).
+the native window (`WINDOW_GROUND` in `desktop/windows.ts`).
 
 Type scale, Tailwind's own four sizes as Tailwind ships them, at the browser's default 16px root: **`text-xs` 12**
 meta, tags, labels (`.loki-label`) and fine print · **`text-sm` 14** body and list rows · **`text-base` 16** a window
@@ -260,12 +260,10 @@ measured heights (`shared/use-height-var.ts`) and scrolls on beneath them.
 
 The window has no native title bar (2026-09-23): the title bar is an overlay with its title hidden, the
 traffic lights sit in the sidebar's top row, and loki draws the top edge itself — a 28px **title strip** that drags the
-window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). On the Mac the
-window has an empty unified toolbar, as Mail's has, so AppKit itself lays the lights out low in a 52px title bar
-(`src-tauri/src/native.rs`); moving them after AppKit's layout, as Tauri's `traffic_light_position` does, showed them
-in the corner for a frame on every focus, resize, title or appearance change. The page reads where they are before it
-first draws (`adoptTrafficLights`), and centres the panes' 52px title bars and the sidebar's toggle on their row
-(`paneTop`); the bars drag the window too. The
+window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). On the Mac
+the shell places the lights low in a 52px title bar (`TRAFFIC_LIGHTS_AT` in `desktop/tray.ts`, Electron's
+`trafficLightPosition`). The page reads where they are before it first draws (`adoptTrafficLights`), and centres the
+panes' 52px title bars and the sidebar's toggle on their row (`paneTop`); the bars drag the window too. The
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
 "· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead: a chat's is a Mac toolbar
@@ -345,7 +343,7 @@ Internals keep the name desk.
   Learn's views were the last of them, and every place's items are in the list column now.
 - **Hide List.** View › Show / Hide List (⌃⌘L; Ctrl Shift L off the Mac, where Ctrl L is Focus Message Box) hides the
   list column in every place, and the detail takes its room; showing it brings it back at its width. It is a keymap
-  row, so the menu bar needs no Rust change, and it is kept with the sidebar's fold in `loki.desktop.column`
+  row, so the menu bar needs no change in the shell, and it is kept with the sidebar's fold in `loki.desktop.column`
   (`list_hidden`). A ⌃⌘ chord never matches its ⌘ alone (keymap.ts `matches`), so ⌃⌘L is not ⌘L.
 - **Landmarks and focus** (plan 2026-11-14-1330, KTD13, KTD14). Three regions, in Tab order: the sidebar, a `<nav
   aria-label="Sidebar">` (the places inside it are not a landmark of their own); the list, a `<section>` named for the

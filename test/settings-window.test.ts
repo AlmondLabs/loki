@@ -7,15 +7,12 @@ const APP = join(ROOT, "app", "src");
 const read = (...p: string[]) => readFileSync(join(...p), "utf8");
 
 describe("the Settings window", () => {
-  test("the shell opens one Settings window, reuses it, and grants it the main window's capability", () => {
-    const lib = read(ROOT, "src-tauri", "src", "lib.rs");
-    expect(lib).toContain('const SETTINGS_WINDOW: &str = "settings";');
-    expect(lib).toMatch(/if let Some\(win\) = app\.get_webview_window\(SETTINGS_WINDOW\)/);
-    expect(lib).toContain('app.emit_to(SETTINGS_WINDOW, "loki:settings-page", p)');
-    expect(lib).toContain(".initialization_script(settings_script(page.as_deref()))");
-    expect(lib).toMatch(/generate_handler!\[[^\]]*open_settings/);
-    const caps = JSON.parse(read(ROOT, "src-tauri", "capabilities", "default.json")) as { windows: string[] };
-    expect(caps.windows).toEqual(["main", "settings"]);
+  test("the shell opens one Settings window, reuses it, sends it the page, and tells it which window it is", () => {
+    const main = read(ROOT, "desktop", "main.ts");
+    expect(main).toContain("if (settingsWindow && !settingsWindow.isDestroyed()) {");
+    expect(main).toContain('sendEvent(settingsWindow.webContents, "loki:settings-page", page)');
+    expect(main).toContain("settingsPages.set(win.webContents.id, page);");
+    expect(main).toContain("open_settings: (args) => openSettings(settingsPage(args.page)),");
   });
 
   test("the page boots the settings-only root in that window, and the shell sends Preferences there on the Mac", () => {

@@ -6,7 +6,7 @@ import { forLibc, thisLibc } from "./native-binaries.ts";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const root = here("..");
-const out = here("../src-tauri/resources");
+const out = here("../desktop/resources");
 
 // Outside (Node): a package resolves to the nearest node_modules/<name> up from where `from` really is. pnpm puts a
 // dependency's own dependencies beside it in its store, not at the top of node_modules, so a fixed path misses them.
@@ -101,8 +101,8 @@ cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
 const appDist = here("../app/dist");
 if (existsSync(`${appDist}/index.html`)) {
   cpSync(appDist, `${out}/app`, { recursive: true });
-  console.log("mod bundled → src-tauri/resources/ (with app/dist for phones)");
+  console.log("mod bundled → desktop/resources/ (with app/dist for phones)");
 } else {
-  console.log("mod bundled → src-tauri/resources/");
+  console.log("mod bundled → desktop/resources/");
   console.log("note: app/dist not found — phones get a 'run bun run build:app' page until the canvas is built and build:mod runs again");
 }

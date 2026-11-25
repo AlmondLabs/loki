@@ -17,6 +17,7 @@ interface Job {
   if?: string;
   needs?: string | string[];
   env?: Record<string, string>;
+  name?: string;
   strategy?: { "fail-fast"?: boolean; matrix?: { os?: string[]; shard?: number[] } };
   steps: Step[];
 }
@@ -89,7 +90,7 @@ describe("ci: a PR's checks", () => {
         .slice(j.steps.findIndex((s) => s.id === "install") + 1)
         .map((s) => ({ ...s, if: s.if?.replace(/ && matrix\.shard == [12]/, ""), run: s.run?.replace(SHARD, "") }));
     expect(afterInstallWithoutShards(must(ci.jobs.windows, "windows"))).toEqual(afterInstallWithoutShards(must(ci.jobs.mac, "mac")));
-    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows", "windows-result"]);
+    expect(Object.keys(ci.jobs).sort()).toEqual(["build", "desktop", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows", "windows-result"]);
   });
 
   test("Windows runs the suite in two shards, and its required check passes only when both did", () => {
@@ -103,6 +104,33 @@ describe("ci: a PR's checks", () => {
     expect(result.needs).toBe("windows");
     expect(result.if).toBe("${{ !cancelled() }}");
     expect(runs(result)).toBe('test "${{ needs.windows.result }}" = success');
+  });
+});
+
+describe("the desktop app: packaged and started on all three systems", () => {
+  const ci = workflow("ci");
+  const desktop = must(ci.jobs.desktop, "the desktop job");
+
+  test("one job per system, none cancelling the others, under names apart from the required checks", () => {
+    expect(desktop.name).toBe("desktop app (${{ matrix.os }})");
+    expect(desktop["runs-on"]).toBe("${{ matrix.os }}");
+    expect(desktop.strategy).toEqual({ "fail-fast": false, matrix: { os: ["macos-15", "ubuntu-22.04", "windows-latest"] } });
+    expect(desktop.needs).toBeUndefined();
+  });
+
+  test("bundles the daemon, packages the app as a folder with electron-builder, and smoke-tests it, Linux under a virtual display", () => {
+    const after = (id: string) => desktop.steps.slice(desktop.steps.findIndex((s) => s.id === id) + 1);
+    expect(after("install").map((s) => s.run)).toEqual([
+      "bun run --silent budget bun run build:mod",
+      "bun run --silent budget bun run dist --dir",
+      "bun run --silent budget bun run smoke --electron",
+      "bun run --silent budget xvfb-run -a bun run smoke --electron",
+    ]);
+    const [, packaged, others, linux] = after("install");
+    expect(packaged.if).toContain("steps.bundle.outcome == 'success'");
+    for (const smoke of [others, linux]) expect(smoke.if).toContain("steps.package.outcome == 'success'");
+    expect(others.if).toContain("runner.os != 'Linux'");
+    expect(linux.if).toContain("runner.os == 'Linux'");
   });
 });
 
@@ -181,11 +209,12 @@ describe("selection: a PR runs what its diff reaches, the merge queue runs every
     );
   });
 
-  test("the Node runner's tests, the bundles and the smoke test are never narrowed", () => {
+  test("the Node runner's tests, the bundles and the smoke tests are never narrowed", () => {
+    const electronSmokes = ["bun run --silent budget bun run smoke --electron", "bun run --silent budget xvfb-run -a bun run smoke --electron"];
     for (const [name, job] of Object.entries(ci.jobs))
       for (const s of job.steps)
         for (const cmd of ["test:node", "build:mod", "smoke"])
-          if (s.run?.includes(cmd)) expect(s.run, `${name}: ${cmd}`).toBe(`bun run --silent budget bun run ${cmd}`);
+          if (s.run?.includes(cmd) && !electronSmokes.includes(s.run)) expect(s.run, `${name}: ${cmd}`).toBe(`bun run --silent budget bun run ${cmd}`);
   });
 });
 
@@ -199,32 +228,13 @@ describe("pr title: a required check", () => {
 });
 
 describe("main between PRs", () => {
-  test("ci and the shell's tests run on main once a week, on a fixed weekday and hour", () => {
-    for (const name of ["ci", "shell"]) {
+  test("ci runs on main once a week, on a fixed weekday and hour", () => {
+    for (const name of ["ci"]) {
       const schedule = (workflow(name).on as unknown as { schedule?: Array<{ cron: string }> }).schedule ?? [];
       expect(schedule, name).toHaveLength(1);
       const weeklyCron = /^\d{1,2} \d{1,2} \* \* [0-6]$/;
       expect(schedule[0]?.cron, name).toMatch(weeklyCron);
     }
-  });
-});
-
-describe("shell: the Rust shell's tests", () => {
-  const shell = workflow("shell");
-
-  test("run for a PR that changes src-tauri, on the three systems", () => {
-    expect(shell.on.pull_request?.paths).toContain("src-tauri/**");
-    expect(shell.jobs.cargo.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "ubuntu-22.04", "windows-latest"]);
-  });
-
-  test("need no Node and no app build: stand-ins for app/dist and the resources do", () => {
-    const steps = shell.jobs.cargo.steps;
-    expect(steps.some((s) => s.uses?.startsWith("actions/setup-node"))).toBe(false);
-    expect(runs(shell.jobs.cargo)).not.toMatch(/\b(npm|bun) /);
-    expect(runs(shell.jobs.cargo)).toContain("app/dist/index.html");
-    expect(runs(shell.jobs.cargo)).toContain("cargo test --locked --manifest-path src-tauri/Cargo.toml");
-    expect(runs(shell.jobs.cargo)).toContain("cargo fmt --manifest-path src-tauri/Cargo.toml --check");
-    expect(runs(shell.jobs.cargo)).toContain("cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings");
   });
 });
 
@@ -237,7 +247,7 @@ describe("React Doctor", () => {
 });
 
 describe("supply chain", () => {
-  const all = ["ci", "cache", "shell", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
+  const all = ["ci", "cache", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
 
   test("every action is pinned to a commit, not a tag that can move (the build holds the signing secrets), or is this repository's own", () => {
     const pinned = /^[\w.-]+\/[\w.-]+(\/[\w.-]+)?@[0-9a-f]{40}$/;
@@ -269,7 +279,7 @@ describe("supply chain", () => {
     for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
   });
 
-  test("a release job that installs dependencies keeps no token in its checkout, and no Apple secret past the build", () => {
+  test("a release job that installs dependencies keeps no token in its checkout, and the unsigned build reads no Apple secret", () => {
     const rel = workflow("release");
     const installers = Object.entries(rel.jobs).filter(([, j]) => /\bbun install\b/.test(runs(j)));
     expect(installers.map(([k]) => k).sort()).toEqual(["linux", "macos", "windows"]);
@@ -277,57 +287,55 @@ describe("supply chain", () => {
       const checkout = j.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
       expect(checkout?.with?.["persist-credentials"], k).toBe(false);
     }
-    const steps = must(rel.jobs.macos, "the macos job").steps;
-    const built = steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@"));
-    const dropped = steps.findIndex((s) => /APPLE_CERTIFICATE[^\n]*\n\s*echo "\$v=" >> "\$GITHUB_ENV"/.test(s.run ?? ""));
-    expect(built).toBeGreaterThan(-1);
-    expect(dropped).toBe(built + 1);
+    expect(JSON.stringify(rel)).not.toContain("APPLE_");
   });
 
-  test("the update key reaches only the steps that build the app, as each step's own env", () => {
+  const signs = (s: Step) => s.run?.includes("scripts/sign-update.ts") ?? false;
+
+  test("the update key reaches only the step that signs, one per build, as that step's own env under loki's names", () => {
     const holders: string[] = [];
     for (const { name, wf } of all)
       for (const [job, j] of Object.entries(wf.jobs)) {
-        expect(JSON.stringify(j.env ?? {}), `${name}/${job}`).not.toContain("TAURI_SIGNING");
+        expect(JSON.stringify(j.env ?? {}), `${name}/${job}`).not.toContain("SIGNING");
         j.steps.forEach((s, i) => {
-          if (JSON.stringify(s).includes("TAURI_SIGNING")) holders.push(`${name}/${job}/${s.uses?.split("@")[0] ?? String(i)}`);
+          if (/TAURI_SIGNING|LOKI_UPDATE_KEY/.test(JSON.stringify(s))) holders.push(`${name}/${job}/${String(i)}`);
         });
       }
     const release = workflow("release").jobs;
-    const builds = [
-      must(release.macos, "the macos job").steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@")),
-      must(release.windows, "the windows job").steps.findIndex((s) => s.run?.includes("tauri build")),
-      must(release.linux, "the linux job").steps.findIndex((s) => s.run?.includes("tauri build")),
-    ];
-    expect(holders).toEqual([`release/macos/tauri-apps/tauri-action`, `release/windows/${builds[1]}`, `release/linux/${builds[2]}`]);
-    for (const [job, i] of [
-      ["macos", builds[0]],
-      ["windows", builds[1]],
-      ["linux", builds[2]],
-    ] as const)
-      expect(must(release[job], job).steps[i]?.env, job).toEqual({
-        TAURI_SIGNING_PRIVATE_KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
-        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
+    const signer = (job: string) => must(release[job], job).steps.findIndex(signs);
+    expect(holders).toEqual(["macos", "windows", "linux"].map((job) => `release/${job}/${String(signer(job))}`));
+    for (const job of ["macos", "windows", "linux"])
+      expect(must(release[job], job).steps[signer(job)]?.env, job).toEqual({
+        LOKI_UPDATE_KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+        LOKI_UPDATE_KEY_PASSWORD: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
       });
   });
 
-  // Outside (Tauri): tauri-cli only warns when the signing key and tauri.conf.json's pubkey are not one pair, and a loki
-  // built that way can never verify an update.
-  test("each build checks its update signatures against the compiled-in key before it ships them", () => {
+  test("each build packages, signs its update file for the version, checks it against the updater's key, smoke-tests the app, then ships", () => {
     const release = workflow("release").jobs;
-    for (const [job, isBuild, isShip] of [
-      ["macos", (s: Step) => s.uses?.startsWith("tauri-apps/tauri-action@"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
-      ["windows", (s: Step) => s.run?.includes("tauri build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
-      ["linux", (s: Step) => s.run?.includes("tauri build"), (s: Step) => s.uses?.startsWith("actions/upload-artifact@")],
-    ] as const) {
+    const updateFiles = {
+      macos: "desktop/release/loki.app.tar.gz",
+      windows: 'desktop/release/loki_"$VERSION"_x64-setup.exe',
+      linux: 'desktop/release/loki_"$VERSION"_amd64.AppImage',
+    } as const;
+    for (const [job, file] of Object.entries(updateFiles)) {
       const steps = must(release[job], job).steps;
-      const built = steps.findIndex(isBuild);
-      const checked = steps.findIndex((s) => s.run?.includes("scripts/check-update-key.ts $(find src-tauri/target -path '*/bundle/*' -name '*.sig')"));
-      const shipped = steps.findIndex(isShip);
-      expect(built, job).toBeGreaterThan(-1);
-      expect(checked, job).toBeGreaterThan(built);
-      expect(shipped, job).toBeGreaterThan(checked);
-      expect(JSON.stringify(steps[checked]), job).not.toContain("TAURI_SIGNING");
+      const at = (match: (s: Step) => boolean) => steps.findIndex(match);
+      const packaged = at((s) => s.run?.startsWith("bun run dist ") ?? false);
+      const signed = at(signs);
+      const checked = at((s) => s.run?.includes("scripts/check-update-key.ts") ?? false);
+      const smoked = at((s) => s.run?.includes("bun run smoke --electron") ?? false);
+      const shipped = at((s) => s.uses?.startsWith("actions/upload-artifact@") ?? false);
+      expect(packaged, job).toBeGreaterThan(-1);
+      expect(
+        [packaged, signed, checked, smoked, shipped].every((n, i, a) => i === 0 || n > (a[i - 1] ?? 0)),
+        job,
+      ).toBe(true);
+      expect(steps[signed]?.run, job).toBe(`node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/sign-update.ts "$VERSION" ${file}`);
+      expect(steps[checked]?.run, job).toBe(
+        `node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-update-key.ts --version "$VERSION" ${file}.sig`,
+      );
+      expect(JSON.stringify(steps[checked]), job).not.toMatch(/SIGNING|LOKI_UPDATE_KEY/);
     }
   });
 });

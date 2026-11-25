@@ -12,16 +12,18 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under
   [Windows and Linux](#windows-and-linux).
-- **Nothing else to install by hand.** loki runs your agents in its own daemon, a Node process the window starts and
-  keeps running (see [docs/architecture.md](architecture.md)), and it brings that Node itself: on first launch it
-  downloads the Node its release names from nodejs.org into `~/.loki/runtime`, checks it against the SHA-256 the
-  release carries, and starts the daemon on it. A later release that names another Node downloads that one on its
-  first launch, and removes the old one once the daemon runs on the new. A Node you installed yourself is left alone
-  and not used; `LOKI_NODE_BIN` names one to run instead.
+- **Node 22.19 or newer.** loki runs your agents in its own daemon, a Node process the window starts and keeps
+  running (see [docs/architecture.md](architecture.md)), on the Node already on your computer; Claude Code chats, and
+  any agent or MCP server you add that runs `node` or `npx`, use the same one. loki finds it wherever an installer put
+  it (PATH, Homebrew, nvm, fnm, Volta, npm's global folder, scoop and the like), even when you open loki from the
+  Finder, the Start menu or a launcher, and takes the newest at 22.19 or above that has `npx` beside it.
+  `LOKI_NODE_BIN` names one to use instead. When there is none, Welcome offers to install it ([First
+  launch](#first-launch)). loki never downloads a Node of its own, and never updates or removes the one you have.
 - **git**, which agents keep their memory and skills with. On the Mac it comes with Apple's command line tools; when
   they are missing, Welcome asks for them (below). On Windows, when git or Git Bash is missing, loki downloads
-  PortableGit from Git for Windows' releases into `~/.loki/runtime` beside Node, checked the same way. On Linux it is
-  the distribution's package (`sudo apt install git`, `sudo dnf install git`); Welcome names it when git is missing.
+  PortableGit from Git for Windows' releases into `~/.loki/runtime`, checked against the SHA-256 the release carries.
+  On Linux it is the distribution's package (`sudo apt install git`, `sudo dnf install git`); Welcome names it when
+  git is missing.
 
 ## Install
 
@@ -49,13 +51,15 @@ The script downloads the newest release of its channel from GitHub and opens lok
   `~/.local/share/applications/loki.desktop` and its icon beside the app. When the AppImage needs FUSE 2 and it is
   missing, the script stops and names the package command for your distribution (`sudo apt install libfuse2`, or
   `libfuse2t64` on Ubuntu 24.04).
-- **On Windows** (64-bit 10 or 11), the setup runs silently for you alone, into `%LOCALAPPDATA%\loki`, with no
-  administrator prompt and a Start menu entry.
+- **On Windows** (64-bit 10 or 11), the setup runs silently for you alone, into `%LOCALAPPDATA%\Programs\loki`, with
+  no administrator prompt and a Start menu entry. When a loki from before November 2026 is installed, the setup
+  closes it and removes it first.
 
 It stops, and says so, when loki is open; quit it and run the line again. Run again, it replaces the app with the
-newest release and touches nothing else: your agents, chats and settings in `~/.loki` stay. It installs neither Node
-nor git; loki fetches what it needs at its first launch (Requirements). After that, loki updates itself (see
-"Updates" below), and Preferences › About moves it between Stable and Nightly, so the line is never needed again.
+newest release and touches nothing else: your agents, chats and settings in `~/.loki` stay. The app is about 100 MB to
+download. The script installs neither Node nor git; Welcome helps with both at loki's first launch (Requirements).
+After that, loki updates itself (see "Updates" below), and Preferences › About moves it between Stable and Nightly, so
+the line is never needed again.
 
 **Nightly** is `main` as it stands whenever the maintainer releases a nightly, between stables, versioned
 `2026.1011.1-nightly.4821` after the stable it leads up to and the run that built it (its title names the commit). A stable is the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1`
@@ -85,26 +89,33 @@ Preferences › About replaces it, and a loki already installed through it keeps
 **Windows and Linux by hand**, from the [releases page](https://github.com/AlmondLabs/loki/releases/latest):
 `loki_<version>_x64-setup.exe`, an unsigned NSIS installer, which SmartScreen stops as an unknown publisher (**More
 info**, then **Run anyway**, once); `loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2; or
-`loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`). The Linux files are built on Ubuntu 22.04. The
-`-setup.exe` and the AppImage update themselves after that; the `.deb` does not, and its next version is another
-download from the releases page. No package manager carries them.
+`loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`), which adds an AppArmor profile,
+`/etc/apparmor.d/loki`, so the window's sandbox runs on Ubuntu 24.04 and later. The Linux files are built on Ubuntu
+22.04. The `-setup.exe` and the AppImage update themselves after that; the `.deb` does not, and its next version is
+another download from the releases page. No package manager carries them.
 
-**From source**: Node, Rust and Xcode's command line tools, then `bun run start` to run the checkout or
-`bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
+**From source**: Node, bun and Xcode's command line tools, then `bun run start` to run the checkout, or
+electron-builder for a `.app` of your own ([CONTRIBUTING.md](CONTRIBUTING.md#setup) has the steps). A build made on
+your own Mac never carries the flag.
 
 ### First launch
 
-Whichever way, loki brings its own Node (Requirements). Then:
+Whichever way, loki needs Node and git (Requirements), and helps with whichever is missing. Then:
 
 1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
    skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "What launch installed".
-   Then it makes sure its Node is in place and git is there, and starts the daemon, which hosts the mod.
-2. The first launch opens on **Getting loki ready** while it downloads Node (and PortableGit on Windows, when it is
-   needed): what it is fetching, a bar and how far along it is. A download that fails says what failed, with **Try
-   Again**. On a Mac without Apple's command line tools, it then asks for them: **Install Command Line Tools** shows
+   Then it makes sure git is there, finds Node, and starts the daemon on it, which hosts the mod.
+2. When something is missing, loki opens on **Getting loki ready**. On Windows without git or Git Bash it downloads
+   PortableGit: what it is fetching, a bar and how far along it is; a download that fails says what failed, with
+   **Try Again**. On a Mac without Apple's command line tools it asks for them: **Install Command Line Tools** shows
    macOS's own installer, and **Check Again**, once that has finished, goes on. On Linux without git it names the
-   package command, with **Check Again**. After an update that names a new Node you see only the download, then
-   your chats.
+   package command, with **Check Again**.
+   With no Node 22.19 or newer (or only an older one, which it names), it shows **Install Node**. On a Mac or Windows
+   that downloads the current long-term-support installer from nodejs.org, checks it against nodejs.org's published
+   checksums, and opens it; the installer asks for your administrator password itself, as it would if you had opened
+   it. When it has finished, loki finds the new Node and carries on, with no restart; **Check Again** looks at once,
+   and closing the installer early leaves the button to try again. On Linux the step shows the commands that install
+   Node with nvm, and points at nodejs.org for other ways, with **Check Again**.
 3. Then **Welcome** shows over the empty window: connect a model provider (paste a key, or sign in in
    the browser, for Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and more; a key is checked with
    the provider, then kept in your system's keychain; every turn is billed by that provider), then name your first
@@ -125,10 +136,12 @@ itself only from a folder you can change, such as `/Applications` on an administ
 anywhere else, About says to move it there rather than downloading an update it could not install. If installing at
 quit fails, About says so the next time loki opens.
 
-loki is moving to a new desktop shell, and this version can't update to it. Once the new loki is out on your channel, a
-notice says **A new loki is ready to install**, with **Copy Install Command**: run that command (or `brew reinstall
---cask loki` if you installed with Homebrew) and the new loki opens with your agents, chats and settings as they were.
-On the Mac, the keychain may ask once to let it read loki's keys.
+In November 2026 loki moved to a new desktop shell, Electron, which a loki from before then can't update to. That
+last older loki says **A new loki is ready to install** once the new one is out on its channel, with **Copy Install
+Command**: run that command (or `brew reinstall --cask loki` if you installed with Homebrew) and the new loki opens
+with your agents, chats and settings as they were. On Windows the new installer closes and removes the old loki first.
+On the Mac, the keychain may ask once to let it read loki's keys. What the old window kept for itself, such as which
+panes were folded, starts fresh. Updates are larger now, about 100 MB rather than about 10.
 
 Preferences › About offers **Stable** (each release) or **Nightly** (each nightly of `main`); the choice takes effect at
 the next check. Switching from Nightly to Stable never installs an older build: loki stays on its nightly until a stable
@@ -173,10 +186,14 @@ everything loki wrote.
 - **Mac:** move `loki.app` from `/Applications` (or `~/Applications`) to the Bin, then, if you want, delete `~/.loki`
   and `~/.agents/skills/loki`. Installed with Homebrew, `brew uninstall --cask loki` removes the app, and
   `brew uninstall --zap --cask loki` removes those two folders too.
-- **Windows:** Settings › Apps › Installed apps, then loki's **Uninstall**, or `uninstall.exe` in
-  `%LOCALAPPDATA%\loki`. Then, if you want, delete `%USERPROFILE%\.loki` and `%USERPROFILE%\.agents\skills\loki`.
+- **Windows:** Settings › Apps › Installed apps, then loki's **Uninstall**, or `Uninstall loki.exe` in
+  `%LOCALAPPDATA%\Programs\loki`. Then, if you want, delete `%USERPROFILE%\.loki` and
+  `%USERPROFILE%\.agents\skills\loki`.
 - **Linux:** delete `~/.local/share/loki` (the AppImage and its icon) and `~/.local/share/applications/loki.desktop`,
   or, for the `.deb`, `sudo apt remove loki`. Then, if you want, delete `~/.loki` and `~/.agents/skills/loki`.
+
+A Node that **Install Node** put on your computer stays when loki goes; it is an ordinary install of Node, removed the
+way your system removes any program.
 
 ## The window
 
@@ -422,19 +439,21 @@ differs:
 2. **Keys.** ⌘ is Ctrl, ⌥ Alt, ⇧ Shift, ↵ Enter, ⌫ Backspace, and every menu, tooltip, the keys sheet and
    Preferences › Keyboard shortcuts write them so. Move Chat Left and Right are Ctrl ← and Ctrl → or Ctrl Shift [ and Ctrl Shift ],
    since Ctrl Alt arrows are the system's there. Hide loki (Ctrl Shift W) is **Minimise loki**: with no tray or
-   dock, a hidden window could not come back. In the packaged app the webview's own keys (reload, print, view
+   dock, a hidden window could not come back. In the packaged app the browser's own keys (reload, print, view
    source, devtools, F5, F12) do nothing; Ctrl F is loki's find.
 3. **Not there yet.** The tray item and its count, the dock badge, the system-wide ⌥Space, the native menu bar,
    dictation (and its key), phone pairing and Tailscale. Where one would show, loki says it isn't on Windows (or
    Linux) yet.
 4. **Folders.** **browse…** in the new-chat sheet opens the system's own folder dialog; folder completion takes
    drive paths and `~\`.
-5. **The daemon.** On Windows loki starts it with no console window, in a Job Object that ends it when loki
-   exits; on Linux the daemon carries the parent-death signal, so it ends with loki too.
+5. **The daemon.** On Windows loki starts it with no console window. As on the Mac, it ends with loki: quitting stops
+   it, and if loki goes without quitting, the daemon notices within a few seconds and stops itself and what it
+   started.
 6. **Files.** `~` is your profile folder on Windows (`%USERPROFILE%`), so everything is under
    `%USERPROFILE%\.loki`; the skill link is a junction where Windows refuses a symlink.
-7. **Linux** runs loki through XWayland: the shell sets `GDK_BACKEND=x11` unless you set it yourself, since an
-   undecorated window on native Wayland still has open resize and button bugs.
+7. **Linux** runs loki through XWayland: the shell starts with `--ozone-platform=x11` unless you set
+   `ELECTRON_OZONE_PLATFORM_HINT` yourself, since an undecorated window on native Wayland still has open resize and
+   button bugs.
 
 Testers: [docs/preview-checklist.md](preview-checklist.md) lists what to try on a real machine.
 
@@ -620,28 +639,26 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 
 ## Install (development)
 
-You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs Vite, the
-Tauri CLI, the tests and loki's daemon, and bun (`brew install oven-sh/bun/bun`) installs the packages and runs the
-scripts on that Node: a development build runs the daemon on your Node, never downloading one. It
-looks where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
-global bin, `~/.local/bin`, nvm and fnm (on Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place; on
-Windows npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta, nvm-windows, fnm, scoop and bun).
-Then:
+You need Node 22.19 or newer and Xcode's command line tools (for git); `bun install` brings Electron, and nothing is
+compiled. Node runs Vite, the tests and loki's daemon, and bun (`brew install oven-sh/bun/bun`) installs the packages
+and runs the scripts on that Node. The window runs the daemon on your Node as a release does. It looks where
+installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's global bin,
+`~/.local/bin`, nvm and fnm (on Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place; on Windows
+npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta, nvm-windows, fnm, scoop and bun), and takes
+the newest at 22.19 or above with `npx` beside it. Then:
 
 ```bash
 bun install
 bun run start
 ```
 
-`bun run start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
-`~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
-command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
-that nothing else answers on port 5173, which the window would otherwise show. It then builds the page into
-`app/dist` when one of its sources is newer (about fifteen seconds), and starts `tauri dev`, which bundles the mod,
-serves `app/dist` on 127.0.0.1:5173 and opens the window (the first build compiles the shell, a few minutes). The
-window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`). The script
-waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
-log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it.
+`bun run start` builds the page into `app/dist` when one of its sources is newer (about fifteen seconds), bundles the
+shell (`desktop/`) with esbuild in well under a second, and opens the Electron window on `app/dist`, served from
+`loki://app`. The window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`).
+The script waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the
+daemon's log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it. A change to the shell itself shows the next time you
+start the window. A development window keeps an Electron profile of its own for each checkout, so it opens beside
+the installed app and beside another worktree's window.
 
 `bun run start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
 in place when `mod/` or `core/` changes, a moment after the last file changed. A mod that does not build or does not
@@ -651,15 +668,15 @@ changed" with **update** and **later**, and loki never updates by itself. **upda
 a second later). A page that does not build stays as it was, and the notice says what failed. While a chat is working
 or waiting for you, a restart would cut it off: **update** says so and offers **update anyway**.
 
-`bun run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 and shows a change to `app/` as you save,
+`bun run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 (using loki's Vite when one already answers
+there, and stopping with the fix when something else does) and shows a change to `app/` as you save,
 and a watching build keeps `app/dist` current for the phone. The mod reloads as above, and a change to `daemon/` or
 `core/` still waits for **update**. It costs more while it runs: Vite and the watching build hold well over a
 gigabyte, and React's development build keeps a timing record for every render, so the window's memory grows for as
 long as it stays open. `bun run start --check` and `bun run dev --check` report what each would do without starting
 anything.
 
-Or run the pieces yourself: `bun run dev:vite` (Vite alone, for a browser tab) and `bun run desktop:dev` (the window
-against a Vite already running, in a second terminal).
+Or run Vite alone, for a browser tab: `bun run dev:vite`. A `bun run dev` started while it runs uses it.
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), and its daemon runs the
 checkout's code either way (`LOKI_NO_INSTALL=1` runs the installed bundles instead). It links the agent's skill, `~/.agents/skills/loki`, to the checkout's `skills/loki` when nothing is there
@@ -672,8 +689,8 @@ When something does not come up:
 1. **The window opens but the app never links** (Vite prints `ws proxy error … 41414`): the daemon is not
    running, or its mod failed. `~/.loki/logs/daemon.log` has the daemon's output, its error at start included,
    and `~/.loki/mod.log` the mod's.
-2. **Welcome says there is no Node 22.19 or newer for this development build**: none anywhere loki looks. Put one on
-   PATH, or point `LOKI_NODE_BIN` at one it does not find, then **Check Again**.
+2. **Welcome says there is no Node 22.19 or newer**: none anywhere loki looks. Install one (**Install Node**, or your
+   usual way), or point `LOKI_NODE_BIN` at one it does not find, then **Check Again**.
 3. **The installed app is running**: its daemon holds `~/.loki`, so yours waits (`daemon.log` says it exited with
    code 3). Quit the app.
 
@@ -758,8 +775,8 @@ the wrong way.
 in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
 and one of its models (the others show once it has run once). From the first message the chat stays on Claude
 Code: the other tabs are greyed out, and a new chat is how you go back to loki's. loki starts Claude
-Code itself, always through `npx` at the adapter version this loki pins (npx, which comes with loki's Node, fetches
-it the first time), so it needs a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
+Code itself, always through `npx` at the adapter version this loki pins (npx, which comes with the Node loki runs on,
+fetches it the first time), so it needs a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
 
 - the replies, tool calls and their diffs show as in any chat, and stay in loki's history and Flow;
 - when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude
@@ -1965,8 +1982,10 @@ default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
 linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INSTALL=1` (stop a release build from
 installing, and make a dev build link nothing and run the bundles already installed), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
-`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR` and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
-already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
+`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR` and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads).
+`LOKI_UPDATE_URL` points the update check at another `desktop.json`, for trying an update by hand. On Linux the
+shell runs under X11 (`--ozone-platform=x11`) unless `ELECTRON_OZONE_PLATFORM_HINT` is set. The mod runs under Node,
+inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
 Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product
 analytics on loki itself; see "Analytics"). Each line of the first two starts with its time in UTC and its severity,

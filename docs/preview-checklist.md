@@ -29,8 +29,8 @@ install line ([the manual's Install section](manual.md#install)); the files on t
 ## First run
 
 1. **A first launch.** loki puts its daemon, its mod and the phone's canvas under `~/.loki`, and Welcome shows
-   "Getting loki ready" while it downloads the Node its release names into `~/.loki/runtime` (and PortableGit on
-   Windows when git or Git Bash is missing), with a progress bar. Then it asks for a model provider (a key, or a
+   "Getting loki ready" while it checks for Node 22.19 or newer (offering **Install Node** when there is none) and,
+   on Windows when git or Git Bash is missing, downloads PortableGit with a progress bar. Then it asks for a model provider (a key, or a
    sign-in in the browser), then for a first agent, and you land on its main chat. Preferences › About shows what
    launch installed and the Node it runs on.
 2. **With no network, or no git.** A download that fails shows what failed and **Try Again**, which works once the
@@ -73,8 +73,8 @@ install line ([the manual's Install section](manual.md#install)); the files on t
 
 ## Linux
 
-1. **Wayland sessions.** loki runs through XWayland (`GDK_BACKEND=x11`), and the strip's buttons respond there. If
-   you start it with your own `GDK_BACKEND` (say `GDK_BACKEND=wayland`), loki keeps yours.
+1. **Wayland sessions.** loki runs through XWayland (`--ozone-platform=x11`), and the strip's buttons respond there.
+   If you set `ELECTRON_OZONE_PLATFORM_HINT` (say `wayland`), loki keeps yours.
 2. **Fonts** look like the rest of the desktop and not heavier than they should; blurred backdrops (sheets,
    popovers) either blur or fall back cleanly.
 

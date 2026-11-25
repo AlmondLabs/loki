@@ -45,7 +45,7 @@ export type PopupEntry =
 
 /**
  * The entries as the shell takes them, and each item's action by its index: the shell answers with the index of the
- * item chosen, counted depth first over items alone, as `popup.rs` tags them. `iconPng` gives an icon's picture, made
+ * item chosen, counted depth first over items alone, as `desktop/menus.ts` numbers them. `iconPng` gives an icon's picture, made
  * beforehand (`iconImage`); without one the item shows none.
  */
 export function popupEntries(
@@ -72,7 +72,7 @@ export function popupEntries(
 
 /**
  * Pop the entries up as a native menu at `at` (window coordinates, in CSS pixels): under the control that opened
- * it, or at the pointer for a right-click. The shell draws it in AppKit (popup.rs) and answers once it closes; the
+ * it, or at the pointer for a right-click. The shell draws it natively (desktop/menus.ts) and answers once it closes; the
  * item chosen, if any, then runs. Resolves after that.
  */
 export async function popUpMenu(entries: MenuEntry[], at: { x: number; y: number }): Promise<void> {

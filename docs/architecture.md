@@ -1,8 +1,13 @@
 # loki · the execution model
 
-loki runs its agents itself. A small Rust shell opens the window and keeps one long-lived Node process running,
+loki runs its agents itself. An Electron shell opens the window and keeps one long-lived Node process running,
 loki's **daemon**, which holds every agent, every chat and every tool. This document is the map: which processes
 run on your machine, what each one owns, the path a message takes, and where each piece lives in the repo.
+
+Until November 2026 the shell was a Rust program on Tauri, and the window rendered on the system's WebView. Plan
+2026-11-25-1029 (`docs/plans/2026-11-25-1029-refactor-electron-shell-plan.md`) moved it to Electron on all three
+systems at once: the shell is TypeScript like the rest of loki, a change to it shows on the next launch without
+compiling native code, and the desktop window renders on Chromium. The phone stays on WebKit, as every iOS browser is.
 
 Until October 2026 loki sat on top of Letta Code and ran inside its `letta server` process; nothing of Letta is left
 in it now. Plan 017
@@ -36,37 +41,49 @@ Only the first lives elsewhere. The memory, the hands and the canvas are all on 
 ## Which of these are processes
 
 ```text
-loki (Rust shell, Tauri)                          the window, tray, dock badge, global shortcut
-└── node daemon.mjs --loki-daemon                 loki's daemon: one process for every agent
+loki (Electron main process, desktop/main.ts)     windows, loki:// scheme, menus, tray, updates, finding Node
+├── page windows (loki://app/index.html)          the React app, sandboxed; reaches main via window.lokiDesktop
+└── node daemon.mjs --loki-daemon                 loki's daemon, on the machine's Node: one process for every agent
       --dir ~/.loki --mod …/loki-mod.mjs
-      --token-file ~/.loki/token
+      --token-file ~/.loki/token --parent-pid <loki's pid>
     ├── pi-durable Harness per agent              ~/.loki/stores/<agentId>.sqlite
     ├── loki's mod (canvas, Learn, /ws)           listens on 127.0.0.1:41414, and 0.0.0.0:41415 when the phone is on
     └── children: bash commands, background tasks, git, ripgrep
 ```
 
-1. **The shell starts the daemon and keeps it alive.** At launch, beside the window rather than before it, it makes sure
-   of the daemon's Node and of git (`runtime.rs`; see "Finding Node and other programs" below), stops a
-   daemon an earlier loki left behind (`procs.rs`, matched by its command line and start time), and starts a new one
-   (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build runs the
-   checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to `~/.loki/logs/daemon.log`. A
-   checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it reloads the mod when `mod/` or
+1. **The shell starts the daemon and keeps it alive.** At launch, beside the window rather than before it, main makes
+   sure of git (`desktop/tools.ts`), finds the machine's Node (`desktop/node-search.ts`; see "Finding Node and other
+   programs" below), stops a daemon an earlier loki left behind (`desktop/procs.ts`, matched by its command line and
+   start time), and starts a new one (`desktop/daemon.ts`). The daemon is a child process on that Node, with PATH
+   starting at that Node's folder, no `ELECTRON_*` or `NODE_OPTIONS` in its environment, and an IPC channel main uses
+   only to tell it to stop. A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development
+   build runs the checkout's `daemon/main.ts` with `mod/boot.ts`, under `--experimental-strip-types`. The daemon's
+   output is appended to `~/.loki/logs/daemon.log`, set aside as `daemon.log.1` once past 10 MB
+   (`desktop/daemon-log.ts`). A checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it reloads the mod when `mod/` or
    `core/` changes, once the files have been still for `MOD_SETTLE_MS`, so a pull is one reload. The new mod is built
    before the running one stops; one that does not build, or throws as it starts, leaves the running one serving
    (`registry.ts` puts it back). A change to `daemon/` or `core/` makes a restart due (`restart_due`), which the window offers;
    `daemon_restart` stops it cleanly for the supervisor to start again. Under `bun run start`, which runs the built page, a
    change to `app/` or `core/` also makes a build due (`daemon/page-build.ts`).
-2. **A daemon that dies is started again, with backoff.** The supervisor (`supervise_daemon` in `lib.rs`) waits one
-   second, doubling with each exit in the last minute, never more than thirty. A daemon that crashes at start
-   therefore does not spin. Quitting loki stops the daemon and the supervisor leaves it down.
+2. **A daemon that dies is started again, with backoff.** The supervisor (`DaemonSupervisor` in `desktop/daemon.ts`)
+   waits one second, doubling with each exit in the last minute, never more than thirty. A daemon that crashes at start
+   therefore does not spin, and after three exits in a minute the status says it keeps stopping and names its log.
+   The window stays open throughout. Quitting loki stops the daemon and the supervisor leaves it down.
 3. **Only one daemon serves a folder.** The daemon takes `~/.loki/daemon.lock` (a file holding its pid,
    `daemon/lock.ts`) before it opens any store, because pi-durable has no lock of its own and two owners of one store
-   would run the same tool calls twice. A second daemon exits with code 3; its shell leaves the first one serving and
-   tries again every 30 seconds, in case that one was a leftover that later dies. This is how a dev build beside the
-   installed app shares one daemon.
-4. **The daemon dies with loki.** On Windows it runs with no console window inside a Job Object that ends the whole
-   tree when loki's handle closes. On Linux it is started with the parent-death signal. On the Mac, where neither
-   exists, a leftover from a crash is found and stopped at the next launch.
+   would run the same tool calls twice. Before main starts one, it reads the lock's pid: a daemon whose loki is gone is
+   a leftover and is stopped; one whose loki still runs is left serving, and the status names that other loki. A second
+   daemon exits with code 3; its shell leaves the first one serving and tries again every 30 seconds, in case that one
+   was a leftover that later dies. This is how a dev build beside the installed app shares one daemon.
+4. **The daemon dies with loki.** Quitting, Restart to Update and a development restart send the daemon `stop` over
+   its IPC channel and wait up to three seconds for it to exit before killing it, since a kill on Windows skips its
+   `stop()`; `before-quit` holds the app until then, and an uncaught error in main stops the daemon before main exits.
+   The daemon is also told loki's pid (`--parent-pid`) and checks it every two seconds (`daemon/parent-watch.ts`), so
+   when loki goes without a word, in a crash or a force-quit, the daemon stops itself; writes to a closed log pipe are
+   ignored so that `stop()` still finishes. Its ACP agents and background tasks lead process groups of their own on
+   the Mac and Linux and end as a group; on Windows a child ends as a tree, with `taskkill /T` (`daemon/tree-kill.ts`).
+   On Windows the daemon runs with no console window. A daemon still running at the next launch whose loki is gone is
+   a leftover, stopped as above.
 5. **There are no other long-lived processes.** The children are short-lived
    or belong to a chat: an agent's bash commands and background tasks, `git` for memory commits,
    `rg` for search when it is installed. The exception is the MCP servers you list in `~/.loki/mcp.json`: each local
@@ -74,41 +91,85 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
 
 The model is a remote service, not a process on your machine.
 
+## The shell and the page
+
+1. **One scheme serves the page and the widgets.** Main registers `loki` as a privileged scheme (`desktop/scheme.ts`).
+   `loki://app/` serves `app/dist` (from the app's resources in a release, the checkout's in development), each HTML
+   page with its Content Security Policy as a response header, the hashes of its inline scripts included; the widget
+   frame's document keeps its own, stricter policy in a meta tag.
+   `loki://app/widgets/<chat>/<name>.js` compiles that chat's `.tsx` or `.jsx` widget under `~/.loki/widgets` with
+   esbuild and the import rewrite the Vite tab uses too (`app/src/frame/widget-module.ts`), served with `no-store`; a
+   path with `..`, `\` or `:` answers 404, and a widget that does not compile is a module that throws its file name and
+   the error. Under `bun run dev` the window loads Vite's URL instead, and under `bun run start` main reloads the
+   windows when the page build replaces `app/dist/index.html` (`desktop/page-reload.ts`).
+2. **One bridge, checked on every call.** The windows run with context isolation and the renderer sandbox on, and no
+   Node. The preload (`desktop/preload.ts`) gives the page `window.lokiDesktop`, with `invoke` and `listen`; the
+   page's side is `app/src/shell/desktop.ts`, and `inDesktop` gates every call, so a browser tab and the phone never
+   make one. Main answers a command only when it comes from a top frame on the page's own origin (`desktop/ipc.ts`),
+   so a widget's frame gets nothing. The preload asks main for `window.__LOKI__` (the token, the mod's port, the chat
+   to open, the system, and for the Settings window which page) over that same check, so the token is never on a
+   command line, in a URL or in the environment. Commands, events and their payloads keep the names the Tauri shell
+   had (`daemon_status`, `loki:runtime`, `loki:update`). A link leaves loki only for `http`, `https`, `mailto` and
+   `tel` (`open_url`); a window the page or a frame opens is never created, its address handed to the browser when it
+   is a web or mail address, and navigation away from the page's origin is refused.
+3. **Two windows.** The main window opens at 1440 × 900 (at least 900 × 600) and Settings at 820 × 600 (at least
+   680 × 460), one of each (`desktop/windows.ts`). On the Mac the title bar is hidden, the traffic lights sit where
+   `TRAFFIC_LIGHTS_AT` puts them (`desktop/tray.ts`, which `traffic_lights` reports to the page), and the window is
+   transparent over the system's sidebar material, which follows whether the window is active. On Windows and Linux
+   the window is frameless on loki's dark ground, `#1c1c1e`. `nativeTheme` follows the page's theme. The Mac app keeps
+   App Nap off (`NSAppSleepDisabled` in its `Info.plist`), so the timers of a hidden window are not held back.
+
 ## How loki updates itself
 
-The shell replaces the whole app, with the daemon and mod bundles inside it, through Tauri's updater (`update.rs`,
-plan 2026-11-15-2319). Nothing updates the daemon apart from the app, so the two are never out of step.
+The shell replaces the whole app, with the daemon and mod bundles inside it, through an updater of its own
+(`desktop/update/`, plan 2026-11-15-2319, ported from the Tauri shell in plan 2026-11-25-1029). loki is not signed
+by Apple or Microsoft, and Electron's own Mac updater updates only signed apps, so one updater serves all three
+systems. Nothing updates the daemon apart from the app, so the two are never out of step.
 
 1. **The channel is the shell's.** `~/.loki/updates.json` holds `stable` or `nightly`. The first run takes the running
    version's channel (a nightly's version carries `-nightly.`, as `core/version.ts` reads it), and
-   `set_update_channel` writes it for the next check. Stable reads `releases/latest/download/latest.json`, Nightly
-   `releases/download/nightly/latest.json`, and `LOKI_UPDATE_URL` overrides both. The plugin's own comparison stands:
-   only a version newer by semver, which the nightly numbering makes right for both channels.
-2. **Checks run in the background, in a release build.** At launch and every six hours, on a thread of their own, by
-   the wall clock so a sleeping laptop's hours count; never while a check or a download is under way or an update is
-   ready. `check_for_updates` runs one now. A development build never checks, and neither does a Linux install from
-   the `.deb`: only the AppImage replaces itself, as the bundle type the bundler stamps into the binary says
-   (`tauri::utils::platform::bundle_type`; not `APPIMAGE`, which every program an AppImage starts inherits). Neither
-   writes `updates.json`.
-3. **Only a verified download is ready.** The plugin downloads the system's update file, within 30 minutes, and checks
-   its signature against the public key in `tauri.conf.json`; the bytes then wait in memory. On the Mac, when this user
-   cannot change the folder holding `loki.app`, nothing is downloaded: the state is Failed at Install, asking them to
-   move loki, since the plugin would otherwise ask for an administrator's password as loki quits. A failed check, download or signature
-   is a state the page shows, never a dialog, and the running version stays.
-4. **It installs on quit, or on Restart to Update.** The `RunEvent` handler in `lib.rs` stops the daemon, then installs
-   a ready update without relaunching (`Updates::quit`): on Windows the NSIS installer gets `/P /UPDATE` and no `/R`,
-   and it ends loki. `restart_to_update` installs and relaunches; on the Mac and Linux the swap comes before the daemon
-   stops, so a failed swap leaves it running. The page decides whether a chat is working before it calls it, since the
-   shell has no daemon client. A crash or force-quit loses the download, and the next launch fetches it again. An
+   `set_update_channel` writes it for the next check. Stable reads `releases/latest/download/desktop.json`, Nightly
+   `releases/download/nightly/desktop.json`, and `LOKI_UPDATE_URL` overrides both. Only a newer version counts
+   (`compareVersions` in `core/version.ts`), which the nightly numbering makes right for both channels.
+2. **Checks run in the background, in a release build.** At launch and every six hours, by the wall clock so a
+   sleeping laptop's hours count (main looks every ten minutes whether six hours have passed); never while a check or
+   a download is under way or an update is ready. `check_for_updates` runs one now. A development build never checks,
+   and on Linux only the AppImage does (`APPIMAGE` set): an install from the `.deb` reports `package`. Neither writes
+   `updates.json`.
+3. **Only a verified download is ready.** `desktop/update/remote.ts` downloads the system's update file named in
+   `desktop.json`, within 30 minutes, and `minisign.ts` checks it: a minisign signature by loki's update key, which is
+   compiled into the shell (`UPDATE_PUBLIC_KEY`), over the file (Ed25519, prehashed with BLAKE2b-512, `blake2b.ts`,
+   when the signature says so), then the signature of its trusted comment, then that the comment's `version:` is the
+   version `desktop.json` announces. The bytes then wait in memory. On the Mac, when this user cannot change the folder
+   holding `loki.app`, nothing is downloaded: the state is Failed at Install, asking them to move loki. A failed check,
+   download or signature is a state the page shows, never a dialog, and the running version stays.
+4. **It installs on quit, or on Restart to Update.** `before-quit` in `desktop/main.ts` holds the quit while
+   `Updates.quit` stops the daemon, then installs a ready update without relaunching (`desktop/update/install.ts`). On
+   the Mac it unpacks the `.app.tar.gz` into a folder beside `loki.app`, moves the running app aside, moves the new one
+   into its place, and puts the old one back if that fails. On Linux it writes the new AppImage beside the old one and
+   renames it over. On Windows it starts the new NSIS installer, detached, with `/S --updated`, and loki quits; the
+   installer replaces it once it is gone. `restart_to_update` installs and relaunches; on the Mac and Linux the swap
+   comes before the daemon stops, so a failed swap leaves it running, and on Windows the daemon stops first and the
+   installer starts loki again (`--force-run`). The page decides whether a chat is working before it calls it, since
+   the shell has no daemon client. A crash or force-quit loses the download, and the next launch fetches it again. An
    install that fails as loki quits is kept in `updates.json` (`failed_install`: `version`, `message`); the next launch
    starts Failed at Install and holds its first check for six hours, so the same download does not repeat at every
    launch, and the record goes once that version or a newer one runs.
-5. **The page sees one status.** `update_status` and `loki:update` events carry `{ channel, current, state }`, where
-   `state.kind` is `idle`, `checking`, `downloading` (`done`, and `total` once known), `ready` (`version`), `failed`
-   (`stage`: `check`, `download`, `signature` or `install`, and `message`) or `unsupported` (`reason`: `development`
-   or `package`). The page never calls the plugin: no capability grants its commands. In the page,
+5. **The page sees one status.** `update_status` and `loki:update` events carry `{ channel, current, state, moved }`,
+   where `state.kind` is `idle`, `checking`, `downloading` (`done`, and `total` once known), `ready` (`version`),
+   `failed` (`stage`: `check`, `download`, `signature` or `install`, and `message`) or `unsupported` (`reason`:
+   `development` or `package`), and `moved` is always false in the Electron shell (item 6). In the page,
    `shell/use-loki-update.ts` mirrors the status, and `shell/update-notice.tsx` holds the Restart to Update notice and
    the menu item's action, judging from the window's attention items whether a chat is mid-turn.
+6. **The move from Tauri.** A Tauri loki reads `latest.json`, and its updater cannot install an Electron build. So
+   each Electron release uploads its files first and `desktop.json` last, and re-uploads the
+   last Tauri release's `latest.json` unchanged on both channels: a Tauri loki sees no newer version, and the nightly
+   prune keeps the files that frozen manifest names. The last Tauri release also fetches `desktop.json` beside
+   `latest.json`; once it answers, that loki's status carries `moved`, and `shell/move-notice.tsx` shows **A new loki is
+   ready to install** with **Copy Install Command** (the install line for its system and channel). The person
+   reinstalls once; everything in `~/.loki` carries on, and only the old window's own browser storage (folded panes and
+   the like) stays behind. The Windows installer closes a running Tauri loki and runs its uninstaller silently first
+   (`desktop/nsis/remove-tauri.nsh`), and a Tauri-era daemon still running is a leftover like any other.
 
 ## Inside the daemon
 
@@ -317,8 +378,8 @@ so each bundle has its own copy and both see the same files. Anything that holds
    so the app runs each in its own sandboxed iframe (`sandbox="allow-scripts"`, an opaque origin, `connect-src
    'none'`): it never sees the daemon token, the page or the network, and talks to the page only by `postMessage`,
    which `app/src/desk/widget-bridge.ts` checks (its data, `onSet`, its size, focus, and http(s) links). The frame
-   document is `app/src/frame/`, served as `/widget-frame.html`; the shell sets the token only in the top-level page,
-   since Tauri also runs its init script in subframes on Windows.
+   document is `app/src/frame/`, served as `/widget-frame.html`; main hands `__LOKI__` and its token only to the
+   top-level page, and the frame deletes `__LOKI__` and `lokiDesktop` before a widget runs, should either be there.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
    transform.
 3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
@@ -375,7 +436,7 @@ Both listeners belong to loki's mod inside the daemon. Each is guarded.
 | 41414 | loopback (`mod/server.ts`) | the token in `~/.loki/token`: in the WebSocket subprotocol on `/ws` (`loki.t.<token>`, `core/ws-auth.ts`), as `?t=` only for the GETs an `<img>` makes | `/ws` (every frame), `/health` (no token), `/uploads`, `/chat-images/`, agent faces, the MCP sign-in's return |
 | 41415 | LAN, off by default (`mod/lan.ts`) | a per-device `HttpOnly` cookie from pairing; a paired Mac's bearer token on `/peer/*` | the built canvas as a single-page app, `/health`, `/pair`, `/me`, `/unpair`, and the same `/ws`, `/uploads`, `/chat-images/` and faces; for paired Macs, over the tailnet only, `/peer/pair`, `/peer/hello`, `/peer/unpair`, `/peer/uploads` and `/peer/chat-images/` |
 
-1. **Why a socket at all.** The daemon runs in Node and the app runs in a browser context (the WebView, a tab or a
+1. **Why a socket at all.** The daemon runs in Node and the app runs in a browser context (the desktop window, a tab or a
    phone). A socket is the only bridge between them. Every client speaks the same protocol over it, chats included.
 2. **Why the token.** The shell writes `~/.loki/token` (mode 0600) and hands it to the page before any script runs;
    the daemon is told its path with `--token-file`. Only something that can read your files can connect.
@@ -535,7 +596,7 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     (`core/log-line.ts`); the daemon's lines also name its process, `loki-daemon[<pid>]:` (`daemon/report.ts`), since
     more than one daemon can write to the file over time. What Node prints by itself, a stack trace say, has neither.
 14. `updates.json`: the update channel, Stable or Nightly, and the last install that failed as loki quit, which the
-    shell keeps (`update.rs`).
+    shell keeps (`desktop/update/updates.ts`).
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the
@@ -651,17 +712,27 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    the agent's turns, work, plan and thoughts, proposals and the Composer. The phone keeps its own thread and cards:
    `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `desk/outside-card.tsx`
    draws an outside thread with the item components only when asked (`items`).
-5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
-   `runtime.rs` fetches a release's Node (and PortableGit on Windows) and checks for git; `update.rs` checks for a newer
-   release, downloads it and installs it on quit; `node.rs` finds a development build's Node; `procs.rs` finds a leftover daemon; `install.rs`
-   puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
-   Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus, built in AppKit so an
-   action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight
-   (the page sends the menu as data, `shell/native-menu.ts`, and gets back the index of the item chosen).
-6. `scripts/`: `dev.ts` (`bun run start` and `bun run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),
+5. `desktop/`: the Electron shell, TypeScript that `scripts/build-desktop.ts` bundles with esbuild into
+   `desktop/dist` (main and preload; `bun run start` and `bun run dev` rebuild it on every launch). Its modules take
+   Electron's API as a parameter, so vitest tests them without Electron. `main.ts` wires it: the windows, the
+   single-instance lock, the scheme, the commands the page calls, the tray and the updater; `windows.ts` the two
+   windows and which links leave loki; `scheme.ts` serves the page and compiles widgets; `preload.ts` and `ipc.ts` the
+   page's bridge and main's checked side of it; `env.ts` the token file and `__LOKI__`'s values; `daemon.ts` starts,
+   supervises and stops the daemon, writing its log through `daemon-log.ts`; `node-search.ts` finds the machine's Node
+   and `node-install.ts` runs nodejs.org's installer; `tools.ts` fetches PortableGit on Windows (pinned in
+   `runtime.json`) and checks for git; `procs.ts` finds a leftover daemon; `install.ts` puts the bundles and the skill
+   in place; `menus.ts` the Mac's menu bar and pop-up menus, where an action's Lucide icon, drawn by the page as a PNG,
+   shows as a template image that follows dark mode and the highlight (the page sends the menu as data,
+   `shell/native-menu.ts`, and gets back the index of the item chosen); `tray.ts` the tray, the dock badge, the
+   global shortcut and where the traffic lights sit; `page-reload.ts` reloads the windows on a new page build;
+   `update/` checks for, verifies and installs a newer release. `desktop/nsis/` and `desktop/linux/` hold the Windows
+   installer's step that removes a Tauri install and the `.deb`'s AppArmor profile, which `electron-builder.yml`
+   packages. The page's side of the bridge is `app/src/shell/desktop.ts`.
+6. `scripts/`: `dev.ts` (`bun run start` and `bun run dev`), `build-desktop.ts` (the shell's bundle, and with
+   `--stage` the app folder electron-builder packages), `build-mod.ts` (the daemon and mod bundles the app ships),
    `trial.ts` (the timing trial), `smoke.ts` (the built bundle in a scratch home), `check-pr-title.ts` (a PR title
    against the commit rules, run by `pr-title.yml`), `check-update-key.ts` (a release build's update signatures
-   against the compiled-in key, run by `release.yml`), `shrink-images.ts` (the pictures already in the stores),
+   against the shell's update key, run by `release.yml`), `shrink-images.ts` (the pictures already in the stores),
    `springs.ts` (the kit's springs into `tokens.css`), `cask.ts`, `release.ts` and `analytics.ts`.
 7. `test/` (vitest, on Node) and `test-node/` (Node's own runner, for what needs real SQLite, sockets or processes:
    resuming after a crash, store backup, migration and images, mods from a folder, the LAN socket, and paired Macs'
@@ -672,38 +743,60 @@ timer written by hand stays a convention, as its shape is also ordinary code:
 Windows and Linux are preview builds of the same code, with a few seams where the systems differ. Each seam is one
 place, and the Mac's side of it is what shipped first.
 
-1. **The page learns the system once.** The shell's init script puts `os` (`macos`, `windows`, `linux`) in
-   `window.__LOKI__`; `platform` in `app/src/desk/env.ts` reads it, or a browser tab's user agent. Keys, chrome,
-   copy and gating read that one value; `core/` stays system-free (`test/core-portability.test.ts`).
+1. **The page learns the system once.** Main puts `os` (`macos`, `windows`, `linux`) in `window.__LOKI__`, which the
+   preload asks for before the page's scripts run; `platform` in `app/src/desk/env.ts` reads it, or a browser tab's
+   user agent. Keys, chrome, copy and gating read that one value; `core/` stays system-free
+   (`test/core-portability.test.ts`).
 2. **Keys come from the keymap.** `formatKeys` in `app/src/shell/keymap.ts` writes ⌘ ⌥ ⇧ on the Mac and Ctrl,
    Alt, Shift elsewhere; a binding whose Mac key the other system keeps for itself carries its own keys there
    (`keysOn`), and a label that only fits there its own label (`labelOn`). `os-words.ts` holds the other
    per-system words (this Mac, this PC, this computer; Finder, File Explorer).
-3. **Mac extras exist only on macOS.** The tray, dock badge, global shortcut, native menu bar and pop-up menus are compiled under
-   `cfg(target_os = "macos")` with Mac-only dependencies; dictation, phone pairing and Tailscale are hidden in the
-   page, which says the feature "isn't on Windows yet" (or Linux) where it would appear.
-4. **loki's own title strip.** The window is undecorated on Windows and Linux; `TitleStrip` in
-   `app/src/shell/sidebar.tsx` draws ☰ (the Mac's menu groups) and minimise, maximise and close.
-   `tauri-plugin-single-instance` keeps one loki per user, and Linux runs under XWayland (`GDK_BACKEND=x11` unless
-   set).
-5. **Finding a leftover daemon.** `procs.rs` reads the process list through `sysinfo` on every system and matches
-   the daemon's command line (`--loki-daemon` and loki's token file).
-6. **Finding Node and other programs.** A release build fetches its own Node (`runtime.rs`, plan 2026-11-15-2319): the
-   version `src-tauri/runtime.json` names, downloaded from nodejs.org into `~/.loki/runtime/<name>-<version>-<target>/`,
-   checked against the SHA-256 pinned there and renamed into place whole; on Windows PortableGit too, when git or Git
-   Bash is missing. Then git: on the Mac `xcode-select -p` and that its folder holds `usr/bin/git` (never running
-   `/usr/bin/git`, which raises the system's install dialog), on Linux `git` on PATH. The sequence runs off the main
-   thread, so the window opens at once; `DaemonStatus` carries the download's progress (`preparing`) or the missing
-   tools (`tools_missing`), sent to the page as `loki:runtime` events, and Welcome shows them; `retry_daemon` runs the
-   sequence again and `install_tools` runs `xcode-select --install`. A development build runs the machine's Node:
-   `node.rs` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
-   does not see on its short PATH: Homebrew's prefixes, volta, nvm, fnm and npm's global bin, and on Windows the
-   nodejs.org installer's folder, nvm-windows, fnm and scoop; nothing new enough is the reason Welcome shows. The mod finds `tailscale`
-   through `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
+3. **Mac extras exist only on macOS.** The tray, dock badge, global shortcut, native menu bar and pop-up menus are
+   set up only on the Mac (`mac` in `desktop/main.ts`; their commands do nothing elsewhere, and a pop-up menu
+   refuses); dictation, phone pairing and Tailscale are hidden in the page, which says the feature "isn't on Windows
+   yet" (or Linux) where it would appear.
+4. **loki's own title strip.** The window is frameless on Windows and Linux; `TitleStrip` in
+   `app/src/shell/sidebar.tsx` draws ☰ (the Mac's menu groups) and minimise, maximise and close. Electron's
+   single-instance lock keeps one loki per user; a development build keeps its own user-data folder for each
+   checkout, so it never takes the installed app's lock. Linux runs under XWayland (`--ozone-platform=x11` unless
+   `ELECTRON_OZONE_PLATFORM_HINT` is set), since an undecorated window on native Wayland still has open bugs.
+5. **Finding a leftover daemon.** `desktop/procs.ts` reads the process list with `ps` on the Mac and Linux and with
+   PowerShell's `Get-CimInstance Win32_Process` on Windows, and matches the daemon's command line (`--loki-daemon`
+   and loki's token file). Its loki is the process `--parent-pid` names, when that one started first; for a daemon a
+   Tauri loki started, which has no `--parent-pid`, a parent process named `loki`. A pid that fails the check is
+   never killed.
+6. **Finding Node and other programs.** loki runs its daemon on the machine's Node and downloads no Node of its own
+   (plan 2026-11-25-1029, which replaced the runtime download of plan 2026-11-15-2319). Before every daemon start, and
+   on Welcome's Check Again, `desktop/node-search.ts` looks at `LOKI_NODE_BIN`, then PATH, then the folders a GUI app
+   does not see on its short PATH: Homebrew's prefixes, Volta, bun, npm's global bin, `~/.local/bin`, nvm and fnm (on
+   Linux `/usr/local/bin`, `/usr/bin` and Linuxbrew in Homebrew's place), and on Windows npm's global folder, the
+   nodejs.org installer's folder, Volta, nvm-windows, fnm, scoop and bun. It takes the newest Node at or above
+   `NODE_MIN` (22.19, pi-durable's `engines`) with `npx` beside it. A Node under `~/.loki/runtime`, where a Tauri loki
+   downloaded one, never counts, and a miss is never kept, so a Node installed while loki runs is found without a
+   restart. The daemon inherits a PATH that starts with that Node's folder, so agents, MCP servers, background tasks
+   and Claude Code's `npx` use the same Node.
+   With none new enough, `DaemonStatus` carries `needsNode` (with the newest Node that was too old, if any) and
+   Welcome shows its Node step. **Install Node** calls `install_node` (`desktop/node-install.ts`, one install at a
+   time): main reads nodejs.org's `index.json` for the newest LTS, downloads its `.pkg` (Mac) or `x64.msi` (Windows)
+   with that release's `SHASUMS256.txt`, checks the file as it arrives, writes it to a new private temporary folder,
+   checks it again just before it opens it (`open -W` on the Mac, `msiexec /i` on Windows), and when the installer
+   closes searches again and starts the daemon. `msiexec`'s 0 and 3010 are installed, 1602 cancelled, anything else a
+   failure Welcome shows. On Linux the step shows nvm's install commands and points at nodejs.org instead. loki never
+   updates or removes a Node it installed.
+   Then git: on Windows, when git or Git Bash is missing, a release build fetches PortableGit, the version and
+   SHA-256 `desktop/runtime.json` pins, into `~/.loki/runtime/git-<version>-win-x64/`, hashed as it arrives and
+   renamed into place whole. On the Mac it checks `xcode-select -p` and that its folder holds `usr/bin/git` (never
+   running `/usr/bin/git`, which raises the system's install dialog), on Linux `git` on PATH. The sequence (git, the
+   tools, Node, then the lock) runs beside the window, which opens at once; `DaemonStatus` carries the download's
+   progress (`preparing`), the missing tools (`toolsMissing`), the missing Node (`needsNode`) or another loki still
+   serving (`otherLoki`), sent to the page as `loki:runtime` events, and Welcome shows them; `retry_daemon` runs the
+   sequence again and `install_tools` runs `xcode-select --install`. The mod finds `tailscale` through
+   `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.
 8. **Builds.** CI runs on a PR: the vitest and Node suites, the mod bundle and the smoke test on macOS, Ubuntu and
-   Windows; types, formatting, lint and the page build once, on Ubuntu; and `cargo test` on all three when the shell
-   changes (`ci.yml`, `shell.yml`). `pr-title.yml` checks the PR's title and `react-doctor.yml`, advisory, scans a PR
-   that touches `app/`. A release builds the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner
-   each ([releasing.md](releasing.md)).
+   Windows; types, formatting, lint and the page build once, on Ubuntu (`ci.yml`). `pr-title.yml` checks the PR's
+   title and `react-doctor.yml`, advisory, scans a PR that touches `app/`. A release builds with electron-builder
+   (`electron-builder.yml`) the `.dmg`, signed ad hoc, the per-user NSIS `-setup.exe`, and the AppImage and `.deb` on
+   one runner each ([releasing.md](releasing.md)). The packaged app switches off Electron's fuses that would let it run
+   as plain Node (`RunAsNode`, `NODE_OPTIONS`, `--inspect`), and keeps esbuild's binary outside the asar for widgets.

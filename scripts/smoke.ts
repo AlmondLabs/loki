@@ -2,11 +2,11 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
-const resources = process.env.LOKI_SMOKE_RESOURCES ?? join(repo, "src-tauri", "resources");
+const resources = process.env.LOKI_SMOKE_RESOURCES ?? join(repo, "desktop", "resources");
 const daemonEntry = join(resources, "daemon", "daemon.mjs");
 const modEntry = join(resources, "mod", "loki-mod.mjs");
 const START_MS = 30_000;
@@ -203,4 +203,144 @@ async function main(): Promise<void> {
   console.log("smoke: the bundle works");
 }
 
-await main();
+const ELECTRON_START_MS = 120_000;
+const ELECTRON_STOP_MS = 20_000;
+const ELECTRON_SMOKE_PORT = 41499;
+
+function portIsFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const s = createServer();
+    s.once("error", () => resolve(false));
+    s.listen(port, "127.0.0.1", () => s.close(() => resolve(true)));
+  });
+}
+
+const isAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e instanceof Error && "code" in e && e.code === "EPERM";
+  }
+};
+
+async function answersHealth(port: number): Promise<boolean> {
+  try {
+    return (await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) })).ok;
+  } catch {
+    return false;
+  }
+}
+
+async function until(what: () => boolean | Promise<boolean>, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (await what()) return true;
+    await sleep(250);
+  }
+  return what();
+}
+
+function stopApp(app: ChildProcess): void {
+  if (app.pid === undefined) return;
+  if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(app.pid)], { stdio: "ignore" });
+  else app.kill("SIGTERM");
+}
+
+async function electronSmoke(given: string): Promise<void> {
+  const exe = resolve(given);
+  if (!given || !existsSync(exe)) throw new Error(`${exe} is missing: package the app first (bun run dist --dir)`);
+  const port = Number(process.env.LOKI_SMOKE_PORT ?? ELECTRON_SMOKE_PORT);
+  if (!(await portIsFree(port))) throw new Error(`port ${port} is taken: stop what uses it, or set LOKI_SMOKE_PORT`);
+  const home = mkdtempSync(join(tmpdir(), "loki-electron-smoke-"));
+  const dir = join(home, ".loki");
+  console.log(`smoke: the packaged app ${exe}, home ${home}, port ${port}`);
+  let output = "";
+  const app = spawn(exe, [`--user-data-dir=${join(home, "electron")}`], {
+    cwd: home,
+    env: {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      APPDATA: join(home, "AppData", "Roaming"),
+      LOCALAPPDATA: join(home, "AppData", "Local"),
+      XDG_CONFIG_HOME: join(home, ".config"),
+      LOKI_PORT: String(port),
+      LOKI_LAN_PORT: "0",
+      LOKI_ANALYTICS: "0",
+      LOKI_UPDATE_URL: "http://127.0.0.1:9/desktop.json",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  app.stdout.on("data", (d: Buffer) => (output += d.toString()));
+  app.stderr.on("data", (d: Buffer) => (output += d.toString()));
+  const launch: { error: Error | null } = { error: null };
+  const exited = new Promise<number | null>((done) => {
+    app.once("exit", (code) => done(code));
+    app.once("error", (error) => {
+      launch.error = error;
+      done(null);
+    });
+  });
+  const running = () => launch.error === null && app.exitCode === null && app.signalCode === null;
+  const daemonLog = () => {
+    try {
+      return readFileSync(join(dir, "logs", "daemon.log"), "utf8");
+    } catch {
+      return "";
+    }
+  };
+  let daemonPid: number | null = null;
+  try {
+    const healthy = await until(async () => !running() || (await answersHealth(port)), ELECTRON_START_MS);
+    if (launch.error) throw new Error(`the app did not start: ${launch.error.message}`);
+    if (!running()) throw new Error(`the app exited with ${String(app.exitCode ?? app.signalCode)} before its daemon answered`);
+    if (!healthy) throw new Error(`the app's daemon did not answer /health on port ${port} within ${ELECTRON_START_MS / 1000}s`);
+    ok("the packaged app starts its daemon, which serves /health");
+    daemonPid = Number.parseInt(readFileSync(join(dir, "daemon.lock"), "utf8"), 10);
+    if (!Number.isInteger(daemonPid) || daemonPid <= 0) throw new Error("the daemon wrote no pid to ~/.loki/daemon.lock");
+    stopApp(app);
+    const code = await Promise.race([exited, sleep(ELECTRON_STOP_MS).then(() => "running" as const)]);
+    if (code === "running") throw new Error(`the app was still running ${ELECTRON_STOP_MS / 1000}s after it was asked to quit`);
+    ok(`the app quits when asked (exit ${String(code ?? app.signalCode)})`);
+    const pid = daemonPid;
+    if (await until(() => !isAlive(pid), ELECTRON_STOP_MS)) ok("its daemon stops with it");
+    else fail(`the daemon (pid ${pid}) is still running after the app quit`);
+    if (await answersHealth(port)) fail(`something still answers /health on port ${port} after the app quit`);
+  } catch (e) {
+    fail(e instanceof Error ? e.message : String(e));
+  } finally {
+    if (failures) console.log(`--- the app's output ---\n${output}\n--- the daemon's log ---\n${daemonLog()}`);
+    if (running()) {
+      app.kill("SIGKILL");
+      await Promise.race([exited, sleep(5000)]);
+    }
+    if (daemonPid !== null && isAlive(daemonPid)) process.kill(daemonPid, "SIGKILL");
+    try {
+      rmSync(home, { recursive: true, force: true, maxRetries: 5 });
+    } catch {
+      // Outside (Windows): it may hold a file of the stopped app's a moment longer; the scratch folder is the system's to clear.
+    }
+  }
+  if (failures) {
+    console.log(`smoke: ${failures} failed`);
+    process.exit(1);
+  }
+  console.log("smoke: the packaged app works");
+}
+
+function packagedApp(): string {
+  const release = join(repo, "desktop", "release");
+  if (process.platform === "darwin") return join(release, process.arch === "arm64" ? "mac-arm64" : "mac", "loki.app", "Contents", "MacOS", "loki");
+  if (process.platform === "win32") return join(release, "win-unpacked", "loki.exe");
+  return join(release, "linux-unpacked", "loki");
+}
+
+const electronAt = process.argv.indexOf("--electron");
+const named = process.argv.at(electronAt + 1);
+if (electronAt === -1) await main();
+else
+  await electronSmoke(named === undefined || named.startsWith("--") ? packagedApp() : named).catch((e: unknown) => {
+    fail(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  });

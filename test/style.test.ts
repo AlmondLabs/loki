@@ -6,7 +6,7 @@ import { basename, join } from "node:path";
 const ROOT = join(import.meta.dirname, "..");
 const files = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" })
   .split("\n")
-  .filter((p) => /\.(tsx?|mts|mjs|css)$/.test(p) && !/^(src-tauri|docs|native|skills)\//.test(p) && existsSync(join(ROOT, p)));
+  .filter((p) => /\.(tsx?|mts|mjs|css)$/.test(p) && !/^(docs|native|skills)\//.test(p) && existsSync(join(ROOT, p)));
 
 function nameProblem(path: string): string | null {
   const name = basename(path);

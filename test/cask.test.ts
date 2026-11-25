@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { dmgName, renderCask } from "../scripts/cask.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -67,6 +70,15 @@ describe("homebrew cask", () => {
     expect(line).toContain("Nightly");
     expect(inHomebrewStanzaOrder(rb, ["livecheck do", "deprecate!", "auto_updates"])).toBe(true);
     expect(renderCask({ owner: "example", version: "2026.1116.0", sha256: sha })).not.toContain("deprecate!");
+  });
+
+  test("points at the .dmg electron-builder makes, and installs the app it names", () => {
+    const config = parseYaml(readFileSync(join(import.meta.dirname, "..", "electron-builder.yml"), "utf8")) as {
+      productName?: string;
+      dmg?: { artifactName?: string };
+    };
+    expect(config.dmg?.artifactName?.replace("${version}", "2026.1125.0")).toBe(dmgName("2026.1125.0"));
+    expect(renderCask({ owner: "example", version: "2026.1125.0", sha256: sha })).toContain(`app "${config.productName ?? ""}.app"`);
   });
 
   test("refuses input that would render a broken cask", () => {

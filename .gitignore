@@ -9,7 +9,6 @@ desktop/resources
 desktop/release
 app/.dist-next
 app/.dist-old
-src-tauri/resources/
 .claude/worktrees/
 
 .agents/skills/react-doctor/
