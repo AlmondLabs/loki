@@ -152,11 +152,11 @@ describe("one sidebar in place of the rail (U12)", () => {
 
 describe("the chat's toolbar and the sidebar's real material (U13)", () => {
   const root = join(APP, "..", "..");
-  test("on the Mac the window is transparent with the system's sidebar material; elsewhere it keeps its ground", () => {
-    const windows = readFileSync(join(root, "desktop", "windows.ts"), "utf8");
-    expect(windows).toContain('vibrancy: "sidebar"');
-    expect(windows).toContain("transparent: true");
-    expect(windows).toContain(": { frame: false, backgroundColor: WINDOW_GROUND };");
+  test("on the Mac the window is transparent with the system's sidebar material; elsewhere it keeps its ground", async () => {
+    const { mainWindowOptions, WINDOW_GROUND } = await import("../desktop/windows.ts");
+    expect(mainWindowOptions("macos", "/p.cjs")).toMatchObject({ vibrancy: "sidebar", transparent: true });
+    expect(mainWindowOptions("windows", "/p.cjs")).toMatchObject({ frame: false, backgroundColor: WINDOW_GROUND });
+    expect(mainWindowOptions("linux", "/p.cjs").vibrancy).toBeUndefined();
   });
 
   test("the page is clear in the Mac app, painted again under Reduce Transparency or Increase Contrast", () => {
