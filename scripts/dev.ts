@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { watch } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
@@ -20,7 +20,19 @@ const windows = process.platform === "win32";
 // runs directly with this script's runtime.
 const ENTRIES: Record<string, string> = { vite: "../node_modules/vite/bin/vite.js" };
 const bin = (name: string) => fileURLToPath(new URL(windows ? ENTRIES[name] : `../node_modules/.bin/${name}`, import.meta.url));
-const electron = createRequire(import.meta.url)("electron") as string;
+// Outside (Electron): its package fetches the binary in a postinstall script, which bun does not always run, and
+// `require("electron")` then throws; running that script once more fetches it.
+function electronBinary(): string {
+  const load = () => createRequire(import.meta.url)("electron") as string;
+  try {
+    return load();
+  } catch {
+    console.error("loki dev: fetching Electron's binary, once");
+    spawnSync(process.execPath, [fileURLToPath(new URL("../node_modules/electron/install.js", import.meta.url))], { stdio: "inherit" });
+    return load();
+  }
+}
+const electron = electronBinary();
 const home = homedir();
 const daemonLog = join(home, ".loki", "logs", "daemon.log");
 
