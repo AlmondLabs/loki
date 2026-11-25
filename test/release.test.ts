@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { field, holds } from "./fixtures/actions-expression.ts";
 import { must } from "./fixtures/must.ts";
@@ -9,10 +9,13 @@ import {
   dayNumber,
   decideStable,
   draftStable,
+  filesNamedBy,
+  frozenLatestJson,
   INSTALL_FILES,
   isNightlyVersion,
   isStableVersion,
   latestStable,
+  MAC_UPDATE_ARCHIVE,
   nextStable,
   nightlyVersion,
   plan,
@@ -179,9 +182,21 @@ describe("notes and files", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test("setVersion stamps package.json alone once the Tauri files are gone, and refuses a folder without package.json", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-release-"));
+    try {
+      expect(() => setVersion("2026.1125.0", dir)).toThrow(/no package\.json/);
+      writeFileSync(join(dir, "package.json"), '{\n  "name": "loki",\n  "version": "0.1.0"\n}\n');
+      expect(setVersion("2026.1125.0-nightly.4900", dir)).toEqual(["package.json"]);
+      expect(readFileSync(join(dir, "package.json"), "utf8")).toBe('{\n  "name": "loki",\n  "version": "2026.1125.0-nightly.4900"\n}\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
-describe("the update files: what the three builds made, staged for the release (KTD9, KTD10)", () => {
+describe("the update files: what the three builds made, staged for the release, with desktop.json for the Electron updater (KTD11)", () => {
   const V = "2026.1116.0";
   const NOW = day("2026-11-16T09:00:00Z");
   // Outside (GitHub Actions): actions/download-artifact merges the three builds' artifacts into this layout.
@@ -211,10 +226,12 @@ describe("the update files: what the three builds made, staged for the release (
     for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  test("latest.json lists every platform the updater asks for, at the release's own versioned file, with its signature", () => {
+  test("desktop.json lists the three platforms the updater asks for, at the release's own versioned file, with its signature", () => {
     const to = out();
-    stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "- **a change** (aaaaaaa)\n", now: NOW, from: temp(builds(V)), to });
-    const latest: unknown = JSON.parse(readFileSync(join(to, "latest.json"), "utf8"));
+    const staged = stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "- **a change** (aaaaaaa)\n", now: NOW, from: temp(builds(V)), to });
+    expect(staged.manifest).toBe(join(to, "desktop.json"));
+    expect(existsSync(join(to, "latest.json"))).toBe(false);
+    const latest: unknown = JSON.parse(readFileSync(join(to, "desktop.json"), "utf8"));
     const base = `https://github.com/o/loki/releases/download/v${V}`;
     const mac = { url: `${base}/loki_${V}_aarch64.app.tar.gz`, signature: "SIGMAC" };
     expect(latest).toEqual({
@@ -244,7 +261,6 @@ describe("the update files: what the three builds made, staged for the release (
       `loki_${V}_amd64.deb`,
     ]);
     expect(staged.rolling.map((f) => f.slice(to.length + 1))).toEqual([
-      "latest.json",
       "loki-macos-arm64.app.tar.gz",
       "loki-windows-x64-setup.exe",
       "loki-linux-x86_64.AppImage",
@@ -257,11 +273,11 @@ describe("the update files: what the three builds made, staged for the release (
     expect(staged.dmg).toBe(join(to, `loki_${V}_aarch64.dmg`));
   });
 
-  test("a nightly's latest.json points at the rolling nightly release", () => {
+  test("a nightly's desktop.json points at the rolling nightly release", () => {
     const N = "2026.1116.0-nightly.4900";
     const to = out();
     stageRelease({ version: N, tag: "nightly", repo: "o/loki", notes: "", now: NOW, from: temp(builds(N)), to });
-    const latest = JSON.parse(readFileSync(join(to, "latest.json"), "utf8")) as { version: string; platforms: Record<string, { url: string }> };
+    const latest = JSON.parse(readFileSync(join(to, "desktop.json"), "utf8")) as { version: string; platforms: Record<string, { url: string }> };
     expect(latest.version).toBe(N);
     expect(latest.platforms["windows-x86_64"].url).toBe(`https://github.com/o/loki/releases/download/nightly/loki_${N}_x64-setup.exe`);
   });
@@ -271,10 +287,22 @@ describe("the update files: what the three builds made, staged for the release (
     expect(() => stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "", now: NOW, from: temp(builds(V, [`_x64-setup.exe.sig`])), to })).toThrow(
       /windows-x86_64/,
     );
-    expect(existsSync(join(to, "latest.json"))).toBe(false);
+    expect(existsSync(join(to, "desktop.json"))).toBe(false);
     expect(() => stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "", now: NOW, from: temp(builds(V, ["loki.app.tar.gz.sig"])), to })).toThrow(
       /darwin-aarch64/,
     );
+  });
+
+  test("the names publish looks for are the ones electron-builder gives the installer, the AppImage and the .deb", () => {
+    const config = parseYaml(readFileSync(join(import.meta.dirname, "..", "electron-builder.yml"), "utf8")) as {
+      nsis?: { artifactName?: string };
+      linux?: { artifactName?: string };
+    };
+    const named = (pattern: string | undefined, ext: string) => (pattern ?? "").replace("${version}", V).replace("${ext}", ext);
+    const staged = stageRelease({ version: V, tag: `v${V}`, repo: "o/loki", notes: "", now: NOW, from: temp(builds(V)), to: out() });
+    const names = staged.versioned.map((f) => basename(f));
+    for (const name of [named(config.nsis?.artifactName, "exe"), named(config.linux?.artifactName, "AppImage"), named(config.linux?.artifactName, "deb")])
+      expect(names).toContain(name);
   });
 
   test("a missing bundle fails, naming the file", () => {
@@ -300,6 +328,15 @@ describe("the install scripts fetch the copies every release carries (KTD9)", ()
     expect(ps).toContain('$base = "$releases/latest/download"');
     expect(ps).toContain('$base = "$releases/download/nightly"');
     expect(ps).toContain(`"$base/${windows}"`);
+  });
+
+  test("install.ps1 runs the per-user setup silently, then finds loki in its folder and Windows' list of installed apps by name", () => {
+    const ps = script("install.ps1");
+    expect(ps).toContain('Start-Process -FilePath $setup -ArgumentList "/S" -Wait -PassThru');
+    expect(ps).toContain('Join-Path $env:LOCALAPPDATA "Programs\\loki"');
+    expect(ps).toContain('"HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"');
+    expect(ps).toContain("$_.DisplayName -match '^loki \\d'");
+    expect(ps).not.toContain("MainBinaryName");
   });
 });
 
@@ -328,13 +365,19 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
     `staged/loki_${V}_amd64.AppImage.sig`,
     `staged/loki_${V}_amd64.deb`,
   ];
-  const rolling = ["staged/latest.json", ...INSTALL_FILES.map((f) => `staged/${f}`)];
+  const rolling = INSTALL_FILES.map((f) => `staged/${f}`);
+  const manifest = "staged/desktop.json";
+  const frozen = "frozen/latest.json";
   const uploads = (calls: string[][]) => calls.filter((c) => c[1] === "upload");
+  const lastUploads = (tag: string) => [
+    ["release", "upload", tag, ...rolling, frozen, "--clobber"],
+    ["release", "upload", tag, manifest, "--clobber"],
+  ];
 
-  test("a new stable is a draft first, gets every versioned file, then latest.json and the install copies, and is made public and latest last", () => {
+  test("a new stable is a draft first, gets every versioned file, the install copies and the frozen latest.json, desktop.json last, and is made public and latest", () => {
     const { calls, gh, writes } = fakeGh();
-    const out = publish({ kind: "stable", version: V, versioned, rolling, sha: "f00dfeed", notesFile: "notes.md", gh });
-    expect(writes()).toEqual([`release create v${V}`, `release upload v${V}`, `release upload v${V}`, `release edit v${V}`]);
+    const out = publish({ kind: "stable", version: V, versioned, rolling, manifest, frozen, sha: "f00dfeed", notesFile: "notes.md", gh });
+    expect(writes()).toEqual([`release create v${V}`, `release upload v${V}`, `release upload v${V}`, `release upload v${V}`, `release edit v${V}`]);
     const create = must(
       calls.find((c) => c[1] === "create"),
       "the create call",
@@ -342,28 +385,37 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
     expect(create).toContain("--draft");
     expect(create[create.indexOf("--target") + 1]).toBe("f00dfeed");
     expect(create).not.toContain("--latest");
-    const [first, second] = uploads(calls);
-    expect(first).toEqual(["release", "upload", `v${V}`, ...versioned, "--clobber"]);
-    expect(second).toEqual(["release", "upload", `v${V}`, ...rolling, "--clobber"]);
+    expect(uploads(calls)).toEqual([["release", "upload", `v${V}`, ...versioned, "--clobber"], ...lastUploads(`v${V}`)]);
     expect(calls.at(-1)).toEqual(["release", "edit", `v${V}`, "--draft=false", "--latest"]);
     expect(out.dmg).toBe(versioned[0]);
   });
 
   test("the draft the version job made gets the files and goes public, without a second release", () => {
     const { gh, writes } = fakeGh({ draft: true, target: "f00dfeed", assets: [] });
-    publish({ kind: "stable", version: V, versioned, rolling, sha: "f00dfeed", notesFile: "notes.md", gh });
-    expect(writes()).toEqual([`release upload v${V}`, `release upload v${V}`, `release edit v${V}`]);
+    publish({ kind: "stable", version: V, versioned, rolling, manifest, frozen, sha: "f00dfeed", notesFile: "notes.md", gh });
+    expect(writes()).toEqual([`release upload v${V}`, `release upload v${V}`, `release upload v${V}`, `release edit v${V}`]);
   });
 
   test("a stable that finishes after a newer one went out is not made latest over it", () => {
     const { calls, gh } = fakeGh({ draft: true, target: "f00dfeed", assets: [] }, ["v2026.1011.1", "v2026.1010.0"]);
-    publish({ kind: "stable", version: V, versioned, rolling, sha: "f00dfeed", notesFile: "notes.md", gh });
+    publish({ kind: "stable", version: V, versioned, rolling, manifest, frozen, sha: "f00dfeed", notesFile: "notes.md", gh });
     expect(calls.at(-1)).toEqual(["release", "edit", `v${V}`, "--draft=false", "--latest=false"]);
   });
 
   test("a re-run after the stable went out changes nothing on it, and makes the cask from the .dmg it shipped with", () => {
     const { calls, gh, writes } = fakeGh({ draft: false, target: "f00dfeed", assets: [`loki_${V}_aarch64.dmg`, "cask.rb", "latest.json"] });
-    const out = publish({ kind: "stable", version: V, versioned, rolling, sha: "f00dfeed", notesFile: "notes.md", downloadDir: "shipped", gh });
+    const out = publish({
+      kind: "stable",
+      version: V,
+      versioned,
+      rolling,
+      manifest,
+      frozen,
+      sha: "f00dfeed",
+      notesFile: "notes.md",
+      downloadDir: "shipped",
+      gh,
+    });
     expect(writes()).toEqual([`release download v${V}`]);
     expect(calls.at(-1)).toContain(`loki_${V}_aarch64.dmg`);
     expect(out.dmg).toBe(join("shipped", `loki_${V}_aarch64.dmg`));
@@ -371,15 +423,17 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
 
   test("a stable whose number is another commit's release fails, and touches nothing: two builds' files never share a release", () => {
     const { gh, writes } = fakeGh({ draft: false, target: "0ther0ne", assets: [] });
-    expect(() => publish({ kind: "stable", version: V, versioned, rolling, sha: "f00dfeed", notesFile: "n", gh })).toThrow(/already exists for another commit/);
+    expect(() => publish({ kind: "stable", version: V, versioned, rolling, manifest, frozen, sha: "f00dfeed", notesFile: "n", gh })).toThrow(
+      /already exists for another commit/,
+    );
     expect(writes()).toEqual([]);
   });
 
-  test("the first nightly creates the rolling release with its versioned files, then adds latest.json and the install copies", () => {
+  test("the first nightly creates the rolling release with its versioned files, then adds the install copies and the frozen latest.json, and desktop.json last", () => {
     const N = "2026.1011.1-nightly.4821";
     const { calls, gh, writes } = fakeGh();
-    publish({ kind: "nightly", version: N, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
-    expect(writes()).toEqual(["api -X DELETE", "release create nightly", "release upload nightly"]);
+    publish({ kind: "nightly", version: N, versioned, rolling, manifest, frozen, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
+    expect(writes()).toEqual(["api -X DELETE", "release create nightly", "release upload nightly", "release upload nightly"]);
     const create = must(
       calls.find((c) => c[1] === "create"),
       "the create call",
@@ -390,14 +444,14 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
     const shippedReader = (t: string) => /\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}/.exec(t)?.[0] ?? null;
     expect(shippedReader(title)).toBe("2026.1011.1-nightly.a96ee85");
     for (const f of versioned) expect(create).toContain(f);
-    expect(calls.at(-1)).toEqual(["release", "upload", "nightly", ...rolling, "--clobber"]);
+    expect(uploads(calls)).toEqual(lastUploads("nightly"));
   });
 
-  test("a nightly puts its files beside the last one's, moves the tag, and announces itself in latest.json last", () => {
+  test("a nightly puts its files beside the last one's, moves the tag, and announces itself in desktop.json last", () => {
     const N = "2026.1011.1-nightly.4821";
     const { calls, gh, writes } = fakeGh({ draft: false, target: "old", assets: ["loki_2026.1011.1-nightly.4820_aarch64.dmg"] });
-    publish({ kind: "nightly", version: N, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
-    expect(writes()).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly", "release upload nightly"]);
+    publish({ kind: "nightly", version: N, versioned, rolling, manifest, frozen, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
+    expect(writes()).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly", "release upload nightly", "release upload nightly"]);
     expect(calls.find((c) => c[2] === "PATCH")).toEqual([
       "api",
       "-X",
@@ -413,10 +467,7 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
       "the edit call",
     );
     expect(edit[edit.indexOf("--title") + 1]).toBe("loki 2026.1011.1-nightly.4821 (2026.1011.1-nightly.a96ee85)");
-    expect(uploads(calls)).toEqual([
-      ["release", "upload", "nightly", ...versioned, "--clobber"],
-      ["release", "upload", "nightly", ...rolling, "--clobber"],
-    ]);
+    expect(uploads(calls)).toEqual([["release", "upload", "nightly", ...versioned, "--clobber"], ...lastUploads("nightly")]);
     expect(calls.some((c) => c[1] === "delete")).toBe(false);
   });
 
@@ -427,9 +478,9 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
       [],
       "loki 2026.1011.1-nightly.4822 (2026.1011.1-nightly.0b1c2d3)",
     );
-    expect(() => publish({ kind: "nightly", version: older, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh })).toThrow(
-      "the nightly already announces 2026.1011.1-nightly.4822, newer than this run's 2026.1011.1-nightly.4821: nothing was published",
-    );
+    expect(() =>
+      publish({ kind: "nightly", version: older, versioned, rolling, manifest, frozen, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh }),
+    ).toThrow("the nightly already announces 2026.1011.1-nightly.4822, newer than this run's 2026.1011.1-nightly.4821: nothing was published");
     expect(writes()).toEqual([]);
   });
 
@@ -441,14 +492,46 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
       "loki 2026.1010.0-nightly.f00dfee",
     ]) {
       const { gh, writes } = fakeGh({ draft: false, target: "old", assets: [] }, [], title);
-      publish({ kind: "nightly", version: N, versioned, rolling, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
-      expect(writes(), title).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly", "release upload nightly"]);
+      publish({ kind: "nightly", version: N, versioned, rolling, manifest, frozen, sha: "a96ee8512345", notesFile: "notes.md", repo: "o/loki", gh });
+      expect(writes(), title).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly", "release upload nightly", "release upload nightly"]);
     }
   });
 
-  test("after the tap moves, only files carrying an earlier version are removed: never latest.json or the install copies", () => {
+  const TAURI = "2026.1120.0-nightly.4700";
+  const frozenLatest = (version: string, base = "https://github.com/o/loki/releases/download/nightly") =>
+    `{"version":"${version}","notes":"the last Tauri nightly","pub_date":"2026-11-20T09:00:00Z","platforms":{` +
+    `"darwin-aarch64":{"url":"${base}/loki_${version}_aarch64.app.tar.gz","signature":"S1"},` +
+    `"windows-x86_64":{"url":"${base}/loki_${version}_x64-setup.exe","signature":"S2"},` +
+    `"linux-x86_64":{"url":"${base}/loki_${version}_amd64.AppImage","signature":"S3"}}}\r\n `;
+  const downloadingGh = (assets: string[], served: Partial<Record<string, string>>, publicStables: string[] = []) => {
+    const calls: string[][] = [];
+    const gh = (...args: string[]) => {
+      calls.push(args);
+      if (args[1] === "list") return publicStables.join("\n");
+      if (args[1] === "view") return JSON.stringify({ isDraft: false, targetCommitish: "abc", assets: assets.map((name) => ({ name })) });
+      if (args[1] === "download") {
+        const text = served[args[2] ?? ""];
+        if (text === undefined) throw new Error(`no release ${args[2] ?? ""}`);
+        writeFileSync(join(args[args.indexOf("--dir") + 1] ?? "", args[args.indexOf("--pattern") + 1] ?? ""), text);
+      }
+      return "";
+    };
+    return { calls, gh };
+  };
+  const scratchDirs: string[] = [];
+  const scratchDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-frozen-"));
+    scratchDirs.push(dir);
+    return join(dir, "frozen");
+  };
+  afterEach(() => {
+    for (const dir of scratchDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("after the tap moves, only files carrying an earlier version are removed: never latest.json, the files it names, or the install copies", () => {
     const old = "2026.1011.1-nightly.4820";
     const now = "2026.1011.1-nightly.4821";
+    const frozenFiles = [`loki_${TAURI}_aarch64.app.tar.gz`, `loki_${TAURI}_x64-setup.exe`, `loki_${TAURI}_amd64.AppImage`];
     const assets = [
       `loki_${old}_aarch64.dmg`,
       `loki_${old}_aarch64.app.tar.gz`,
@@ -456,30 +539,117 @@ describe("publish: every system's files, each step safe to run again (plan 096)"
       `loki_${old}_x64-setup.exe`,
       `loki_${old}_amd64.AppImage.sig`,
       `loki_${old}_amd64.deb`,
+      `loki_${TAURI}_aarch64.dmg`,
       `loki_${now}_aarch64.dmg`,
       `loki_${now}_x64-setup.exe`,
       `loki_${now}_amd64.AppImage.sig`,
+      ...frozenFiles,
       "latest.json",
+      "desktop.json",
       ...INSTALL_FILES,
       "cask.rb",
     ];
-    const stale = assets.slice(0, 6);
-    expect(staleNightlyFiles(assets, now)).toEqual(stale);
-    const { calls, gh } = fakeGh({ draft: false, target: "abc", assets });
-    expect(pruneNightly(now, gh)).toEqual(stale);
+    const stale = assets.slice(0, 7);
+    expect(filesNamedBy(frozenLatest(TAURI))).toEqual(frozenFiles);
+    expect(staleNightlyFiles(assets, now, frozenFiles)).toEqual(stale);
+    const { calls, gh } = downloadingGh(assets, { nightly: frozenLatest(TAURI) });
+    expect(pruneNightly(now, gh, scratchDir())).toEqual(stale);
     expect(calls.filter((c) => c[1] === "delete-asset").map((c) => c[3])).toEqual(stale);
-    expect(calls.at(-1)).toEqual(["release", "delete-asset", "nightly", `loki_${old}_amd64.deb`, "--yes"]);
-    expect(pruneNightly(now, fakeGh().gh)).toEqual([]);
+    expect(calls.at(-1)).toEqual(["release", "delete-asset", "nightly", `loki_${TAURI}_aarch64.dmg`, "--yes"]);
+    expect(pruneNightly(now, fakeGh().gh, scratchDir())).toEqual([]);
   });
+
+  test("a prune that cannot read the frozen latest.json removes nothing", () => {
+    const { calls, gh } = downloadingGh(["latest.json", "loki_2026.1011.1-nightly.4820_aarch64.dmg"], {});
+    expect(() => pruneNightly("2026.1011.1-nightly.4821", gh, scratchDir())).toThrow(/no release nightly/);
+    expect(calls.some((c) => c[1] === "delete-asset")).toBe(false);
+  });
+
+  test("the frozen latest.json is the nightly's own, carried over byte for byte", () => {
+    const text = frozenLatest(TAURI);
+    const { calls, gh } = downloadingGh([], { nightly: text });
+    const dir = scratchDir();
+    const frozenFile = frozenLatestJson({ kind: "nightly", version: "2026.1125.0-nightly.4900", dir, gh });
+    expect(frozenFile).toEqual({ path: join(dir, "latest.json"), version: TAURI });
+    expect(readFileSync(frozenFile.path, "utf8")).toBe(text);
+    expect(calls.find((c) => c[1] === "download")).toEqual(["release", "download", "nightly", "--pattern", "latest.json", "--dir", dir, "--clobber"]);
+    const staged = publishWith(frozenFile.path);
+    expect(staged.upload).toContain(frozenFile.path);
+    expect(readFileSync(frozenFile.path)).toEqual(Buffer.from(text));
+  });
+
+  test("a stable carries over the latest.json of the newest public stable before it, byte for byte", () => {
+    const text = frozenLatest("2026.1120.0", "https://github.com/o/loki/releases/download/v2026.1120.0");
+    const { calls, gh } = downloadingGh([], { "v2026.1120.0": text }, ["v2026.1126.0", "v2026.1120.0", "v2026.1119.3", "nightly"]);
+    const dir = scratchDir();
+    expect(frozenLatestJson({ kind: "stable", version: "2026.1125.0", dir, gh }).version).toBe("2026.1120.0");
+    expect(readFileSync(join(dir, "latest.json"), "utf8")).toBe(text);
+    expect(calls.find((c) => c[1] === "download")?.[2]).toBe("v2026.1120.0");
+  });
+
+  test("a latest.json given to publish is carried over byte for byte, as latest.json", () => {
+    const given = join(scratchDir(), "..", "tauri-latest.json");
+    writeFileSync(given, frozenLatest(TAURI));
+    const dir = scratchDir();
+    const { calls, gh } = downloadingGh([], {});
+    const frozenFile = frozenLatestJson({ kind: "nightly", version: "2026.1125.0-nightly.4900", given, dir, gh });
+    expect(frozenFile.path).toBe(join(dir, "latest.json"));
+    expect(readFileSync(frozenFile.path)).toEqual(readFileSync(given));
+    expect(calls).toEqual([]);
+  });
+
+  test("a latest.json that is not older than the release, or is missing, stops publish before anything goes up", () => {
+    const { gh } = downloadingGh([], { nightly: frozenLatest("2026.1125.0-nightly.4900"), "v2026.1120.0": "not json" }, ["v2026.1120.0"]);
+    expect(() => frozenLatestJson({ kind: "nightly", version: "2026.1125.0-nightly.4900", dir: scratchDir(), gh })).toThrow(
+      /announces 2026\.1125\.0-nightly\.4900, not older than 2026\.1125\.0-nightly\.4900/,
+    );
+    expect(() => frozenLatestJson({ kind: "stable", version: "2026.1125.0", dir: scratchDir(), gh })).toThrow(/is not JSON/);
+    expect(() => frozenLatestJson({ kind: "stable", version: "2026.1119.0", dir: scratchDir(), gh })).toThrow(/no stable before 2026\.1119\.0/);
+    expect(() => frozenLatestJson({ kind: "nightly", version: "2026.1125.0-nightly.4900", dir: scratchDir(), gh: downloadingGh([], {}).gh })).toThrow(
+      /could not download latest\.json from nightly/,
+    );
+  });
+
+  test("publish refuses manifests that would go up under other names", () => {
+    const { calls, gh } = fakeGh();
+    expect(() => publish({ kind: "stable", version: V, versioned, rolling, manifest: "staged/latest.json", frozen, sha: "abc", notesFile: "n", gh })).toThrow(
+      /desktop\.json and latest\.json/,
+    );
+    expect(() => publish({ kind: "stable", version: V, versioned, rolling, manifest, frozen: "frozen/tauri.json", sha: "abc", notesFile: "n", gh })).toThrow(
+      /not desktop\.json and tauri\.json/,
+    );
+    expect(calls).toEqual([]);
+  });
+
+  const publishWith = (frozenPath: string) => {
+    const { calls, gh } = fakeGh();
+    publish({
+      kind: "nightly",
+      version: "2026.1125.0-nightly.4900",
+      versioned,
+      rolling,
+      manifest,
+      frozen: frozenPath,
+      sha: "abc",
+      notesFile: "n",
+      repo: "o/loki",
+      gh,
+    });
+    return { upload: uploads(calls).flat() };
+  };
 
   test("no files, or a version of the wrong kind, publishes nothing", () => {
     const { calls, gh } = fakeGh();
-    expect(() => publish({ kind: "nightly", version: "2026.1011.1-nightly.4821", versioned: [], rolling, sha: "abc", notesFile: "n", gh })).toThrow(/no files/);
-    expect(() => publish({ kind: "stable", version: "2026.1011.1-nightly.4821", versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(
+    expect(() =>
+      publish({ kind: "nightly", version: "2026.1011.1-nightly.4821", versioned: [], rolling, manifest, frozen, sha: "abc", notesFile: "n", gh }),
+    ).toThrow(/no files/);
+    expect(() =>
+      publish({ kind: "stable", version: "2026.1011.1-nightly.4821", versioned, rolling, manifest, frozen, sha: "abc", notesFile: "n", gh }),
+    ).toThrow(/looks like 2026.1011.0/);
+    expect(() => publish({ kind: "stable", version: "2026.10.11", versioned, rolling, manifest, frozen, sha: "abc", notesFile: "n", gh })).toThrow(
       /looks like 2026.1011.0/,
     );
-    expect(() => publish({ kind: "stable", version: "2026.10.11", versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(/looks like 2026.1011.0/);
-    expect(() => publish({ kind: "preview", version: V, versioned, rolling, sha: "abc", notesFile: "n", gh })).toThrow(/stable or nightly/);
+    expect(() => publish({ kind: "preview", version: V, versioned, rolling, manifest, frozen, sha: "abc", notesFile: "n", gh })).toThrow(/stable or nightly/);
     expect(calls).toEqual([]);
   });
 });
@@ -605,16 +775,26 @@ describe("the workflow: one run builds all three systems, for a stable and a nig
       expect(upload.with?.["if-no-files-found"], name).toBe("error");
       expect(String(upload.with?.path), name).toContain(".sig");
     }
-    expect(String(job("macos").steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action@"))?.with?.args)).toBe("--target aarch64-apple-darwin");
-    expect(runs(job("windows"))).toContain("bun run tauri build --bundles nsis");
-    expect(runs(job("linux"))).toContain("bun run tauri build --bundles appimage,deb");
-    const macPaths = String(job("macos").steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"))?.with?.path);
-    for (const f of ["dmg/loki_*_aarch64.dmg", "macos/loki.app.tar.gz", "macos/loki.app.tar.gz.sig"])
-      expect(macPaths).toContain(`src-tauri/target/aarch64-apple-darwin/release/bundle/${f}`);
-    expect(String(job("macos").steps.find((s) => s.uses?.startsWith("dtolnay/rust-toolchain@"))?.with?.targets)).toBe("aarch64-apple-darwin");
+    const packaging = { macos: "bun run dist --mac --arm64", windows: "bun run dist --win --x64", linux: "bun run dist --linux --x64" } as const;
+    for (const [name, command] of Object.entries(packaging)) {
+      expect(runs(job(name)), name).toContain("bun run build:app && bun run build:mod && bun run smoke");
+      expect(runs(job(name)), name).toContain(command);
+      expect(text, name).not.toMatch(/tauri-action|tauri build|rust-toolchain|rust-cache|src-tauri|webkit/i);
+    }
+    expect(runs(job("macos"))).toContain("COPYFILE_DISABLE=1 tar --no-mac-metadata -czf desktop/release/loki.app.tar.gz -C desktop/release/mac-arm64 loki.app");
+    expect(runs(job("linux"))).toContain("sudo apt-get install -y --no-install-recommends xvfb");
+    expect(runs(job("linux"))).toContain("xvfb-run -a bun run smoke --electron");
+    const paths = (name: string) =>
+      String(job(name).steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"))?.with?.path)
+        .trim()
+        .split("\n");
+    expect(paths("macos")).toEqual(["desktop/release/loki_*_aarch64.dmg", "desktop/release/loki.app.tar.gz", "desktop/release/loki.app.tar.gz.sig"]);
+    expect(paths("windows")).toEqual(["desktop/release/loki_*_x64-setup.exe", "desktop/release/loki_*_x64-setup.exe.sig"]);
+    expect(paths("linux")).toEqual(["desktop/release/loki_*_amd64.AppImage", "desktop/release/loki_*_amd64.AppImage.sig", "desktop/release/loki_*_amd64.deb"]);
+    expect(MAC_UPDATE_ARCHIVE).toBe("loki.app.tar.gz");
   });
 
-  test("publish collects every build, then writes latest.json, the cask and the prune", () => {
+  test("publish collects every build, then writes desktop.json and carries latest.json over, then the cask and the prune", () => {
     const pub = job("publish");
     expect(([] as string[]).concat(pub.needs ?? []).sort()).toEqual(["linux", "macos", "plan", "version", "windows"]);
     expect(pub.steps.some((s) => s.uses?.startsWith("actions/download-artifact@"))).toBe(true);

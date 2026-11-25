@@ -1,77 +1,82 @@
+import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, test } from "vitest";
+import { publicKeyFile, signatureFile, UPDATE_PUBLIC_KEY } from "../desktop/update/minisign.ts";
 import { checkUpdateKey, publicKeyId, signatureKeyId } from "../scripts/check-update-key.ts";
 
-// Outside (Tauri): `tauri signer generate` and the bundler write minisign files as base64 of the file's text, and the
-// file's second line is base64 of the algorithm, the 8-byte key id and the key or signature.
-const b64 = (bytes: Uint8Array | string) => Buffer.from(bytes).toString("base64");
 const id = (n: number) => Uint8Array.from({ length: 8 }, (_, i) => n + i);
-const bytes = (length: number, fill: number) => new Uint8Array(length).fill(fill);
 
-const publicKey = (keyId: Uint8Array) => b64(`untrusted comment: minisign public key\n${b64(Buffer.concat([Buffer.from("Ed"), keyId, bytes(32, 7)]))}\n`);
-const signature = (keyId: Uint8Array) =>
-  b64(
-    [
-      "untrusted comment: signature from tauri secret key",
-      b64(Buffer.concat([Buffer.from("ED"), keyId, bytes(64, 9)])),
-      "trusted comment: timestamp:1763251200\tfile:loki.app.tar.gz",
-      b64(bytes(64, 3)),
-      "",
-    ].join("\n"),
-  );
-const config = (pubkey: string) => JSON.stringify({ plugins: { updater: { pubkey, endpoints: [] } } });
+function updateKey(keyId: Uint8Array) {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  return {
+    publicKey: publicKeyFile(publicKey, keyId),
+    sign: (file: string, version: string) =>
+      signatureFile(Buffer.from(file), { privateKey, keyId, prehashed: false, trustedComment: `timestamp:1795608000\tfile:f\tversion:${version}` }),
+  };
+}
 
-const files = (all: Record<string, string>) => (path: string) => {
-  if (!Object.hasOwn(all, path)) throw new Error(`ENOENT: ${path}`);
-  return all[path];
-};
+const files = (all: Record<string, string>) => ({
+  text: (path: string) => {
+    if (!Object.hasOwn(all, path)) throw new Error(`ENOENT: ${path}`);
+    return all[path];
+  },
+  bytes: (path: string) => {
+    if (!Object.hasOwn(all, path)) throw new Error(`ENOENT: ${path}`);
+    return Buffer.from(all[path]);
+  },
+});
 
 describe("the update key check", () => {
-  test("passes when every signature was made by the compiled-in key", () => {
+  const loki = updateKey(id(1));
+
+  test("passes when every file verifies against the updater's key, for the version its signature names", () => {
     const read = files({
-      "tauri.conf.json": config(publicKey(id(1))),
-      "macos/loki.app.tar.gz.sig": signature(id(1)),
-      "nsis/loki_1_x64-setup.exe.sig": signature(id(1)),
+      "loki.app.tar.gz": "mac",
+      "loki.app.tar.gz.sig": loki.sign("mac", "2026.1125.0"),
+      "loki_2026.1125.0_x64-setup.exe": "exe",
+      "loki_2026.1125.0_x64-setup.exe.sig": loki.sign("exe", "2026.1125.0"),
     });
-    const result = checkUpdateKey("tauri.conf.json", ["macos/loki.app.tar.gz.sig", "nsis/loki_1_x64-setup.exe.sig"], read);
+    const result = checkUpdateKey({ sigs: ["loki.app.tar.gz.sig", "loki_2026.1125.0_x64-setup.exe.sig"], files: read, publicKey: loki.publicKey });
     expect(result.problems).toEqual([]);
-    expect(result.signed).toHaveLength(2);
-    const idOneAsMinisignPrintsIt = "0807060504030201";
-    expect(publicKeyId(publicKey(id(1)))).toBe(idOneAsMinisignPrintsIt);
-    expect(signatureKeyId(signature(id(1)))).toBe(idOneAsMinisignPrintsIt);
+    expect(result.signed).toEqual([
+      "loki.app.tar.gz.sig: signed by update key 0807060504030201 for 2026.1125.0",
+      "loki_2026.1125.0_x64-setup.exe.sig: signed by update key 0807060504030201 for 2026.1125.0",
+    ]);
+    expect(publicKeyId(loki.publicKey)).toBe("0807060504030201");
+    expect(signatureKeyId(loki.sign("mac", "1"))).toBe("0807060504030201");
   });
 
-  test("fails, naming the file, when a signature is from another key", () => {
-    const read = files({
-      "tauri.conf.json": config(publicKey(id(1))),
-      "macos/loki.app.tar.gz.sig": signature(id(1)),
-      "appimage/loki_1_amd64.AppImage.sig": signature(id(20)),
-    });
-    const result = checkUpdateKey("tauri.conf.json", ["macos/loki.app.tar.gz.sig", "appimage/loki_1_amd64.AppImage.sig"], read);
+  test("fails, naming the file and both keys, when a signature is from another key", () => {
+    const stranger = updateKey(id(20));
+    const read = files({ "a.AppImage": "linux", "a.AppImage.sig": stranger.sign("linux", "2026.1125.0") });
+    const result = checkUpdateKey({ sigs: ["a.AppImage.sig"], files: read, publicKey: loki.publicKey });
     expect(result.problems).toHaveLength(1);
-    expect(result.problems[0]).toContain("appimage/loki_1_amd64.AppImage.sig");
-    expect(result.problems[0]).toContain(signatureKeyId(signature(id(20))));
-    expect(result.problems[0]).toContain(publicKeyId(publicKey(id(1))));
+    expect(result.problems[0]).toContain("a.AppImage.sig");
+    expect(result.problems[0]).toContain(signatureKeyId(stranger.sign("x", "1")));
+    expect(result.problems[0]).toContain(publicKeyId(loki.publicKey));
   });
 
-  test("fails while the public key is still the placeholder, or is no minisign key", () => {
-    for (const pubkey of ["REPLACE_WITH_THE_UPDATE_PUBLIC_KEY", b64("untrusted comment: minisign public key\n"), ""]) {
-      const read = files({ "tauri.conf.json": config(pubkey), "a.sig": signature(id(1)) });
-      const result = checkUpdateKey("tauri.conf.json", ["a.sig"], read);
-      expect(result.problems, pubkey).toHaveLength(1);
-      expect(result.problems[0]).toMatch(/plugins\.updater\.pubkey/);
-    }
-    expect(() => publicKeyId("REPLACE_WITH_THE_UPDATE_PUBLIC_KEY")).toThrow(/base64/);
+  test("fails when the file changed after signing, or the signature names another version than the release", () => {
+    const read = files({ "f.exe": "changed", "f.exe.sig": loki.sign("original", "2026.1125.0"), "g.exe": "g", "g.exe.sig": loki.sign("g", "2026.1124.0") });
+    expect(checkUpdateKey({ sigs: ["f.exe.sig"], files: read, publicKey: loki.publicKey }).problems[0]).toMatch(/f\.exe\.sig: .*does not match/);
+    expect(checkUpdateKey({ sigs: ["g.exe.sig"], files: read, publicKey: loki.publicKey, version: "2026.1125.0" }).problems[0]).toMatch(
+      /signature is for version 2026\.1124\.0/,
+    );
   });
 
-  test("fails when the build made no signature, or one cannot be read or decoded", () => {
-    const read = files({ "tauri.conf.json": config(publicKey(id(1))), "bad.sig": b64("not a signature") });
-    expect(checkUpdateKey("tauri.conf.json", [], read).problems[0]).toMatch(/no updater signature/);
-    const missing = checkUpdateKey("tauri.conf.json", ["gone.sig"], read);
-    expect(missing.problems[0]).toContain("gone.sig");
-    const bad = checkUpdateKey("tauri.conf.json", ["bad.sig"], read);
-    expect(bad.problems[0]).toContain("bad.sig");
-    expect(checkUpdateKey("tauri.conf.json", ["a.sig"], files({ "tauri.conf.json": "{}", "a.sig": signature(id(1)) })).problems[0]).toMatch(
-      /plugins\.updater\.pubkey/,
+  test("fails when nothing was signed, or a signature cannot be read, decoded or matched to its file", () => {
+    const read = files({ "bad.sig": Buffer.from("not a signature").toString("base64"), "lonely.exe.sig": loki.sign("x", "1") });
+    expect(checkUpdateKey({ sigs: [], files: read, publicKey: loki.publicKey }).problems[0]).toMatch(/no update signature/);
+    expect(checkUpdateKey({ sigs: ["gone.sig"], files: read, publicKey: loki.publicKey }).problems[0]).toContain("gone.sig");
+    expect(checkUpdateKey({ sigs: ["bad.sig"], files: read, publicKey: loki.publicKey }).problems[0]).toContain("bad.sig");
+    expect(checkUpdateKey({ sigs: ["lonely.exe.sig"], files: read, publicKey: loki.publicKey }).problems[0]).toContain("ENOENT: lonely.exe");
+    expect(checkUpdateKey({ sigs: ["lonely.exe"], files: read, publicKey: loki.publicKey }).problems[0]).toMatch(/not a \.sig file/);
+  });
+
+  test("checks against the key compiled into the updater by default, and names it when it is no minisign key", () => {
+    const read = files({ "a.exe": "a", "a.exe.sig": loki.sign("a", "1") });
+    expect(checkUpdateKey({ sigs: ["a.exe.sig"], files: read }).problems[0]).toContain(`trusts key ${publicKeyId(UPDATE_PUBLIC_KEY)}`);
+    expect(checkUpdateKey({ sigs: ["a.exe.sig"], files: read, publicKey: "REPLACE_ME" }).problems[0]).toMatch(
+      /UPDATE_PUBLIC_KEY .* is not a minisign public key/,
     );
   });
 });

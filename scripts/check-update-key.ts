@@ -1,90 +1,71 @@
-// Outside (Tauri): tauri-cli only warns when the key that signed an update differs from `plugins.updater.pubkey` in
-// src-tauri/tauri.conf.json, and a loki built that way can never verify an update again.
 import { readFileSync, realpathSync } from "node:fs";
+import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
-
-export const CONFIG = fileURLToPath(new URL("../src-tauri/tauri.conf.json", import.meta.url));
+import { parsePublicKey, parseSignature, signedVersion, UPDATE_PUBLIC_KEY, verifyUpdate } from "../desktop/update/minisign.ts";
 
 export interface KeyCheck {
   problems: string[];
   signed: string[];
 }
 
-// Outside (Node): Buffer.from quietly skips the characters it does not know, so it would decode the placeholder.
-function decodeBase64(text: string, what: string): Buffer {
-  const t = text.trim();
-  if (t === "" || t.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(t)) throw new Error(`${what} is not base64`);
-  return Buffer.from(t, "base64");
+export interface KeyCheckFiles {
+  text: (path: string) => string;
+  bytes: (path: string) => Uint8Array;
 }
-
-const ALGORITHM_BYTES = 2;
-const KEY_ID_BYTES = 8;
-const PUBLIC_KEY_BYTES = ALGORITHM_BYTES + KEY_ID_BYTES + 32;
-const SIGNATURE_BYTES = ALGORITHM_BYTES + KEY_ID_BYTES + 64;
-const ED25519 = "Ed";
-const ED25519_PREHASHED = "ED";
 
 const keyIdAsMinisignPrintsIt = (littleEndian: Uint8Array) => Buffer.from(littleEndian).reverse().toString("hex").toUpperCase();
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-function keyIdIn(file: string, what: string, length: number, algorithms: string[]): string {
-  const lines = decodeBase64(file, what).toString("utf8").split(/\r?\n/);
-  const [comment, second] = lines;
-  if (lines.length < 2 || !comment.startsWith("untrusted comment:")) throw new Error(`${what} is not a minisign file`);
-  const line = decodeBase64(second, `${what}'s second line`);
-  const algorithm = line.subarray(0, ALGORITHM_BYTES).toString("latin1");
-  if (line.length !== length || !algorithms.includes(algorithm)) throw new Error(`${what} is not a minisign Ed25519 key or signature`);
-  return keyIdAsMinisignPrintsIt(line.subarray(ALGORITHM_BYTES, ALGORITHM_BYTES + KEY_ID_BYTES));
-}
+export const publicKeyId = (publicKey: string): string => keyIdAsMinisignPrintsIt(parsePublicKey(publicKey).keyId);
+export const signatureKeyId = (sig: string): string => keyIdAsMinisignPrintsIt(parseSignature(sig).keyId);
 
-export function publicKeyId(pubkey: string): string {
-  return keyIdIn(pubkey, "the public key", PUBLIC_KEY_BYTES, [ED25519]);
-}
-
-export function signatureKeyId(sig: string): string {
-  return keyIdIn(sig, "the signature", SIGNATURE_BYTES, [ED25519, ED25519_PREHASHED]);
-}
-
-function pubkeyIn(configText: string): string {
-  const config: unknown = JSON.parse(configText);
-  const plugins = typeof config === "object" && config !== null && "plugins" in config ? config.plugins : undefined;
-  const updater = typeof plugins === "object" && plugins !== null && "updater" in plugins ? plugins.updater : undefined;
-  const pubkey = typeof updater === "object" && updater !== null && "pubkey" in updater ? updater.pubkey : undefined;
-  if (typeof pubkey !== "string") throw new Error("has no plugins.updater.pubkey");
-  return pubkey;
-}
-
-export function checkUpdateKey(configPath: string, sigs: string[], read: (path: string) => string): KeyCheck {
+export function checkUpdateKey({
+  sigs,
+  files,
+  version,
+  publicKey = UPDATE_PUBLIC_KEY,
+}: {
+  sigs: string[];
+  files: KeyCheckFiles;
+  version?: string;
+  publicKey?: string;
+}): KeyCheck {
   let expected: string;
   try {
-    expected = publicKeyId(pubkeyIn(read(configPath)));
+    expected = publicKeyId(publicKey);
   } catch (e) {
-    const why = e instanceof Error ? e.message : String(e);
-    return {
-      problems: [`${configPath}: plugins.updater.pubkey is not loki's update public key (${why}); put in the one from \`tauri signer generate\``],
-      signed: [],
-    };
+    return { problems: [`UPDATE_PUBLIC_KEY in desktop/update/minisign.ts is not a minisign public key (${messageOf(e)})`], signed: [] };
   }
-  if (sigs.length === 0) return { problems: ["no updater signature to check: the build made no .sig file"], signed: [] };
+  if (sigs.length === 0) return { problems: ["no update signature to check: nothing was signed"], signed: [] };
   const result: KeyCheck = { problems: [], signed: [] };
   for (const path of sigs) {
-    let actual: string;
     try {
-      actual = signatureKeyId(read(path));
+      if (!path.endsWith(".sig")) throw new Error("is not a .sig file beside the file it signs");
+      const sig = files.text(path).trim();
+      const actual = signatureKeyId(sig);
+      if (actual !== expected) {
+        result.problems.push(
+          `${path}: signed by key ${actual}, but loki's updater trusts key ${expected}; no loki could verify it (LOKI_UPDATE_KEY and UPDATE_PUBLIC_KEY must be one pair)`,
+        );
+        continue;
+      }
+      const signedFor = signedVersion(parseSignature(sig).trustedComment);
+      if (signedFor === null) throw new Error("the signature names no version");
+      verifyUpdate(files.bytes(path.replace(/\.sig$/, "")), sig, version ?? signedFor, publicKey);
+      result.signed.push(`${basename(path)}: signed by update key ${actual} for ${signedFor}`);
     } catch (e) {
-      result.problems.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
-      continue;
+      result.problems.push(`${path}: ${messageOf(e)}`);
     }
-    if (actual === expected) result.signed.push(`${path}: signed by update key ${actual}`);
-    else
-      result.problems.push(
-        `${path}: signed by key ${actual}, but tauri.conf.json's pubkey is key ${expected}; no loki built with this pubkey could verify it (TAURI_SIGNING_PRIVATE_KEY and plugins.updater.pubkey must be one pair)`,
-      );
   }
   return result;
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { problems, signed } = checkUpdateKey(CONFIG, process.argv.slice(2), (path) => readFileSync(path, "utf8"));
+  const args = process.argv.slice(2);
+  const at = args.indexOf("--version");
+  const version = at === -1 ? undefined : args[at + 1];
+  const sigs = at === -1 ? args : args.filter((_, i) => i !== at && i !== at + 1);
+  const { problems, signed } = checkUpdateKey({ sigs, version, files: { text: (path) => readFileSync(path, "utf8"), bytes: (path) => readFileSync(path) } });
   for (const line of signed) console.log(line);
   for (const line of problems) console.error(`::error::${line}`);
   if (problems.length > 0) process.exit(1);

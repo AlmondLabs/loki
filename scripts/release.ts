@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpat
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compareVersions } from "../core/version.ts";
+import type { PlatformKey } from "../desktop/update/remote.ts";
 import { dmgName } from "./cask.ts";
 
 export type Kind = "stable" | "nightly" | "none";
@@ -143,6 +144,7 @@ export function releaseNotes(version: string, commits: Commit[], { max = RELEASE
 
 export function setVersion(version: string, dir = root): string[] {
   if (!isNightlyVersion(version) && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version}`);
+  if (!existsSync(join(dir, "package.json"))) throw new Error(`no package.json in ${dir} to stamp`);
   const edits: Array<[string, RegExp, string]> = [
     ["package.json", /("version":\s*")[^"]*(")/, `$1${version}$2`],
     ["src-tauri/tauri.conf.json", /("version":\s*")[^"]*(")/, `$1${version}$2`],
@@ -286,9 +288,7 @@ export function draftStable({ version, sha, notesFile, gh }: { version: string; 
   stableRelease(version, sha, notesFile, gh);
 }
 
-// Outside (Tauri): tauri-plugin-updater looks a platform up as `<os>-<arch>`, after `<os>-<arch>-<installer>`, so a
-// loki on an Intel Mac, with no `darwin-x86_64` here, finds no update and keeps the version it has.
-export const UPDATE_PLATFORMS = ["darwin-aarch64", "windows-x86_64", "linux-x86_64"] as const;
+export const UPDATE_PLATFORMS: readonly PlatformKey[] = ["darwin-aarch64", "windows-x86_64", "linux-x86_64"];
 
 export const INSTALL_FILES = ["loki-macos-arm64.app.tar.gz", "loki-windows-x64-setup.exe", "loki-linux-x86_64.AppImage"] as const;
 
@@ -296,25 +296,28 @@ interface UpdateFile {
   built: string;
   shipped: string;
   install: string;
-  platforms: readonly string[];
+  platforms: readonly PlatformKey[];
 }
 
+export const MAC_UPDATE_ARCHIVE = "loki.app.tar.gz";
+
 const updateFiles = (version: string): UpdateFile[] => [
-  // Outside (Tauri): the bundler names the Mac's archive after the app alone.
-  { built: "loki.app.tar.gz", shipped: `loki_${version}_aarch64.app.tar.gz`, install: INSTALL_FILES[0], platforms: ["darwin-aarch64"] },
+  { built: MAC_UPDATE_ARCHIVE, shipped: `loki_${version}_aarch64.app.tar.gz`, install: INSTALL_FILES[0], platforms: ["darwin-aarch64"] },
   { built: `loki_${version}_x64-setup.exe`, shipped: `loki_${version}_x64-setup.exe`, install: INSTALL_FILES[1], platforms: ["windows-x86_64"] },
   { built: `loki_${version}_amd64.AppImage`, shipped: `loki_${version}_amd64.AppImage`, install: INSTALL_FILES[2], platforms: ["linux-x86_64"] },
 ];
 
-// Outside (Tauri): latest.json as tauri-plugin-updater 2 reads it, its `RemoteRelease`, with an RFC 3339 date.
-export interface LatestJson {
+export const DESKTOP_JSON = "desktop.json";
+export const FROZEN_LATEST_JSON = "latest.json";
+
+export interface DesktopJson {
   version: string;
   notes: string;
   pub_date: string;
-  platforms: Record<string, { url: string; signature: string }>;
+  platforms: Partial<Record<PlatformKey, { url: string; signature: string }>>;
 }
 
-export function latestJson({
+export function desktopJson({
   version,
   notes,
   now,
@@ -325,9 +328,9 @@ export function latestJson({
   notes: string;
   now: Date;
   baseUrl: string;
-  updates: ReadonlyArray<{ name: string; signature: string; platforms: readonly string[] }>;
-}): LatestJson {
-  const platforms: LatestJson["platforms"] = {};
+  updates: ReadonlyArray<{ name: string; signature: string; platforms: readonly PlatformKey[] }>;
+}): DesktopJson {
+  const platforms: DesktopJson["platforms"] = {};
   for (const u of updates) for (const p of u.platforms) platforms[p] = { url: `${baseUrl}/${u.name}`, signature: u.signature };
   return { version, notes, pub_date: now.toISOString(), platforms };
 }
@@ -347,7 +350,7 @@ function builtFiles(from: string, version: string): { path: (name: string) => st
   };
   const updates = updateFiles(version).map((u) => ({ ...u, signature: read(`${u.built}.sig`) }));
   const unsigned = updates.filter((u) => !u.signature).flatMap((u) => u.platforms);
-  if (unsigned.length) throw new Error(`no update signature for ${unsigned.join(", ")}: was TAURI_SIGNING_PRIVATE_KEY set for every build?`);
+  if (unsigned.length) throw new Error(`no update signature for ${unsigned.join(", ")}: did every build's signing step (scripts/sign-update.ts) run?`);
   const absent = [dmgName(version), ...updates.map((u) => u.built), `loki_${version}_amd64.deb`].filter((n) => !found.has(n));
   if (absent.length) throw new Error(`the builds did not make ${absent.join(", ")}`);
   return { path: (name) => found.get(name) ?? join(from, name), updates };
@@ -358,6 +361,7 @@ const downloadBase = (repo: string, tag: string) => `https://github.com/${repo}/
 export interface Staged {
   versioned: string[];
   rolling: string[];
+  manifest: string;
   dmg: string;
 }
 
@@ -390,10 +394,10 @@ export function stageRelease({
     ...updates.flatMap((u) => [stage(u.built, u.shipped), stage(`${u.built}.sig`, `${u.shipped}.sig`)]),
     stage(`loki_${version}_amd64.deb`, `loki_${version}_amd64.deb`),
   ];
-  const latest = latestJson({ version, notes, now, baseUrl: downloadBase(repo, tag), updates: updates.map((u) => ({ ...u, name: u.shipped })) });
-  writeFileSync(join(to, "latest.json"), `${JSON.stringify(latest, null, 2)}\n`);
-  const rolling = [join(to, "latest.json"), ...updates.map((u) => stage(u.built, u.install))];
-  return { versioned, rolling, dmg };
+  const manifest = desktopJson({ version, notes, now, baseUrl: downloadBase(repo, tag), updates: updates.map((u) => ({ ...u, name: u.shipped })) });
+  writeFileSync(join(to, DESKTOP_JSON), `${JSON.stringify(manifest, null, 2)}\n`);
+  const rolling = updates.map((u) => stage(u.built, u.install));
+  return { versioned, rolling, manifest: join(to, DESKTOP_JSON), dmg };
 }
 
 const publicStables = (gh: (...args: string[]) => string): string[] =>
@@ -409,6 +413,8 @@ export function publish({
   version,
   versioned,
   rolling,
+  manifest,
+  frozen,
   sha,
   notesFile,
   repo = "",
@@ -419,6 +425,8 @@ export function publish({
   version: string;
   versioned: string[];
   rolling: string[];
+  manifest: string;
+  frozen: string;
   sha: string;
   notesFile: string;
   repo?: string;
@@ -426,8 +434,14 @@ export function publish({
   gh: (...args: string[]) => string;
 }): { dmg: string } {
   if (!versioned.length || !rolling.length) throw new Error("publish: no files");
+  if (basename(manifest) !== DESKTOP_JSON || basename(frozen) !== FROZEN_LATEST_JSON)
+    throw new Error(`publish: the manifests go up as ${DESKTOP_JSON} and ${FROZEN_LATEST_JSON}, not ${basename(manifest)} and ${basename(frozen)}`);
   const dmg = versioned.find((f) => f.endsWith(".dmg")) ?? versioned[0];
   const upload = (tag: string, files: string[]) => gh("release", "upload", tag, ...files, "--clobber");
+  const finish = (tag: string) => {
+    upload(tag, [...rolling, frozen]);
+    upload(tag, [manifest]);
+  };
   if (kind === "stable") {
     if (!isStableVersion(version)) throw new Error(`a stable looks like 2026.1011.0, not ${version}`);
     const tag = `v${version}`;
@@ -439,7 +453,7 @@ export function publish({
       return { dmg: join(downloadDir, shipped) };
     }
     upload(tag, versioned);
-    upload(tag, rolling);
+    finish(tag);
     const newest = latestStable(publicStables(gh));
     gh("release", "edit", tag, "--draft=false", newest === null || byVersion(newest, version) <= 0 ? "--latest" : "--latest=false");
     return { dmg };
@@ -455,7 +469,7 @@ export function publish({
         gh("api", "-X", "DELETE", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`);
       } catch {}
       gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", title, "--notes-file", notesFile, ...versioned);
-      upload(NIGHTLY_TAG, rolling);
+      finish(NIGHTLY_TAG);
       return { dmg };
     }
     const announced = nightlyAnnounced(gh("release", "view", NIGHTLY_TAG, "--json", "name", "--jq", ".name"));
@@ -465,24 +479,92 @@ export function publish({
     upload(NIGHTLY_TAG, versioned);
     gh("api", "-X", "PATCH", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`, "-f", `sha=${sha}`, "-F", "force=true");
     gh("release", "edit", NIGHTLY_TAG, "--title", title, "--notes-file", notesFile, "--prerelease");
-    upload(NIGHTLY_TAG, rolling);
+    finish(NIGHTLY_TAG);
     return { dmg };
   }
   throw new Error(`publish: kind is stable or nightly, not ${kind}`);
 }
 
+function frozenVersion(path: string, version: string, from: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new Error(`${from}'s latest.json is not JSON: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+  }
+  const frozen = typeof parsed === "object" && parsed !== null && "version" in parsed ? parsed.version : undefined;
+  if (typeof frozen !== "string" || compareVersions(frozen, version) === null) throw new Error(`${from}'s latest.json names no version`);
+  if (byVersion(frozen, version) >= 0)
+    throw new Error(
+      `${from}'s latest.json announces ${frozen}, not older than ${version}: it is not the last Tauri release's, and a Tauri loki must never install this one`,
+    );
+  return frozen;
+}
+
+export function frozenLatestJson({
+  kind,
+  version,
+  given,
+  dir,
+  gh,
+}: {
+  kind: string;
+  version: string;
+  given?: string;
+  dir: string;
+  gh: (...args: string[]) => string;
+}): { path: string; version: string } {
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, FROZEN_LATEST_JSON);
+  if (given) {
+    copyFileSync(given, path);
+    return { path, version: frozenVersion(path, version, given) };
+  }
+  const tag =
+    kind === "nightly"
+      ? NIGHTLY_TAG
+      : publicStables(gh)
+          .filter((t) => STABLE_TAG.test(t) && byVersion(t.slice(1), version) < 0)
+          .sort((a, b) => byVersion(a.slice(1), b.slice(1)))
+          .at(-1);
+  if (tag === undefined) throw new Error(`no stable before ${version} carries a latest.json to freeze: give the last Tauri release's latest.json to publish`);
+  try {
+    gh("release", "download", tag, "--pattern", FROZEN_LATEST_JSON, "--dir", dir, "--clobber");
+  } catch (err) {
+    throw new Error(`could not download latest.json from ${tag} to carry it over: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+  }
+  if (!existsSync(path)) throw new Error(`${tag} carries no latest.json to carry over: give the last Tauri release's latest.json to publish`);
+  return { path, version: frozenVersion(path, version, tag) };
+}
+
+export function filesNamedBy(latestJsonText: string): string[] {
+  const parsed: unknown = JSON.parse(latestJsonText);
+  const platforms = typeof parsed === "object" && parsed !== null && "platforms" in parsed ? parsed.platforms : undefined;
+  if (typeof platforms !== "object" || platforms === null) return [];
+  const urls = Object.values(platforms).map((p: unknown) => (typeof p === "object" && p !== null && "url" in p ? p.url : undefined));
+  return urls.filter((u): u is string => typeof u === "string").map((u) => decodeURIComponent(u.slice(u.lastIndexOf("/") + 1)));
+}
+
 const VERSIONED_FILE = /^loki_(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)_/;
 
-export const staleNightlyFiles = (assets: readonly string[], version: string): string[] =>
+export const staleNightlyFiles = (assets: readonly string[], version: string, keep: readonly string[] = []): string[] =>
   assets.filter((a) => {
     const carried = VERSIONED_FILE.exec(a)?.[1];
-    return carried !== undefined && carried !== version;
+    return carried !== undefined && carried !== version && !keep.includes(a);
   });
 
-export function pruneNightly(version: string, gh: (...args: string[]) => string): string[] {
+export function pruneNightly(version: string, gh: (...args: string[]) => string, dir: string): string[] {
   const state = releaseState(NIGHTLY_TAG, gh);
   if (!state) return [];
-  const stale = staleNightlyFiles(state.assets, version);
+  let keep: string[] = [];
+  if (state.assets.includes(FROZEN_LATEST_JSON)) {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    gh("release", "download", NIGHTLY_TAG, "--pattern", FROZEN_LATEST_JSON, "--dir", dir, "--clobber");
+    keep = filesNamedBy(readFileSync(join(dir, FROZEN_LATEST_JSON), "utf8"));
+  }
+  const stale = staleNightlyFiles(state.assets, version, keep);
   for (const name of stale) gh("release", "delete-asset", NIGHTLY_TAG, name, "--yes");
   return stale;
 }
@@ -501,10 +583,10 @@ function cmdDraft(version: string): void {
   console.error(`release: v${version} is drafted for ${sha.slice(0, 7)}`);
 }
 
-function cmdLatestJson(version: string, dir: string): string {
+function cmdDesktopJson(version: string, dir: string): string {
   const { updates } = builtFiles(dir, version);
   const notes = notesFor(version, git("rev-parse", "HEAD")).text;
-  const json = latestJson({
+  const json = desktopJson({
     version,
     notes,
     now: new Date(),
@@ -514,18 +596,22 @@ function cmdLatestJson(version: string, dir: string): string {
   return `${JSON.stringify(json, null, 2)}\n`;
 }
 
-function cmdPublish(kind: string, version: string, dir: string): void {
+function cmdPublish(kind: string, version: string, dir: string, given: string | undefined): void {
   if (!dir) throw new Error("publish: give the folder the builds' files were downloaded to");
   const sha = git("rev-parse", "HEAD");
   const notes = notesFor(version, sha);
   const to = join(root, ".release-assets");
   rmSync(to, { recursive: true, force: true });
   const staged = stageRelease({ version, tag: releaseTag(version), repo: repoName(), notes: notes.text, now: new Date(), from: dir, to });
+  const frozen = frozenLatestJson({ kind, version, given, dir: join(root, ".release-frozen"), gh });
+  console.error(`release: carrying over the latest.json that announces ${frozen.version}, unchanged`);
   const { dmg } = publish({
     kind,
     version,
     versioned: staged.versioned,
     rolling: staged.rolling,
+    manifest: staged.manifest,
+    frozen: frozen.path,
     sha,
     notesFile: notes.file,
     repo: repoName(),
@@ -555,20 +641,20 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       case "notes":
         process.stdout.write(cmdNotes(args[0] ?? nextStable(new Date(), tags())));
         break;
-      case "latest-json":
-        process.stdout.write(cmdLatestJson(args[0] ?? "", args[1] ?? "."));
+      case "desktop-json":
+        process.stdout.write(cmdDesktopJson(args[0] ?? "", args[1] ?? "."));
         break;
       case "publish":
-        cmdPublish(args[0] ?? "", args[1] ?? "", args[2] ?? "");
+        cmdPublish(args[0] ?? "", args[1] ?? "", args[2] ?? "", args[3]);
         break;
       case "prune-nightly": {
-        const gone = pruneNightly(args[0] ?? "", gh);
+        const gone = pruneNightly(args[0] ?? "", gh, join(root, ".release-frozen"));
         console.error(`release: removed ${gone.length} earlier nightly file${gone.length === 1 ? "" : "s"}`);
         break;
       }
       default:
         console.error(
-          "usage: bun run release plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | latest-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
+          "usage: bun run release plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | desktop-json <version> <dir> | publish <stable|nightly> <version> <dir> [latest.json to carry over] | prune-nightly <version>",
         );
         process.exit(2);
     }

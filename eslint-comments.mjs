@@ -22,6 +22,7 @@ export const OUTSIDE = [
   "iOS",
   "Jira",
   "Letta",
+  "libsodium",
   "linuxdeploy",
   "macOS",
   "MCP",

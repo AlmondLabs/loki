@@ -23,6 +23,8 @@
     "dev:site": "vite --config site/vite.config.ts",
     "build:site": "vite build --config site/vite.config.ts",
     "build:mod": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-mod.ts",
+    "build:desktop": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-desktop.ts",
+    "dist": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-desktop.ts --stage && electron-builder --publish never",
     "smoke": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/smoke.ts",
     "budget": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/budget.ts",
     "phone-preview": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/phone-preview.ts",

@@ -7,7 +7,17 @@
   "categories": { "correctness": "error", "suspicious": "error", "perf": "error" },
   "options": { "typeAware": true },
   "env": { "builtin": true },
-  "ignorePatterns": ["node_modules/**", "**/dist/**", ".loki-build/**", "src-tauri/**", ".impeccable/**", "docs/**", ".claude/**"],
+  "ignorePatterns": [
+    "node_modules/**",
+    "**/dist/**",
+    ".loki-build/**",
+    "src-tauri/**",
+    "desktop/release/**",
+    "desktop/resources/**",
+    ".impeccable/**",
+    "docs/**",
+    ".claude/**"
+  ],
   "rules": {
     "no-array-constructor": "error",
     "no-unused-expressions": "error",

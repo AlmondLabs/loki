@@ -4,5 +4,17 @@
   "singleQuote": false,
   "trailingComma": "all",
   "sortPackageJson": false,
-  "ignorePatterns": ["*.md", "bun.lock", "src-tauri/target/", "src-tauri/gen/", "src-tauri/resources/", ".claude/", ".impeccable/", ".loki-build/", "*.html"]
+  "ignorePatterns": [
+    "*.md",
+    "bun.lock",
+    "src-tauri/target/",
+    "src-tauri/gen/",
+    "src-tauri/resources/",
+    "desktop/release/",
+    "desktop/resources/",
+    ".claude/",
+    ".impeccable/",
+    ".loki-build/",
+    "*.html"
+  ]
 }
