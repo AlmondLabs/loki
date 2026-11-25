@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
-const resources = process.env.LOKI_SMOKE_RESOURCES ?? join(repo, "src-tauri", "resources");
+const resources = process.env.LOKI_SMOKE_RESOURCES ?? join(repo, "desktop", "resources");
 const daemonEntry = join(resources, "daemon", "daemon.mjs");
 const modEntry = join(resources, "mod", "loki-mod.mjs");
 const START_MS = 30_000;

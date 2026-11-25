@@ -1,0 +1,62 @@
+appId: app.loki.desktop
+productName: loki
+directories:
+  app: desktop/dist
+  output: desktop/release
+  buildResources: desktop/build
+files:
+  - "**/*"
+  - "!**/*.map"
+asarUnpack:
+  - node_modules/esbuild/**/*
+  - node_modules/@esbuild/**/*
+extraResources:
+  - from: desktop/resources
+    to: resources
+  - from: desktop/assets
+    to: assets
+npmRebuild: false
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: false
+  grantFileProtocolExtraPrivileges: false
+  onlyLoadAppFromAsar: true
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+    - target: dir
+      arch: arm64
+  identity: "-"
+  hardenedRuntime: false
+  minimumSystemVersion: "13.3"
+  icon: src-tauri/icons/icon.icns
+  category: public.app-category.productivity
+  extendInfo:
+    NSAppSleepDisabled: true
+dmg:
+  artifactName: loki_${version}_aarch64.dmg
+win:
+  target:
+    - target: nsis
+      arch: x64
+  icon: src-tauri/icons/icon.ico
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: loki_${version}_x64-setup.exe
+  include: desktop/nsis/remove-tauri.nsh
+linux:
+  target:
+    - target: AppImage
+      arch: x64
+    - target: deb
+      arch: x64
+  icon: src-tauri/icons/128x128@2x.png
+  category: Utility
+  artifactName: loki_${version}_amd64.${ext}
+deb:
+  afterInstall: desktop/linux/after-install.sh
+publish: null
