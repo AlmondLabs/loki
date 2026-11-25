@@ -41,7 +41,6 @@ export const OUTSIDE = [
   "SQLite",
   "Tailscale",
   "Tailwind",
-  "Tauri",
   "tsgolint",
   "TypeScript",
   "Vite",

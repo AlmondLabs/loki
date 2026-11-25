@@ -153,13 +153,10 @@ describe("one sidebar in place of the rail (U12)", () => {
 describe("the chat's toolbar and the sidebar's real material (U13)", () => {
   const root = join(APP, "..", "..");
   test("on the Mac the window is transparent with the system's sidebar material; elsewhere it keeps its ground", () => {
-    const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
-    expect(lib).toMatch(/#\[cfg\(target_os = "macos"\)\]\s*let window = window\.transparent\(true\)\.effects\(/);
-    expect(lib).toContain("tauri::window::Effect::Sidebar");
-    expect(lib).toMatch(/#\[cfg\(not\(target_os = "macos"\)\)\]\s*let window = window\.background_color\(/);
-    const conf = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8")) as { app: { macOSPrivateApi?: boolean } };
-    expect(conf.app.macOSPrivateApi).toBe(true);
-    expect(readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8")).toMatch(/tauri = \{ version = "2", features = \[[^\]]*"macos-private-api"/);
+    const windows = readFileSync(join(root, "desktop", "windows.ts"), "utf8");
+    expect(windows).toContain('vibrancy: "sidebar"');
+    expect(windows).toContain("transparent: true");
+    expect(windows).toContain(": { frame: false, backgroundColor: WINDOW_GROUND };");
   });
 
   test("the page is clear in the Mac app, painted again under Reduce Transparency or Increase Contrast", () => {
@@ -176,14 +173,9 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(theme).toContain('if (VIBRANT) root.dataset.vibrant = "on";');
   });
 
-  test("AppKit lays the traffic lights out in an empty unified toolbar, and the page lines its row up on them", async () => {
-    const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
-    const native = readFileSync(join(root, "src-tauri", "src", "native.rs"), "utf8");
-    // Outside (macOS): in AppKit's own toolbar nothing moves the lights after a layout, so they never show in the corner.
-    expect(lib).toContain("native::add_unified_toolbar(&window);");
-    expect(native).toContain("ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);");
-    expect(lib).not.toContain("traffic_light_position");
-    expect(lib).toContain("native::traffic_lights,");
+  test("the shell places the traffic lights where the page expects them, and the page lines its row up on them", async () => {
+    const { TRAFFIC_LIGHTS_AT, trafficLights } = await import("../desktop/tray.ts");
+    expect(readFileSync(join(root, "desktop", "windows.ts"), "utf8")).toContain("trafficLightPosition: TRAFFIC_LIGHTS_AT,");
     const boot = readFileSync(join(APP, "boot.tsx"), "utf8");
     expect(boot.indexOf("adoptTrafficLights()")).toBeGreaterThan(-1);
     expect(boot.indexOf("adoptTrafficLights()")).toBeLessThan(boot.indexOf("createRoot("));
@@ -191,6 +183,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.middle);
     expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
     expect(sidebarToggleLeft(true, "macos")).toBe(GLASS_LIGHTS.right + 18);
+    expect(trafficLights(TRAFFIC_LIGHTS_AT)).toEqual(GLASS_LIGHTS);
     const before = { ...GLASS_LIGHTS };
     await adoptTrafficLights(() => Promise.resolve({ left: "x", right: 70, middle: 26 }));
     expect(GLASS_LIGHTS).toEqual(before);

@@ -5,15 +5,17 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13.3+, Node 22.19 or newer (it runs Vite, the Tauri CLI, the tests and loki's daemon), bun (it installs the packages and runs package.json's scripts on Node; `brew install oven-sh/bun/bun`), Rust (stable, via rustup — `bun run start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools.
+macOS 13.3+, Node 22.19 or newer (it runs Vite, the tests and loki's daemon), bun (it installs the packages and runs package.json's scripts on Node; `brew install oven-sh/bun/bun`) and Xcode's command line tools (for git). There is nothing to compile: `bun install` brings Electron, and the shell is TypeScript that esbuild bundles in well under a second each time the window starts.
 
 ```bash
 bun install
-bun run start              # the Tauri window (which starts the daemon) on the built page; code changes wait for update in the window (Ctrl-C stops all)
-bun run dev            # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
+bun run start              # the Electron window (which starts the daemon) on the built page; code changes wait for update in the window (Ctrl-C stops all)
+bun run dev            # the same window on Vite with hot reload (a Vite already running is reused), and app/dist rebuilt for the phone as you edit
 bun run dev:vite       # Vite alone, for a browser tab
-bun run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
+
+A change under `desktop/` (the shell) shows the next time you start the window; a change to the page, the daemon or
+the mod arrives as the manual's [Install (development)](manual.md#install-development) describes.
 
 A browser tab shows Preferences as a sheet. To check the Mac app's Settings window instead, open the Vite tab with
 `&window=settings` after its `?t=` token, and `&page=<id>` (an id from `app/src/settings/pages.ts`) to open on a page.
@@ -33,16 +35,18 @@ Open the link at 390 × 844 (Chromium's device toolbar, or the in-app browser's 
 
 It is Chromium, not Safari: blur, safe areas and text size are near, not exact. Replying from a Gmail, Slack or Jira card does not send.
 
-**Windows and Linux** (the preview builds): Node, bun (bun.sh has the one-line install for both) and Rust as above; in place of Xcode's tools, Windows needs the
-Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
-Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in
-`.github/workflows/shell.yml`. On Windows run the commands from Git Bash, as CI does; `~` is `%USERPROFILE%`.
-`.gitattributes` keeps every checkout LF, so the tests that read source files pass there. The test in
-`test/agents.test.ts` that makes file symlinks needs Developer Mode or an administrator shell on Windows (CI's
-runner is one). `bun run tauri build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
-release's files.
+**Windows and Linux** (the preview builds): Node, bun (bun.sh has the one-line install for both) and git; Electron
+brings its own Chromium, so there are no compilers or WebView packages to install. On Windows run the commands from
+Git Bash, as CI does; `~` is `%USERPROFILE%`. `.gitattributes` keeps every checkout LF, so the tests that read source
+files pass there. The test in `test/agents.test.ts` that makes file symlinks needs Developer Mode or an administrator
+shell on Windows (CI's runner is one).
 
-`bun run start` bundles the mod before the window opens, and the window starts loki's daemon (`src-tauri/src/harness.rs`), which hosts it; when the daemon does not come up, the script says so and names its log, `~/.loki/logs/daemon.log`. `bun run start --check` reports the preflight without starting anything.
+To make the release's files for your own system: `bun run build:app && bun run build:mod`, then
+`node --experimental-strip-types scripts/build-desktop.ts --stage`, then `bunx electron-builder` with `--mac`, `--win`
+or `--linux`; they land in `desktop/release/` (`electron-builder.yml` says what each system gets). A build made this
+way is not signed with loki's update key.
+
+The window starts loki's daemon on your Node (`desktop/daemon.ts`), running the checkout's `daemon/main.ts`, which hosts the mod; when the daemon does not come up, the script says so and names its log, `~/.loki/logs/daemon.log`. `bun run start --check` reports the preflight without starting anything.
 
 ## Checks
 
@@ -56,10 +60,8 @@ bun run test:node                                 # the tests that need Node's o
 bun run typecheck                                 # bun check: TypeScript 7's checker, the whole project in about a second
 bun run format:check                              # bun fmt; bun run format fixes it
 bun run lint                                      # uncached; bun run lint:fast caches results while you work
-bun run build:app && bun run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
+bun run build:app && bun run build:mod            # the canvas build and the daemon and mod bundles the app ships
 bun run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart
-cargo test --manifest-path src-tauri/Cargo.toml   # shell
-cargo fmt --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 bun run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
@@ -73,7 +75,7 @@ from a change; the PR's lint misses that and the queue's does not. The merge que
 so nothing reaches main on a narrowed run. `.github/workflows/ci.yml` runs types, formatting, lint, the suite, the Node runner's tests, both bundles and the
 smoke test on Ubuntu 22.04, each in a job of its own so they run side by side, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
 macOS 15 and Windows, where paths, shells and processes differ. Each check has a time budget in `scripts/budget.ts`, and a check that passes but runs past it fails its job: to slow one down on purpose, raise its budget in the same PR and say why. Windows runs the suite in two shards, and its required check, `tests (windows-latest)`, passes when both do. GitHub's Mac runners can queue for minutes, so on a PR the Mac job runs only when the diff can reach what differs there (`scripts/mac-scope.ts`: anything but the app, the site, docs and tests of the app); skipped, it counts as passed, and the merge queue always runs it;
-`shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
+the shell's tests (`test/desktop-*.test.ts`) run in that suite like any other; `react-doctor.yml` comments on a PR that touches
 `app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). On a PR of docs alone each `ci` job passes after its checkout without installing anything: the checks are required, and a PR reaches main through the merge queue only once they pass. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
@@ -90,12 +92,12 @@ another bun version may not match, so upgrade bun there and in `devDependencies`
 - `mod/` the canvas mod the daemon hosts: widgets, gestures, suggestions, Learn, the phone and
   Mac listener and `/ws`. Plain
   TypeScript, no build step in development; `scripts/build-mod.ts` bundles it too.
-- `core/` types, the pure gesture reducer, harness parsing and the attention model all three clients use; no browser or Tauri imports.
+- `core/` types, the pure gesture reducer, harness parsing and the attention model all three clients use; no browser or desktop shell imports.
 - `app/` the React canvas: `app/src/shell/` and the section folders are the desktop, `app/src/phone/` the
   phone, `app/src/shared/` what both use, `app/src/components/` the chrome primitives
   ([architecture](architecture.md#where-the-code-lives) has the full map). Every desktop shortcut lives in
   `app/src/shell/keymap.ts`.
-- `src-tauri/` the shell: finding Node and starting, supervising and stopping the daemon (`node.rs`, `harness.rs`), installing the bundled daemon, mod and skill into `~/.loki` (`install.rs`), widget transpiling, the tray, menu and native parts. Mac-only parts (tray, badge, global key, menu bar) are behind `cfg(target_os = "macos")`.
+- `desktop/` the shell, on Electron: finding (`node-search.ts`) and installing (`node-install.ts`) Node, starting, supervising and stopping the daemon (`daemon.ts`), installing the bundled daemon, mod and skill into `~/.loki` (`install.ts`), the `loki://` scheme and widget compiling (`scheme.ts`), the page's bridge (`preload.ts`, `ipc.ts`), the windows, tray, menus and updates. Mac-only parts (tray, badge, global key, menu bar) are set up only on the Mac. `scripts/build-desktop.ts` bundles it into `desktop/dist`.
 - `skills/loki/SKILL.md` what the agent reads; keep it in step with `mod/tools.ts`.
 - `test/` the vitest suite, `test-node/` the tests that need Node's own runner, `test/fixtures/` fake servers and logs.
 - `docs/plans/` design history, dated. New behaviour gets a short plan there first.
@@ -113,7 +115,6 @@ The Pi libraries (`@earendil-works/pi-ai`, `pi-durable`, `chord`), the MCP clien
 pinned to exact versions in `package.json`: the daemon is built on their APIs, so an upgrade is its own PR, with
 the full checks and a run of the app. New dependencies are pinned exactly too, at a version at least two weeks old.
 
-Tauri's JavaScript packages (`@tauri-apps/api`, `cli`, `plugin-dialog`, `plugin-opener`) are held to the minor
-versions of the Rust crates in `src-tauri/Cargo.lock` with `~`: `tauri dev` and `tauri build` refuse to start when the
-two sides differ in major or minor version, and a package manager that does not read `bun.lock` would
-otherwise take the newest 2.x. Upgrade both sides in one PR.
+Electron and electron-builder are pinned exactly too. An Electron upgrade changes the Chromium the window renders
+on and the Node its main process runs (not the daemon's, which is the machine's), so it is its own PR, with the full
+checks and a run of the packaged app on each system; keep it at 43 or later.

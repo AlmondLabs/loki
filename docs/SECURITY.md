@@ -2,16 +2,20 @@
 
 loki is a local desktop app. Everything it runs is on your machine, and almost everything it talks to is on your
 machine or chosen by you: your model providers, your MCP servers, and, when you switch them on, your phone, your
-other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web search, the update check, npm for an ACP adapter) is listed under
+other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web search, the update check, nodejs.org
+when you ask loki to install Node, npm for an ACP adapter) is listed under
 [What leaves the machine](#what-leaves-the-machine).
 
 ## What runs where
 
-- **The shell** (`src-tauri`, Rust) opens the window, writes the capability token, installs the daemon and mod
-  bundles under `~/.loki` on each launch, and starts loki's daemon on the Node it downloaded and checked ([What loki
-  downloads](#what-loki-downloads); a development build, on the machine's own Node 22.19 or newer). It
-  restarts the daemon when it exits and stops it when loki quits. It relays nothing: the page talks to the daemon
-  itself.
+- **The shell** (`desktop/`, Electron's main process) opens the window, writes the capability token, installs the
+  daemon and mod bundles under `~/.loki` on each launch, and starts loki's daemon on the machine's own Node 22.19 or
+  newer, which it finds on PATH and in the folders installers use (`LOKI_NODE_BIN` names one), never on a Node under
+  `~/.loki/runtime`. It restarts the daemon when it exits and stops it when loki quits; the daemon also stops itself
+  when loki's process is gone. It relays nothing: the page talks to the daemon itself. The packaged app switches off
+  Electron's fuses that would let it run as plain Node: `RunAsNode` (`ELECTRON_RUN_AS_NODE`), `NODE_OPTIONS` and the
+  `--inspect` arguments, so nothing can turn loki itself into a Node that runs another script. The daemon's
+  environment carries no `ELECTRON_*` variable or `NODE_OPTIONS`.
 - **The daemon** (`daemon/`, TypeScript on Node) is one long-lived process that runs as you, with your permissions. It
   holds every agent, chat and tool, runs the agents' commands on your machine, and hosts loki's mod (`mod/`) and any
   mod you add in `~/.loki/mods`. A mod is code that runs in the daemon with the same privileges, so add only mods you
@@ -22,13 +26,18 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
   relies on the profile folder's own permissions), except `/health` (liveness, the open chat ids and a few counts)
   and the MCP sign-in callback described below. Requests without it are refused. Only something that can read your
   files can connect.
-- **The page** (`app/`, React) runs in the system WebView (WebKit on the Mac, WebView2 on Windows, WebKitGTK on
-  Linux). Its only Tauri permissions are the core defaults, set-title, set-theme, hide, start-dragging (the title
-  strip that moves the window), minimise, maximise, close and is-maximised (the window buttons loki draws on Windows
-  and Linux), the system's folder dialog (`dialog:allow-open`, which hands back only the folder you pick), opening
-  http(s), `mailto:` and `tel:` links and showing a file in the file manager (`opener:default`, see
-  `src-tauri/capabilities/default.json`), and loki's own shell commands (its log, the daemon's status and a retry, the
-  badge, the global key, the menu). It cannot read files or run programs.
+- **The page** (`app/`, React) runs in Electron's Chromium, from loki's own `loki://app` scheme, with context
+  isolation and the renderer sandbox on and no Node in the page. It reaches the shell only through
+  `window.lokiDesktop`, which the preload (`desktop/preload.ts`) defines, and main answers a call only when it comes
+  from a top frame on loki's own page (`desktop/ipc.ts`): a widget's frame, or any other page, gets nothing. What it
+  can ask for is a fixed list: set the window's title and theme, hide, minimise, maximise and close it (the window
+  buttons loki draws on Windows and Linux), the system's file or folder dialog (which hands back only what you pick),
+  hand an `http`, `https`, `mailto` or `tel` link to the app your system opens it with (anything else opens nothing),
+  show a file in the file manager, and loki's own shell commands (its log, the daemon's status and a retry, installing
+  Node or the command line tools, the badge, the global key, the menus, the update). It cannot read files or run
+  programs. The page learns the token from main over that same check, never from a command line, a URL or the
+  environment, and it cannot navigate away from `loki://app`: a window it or a frame opens is never created, and its
+  address goes to your browser only when it is a web or mail address.
 - **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits, for
   refreshing a skill from its upstream repo and for an advisor's `changes_read` ([Advisor](#advisor)), `rg` for
   search, the local MCP servers you list, and the ACP agents you choose for a chat (Claude Code, Cursor's CLI, or your
@@ -321,7 +330,7 @@ emoji per mail (plan 2026-11-23-1800).
   page and paired Macs), as `/uploads` and the profile picture do; each still asks for its own credential (the token,
   the device cookie, a paired Mac's bearer token), and a browser refuses a credentialed read under a wildcard origin. A link opens in your browser, and only `http`, `https` and
   `mailto` links open. The frame may ask for a new window, which is how a click reaches the Mac's shell, but the shell
-  opens no window: it hands a web or mail address to the browser and drops anything else (`src-tauri/src/lib.rs`). The HTML goes to no model: agents read the mail's text.
+  opens no window: it hands a web or mail address to the browser and drops anything else (`desktop/windows.ts`). The HTML goes to no model: agents read the mail's text.
 - **What loki keeps on disk.** Each thread's record (its sender, subject and last few lines,
   `state/account-threads/`) and the ledger of your moves on outside cards (`state/inbox-ledger.jsonl`, plan 069:
   sender, subject, the kind of mail and what you did) stay on the account's Mac, mode 0600, and go to no model or
@@ -369,7 +378,7 @@ emoji per mail (plan 2026-11-23-1800).
 ## Agent-written code
 
 The point of loki is that your agent writes widgets: files under `~/.loki/widgets/<chat>/`. A `.tsx` widget is
-transpiled by the shell on request (`loki://localhost/widgets/…`) and runs in its own sandboxed iframe
+compiled by the shell on request (`loki://app/widgets/…`) and runs in its own sandboxed iframe
 (`sandbox="allow-scripts"`, an opaque origin). The frame's policy allows no fetch, XHR, WebSocket or EventSource
 (`connect-src 'none'`), no frames, workers or forms, and images only from `data:`, `blob:` and `https:`; the frame
 never sees the daemon token, and talks to the page only by `postMessage`, which the page checks
@@ -378,8 +387,9 @@ shown. Treat widgets the way you treat the agent's shell commands: the permissio
 standard, accept edits, unrestricted) governs whether the agent may write files at all, and an agent that may run
 commands can do anything you can.
 
-The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scripts only from the app itself and the
-`loki:` transpiler: no remote scripts, no `eval`.
+The page's Content Security Policy, which the shell sends with the page as a header (`pageCsp` in
+`desktop/scheme.ts`), allows scripts only from the app itself, its own inline scripts by their hashes, and the
+`loki://app/widgets/` compiler: no remote scripts, no `eval`.
 
 ## Secrets
 
@@ -397,32 +407,40 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 
 ## What loki downloads
 
-- **The runtime its daemon runs on, checked before it runs.** A release downloads the Node it names from nodejs.org
-  and, on Windows when git or Git Bash is missing, PortableGit from Git for Windows' releases on github.com, into
-  `~/.loki/runtime`. Each archive is hashed as it arrives and used only when its SHA-256 matches the one pinned in
-  `src-tauri/runtime.json`, which is compiled into the app; one that does not match is deleted, and nothing of it is
-  unpacked or run. This happens on first launch and when a release names another version; nothing else is fetched
-  this way, and a development build fetches nothing (it runs your Node).
-- **Nothing installed for you.** loki never runs `sudo` and never asks Windows for administrator rights. On a Mac
-  without Apple's command line tools, Welcome's Install Command Line Tools runs `xcode-select --install`, which only
-  shows macOS's own installer for you to accept; on Linux without git, Welcome names the package command for you to
-  run. The daemon, the mod and the phone's canvas come inside the app and are copied to `~/.loki` on launch.
-- **Updates, signed and checked before they install.** A release build asks GitHub for its channel's `latest.json`
+- **No Node of its own.** loki runs its daemon on the Node already on your machine and downloads none; a Node an
+  older loki left in `~/.loki/runtime` is never used.
+- **PortableGit on Windows, checked before it runs.** On Windows, when git or Git Bash is missing, a release downloads
+  PortableGit from Git for Windows' releases on github.com into `~/.loki/runtime`. The archive is hashed as it
+  arrives and used only when its SHA-256 matches the one pinned in `desktop/runtime.json`, which is built into the
+  app; one that does not match is deleted, and nothing of it is unpacked or run. A development build fetches nothing.
+- **Nothing installed without you.** loki never runs `sudo` and never asks Windows for administrator rights itself.
+  When no Node 22.19 or newer is found, Welcome's Install Node, if you choose it, reads nodejs.org's release list over
+  HTTPS for the current long-term-support version, downloads its official installer (the `.pkg` on the Mac, the
+  `.msi` on Windows) into a new folder only you can read, and checks it against the SHA-256 in that release's
+  `SHASUMS256.txt` from nodejs.org, once as it arrives and again just before it opens it; a file that does not match is
+  not opened. It then opens the installer as you would (`open` on the Mac, `msiexec /i` on Windows), and the
+  installer asks for your administrator password itself. loki never updates or removes that Node. On Linux, Welcome
+  shows the commands for you to run instead. On a Mac without Apple's command line tools, Welcome's Install Command
+  Line Tools runs `xcode-select --install`, which only shows macOS's own installer for you to accept; on Linux without
+  git, Welcome names the package command for you to run. The daemon, the mod and the phone's canvas come inside the
+  app and are copied to `~/.loki` on launch.
+- **Updates, signed and checked before they install.** A release build asks GitHub for its channel's `desktop.json`
   (the newest stable's, or the rolling nightly's, as you chose in About) over HTTPS, at launch and every six hours.
   When it names a newer version, the app downloads that system's update file (the `.app.tar.gz` on the Mac, the
-  `-setup.exe` on Windows, the AppImage on Linux) and keeps it, in memory only, once its signature verifies against
-  loki's update public key, which is compiled into the app (`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`).
-  A file that does not verify is dropped, About says the update failed, and the running version stays. Nothing
-  installs until you quit loki or choose Restart to Update. The private key is only in the release workflow's secrets,
-  given to the one step that builds the app. `LOKI_UPDATE_URL` points the check at another `latest.json` (HTTPS only),
-  for trying an update by hand; the signature is still checked against the compiled-in key, so it cannot install
-  anything the key did not sign. A development build and a Linux `.deb` never check, and the daemon never updates
-  itself apart from the app. The app is still unsigned by Apple and Microsoft: the update key is what ties an update
-  to loki's releases. The signed version is not yet checked against the one `latest.json` announces (that needs a
-  Tauri CLI that records it in the signature, then the plugin's `requireSignedVersion`), so a tampered `latest.json`
-  could pair a newer version number with an older build loki signed. On the Mac, when the app's folder is not yours to
-  write, loki does not download the update at all and About asks you to move it to a folder you can change, so it never
-  asks for an administrator's password.
+  `-setup.exe` on Windows, the AppImage on Linux) and keeps it, in memory only, once it passes three checks
+  (`desktop/update/minisign.ts`): its minisign signature verifies against loki's update public key, which is built into
+  the app (`UPDATE_PUBLIC_KEY`); the signature's trusted comment verifies too; and the version that comment names is
+  the one `desktop.json` announces. The last check closes a gap the Tauri shell had: a tampered `desktop.json` cannot
+  pair a newer version number with an older build loki once signed. A file that fails any of them is dropped, About
+  says the update failed, and the running version stays. Nothing installs until you quit loki or choose Restart to
+  Update. The key is the same minisign key the Tauri shell's updates were signed with; the private key is only in the
+  release workflow's secrets, given to the one step that signs the update files. `LOKI_UPDATE_URL` points the check at
+  another `desktop.json` (HTTPS only), for trying an update by hand; the signature is still checked against the
+  built-in key, so it cannot install anything the key did not sign. A development build and a Linux `.deb` never
+  check, and the daemon never updates itself apart from the app. The app is still unsigned by Apple and Microsoft (the
+  Mac app is signed ad hoc): the update key is what ties an update to loki's releases. On the Mac, when the app's
+  folder is not yours to write, loki does not download the update at all and About asks you to move it to a folder you
+  can change, so it never asks for an administrator's password.
 - **What reaches each channel, and when.** Both channels ship only when the maintainer runs the release workflow by
   hand on `main` and picks one; a merge alone ships nothing. A loki on Nightly installs every nightly, and a loki on
   Stable every stable: each running loki downloads its channel's release within six hours (or at its next launch) and
@@ -467,16 +485,17 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
    chat's advisor, to the provider of its advisor model, the consults and what the advisor read.
 2. The agent's web searches, to DuckDuckGo's plain HTML results, which need no key.
 3. Tool calls to your MCP servers, as above.
-4. The update check to GitHub, as above.
-5. npm's registry, for the pinned Claude Code adapter, the first time a chat uses it.
-6. A skill's upstream git repo, when the skill is refreshed from it.
-7. A provider's sign-in page in your browser, when you sign in to it.
-8. With the phone or other Macs switched on, what those sections describe, inside your network or tailnet.
-9. With an account connected, calls to Google (sign-in, token refresh and the Gmail API) and to Slack (`slack.com`
-   and your workspaces' `*.slack.com` addresses) and to your Jira sites (the address you typed, once, then the site's
-   API host), as [Accounts](#accounts-gmail-slack-and-jira) describes; mail, Slack and Jira text then goes to your
-   model provider only through a hand-off or the owner's account tools.
-10. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
+4. The update check to GitHub, as above, and on Windows without git, PortableGit from github.com.
+5. nodejs.org's release list, checksums and installer, when you choose Install Node in Welcome.
+6. npm's registry, for the pinned Claude Code adapter, the first time a chat uses it.
+7. A skill's upstream git repo, when the skill is refreshed from it.
+8. A provider's sign-in page in your browser, when you sign in to it.
+9. With the phone or other Macs switched on, what those sections describe, inside your network or tailnet.
+10. With an account connected, calls to Google (sign-in, token refresh and the Gmail API) and to Slack (`slack.com`
+    and your workspaces' `*.slack.com` addresses) and to your Jira sites (the address you typed, once, then the site's
+    API host), as [Accounts](#accounts-gmail-slack-and-jira) describes; mail, Slack and Jira text then goes to your
+    model provider only through a hand-off or the owner's account tools.
+11. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
 
 ## Reporting
 

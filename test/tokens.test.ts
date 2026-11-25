@@ -4,6 +4,7 @@ import { join } from "node:path";
 import ts from "typescript";
 import { must } from "./fixtures/must.ts";
 import { LAYER } from "../app/src/kit/layers.ts";
+import { WINDOW_GROUND } from "../desktop/windows.ts";
 
 const APP = join(import.meta.dirname, "..", "app", "src");
 const TOKENS = join(APP, "kit", "tokens.css");
@@ -332,7 +333,6 @@ describe("design tokens: definitions and uses agree", () => {
     const bg = ground("dark");
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     const manifest = readFileSync(join(APP, "..", "public", "manifest.webmanifest"), "utf8");
-    const rust = readFileSync(join(APP, "..", "..", "src-tauri", "src", "lib.rs"), "utf8");
     expect(/name="theme-color" content="(#[0-9a-fA-F]{6})"/.exec(html)?.[1]).toBe(bg);
     const grounds = /var grounds = \{ dark: "(#[0-9a-fA-F]{6})", light: "(#[0-9a-fA-F]{6})" \}/.exec(html);
     expect(grounds?.slice(1)).toEqual([ground("dark"), ground("light")]);
@@ -341,8 +341,7 @@ describe("design tokens: definitions and uses agree", () => {
       expect(new RegExp(`${selector} \\{ background: (#[0-9a-fA-F]{6})`).exec(html)?.[1]).toBe(ground(theme));
     }
     expect([...manifest.matchAll(/"(?:background_color|theme_color)":\s*"(#[0-9a-fA-F]{6})"/g)].map((m) => m[1])).toEqual([bg, bg]);
-    const native = /background_color\(tauri::window::Color\(0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0xff\)\)/i.exec(rust);
-    expect(`#${native?.slice(1, 4).join("")}`.toLowerCase()).toBe(bg.toLowerCase());
+    expect(WINDOW_GROUND.toLowerCase()).toBe(bg.toLowerCase());
   });
 });
 

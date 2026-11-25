@@ -57,12 +57,12 @@ import { messageOf } from "../core/errors.ts";
 import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
 export const EXIT_HELD = 3;
-/** The exit for a loki folder this build refuses (`checkOldData`); `EXIT_OLD_DATA` in `src-tauri/src/harness.rs` stops the restarts. */
+/** The exit for a loki folder this build refuses (`checkOldData`); the shell's supervisor (desktop/daemon.ts) stops restarting on it. */
 export const EXIT_OLD_DATA = 4;
 
 /**
- * The flag every start passes so the shell can tell loki's daemon from any other Node process: `is_own_daemon` in
- * `src-tauri/src/procs.rs` matches it, with the token file, on a leftover daemon's command line. The daemon never reads it.
+ * The flag every start passes so the shell can tell loki's daemon from any other Node process: desktop/procs.ts
+ * matches it, with the token file, on a leftover daemon's command line. The daemon never reads it.
  */
 const DAEMON_MARKER = "loki-daemon";
 

@@ -228,32 +228,13 @@ describe("pr title: a required check", () => {
 });
 
 describe("main between PRs", () => {
-  test("ci and the shell's tests run on main once a week, on a fixed weekday and hour", () => {
-    for (const name of ["ci", "shell"]) {
+  test("ci runs on main once a week, on a fixed weekday and hour", () => {
+    for (const name of ["ci"]) {
       const schedule = (workflow(name).on as unknown as { schedule?: Array<{ cron: string }> }).schedule ?? [];
       expect(schedule, name).toHaveLength(1);
       const weeklyCron = /^\d{1,2} \d{1,2} \* \* [0-6]$/;
       expect(schedule[0]?.cron, name).toMatch(weeklyCron);
     }
-  });
-});
-
-describe("shell: the Rust shell's tests", () => {
-  const shell = workflow("shell");
-
-  test("run for a PR that changes src-tauri, on the three systems", () => {
-    expect(shell.on.pull_request?.paths).toContain("src-tauri/**");
-    expect(shell.jobs.cargo.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "ubuntu-22.04", "windows-latest"]);
-  });
-
-  test("need no Node and no app build: stand-ins for app/dist and the resources do", () => {
-    const steps = shell.jobs.cargo.steps;
-    expect(steps.some((s) => s.uses?.startsWith("actions/setup-node"))).toBe(false);
-    expect(runs(shell.jobs.cargo)).not.toMatch(/\b(npm|bun) /);
-    expect(runs(shell.jobs.cargo)).toContain("app/dist/index.html");
-    expect(runs(shell.jobs.cargo)).toContain("cargo test --locked --manifest-path src-tauri/Cargo.toml");
-    expect(runs(shell.jobs.cargo)).toContain("cargo fmt --manifest-path src-tauri/Cargo.toml --check");
-    expect(runs(shell.jobs.cargo)).toContain("cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings");
   });
 });
 
@@ -266,7 +247,7 @@ describe("React Doctor", () => {
 });
 
 describe("supply chain", () => {
-  const all = ["ci", "cache", "shell", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
+  const all = ["ci", "cache", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
 
   test("every action is pinned to a commit, not a tag that can move (the build holds the signing secrets), or is this repository's own", () => {
     const pinned = /^[\w.-]+\/[\w.-]+(\/[\w.-]+)?@[0-9a-f]{40}$/;

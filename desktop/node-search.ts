@@ -50,7 +50,7 @@ function newestVersioned(h: NodeHost, dir: string, binOf: (versionDir: string) =
 }
 
 /**
- * Where installers put Node, beyond PATH, in the order `src-tauri/src/node.rs` looked: a GUI app's PATH is
+ * Where installers put Node, beyond PATH, in the order the Tauri shell looked: a GUI app's PATH is
  * `/usr/bin:/bin:/usr/sbin:/sbin`, so without this list a Homebrew or nvm `node` would never be found.
  */
 export function binDirs(h: NodeHost): string[] {

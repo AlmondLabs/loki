@@ -85,10 +85,11 @@ there says why, and the ones that still fire somewhere carry their count until a
 - **Named exports only**; no `export default`. Excepted: tools' config files, and `mod/index.ts` and `mod/boot.ts`,
   which the mod loader imports by default. **checked**: oxlint (`no-restricted-exports`).
 - **`import type`** for types. **checked**: `verbatimModuleSyntax` and `consistent-type-imports`.
-- `core/`, `mod/` and `daemon/` import each other with the `.ts` extension (Node runs them unbundled); `app/` imports
+- `core/`, `mod/`, `daemon/` and `desktop/` import each other with the `.ts` extension (Node runs the first three unbundled); `app/` imports
   `core/` with it too, and its own files without. **review**: tsc accepts either form (`allowImportingTsExtensions`
   with `bundler` resolution); only Node, running `daemon/` and `mod/` unbundled, fails on a missing extension.
-- `core/` never touches the browser, Tauri or `app/`. **checked**: `test/core-portability.test.ts`.
+- `core/` never touches the browser, the desktop shell (Electron, `window.lokiDesktop`) or `app/`. **checked**:
+  `test/core-portability.test.ts`.
 - One concern per file. When a file passes ~600 lines, look for the second concern inside it. **review**.
 
 **Agent tools** **checked** (`test/extensions.test.ts`, `test/tools.test.ts`):
@@ -188,15 +189,15 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
     the list `OUTSIDE` in `eslint-comments.mjs`; a new name is added to the list in review;
   - `// prettier-ignore`, or a lint suppression whose rule is faulty, pedantic or style-only: an
     `oxlint-disable… -- reason`, a react-doctor directive, `@ts-expect-error` with its reason, or `@vite-ignore`;
-  - a doc comment (`/** … */`, `///`) that states a contract across a process or disk boundary: the frames between the
+  - a doc comment (`/** … */`) that states a contract across a process or disk boundary: the frames between the
     daemon and the app, files saved under `~/.loki`, the API the daemon hands the mod, the arguments of the agent's
-    tools, and the Tauri commands the app calls;
+    tools, and the shell's commands the app calls through `window.lokiDesktop`;
   - an issue or RFC link that explains a constraint the code cannot express.
 
   When it is not clear that one of these applies, the comment goes. **checked**: `bun run lint` fails on any other
   comment in TypeScript and JavaScript (the `loki/comments` rule, `app/src/ui` aside) and in `.github` YAML
   (`scripts/workflow-comments.ts`, where a pinned action's `# vX.Y.Z` also stays). A doc comment counts only in `core/`,
-  `daemon/`, `mod/` and `app/src/`; whether it really states a boundary's contract is **review**.
+  `daemon/`, `desktop/`, `mod/` and `app/src/`; whether it really states a boundary's contract is **review**.
 - **A surprise in loki's own code is fixed, not explained**: rename, extract, add a type or change the design until the
   code reads plainly. A comment that would explain it marks the change still to make. **review**.
 - A suppression whose rule catches real bugs is not allowed; the code changes instead. **review**.

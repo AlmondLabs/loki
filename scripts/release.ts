@@ -145,12 +145,7 @@ export function releaseNotes(version: string, commits: Commit[], { max = RELEASE
 export function setVersion(version: string, dir = root): string[] {
   if (!isNightlyVersion(version) && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version}`);
   if (!existsSync(join(dir, "package.json"))) throw new Error(`no package.json in ${dir} to stamp`);
-  const edits: Array<[string, RegExp, string]> = [
-    ["package.json", /("version":\s*")[^"]*(")/, `$1${version}$2`],
-    ["src-tauri/tauri.conf.json", /("version":\s*")[^"]*(")/, `$1${version}$2`],
-    ["src-tauri/Cargo.toml", /^(version\s*=\s*")[^"]*(")/m, `$1${version}$2`],
-    ["src-tauri/Cargo.lock", /(\nname = "loki"\nversion = ")[^"]*(")/, `$1${version}$2`],
-  ];
+  const edits: Array<[string, RegExp, string]> = [["package.json", /("version":\s*")[^"]*(")/, `$1${version}$2`]];
   const changed: string[] = [];
   for (const [file, re, to] of edits) {
     const path = join(dir, file);

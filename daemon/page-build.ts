@@ -6,7 +6,7 @@ import { messageOf } from "../core/errors.ts";
 /**
  * The built page in a checkout (plan 041): `bun run start` serves `app/dist`, and **update** rebuilds it. A build lands whole:
  * Vite writes to `app/.dist-next`, which then takes `app/dist`'s place, because the window reloads as soon as
- * `app/dist` changes (the Tauri CLI's static server watches it) and Vite empties its folder before writing.
+ * `app/dist` takes its new build's place (desktop/page-reload.ts) and Vite empties its folder before writing.
  */
 
 export type Runner = (cmd: string, args: string[], cwd: string) => Promise<{ code: number; output: string }>;

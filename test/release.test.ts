@@ -157,33 +157,7 @@ describe("notes and files", () => {
     expect(cut).toMatch(/- and \d+ earlier changes: https:\/\/github\.com\/o\/loki\/compare\/v2026\.1010\.0\.\.\.abc\n$/);
   });
 
-  test("setVersion stamps the three files and the lockfile's own entry, nothing else", () => {
-    const dir = mkdtempSync(join(tmpdir(), "loki-release-"));
-    try {
-      mkdirSync(join(dir, "src-tauri"), { recursive: true });
-      writeFileSync(join(dir, "package.json"), '{\n  "name": "loki",\n  "version": "0.1.0",\n  "dependencies": { "x": "0.1.0" }\n}\n');
-      writeFileSync(join(dir, "src-tauri", "tauri.conf.json"), '{\n  "productName": "loki",\n  "version": "0.1.0"\n}\n');
-      writeFileSync(join(dir, "src-tauri", "Cargo.toml"), '[package]\nname = "loki"\nversion = "0.1.0"\n\n[dependencies]\nserde = { version = "1" }\n');
-      writeFileSync(
-        join(dir, "src-tauri", "Cargo.lock"),
-        '[[package]]\nname = "libc"\nversion = "0.1.0"\n\n[[package]]\nname = "loki"\nversion = "0.1.0"\ndependencies = []\n',
-      );
-      expect(setVersion("2026.1011.0", dir).sort()).toEqual(["package.json", "src-tauri/Cargo.lock", "src-tauri/Cargo.toml", "src-tauri/tauri.conf.json"]);
-      expect(readFileSync(join(dir, "package.json"), "utf8")).toContain('"version": "2026.1011.0"');
-      expect(readFileSync(join(dir, "package.json"), "utf8")).toContain('"x": "0.1.0"');
-      expect(readFileSync(join(dir, "src-tauri", "Cargo.toml"), "utf8")).toContain('version = "2026.1011.0"');
-      expect(readFileSync(join(dir, "src-tauri", "Cargo.toml"), "utf8")).toContain('serde = { version = "1" }');
-      const lock = readFileSync(join(dir, "src-tauri", "Cargo.lock"), "utf8");
-      expect(lock).toContain('name = "libc"\nversion = "0.1.0"');
-      expect(lock).toContain('name = "loki"\nversion = "2026.1011.0"');
-      expect(setVersion("2026.1011.0", dir)).toEqual([]);
-      expect(() => setVersion("v2026.1011.0", dir)).toThrow(/not a version/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  test("setVersion stamps package.json alone once the Tauri files are gone, and refuses a folder without package.json", () => {
+  test("setVersion stamps package.json alone, and refuses a folder without package.json", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-release-"));
     try {
       expect(() => setVersion("2026.1125.0", dir)).toThrow(/no package\.json/);

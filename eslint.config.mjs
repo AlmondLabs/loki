@@ -3,17 +3,7 @@ import { plugin as loki } from "./eslint-comments.mjs";
 
 export default tseslint.config(
   {
-    ignores: [
-      "node_modules/**",
-      "**/dist/**",
-      ".loki-build/**",
-      "src-tauri/**",
-      "desktop/release/**",
-      "desktop/resources/**",
-      ".impeccable/**",
-      "docs/**",
-      ".claude/**",
-    ],
+    ignores: ["node_modules/**", "**/dist/**", ".loki-build/**", "desktop/release/**", "desktop/resources/**", ".impeccable/**", "docs/**", ".claude/**"],
   },
   {
     files: ["**/*.{ts,tsx,mts,cts,js,mjs,cjs}"],
