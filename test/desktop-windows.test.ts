@@ -18,6 +18,12 @@ describe("the windows' look", () => {
     expect(mainWindowOptions("linux", "/p.cjs").vibrancy).toBeUndefined();
   });
 
+  test("on Windows and Linux both windows carry loki's icon; the Mac takes it from the app", () => {
+    expect(mainWindowOptions("windows", "/p.cjs", "/icon.png").icon).toBe("/icon.png");
+    expect(settingsWindowOptions("linux", "/p.cjs", "/icon.png").icon).toBe("/icon.png");
+    expect(mainWindowOptions("macos", "/p.cjs", "/icon.png").icon).toBeUndefined();
+  });
+
   test("the settings window is smaller and has the same chrome", () => {
     expect(settingsWindowOptions("macos", "/p.cjs")).toMatchObject({ width: 820, height: 600, minWidth: 680, minHeight: 460, vibrancy: "sidebar" });
   });
