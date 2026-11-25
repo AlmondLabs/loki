@@ -13,6 +13,7 @@ import { sameServer, type ServerConfig } from "./config.ts";
 import { Listeners } from "../../core/listeners.ts";
 import { messageOf } from "../../core/errors.ts";
 import type { Report } from "../report.ts";
+import { killTree } from "../tree-kill.ts";
 
 export interface McpTool {
   key: string;
@@ -155,6 +156,9 @@ export class McpServers {
     entry.retry = null;
     const client = entry.client;
     entry.client = null;
+    const transport = client?.transport;
+    // Outside (Windows): closing the stdio transport ends the command it started, and an `npx` server's own Node lives on.
+    if (process.platform === "win32" && transport instanceof StdioClientTransport && transport.pid !== null) killTree(transport.pid);
     return { generation, closed: client ? client.close().catch(() => {}) : Promise.resolve() };
   }
 

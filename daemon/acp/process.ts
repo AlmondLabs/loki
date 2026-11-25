@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import type { AcpAgentConfig } from "./agents.ts";
 import { messageOf } from "../../core/errors.ts";
+import { killTree } from "../tree-kill.ts";
 
 export interface AcpHandlers {
   update(n: acp.SessionNotification): void;
@@ -64,6 +65,7 @@ export class AcpProcess {
       env: { ...process.env, ...this.config.env },
       stdio: ["pipe", "pipe", "pipe"],
       shell: process.platform === "win32" && !/\.exe$/i.test(this.config.command),
+      detached: process.platform !== "win32",
       windowsHide: true,
     });
     child.stderr.setEncoding("utf8");
@@ -92,7 +94,8 @@ export class AcpProcess {
       .connect(stream);
     const kill = () => {
       connection.close();
-      child.kill();
+      if (child.pid === undefined) child.kill();
+      else killTree(child.pid);
     };
     this.kill = kill;
     let timer: ReturnType<typeof setTimeout> | undefined;
