@@ -6,7 +6,7 @@ export const WINDOW_GROUND = "#1c1c1e";
 
 const LINK_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 
-function chrome(os: PageOs): BrowserWindowConstructorOptions {
+function chrome(os: PageOs, icon: string | undefined): BrowserWindowConstructorOptions {
   return os === "macos"
     ? {
         titleBarStyle: "hidden",
@@ -16,7 +16,7 @@ function chrome(os: PageOs): BrowserWindowConstructorOptions {
         vibrancy: "sidebar",
         visualEffectState: "followWindow",
       }
-    : { frame: false, backgroundColor: WINDOW_GROUND };
+    : { frame: false, backgroundColor: WINDOW_GROUND, ...(icon ? { icon } : {}) };
 }
 
 const webPreferences = (preload: string): BrowserWindowConstructorOptions["webPreferences"] => ({
@@ -27,12 +27,21 @@ const webPreferences = (preload: string): BrowserWindowConstructorOptions["webPr
   spellcheck: true,
 });
 
-export function mainWindowOptions(os: PageOs, preload: string): BrowserWindowConstructorOptions {
-  return { width: 1440, height: 900, minWidth: 900, minHeight: 600, title: "loki", show: false, ...chrome(os), webPreferences: webPreferences(preload) };
+export function mainWindowOptions(os: PageOs, preload: string, icon?: string): BrowserWindowConstructorOptions {
+  return { width: 1440, height: 900, minWidth: 900, minHeight: 600, title: "loki", show: false, ...chrome(os, icon), webPreferences: webPreferences(preload) };
 }
 
-export function settingsWindowOptions(os: PageOs, preload: string): BrowserWindowConstructorOptions {
-  return { width: 820, height: 600, minWidth: 680, minHeight: 460, title: "Settings", show: false, ...chrome(os), webPreferences: webPreferences(preload) };
+export function settingsWindowOptions(os: PageOs, preload: string, icon?: string): BrowserWindowConstructorOptions {
+  return {
+    width: 820,
+    height: 600,
+    minWidth: 680,
+    minHeight: 460,
+    title: "Settings",
+    show: false,
+    ...chrome(os, icon),
+    webPreferences: webPreferences(preload),
+  };
 }
 
 export function linkLeavesLoki(url: string): boolean {

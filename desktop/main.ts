@@ -39,6 +39,8 @@ const os = pageOs(process.platform);
 const mac = os === "macos";
 const pageRoot = app.isPackaged ? join(process.resourcesPath, "resources", "app") : join(checkout, "app", "dist");
 const preload = join(__dirname, "preload.cjs");
+const assets = app.isPackaged ? join(process.resourcesPath, "assets") : join(checkout, "desktop", "assets");
+const appIcon = app.isPackaged ? join(assets, "icon.png") : join(checkout, "desktop", "build", "icon.png");
 const pageOrigin = devUrl ?? APP_ORIGIN;
 
 const home = homeFrom(process.platform === "win32", process.env);
@@ -140,7 +142,7 @@ function catchUp(): void {
 }
 
 function createMainWindow(): BrowserWindow {
-  const win = new BrowserWindow(mainWindowOptions(os, preload));
+  const win = new BrowserWindow(mainWindowOptions(os, preload, appIcon));
   guard(win);
   win.once("ready-to-show", () => win.show());
   void win.loadURL(pageUrl());
@@ -158,7 +160,7 @@ function openSettings(page: string | null): void {
     settingsWindow.focus();
     return;
   }
-  const win = new BrowserWindow(settingsWindowOptions(os, preload));
+  const win = new BrowserWindow(settingsWindowOptions(os, preload, appIcon));
   settingsPages.set(win.webContents.id, page);
   guard(win);
   win.once("ready-to-show", () => win.show());
@@ -270,7 +272,10 @@ void app.whenReady().then(() => {
   mainWindow = createMainWindow();
   app.on("second-instance", showMain);
   if (mac) {
-    tray = new Tray(nativeImage.createFromPath(join(app.isPackaged ? process.resourcesPath : join(checkout, "desktop"), "assets", "tray-template.png")));
+    if (!app.isPackaged) app.dock?.setIcon(appIcon);
+    const trayImage = nativeImage.createFromPath(join(assets, "tray-template.png"));
+    trayImage.setTemplateImage(true);
+    tray = new Tray(trayImage);
     tray.setToolTip("loki");
     tray.on("click", catchUp);
     try {
