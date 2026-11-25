@@ -64,6 +64,31 @@ const TOOLS: Record<"macos" | "linux", ToolsWords> = {
   },
 };
 
+export function nodeWords(os: Platform, needs: { found: string | null; at: string | null; needed: string }): ToolsWords {
+  const missing =
+    needs.found && needs.at
+      ? `Node ${needs.found} at ${needs.at} is older than ${needs.needed}.`
+      : `No Node ${needs.needed} or newer was found on ${WORDS[os].machine}.`;
+  const needed = `${missing} loki runs your agents on Node, and Claude Code chats use it too.`;
+  if (os === "linux")
+    return {
+      title: "Node",
+      needed,
+      install: null,
+      asked: null,
+      commands: ["curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash", "nvm install --lts"],
+      where: "in a terminal, or a current version from nodejs.org. Then check again.",
+    };
+  return {
+    title: "Node",
+    needed,
+    install: "Install Node",
+    asked: os === "macos" ? "When the installer has finished, check again if loki has not carried on." : null,
+    commands: [],
+    where: null,
+  };
+}
+
 export function toolsWords(os: "macos" | "linux"): ToolsWords {
   return TOOLS[os];
 }

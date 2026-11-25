@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { isRemoteImage } from "../app/src/chat/markdown-image.tsx";
 
 describe("markdown images", () => {
-  const app = "tauri://localhost/index.html";
+  const app = "loki://app/index.html";
   test("another host's image waits to be asked for", () => {
     expect(isRemoteImage("https://evil.example/p.png?secret=1", app)).toBe(true);
     expect(isRemoteImage("http://example.com/a.gif", app)).toBe(true);

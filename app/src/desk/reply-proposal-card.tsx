@@ -6,7 +6,7 @@ import type { ReplyAttachment, ReplyMention, ReplyPersonChoice, ReplyProposal } 
 import type { ReplyAction, ReplyDecideOptions } from "../../../core/frames.ts";
 import { fileSize } from "../chat/attachments";
 import { Button, Field, Meta, TextArea, sentence } from "../components";
-import { inTauri } from "./env";
+import { inDesktop } from "./env";
 import { MentionMarks } from "./mention-field";
 import { useMentions, type MentionSource } from "./mentions";
 import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply, type ReplyCard } from "./use-reply-card";
@@ -168,7 +168,7 @@ export const sentText = (p: ReplyProposal): string => `Sent ${recipientsText(p)}
 
 export const fileText = (f: Pick<ReplyAttachment, "name" | "size">): string => `${f.name} (${fileSize(f.size)})`;
 
-export function ReplyProposalCards({ source, rt, blocked = null, touch = false, reveal = inTauri ? revealFile : null }: ReplyProposalsProps) {
+export function ReplyProposalCards({ source, rt, blocked = null, touch = false, reveal = inDesktop ? revealFile : null }: ReplyProposalsProps) {
   const decide = source.replies?.decide;
   const findPeople = source.replies?.findPeople;
   const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? NONE;

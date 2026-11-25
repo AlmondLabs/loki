@@ -5,17 +5,17 @@ import { fileURLToPath } from "node:url";
  * widget-frame.html: the document a module widget's sandboxed iframe loads (app/src/desk/widget-bridge.ts).
  * The runtime (main.tsx, with its own React, ReactDOM, recharts and kit) is bundled into one classic script and
  * inlined: a sandboxed frame has an opaque origin, so a module script or a stylesheet fetched from the app's
- * own server would be a cross-origin request the server does not answer. The Tauri shell hashes inline
- * scripts into the CSP it serves with each HTML asset, so the inline script runs there too.
+ * own server would be a cross-origin request the server does not answer. The desktop app serves this file with no
+ * policy of its own (desktop/scheme.ts), so the meta tag below is the frame's whole policy.
  *
  * The frame's own policy (the meta tag) is the narrow one: no fetch, XHR, WebSocket or EventSource at all
  * (connect-src 'none'), so even code that somehow came by the daemon token could not reach the daemon; scripts
- * only inline, from the shell's `loki` scheme (both spellings) and from blob: (the Vite tab hands the frame
+ * only inline, from the shell's `loki` scheme and from blob: (the Vite tab hands the frame
  * the widget's code); no frames, workers, forms or plugins. In the shell the app's CSP applies on top.
  */
 export const FRAME_CSP = [
   "default-src 'none'",
-  "script-src 'unsafe-inline' loki: http://loki.localhost blob:",
+  "script-src 'unsafe-inline' loki: blob:",
   "style-src 'unsafe-inline'",
   "img-src data: blob: https:",
   "font-src data:",

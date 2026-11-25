@@ -172,7 +172,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
       /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{\s*:root\[data-vibrant\][\s\S]*?background: var\(--loki-bg\);/,
     );
     const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
-    expect(theme).toContain('export const VIBRANT = inTauri && platform === "macos";');
+    expect(theme).toContain('export const VIBRANT = inDesktop && platform === "macos";');
     expect(theme).toContain('if (VIBRANT) root.dataset.vibrant = "on";');
   });
 
@@ -192,16 +192,15 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(paneTop(true, "macos") + 26).toBe(GLASS_LIGHTS.middle);
     expect(sidebarToggleLeft(true, "macos")).toBe(GLASS_LIGHTS.right + 18);
     const before = { ...GLASS_LIGHTS };
-    vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: "x", right: 70, middle: 26 }) }));
-    await adoptTrafficLights();
+    await adoptTrafficLights(() => Promise.resolve({ left: "x", right: 70, middle: 26 }));
     expect(GLASS_LIGHTS).toEqual(before);
-    vi.doMock("@tauri-apps/api/core", () => ({ invoke: () => Promise.resolve({ left: 13.4, right: 66.6, middle: 25.5 }) }));
+    await adoptTrafficLights(() => Promise.reject(new Error("no shell")));
+    expect(GLASS_LIGHTS).toEqual(before);
     vi.resetModules();
     const fresh = await import("../app/src/shell/sidebar.tsx");
-    await fresh.adoptTrafficLights();
+    await fresh.adoptTrafficLights(() => Promise.resolve({ left: 13.4, right: 66.6, middle: 25.5 }));
     expect(fresh.GLASS_LIGHTS).toEqual({ left: 13, right: 67, middle: 26 });
     expect(fresh.sidebarToggleTop(true, "macos")).toBe(12);
-    vi.doUnmock("@tauri-apps/api/core");
   });
 
   test("with the sidebar shown, the Mac's toggle sits at its trailing end, in line with the counts, clear of the lights", async () => {

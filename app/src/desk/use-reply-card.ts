@@ -6,6 +6,7 @@ import type { ReplyAction, ReplyDecideOptions } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
 import { osWords } from "../shell/os-words";
 import { platform, type Platform } from "./env";
+import { revealItemInDir } from "../shell/desktop";
 
 export const SENT_MS = 3000;
 
@@ -159,5 +160,5 @@ export function revealLabel(os: Platform = platform): string {
 }
 
 export function revealFile(path: string): void {
-  void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) => revealItemInDir(path)).catch((err: unknown) => console.warn("loki: reveal file", err));
+  void revealItemInDir(path).catch((err: unknown) => console.warn("loki: reveal file", err));
 }

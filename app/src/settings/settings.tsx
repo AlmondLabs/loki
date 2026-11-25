@@ -5,7 +5,7 @@ import { Labels, type LabelsApi } from "./labels";
 import { Lanes, type LaneAccountsApi, type LanesApi, type LanesProps } from "./lanes";
 import { Accounts, type AccountsApi, type AgentName } from "./accounts";
 import { useEffect, useState, type ReactNode } from "react";
-import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
+import { inDesktop, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { osWords, runsOn } from "../shell/os-words";
 import { Button, Dot, Field, IconButton, Sheet, Switch, sentence } from "../components";
@@ -191,7 +191,7 @@ export function Settings({
       <nav
         aria-label="Preferences"
         className={cn(windowed && "loki-settings-nav", "flex flex-col")}
-        data-tauri-drag-region={windowed ? "deep" : undefined}
+        data-drag-region={windowed ? "" : undefined}
         style={{
           minHeight: 0,
           padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "8px 8px 0",
@@ -214,11 +214,7 @@ export function Settings({
         />
       </nav>
       <div className="flex flex-col min-w-0" style={{ minHeight: 0, background: "var(--loki-bg)" }}>
-        <div
-          data-tauri-drag-region={windowed ? "deep" : undefined}
-          className="loki-pane-header-line flex-none"
-          style={{ borderBottom: "1px solid var(--loki-border)" }}
-        >
+        <div data-drag-region={windowed ? "" : undefined} className="loki-pane-header-line flex-none" style={{ borderBottom: "1px solid var(--loki-border)" }}>
           <h3 className="loki-title flex-1 min-w-0" style={{ margin: 0 }}>
             {pageTitle(page)}
           </h3>
@@ -280,12 +276,12 @@ function LokiPage({
         <Fact label="Chats" value={String(deskCount)} />
         <Fact label="Endpoint" value={modBase()} mono />
       </Block>
-      {inTauri && (
+      {inDesktop && (
         <Block title="Requirements" help="What loki needs on this machine, and where it found it.">
           <NodeFact daemon={daemon} />
         </Block>
       )}
-      {inTauri && <InstallFold install={harness.install} />}
+      {inDesktop && <InstallFold install={harness.install} />}
       <FilesFold />
     </>
   );
@@ -296,7 +292,7 @@ function NodeFact({ daemon }: { daemon: DaemonStatus | null }) {
   return <Fact label="Node" value={value} mono={!!daemon?.node && !daemon.error} />;
 }
 
-export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
+export function SystemFact({ os = platform, shell = inDesktop }: { os?: Platform; shell?: boolean }) {
   return (
     <Fact
       label="System"

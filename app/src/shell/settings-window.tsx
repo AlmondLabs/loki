@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Notices, notify } from "../components";
-import { inTauri, settingsWindow } from "../desk/env";
+import { inDesktop, settingsWindow } from "../desk/env";
+import { currentWindow, listen } from "./desktop";
 import { useDesk } from "../desk/use-desk";
 import { Settings } from "../settings/settings";
 import { useDaemonStatus } from "./bootstrap";
@@ -17,8 +18,8 @@ function markModelsChanged(): void {
 }
 
 function closeThisWindow(): void {
-  void import("@tauri-apps/api/window")
-    .then(({ getCurrentWindow }) => getCurrentWindow().close())
+  void currentWindow()
+    .close()
     .catch((e: unknown) => console.warn("loki: close settings", e));
 }
 
@@ -33,14 +34,15 @@ export function SettingsWindow() {
   const [opening, setOpening] = useState<{ page: string | null; n: number }>(() => ({ page: settingsWindow?.page ?? null, n: 0 }));
 
   useEffect(() => {
-    if (!inTauri) return;
+    if (!inDesktop) return;
     let off: (() => void) | null = null;
     let live = true;
-    void import("@tauri-apps/api/event").then(async ({ listen }) => {
-      const unlisten = await listen<string>("loki:settings-page", (ev) => setOpening((o) => ({ page: ev.payload, n: o.n + 1 })));
-      if (live) off = unlisten;
-      else unlisten();
-    });
+    void listen("loki:settings-page", (ev) => setOpening((o) => ({ page: ev.payload, n: o.n + 1 })))
+      .then((unlisten) => {
+        if (live) off = unlisten;
+        else unlisten();
+      })
+      .catch((e: unknown) => console.warn("loki: settings page", e));
     return () => {
       live = false;
       off?.();

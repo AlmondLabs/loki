@@ -203,7 +203,7 @@ function useHeldRows(rows: readonly ContentRow[], current: string | null, search
 
 function ListBar({ title, count, line, newAction }: Pick<ContentListProps, "title" | "line" | "newAction"> & { count: number | null }) {
   return (
-    <div className="loki-content-list-bar" data-tauri-drag-region="deep">
+    <div className="loki-content-list-bar" data-drag-region="">
       <LeadRoom />
       <div className="loki-content-list-head">
         <div className="loki-content-list-name">

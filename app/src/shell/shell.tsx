@@ -13,7 +13,7 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import { useDeskPane } from "../desk/use-desk-pane";
 import { chatKeyTarget } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
-import { avatarUrl, inTauri } from "../desk/env";
+import { avatarUrl, inDesktop } from "../desk/env";
 import { agentSources } from "../agents/agents-column";
 import { learnSources } from "../recall/learn-column";
 import { useLearnView } from "../recall/use-learn-view";
@@ -437,7 +437,7 @@ export function Shell() {
         column.toggleList();
       },
       "window.hide": () => {
-        if (inTauri) hideCurrentWindow();
+        if (inDesktop) hideCurrentWindow();
       },
       "chat.toggle": () => chatKey("chat.toggle", () => setChatOpen((v) => !v)),
       "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),
@@ -502,7 +502,7 @@ export function Shell() {
             className="flex gap-1"
           >
             <ColumnToggle open={column.open} onToggle={column.toggle} />
-            {!inTauri && <TitleMenu className="loki-browser-menu" labels={{ "app.update": updateLabel }} />}
+            {!inDesktop && <TitleMenu className="loki-browser-menu" labels={{ "app.update": updateLabel }} />}
           </span>
         )}
 
@@ -656,6 +656,7 @@ export function Shell() {
               daemon={daemon.status}
               onRetryDaemon={daemon.retry}
               onInstallTools={daemon.installTools}
+              onInstallNode={daemon.installNode}
               models={modelList}
               onLoadModels={loadModels}
               onModelsChanged={forgetModels}

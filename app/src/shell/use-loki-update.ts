@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { inTauri } from "../desk/env";
+import { inDesktop } from "../desk/env";
+import { invoke, listen } from "./desktop";
 import { messageOf } from "../../../core/errors.ts";
 import type { Channel } from "../../../core/version.ts";
 
-/** The event the shell sends at every change of the update's status, carrying the whole status (src-tauri/src/update.rs). */
+/** The event the shell sends at every change of the update's status, carrying the whole status. */
 export const UPDATE_EVENT = "loki:update";
 
 /** What failed: the check, the download, the signature check of what was downloaded, or Restart to Update's install. */
@@ -37,30 +38,25 @@ export interface LokiUpdate {
   restart: () => Promise<string | null>;
 }
 
-async function invokeShell<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(command, args);
-}
-
 const check = (): void => {
-  if (inTauri) void invokeShell("check_for_updates").catch((e: unknown) => console.warn("loki: check for updates", e));
+  if (inDesktop) void invoke("check_for_updates").catch((e: unknown) => console.warn("loki: check for updates", e));
 };
 
 const setChannel = (channel: Channel): void => {
-  if (inTauri) void invokeShell("set_update_channel", { channel }).catch((e: unknown) => console.warn("loki: set update channel", e));
+  if (inDesktop) void invoke("set_update_channel", { channel }).catch((e: unknown) => console.warn("loki: set update channel", e));
 };
 
 const restart = (): Promise<string | null> =>
-  inTauri
-    ? invokeShell("restart_to_update").then(
+  inDesktop
+    ? invoke("restart_to_update").then(
         () => null,
         (e: unknown) => messageOf(e),
       )
     : Promise.resolve("updates come with the app");
 
 export interface StatusCalls {
-  listen: (event: string, handler: (e: { payload: UpdateStatus }) => void) => Promise<() => void>;
-  invoke: (command: string) => Promise<UpdateStatus>;
+  listen: (event: typeof UPDATE_EVENT, handler: (e: { payload: UpdateStatus }) => void) => Promise<() => void>;
+  invoke: (command: "update_status") => Promise<UpdateStatus>;
 }
 
 export function followStatus({ listen, invoke }: StatusCalls, apply: (status: UpdateStatus) => void): () => void {
@@ -100,14 +96,8 @@ export function updateItemLabel(status: UpdateStatus | null): string {
 export function useLokiUpdate(): LokiUpdate {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   useEffect(() => {
-    if (!inTauri) return;
-    return followStatus(
-      {
-        listen: async (event, handler) => (await import("@tauri-apps/api/event")).listen<UpdateStatus>(event, handler),
-        invoke: (command) => invokeShell<UpdateStatus>(command),
-      },
-      setStatus,
-    );
+    if (!inDesktop) return;
+    return followStatus({ listen, invoke }, setStatus);
   }, []);
   return { status, releases: __LOKI_REPO__ ? `https://github.com/${__LOKI_REPO__}/releases` : null, check, setChannel, restart };
 }

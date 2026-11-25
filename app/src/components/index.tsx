@@ -767,7 +767,7 @@ export function PaneHeader<T extends string>({
 }: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
-      <div className="loki-pane-header-line" data-tauri-drag-region="deep">
+      <div className="loki-pane-header-line" data-drag-region="">
         <LeadRoom />
         {line ?? (
           <>

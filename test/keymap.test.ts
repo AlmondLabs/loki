@@ -7,7 +7,7 @@ import {
   matches,
   menuSpec,
   resolve,
-  tauriAccelerator,
+  menuAccelerator,
   chordIds,
   dialogState,
   keySegment,
@@ -90,7 +90,7 @@ describe("keymap: Hide List", () => {
     );
     const ids = view.items.flatMap((it) => ("id" in it ? [it.id] : []));
     expect(ids.indexOf("list.toggle")).toBe(ids.indexOf("column.toggle") + 1);
-    expect(view.items).toContainEqual({ id: "list.toggle", label: "Show / Hide List", accelerator: "Ctrl+CmdOrCtrl+L" });
+    expect(view.items).toContainEqual({ id: "list.toggle", label: "Show / Hide List", accelerator: "Control+CommandOrControl+L" });
   });
   test("off the Mac it is Ctrl Shift L, since Ctrl L is Focus Message Box there", () => {
     for (const os of ["windows", "linux"] as const) {
@@ -245,11 +245,16 @@ describe("keymap: presentation", () => {
     expect(formatKeys("shift+backspace")).toBe("⇧⌫");
     expect(formatKeys("alt+space")).toBe("⌥space");
   });
-  test("tauri accelerators use code names for punctuation and digits", () => {
-    expect(tauriAccelerator("cmd+]")).toBe("CmdOrCtrl+BracketRight");
-    expect(tauriAccelerator("cmd+shift+0")).toBe("CmdOrCtrl+Shift+Digit0");
-    expect(tauriAccelerator("cmd+,")).toBe("CmdOrCtrl+Comma");
-    expect(tauriAccelerator("cmd+k")).toBe("CmdOrCtrl+K");
+  test("menu accelerators are Electron's: ⌘ is CommandOrControl, punctuation and digits stay characters, named keys capitalised", () => {
+    expect(menuAccelerator("cmd+]")).toBe("CommandOrControl+]");
+    expect(menuAccelerator("cmd+0")).toBe("CommandOrControl+0");
+    expect(menuAccelerator("cmd+shift+0")).toBe("CommandOrControl+Shift+0");
+    expect(menuAccelerator("cmd+,")).toBe("CommandOrControl+,");
+    expect(menuAccelerator("cmd+\\")).toBe("CommandOrControl+\\");
+    expect(menuAccelerator("cmd+shift+m")).toBe("CommandOrControl+Shift+M");
+    expect(menuAccelerator("ctrl+alt+space")).toBe("Control+Alt+Space");
+    expect(menuAccelerator("shift+backspace")).toBe("Shift+Backspace");
+    expect(menuAccelerator("alt+up")).toBe("Alt+Up");
   });
   test("the menu spec groups with separators and omits accelerators the text needs", () => {
     const spec = menuSpec();
@@ -261,7 +266,7 @@ describe("keymap: presentation", () => {
     const undo = inbox.items.find((i) => "id" in i && i.id === "inbox.undo") as { accelerator: string | null };
     expect(undo.accelerator).toBeNull();
     const approve = inbox.items.find((i) => "id" in i && i.id === "inbox.approve") as { accelerator: string | null };
-    expect(approve.accelerator).toBe("CmdOrCtrl+Enter");
+    expect(approve.accelerator).toBe("CommandOrControl+Enter");
   });
   test("a chord names every binding it could mean, so the menu's echo of the other one is dropped", () => {
     expect(chordIds(ev("]", { meta: true })).sort()).toEqual(["agents.next", "desk.next", "inbox.next", "learn.nextView", "settings.nextPage"]);
@@ -278,7 +283,7 @@ describe("keymap: ⌘K is search (plan 013 U9)", () => {
     const item = menuSpec()
       .flatMap((m) => m.items.map((i) => ({ menu: m.title, ...i })))
       .find((i) => "id" in i && i.id === "search.open") as { menu: string; label: string; accelerator: string | null };
-    expect(item).toMatchObject({ menu: "Go", label: "Search", accelerator: "CmdOrCtrl+K" });
+    expect(item).toMatchObject({ menu: "Go", label: "Search", accelerator: "CommandOrControl+K" });
   });
   test("search up lets only ⌘K through (it closes it); a sheet over it wins", () => {
     const el = (attrs: string[]) => ({ hasAttribute: (a: string) => attrs.includes(a) });
@@ -329,7 +334,7 @@ describe("keymap: Mark as done", () => {
     expect(resolve(ev("Enter", { meta: true, shift: true }, true), "inbox")).toBeNull();
     expect(resolve(ev("Enter", { meta: true }, true), "inbox")?.id).toBe("inbox.approve");
     expect(resolve(ev("Enter", { shift: true }, true), "desk")).toBeNull();
-    expect(tauriAccelerator("cmd+shift+enter")).toBe("CmdOrCtrl+Shift+Enter");
+    expect(menuAccelerator("cmd+shift+enter")).toBe("CommandOrControl+Shift+Enter");
   });
 });
 
@@ -501,9 +506,9 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
   test("the menu's accelerators follow the system's keys", () => {
     const moved: Binding[] = [{ id: "x", keys: ["alt+cmd+j"], keysOn: { windows: ["cmd+j"] }, where: "anywhere", label: "X", menu: "Go" }];
     const accel = (os: Platform) => (menuSpec(moved, os)[0].items[0] as { accelerator: string | null }).accelerator;
-    expect(accel("macos")).toBe("Alt+CmdOrCtrl+J");
-    expect(accel("windows")).toBe("CmdOrCtrl+J");
-    expect(accel("linux")).toBe("Alt+CmdOrCtrl+J");
+    expect(accel("macos")).toBe("Alt+CommandOrControl+J");
+    expect(accel("windows")).toBe("CommandOrControl+J");
+    expect(accel("linux")).toBe("Alt+CommandOrControl+J");
   });
   test("keyFor reads a binding's key by id on each system; a second key by index; an unknown id is a mistake", () => {
     expect(keyFor("inbox.approve", "macos")).toBe("⌘↵");

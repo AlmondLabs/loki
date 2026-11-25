@@ -2,11 +2,19 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { welcomeFor, type DaemonStatus, type Preparing } from "../app/src/shell/bootstrap.ts";
-import { PrepareStep, Preparation, Tools } from "../app/src/shell/welcome.tsx";
+import { NodeNeeded, PrepareStep, Preparation, Tools } from "../app/src/shell/welcome.tsx";
 import type { ConnectProvider } from "../core/attention/protocol.ts";
 
-const status = (s: Partial<DaemonStatus>): DaemonStatus => ({ node: null, error: null, preparing: null, toolsMissing: null, ...s });
-const fetching = (p: Partial<Preparing> = {}): Preparing => ({ name: "node", version: "22.23.5", done: 12_000_000, total: 31_000_000, ...p });
+const status = (s: Partial<DaemonStatus>): DaemonStatus => ({
+  node: null,
+  error: null,
+  preparing: null,
+  toolsMissing: null,
+  needsNode: null,
+  otherLoki: null,
+  ...s,
+});
+const fetching = (p: Partial<Preparing> = {}): Preparing => ({ name: "git", version: "2.56.1", done: 12_000_000, total: 31_000_000, ...p });
 const noop = async () => {};
 const html = (s: DaemonStatus | null) =>
   renderToStaticMarkup(createElement(PrepareStep, { status: s, onRetry: noop, onInstallTools: () => Promise.resolve(null) }));
@@ -26,33 +34,33 @@ const buttons = (node: ReactNode) =>
 describe("Welcome prepares the machine", () => {
   test("a download in progress says what is being fetched and how far along it is, with no button", () => {
     const out = html(status({ preparing: fetching() }));
-    expect(out).toContain("Downloading Node 22.23.5");
+    expect(out).toContain("Downloading PortableGit 2.56.1");
     expect(out).toContain("12 of 31 MB");
     expect(out).toContain('role="progressbar"');
     expect(out).toContain('aria-valuenow="39"');
     expect(out).not.toContain("<button");
-    expect(out).not.toContain("install Node");
+    expect(out).not.toContain("Install Node");
   });
 
   test("before the server says the size, the bar has no value and the line no total", () => {
     const out = html(status({ preparing: fetching({ done: 0, total: null }) }));
-    expect(out).toContain("Downloading Node 22.23.5");
+    expect(out).toContain("Downloading PortableGit 2.56.1");
     expect(out).toContain('role="progressbar"');
     expect(out).not.toContain("aria-valuenow");
     expect(out).not.toContain(" of ");
   });
 
   test("Windows without git or Git Bash: PortableGit being fetched, not a tools step", () => {
-    const out = html(status({ preparing: fetching({ name: "git", version: "2.56.1", done: 1_000_000, total: 60_000_000 }) }));
+    const out = html(status({ preparing: fetching({ done: 1_000_000, total: 60_000_000 }) }));
     expect(out).toContain("Downloading PortableGit 2.56.1");
     expect(out).not.toContain("Check Again");
     expect(out).not.toContain("command line tools");
   });
 
   test("a failed download shows what failed, the error, and Try Again, which reruns the sequence", () => {
-    const failed = status({ preparing: fetching({ done: 3_000_000 }), error: "could not download node-v22.23.5-darwin-arm64.tar.gz: connection reset" });
+    const failed = status({ preparing: fetching({ done: 3_000_000 }), error: "could not download PortableGit-2.56.1-64-bit.7z.exe: connection reset" });
     const out = html(failed);
-    expect(out).toContain("loki could not download Node 22.23.5.");
+    expect(out).toContain("loki could not download PortableGit 2.56.1.");
     expect(out).toContain("connection reset");
     expect(out).toContain(">Try Again</button>");
     expect(out.match(/<button/g)?.length).toBe(1);
@@ -100,8 +108,60 @@ describe("Welcome prepares the machine", () => {
     expect(out).not.toContain("Install Command Line Tools");
   });
 
+  test("covers AE1: no Node on the Mac shows Install Node and Check Again, and the button installs", () => {
+    const out = html(status({ needsNode: { found: null, at: null, needed: "22.19" }, error: "no Node 22.19 or newer" }));
+    expect(out).toContain("No Node 22.19 or newer was found");
+    expect(out).toContain(">Install Node</button>");
+    expect(out).toContain(">Check Again</button>");
+    let installed = 0;
+    const tree = NodeNeeded({
+      os: "macos",
+      needs: { found: null, at: null, needed: "22.19" },
+      busy: false,
+      asked: false,
+      problem: null,
+      onInstall: () => installed++,
+      onCheck: () => {},
+    });
+    buttons(tree)[0]?.click();
+    expect(installed).toBe(1);
+  });
+
+  test("a Node too old is named with where it is", () => {
+    const out = renderToStaticMarkup(
+      createElement(NodeNeeded, {
+        os: "windows",
+        needs: { found: "20.11.1", at: "C:\\nodejs\\node.exe", needed: "22.19" },
+        busy: false,
+        asked: false,
+        problem: null,
+        onInstall: () => {},
+        onCheck: () => {},
+      }),
+    );
+    expect(out).toContain("Node 20.11.1 at C:\\nodejs\\node.exe is older than 22.19.");
+    expect(out).toContain(">Install Node</button>");
+  });
+
+  test("covers AE3: Linux gets the commands and Check Again, no installer", () => {
+    const out = renderToStaticMarkup(
+      createElement(NodeNeeded, {
+        os: "linux",
+        needs: { found: null, at: null, needed: "22.19" },
+        busy: false,
+        asked: false,
+        problem: null,
+        onInstall: () => {},
+        onCheck: () => {},
+      }),
+    );
+    expect(out).toContain("nvm install --lts");
+    expect(out).not.toContain("Install Node</button>");
+    expect(out.match(/<button/g)?.length).toBe(1);
+  });
+
   test("any other reason the daemon could not start: the reason, where the log is, and check again", () => {
-    const out = html(status({ node: "/Users/x/.loki/runtime/node-22.23.5-darwin-arm64/bin/node", error: "daemon exited: EADDRINUSE" }));
+    const out = html(status({ node: "24.1.0", error: "daemon exited: EADDRINUSE" }));
     expect(out).toContain("EADDRINUSE");
     expect(out).toContain("~/.loki/logs/daemon.log");
     expect(out).toContain(">Check Again</button>");
@@ -120,6 +180,7 @@ describe("when Welcome shows", () => {
     expect(welcomeFor(status({ preparing: fetching({ done: 0, total: null }) }), down)).toBe("prepare");
     expect(welcomeFor(status({ toolsMissing: "macos" }), down)).toBe("prepare");
     expect(welcomeFor(status({ error: "could not download" }), down)).toBe("prepare");
+    expect(welcomeFor(status({ needsNode: { found: null, at: null, needed: "22.19" } }), down)).toBe("prepare");
   });
 
   test("before the start sequence has said anything, nothing shows: a returning launch with its runtime goes straight in", () => {
@@ -127,7 +188,7 @@ describe("when Welcome shows", () => {
     expect(welcomeFor(null, down)).toBeNull();
   });
 
-  test("a returning person after an update naming a new Node: Preparing, then the app, never the provider step", () => {
+  test("a returning person with PortableGit being fetched: Preparing, then the app, never the provider step", () => {
     expect(welcomeFor(status({ preparing: fetching() }), down)).toBe("prepare");
     expect(welcomeFor(status({ node: "/n" }), { ...open(2, [anthropic]), agentsLoaded: false })).toBeNull();
     expect(welcomeFor(status({ node: "/n" }), open(2, [anthropic]))).toBeNull();

@@ -28,7 +28,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["core/**/*.ts", "daemon/**/*.ts", "mod/**/*.ts", "app/src/**/*.{ts,tsx}", "site/src/**/*.{ts,tsx}"],
+    files: ["core/**/*.ts", "daemon/**/*.ts", "desktop/**/*.ts", "mod/**/*.ts", "app/src/**/*.{ts,tsx}", "site/src/**/*.{ts,tsx}"],
     ignores: ["core/listeners.ts", "core/errors.ts"],
     rules: {
       "no-restricted-syntax": [
