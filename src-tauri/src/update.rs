@@ -40,6 +40,14 @@ impl Channel {
     }
 }
 
+/// Where an Electron loki's release says it exists: `desktop.json`, beside the channel's `latest.json`.
+pub fn desktop_endpoint(endpoint: &str) -> String {
+    match endpoint.rsplit_once('/') {
+        Some((folder, _)) => format!("{folder}/desktop.json"),
+        None => "desktop.json".to_string(),
+    }
+}
+
 pub fn endpoint(channel: Channel, override_url: Option<&str>) -> String {
     match override_url.filter(|u| !u.is_empty()) {
         Some(url) => url.to_string(),
@@ -123,12 +131,14 @@ pub enum UpdateState {
     Unsupported { reason: Unsupported },
 }
 
-/// What `update_status` answers and `loki:update` carries: the channel, the running version, and the update's state.
+/// What `update_status` answers and `loki:update` carries: the channel, the running version, the update's state, and
+/// `moved`: whether an Electron loki has been released on this channel, which this app cannot update to.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct UpdateStatus {
     pub channel: Channel,
     pub current: String,
     pub state: UpdateState,
+    pub moved: bool,
 }
 
 /// Why a build never checks, if it does not: `release` is false in a development build, `os` is
@@ -161,6 +171,8 @@ pub trait Found: Send + Sync {
 
 pub trait Remote {
     fn check(&self, endpoint: &str) -> Result<Option<Box<dyn Found>>, String>;
+    /// Whether `endpoint` (a `desktop_endpoint`) is there: true when it answers, false when it is not found.
+    fn moved(&self, endpoint: &str) -> Result<bool, String>;
 }
 
 struct Held {
@@ -172,6 +184,7 @@ struct Inner {
     channel: Channel,
     state: UpdateState,
     held: Option<Held>,
+    moved: bool,
 }
 
 pub struct Updates {
@@ -242,7 +255,7 @@ impl Updates {
             current: current.to_string(),
             override_url,
             dir: None,
-            inner: Mutex::new(Inner { channel, state, held: None }),
+            inner: Mutex::new(Inner { channel, state, held: None, moved: false }),
         }
     }
 
@@ -273,7 +286,7 @@ impl Updates {
             current: current.to_string(),
             override_url,
             dir: Some(dir.to_path_buf()),
-            inner: Mutex::new(Inner { channel, state, held: None }),
+            inner: Mutex::new(Inner { channel, state, held: None, moved: false }),
         }
     }
 
@@ -283,7 +296,12 @@ impl Updates {
 
     pub fn status(&self) -> UpdateStatus {
         let inner = self.lock();
-        UpdateStatus { channel: inner.channel, current: self.current.clone(), state: inner.state.clone() }
+        UpdateStatus {
+            channel: inner.channel,
+            current: self.current.clone(),
+            state: inner.state.clone(),
+            moved: inner.moved,
+        }
     }
 
     pub fn set_channel(&self, channel: Channel) {
@@ -309,6 +327,11 @@ impl Updates {
             endpoint(inner.channel, self.override_url.as_deref())
         };
         publish(self.status());
+        let desktop = desktop_endpoint(&url);
+        match remote.moved(&desktop) {
+            Ok(moved) => self.lock().moved = moved,
+            Err(message) => eprintln!("loki: update: check of {desktop} failed: {message}"),
+        }
         let found = match remote.check(&url) {
             Ok(Some(found)) => found,
             Ok(None) => return self.settle(UpdateState::Idle, None, publish),
@@ -425,6 +448,23 @@ impl Remote for Plugin {
             .map_err(|e| e.to_string())?;
         let found = tauri::async_runtime::block_on(updater.check()).map_err(|e| e.to_string())?;
         Ok(found.map(|u| Box::new(PluginFound(u)) as Box<dyn Found>))
+    }
+
+    fn moved(&self, endpoint: &str) -> Result<bool, String> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::blocking::Client::builder()
+            .user_agent(concat!("loki/", env!("CARGO_PKG_VERSION")))
+            .timeout(CHECK_TIMEOUT)
+            .build()
+            .map_err(|e| e.to_string())?;
+        let status = client.get(endpoint).send().map_err(|e| e.to_string())?.status();
+        if status.is_success() {
+            Ok(true)
+        } else if status == reqwest::StatusCode::NOT_FOUND {
+            Ok(false)
+        } else {
+            Err(format!("{endpoint} answered {status}"))
+        }
     }
 }
 
@@ -606,11 +646,19 @@ mod tests {
         answer: RefCell<Option<Result<Option<FakeFound>, String>>>,
         asked: RefCell<Vec<String>>,
         checks: Cell<usize>,
+        moved: RefCell<Result<bool, String>>,
+        asked_moved: RefCell<Vec<String>>,
     }
 
     impl FakeRemote {
         fn new(answer: Result<Option<FakeFound>, String>) -> Self {
-            FakeRemote { answer: RefCell::new(Some(answer)), asked: RefCell::new(vec![]), checks: Cell::new(0) }
+            FakeRemote {
+                answer: RefCell::new(Some(answer)),
+                asked: RefCell::new(vec![]),
+                checks: Cell::new(0),
+                moved: RefCell::new(Ok(false)),
+                asked_moved: RefCell::new(vec![]),
+            }
         }
     }
 
@@ -621,6 +669,48 @@ mod tests {
             let answer = self.answer.borrow_mut().take().unwrap_or(Ok(None));
             answer.map(|f| f.map(|f| Box::new(f) as Box<dyn Found>))
         }
+        fn moved(&self, endpoint: &str) -> Result<bool, String> {
+            self.asked_moved.borrow_mut().push(endpoint.to_string());
+            self.moved.borrow().clone()
+        }
+    }
+
+    #[test]
+    fn desktop_json_sits_beside_each_channels_latest_json() {
+        assert_eq!(
+            desktop_endpoint(STABLE_URL),
+            "https://github.com/AlmondLabs/loki/releases/latest/download/desktop.json"
+        );
+        assert_eq!(
+            desktop_endpoint(NIGHTLY_URL),
+            "https://github.com/AlmondLabs/loki/releases/download/nightly/desktop.json"
+        );
+        assert_eq!(
+            desktop_endpoint("https://github.com/AlmondLabs/loki/releases/download/try-b/latest.json"),
+            "https://github.com/AlmondLabs/loki/releases/download/try-b/desktop.json"
+        );
+    }
+
+    #[test]
+    fn a_check_marks_the_move_once_desktop_json_is_there_and_keeps_it_through_an_error() {
+        let u = updates(Channel::Nightly);
+        let remote = FakeRemote::new(Ok(None));
+        check(&u, &remote);
+        assert!(!u.status().moved, "a 404 is no move");
+        assert_eq!(
+            remote.asked_moved.borrow().as_slice(),
+            ["https://github.com/AlmondLabs/loki/releases/download/nightly/desktop.json"]
+        );
+
+        *remote.moved.borrow_mut() = Ok(true);
+        let mut published = vec![];
+        u.check(&remote, &mut |s| published.push(s.moved));
+        assert!(u.status().moved);
+        assert_eq!(published.last(), Some(&true), "the move goes out with the check's last status");
+
+        *remote.moved.borrow_mut() = Err("offline".into());
+        check(&u, &remote);
+        assert!(u.status().moved, "a failed check of desktop.json keeps what loki knew");
     }
 
     fn updates(channel: Channel) -> Updates {
@@ -1001,13 +1091,17 @@ mod tests {
 
     #[test]
     fn the_page_gets_the_status_as_snake_case_json_with_the_state_named_by_kind() {
-        let status =
-            |state| UpdateStatus { channel: Channel::Nightly, current: "2026.1116.0-nightly.12".into(), state };
+        let status = |state| UpdateStatus {
+            channel: Channel::Nightly,
+            current: "2026.1116.0-nightly.12".into(),
+            state,
+            moved: false,
+        };
         let json = |state| serde_json::to_value(status(state)).unwrap();
         use serde_json::json;
         assert_eq!(
             json(UpdateState::Downloading { done: 5, total: None }),
-            json!({ "channel": "nightly", "current": "2026.1116.0-nightly.12", "state": { "kind": "downloading", "done": 5, "total": null } })
+            json!({ "channel": "nightly", "current": "2026.1116.0-nightly.12", "state": { "kind": "downloading", "done": 5, "total": null }, "moved": false })
         );
         assert_eq!(json(UpdateState::Idle)["state"], json!({ "kind": "idle" }));
         assert_eq!(json(UpdateState::Checking)["state"], json!({ "kind": "checking" }));

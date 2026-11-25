@@ -6,7 +6,7 @@ import { menuSpec } from "../app/src/shell/keymap.ts";
 import { chatWorking, runUpdateItem, showReadyUpdate } from "../app/src/shell/update-notice.tsx";
 import { readyVersion, updateItemLabel, type LokiUpdate, type UpdateState, type UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
-const status = (state: UpdateState): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state });
+const status = (state: UpdateState): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state, moved: false });
 const ready = status({ kind: "ready", version: "2026.1117.0" });
 
 function fakeNotices() {
