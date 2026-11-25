@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { checksumOf, installNode, msiOutcome, NodeInstalls, pickInstaller, type NodeInstallHost } from "../desktop/node-install.ts";
 import type { PageOs } from "../desktop/env.ts";
@@ -71,7 +72,7 @@ describe("installing Node", () => {
   test("covers AE1: the Mac opens the checked installer and waits for it to close, then the folder goes", async () => {
     const { host, ran, removed } = fakeHost("macos");
     expect(await installNode(host)).toEqual({ kind: "opened" });
-    expect(ran).toEqual([["open", "-W", "/private/loki-node-1/node-v26.13.1.pkg"]]);
+    expect(ran).toEqual([["open", "-W", join("/private/loki-node-1", "node-v26.13.1.pkg")]]);
     expect(removed).toEqual(["/private/loki-node-1"]);
   });
 
@@ -98,7 +99,7 @@ describe("installing Node", () => {
   test("Windows runs msiexec and reads its answer: 0 or 3010 installed, 1602 cancelled, anything else failed", async () => {
     const { host, ran } = fakeHost("windows", { exit: 3010 });
     expect(await installNode(host)).toEqual({ kind: "installed" });
-    expect(ran).toEqual([["msiexec", "/i", "/private/loki-node-1/node-v26.13.1-x64.msi"]]);
+    expect(ran).toEqual([["msiexec", "/i", join("/private/loki-node-1", "node-v26.13.1-x64.msi")]]);
     expect(msiOutcome(0)).toEqual({ kind: "installed" });
     expect(msiOutcome(1602)).toEqual({ kind: "cancelled" });
     expect(msiOutcome(1603)).toMatchObject({ kind: "failed" });
