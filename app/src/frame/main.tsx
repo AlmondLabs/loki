@@ -18,15 +18,15 @@ const BRIDGE = "loki-widget";
 type Out = { type: string } & Record<string, unknown>;
 const post = (msg: Out) => {
   try {
-    // The page's origin is not ours to know for sure (tauri://localhost, http://tauri.localhost, Vite); nothing sent is secret.
+    // Outside (HTML): a sandboxed frame cannot know its parent's origin (loki://app in the shell, Vite's or the phone server's in a tab); nothing sent is secret.
     window.parent.postMessage({ bridge: BRIDGE, ...msg }, "*");
   } catch (err) {
     if (msg.type === "set") console.warn("loki widget: onSet value could not be sent", err);
   }
 };
 
-// Outside (Tauri): a webview may inject its scripts into every frame, so what the shell puts on a window is removed.
-for (const key of ["__LOKI__", "__TAURI_INTERNALS__", "__TAURI__", "__TAURI_IPC__", "__TAURI_METADATA__", "ipc"]) {
+// Outside (Electron): a window may run its preload in every frame, so what the shell puts on a window is removed.
+for (const key of ["__LOKI__", "lokiDesktop"]) {
   try {
     Reflect.deleteProperty(window, key);
   } catch {}

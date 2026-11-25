@@ -1,11 +1,10 @@
-import { inTauri, platform } from "../desk/env";
+import { inDesktop, platform } from "../desk/env";
+import { invoke } from "./desktop";
 
-export const SETTINGS_WINDOW = inTauri && platform === "macos";
+export const SETTINGS_WINDOW = inDesktop && platform === "macos";
 
 export const MODELS_CHANGED_KEY = "loki.models-changed";
 
 export function openSettingsWindow(page?: string | null): void {
-  void import("@tauri-apps/api/core")
-    .then(({ invoke }) => invoke("open_settings", { page: page ?? null }))
-    .catch((e: unknown) => console.warn("loki: settings window", e));
+  void invoke("open_settings", { page: page ?? null }).catch((e: unknown) => console.warn("loki: settings window", e));
 }

@@ -2,7 +2,8 @@ import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { LucideIcon } from "lucide-react";
-import { inTauri, platform } from "../desk/env";
+import { inDesktop, platform } from "../desk/env";
+import { invoke } from "./desktop";
 
 export type MenuEntry =
   | {
@@ -20,7 +21,7 @@ export type MenuEntry =
   | { type: "separator" }
   | { type: "submenu"; id: string; label: string; items: MenuEntry[]; disabled?: boolean };
 
-export const NATIVE_MENUS = inTauri && platform === "macos";
+export const NATIVE_MENUS = inDesktop && platform === "macos";
 
 export function tidyEntries(entries: MenuEntry[]): MenuEntry[] {
   const out: MenuEntry[] = [];
@@ -79,8 +80,7 @@ export async function popUpMenu(entries: MenuEntry[], at: { x: number; y: number
   const pngs = new Map(await Promise.all(icons.map(async (icon) => [icon, await iconImage(icon).catch(() => undefined)] as const)));
   const menu = popupEntries(entries, (icon) => pngs.get(icon));
   if (!menu.entries.length) return;
-  const { invoke } = await import("@tauri-apps/api/core");
-  const chosen = await invoke<number | null>("popup_menu", { entries: menu.entries, x: Math.round(at.x), y: Math.round(at.y) });
+  const chosen = await invoke("popup_menu", { entries: menu.entries, x: Math.round(at.x), y: Math.round(at.y) });
   if (chosen !== null) menu.runs[chosen]?.();
 }
 

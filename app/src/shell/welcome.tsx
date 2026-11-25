@@ -5,9 +5,10 @@ import { PERSONA_HINT } from "../agents/new-agent";
 import { Providers } from "../settings/providers";
 import { isConnected } from "../settings/provider-model";
 import { Progress } from "@/ui/progress";
-import type { DaemonStatus, Preparing, WelcomeStep } from "./bootstrap";
+import { platform, type Platform } from "../desk/env";
+import type { DaemonStatus, NeedsNode, Preparing, WelcomeStep } from "./bootstrap";
 import { formatKeys } from "./keymap";
-import { toolsWords } from "./os-words";
+import { nodeWords, toolsWords } from "./os-words";
 import { useAgentDraft, type CreateAgent } from "./use-agent-draft";
 import { CheckIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
@@ -34,11 +35,13 @@ export function Welcome({
   daemon,
   onRetryDaemon,
   onInstallTools,
+  onInstallNode,
 }: ProviderProps & {
   step: WelcomeStep;
   daemon: DaemonStatus | null;
   onRetryDaemon: () => Promise<void>;
   onInstallTools: () => Promise<string | null>;
+  onInstallNode: () => Promise<string | null>;
   models: string[] | null;
   onLoadModels: () => void;
   onCreate: CreateAgent;
@@ -58,11 +61,8 @@ export function Welcome({
   if (step === "prepare")
     return (
       <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
-        <Intro
-          title="Getting loki ready"
-          line="loki downloads what it runs your agents on. This happens on first launch, and after an update that needs a newer version."
-        />
-        <PrepareStep status={daemon} onRetry={onRetryDaemon} onInstallTools={onInstallTools} />
+        <Intro title="Getting loki ready" line="loki checks this computer has what it runs your agents on. This happens on first launch." />
+        <PrepareStep status={daemon} onRetry={onRetryDaemon} onInstallTools={onInstallTools} onInstallNode={onInstallNode} />
       </Sheet>
     );
 
@@ -217,10 +217,12 @@ export function PrepareStep({
   status,
   onRetry,
   onInstallTools,
+  onInstallNode = () => Promise.resolve(null),
 }: {
   status: DaemonStatus | null;
   onRetry: () => Promise<void>;
   onInstallTools: () => Promise<string | null>;
+  onInstallNode?: () => Promise<string | null>;
 }) {
   const [busy, setBusy] = useState(false);
   const [asked, setAsked] = useState(false);
@@ -236,6 +238,18 @@ export function PrepareStep({
       setProblem(err);
     });
   };
+  const installNode = () => {
+    setProblem(null);
+    setBusy(true);
+    void onInstallNode()
+      .then((err) => {
+        setAsked(!err);
+        setProblem(err);
+      })
+      .finally(() => setBusy(false));
+  };
+  if (status?.needsNode)
+    return <NodeNeeded os={platform} needs={status.needsNode} busy={busy} asked={asked} problem={problem} onInstall={installNode} onCheck={retry} />;
   if (status?.toolsMissing) return <Tools os={status.toolsMissing} busy={busy} asked={asked} problem={problem} onInstall={install} onCheck={retry} />;
   if (status?.preparing) return <Preparation preparing={status.preparing} error={status.error} busy={busy} onRetry={retry} />;
   return <DaemonProblem error={status?.error ?? null} busy={busy} onRetry={retry} />;
@@ -244,7 +258,7 @@ export function PrepareStep({
 const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
 
 export function Preparation({ preparing, error, busy, onRetry }: { preparing: Preparing; error: string | null; busy: boolean; onRetry: () => void }) {
-  const what = `${preparing.name === "git" ? "PortableGit" : "Node"} ${preparing.version}`;
+  const what = `PortableGit ${preparing.version}`;
   if (error)
     return (
       <div className="grid gap-2">
@@ -311,6 +325,55 @@ export function Tools({
         )}
         <Button size="sm" tone={words.install ? undefined : "positive"} disabled={busy} onClick={onCheck}>
           {busy ? "Checking…" : "Check Again"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function NodeNeeded({
+  os,
+  needs,
+  busy,
+  asked,
+  problem,
+  onInstall,
+  onCheck,
+}: {
+  os: Platform;
+  needs: NeedsNode;
+  busy: boolean;
+  asked: boolean;
+  problem: string | null;
+  onInstall: () => void;
+  onCheck: () => void;
+}) {
+  const words = nodeWords(os, needs);
+  return (
+    <div className="grid gap-2">
+      <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--loki-fg)" }}>{words.title}</div>
+      <div style={{ fontSize: "var(--text-sm)", color: "var(--loki-fg)", lineHeight: 1.5 }}>{words.needed}</div>
+      {words.commands.length > 0 && (
+        <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+          {words.commands.map((c, i) => (
+            <span key={c}>
+              {i > 0 && " then "}
+              <code className="loki-mono">{c}</code>
+            </span>
+          ))}{" "}
+          {words.where}
+        </div>
+      )}
+      {asked && words.asked && <div className="loki-meta loki-meta--wrap">{words.asked}</div>}
+      {problem && <div className="loki-meta loki-meta--negative loki-meta--wrap">{problem}</div>}
+      <div className="flex items-center gap-2">
+        {words.install && (
+          <Button size="sm" tone="positive" disabled={busy} onClick={onInstall}>
+            {busy ? "Installing…" : words.install}
+          </Button>
+        )}
+        <Button size="sm" tone={words.install ? undefined : "positive"} disabled={busy} onClick={onCheck}>
+          Check Again
         </Button>
       </div>
     </div>

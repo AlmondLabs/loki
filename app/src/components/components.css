@@ -878,6 +878,26 @@ button.loki-list-section-toggle {
   user-select: none;
   -webkit-user-select: none;
 }
+[data-drag-region] {
+  -webkit-app-region: drag;
+}
+[data-drag-region]
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    summary,
+    [role="button"],
+    [role="menuitem"],
+    [role="tab"],
+    [contenteditable="true"],
+    [tabindex]:not([tabindex="-1"])
+  ) {
+  -webkit-app-region: no-drag;
+}
 .loki-title-strip--own {
   display: flex;
   align-items: stretch;

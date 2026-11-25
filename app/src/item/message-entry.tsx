@@ -8,7 +8,8 @@ import { Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, 
 import { Button } from "@/ui/button";
 import { Message, MessageActions, MessageContent, MessageResponse } from "@/ui/ai-elements/message";
 import { cn } from "@/lib/utils";
-import { chatImageUrl, inTauri } from "../desk/env";
+import { chatImageUrl, inDesktop } from "../desk/env";
+import { revealItemInDir } from "../shell/desktop";
 import { clockLabel } from "../shared/thread";
 import { fileSize } from "../chat/attachments";
 import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
@@ -246,10 +247,7 @@ function UserContent({ row: m }: { row: TranscriptRow }) {
 }
 
 function FileAttachment({ file }: { file: FileRef }) {
-  const reveal = () =>
-    void import("@tauri-apps/plugin-opener")
-      .then(({ revealItemInDir }) => revealItemInDir(file.path))
-      .catch((err: unknown) => console.warn("loki: reveal file", err));
+  const reveal = () => void revealItemInDir(file.path).catch((err: unknown) => console.warn("loki: reveal file", err));
   return (
     <Attachment size="sm" title={file.path}>
       <AttachmentMedia>
@@ -259,7 +257,7 @@ function FileAttachment({ file }: { file: FileRef }) {
         <AttachmentTitle>{file.name}</AttachmentTitle>
         {file.size !== undefined && <AttachmentDescription>{fileSize(file.size)}</AttachmentDescription>}
       </AttachmentContent>
-      {inTauri && <AttachmentTrigger aria-label={`Show ${file.name} in its folder`} onClick={reveal} />}
+      {inDesktop && <AttachmentTrigger aria-label={`Show ${file.name} in its folder`} onClick={reveal} />}
     </Attachment>
   );
 }

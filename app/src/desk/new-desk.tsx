@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { inTauri, platform, type Platform } from "./env";
+import { inDesktop, platform, type Platform } from "./env";
+import { openDialog } from "../shell/desktop";
 import { Button, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
 import { formatKeys } from "../shell/keymap";
@@ -35,17 +36,14 @@ interface NewDeskProps {
 }
 
 export type BrowseWith = "dialog" | "mod" | null;
-export function browseWith(tauri: boolean, os: Platform): BrowseWith {
-  if (tauri) return "dialog";
+export function browseWith(shell: boolean, os: Platform): BrowseWith {
+  if (shell) return "dialog";
   return os === "macos" ? "mod" : null;
 }
 
 type OpenDialog = (options: { directory: true; multiple: false; defaultPath?: string; title?: string }) => Promise<string | string[] | null>;
 
-export async function dialogPick(
-  defaultPath?: string,
-  open: OpenDialog = async (options) => (await import("@tauri-apps/plugin-dialog")).open(options),
-): Promise<string | null> {
+export async function dialogPick(defaultPath?: string, open: OpenDialog = openDialog): Promise<string | null> {
   try {
     const picked = await open({ directory: true, multiple: false, defaultPath, title: "Folder for the new chat" });
     const path = Array.isArray(picked) ? picked[0] : picked;
@@ -182,7 +180,7 @@ export function useFolderField({
     setTouched(true);
     setListOpen(true);
   };
-  const browser = home ? null : browseWith(inTauri, platform);
+  const browser = home ? null : browseWith(inDesktop, platform);
   const browse = async () => {
     setPicking(true);
     const pick = browser === "dialog" ? dialogPick : folders.pick;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { inTauri, platform, type Platform } from "../desk/env";
+import { inDesktop, platform, type Platform } from "../desk/env";
+import { invoke } from "./desktop";
 import { messageOf } from "../../../core/errors.ts";
 import { useStorageKey } from "../shared/use-storage-key";
 
@@ -16,7 +17,7 @@ export function shortcutAvailable(inShell: boolean, os: Platform = platform): bo
   return inShell && os === "macos";
 }
 
-const AVAILABLE = shortcutAvailable(inTauri);
+const AVAILABLE = shortcutAvailable(inDesktop);
 
 /**
  * ⌥Space brings the inbox up from anywhere on the Mac, but Raycast, Alfred and the input-source switcher
@@ -30,16 +31,14 @@ export function useGlobalShortcut(): GlobalShortcut {
   useEffect(() => {
     if (!AVAILABLE) return;
     let cancelled = false;
-    void import("@tauri-apps/api/core")
-      .then(({ invoke }) => invoke("set_global_shortcut", { enabled }))
-      .then(
-        () => {
-          if (!cancelled) setError(null);
-        },
-        (e: unknown) => {
-          if (!cancelled) setError(messageOf(e));
-        },
-      );
+    void invoke("set_global_shortcut", { enabled }).then(
+      () => {
+        if (!cancelled) setError(null);
+      },
+      (e: unknown) => {
+        if (!cancelled) setError(messageOf(e));
+      },
+    );
     return () => {
       cancelled = true;
     };

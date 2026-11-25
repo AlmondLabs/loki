@@ -6,7 +6,8 @@ import { MARKDOWN_COMPONENTS } from "./markdown-image";
 import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { commandFailed, commandRunning } from "../../../core/attention/thread.ts";
 import { withoutReplies } from "../../../core/harness.ts";
-import { chatImageUrl, inTauri } from "../desk/env";
+import { chatImageUrl, inDesktop } from "../desk/env";
+import { revealItemInDir } from "../shell/desktop";
 import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/agent-chip";
@@ -710,7 +711,7 @@ function FileChip({ file }: { file: FileRef }) {
       {file.size !== undefined && <span className="loki-file-chip-size">{fileSize(file.size)}</span>}
     </>
   );
-  if (!inTauri)
+  if (!inDesktop)
     return (
       <span className="loki-file-chip" title={file.path}>
         {body}
@@ -721,11 +722,7 @@ function FileChip({ file }: { file: FileRef }) {
       type="button"
       className="loki-file-chip"
       title={`Show ${file.path} in its folder`}
-      onClick={() =>
-        void import("@tauri-apps/plugin-opener")
-          .then(({ revealItemInDir }) => revealItemInDir(file.path))
-          .catch((err: unknown) => console.warn("loki: reveal file", err))
-      }
+      onClick={() => void revealItemInDir(file.path).catch((err: unknown) => console.warn("loki: reveal file", err))}
     >
       {body}
     </button>

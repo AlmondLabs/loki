@@ -1,0 +1,11 @@
+{
+  "git": {
+    "version": "2.56.1",
+    "targets": {
+      "win-x64": {
+        "url": "https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/PortableGit-2.56.1-64-bit.7z.exe",
+        "sha256": "9dd04a608ceb5f6ab32a73709e0ecb159d211da71b697c45ff81f6dd0c6b49c7"
+      }
+    }
+  }
+}

@@ -1,5 +1,3 @@
-import type { Platform } from "./env";
-
 /** The iframe's sandbox flags. Never add allow-same-origin: with it the frame shares the page's origin. */
 export const WIDGET_SANDBOX = "allow-scripts";
 
@@ -95,22 +93,19 @@ export function readFrameMessage(event: { source: unknown; data: unknown }, fram
 }
 
 /**
- * Where a widget's module comes from. In the shell the Rust core serves it transpiled under the `loki` scheme,
- * which WebView2 spells http://loki.localhost; the frame imports it from there. In a Vite tab the page fetches
- * it from the dev server (same origin, see app/vite.config.ts) and hands the frame the code: an opaque-origin
- * frame could not read a dev-server file itself without the server opening its files to every origin.
+ * Where a widget's module comes from. In the desktop app the shell serves it compiled under `loki://app/widgets/`
+ * (desktop/scheme.ts); the frame imports it from there. In a Vite tab the page fetches it from the dev server (same
+ * origin, see app/vite.config.ts) and hands the frame the code: an opaque-origin frame could not read a dev-server
+ * file itself without the server opening its files to every origin.
  */
-export function widgetSource(file: string, hash: string, host: { tauri: boolean; os: Platform; dev: boolean }): { url: string } | { fetch: string } | null {
+export function widgetSource(file: string, hash: string, host: { desktop: boolean; dev: boolean }): { url: string } | { fetch: string } | null {
   const path = file
     .replace(/\.(tsx|jsx)$/, ".js")
     .split("/")
     .map(encodeURIComponent)
     .join("/");
   const v = `?v=${encodeURIComponent(hash)}`;
-  if (host.tauri) {
-    const base = host.os === "windows" ? "http://loki.localhost" : "loki://localhost";
-    return { url: `${base}/widgets/${path}${v}` };
-  }
+  if (host.desktop) return { url: `loki://app/widgets/${path}${v}` };
   if (host.dev) return { fetch: `/@loki-widget/${path}${v}` };
   return null;
 }

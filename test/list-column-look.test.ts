@@ -73,7 +73,7 @@ describe("the list's bar holds its grey line", () => {
     );
   test("the line sits in the bar's title stack, under the title, inside the drag region", () => {
     const bar = must(
-      /<div class="loki-content-list-bar" data-tauri-drag-region="deep">([\s\S]*?)<div class="loki-content-list-rows"/.exec(html("Written 2h ago")),
+      /<div class="loki-content-list-bar" data-drag-region="">([\s\S]*?)<div class="loki-content-list-rows"/.exec(html("Written 2h ago")),
       "the bar",
     )[1];
     expect(bar).toMatch(

@@ -371,38 +371,37 @@ export function conflicts(map: Binding[] = KEYMAP, os?: Platform): string[] {
   return out;
 }
 
-/** The menu bar, for the Rust side: sections in MENUS order, groups separated, accelerators in Tauri's grammar. */
+/** The menu bar, as the shell's `set_menu` takes it: sections in MENUS order, groups separated, accelerators in Electron's grammar. */
 export interface MenuSpec {
   title: string;
   items: Array<{ id: string; label: string; accelerator: string | null } | { separator: true }>;
 }
 
-const TAURI_KEY: Record<string, string> = {
-  cmd: "CmdOrCtrl",
+const ACCELERATOR_KEY: Record<string, string> = {
+  cmd: "CommandOrControl",
   shift: "Shift",
   alt: "Alt",
-  ctrl: "Ctrl",
+  ctrl: "Control",
   enter: "Enter",
   backspace: "Backspace",
+  delete: "Delete",
   escape: "Escape",
+  tab: "Tab",
   space: "Space",
   left: "Left",
   right: "Right",
   up: "Up",
   down: "Down",
-  "[": "BracketLeft",
-  "]": "BracketRight",
-  "/": "Slash",
-  "\\": "Backslash",
-  ",": "Comma",
-  "=": "Equal",
-  "-": "Minus",
+  home: "Home",
+  end: "End",
+  pageup: "PageUp",
+  pagedown: "PageDown",
 };
 
-export function tauriAccelerator(spec: string): string {
+export function menuAccelerator(spec: string): string {
   return spec
     .split("+")
-    .map((p) => TAURI_KEY[p] ?? (/^[0-9]$/.test(p) ? `Digit${p}` : p.toUpperCase()))
+    .map((p) => ACCELERATOR_KEY[p] ?? p.toUpperCase())
     .join("+");
 }
 
@@ -416,7 +415,7 @@ export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard, label
       if (items.length && group !== lastGroup) items.push({ separator: true });
       lastGroup = group;
       const key = keysOf(b, os)[0];
-      items.push({ id: b.id, label: labels[b.id] ?? labelOf(b, os), accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
+      items.push({ id: b.id, label: labels[b.id] ?? labelOf(b, os), accelerator: b.menuAccel === false || !key ? null : menuAccelerator(key) });
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);

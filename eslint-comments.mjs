@@ -10,6 +10,7 @@ export const OUTSIDE = [
   "Claude Code",
   "CSS",
   "DuckDuckGo",
+  "Electron",
   "esbuild",
   "git",
   "GitHub",
@@ -52,7 +53,7 @@ export const OUTSIDE = [
 const MARKER = /^Outside \(([^)]+)\): \S/;
 export const LINK = /https?:\/\//;
 const LICENCE = /licen[cs]e|copyright|spdx-license-identifier/i;
-const DOC_AREAS = /^(core|daemon|mod|app\/src)\//;
+const DOC_AREAS = /^(core|daemon|desktop|mod|app\/src)\//;
 const OXLINT_DIRECTIVE = /^\s*oxlint-(disable|enable)/;
 const REASON = /\s--\s+\S/;
 const LONE_DIRECTIVES = [/^\s*react-doctor-(disable|enable)/, /^\s*@ts-expect-error\b/, /^\s*prettier-ignore\s*$/, /^\s*@vite-ignore\s*$/];
@@ -90,7 +91,7 @@ export const commentsRule = {
     schema: [],
     messages: {
       comment:
-        "Say this with a name, an extracted function or a type instead (docs/style.md §5). A comment stays only as `Outside (<what>): …` for a constraint from outside loki, a link, an `oxlint-disable … -- reason`, `prettier-ignore`, `@vite-ignore`, `@ts-expect-error`, a react-doctor directive, a licence header, or a `/** */` doc comment in core/, daemon/, mod/ or app/src/.",
+        "Say this with a name, an extracted function or a type instead (docs/style.md §5). A comment stays only as `Outside (<what>): …` for a constraint from outside loki, a link, an `oxlint-disable … -- reason`, `prettier-ignore`, `@vite-ignore`, `@ts-expect-error`, a react-doctor directive, a licence header, or a `/** */` doc comment in core/, daemon/, desktop/, mod/ or app/src/.",
       unlisted: "`{{name}}` is not on the list of outside things in eslint-comments.mjs: use a listed name, or add this one to the list in review.",
       reason: "An oxlint-disable gives its reason after ` -- ` (docs/style.md §5).",
     },

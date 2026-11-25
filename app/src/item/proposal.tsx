@@ -25,7 +25,7 @@ import {
 } from "../desk/reply-proposal-card";
 import { MentionText } from "../desk/mention-field";
 import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply } from "../desk/use-reply-card";
-import { inTauri } from "../desk/env";
+import { inDesktop } from "../desk/env";
 import { sentence } from "../components";
 import { replyKeyDown } from "../chat/quick-replies";
 
@@ -143,7 +143,7 @@ export function QuestionProposal({ children, where }: { children: ReactNode; whe
   );
 }
 
-export function ReplyProposals({ source, rt, blocked = null, reveal = inTauri ? revealFile : null }: Omit<ReplyProposalsProps, "touch">) {
+export function ReplyProposals({ source, rt, blocked = null, reveal = inDesktop ? revealFile : null }: Omit<ReplyProposalsProps, "touch">) {
   const decide = source.replies?.decide;
   const findPeople = source.replies?.findPeople;
   const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? NONE;

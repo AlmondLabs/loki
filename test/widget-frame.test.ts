@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
 import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, isDataPath, isJsonValue, readFrameMessage, widgetSource } from "../app/src/desk/widget-bridge.ts";
 import { rewriteSharedImports } from "../app/src/frame/rewrite.ts";
 import { BOOT_REPORTER, FRAME_CSP, buildFrameHtml } from "../app/src/frame/build.ts";
+import { pageCsp } from "../desktop/scheme.ts";
 
 const frame = {} as Window;
 const other = {} as Window;
@@ -83,27 +83,26 @@ describe("widget frame: messages from the frame", () => {
     for (const bad of [-1, Number.NaN, "100"]) expect(msg({ type: "size", width: bad, height: 80 })).toBeNull();
     expect(msg({ type: "focus" })).toEqual({ type: "focus" });
     expect(msg({ type: "open", url: "https://example.com/a" })).toEqual({ type: "open", url: "https://example.com/a" });
-    for (const url of ["javascript:alert(1)", "file:///etc/passwd", "loki://localhost/x", "not a url", 5]) expect(msg({ type: "open", url })).toBeNull();
+    for (const url of ["javascript:alert(1)", "file:///etc/passwd", "loki://app/x", "not a url", 5]) expect(msg({ type: "open", url })).toBeNull();
   });
 });
 
 describe("widget frame: where the module comes from", () => {
-  test("the shell's loki scheme, spelled per webview", () => {
-    expect(widgetSource("trip/budget.tsx", "abc", { tauri: true, os: "macos", dev: false })).toEqual({ url: "loki://localhost/widgets/trip/budget.js?v=abc" });
-    expect(widgetSource("trip/budget.jsx", "abc", { tauri: true, os: "linux", dev: true })).toEqual({ url: "loki://localhost/widgets/trip/budget.js?v=abc" });
-    expect(widgetSource("trip/budget.tsx", "abc", { tauri: true, os: "windows", dev: false })).toEqual({
-      url: "http://loki.localhost/widgets/trip/budget.js?v=abc",
-    });
+  test("the desktop app's loki scheme, the same on every system", () => {
+    expect(widgetSource("trip/budget.tsx", "abc", { desktop: true, dev: false })).toEqual({ url: "loki://app/widgets/trip/budget.js?v=abc" });
+    expect(widgetSource("trip/budget.jsx", "abc", { desktop: true, dev: true })).toEqual({ url: "loki://app/widgets/trip/budget.js?v=abc" });
   });
   test("the Vite tab fetches it from the dev server; a built page without the shell has none", () => {
-    expect(widgetSource("trip/my widget.tsx", "a b", { tauri: false, os: "macos", dev: true })).toEqual({ fetch: "/@loki-widget/trip/my%20widget.js?v=a%20b" });
-    expect(widgetSource("trip/chart.jsx", "abc", { tauri: false, os: "macos", dev: true })).toEqual({ fetch: "/@loki-widget/trip/chart.js?v=abc" });
-    expect(widgetSource("trip/budget.tsx", "abc", { tauri: false, os: "macos", dev: false })).toBeNull();
+    expect(widgetSource("trip/my widget.tsx", "a b", { desktop: false, dev: true })).toEqual({
+      fetch: "/@loki-widget/trip/my%20widget.js?v=a%20b",
+    });
+    expect(widgetSource("trip/chart.jsx", "abc", { desktop: false, dev: true })).toEqual({ fetch: "/@loki-widget/trip/chart.js?v=abc" });
+    expect(widgetSource("trip/budget.tsx", "abc", { desktop: false, dev: false })).toBeNull();
   });
 });
 
-describe("widget frame: shared imports (the Vite tab's widgets.rs)", () => {
-  test("the same rewrites as the Rust core", () => {
+describe("widget frame: shared imports", () => {
+  test("shared specifiers read the frame's table, other imports stay", () => {
     const code =
       'import React, { useState, useEffect as ue } from "react";\nimport * as K from "@loki/kit";\nimport { jsx as _jsx } from "react/jsx-runtime";\nimport x from "./local.js";\n';
     const out = rewriteSharedImports(code);
@@ -138,21 +137,17 @@ describe("widget frame: the document", () => {
   }, 30_000);
 });
 
-describe("widget frame: the shell's CSP", () => {
-  const { csp, devCsp } = (
-    JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8")) as { app: { security: { csp: string; devCsp: string } } }
-  ).app.security;
-  const directive = (policy: string, name: string) =>
-    policy
+describe("widget frame: the desktop page's CSP", () => {
+  const directive = (name: string) =>
+    pageCsp([])
       .split(";")
       .map((d: string) => d.trim().split(/\s+/))
       .find((d: string[]) => d[0] === name)
       ?.slice(1) ?? [];
-  test("frames only the widget frame, on both spellings of the app's origin", () => {
-    expect(directive(csp, "frame-src")).toEqual(["tauri://localhost/widget-frame.html", "http://tauri.localhost/widget-frame.html"]);
-    expect(directive(devCsp, "frame-src")).toEqual(["http://127.0.0.1:5173/widget-frame.html"]);
+  test("frames only the widget frame, from the app's own origin", () => {
+    expect(directive("frame-src")).toEqual(["loki://app/widget-frame.html"]);
   });
-  test("widget modules load from the loki scheme on every webview", () => {
-    for (const p of [csp, devCsp]) expect(directive(p, "script-src")).toEqual(expect.arrayContaining(["loki:", "http://loki.localhost"]));
+  test("widget modules load from the loki scheme inside the frame", () => {
+    expect(FRAME_CSP).toContain("script-src 'unsafe-inline' loki: blob:");
   });
 });

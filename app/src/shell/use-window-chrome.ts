@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { inTauri, platform, type Platform } from "../desk/env";
+import { inDesktop, platform, type Platform } from "../desk/env";
+import { currentWindow, invoke, listen } from "./desktop";
 import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
@@ -46,9 +47,9 @@ export function useWindowTitle(
   const { name, document: tabTitle } = windowTitle(desk, segment, waiting, dueCards, laneName, until);
   useEffect(() => {
     document.title = tabTitle;
-    if (inTauri)
-      void import("@tauri-apps/api/window")
-        .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name))
+    if (inDesktop)
+      void currentWindow()
+        .setTitle(name)
         .catch((e: unknown) => console.warn("loki: window title", e));
   }, [name, tabTitle]);
 }
@@ -58,22 +59,29 @@ export function hideWindow(win: { hide: () => Promise<void>; minimize: () => Pro
 }
 
 export function hideCurrentWindow(): void {
-  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => hideWindow(getCurrentWindow())).catch((e: unknown) => console.warn("loki: hide", e));
+  void hideWindow(currentWindow()).catch((e: unknown) => console.warn("loki: hide", e));
 }
 
-const SHELL_ON_MAC = inTauri && platform === "macos";
+const SHELL_ON_MAC = inDesktop && platform === "macos";
 
 export function useTray(waiting: number, onCatchUp: () => void): void {
   useEffect(() => {
     if (!SHELL_ON_MAC) return;
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_waiting", { count: waiting })).catch(() => {});
+    void invoke("set_waiting", { count: waiting }).catch(() => {});
   }, [waiting]);
   useEffect(() => {
     if (!SHELL_ON_MAC) return;
     let off: (() => void) | null = null;
-    void import("@tauri-apps/api/event").then(async ({ listen }) => {
-      off = await listen("loki:catch-up", onCatchUp);
-    });
-    return () => off?.();
+    let live = true;
+    void listen("loki:catch-up", onCatchUp)
+      .then((unlisten) => {
+        if (live) off = unlisten;
+        else unlisten();
+      })
+      .catch((e: unknown) => console.warn("loki: catch up", e));
+    return () => {
+      live = false;
+      off?.();
+    };
   }, [onCatchUp]);
 }
