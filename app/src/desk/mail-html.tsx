@@ -151,10 +151,10 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
     const el = frame.current;
     if (!el) return;
     let observer: ResizeObserver | null = null;
-    let prevDoc: Document | null = null;
+    let page: Document | null = null;
     const fit = () => {
-      const page = el.contentDocument?.documentElement;
-      if (page) setHeight(Math.max(40, Math.ceil(page.scrollHeight)));
+      const root = el.contentDocument?.documentElement;
+      if (root) setHeight(Math.max(40, Math.ceil(root.scrollHeight)));
     };
     const click = (e: MouseEvent) => {
       const inside = el.contentDocument?.defaultView;
@@ -165,12 +165,12 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
       if (openableHref(href)) openExternal(href);
     };
     const loaded = () => {
-      const page = el.contentDocument;
-      if (!page) return;
+      const next = el.contentDocument;
+      if (!next) return;
       observer?.disconnect();
       observer = null;
-      prevDoc?.removeEventListener("click", click);
-      prevDoc = page;
+      if (page) page.removeEventListener("click", click);
+      page = next;
       fit();
       page.addEventListener("click", click);
       observer = new ResizeObserver(fit);
@@ -182,8 +182,8 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
       el.removeEventListener("load", loaded);
       observer?.disconnect();
       observer = null;
-      prevDoc?.removeEventListener("click", click);
-      prevDoc = null;
+      if (page) page.removeEventListener("click", click);
+      page = null;
     };
   }, [doc]);
   const page = (
