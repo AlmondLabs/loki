@@ -4,6 +4,7 @@ import { inLane, laneItems, type ResolvedLane } from "../../../core/attention/la
 import { kindItems, type FlowKind } from "./flow-kinds";
 import { idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import { rowAfter, type DeckMoveApi } from "./deck-moves";
+import { prefetchOutside, type OutsideThreadSource } from "./outside-card";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckQueue } from "./use-deck-queue";
 
@@ -75,9 +76,10 @@ export interface FlowDeckOptions {
   onPass?: PassSummaryHandler;
   onShown?: (item: AttentionItem) => void;
   loadHistory: (item: AttentionItem) => void;
+  outsideSource?: OutsideThreadSource | null;
 }
 
-export function useFlowDeck({ items, lane, kind = "all", moves, onSignIn, onPass, onShown, loadHistory }: FlowDeckOptions) {
+export function useFlowDeck({ items, lane, kind = "all", moves, onSignIn, onPass, onShown, loadHistory, outsideSource = null }: FlowDeckOptions) {
   const shown = useMemo(() => kindItems(laneItems(items, lane), kind), [items, lane, kind]);
   const [resting, setResting] = useState(false);
   const { queue, setQueue, decided: allDecided, setDecided, selected: row, select, selectedNow } = useDeckQueue(shown, lane, resting, kind);
@@ -131,6 +133,11 @@ export function useFlowDeck({ items, lane, kind = "all", moves, onSignIn, onPass
 
   const loadCurrent = useEffectEvent(() => {
     if (current && !current.outside) loadHistory(current);
+    const idx = current ? rows.findIndex((r) => idOf(r) === idOf(current)) : -1;
+    const next = idx >= 0 ? rows[idx + 1] : undefined;
+    if (!next) return;
+    if (next.outside) prefetchOutside(next, outsideSource);
+    else loadHistory(next);
   });
   useEffect(() => loadCurrent(), [currentId]);
 

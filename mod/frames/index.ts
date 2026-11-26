@@ -14,7 +14,7 @@ import { linkFrames, type LinkDeps } from "./links.ts";
 import { peersFrames, type PeersDeps } from "./peers.ts";
 import { recallFrames, type RecallDeps } from "./recall.ts";
 import { replyFrames, type ReplyDeps } from "./replies.ts";
-import { seenFrames, type SeenDeps } from "./seen.ts";
+import { seenFrame, seenFrames, type SeenDeps } from "./seen.ts";
 import { suggestionFrames, type SuggestionDeps } from "./suggestions.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
 
@@ -59,6 +59,8 @@ export function welcomeFrames(deps: ModuleDeps): (scope: Scope) => PushFrame[] {
   return (scope) => [
     deskFrame(deps, scope),
     ...(scope !== SHARED_SCOPE ? [deskFrame(deps, SHARED_SCOPE)] : []),
+    ...(deps.listDesks ? [{ type: "desks" as const, desks: deps.listDesks() }] : []),
+    ...(deps.seen ? [seenFrame(deps)] : []),
     ...(deps.recentModels ? [{ type: "models_recent" as const, recent: deps.recentModels.read() }] : []),
     ...(deps.usualModels ? [{ type: "models_usual" as const, usual: deps.usualModels.read() }] : []),
     ...(deps.peers ? [{ type: "peers" as const, ...deps.peers.view() }] : []),

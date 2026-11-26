@@ -724,6 +724,7 @@ export function useAttention(opts: UseAttentionOptions) {
     flow,
     loadHistory,
     loadThread: store.loadThread,
+    prefetchThread: store.prefetchThread,
     subscribe: store.follow,
     conversation,
     watchThreads: store.watchThreads,

@@ -60,6 +60,7 @@ export interface DaemonChild {
   signal: (signal: NodeJS.Signals) => void;
   kill: () => void;
   onExit: (listener: (code: number | null) => void) => void;
+  onReady?: (listener: () => void) => void;
 }
 
 export interface SpawnRequest {
@@ -96,6 +97,7 @@ export interface DaemonDeps {
   spawn: (request: SpawnRequest) => Promise<DaemonChild>;
   clock: Clock;
   publish: (status: DaemonStatus) => void;
+  onReady?: () => void;
   log: (line: string) => void;
 }
 
@@ -341,6 +343,7 @@ export class DaemonSupervisor {
     const previous = this.running;
     this.running = child;
     child.onExit((code) => this.exited(child, code));
+    child.onReady?.(() => this.deps.onReady?.());
     if (previous) void this.terminate(previous);
     return null;
   }
@@ -446,10 +449,20 @@ export class DaemonSupervisor {
 export function wrapChild(child: ChildProcess, platform: NodeJS.Platform, warn: (line: string) => void): DaemonChild {
   const exit: { code: number | null; done: boolean } = { code: null, done: false };
   const listeners = new Listeners<[code: number | null]>();
+  const readyListeners = new Listeners();
+  let ready = false;
   child.on("error", (error) => warn(`daemon: ${error.message}`));
+  child.on("message", (message) => {
+    if (message === "ready") {
+      ready = true;
+      readyListeners.emit();
+      readyListeners.clear();
+    }
+  });
   child.once("exit", (code) => {
     exit.code = code;
     exit.done = true;
+    readyListeners.clear();
     listeners.emit(code);
     listeners.clear();
   });
@@ -466,6 +479,10 @@ export function wrapChild(child: ChildProcess, platform: NodeJS.Platform, warn: 
     onExit: (listener) => {
       if (exit.done) listener(exit.code);
       else listeners.add(listener);
+    },
+    onReady: (listener) => {
+      if (ready) listener();
+      else readyListeners.add(listener);
     },
   };
 }
@@ -515,6 +532,7 @@ export interface MachineDaemonOptions {
   platform: NodeJS.Platform;
   pid: number;
   publish: (status: DaemonStatus) => void;
+  onReady?: () => void;
   log: (line: string) => void;
 }
 
@@ -571,6 +589,7 @@ export function machineDaemon(o: MachineDaemonOptions): DaemonSupervisor {
     spawn: (request) => spawnDaemon(request, o.platform, o.log),
     clock: realClock,
     publish: o.publish,
+    onReady: o.onReady,
     log: o.log,
   });
 }

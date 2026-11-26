@@ -116,9 +116,9 @@ export interface ChatSnapshot {
   labels: LabelView[] | null;
 }
 
-export const HISTORY_PAGE = 400;
+export const HISTORY_PAGE = 100;
 const FOLDER_MOVE_MS = 8000;
-const LIST_RETRY_MS = 5000;
+const LIST_RETRY_MS = 1000;
 const NOT_CONNECTED = "not connected to loki's daemon";
 const NOT_OUTSIDE = "this card is not from an account";
 
@@ -169,7 +169,7 @@ export class ChatStore {
   private readonly threadsRead = new Map<string, Runtime>();
   private readonly faces = new Map<string, readonly unknown[]>();
   private client: ChatClient | null = null;
-  private readonly flushing = coalesce(() => this.publish(), 150);
+  private readonly flushing = coalesce(() => this.publish(), 40);
   private readonly loading = new Set<string>();
   private readonly envNotes = new Map<string, EnvNoteTold>();
   private readonly folderMoves = new Map<string, FolderMove>();
@@ -280,11 +280,10 @@ export class ChatStore {
               this.set({ server: keepSame(this.snap.server, { version: info.version, protocol: info.protocol, advertised: [], only: info.commands }) });
           })
           .catch(() => {});
-        const agents = await client.listAgents();
+        const [agents, rows] = await Promise.all([client.listAgents(), this.host().listConversations()]);
         if (cancelled) return;
         const next = agents.filter((a) => a.hidden !== true).map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
         this.set({ agents: keepSame(this.snap.agents, next), agentsLoaded: true });
-        const rows = await this.host().listConversations();
         if (stopped()) return;
         if (rows === null) {
           retryTimer ??= setTimeout(() => {
@@ -416,6 +415,12 @@ export class ChatStore {
     }
     return changed;
   }
+
+  prefetchThread = (rt: Runtime): Promise<void> => {
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    if (this.threadsRead.has(key) || this.loading.has(key)) return Promise.resolve();
+    return this.loadThread(rt);
+  };
 
   loadThread = async (rt: Runtime): Promise<void> => {
     const key = keyOf(rt.agent_id, rt.conversation_id);

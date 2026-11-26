@@ -77,6 +77,7 @@ export interface ChatListProps {
   items: AttentionItem[];
   connected: boolean;
   onSelect: (scope: string) => void;
+  onPrefetch?: (scope: string) => void;
   onEnter: (scope: string | null) => void;
   onNew?: (agentId: string | null) => void;
   drafting?: boolean;
@@ -105,6 +106,7 @@ export function ChatList({
   items,
   connected,
   onSelect,
+  onPrefetch,
   onEnter,
   onNew,
   drafting = false,
@@ -244,6 +246,13 @@ export function ChatList({
           onSelect={(id) => {
             if (id !== NEW_ROW) onSelect(id);
           }}
+          onPrefetch={
+            onPrefetch
+              ? (id) => {
+                  if (id !== NEW_ROW) onPrefetch(id);
+                }
+              : undefined
+          }
           onEnter={(id) => onEnter(id === NEW_ROW ? null : id)}
           onMenu={(id, e) => {
             if (id !== NEW_ROW) openMenu(id, e);
@@ -436,7 +445,10 @@ export function ChatListView({
   notice,
   onNew,
   ...list
-}: Pick<ChatListProps, "rows" | "stateFilter" | "source" | "selected" | "shown" | "onSelect" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"> & {
+}: Pick<
+  ChatListProps,
+  "rows" | "stateFilter" | "source" | "selected" | "shown" | "onSelect" | "onPrefetch" | "onEnter" | "query" | "onQuery" | "drafting" | "ref"
+> & {
   desk: Desk;
   catchUp: CatchUp;
   notice: (m: string) => void;

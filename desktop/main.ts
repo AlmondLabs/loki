@@ -87,6 +87,7 @@ const daemon = machineDaemon({
   platform: process.platform,
   pid: process.pid,
   publish: (status) => broadcast(RUNTIME_EVENT, status),
+  onReady: () => broadcast("loki:daemon-ready", null),
   log,
 });
 
@@ -260,6 +261,7 @@ ipcMain.on("loki:globals", (event: IpcMainEvent) => {
 
 void app.whenReady().then(() => {
   tokenNow();
+  void daemon.start();
   const installReport = launchInstall({ packaged: app.isPackaged, env: process.env, resourceDir: process.resourcesPath, checkout, dataDir: lokiDir, home });
   protocol.handle(SCHEME, (request) => {
     const url = new URL(request.url);
@@ -300,7 +302,6 @@ void app.whenReady().then(() => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.reload();
     });
   }
-  void daemon.start();
   updater.start();
 });
 

@@ -41,6 +41,7 @@ export interface DesktopCommands {
 /** The shell's events, by name, and what each carries. */
 export interface DesktopEvents {
   "loki:runtime": DaemonStatus;
+  "loki:daemon-ready": null;
   "loki:update": UpdateStatus;
   "loki:menu": string;
   "loki:catch-up": null;

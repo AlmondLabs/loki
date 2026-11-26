@@ -33,6 +33,7 @@ import { avatarUrl } from "./env";
 import { Surface } from "./surface";
 import type { useDesk } from "./use-desk";
 import { useDeskChat } from "./use-desk-chat";
+import { readCachedThread, writeCachedThread } from "./boot-cache";
 import { deskConversation, saveLabels, type DeskConversationHandlers } from "./desk-conversation";
 import { LabelChips, LabelsDialog } from "../chat/labels";
 import { useInlineWidgets } from "../chat/use-inline-widgets";
@@ -340,7 +341,15 @@ function DeskMessages({
   onShowDesk: () => void;
 }) {
   const { agentId, conversationId, agentName } = desk;
-  const rows = useThreadRows(catchUp, agentId, conversationId);
+  const liveRows = useThreadRows(catchUp, agentId, conversationId);
+  const cachedRows = useMemo(
+    () => (liveRows === undefined && agentId && conversationId ? readCachedThread(agentId, conversationId) : null),
+    [liveRows, agentId, conversationId],
+  );
+  const rows = liveRows ?? cachedRows ?? undefined;
+  useEffect(() => {
+    if (liveRows && liveRows.length > 0 && agentId && conversationId) writeCachedThread(agentId, conversationId, liveRows);
+  }, [liveRows, agentId, conversationId]);
   const list = rows ?? NO_ROWS;
   const dividerAt = unreadBoundary(list, item?.unread ?? false, item?.seenAt, heldLook);
   const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
