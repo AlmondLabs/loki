@@ -24,7 +24,7 @@ async function agentWith(chats: ChatProjection, agentId: string, chatId: string,
   return { store, chat };
 }
 
-async function call(
+async function callRaw(
   chats: ChatProjection,
   name: string,
   args: Record<string, unknown>,
@@ -35,7 +35,17 @@ async function call(
     historyTools(chats).find((t) => t.name === name),
     name,
   );
-  const result = await tool.run(args, { read: store.harness, conversationId, callId: "call", signal: new AbortController().signal, output: () => {} }, ctx);
+  return tool.run(args, { read: store.harness, conversationId, callId: "call", signal: new AbortController().signal, output: () => {} }, ctx);
+}
+
+async function call(
+  chats: ChatProjection,
+  name: string,
+  args: Record<string, unknown>,
+  store: AgentStore,
+  conversationId: Parameters<typeof store.harness.conversation>[0],
+) {
+  const result = await callRaw(chats, name, args, store, conversationId);
   return result.output?.map((o) => o.text).join("") ?? "";
 }
 
@@ -49,14 +59,48 @@ describe("history_search and history_read", () => {
       const thread = chats.thread("c", "agent-a");
       const asked = thread.findIndex((r) => r.role === "user" && r.text.includes("readme"));
       expect(asked).toBeGreaterThanOrEqual(0);
-      const found = await call(chats, "history_search", { query: "README" }, store, chat.id);
+      const foundRaw = await callRaw(chats, "history_search", { query: "README" }, store, chat.id);
+      const found = foundRaw.output?.map((o) => o.text).join("") ?? "";
       expect(found).toContain(`#${asked} person`);
       expect(found).toContain("What is in the readme?");
-      const read = await call(chats, "history_read", { from: asked, to: asked }, store, chat.id);
+      expect(foundRaw.structuredOutput).toMatchObject({ conversation_id: "c", query: "README", total: 3 });
+      const readRaw = await callRaw(chats, "history_read", { from: asked, to: asked }, store, chat.id);
+      const read = readRaw.output?.map((o) => o.text).join("") ?? "";
       expect(read.startsWith(`#${asked} person`)).toBe(true);
       expect(read).toContain("What is in the readme?");
+      expect(readRaw.structuredOutput).toMatchObject({ conversation_id: "c", from: asked, to: asked });
     } finally {
       await store.close(ctx);
+    }
+  });
+
+  test("conversation_id reads another chat of the same agent but never another agent's chat", async () => {
+    const chats = new ChatProjection(ctx, () => null);
+    const faux = fauxProvider();
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry: createRegistry() }, ctx);
+    await store.setAgent({ id: "agent-a", name: "agent-a" }, ctx);
+    const first = await store.createChat("c1", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+    const second = await store.createChat("c2", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+    await store.importEntries(second, sampleEntries(), ctx);
+    await chats.attach("agent-a", store);
+    const b = await agentWith(chats, "agent-b", "secret-chat", [
+      {
+        sourceId: "s1",
+        line: 1,
+        kind: "pi.user",
+        model: [{ role: "user", timestamp: 1790848801000, content: [{ type: "text", text: "agent-b secret" }] }],
+      },
+    ]);
+    try {
+      expect(await call(chats, "history_search", { query: "README", conversation_id: "c2" }, store, first.id)).toContain("What is in the readme?");
+      expect(await call(chats, "history_search", { query: "secret", conversation_id: "secret-chat" }, store, first.id)).toContain(
+        "No row of this conversation",
+      );
+    } finally {
+      await store.close(ctx);
+      await b.store.close(ctx);
     }
   });
 

@@ -34,7 +34,7 @@ async function chatWith(cwd: string, extensions: Array<ReturnType<typeof fileToo
 }
 
 describe("file tools", () => {
-  test("ls, find and grep work in the chat's folder, for scripts only: the model is never offered them (plan 094)", async () => {
+  test("find and grep work in the chat's folder and are offered to the model directly (no standalone ls)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-tools-"));
     try {
       mkdirSync(join(dir, "src"));
@@ -49,10 +49,10 @@ describe("file tools", () => {
           extension.tools?.find((t) => t.name === name),
           name,
         );
-        expect(isScriptOnly(tool), name).toBe(true);
+        expect(isScriptOnly(tool), name).toBe(false);
         return JSON.stringify(await tool.execute(args, api, ctx));
       };
-      expect(await run("ls", {})).toContain("README.md\\nsrc/");
+      expect(await run("find", { max_depth: 1 })).toContain("README.md\\nsrc/");
       const find = await run("find", { pattern: "**/*.ts" });
       expect(find).toContain("src/a.ts");
       expect(find).not.toContain("node_modules");
@@ -62,6 +62,8 @@ describe("file tools", () => {
       const t = await chatWith(dir, [extension]);
       t.faux.setResponses([t.reply(fauxAssistantMessage("hi"))]);
       await (await t.chat.submit({ type: "input", content: "look" }, ctx)).wait(ctx);
+      expect(t.sent[0]).toContain('"name":"find"');
+      expect(t.sent[0]).toContain('"name":"grep"');
       expect(t.sent[0]).not.toContain('"name":"ls"');
       await t.store.close(ctx);
     } finally {
@@ -136,21 +138,35 @@ describe("skills and project instructions", () => {
 });
 
 describe("subagents", () => {
-  test("a helper runs the task in its own conversation and its final answer comes back; it cannot start helpers itself", async () => {
+  test("a helper runs the task in its own conversation, uses optional cwd, and returns its final answer (skipping tool-turn preambles)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-sub-"));
+    const subDir = join(dir, "packages", "sub");
+    mkdirSync(subDir, { recursive: true });
+    writeFileSync(join(subDir, "note.txt"), "inside sub\n");
     try {
-      const t = await chatWith(dir, [subagentExtension()]);
+      const t = await chatWith(dir, [fileToolsExtension(), subagentExtension()]);
       t.faux.setResponses([
-        t.reply(fauxAssistantMessage(fauxToolCall("subagent", { description: "count", prompt: "Count to three." }), { stopReason: "toolUse" })),
-        t.reply(fauxAssistantMessage("one, two, three")),
-        t.reply(fauxAssistantMessage("The helper counted.")),
+        t.reply(
+          fauxAssistantMessage(fauxToolCall("subagent", { description: "inspect sub", prompt: "Inspect note.txt.", cwd: "packages/sub" }), {
+            stopReason: "toolUse",
+          }),
+        ),
+        t.reply(
+          fauxAssistantMessage([{ type: "text", text: "Let me search note.txt first." }, fauxToolCall("grep", { pattern: "inside" })], {
+            stopReason: "toolUse",
+          }),
+        ),
+        t.reply(fauxAssistantMessage("Final answer: inside sub")),
+        t.reply(fauxAssistantMessage("The helper checked it.")),
       ]);
       await (await t.chat.submit({ type: "input", content: "delegate" }, ctx)).wait(ctx);
-      expect((await t.results())[0]).toContain("one, two, three");
+      expect((await t.results())[0]).toContain("Final answer: inside sub");
+      expect((await t.results())[0]).not.toContain("Let me search note.txt first.");
       expect(t.sent[0]).toContain('"name":"subagent"');
-      expect(t.sent[1]).toContain("Count to three.");
+      expect(t.sent[1]).toContain("Inspect note.txt.");
       expect(t.sent[1]).not.toContain('"name":"subagent"');
       expect(t.sent[1]).not.toContain("delegate");
+      expect(t.sent[2]).toContain("inside sub");
       await t.store.close(ctx);
     } finally {
       rmSync(dir, { recursive: true, force: true });

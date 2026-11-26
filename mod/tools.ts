@@ -188,36 +188,30 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       description:
         "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
         "highlighted for a few seconds). Use it to direct attention after writing a widget or when referring to " +
-        "widgets while you talk. `dwell` (ms, up to 8000) makes the call wait before returning, useful when " +
-        "moving between several widgets. Ignored while the user is mid-interaction.",
+        "widgets while you talk. Ignored while the user is mid-interaction.",
       parameters: {
         type: "object",
         properties: {
           widget_id: { type: "string", description: 'One widget id as returned by canvas_read, e.g. "shared/sleep"' },
           widget_ids: { type: "array", items: { type: "string" }, description: "Several widget ids to fit in view together" },
-          dwell: { type: "number", description: "Milliseconds to hold before returning (0–8000)." },
         },
         additionalProperties: false,
       },
-      async run(ctx) {
+      run(ctx) {
         const args = ctx.args;
         const ids = Array.isArray(args.widget_ids)
           ? (args.widget_ids as unknown[]).filter((x): x is string => typeof x === "string")
           : typeof args.widget_id === "string" && args.widget_id
             ? [args.widget_id]
             : [];
-        log("tool:canvas_focus", { ids, dwell: args.dwell });
+        log("tool:canvas_focus", { ids });
         if (ids.length === 0) return { status: "error", content: "give widget_id or widget_ids" };
         const missing = ids.filter((id) => !deps.widgets.get(id));
         if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check canvas_read` };
         const scopes = new Set(ids.map(scopeOfId));
         const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE;
         deps.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, scope === SHARED_SCOPE ? undefined : scope);
-        const dwell = Math.max(0, Math.min(8000, Number(args.dwell) || 0));
-        if (dwell) await new Promise((r) => setTimeout(r, dwell));
-        return ids.length === 1
-          ? `camera gliding to "${ids[0]}"${dwell ? `, held ${dwell}ms` : ""} (suppressed if the user is mid-interaction)`
-          : `camera framing ${ids.length} widgets${dwell ? `, held ${dwell}ms` : ""}`;
+        return ids.length === 1 ? `camera gliding to "${ids[0]}" (suppressed if the user is mid-interaction)` : `camera framing ${ids.length} widgets`;
       },
     }),
   );
@@ -259,34 +253,54 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
     name: "chat_list",
     annotations: { readOnly: true },
     callers: SCRIPTS_ONLY,
+    outputSchema: { type: "object" },
     description:
-      "List the person's agents (id, name, the Mac each lives on, whether it is in reach) and their open chats on this Mac " +
-      "and paired Macs, one line each: conversation id, agent, name, folder, labels, pinned, last active, the person's " +
-      "purpose line, and which one is this chat. Call it before suggestion_create to pick the chat a piece of work fits " +
-      "best. `filter` keeps only the lines that contain its text.",
+      "List the person's agents (id, name, mac, reachable) and their open chats on this Mac " +
+      "and paired Macs (conversation_id, agent_id, agent_name, title, cwd, labels, pinned, last_active, purpose, this_chat), " +
+      "plus this chat's links. Call it before suggestion_create to pick the chat a piece of work fits " +
+      "best. `filter` keeps only entries matching its text.",
     parameters: {
       type: "object",
-      properties: { filter: { type: "string", description: "Text a line must contain (any case), such as a label, folder or word of a purpose." } },
+      properties: { filter: { type: "string", description: "Text a row must contain (any case), such as a label, folder or word of a purpose." } },
       additionalProperties: false,
     },
     async run(ctx) {
       if (deps.passChat(ctx.conversation.id)) return passError;
       const filter = argText(ctx.args.filter).trim().toLowerCase();
       const keep = (line: string) => !filter || line.toLowerCase().includes(filter);
-      const agents = (await deps.agents()).map((a) => `${a.id} · ${a.name} · on ${a.mac}${a.reachable ? "" : ", out of reach"}`).filter(keep);
+      const agents = (await deps.agents()).filter((a) => keep(`${a.id} · ${a.name} · on ${a.mac}${a.reachable ? "" : ", out of reach"}`));
       const chats = openChats(deps.chats())
-        .map((d) => chatLine(d, ctx.conversation.id))
-        .filter(keep);
+        .filter((d) => keep(chatLine(d, ctx.conversation.id)))
+        .map((d) => ({
+          conversation_id: d.conversation_id,
+          agent_id: d.agent_id,
+          agent_name: d.agent_name,
+          title: d.title,
+          cwd: d.cwd,
+          home_name: d.home_name ?? null,
+          reachable: d.reachable ?? true,
+          labels: d.labels,
+          pinned: d.pinned,
+          last_active: d.last_active,
+          purpose: d.purpose,
+          this_chat: d.conversation_id === ctx.conversation.id,
+        }));
       log("tool:chat_list", { agents: agents.length, chats: chats.length });
-      const links = deps.messages ? linkLines(deps.messages.linksOf(source(ctx)), source(ctx)) : [];
-      return [
-        "Agents (id · name · Mac):",
-        ...(agents.length ? agents : ["none"]),
-        "",
-        "Open chats (conversation id · agent · name · folder · …):",
-        ...(chats.length ? chats : ["none"]),
-        ...(links.length ? ["", "This chat's links (chat_message goes along them without asking):", ...links] : []),
-      ].join("\n");
+      const rawLinks = deps.messages ? deps.messages.linksOf(source(ctx)) : [];
+      const me = source(ctx);
+      const links = rawLinks
+        .filter((l, i) => !filter || (linkLines([l], me)[0] ?? `#${i}`).toLowerCase().includes(filter))
+        .map((l) => {
+          const other = l.from.agent_id === me.agent_id && l.from.conversation_id === me.conversation_id ? l.to : l.from;
+          return {
+            agent_id: other.agent_id,
+            conversation_id: other.conversation_id,
+            title: other.title ?? null,
+            direction: l.direction,
+            expires_at: l.expires_at,
+          };
+        });
+      return { agents, chats, links };
     },
   };
 

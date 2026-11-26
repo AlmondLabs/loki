@@ -406,6 +406,16 @@ export class JiraClient {
     return { tickets: list(r.issues).map(parseTicket), next_page_token: strOrNull(r.nextPageToken) };
   }
 
+  async search(jql: string, opts: { limit?: number; pageToken?: string | null } = {}): Promise<JiraTicketPage> {
+    const r = await this.call("GET", "/rest/api/3/search/jql", {
+      jql,
+      fields: SEARCH_FIELDS,
+      maxResults: String(Math.min(Math.max(Math.floor(opts.limit ?? 20) || 20, 1), 50)),
+      ...(opts.pageToken ? { nextPageToken: opts.pageToken } : {}),
+    });
+    return { tickets: list(r.issues).map(parseTicket), next_page_token: strOrNull(r.nextPageToken) };
+  }
+
   async ticket(idOrKey: string): Promise<JiraTicket> {
     return parseTicket(await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields: SEARCH_FIELDS }));
   }

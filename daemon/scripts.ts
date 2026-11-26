@@ -17,7 +17,7 @@ import { withKind } from "./tool-kinds.ts";
 
 export const SCRIPT_TOOL = CODEMODE_TOOL_NAME;
 
-export const SCRIPT_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "write", "edit"]);
+export const SCRIPT_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "write", "edit", "find", "grep"]);
 
 export const SCRIPT_TIMEOUT_MS = 10 * 60_000;
 
@@ -25,7 +25,7 @@ export const SCRIPT_MEMORY_BYTES = 64 * 1024 * 1024;
 
 export const SCRIPTS_AT_ONCE = 4;
 
-export const SCRIPT_LISTING_TOKENS = 0;
+export const SCRIPT_LISTING_TOKENS = 300;
 
 export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
   {

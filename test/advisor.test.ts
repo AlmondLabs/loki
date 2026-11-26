@@ -20,7 +20,6 @@ const FORBIDDEN = [
   "edit",
   "memory_write",
   "memory_edit",
-  "memory_delete",
   "subagent",
   "chat_message",
   "suggestion_create",
@@ -77,7 +76,7 @@ describe("a chat's advisor", () => {
       for (const name of FORBIDDEN) expect(agent.tools.map((t) => t.name)).not.toContain(name);
 
       const normal = await must(await s.store.chat("c", ctx), "the chat").agent(ctx);
-      expect(normal.tools.map((t) => t.name)).toEqual(expect.arrayContaining(["write", "memory_write", "chat_message"]));
+      expect(normal.tools.map((t) => t.name)).toEqual(expect.arrayContaining(["write", "memory_write", "chat_message", "find", "grep"]));
       expect(normal.tools.map((t) => t.name)).not.toContain("ls");
     } finally {
       await s.cleanup();
@@ -179,19 +178,19 @@ describe("a chat's advisor", () => {
     }
   });
 
-  test("ls, find, grep, history_search and history_read are called by the advisor's model directly", async () => {
+  test("find, grep, history_search and history_read are called by the advisor's model directly", async () => {
     const s = await advisorSetup();
     try {
       await s.store.createChat("c", { agent: { model: s.model, cwd: s.folder } }, ctx);
       const { chat } = opened(await s.advisors.open(AGENT, "c"));
-      const [ls, find, grep, search, read] = await s.turn(chat, [
-        ["ls", {}],
+      const [listed, find, grep, search, read] = await s.turn(chat, [
+        ["find", { max_depth: 1 }],
         ["find", { pattern: "**/*.ts" }],
         ["grep", { pattern: "answer" }],
         ["history_search", { query: "go" }],
         ["history_read", { from: 0 }],
       ]);
-      expect(ls).toMatchObject({ name: "ls", failed: false, text: "a.ts" });
+      expect(listed).toMatchObject({ name: "find", failed: false, text: "a.ts" });
       expect(find).toMatchObject({ name: "find", failed: false, text: "a.ts" });
       expect(grep.text).toContain("answer = 42");
       expect(search).toMatchObject({ name: "history_search", failed: false });

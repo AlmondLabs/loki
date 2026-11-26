@@ -72,7 +72,7 @@ const events: GoogleToolDef = {
 const change: GoogleToolDef = {
   name: "google_calendar_change",
   description:
-    "Create, update or delete an event on `calendar` (default primary). `action`: create (summary, start, end), update (event, any field), delete (event). `start`/`end` are ISO times, or days for all-day; `time_zone` an IANA zone; `guests` email addresses, who are invited and told unless `notify` is false; on update, `guests` is the whole new list. Answers with the event as stored.",
+    "Create, update or delete an event on `calendar` (default primary). `action`: create (summary, start, end), update (event, any field), delete (event). `start`/`end` are ISO times, or days for all-day; `time_zone` an IANA zone; `guests` email addresses; invitations/updates are sent only when `notify` is true (default false); on update, `guests` is the whole new list. Answers with the event as stored.",
   properties: {
     action: { type: "string", enum: ["create", "update", "delete"] },
     calendar: { type: "string" },
@@ -92,7 +92,7 @@ const change: GoogleToolDef = {
   run: async (call) => {
     const action = textArg(call.args, "action");
     const calendar = encodeURIComponent(optText(call.args, "calendar") ?? "primary");
-    const sendUpdates = call.args.notify === false ? "none" : "all";
+    const sendUpdates = call.args.notify === true ? "all" : "none";
     const zone = optText(call.args, "time_zone");
     const start = optText(call.args, "start");
     const end = optText(call.args, "end");

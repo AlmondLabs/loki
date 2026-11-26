@@ -64,7 +64,7 @@ describe("the memory review (/doctor)", () => {
       await editMemoryFile(s.dir, s.agentId, "reference/launch.md", "Launch on 30 Sept 2026.\n");
       s.faux.setResponses([
         s.reply(
-          fauxAssistantMessage(fauxToolCall("memory_delete", { path: "reference/deploy-day.md", message: "Merge the two deploy notes" }), {
+          fauxAssistantMessage(fauxToolCall("memory_write", { path: "reference/deploy-day.md", content: null, message: "Merge the two deploy notes" }), {
             stopReason: "toolUse",
           }),
         ),

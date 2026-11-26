@@ -144,7 +144,12 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));
     expect((await loki.listTools()).tools.map((t) => t.name)).toEqual(["script"]);
     const found = await loki.callTool({ name: "script", arguments: { code: "return await tools.history_search({ query: 'readme' })" } });
-    expect(JSON.stringify(found.content)).toContain(`#${asked} person`);
+    const parsed = JSON.parse((found.content as Array<{ type: string; text: string }>)[0]?.text ?? "{}") as {
+      conversation_id?: string;
+      hits?: Array<{ row?: number; speaker?: string; excerpt?: string }>;
+    };
+    expect(parsed.conversation_id).toBe(conversationId);
+    expect(parsed.hits).toEqual(expect.arrayContaining([expect.objectContaining({ row: asked, speaker: "person", excerpt: "What is in the readme?" })]));
     expect(tools.readOnly()).toEqual(["mcp__loki__script"]);
   });
 

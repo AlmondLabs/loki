@@ -48,6 +48,7 @@ export const SLACK_METHODS = [
   "files.completeUploadExternal",
   "reactions.add",
   "reactions.remove",
+  "search.messages",
   "subscriptions.thread.mark",
 ] as const;
 
@@ -146,6 +147,17 @@ export interface SlackMessagePage {
   messages: SlackMessage[];
   has_more: boolean;
   next_cursor: string | null;
+}
+
+export interface SlackSearchMatch {
+  channel: string;
+  channel_name: string;
+  ts: string;
+  thread_ts: string | null;
+  user: string | null;
+  username: string;
+  text: string;
+  permalink: string | null;
 }
 
 export interface SlackConversation {
@@ -497,6 +509,54 @@ export class SlackClient {
     if (!res.ok || !type.startsWith("image/")) return null;
     const data = Buffer.from(await res.arrayBuffer());
     return data.length <= PREVIEW_MAX_BYTES ? { data, type } : null;
+  }
+
+  async searchMessages(
+    query: string,
+    opts: { count?: number; page?: number } = {},
+  ): Promise<{ matches: SlackSearchMatch[]; total: number; page: number; pages: number }> {
+    const r = await this.call("search.messages", {
+      query,
+      count: Math.min(Math.max(Math.floor(opts.count ?? 20) || 20, 1), 50),
+      page: Math.max(Math.floor(opts.page ?? 1) || 1, 1),
+      sort: "timestamp",
+      sort_dir: "desc",
+    });
+    const messages = rec(r.messages);
+    const paging = rec(messages.paging);
+    const rawMatches = Array.isArray(messages.matches) ? (messages.matches as unknown[]) : [];
+    const matches: SlackSearchMatch[] = rawMatches.flatMap((item): SlackSearchMatch[] => {
+      const m = rec(item);
+      const ch = rec(m.channel);
+      const channel = str(ch.id);
+      const ts = str(m.ts);
+      if (!channel || !ts) return [];
+      const link = str(m.permalink);
+      let threadTs: string | null = null;
+      if (link) {
+        try {
+          threadTs = new URL(link).searchParams.get("thread_ts");
+        } catch {}
+      }
+      return [
+        {
+          channel,
+          channel_name: str(ch.name),
+          ts,
+          thread_ts: threadTs,
+          user: strOrNull(m.user),
+          username: str(m.username) || str(m.user),
+          text: str(m.text),
+          permalink: link || null,
+        },
+      ];
+    });
+    return {
+      matches,
+      total: typeof paging.total === "number" ? paging.total : matches.length,
+      page: typeof paging.page === "number" ? paging.page : 1,
+      pages: typeof paging.pages === "number" ? paging.pages : 1,
+    };
   }
 
   /**

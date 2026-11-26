@@ -407,16 +407,32 @@ export function scheduleTools(schedules: Schedules): ChatTool[] {
       kind: "read",
       name: "schedule_list",
       callers: SCRIPTS_ONLY,
+      outputSchema: { type: "object" },
       description: "Your scheduled tasks that are still active.",
       parameters: { type: "object", properties: {} },
       run: async (_args, call, context) => {
         const { agentId } = await caller(call, context);
         const mine = schedules.list().filter((t) => t.agent_id === agentId && t.status === "active");
-        return text(
-          mine.length
-            ? mine.map((t) => `- ${t.name} (${t.id}): ${t.cron} ${t.timezone}${t.recurring ? "" : ", once"}; fired ${t.fire_count}×`).join("\n")
-            : "no scheduled tasks",
-        );
+        const out = mine.length
+          ? mine.map((t) => `- ${t.name} (${t.id}): ${t.cron} ${t.timezone}${t.recurring ? "" : ", once"}; fired ${t.fire_count}×`).join("\n")
+          : "no scheduled tasks";
+        return {
+          output: [{ type: "text", text: out }],
+          structuredOutput: {
+            tasks: mine.map((t) => ({
+              id: t.id,
+              name: t.name,
+              description: t.description,
+              cron: t.cron,
+              timezone: t.timezone,
+              recurring: t.recurring,
+              prompt: t.prompt,
+              conversation_id: t.conversation_id,
+              fire_count: t.fire_count,
+              last_fired_at: t.last_fired_at,
+            })),
+          },
+        };
       },
     },
     {

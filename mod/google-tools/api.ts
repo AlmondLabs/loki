@@ -56,6 +56,8 @@ const api: GoogleToolDef = {
     // Outside (Gmail): Google routes an empty segment or a trailing slash to the method it follows, so neither may reach it here.
     if (service === "gmail" && (/[\x00-\x20\x7f%]/.test(path) || path.includes("//") || sendsMail(host.origin, path)))
       throw new Error("scripts do not send mail: save a draft with google_gmail_draft, or propose it to the person with message_propose");
+    if (service === "drive" && method !== "GET" && /\/permissions(\/|$)/i.test(path))
+      throw new Error("scripts do not change Drive sharing permissions: share files in Google Drive directly");
     const query = Object.fromEntries(Object.entries(rec(call.args.query)).filter((e): e is [string, string] => typeof e[1] === "string"));
     accountFor(call.deps, call.ctx, call.account.address, service);
     const answer = await call.auth.json({
