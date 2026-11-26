@@ -1,0 +1,109 @@
+import { describe, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ChatRegistry, hiddenScopes } from "../mod/chats.ts";
+import { scopeFor } from "../core/canvas-core.ts";
+
+describe("desk registry", () => {
+  test("remembers, persists, reloads; scope is the sanitized conversation id", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
+    try {
+      const path = join(dir, "chats.json");
+      const reg = new ChatRegistry(path, () => null);
+      expect(reg.remember("local-conv-1", "agent-1")).toBe("local-conv-1");
+      expect(reg.get("local-conv-1")).toEqual({ agent_id: "agent-1", conversation_id: "local-conv-1" });
+      expect(reg.remember("conv-x", null)).toBe("conv-x");
+      expect(reg.get("conv-x")).toBeUndefined();
+      const again = new ChatRegistry(path, () => null);
+      expect(again.get("local-conv-1")).toEqual({ agent_id: "agent-1", conversation_id: "local-conv-1" });
+      expect(again.all()).toEqual([{ scope: "local-conv-1", agent_id: "agent-1", conversation_id: "local-conv-1" }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("forgetAgent drops every desk of one agent and persists", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
+    try {
+      const reg = new ChatRegistry(join(dir, "chats.json"), () => null);
+      reg.remember("default", "agent-helper");
+      reg.remember("local-conv-1", "agent-helper");
+      reg.remember("local-conv-2", "agent-9");
+      expect(reg.forgetAgent("agent-helper")).toBe(2);
+      expect(reg.forgetAgent("agent-helper")).toBe(0);
+      expect(new ChatRegistry(join(dir, "chats.json"), () => null).all().map((d) => d.agent_id)).toEqual(["agent-9"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("desk registry fallback", () => {
+  test("resolves desks it never saw: main chats from the scope, others from whoever knows the chat's agent", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
+    try {
+      const reg = new ChatRegistry(join(dir, "chats.json"), (id) => (id === "local-conv-77" ? "agent-z" : null));
+      expect(reg.get("default-agent-q")).toEqual({ agent_id: "agent-q", conversation_id: "default" });
+      expect(reg.get("local-conv-77")).toEqual({ agent_id: "agent-z", conversation_id: "local-conv-77" });
+      expect(reg.get("local-conv-unknown")).toBeUndefined();
+      expect(reg.get("shared")).toBeUndefined();
+      const again = new ChatRegistry(join(dir, "chats.json"), () => null);
+      expect(again.get("default-agent-q")).toEqual({ agent_id: "agent-q", conversation_id: "default" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("ChatRegistry: one scope per conversation", () => {
+  test("a legacy bare 'default' key folds onto default-<agentId> and is rewritten on disk", async () => {
+    const { writeFileSync: w, readFileSync: r } = await import("node:fs");
+    const dir = mkdtempSync(join(tmpdir(), "loki-registry-"));
+    const file = join(dir, "chats.json");
+    w(
+      file,
+      JSON.stringify({
+        default: { agent_id: "agent-1", conversation_id: "default" },
+        "default-agent-1": { agent_id: "agent-1", conversation_id: "default" },
+        "local-conv-9": { agent_id: "agent-1", conversation_id: "local-conv-9" },
+      }),
+    );
+    const reg = new ChatRegistry(file, () => null);
+    expect(
+      reg
+        .all()
+        .map((d) => d.scope)
+        .sort(),
+    ).toEqual(["default-agent-1", "local-conv-9"]);
+    expect(Object.keys(JSON.parse(r(file, "utf8")) as Record<string, unknown>).sort()).toEqual(["default-agent-1", "local-conv-9"]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("desks an earlier loki kept for the passes' chats are dropped, and only those", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
+    try {
+      const path = join(dir, "chats.json");
+      const reg = new ChatRegistry(path, () => null);
+      reg.remember("recall-a1", "a1");
+      reg.remember("reflection-a1", "a1");
+      reg.remember("local-conv-1", "a1");
+      expect(reg.forgetConversations((id) => id.startsWith("recall-") || id.startsWith("reflection-"))).toBe(2);
+      expect(new ChatRegistry(path, () => null).all().map((d) => d.conversation_id)).toEqual(["local-conv-1"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("chats this Mac only keeps hidden (plan 023)", () => {
+  test("a chat let go to another Mac leaves the list though its canvas stays; one visible under the same scope stays", () => {
+    const rows = [
+      { conversationId: "conv-moved", agentId: "agent-1", hidden: true },
+      { conversationId: "conv-here", agentId: "agent-1", hidden: false },
+      { conversationId: "conv-back", agentId: "agent-1", hidden: true },
+      { conversationId: "conv-back", agentId: "agent-1", hidden: false },
+    ];
+    expect([...hiddenScopes(rows)]).toEqual([scopeFor("conv-moved", "agent-1")]);
+  });
+});

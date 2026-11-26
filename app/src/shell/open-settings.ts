@@ -1,4 +1,4 @@
-import { inDesktop, platform } from "../desk/env";
+import { inDesktop, platform } from "../workspace/env";
 import { invoke } from "./desktop";
 
 export const SETTINGS_WINDOW = inDesktop && platform === "macos";

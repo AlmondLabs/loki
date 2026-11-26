@@ -2,15 +2,15 @@ import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { GaugeIcon, MessagesSquareIcon, RepeatIcon, type LucideIcon } from "lucide-react";
 import { useNow } from "../components/use-now";
-import { ANSWERS, describeGap, isNew, previews, type Grade } from "../../../core/recall/fsrs.ts";
-import { learnTitle, updatedSinceReview, type CardSource, type CardWithSchedule, type Lead } from "../../../core/recall/model.ts";
-import { lessonBrief } from "../../../core/recall/extract.ts";
-import type { Recall as RecallModel } from "../shell/use-recall";
-import type { useDeckPass } from "../recall/use-deck-pass";
+import { ANSWERS, describeGap, isNew, previews, type Grade } from "../../../core/learn/fsrs.ts";
+import { learnTitle, updatedSinceReview, type CardSource, type CardWithSchedule, type Lead } from "../../../core/learn/model.ts";
+import { lessonBrief } from "../../../core/learn/extract.ts";
+import type { Learn as LearnModel } from "../shell/use-learn";
+import type { useDeckPass } from "../learn/use-deck-pass";
 import { ago } from "../shared/ago";
 import { Glyph } from "../shared/icons";
-import { WELCOME_LINE, welcomeRows, type WelcomeRow } from "../recall/welcome";
-import { avatarUrl } from "../desk/env";
+import { WELCOME_LINE, welcomeRows, type WelcomeRow } from "../learn/welcome";
+import { avatarUrl } from "../workspace/env";
 import { Button, sentence } from "../components";
 import { useLeave, type LeaveFrames } from "../kit/leave";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
@@ -32,7 +32,7 @@ export function Learn({
   onOpen,
 }: {
   view: LearnPage | undefined;
-  recall: RecallModel;
+  recall: LearnModel;
   pass: DeckPass;
   banner: ReactNode;
   backLabel?: string;
@@ -50,7 +50,7 @@ export function Learn({
 
 const openLearn = (view: LearnPage) => navigate({ kind: "learn", view });
 
-function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: ReactNode; back: ReactNode }) {
+function LearnHome({ recall, banner, back }: { recall: LearnModel; banner: ReactNode; back: ReactNode }) {
   const snap = recall.snap;
   const deleted = snap ? snap.rejected.length + snap.dismissed_leads.length : 0;
   return (
@@ -89,7 +89,7 @@ function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: Reac
   );
 }
 
-function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: DeckPass; banner: ReactNode; back: ReactNode }) {
+function Review({ recall, pass, banner, back }: { recall: LearnModel; pass: DeckPass; banner: ReactNode; back: ReactNode }) {
   const cards = recall.snap?.cards ?? [];
   const { current } = pass;
   return (
@@ -143,7 +143,7 @@ function Leads({
   onBegin,
   onOpen,
 }: {
-  recall: RecallModel;
+  recall: LearnModel;
   banner: ReactNode;
   back: ReactNode;
   onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
@@ -224,7 +224,7 @@ function Lessons({
   onBegin,
   onOpen,
 }: {
-  recall: RecallModel;
+  recall: LearnModel;
   banner: ReactNode;
   back: ReactNode;
   onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
@@ -276,7 +276,7 @@ function Lessons({
   );
 }
 
-function Deleted({ recall, banner, back }: { recall: RecallModel; banner: ReactNode; back: ReactNode }) {
+function Deleted({ recall, banner, back }: { recall: LearnModel; banner: ReactNode; back: ReactNode }) {
   const snap = recall.snap;
   const cards = snap?.rejected ?? [];
   const leads = snap?.dismissed_leads ?? [];

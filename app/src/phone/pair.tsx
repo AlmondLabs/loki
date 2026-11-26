@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { modBase } from "../desk/env";
+import { modBase } from "../workspace/env";
 import { CODE_LENGTH, codeFromUrl, deviceName, normalizeCode } from "./model";
 import { Button, Field } from "../components";
 

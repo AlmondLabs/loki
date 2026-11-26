@@ -27,7 +27,6 @@ export interface UpdateStatus {
   channel: Channel;
   current: string;
   state: UpdateState;
-  moved: boolean;
 }
 
 export interface FailedInstall {
@@ -202,7 +201,7 @@ export class Updates {
   }
 
   status(): UpdateStatus {
-    return { channel: this.#channel, current: this.#current, state: this.#state, moved: false };
+    return { channel: this.#channel, current: this.#current, state: this.#state };
   }
 
   setChannel(channel: Channel): void {

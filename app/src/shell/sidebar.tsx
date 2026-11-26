@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { SEGMENTS } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { countText } from "../components";
-import { inDesktop, platform, type Platform } from "../desk/env";
+import { inDesktop, platform, type Platform } from "../workspace/env";
 import { currentWindow, invoke } from "./desktop";
 import { ariaShortcut, keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
@@ -133,7 +133,7 @@ export function WindowControls({ maximized, onAction }: { maximized: boolean; on
   );
 }
 
-const PLACE_ICON: Record<Segment, IconName> = { desk: "desk", inbox: "inbox", agents: "agents", learn: "learn", settings: "settings" };
+const PLACE_ICON: Record<Segment, IconName> = { chats: "desk", flow: "inbox", agents: "agents", learn: "learn", settings: "settings" };
 
 export interface PlaceSource {
   id: string;
@@ -178,8 +178,8 @@ export function Places({
   return (
     <div className="loki-places">
       {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
-        const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
-        const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
+        const count = s.id === "flow" ? waiting : s.id === "learn" ? dueCards : 0;
+        const said = s.id === "flow" ? `${count} waiting` : `${count} due`;
         const own = sources[s.id];
         const here = segment === s.id;
         if (!own)

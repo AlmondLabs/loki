@@ -130,7 +130,6 @@ export interface ChatMessagesOptions {
   power(ref: ChatKey): Promise<PermissionMode | null>;
   deliver(ref: ChatKey, text: string, context: string, sendId: string, cap: PermissionMode | null): Promise<string | null>;
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
-  track?(event: string, properties: Record<string, unknown>): void;
   now?(): Date;
   newId?(): string;
 }
@@ -177,7 +176,6 @@ export class ChatMessages {
         duration: this.opts.links.defaultDuration(),
       };
       const answer = await this.opts.ask(source, ask, signal);
-      this.opts.track?.("chat_link_decided", { allow: answer.allow, direction: answer.direction, duration: answer.duration });
       if (!answer.allow) return { ok: false, message: "the person did not allow this chat to message that one: do not ask again for it in this turn" };
       const opened = await this.open(ask, answer);
       if (typeof opened === "string") return { ok: false, message: opened };
@@ -194,7 +192,6 @@ export class ChatMessages {
     };
     const out = (await this.opts.here(target)) ? await this.receive(frame) : await this.opts.forward(frame);
     if (!out.ok) return { ok: false, message: out.message };
-    this.opts.track?.("chat_message_sent", { both_ways: link.direction === "both_ways" });
     const back = link.direction === "both_ways" ? "It may answer with chat_message." : "The link is one way: it cannot answer you.";
     return { ok: true, message: `sent to "${quotable(to.title)}". ${back}` };
   }
@@ -241,7 +238,6 @@ export class ChatMessages {
           if (!(await this.opts.here(end))) await this.opts.forward({ type: "chat_link_close", ...keyOf(end), link_id: id }).catch(() => undefined);
         }),
       );
-    this.opts.track?.("chat_link_closed", {});
     return true;
   }
 

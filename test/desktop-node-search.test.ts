@@ -132,16 +132,6 @@ describe("which Node wins", () => {
     expect(await findNode(host)).toMatchObject({ found: true, dir: p.join(home, ".volta/bin") });
   });
 
-  test("the Node a Tauri loki downloaded into ~/.loki/runtime never counts", async () => {
-    const { host, home, p, node } = fakeHost("linux", { home: "/home/someone" });
-    const runtime = p.join(home, ".loki/runtime/node-22.23.5-linux-x64/bin");
-    const withRuntime = fakeHost("linux", { home, path: runtime });
-    withRuntime.node(runtime, "v22.23.5");
-    expect(await findNode(withRuntime.host)).toEqual({ found: false, old: null });
-    node("/usr/bin", "v24.0.0");
-    expect(await findNode(host)).toMatchObject({ found: true, dir: "/usr/bin" });
-  });
-
   test("LOKI_NODE_BIN wins when it is new enough, and is passed over when it is not", async () => {
     const mine = "/home/someone/mine/node";
     const make = (version: string) => {

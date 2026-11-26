@@ -2,7 +2,7 @@ import { lokiDir } from "./paths.ts";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import { backendName } from "../core/desk-core.ts";
+import { backendName } from "../core/canvas-core.ts";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
 import { isAgentId } from "../core/frames.ts";
 import { isReasoningEffort } from "../core/models.ts";

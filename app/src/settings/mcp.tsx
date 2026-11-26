@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useId, useState } from "react";
 import { Button, Chip, Dot, Field, Row, TextArea, sentence } from "../components";
 import type { McpServerView, McpView } from "../../../core/frame-types.ts";
-import { openExternal } from "../desk/env";
+import { openExternal } from "../workspace/env";
 import { Block, Segmented, Setting } from "./layout";
 import { messageOf } from "../../../core/errors.ts";
 

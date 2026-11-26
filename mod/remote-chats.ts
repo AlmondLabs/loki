@@ -1,13 +1,13 @@
-import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
-import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
+import { SHARED_SCOPE, type Scope } from "../core/canvas-core.ts";
+import type { ChatSummary, FlowRow } from "../core/frame-types.ts";
 import { pushMeaning } from "../core/frames.ts";
 import { messageOf } from "../core/errors.ts";
 import { log } from "./log.ts";
 import type { PeerLink } from "./peer-link.ts";
 
 interface MacChats {
-  desks: DeskSummary[];
-  inbox: InboxRow[];
+  chats: ChatSummary[];
+  flow: FlowRow[];
   reachable: boolean;
 }
 
@@ -18,8 +18,8 @@ const changesList = (frame: Record<string, unknown>): boolean => {
   return frame.events.some((e) => typeof e === "object" && e !== null && lists.some((kind) => kind === (e as { kind?: unknown }).kind));
 };
 
-export function peerChatsReply(desks: DeskSummary[], inbox: InboxRow[]): { desks: DeskSummary[]; inbox: InboxRow[]; outside: InboxRow[] } {
-  return { desks, inbox: inbox.filter((r) => r.kind !== "outside"), outside: inbox.filter((r) => r.kind === "outside") };
+export function peerChatsReply(chats: ChatSummary[], flow: FlowRow[]): { chats: ChatSummary[]; flow: FlowRow[]; outside: FlowRow[] } {
+  return { chats, flow: flow.filter((r) => r.kind !== "outside"), outside: flow.filter((r) => r.kind === "outside") };
 }
 
 export interface RemoteChatsOptions {
@@ -40,8 +40,8 @@ export class RemoteChats {
   private readonly retries = new Map<string, { timer: ReturnType<typeof setTimeout> | null; waitMs: number }>();
   private readonly refreshing = new Set<string>();
   private readonly dirty = new Set<string>();
-  private cachedDesks: DeskSummary[] | null = null;
-  private cachedInbox: InboxRow[] | null = null;
+  private cachedDesks: ChatSummary[] | null = null;
+  private cachedInbox: FlowRow[] | null = null;
 
   constructor(opts: RemoteChatsOptions) {
     this.opts = opts;
@@ -119,13 +119,13 @@ export class RemoteChats {
           return;
         }
         const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v.filter((x: unknown) => typeof x === "object" && x !== null) : []);
-        const desks = (rows(reply.desks) as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted");
-        const inbox = [...(rows(reply.inbox) as InboxRow[]), ...(rows(reply.outside) as InboxRow[])];
-        this.macs.set(macId, { desks, inbox, reachable: true });
+        const chats = (rows(reply.chats) as ChatSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted");
+        const flow = [...(rows(reply.flow) as FlowRow[]), ...(rows(reply.outside) as FlowRow[])];
+        this.macs.set(macId, { chats, flow, reachable: true });
         this.invalidate();
         this.opts.onListed?.(
           macId,
-          desks.map((d) => d.scope),
+          chats.map((d) => d.scope),
         );
         this.opts.onChange();
         this.stopRetry(macId);
@@ -136,22 +136,20 @@ export class RemoteChats {
     }
   }
 
-  desks(): DeskSummary[] {
+  summaries(): ChatSummary[] {
     this.cachedDesks ??= [...this.macs].flatMap(([mac, m]) =>
-      m.desks.map((d) => ({ ...d, active: false, home: mac, home_name: this.opts.name(mac), reachable: m.reachable })),
+      m.chats.map((d) => ({ ...d, active: false, home: mac, home_name: this.opts.name(mac), reachable: m.reachable })),
     );
     return this.cachedDesks;
   }
 
-  inbox(): InboxRow[] {
-    this.cachedInbox ??= [...this.macs].flatMap(([mac, m]) =>
-      m.inbox.map((r) => ({ ...r, home: mac, home_name: this.opts.name(mac), reachable: m.reachable })),
-    );
+  flow(): FlowRow[] {
+    this.cachedInbox ??= [...this.macs].flatMap(([mac, m]) => m.flow.map((r) => ({ ...r, home: mac, home_name: this.opts.name(mac), reachable: m.reachable })));
     return this.cachedInbox;
   }
 
   awayWith(agentId: string): string | null {
-    for (const [mac, m] of this.macs) if (!m.reachable && m.desks.some((d) => d.agent_id === agentId)) return mac;
+    for (const [mac, m] of this.macs) if (!m.reachable && m.chats.some((d) => d.agent_id === agentId)) return mac;
     return null;
   }
 

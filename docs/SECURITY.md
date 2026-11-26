@@ -62,7 +62,7 @@ when you ask loki to install Node, npm for an ACP adapter) is listed under
 Mac only for now: on Windows and Linux Preferences › Phone says pairing isn't there yet and offers no switch,
 so the listener stays off.
 
-Preferences › Phone puts a second listener on the local network so a phone can use loki (its Home, Inbox,
+Preferences › Phone puts a second listener on the local network so a phone can use loki (its Home, Flow,
 Agents and chats). The model:
 
 - **Off by default.** Nothing listens beyond loopback until you switch "reachable on this Wi‑Fi" on. The
@@ -320,7 +320,7 @@ emoji per mail (plan 2026-11-23-1800).
   with other people's text (`strangerText`: every Google read, `google_api`, `slack_read`, `jira_read`, `flow_list`, `people_find`),
   failed scripts included (plan 097, `fencedIfRead` in `daemon/scripts.ts`). The Inbox card itself is drawn in the app and goes to no model.
 - **A mail drawn on its card.** A mail's HTML is drawn for you only, in a frame sandboxed with no scripts or forms and
-  its own policy allowing only images, styles and fonts (`app/src/desk/mail-html.tsx`); scripts, frames,
+  its own policy allowing only images, styles and fonts (`app/src/workspace/mail-html.tsx`); scripts, frames,
   objects, base and refresh tags are also removed before it is drawn. Remote images load, so a sender can tell the
   mail was opened and from which address, as in Gmail. A picture pasted into the mail (an `<img src="cid:…">`) is
   fetched from Gmail once by the daemon and kept with your chats' pictures in `~/.loki/chat-images/` (plan
@@ -332,7 +332,7 @@ emoji per mail (plan 2026-11-23-1800).
   `mailto` links open. The frame may ask for a new window, which is how a click reaches the Mac's shell, but the shell
   opens no window: it hands a web or mail address to the browser and drops anything else (`desktop/windows.ts`). The HTML goes to no model: agents read the mail's text.
 - **What loki keeps on disk.** Each thread's record (its sender, subject and last few lines,
-  `state/account-threads/`) and the ledger of your moves on outside cards (`state/inbox-ledger.jsonl`, plan 069:
+  `state/account-threads/`) and the ledger of your moves on outside cards (`state/flow-ledger.jsonl`, plan 069:
   sender, subject, the kind of mail and what you did) stay on the account's Mac, mode 0600, and go to no model or
   server. So do the people each mailbox has mail with (`state/mail-people.json`, plan 076: names and addresses from
   the From, To and Cc headers loki already reads, for the recipients line's suggestions, forgotten when the account is
@@ -382,7 +382,7 @@ compiled by the shell on request (`loki://app/widgets/…`) and runs in its own 
 (`sandbox="allow-scripts"`, an opaque origin). The frame's policy allows no fetch, XHR, WebSocket or EventSource
 (`connect-src 'none'`), no frames, workers or forms, and images only from `data:`, `blob:` and `https:`; the frame
 never sees the daemon token, and talks to the page only by `postMessage`, which the page checks
-(`app/src/desk/widget-bridge.ts`). A widget can still show an `https:` image, which tells that server the widget was
+(`app/src/workspace/widget-bridge.ts`). A widget can still show an `https:` image, which tells that server the widget was
 shown. Treat widgets the way you treat the agent's shell commands: the permission mode you choose per chat (strict,
 standard, accept edits, unrestricted) governs whether the agent may write files at all, and an agent that may run
 commands can do anything you can.
@@ -475,9 +475,7 @@ The page's Content Security Policy, which the shell sends with the page as a hea
   agents' reply proposals (`state/reply-proposals.json`), the names and addresses each mailbox has mail with
   (`state/mail-people.json`) and a mail reply during its undo (`state/outbox.json`). No token or session is among them.
 - Outside it: the global skills in `~/.agents/skills`, and provider, MCP and account secrets in the keychain.
-- Nothing is uploaded, logged remotely, or telemetered. The daemon keeps a local usage log
-  (`~/.loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only this machine reads:
-  `bun run analytics`, and the usage page's ledger once, to seed its history; `LOKI_ANALYTICS=0` turns it off.
+- Nothing is uploaded, logged remotely, or telemetered.
 
 ## What leaves the machine
 

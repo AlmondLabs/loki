@@ -50,7 +50,7 @@ export interface UsageReply {
   rows: UsageRow[];
   /** Each model in `rows`, and whether its cost is known; an unpriced model's tokens are counted, its cost is not. */
   priced: Partial<Record<string, boolean>>;
-  /** History before this instant came from analytics and has no cost split by token type (null before the seed). */
+  /** History before this instant came from an earlier turn log and has no cost split by token type (null before the seed). */
   seeded_until: string | null;
 }
 

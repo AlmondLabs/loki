@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { describeGap, intervalDays, isDue, isNew, keepsFailing, newSchedule, previews, retrievability, review } from "../core/recall/fsrs.ts";
-import { dueCount, reviewQueue, toAnkiTsv, updatedSinceReview, type Card, type CardWithSchedule } from "../core/recall/model.ts";
+import { describeGap, intervalDays, isDue, isNew, keepsFailing, newSchedule, previews, retrievability, review } from "../core/learn/fsrs.ts";
+import { dueCount, reviewQueue, toAnkiTsv, updatedSinceReview, type Card, type CardWithSchedule } from "../core/learn/model.ts";
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const DAY = 86_400_000;

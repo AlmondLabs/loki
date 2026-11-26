@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
-import { inboxQueue, restingCount } from "../core/attention/queue.ts";
+import { flowQueue, restingCount } from "../core/attention/queue.ts";
 import {
   REST_CAP_MS,
   REST_FIRST_CHOICES,
@@ -263,9 +263,9 @@ describe("the Inbox with resting cards", () => {
   const items = [stale("a"), { ...stale("b"), resting: true }, { ...stale("c"), resting: true, status: "running" as const }];
 
   test("leaves them out and counts them; going through them lets them in", () => {
-    expect(inboxQueue(items).map((i) => i.id)).toEqual(["a"]);
+    expect(flowQueue(items).map((i) => i.id)).toEqual(["a"]);
     expect(restingCount(items)).toBe(1);
-    expect(inboxQueue(items, true).map((i) => i.id)).toEqual(["a", "b"]);
+    expect(flowQueue(items, true).map((i) => i.id)).toEqual(["a", "b"]);
   });
 
   test("on the phone, going through them brings back what this visit moved past too, and keeps the tally", () => {
@@ -315,7 +315,7 @@ describe("the mod keeps the rests", () => {
 });
 
 describe("an outside card's rest as the mod judges it (plan 078)", () => {
-  test("agrees with the Inbox: resting while its rest holds for its newest message, not after it ends or a newer one comes", () => {
+  test("agrees with the Flow: resting while its rest holds for its newest message, not after it ends or a newer one comes", () => {
     const item = outsideItem("Budget");
     const now = Date.parse("2026-11-09T10:00:00.000Z");
     const rest: Rest = { n: 0, until: "2026-11-09T11:00:00.000Z", stamp: "outside|m1", at: "2026-11-09T09:00:00.000Z", kind: "read" };

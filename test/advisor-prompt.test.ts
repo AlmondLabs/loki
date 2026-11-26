@@ -3,7 +3,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai/providers/faux";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { CONSULTING_PROMPT, consultingSection } from "../mod/advisor.ts";
-import { isPassChat } from "../mod/recall-worker.ts";
+import { isPassChat } from "../mod/learn-worker.ts";
 import { AGENT, advisorSetup } from "./fixtures/advisor.ts";
 import { must } from "./fixtures/must.ts";
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { inDesktop } from "../desk/env";
+import { inDesktop } from "../workspace/env";
 import { invoke, listen } from "./desktop";
 import { messageOf } from "../../../core/errors.ts";
 import type { Channel } from "../../../core/version.ts";
@@ -22,12 +22,11 @@ export type UpdateState =
   | { kind: "failed"; stage: UpdateStage; message: string }
   | { kind: "unsupported"; reason: "development" | "package" };
 
-/** The shell's update status: the channel it checks, the running version, the update's state, and whether an Electron loki is out on this channel, which this app cannot update to. */
+/** The shell's update status: the channel it checks, the running version, and the update's state. */
 export interface UpdateStatus {
   channel: Channel;
   current: string;
   state: UpdateState;
-  moved: boolean;
 }
 
 export interface LokiUpdate {

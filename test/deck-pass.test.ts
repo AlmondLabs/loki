@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
-import { newSchedule } from "../core/recall/fsrs.ts";
-import type { CardWithSchedule } from "../core/recall/model.ts";
-import { returned, useDeckPass } from "../app/src/recall/use-deck-pass.ts";
+import { newSchedule } from "../core/learn/fsrs.ts";
+import type { CardWithSchedule } from "../core/learn/model.ts";
+import { returned, useDeckPass } from "../app/src/learn/use-deck-pass.ts";
 import { must } from "./fixtures/must.ts";
 
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], at: 0 }));

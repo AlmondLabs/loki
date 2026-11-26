@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { LabelPicker } from "../app/src/desk/label-picker.tsx";
+import { LabelPicker } from "../app/src/workspace/label-picker.tsx";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
 const noop = () => {};

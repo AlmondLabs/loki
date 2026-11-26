@@ -1,5 +1,5 @@
 import { advisedChat } from "../core/advisor.ts";
-import { scopeFor, type Scope } from "../core/desk-core.ts";
+import { scopeFor, type Scope } from "../core/canvas-core.ts";
 
 export interface ChatRef {
   agent_id?: string | null;

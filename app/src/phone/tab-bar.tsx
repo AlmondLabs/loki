@@ -11,7 +11,7 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
       <div className="loki-phone-dock-row">
         <nav aria-label="Primary" className="loki-phone-nav">
           {TABS.map((t) => {
-            const n = t === "inbox" ? waiting : 0;
+            const n = t === "flow" ? waiting : 0;
             return (
               <button
                 key={t}
@@ -44,8 +44,8 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
   );
 }
 
-export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Flow", agents: "Agents", more: "More" };
-const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", more: "more" };
+export const TAB_LABEL: Record<Tab, string> = { home: "Home", flow: "Flow", agents: "Agents", more: "More" };
+const TAB_ICON: Record<Tab, IconName> = { home: "home", flow: "inbox", agents: "agents", more: "more" };
 
 export const navLabel = (t: Tab, n: number): string => (n > 0 ? `${TAB_LABEL[t]}, ${countText(n)} waiting` : TAB_LABEL[t]);
 

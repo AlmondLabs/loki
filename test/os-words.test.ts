@@ -5,7 +5,7 @@ import ts from "typescript";
 import { KEYMAP, keyRows, labelOf } from "../app/src/shell/keymap.ts";
 import { keysFor } from "../app/src/shell/keys-sheet.tsx";
 import { osWords, toolsWords } from "../app/src/shell/os-words.ts";
-import type { Platform } from "../app/src/desk/env.ts";
+import type { Platform } from "../app/src/workspace/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -57,7 +57,7 @@ describe("Hide loki off the Mac is Minimise loki", () => {
     expect(keyRows("windows").find((b) => b.id === "window.hide")?.label).toBe("Minimise loki");
     expect(keyRows("macos").find((b) => b.id === "window.hide")?.label).toBe("Hide loki");
     const sheet = (os: Platform) =>
-      keysFor("inbox", KEYMAP, os)
+      keysFor("flow", KEYMAP, os)
         .flatMap((g) => g.rows)
         .find((b) => b.id === "window.hide")?.label;
     expect(sheet("linux")).toBe("Minimise loki");

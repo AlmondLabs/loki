@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve } from "node:path";
 
 const CORE = resolve(import.meta.dirname, "..", "core");
 const LEAKS = /(?<![\w-])window\.|(?<![\w-])document\.|localStorage|(?<![\w-])navigator\.|@tauri-apps|electron|lokiDesktop|shell\/desktop/;
-const ALLOWED_BARE = new Set(["react"]);
+const ALLOWED_BARE = new Set(["react", "typebox", "typebox/compile"]);
 
 function tsFiles(dir: string): string[] {
   const out: string[] = [];

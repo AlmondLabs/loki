@@ -1,16 +1,16 @@
 import { useRef, useState, type KeyboardEvent } from "react";
-import { dueCount, type RecallSnapshot } from "../../core/recall/model.ts";
+import { dueCount, type LearnSnapshot } from "../../core/learn/model.ts";
 import { ListIcon, ListRow } from "../../app/src/components";
-import { learnSources } from "../../app/src/recall/learn-column";
-import { Recall } from "../../app/src/recall/recall";
-import { useLearnView } from "../../app/src/recall/use-learn-view";
+import { learnSources } from "../../app/src/learn/learn-column";
+import { Learn } from "../../app/src/learn/learn";
+import { useLearnView } from "../../app/src/learn/use-learn-view";
 import { PlaceSlotsProvider } from "../../app/src/shell/place-columns";
 import { resolve, runAction } from "../../app/src/shell/keymap";
-import type { Recall as RecallModel } from "../../app/src/shell/use-recall";
+import type { Learn as LearnModel } from "../../app/src/shell/use-learn";
 import { dismissLead, editCard, gradeCard, lessonOf, removeCard, restoreCard, restoreLead, startingLearn } from "./demo-learn";
 
 export function LearnDemo() {
-  const recall = useDemoRecall();
+  const recall = useDemoLearn();
   const [lesson, setLesson] = useState<string | null>(null);
   const [visit, setVisit] = useState(0);
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
@@ -36,11 +36,11 @@ export function LearnDemo() {
         <div ref={setListSlot} className="site-learn-list" />
         <div ref={setDetailSlot} className="site-learn-pane" />
         <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>
-          <Recall
+          <Learn
             key={visit}
             recall={recall}
             active
-            onOpenDesk={() => setLesson("In the app, this opens the chat the card came from.")}
+            onOpenChat={() => setLesson("In the app, this opens the chat the card came from.")}
             onBegin={(_agent, _conversation, _brief, title) => setLesson(`In the app, “${title}” opens as a chat of its own and the agent begins the lesson.`)}
           />
         </PlaceSlotsProvider>
@@ -65,7 +65,7 @@ export function LearnDemo() {
   );
 }
 
-function LearnViews({ recall }: { recall: RecallModel }) {
+function LearnViews({ recall }: { recall: LearnModel }) {
   const [view, setView] = useLearnView();
   const sources = learnSources({ snap: recall.snap, due: recall.due, view, onView: setView });
   return (
@@ -84,10 +84,10 @@ function LearnViews({ recall }: { recall: RecallModel }) {
   );
 }
 
-function useDemoRecall(): RecallModel & { reset: () => void } {
-  const [snap, setSnap] = useState<RecallSnapshot>(() => startingLearn(Date.now()));
+function useDemoLearn(): LearnModel & { reset: () => void } {
+  const [snap, setSnap] = useState<LearnSnapshot>(() => startingLearn(Date.now()));
   const lastDeleted = useRef<string | null>(null);
-  const apply = (move: (s: RecallSnapshot, now: number) => RecallSnapshot) => {
+  const apply = (move: (s: LearnSnapshot, now: number) => LearnSnapshot) => {
     setSnap((s) => move(s, Date.now()));
     return Promise.resolve();
   };

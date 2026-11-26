@@ -30,7 +30,6 @@ describe("the phone preview's daemon (plan 2026-11-18-2327, U1)", () => {
     expect(env.LOKI_DIR).toBe(join(scratch, ".loki"));
     expect(env.LOKI_SKILLS_DIR).toBe(join(scratch, "skills"));
     expect(env.LOKI_KEYCHAIN).toBe("0");
-    expect(env.LOKI_ANALYTICS).toBe("0");
     expect(env.LOKI_BUILT_PAGE).toBe("1");
     expect(env.LOKI_PORT).toBe("50100");
     expect(env.LOKI_LAN_PORT).toBe("50101");
@@ -54,7 +53,7 @@ describe("the phone preview's daemon (plan 2026-11-18-2327, U1)", () => {
       Object.keys(env)
         .filter((k) => k.startsWith("LOKI_"))
         .sort(),
-    ).toEqual(["LOKI_ANALYTICS", "LOKI_BUILT_PAGE", "LOKI_DIR", "LOKI_KEYCHAIN", "LOKI_LAN_PORT", "LOKI_PORT", "LOKI_PREVIEW_ACCOUNTS", "LOKI_SKILLS_DIR"]);
+    ).toEqual(["LOKI_BUILT_PAGE", "LOKI_DIR", "LOKI_KEYCHAIN", "LOKI_LAN_PORT", "LOKI_PORT", "LOKI_PREVIEW_ACCOUNTS", "LOKI_SKILLS_DIR"]);
   });
 
   test("knows the made-up agent's words from the fixture itself", () => {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { readCachedDesks, readCachedThread, writeCachedDesks, writeCachedThread } from "../app/src/desk/boot-cache.ts";
+import { readCachedDesks, readCachedThread, writeCachedDesks, writeCachedThread } from "../app/src/workspace/boot-cache.ts";
 import type { TranscriptRow } from "../app/src/chat/transcript.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 
 function memoryStorage(): Storage {
   const map = new Map<string, string>();
@@ -24,7 +24,7 @@ describe("boot cache", () => {
 
   test("round-trips desks and thread rows and caps retained threads", () => {
     expect(readCachedDesks()).toBeNull();
-    const desks = [{ scope: "ada", title: "Ada" } as DeskSummary];
+    const desks = [{ scope: "ada", title: "Ada" } as ChatSummary];
     writeCachedDesks(desks);
     expect(readCachedDesks()).toEqual(desks);
 

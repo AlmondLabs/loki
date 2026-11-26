@@ -29,12 +29,10 @@ export function seenFrames(deps: SeenDeps): FrameHandlers {
     seen_list: (_, ctx) => ctx.push(seenFrame(deps)),
     seen_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moved = seen?.mark(agentId, conversationId);
-      ctx.track("conversation_marked_seen");
       if (moved && seen) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
     seen_unmark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moved = seen?.unmark(agentId, conversationId);
-      ctx.track("conversation_kept_unread");
       if (moved && seen) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
     viewed_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {

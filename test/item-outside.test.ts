@@ -3,10 +3,10 @@ import { must } from "./fixtures/must.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MailCompose, OutsideFacts, OutsideMessage } from "../core/frame-types.ts";
-import { OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
+import { OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/workspace/outside-card.tsx";
 import { ItemMailThread } from "../app/src/item/outside-rows.tsx";
-import { reactTarget, rowReacting } from "../app/src/desk/slack-thread.tsx";
-import { QUICK_EMOJI } from "../app/src/desk/slack-reactions.tsx";
+import { reactTarget, rowReacting } from "../app/src/workspace/slack-thread.tsx";
+import { QUICK_EMOJI } from "../app/src/workspace/slack-reactions.tsx";
 
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 const facts = (over: Partial<OutsideFacts> = {}): OutsideFacts => ({

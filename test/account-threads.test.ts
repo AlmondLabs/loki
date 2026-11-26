@@ -206,7 +206,7 @@ describe("the thread records of an account", () => {
     expect(must(rows[0].outside, "outside").lines).toEqual(["b", "c", "d"]);
   });
 
-  test("a thread gone out there leaves the Inbox, and comes back only with a newer message, as the same card", async () => {
+  test("a thread gone out there leaves the Flow, and comes back only with a newer message, as the same card", async () => {
     const { threads } = await fixture();
     threads.observe(MAIL, message());
     threads.markGoneOutThere(MAIL, "t1");

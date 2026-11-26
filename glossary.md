@@ -43,7 +43,7 @@ history page. An approval request for the same tool attaches to it instead of ad
 1. **Request**: the app asks and waits; it carries a `request_id` and is answered by exactly one reply frame or one
    `error` frame.
 2. **Send**: the app tells the mod something and does not wait; any effect comes back as a push (a mark → `seen`).
-3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `recall_changed`).
+3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `learn_changed`).
 
 **Frame table** (`core/frames.ts`, `FRAMES`): every frame declared once — its kind, its reply, whether a paired
 phone may send it, its **peer meaning** (how it crosses to another paired Mac: routed by the chat, desk or home it
@@ -140,11 +140,11 @@ a kit widget is `<name>.json` (`type`, `title`, `data`) drawn by loki's kit, a c
 component. The agent writes the files and reads them back with `canvas_read`. _Avoid_: desk (for the canvas; the
 code's desk is the chat).
 
-**Flow** (`app/src/desk/catch-up.tsx`; Inbox in older code and words, Catch Up before that): the chats, mail, Slack
+**Flow** (`app/src/workspace/catch-up.tsx`; Inbox in older code and words, Catch Up before that): the chats, mail, Slack
 messages and Jira tickets that wait on you, highest score first (`core/attention/priority.ts`): on the Mac a list
 beside the selected card, on the phone one card at a time. The
-same moves work on every card (`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see
-Later) and archive (⌘E). A card stays until it is done. The code, frames, stored files and analytics keep the name `inbox`.
+same moves work on every card (`app/src/workspace/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see
+Later) and archive (⌘E). A card stays until it is done. The code, frames and stored files keep the name `flow`.
 
 **Lane** (`core/attention/lanes.ts`, plan 087): a part of Flow the person chooses to see on its own: chats from all,
 picked or no agents, and mail and Slack from all, picked or no accounts. Lanes are shared by every device (kept in
@@ -198,10 +198,10 @@ Jira ticket), which the key they press sends before its own move
 handed off, read or unread in Gmail, and its newest message) is kept in `state/account-threads/<account id>.json`.
 _Avoid_: notification, email card (for an outside card in general; a Gmail one is an email card).
 
-**Inbox ledger** (`mod/inbox-ledger.ts`, plans 069 and 070): one line for each of the person's moves on an outside
+**Inbox ledger** (`mod/flow-ledger.ts`, plans 069 and 070): one line for each of the person's moves on an outside
 card (read, later, archive, label, reply, hand-off and undo, with the return a rest scheduled, the labels added and
 the pick from the second later), with how it was made, how long the card was on top, the thread's sender and subject, and
-the mail's traits (`MailTraits`: to you, a list, automated, Gmail's tab). It is kept in `state/inbox-ledger.jsonl` on
+the mail's traits (`MailTraits`: to you, a list, automated, Gmail's tab). It is kept in `state/flow-ledger.jsonl` on
 the account's Mac, as the data for learning the person's preferences. _Avoid_: history, activity log.
 
 **Hand-off** (`mod/handoff.ts`, plan 067): giving an outside card's thread to its account's owner, in a chat loki

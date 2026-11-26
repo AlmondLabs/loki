@@ -41,7 +41,7 @@ describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", ()
   });
 
   test("widgets are sent the page's stylesheet and day or night, so they draw in Liquid Glass's roles", () => {
-    const widget = readFileSync(join(APP, "desk", "module-widget.tsx"), "utf8");
+    const widget = readFileSync(join(APP, "workspace", "module-widget.tsx"), "utf8");
     expect(widget).toMatch(/return \{ theme: d\.theme \?\? "dark" \};/);
     expect(widget).toMatch(/attributeFilter: \["data-theme"\]/);
     expect(widget).not.toContain("palette");
@@ -103,7 +103,7 @@ describe("one sidebar in place of the rail (U12)", () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { Places } = await import("../app/src/shell/sidebar.tsx");
-    const out = renderToStaticMarkup(createElement(Places, { segment: "desk", onSelect: () => {}, waiting: 2, dueCards: 0 }));
+    const out = renderToStaticMarkup(createElement(Places, { segment: "chats", onSelect: () => {}, waiting: 2, dueCards: 0 }));
     expect([...out.matchAll(/class="loki-place-label">([^<]+)</g)].map((m) => m[1])).toEqual(["Chats", "Flow", "Agents", "Learn"]);
     expect(out).not.toContain("Preferences");
     expect(out).toContain('aria-label="Flow, 2 waiting"');
@@ -125,8 +125,8 @@ describe("one sidebar in place of the rail (U12)", () => {
       selected: "all",
       onSelect: () => {},
     };
-    const out = renderToStaticMarkup(createElement(Places, { segment: "desk", onSelect: () => {}, waiting: 0, sources: { desk: chats } }));
-    expect(out).toContain('<span id="loki-place-heading-desk" class="loki-place-heading">Chats</span>');
+    const out = renderToStaticMarkup(createElement(Places, { segment: "chats", onSelect: () => {}, waiting: 0, sources: { chats } }));
+    expect(out).toContain('<span id="loki-place-heading-chats" class="loki-place-heading">Chats</span>');
     expect(out).not.toMatch(/<button[^>]*>[^]*?>Chats</);
     expect([...out.matchAll(/class="loki-place-label">([^<]+)</g)].map((m) => m[1]).slice(0, 3)).toEqual(["All Chats", "Pinned", "Archived"]);
     expect(out).toMatch(/aria-current="page"[^>]*aria-label="All Chats"/);
@@ -220,7 +220,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
   });
 
   test("the chat's moves are toolbar symbols named for the screen reader, and the box has no row of moves under it", async () => {
-    const pane = readFileSync(join(APP, "desk", "desk-pane.tsx"), "utf8");
+    const pane = readFileSync(join(APP, "workspace", "canvas-pane.tsx"), "utf8");
     for (const name of ["Label", "Mark as Read", "Archive"]) expect(pane).toContain(`label: "${name}"`);
     expect(pane).toContain("trailing={toolbarItems}");
     expect(pane).not.toContain("itemMoves");
@@ -251,7 +251,7 @@ describe("the detail toolbar band (plan 2026-11-14-1330, U4)", () => {
   });
 
   test("Messages, Advisor and Canvas sit in the chat toolbar's centred slot", () => {
-    const pane = readFileSync(join(APP, "desk", "desk-pane.tsx"), "utf8");
+    const pane = readFileSync(join(APP, "workspace", "canvas-pane.tsx"), "utf8");
     expect(pane).toContain("tabs={paneTabs(advisor)}");
     expect(glass).toMatch(/\.loki-pane-header \.loki-tabs \{[^}]*grid-area: tabs;/);
   });
@@ -297,7 +297,7 @@ describe("blue for what waits on you, grey for counts and faces (U17)", () => {
   test("an agent with no picture is a grey monogram", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { AgentFace } = await import("../app/src/desk/agent-chip.tsx");
+    const { AgentFace } = await import("../app/src/workspace/agent-chip.tsx");
     const out = renderToStaticMarkup(createElement(AgentFace, { name: "friday", src: null }));
     expect(out).toContain("data-monogram");
     expect(out).toContain("var(--loki-monogram-top)");

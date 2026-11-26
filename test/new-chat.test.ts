@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThemeProvider } from "../app/src/theme.tsx";
-import { NewChat, type NewChatProps } from "../app/src/desk/new-chat.tsx";
+import { NewChat, type NewChatProps } from "../app/src/workspace/new-chat.tsx";
 
 const noop = () => {};
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));

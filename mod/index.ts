@@ -1,26 +1,25 @@
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
-import type { Scope, WidgetChange } from "../core/desk-core.ts";
-import { SHARED_SCOPE } from "../core/desk-core.ts";
+import type { Scope, WidgetChange } from "../core/canvas-core.ts";
+import { SHARED_SCOPE } from "../core/canvas-core.ts";
 import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
 import { ScopeDebouncer } from "./lifecycle-events.ts";
-import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK, lokiDir, paths } from "./paths.ts";
+import { appVersion, DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK, lokiDir, paths } from "./paths.ts";
 import { registerGoogleTools } from "./google-tools/index.ts";
-import { DeskStore } from "./desk-store.ts";
-import { loadDesks, persistDesks } from "./persist.ts";
+import { CanvasStore } from "./canvas-store.ts";
+import { loadCanvases, persistCanvases } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
 import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
-import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
-import { DeskRegistry } from "./desks.ts";
+import { ChatRegistry } from "./chats.ts";
 import { ChatListing } from "./chat-listing.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { RestartAnswer } from "./frames/daemon.ts";
 import { SeenStore } from "./seen.ts";
-import { RecallStore, isoDay } from "./recall.ts";
-import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
+import { LearnStore, isoDay } from "./learn.ts";
+import { isPassChat, startLessonViaChats } from "./learn-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { changesConsultText } from "../daemon/advisor-changes.ts";
 import { readPins, setPin } from "./pins.ts";
@@ -30,7 +29,7 @@ import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
-import { scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/canvas-core.ts";
 
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import type { UsageDeps } from "./frames/usage.ts";
@@ -42,7 +41,7 @@ import { OutsidePreviews, slackPreviews } from "./outside-previews.ts";
 import { ChannelMembers, SlackPeople } from "./slack-people.ts";
 import { createBridge } from "./bridge.ts";
 import { seenChatFrame } from "./frames/seen.ts";
-import { scopeOfId } from "../core/desk-core.ts";
+import { scopeOfId } from "../core/canvas-core.ts";
 import { DeviceStore } from "./devices.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import type { MemoryRepos } from "../daemon/memory-sync.ts";
@@ -68,7 +67,7 @@ import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
 import { previewAccounts, previewWiring, type AccountWiring } from "./preview-accounts.ts";
 import { outboxKey } from "./mail-outbox.ts";
-import { InboxLedger } from "./inbox-ledger.ts";
+import { FlowLedger } from "./flow-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
 import { gmailCardView, gmailThreadText } from "./account-ops/gmail.ts";
 import { slackThreadText } from "./account-ops/slack.ts";
@@ -87,7 +86,6 @@ import { People } from "./people.ts";
 import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
 import type { ReplyReads } from "./account-ops/reply-reader.ts";
 import { initLog, log } from "./log.ts";
-import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
 
 function loadOrCreateToken(): string {
@@ -101,11 +99,10 @@ function loadOrCreateToken(): string {
   return token;
 }
 
-/** What the daemon hosts the mod with besides the mod API: its chats, to read and to run, and its analytics writer. */
+/** What the daemon hosts the mod with besides the mod API: its chats, to read and to run. */
 export interface Host {
   chats: ChatSource;
   chat: ChatBackend;
-  analytics?: Analytics;
   usage?: NonNullable<UsageDeps["usage"]> & { onChange: (listener: () => void) => () => void };
   macId: string;
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
@@ -120,21 +117,17 @@ export interface Host {
   };
 }
 
-export default function activate(api: ModApi, host: Host): () => void {
+export function activateLoki(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
-  const analytics =
-    host.analytics ??
-    createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
   log("activate", { pid: process.pid, node: process.versions.node, api: api.apiVersion });
 
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
   const token = loadOrCreateToken();
 
-  const store = new DeskStore();
-  loadDesks(store, paths.state);
-  const stopPersist = persistDesks(store, paths.state);
-  const gestures = new GestureLog();
-  const recallStore = new RecallStore();
+  const store = new CanvasStore();
+  loadCanvases(store, paths.state);
+  const stopPersist = persistCanvases(store, paths.state);
+  const learnStore = new LearnStore();
   const passChat = isPassChat;
 
   let activeScope: Scope = SHARED_SCOPE;
@@ -174,7 +167,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     chatEvents(agentId, conversationId, events);
     advisorStrips.heard(agentId, conversationId, events);
   });
-  const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
+  const desks = new ChatRegistry(join(paths.state, "chats.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
 
   const threads = new AccountThreads({
@@ -196,9 +189,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     outside: () => threads.rows(),
     replies: (agentId, conversationId) => replies.open({ agent_id: agentId, conversation_id: conversationId }),
   });
-  const deskInfo = (scope: Scope) => listing.info(scope);
-  const listLocalDesks = () => listing.desks();
-  const listLocalInbox = () => listing.inbox();
+  const chatMeta = (scope: Scope) => listing.info(scope);
+  const listLocalDesks = () => listing.summaries();
+  const listLocalFlow = () => listing.flow();
   const deleteWidgetFile = (id: string): string | null => {
     const entry = widgets.get(id);
     if (!entry) return null;
@@ -229,7 +222,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     sockets,
     tailscale,
     broadcast,
-    local: { desks: listLocalDesks, inbox: listLocalInbox },
+    local: { chats: listLocalDesks, flow: listLocalFlow },
     dirs: paths,
   });
   peering = macs;
@@ -331,14 +324,13 @@ export default function activate(api: ModApi, host: Host): () => void {
         chat: (ref) => {
           const local = chats.info(ref.conversation_id, ref.agent_id);
           if (local) return { title: local.title, status: local.archived ? "archived" : "live", has_draft: local.hasDraft };
-          const desk = macs.desks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
+          const desk = macs.summaries().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
           return desk ? { title: desk.title, status: desk.status, has_draft: desk.has_draft === true } : null;
         },
         agentExists: (id) => readLocalAgent(id) !== null,
         agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
         call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
         push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
-        track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
   const threadText = wiring.threadText;
@@ -346,7 +338,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     file: join(paths.state, "handoffs.json"),
     accounts,
     threads,
-    chats: () => macs.desks(),
+    chats: () => macs.summaries(),
     agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
     call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
     threadText,
@@ -371,7 +363,14 @@ export default function activate(api: ModApi, host: Host): () => void {
     clientFor: wiring.clientFor,
     ...(wiring.mailReactions ? { mailReactions: wiring.mailReactions } : {}),
   });
-  const ledger = new InboxLedger({ path: join(paths.state, "inbox-ledger.jsonl"), accounts, threads });
+  const ledgerPath = join(paths.state, "flow-ledger.jsonl");
+  const legacyLedgerPath = join(paths.state, "inbox-ledger.jsonl");
+  if (!existsSync(ledgerPath) && existsSync(legacyLedgerPath)) {
+    try {
+      renameSync(legacyLedgerPath, ledgerPath);
+    } catch {}
+  }
+  const ledger = new FlowLedger({ path: ledgerPath, accounts, threads });
   const replies = new ReplyProposals({
     file: join(paths.state, "reply-proposals.json"),
     accounts,
@@ -414,7 +413,7 @@ export default function activate(api: ModApi, host: Host): () => void {
             const agentName = agent && agent.name !== agent.id ? agent.name : null;
             return { title: local.title, agent_name: agentName, mac: null, open: !local.archived };
           }
-          const desk = macs.desks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
+          const desk = macs.summaries().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
           return desk
             ? { title: desk.title, agent_name: desk.agent_name, mac: desk.home ? (desk.home_name ?? null) : null, open: desk.status === "live" }
             : null;
@@ -434,7 +433,6 @@ export default function activate(api: ModApi, host: Host): () => void {
           return chatBackend.sendHeld({ ...ref, text, images: [], send_id: sendId, context }, cap);
         },
         push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
-        track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
   const skillSources = new SkillSources({
@@ -454,7 +452,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       written_today: passes.writtenOn(isoDay(Date.now())),
     };
   };
-  const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
+  const lessons = { store: learnStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
   const usagePush = coalesce(() => broadcast({ type: "usage_changed" }), 2000);
   const stopRestartDue = host.daemon?.onRestartDue((file) => sockets.push({ type: "restart_due", file }, { to: "desktop" }));
@@ -470,11 +468,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     otherMacs: () => macs.accountsElsewhere(),
     widgets,
-    gestures,
-    listDesks: () => macs.desks(),
-    listInbox: () => macs.inbox(),
-    recall: {
-      store: recallStore,
+    listChats: () => macs.summaries(),
+    listFlow: () => macs.flow(),
+    learn: {
+      store: learnStore,
       status: learnStatus,
       setSettings: async (s) => {
         await chatBackend.setPasses({ learn: s });
@@ -486,7 +483,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       startLesson: startLessonViaChats(chatBackend, lessons),
       lessonEmpty: (l) => chats.info(l.conversation_id, l.agent_id)?.lastMessageAt == null,
     },
-    deskInfo,
+    chatMeta,
     deleteWidgetFile,
     seen,
     ensureTranscript: (agentId, conversationId) => chats.ensureLoaded?.(conversationId, agentId),
@@ -541,7 +538,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     modules: frameModules(moduleDeps),
     welcome: welcomeFrames(moduleDeps),
     broadcast,
-    capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
     route: macs.router,
   });
   const chatImageFromPeers = (name: string) => macs.chatImage(name);
@@ -617,7 +613,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       const next = desks.remember(e.chatId, e.agentId);
       if (next !== activeScope) {
         activeScope = next;
-        broadcast({ type: "switch_desk", scope: activeScope });
+        broadcast({ type: "switch_chat", scope: activeScope });
       }
     }),
   );
@@ -627,13 +623,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (passChat(m.chatId)) return undefined;
       const scope = desks.remember(m.chatId, m.agentId);
       activeScope = scope;
-      const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
-      log("event:message", { desk: scope, attached: lines.length });
       seen.mark(m.agentId, m.chatId);
       if (m.typed) seen.engage(m.agentId, m.chatId, "message");
       broadcast(seenChatFrame(seen, m.agentId, m.chatId));
-      if (!lines.length) return undefined;
-      return attachDeskContext(m.content, formatDeskContext(scope, lines, paths.widgets));
+      return undefined;
     }),
   );
 
@@ -641,7 +634,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     api.events.on("tool_start", (e) => {
       if (e.name.startsWith("desk_") || e.name.startsWith("loki_")) {
         log("event:tool_start", { tool: e.name, args: e.args });
-        analytics.capture("mod", "tool_used", { tool: e.name });
       }
     }),
   );
@@ -665,7 +657,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   const toolDisposers = registerTools(api, {
     store,
     widgets,
-    gestures,
     widgetsDir: paths.widgets,
     activeScope: () => activeScope,
     remember: (conversationId, agentId) => desks.remember(conversationId, agentId ?? null),
@@ -678,7 +669,7 @@ export default function activate(api: ModApi, host: Host): () => void {
               const mac = macs.mac(a.home_mac || null);
               return { id: a.id, name: a.name, mac: mac.name, reachable: mac.reachable };
             }),
-          chats: () => macs.desks(),
+          chats: () => macs.summaries(),
           passChat,
           messages,
           advisor: {

@@ -228,7 +228,6 @@ describe("the daemon's chats", () => {
         agent_id: agent.id,
         conversation_id: conversationId,
         loop: "idle",
-        turn_id: null,
         mode: "unrestricted",
         cwd: "/work",
       });

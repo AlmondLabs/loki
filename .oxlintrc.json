@@ -204,7 +204,7 @@
         "prefer-const": "error"
       }
     },
-    { "files": ["**/*.config.{ts,mts,js,mjs}", "mod/index.ts", "mod/boot.ts"], "rules": { "no-restricted-exports": "off" } },
+    { "files": ["**/*.config.{ts,mts,js,mjs}"], "rules": { "no-restricted-exports": "off" } },
     {
       "files": ["**/*.{js,mjs,cjs}"],
       "rules": {

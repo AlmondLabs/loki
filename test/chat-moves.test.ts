@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/canvas-core.ts";
 import { MOVE_OUT_OF_REACH } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
 import { ChatMoves, writeWidgets, type AdvisorHolds, type HeldMove } from "../mod/chat-moves.ts";

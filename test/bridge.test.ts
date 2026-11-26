@@ -1,20 +1,19 @@
 import { describe, expect, test, vi } from "vitest";
-import { sortDesks } from "../mod/frames/desks.ts";
+import { sortChats } from "../mod/frames/canvas.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { createBridge } from "../mod/bridge.ts";
 import { welcomeFrames, type ModuleDeps } from "../mod/frames/index.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
-import { scopeOfId } from "../core/desk-core.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { HISTORY_PAGE } from "../mod/desks.ts";
-import { GestureLog } from "../mod/gestures.ts";
+import { scopeOfId } from "../core/canvas-core.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
+import { HISTORY_PAGE } from "../mod/chats.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
-import { scopeFor, type WidgetManifestEntry } from "../core/desk-core.ts";
+import { scopeFor, type WidgetManifestEntry } from "../core/canvas-core.ts";
 import { WidgetLog } from "../mod/widget-log.ts";
 import type { Client } from "../mod/server.ts";
 import { join } from "node:path";
 import { must } from "./fixtures/must.ts";
-import type { DeskSummary, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
+import type { ChatSummary, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
 import { LEAN_DETAIL_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 
 function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
@@ -70,23 +69,23 @@ describe("bridge", () => {
   });
 
   test("connect sends own desk then shared", () => {
-    const store = new DeskStore();
+    const store = new CanvasStore();
     const broadcasts: unknown[] = [];
-    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m) });
+    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), broadcast: (m) => broadcasts.push(m) });
     const c = client("c1");
     bridge.onConnect(c);
     expect(c.sent.map((m) => [m.type, m.scope])).toEqual([
-      ["desk", "c1"],
-      ["desk", "shared"],
+      ["canvas", "c1"],
+      ["canvas", "shared"],
     ]);
     expect((c.sent[0].widgets as unknown[]).length).toBe(1);
     const s = client("shared");
     bridge.onConnect(s);
-    expect(s.sent.map((m) => m.type)).toEqual(["desk"]);
+    expect(s.sent.map((m) => m.type)).toEqual(["canvas"]);
   });
 
   test("a tab opened on another Mac's chat asks that Mac for its desk, and gets no empty one from here", async () => {
-    const deps: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog() };
+    const deps: ModuleDeps = { store: new CanvasStore(), widgets: fakeWidgets([sleep, welcome]) };
     const forwarded: Array<Record<string, unknown>> = [];
     const route = {
       target: (msg: Record<string, unknown>) => (msg.scope === "c9" ? { mac: "mini", reachable: true } : null),
@@ -100,19 +99,19 @@ describe("bridge", () => {
     const remote = client("c9");
     bridge.onConnect(remote);
     await Promise.resolve();
-    expect(remote.sent.map((m) => [m.type, m.scope])).toEqual([["desk", "shared"]]);
-    expect(forwarded).toEqual([{ type: "desk_get", scope: "c9" }]);
+    expect(remote.sent.map((m) => [m.type, m.scope])).toEqual([["canvas", "shared"]]);
+    expect(forwarded).toEqual([{ type: "canvas_get", scope: "c9" }]);
     const local = client("c1");
     bridge.onConnect(local);
     expect(local.sent.map((m) => [m.type, m.scope])).toEqual([
-      ["desk", "c1"],
-      ["desk", "shared"],
+      ["canvas", "c1"],
+      ["canvas", "shared"],
     ]);
     expect(forwarded).toHaveLength(1);
   });
 
   test("a forward to another Mac that throws is told to the tab as an error, not left unhandled", async () => {
-    const deps: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog() };
+    const deps: ModuleDeps = { store: new CanvasStore(), widgets: fakeWidgets([sleep, welcome]) };
     const route = {
       target: () => ({ mac: "mini", reachable: true }),
       redirect: () => null,
@@ -124,66 +123,57 @@ describe("bridge", () => {
     await vi.waitFor(() => expect(remote.sent.at(-1)).toEqual({ type: "error", message: "the keychain is locked" }));
   });
 
-  test("gesture updates the widget's desk and logs under the widget's desk with before-value", () => {
-    const store = new DeskStore();
-    const gestures = new GestureLog();
-    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), gestures, broadcast: () => {} });
+  test("gesture updates the widget's desk and leaves non-focused tabs in sync", () => {
+    const store = new CanvasStore();
+    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), broadcast: () => {} });
     const c = client("c1");
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "set", id: "c1/sleep", path: "value", value: 7 } });
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "move", id: "shared/welcome", position: { x: 3, y: 4 } } });
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "focus", id: "shared/welcome" } });
     expect(store.get("c1").overlay["c1/sleep"]).toEqual({ value: 7 });
     expect(store.get("shared").layout["shared/welcome"].position).toEqual({ x: 3, y: 4 });
-    expect(gestures.peek("c1")).toEqual(['set value = 7 (was 6) on "Sleep" (c1/sleep)']);
-    expect(gestures.peek("shared")).toEqual(['moved "loki" (shared/welcome) to (3, 4)']);
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "move", id: "c1/sleep" } });
     expect(c.sent.at(-1)).toEqual({ type: "error", message: "malformed gesture" });
   });
 
-  test("a widget used inline in another chat's thread: its desk records it, and that tab gets the desk's state back", () => {
-    const store = new DeskStore();
-    const gestures = new GestureLog();
-    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep]), gestures, broadcast: () => {} });
+  test("a widget used inline in another chat's thread updates that desk and returns its state", () => {
+    const store = new CanvasStore();
+    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep]), broadcast: () => {} });
     const inbox = client("other-desk");
     bridge.onMessage(inbox, { type: "gesture", gesture: { kind: "set", id: "c1/sleep", path: "value", value: 8 } });
-    expect(gestures.peek("c1")).toEqual(['set value = 8 (was 6) on "Sleep" (c1/sleep)']);
-    expect(gestures.peek("other-desk")).toEqual([]);
     expect(inbox.sent.at(-1)).toMatchObject({ type: "state", scope: "c1", state: { overlay: { "c1/sleep": { value: 8 } } } });
   });
 
-  test("desk_get answers with another desk's frame, for widgets shown inline; the phone may ask too", () => {
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {} });
+  test("canvas_get answers with another desk's frame, for widgets shown inline; the phone may ask too", () => {
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([sleep]), broadcast: () => {} });
     const c = client("shared");
-    bridge.onMessage(c, { type: "desk_get", scope: "c1" });
-    expect(c.sent.at(-1)).toMatchObject({ type: "desk", scope: "c1", widgets: [expect.objectContaining({ id: "c1/sleep" })] });
-    expect(PHONE_FRAMES.has("desk_get")).toBe(true);
+    bridge.onMessage(c, { type: "canvas_get", scope: "c1" });
+    expect(c.sent.at(-1)).toMatchObject({ type: "canvas", scope: "c1", widgets: [expect.objectContaining({ id: "c1/sleep" })] });
+    expect(PHONE_FRAMES.has("canvas_get")).toBe(true);
     expect(PHONE_FRAMES.has("gesture")).toBe(false);
   });
 
-  test("widget_status broadcasts the manifest and logs errors once", () => {
-    const store = new DeskStore();
-    const gestures = new GestureLog();
+  test("widget_status broadcasts the manifest when changed", () => {
+    const store = new CanvasStore();
     const broadcasts: Array<[Record<string, unknown>, string | undefined]> = [];
     const widgets = fakeWidgets([sleep]);
-    const bridge = bridgeOf({ store, widgets, gestures, broadcast: (m, s) => broadcasts.push([m as Record<string, unknown>, s]) });
+    const bridge = bridgeOf({ store, widgets, broadcast: (m, s) => broadcasts.push([m as Record<string, unknown>, s]) });
     const c = client("c1");
     bridge.onMessage(c, { type: "widget_status", id: "c1/sleep", error: "boom" });
     bridge.onMessage(c, { type: "widget_status", id: "c1/sleep", error: "boom" });
     expect(broadcasts.length).toBe(1);
     expect(broadcasts[0][0].type).toBe("widgets");
     expect(broadcasts[0][1]).toBe("c1");
-    expect(gestures.peek("c1")).toEqual(['widget "Sleep" (c1/sleep) failed to render: boom']);
     bridge.onMessage(c, { type: "widget_status", id: "c1/sleep", error: null });
     expect(widgets.runtime.size).toBe(0);
   });
 
   test("desk frames carry the conversation title and status", async () => {
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([sleep]),
-      gestures: new GestureLog(),
       broadcast: () => {},
-      deskInfo: (s) =>
+      chatMeta: (s) =>
         s === "c1"
           ? {
               title: "[Short] - Sleep tracking",
@@ -200,20 +190,20 @@ describe("bridge", () => {
     const c = client("c1");
     bridge.onConnect(c);
     expect(c.sent[0]).toMatchObject({
-      type: "desk",
+      type: "canvas",
       scope: "c1",
       title: "[Short] - Sleep tracking",
       status: "archived",
       agent_name: "ira",
       reasoning_effort: "high",
     });
-    expect(c.sent[1]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
+    expect(c.sent[1]).toMatchObject({ type: "canvas", scope: "shared", title: "shared", status: "none" });
     bridge.onConnect(client("gone"));
     await new Promise((r) => setTimeout(r, 10));
   });
 
-  test("sortDesks: shared, then live (pinned, active, then recent), then archived, then deleted", () => {
-    const d = (scope: string, status: DeskSummary["status"], extra: Partial<DeskSummary> = {}): DeskSummary => ({
+  test("sortChats: shared, then live (pinned, active, then recent), then archived, then deleted", () => {
+    const d = (scope: string, status: ChatSummary["status"], extra: Partial<ChatSummary> = {}): ChatSummary => ({
       scope,
       status,
       title: null,
@@ -227,7 +217,7 @@ describe("bridge", () => {
       last_active: null,
       ...extra,
     });
-    const sorted = sortDesks([
+    const sorted = sortChats([
       d("old", "live", { last_active: "2026-09-01T00:00:00Z" }),
       d("gone", "deleted"),
       d("arch", "archived", { last_active: "2026-09-03T00:00:00Z" }),
@@ -239,8 +229,8 @@ describe("bridge", () => {
     expect(sorted).toEqual(["shared", "pinned", "now", "new", "old", "arch", "gone"]);
   });
 
-  test("list_desks replies with the mod's desk list", () => {
-    const desks: DeskSummary[] = [
+  test("chats_list replies with the mod's desk list", () => {
+    const desks: ChatSummary[] = [
       {
         scope: "shared",
         title: "shared",
@@ -255,19 +245,18 @@ describe("bridge", () => {
         last_active: null,
       },
     ];
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listDesks: () => desks });
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {}, listChats: () => desks });
     const c = client("c1");
-    bridge.onMessage(c, { type: "list_desks" });
-    expect(c.sent[0]).toEqual({ type: "desks", desks });
+    bridge.onMessage(c, { type: "chats_list" });
+    expect(c.sent[0]).toEqual({ type: "chats", chats: desks });
   });
 
-  test("measure records size; arrange tidies, logs, and glides to fit", () => {
-    const store = new DeskStore();
+  test("measure records size; arrange tidies and glides to fit", () => {
+    const store = new CanvasStore();
     store.seen("c1", "c1/a");
     store.gesture("c1", { kind: "move", id: "c1/b", position: { x: 125, y: 125 } });
-    const gestures = new GestureLog();
     const broadcasts: Array<[Record<string, unknown>, string | undefined]> = [];
-    const bridge = bridgeOf({ store, widgets: fakeWidgets([]), gestures, broadcast: (m, s) => broadcasts.push([m as Record<string, unknown>, s]) });
+    const bridge = bridgeOf({ store, widgets: fakeWidgets([]), broadcast: (m, s) => broadcasts.push([m as Record<string, unknown>, s]) });
     const c = client("c1");
     bridge.onMessage(c, { type: "measure", id: "c1/a", size: { w: 280, h: 240 } });
     expect(store.get("c1").layout["c1/a"].size).toEqual({ w: 280, h: 240 });
@@ -276,19 +265,16 @@ describe("bridge", () => {
     const a = store.get("c1").layout["c1/a"].position;
     const b = store.get("c1").layout["c1/b"].position;
     expect(a).not.toEqual(b);
-    expect(gestures.peek("c1")).toEqual(["tidied the canvas (auto-arranged 2 widgets)"]);
     expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widget_ids: expect.arrayContaining(["c1/a", "c1/b"]) as unknown });
   });
 
-  test("trash deletes the file through the mod, forgets the layout, and tells the agent", () => {
-    const store = new DeskStore();
+  test("trash deletes the file through the mod and forgets the layout", () => {
+    const store = new CanvasStore();
     store.seen("c1", "c1/sleep");
-    const gestures = new GestureLog();
     const deleted: string[] = [];
     const bridge = bridgeOf({
       store,
       widgets: fakeWidgets([sleep]),
-      gestures,
       broadcast: () => {},
       deleteWidgetFile: (id) => (deleted.push(id), `/w/${id}.json`),
     });
@@ -296,15 +282,14 @@ describe("bridge", () => {
     bridge.onMessage(c, { type: "trash", id: "c1/sleep" });
     expect(deleted).toEqual(["c1/sleep"]);
     expect(store.get("c1").layout["c1/sleep"]).toBeUndefined();
-    expect(gestures.peek("c1")).toEqual(['trashed "Sleep" (c1/sleep) — its file was deleted']);
-    const failing = bridgeOf({ store, widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {}, deleteWidgetFile: () => null });
+    const failing = bridgeOf({ store, widgets: fakeWidgets([sleep]), broadcast: () => {}, deleteWidgetFile: () => null });
     const c2 = client("c1");
     failing.onMessage(c2, { type: "trash", id: "c1/sleep" });
     expect(c2.sent[0]).toMatchObject({ type: "error" });
   });
 
   test("unknown message types get an error frame", () => {
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {} });
     const c = client("c1");
     bridge.onMessage(c, { type: "wat" });
     expect(c.sent[0]).toEqual({ type: "error", message: "unsupported message type: wat" });
@@ -321,9 +306,8 @@ describe("bridge: viewed", () => {
       const seen = new SeenStore(join(dir, "attention.json"));
       const broadcasts: Array<Record<string, unknown>> = [];
       const bridge = bridgeOf({
-        store: new DeskStore(),
+        store: new CanvasStore(),
         widgets: fakeWidgets([]),
-        gestures: new GestureLog(),
         broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
         seen,
       });
@@ -334,8 +318,8 @@ describe("bridge: viewed", () => {
       bridge.onMessage(c, { type: "seen_list" });
       expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) as unknown } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
-      for (const type of ["recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"] as const) expect(PHONE_FRAMES.has(type)).toBe(true);
-      expect(PHONE_FRAMES.has("recall_settings")).toBe(false);
+      for (const type of ["learn_lead_start", "learn_lead_dismiss", "learn_lead_restore"] as const) expect(PHONE_FRAMES.has(type)).toBe(true);
+      expect(PHONE_FRAMES.has("learn_settings")).toBe(false);
       seen.flush();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -353,9 +337,8 @@ describe("bridge: focus", () => {
       const seen = new SeenStore(join(dir, "attention.json"));
       const broadcasts: Array<Record<string, unknown>> = [];
       const bridge = bridgeOf({
-        store: new DeskStore(),
+        store: new CanvasStore(),
         widgets: fakeWidgets([]),
-        gestures: new GestureLog(),
         broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
         seen,
       });
@@ -390,9 +373,8 @@ describe("bridge: a mark that changes nothing", () => {
       const seen = new SeenStore(path, { now: () => "2026-09-25T10:00:00.000Z" });
       const broadcasts: Array<Record<string, unknown>> = [];
       const bridge = bridgeOf({
-        store: new DeskStore(),
+        store: new CanvasStore(),
         widgets: fakeWidgets([]),
-        gestures: new GestureLog(),
         broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
         seen,
       });
@@ -413,7 +395,7 @@ describe("bridge: a mark that changes nothing", () => {
 });
 
 describe("bridge history", () => {
-  test("inbox_list answers with the mod's open conversations and echoes the request id", () => {
+  test("flow_get answers with the mod's open conversations and echoes the request id", () => {
     const rows = [
       {
         id: "default",
@@ -427,16 +409,15 @@ describe("bridge history", () => {
         last_assistant_text: "It's on your canvas now.",
       },
     ];
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listInbox: () => rows });
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {}, listFlow: () => rows });
     const c = client("c1");
-    bridge.onMessage(c, { type: "inbox_list", request_id: "i1" });
-    expect(c.sent).toEqual([{ type: "inbox", request_id: "i1", conversations: rows }]);
+    bridge.onMessage(c, { type: "flow_get", request_id: "i1" });
+    expect(c.sent).toEqual([{ type: "flow", request_id: "i1", conversations: rows }]);
   });
   test("history_get answers with the local transcript and echoes the request id", () => {
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([sleep]),
-      gestures: new GestureLog(),
       broadcast: () => {},
       transcript: (agentId, conversationId) => ({
         rows:
@@ -471,9 +452,8 @@ describe("bridge history", () => {
       { role: "event", text: "background task", summary: "done", detail: result },
     ];
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([]),
-      gestures: new GestureLog(),
       broadcast: () => {},
       transcript: () => ({ rows, more: true, start: 7 }),
       row: (agentId, conversationId, row) => (agentId === "a1" && conversationId === "c9" ? (rows[row - 7] ?? null) : null),
@@ -507,9 +487,8 @@ describe("bridge history", () => {
   test("history_get pages: the limit asked for (one page at least, a cap at most), and whether older rows remain", () => {
     const asked: number[] = [];
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([]),
-      gestures: new GestureLog(),
       broadcast: () => {},
       transcript: (_a, _c, limit) => (asked.push(limit), { rows: [], more: limit < 1200, start: 0 }),
     });
@@ -522,9 +501,8 @@ describe("bridge history", () => {
   test("history_get pages back by position: `before` reaches the transcript, and the reply says where its rows start", () => {
     const asked: Array<number | null> = [];
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([]),
-      gestures: new GestureLog(),
       broadcast: () => {},
       transcript: (_a, _c, limit, before) => (
         asked.push(before),
@@ -547,9 +525,8 @@ describe("bridge history", () => {
     const log = new WidgetLog(null);
     log.record({ added: [sleep], changed: [], removed: [], removedEntries: [], initial: false }, 123);
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([sleep]),
-      gestures: new GestureLog(),
       broadcast: () => {},
       widgetLog: (agentId, conversationId) => log.read(scopeFor(conversationId, agentId)),
     });
@@ -562,9 +539,8 @@ describe("bridge history", () => {
   });
   test("a phone's history_get still answers, with the widget log as one more field it may ignore", () => {
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([]),
-      gestures: new GestureLog(),
       broadcast: () => {},
       transcript: () => ({ rows: [{ role: "user", text: "hi" }], more: false, start: 0 }),
       widgetLog: () => [],
@@ -612,12 +588,11 @@ describe("bridge: a paired phone's authority", () => {
       forget: (id: string) => ((forgot = id), true),
     };
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([]),
-      gestures: new GestureLog(),
       broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
       lan,
-      listDesks: () => [],
+      listChats: () => [],
     });
     const phone = { ...client("shared"), deviceId: "d1" };
     for (const type of [
@@ -741,9 +716,8 @@ describe("bridge phone frames", () => {
     const broadcasts: Array<Record<string, unknown>> = [];
     const d = lanDeps();
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets: fakeWidgets([]),
-      gestures: new GestureLog(),
       broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
       lan: d.lan,
     });
@@ -770,7 +744,7 @@ describe("bridge phone frames", () => {
 
   test("lan_via_set persists the route and answers lan_status; a bad via is an error", () => {
     const d = lanDeps();
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, lan: d.lan });
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {}, lan: d.lan });
     const c = client("c1");
     bridge.onMessage(c, { type: "lan_via_set", via: "lan" });
     expect(d.calls).toEqual([["setVia", "lan"]]);
@@ -784,7 +758,7 @@ describe("bridge phone frames", () => {
 
   test("lan_serve_set turns the https front on or off; a CLI failure rides in tailscale.error, not an error frame", async () => {
     const d = lanDeps();
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, lan: d.lan });
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {}, lan: d.lan });
     const c = client("c1");
     bridge.onMessage(c, { type: "lan_serve_set", enabled: true });
     await new Promise((r) => setTimeout(r, 0));
@@ -798,7 +772,7 @@ describe("bridge phone frames", () => {
   });
 
   test("without a listener the frames answer with an error", () => {
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
+    const bridge = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {} });
     const c = client("c1");
     bridge.onMessage(c, { type: "lan_get" });
     expect(c.sent[0]).toMatchObject({ type: "error" });
@@ -807,12 +781,12 @@ describe("bridge phone frames", () => {
 
 describe("recall frames", () => {
   test("list, grade, edit, reject, restore, settings and export round-trip through the bridge; the phone may read and review", async () => {
-    const { RecallStore } = await import("../mod/recall.ts");
+    const { LearnStore } = await import("../mod/learn.ts");
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const dir = mkdtempSync(join(tmpdir(), "loki-recall-b-"));
     try {
-      const store = new RecallStore(dir);
+      const store = new LearnStore(dir);
       store.add({
         id: "k1",
         front: "Q1?",
@@ -827,51 +801,50 @@ describe("recall frames", () => {
       const broadcasts: Array<Record<string, unknown>> = [];
       const status = { enabled: true, daily_cap: 25, last_run_at: null, last_run_note: null, written_today: 0 };
       const bridge = bridgeOf({
-        store: new DeskStore(),
+        store: new CanvasStore(),
         widgets: fakeWidgets([]),
-        gestures: new GestureLog(),
         broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
-        recall: { store, status: () => status, setSettings: (s) => (Object.assign(status, s), Promise.resolve()), run: () => Promise.resolve({ note: "ran" }) },
+        learn: { store, status: () => status, setSettings: (s) => (Object.assign(status, s), Promise.resolve()), run: () => Promise.resolve({ note: "ran" }) },
       });
       const c = client("c1");
-      bridge.onMessage(c, { type: "recall_list", request_id: "r1" });
+      bridge.onMessage(c, { type: "learn_list", request_id: "r1" });
       const list = must(c.sent.pop(), "the reply");
-      expect(list.type).toBe("recall");
+      expect(list.type).toBe("learn");
       expect((list.cards as unknown[]).length).toBe(1);
       expect((list.worker as { daily_cap: number }).daily_cap).toBe(25);
-      bridge.onMessage(c, { type: "recall_grade", request_id: "r2", id: "k1", grade: 3 });
+      bridge.onMessage(c, { type: "learn_grade", request_id: "r2", id: "k1", grade: 3 });
       const graded = must(c.sent.pop(), "the reply");
-      expect(graded.type).toBe("recall_card");
+      expect(graded.type).toBe("learn_card");
       expect((graded.card as { schedule: { reps: number } }).schedule.reps).toBe(1);
-      expect(broadcasts.at(-1)).toEqual({ type: "recall_changed" });
-      bridge.onMessage(c, { type: "recall_grade", request_id: "r3", id: "k1", grade: 9 });
+      expect(broadcasts.at(-1)).toEqual({ type: "learn_changed" });
+      bridge.onMessage(c, { type: "learn_grade", request_id: "r3", id: "k1", grade: 9 });
       expect(c.sent.pop()).toEqual({ type: "error", request_id: "r3", message: "a grade is 1 (again) to 4 (easy)" });
-      bridge.onMessage(c, { type: "recall_edit", request_id: "r4", id: "k1", back: "A1 better" });
+      bridge.onMessage(c, { type: "learn_edit", request_id: "r4", id: "k1", back: "A1 better" });
       expect((must(c.sent.pop(), "the reply").card as { card: { back: string; updated_by: string } }).card).toMatchObject({
         back: "A1 better",
         updated_by: "you",
       });
-      bridge.onMessage(c, { type: "recall_reject", request_id: "r5", id: "k1" });
+      bridge.onMessage(c, { type: "learn_reject", request_id: "r5", id: "k1" });
       expect(must(c.sent.pop(), "the reply").card).toBeNull();
       expect(store.cards()).toEqual([]);
-      bridge.onMessage(c, { type: "recall_restore", request_id: "r6", id: "k1" });
+      bridge.onMessage(c, { type: "learn_restore", request_id: "r6", id: "k1" });
       expect((must(c.sent.pop(), "the reply").card as { card: { id: string } }).card.id).toBe("k1");
-      bridge.onMessage(c, { type: "recall_settings", request_id: "r7", daily_cap: 3, enabled: false });
+      bridge.onMessage(c, { type: "learn_settings", request_id: "r7", daily_cap: 3, enabled: false });
       await new Promise((r) => setTimeout(r, 0));
       expect(must(c.sent.pop(), "the reply").worker as { daily_cap: number; enabled: boolean }).toMatchObject({ daily_cap: 3, enabled: false });
-      bridge.onMessage(c, { type: "recall_export", request_id: "r8" });
+      bridge.onMessage(c, { type: "learn_export", request_id: "r8" });
       expect(must(c.sent.pop(), "the reply").tsv).toBe("Q1?\tA1 better\tt\n");
-      bridge.onMessage(c, { type: "recall_run", request_id: "r9" });
+      bridge.onMessage(c, { type: "learn_run", request_id: "r9" });
       await new Promise((r) => setTimeout(r, 0));
-      expect(c.sent.pop()).toMatchObject({ type: "recall_ran", note: "ran" });
+      expect(c.sent.pop()).toMatchObject({ type: "learn_ran", note: "ran" });
       const phone = { ...client("p"), deviceId: "d1" } as Client & { sent: Array<Record<string, unknown>> };
-      bridge.onMessage(phone, { type: "recall_grade", request_id: "p1", id: "k1", grade: 4 });
-      expect(must(phone.sent.pop(), "the reply").type).toBe("recall_card");
-      bridge.onMessage(phone, { type: "recall_settings", request_id: "p2", enabled: true });
+      bridge.onMessage(phone, { type: "learn_grade", request_id: "p1", id: "k1", grade: 4 });
+      expect(must(phone.sent.pop(), "the reply").type).toBe("learn_card");
+      bridge.onMessage(phone, { type: "learn_settings", request_id: "p2", enabled: true });
       expect(must(phone.sent.pop(), "the reply").type).toBe("error");
-      const bare = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
-      bare.onMessage(c, { type: "recall_list", request_id: "x" });
-      expect(c.sent.pop()).toMatchObject({ type: "error", message: "recall is not available in this mod" });
+      const bare = bridgeOf({ store: new CanvasStore(), widgets: fakeWidgets([]), broadcast: () => {} });
+      bare.onMessage(c, { type: "learn_list", request_id: "x" });
+      expect(c.sent.pop()).toMatchObject({ type: "error", message: "learn is not available in this mod" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -49,7 +49,6 @@ nsis:
   oneClick: true
   perMachine: false
   artifactName: loki_${version}_x64-setup.exe
-  include: desktop/nsis/remove-tauri.nsh
 linux:
   target:
     - target: AppImage

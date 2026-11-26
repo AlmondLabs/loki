@@ -22,10 +22,10 @@ import {
   useReplyMentions,
   type FindReplyPeople,
   type ReplyProposalsProps,
-} from "../desk/reply-proposal-card";
-import { MentionText } from "../desk/mention-field";
-import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply } from "../desk/use-reply-card";
-import { inDesktop } from "../desk/env";
+} from "../workspace/reply-proposal-card";
+import { MentionText } from "../workspace/mention-field";
+import { revealFile, revealLabel, useReplyCard, useSentReplies, type DecideReply } from "../workspace/use-reply-card";
+import { inDesktop } from "../workspace/env";
 import { sentence } from "../components";
 import { replyKeyDown } from "../chat/quick-replies";
 

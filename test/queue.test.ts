@@ -16,7 +16,7 @@ describe("catch up queue merge", () => {
     expect(mergeQueue([a, b], [a, item("b", { status: "idle", unread: false })], [], { selectedId: "a1/a" }).map((i) => i.id)).toEqual(["a", "b"]);
   });
 
-  test("the selected card stays even when it stops being in the Inbox, wherever it sits; the first row is not pinned (R11)", () => {
+  test("the selected card stays even when it stops being in the Flow, wherever it sits; the first row is not pinned (R11)", () => {
     const a = item("a"),
       b = item("b"),
       c = item("c");

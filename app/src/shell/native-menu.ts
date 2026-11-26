@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { LucideIcon } from "lucide-react";
-import { inDesktop, platform } from "../desk/env";
+import { inDesktop, platform } from "../workspace/env";
 import { invoke } from "./desktop";
 
 export type MenuEntry =

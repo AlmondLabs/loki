@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { homeDeskSections, homeLists, homeSections } from "../app/src/phone/model.ts";
+import { homeChatSections, homeLists, homeSections } from "../app/src/phone/model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 
-describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () => {
-  const desk = (scope: string, agentId: string, agentName: string, lastActive: string, extra: Partial<DeskSummary> = {}): DeskSummary => ({
+describe("Home's desks group as the desktop sidebar's (homeChatSections)", () => {
+  const desk = (scope: string, agentId: string, agentName: string, lastActive: string, extra: Partial<ChatSummary> = {}): ChatSummary => ({
     scope,
     title: scope,
     status: "live",
@@ -33,7 +33,7 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
   ];
 
   test("Pinned first, then one section per agent by its latest activity, the main chat first; archived desks stay out", () => {
-    const groups = homeDeskSections(desks, [], [], "", agents);
+    const groups = homeChatSections(desks, [], [], "", agents);
     expect(groups.map((g) => [g.id, g.rows.map((r) => r.desk.scope)])).toEqual([
       ["pinned", ["b2"]],
       ["agent:kai", ["b1"]],
@@ -51,19 +51,19 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
       last_message_at: "2026-09-25T12:00:00Z",
     } as unknown as AttentionItem;
     const attention = [{ item, desk: desks[2], opens: "chat" as const }];
-    const groups = homeDeskSections(desks, [item], attention, "", agents);
+    const groups = homeChatSections(desks, [item], attention, "", agents);
     expect(groups.map((g) => g.id)).toEqual(["pinned", "agent:ira"]);
   });
 
   test("the filter narrows by desk name or agent name", () => {
-    expect(homeDeskSections(desks, [], [], "kai", agents).map((g) => g.id)).toEqual(["pinned", "agent:kai"]);
-    expect(homeDeskSections(desks, [], [], "a1", agents).flatMap((g) => g.rows.map((r) => r.desk.scope))).toEqual(["a1"]);
+    expect(homeChatSections(desks, [], [], "kai", agents).map((g) => g.id)).toEqual(["pinned", "agent:kai"]);
+    expect(homeChatSections(desks, [], [], "a1", agents).flatMap((g) => g.rows.map((r) => r.desk.scope))).toEqual(["a1"]);
     expect(homeSections(desks, [], null, "").desks.length).toBeGreaterThan(0);
   });
 });
 
 describe("Home under the phone's lane (plan 087, R15, R16)", () => {
-  const desk = (scope: string, agentId: string): DeskSummary => ({
+  const desk = (scope: string, agentId: string): ChatSummary => ({
     scope,
     title: scope,
     status: "live",
@@ -89,13 +89,13 @@ describe("Home under the phone's lane (plan 087, R15, R16)", () => {
   test("Needs your attention and its count hold only the lane's cards; the chat groups still list a chat outside it", () => {
     const home = homeLists({ desks, items, laneItems: [items[0]], query: "", agents, due: 0 });
     expect(home.attention.map((a) => a.item.id)).toEqual(["w1"]);
-    expect(home.counts.inbox).toBe(1);
+    expect(home.counts.flow).toBe(1);
     expect(home.groups.flatMap((g) => g.rows.map((r) => r.desk.scope))).toEqual(["h1"]);
   });
   test("in Everything both cards need the person and neither repeats below", () => {
     const home = homeLists({ desks, items, laneItems: items, query: "", agents, due: 0 });
     expect(home.attention.map((a) => a.item.id).sort()).toEqual(["h1", "w1"]);
-    expect(home.counts.inbox).toBe(2);
+    expect(home.counts.flow).toBe(2);
     expect(home.groups).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { archivable, type AttentionItem } from "../../../core/attention/model.ts";
 import { agentLanes, type Lane } from "../../../core/attention/lanes.ts";
-import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
+import { idOf, flowQueue, stampOf } from "../../../core/attention/queue.ts";
 import type { CardVia, MoveResult } from "../../../core/attention/use-attention.ts";
 import { releaseCommits } from "../kit/let-go";
 
@@ -163,7 +163,7 @@ export function visibleQueue(queue: AttentionItem[], dismissed: Dismissed): Atte
 }
 
 export function pruneDismissed(d: Dismissed, items: AttentionItem[]): Dismissed {
-  const live = new Map(inboxQueue(items).map((i) => [idOf(i), stampOf(i)]));
+  const live = new Map(flowQueue(items).map((i) => [idOf(i), stampOf(i)]));
   const next: Dismissed = new Map();
   for (const [id, stamp] of d) if (live.get(id) === stamp) next.set(id, stamp);
   return next;
@@ -209,7 +209,7 @@ export function canCommit(item: AttentionItem, via: Via, from: "gesture" | "menu
 const same = (a: AttentionItem) => (b: AttentionItem) => idOf(a) === idOf(b);
 
 export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[] {
-  const visible = visibleQueue(inboxQueue(items, s.resting), s.dismissed);
+  const visible = visibleQueue(flowQueue(items, s.resting), s.dismissed);
   const held = s.held ? (items.find(same(s.held)) ?? null) : null;
   return toFront(held && !visible.some(same(held)) ? [held, ...visible] : visible, s.topId);
 }

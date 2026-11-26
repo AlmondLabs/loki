@@ -388,6 +388,6 @@ describe("the picker's keys and focus", () => {
   });
   test("⌘⇧M (chat.model) still opens it, from the box too", () => {
     const ev = { key: "m", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, target: { tagName: "TEXTAREA" } } as unknown as KeyboardEvent;
-    expect(resolve(ev, "desk")?.id).toBe("chat.model");
+    expect(resolve(ev, "chats")?.id).toBe("chat.model");
   });
 });

@@ -13,7 +13,7 @@ import { Button, Chip, Field, IconButton, Meta, Row, Sheet, sentence } from "../
 import { Icon } from "../shared/icons";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
 import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
-import { isMainChat } from "../../../core/desk-core.ts";
+import { isMainChat } from "../../../core/canvas-core.ts";
 
 export interface SuggestionSource {
   conversation: (agentId: string, conversationId: string) => Pick<ChatFace, "suggestions" | "cwd">;

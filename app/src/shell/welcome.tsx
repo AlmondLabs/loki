@@ -5,7 +5,7 @@ import { PERSONA_HINT } from "../agents/new-agent";
 import { Providers } from "../settings/providers";
 import { isConnected } from "../settings/provider-model";
 import { Progress } from "@/ui/progress";
-import { platform, type Platform } from "../desk/env";
+import { platform, type Platform } from "../workspace/env";
 import type { DaemonStatus, NeedsNode, Preparing, WelcomeStep } from "./bootstrap";
 import { formatKeys } from "./keymap";
 import { nodeWords, toolsWords } from "./os-words";

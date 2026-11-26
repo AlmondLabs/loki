@@ -2,22 +2,21 @@ import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useRe
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
-import { MoveNotice } from "./move-notice";
-import { conversationDirName, isMainChat, MAIN_CHAT_ID, scopeFor, SHARED_SCOPE } from "../../../core/desk-core.ts";
+import { conversationDirName, isMainChat, MAIN_CHAT_ID, scopeFor, SHARED_SCOPE } from "../../../core/canvas-core.ts";
 import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import { DeskPane } from "../desk/desk-pane";
-import { NewChat } from "../desk/new-chat";
-import { useFirstMessage } from "../desk/use-first-message";
+import { CanvasPane } from "../workspace/canvas-pane";
+import { NewChat } from "../workspace/new-chat";
+import { useFirstMessage } from "../workspace/use-first-message";
 import type { Attachment } from "../../../core/attention/content.ts";
-import { useDeskPane } from "../desk/use-desk-pane";
-import { chatKeyTarget } from "../desk/pane";
-import { useDesk } from "../desk/use-desk";
-import { avatarUrl, inDesktop } from "../desk/env";
+import { useCanvasPane } from "../workspace/use-canvas-pane";
+import { chatKeyTarget } from "../workspace/pane";
+import { useWorkspace } from "../workspace/use-workspace";
+import { avatarUrl, inDesktop } from "../workspace/env";
 import { agentSources } from "../agents/agents-column";
-import { learnSources } from "../recall/learn-column";
-import { useLearnView } from "../recall/use-learn-view";
-import { flowSources } from "../desk/flow-column";
+import { learnSources } from "../learn/learn-column";
+import { useLearnView } from "../learn/use-learn-view";
+import { flowSources } from "../workspace/flow-column";
 import { useDaemonStatus, welcomeFor } from "./bootstrap";
 import { afterSegmentKey } from "../settings/preferences";
 import {
@@ -36,7 +35,7 @@ import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
 import { useChatLayout } from "./use-chat-layout";
-import { useRecall } from "./use-recall";
+import { useLearn } from "./use-learn";
 import { TitleMenu } from "./title-menu";
 import { updateItemLabel, useLokiUpdate } from "./use-loki-update";
 import { useGlobalShortcut } from "./use-global-shortcut";
@@ -46,7 +45,7 @@ import { useColumn } from "./use-column";
 import { ColumnEdge, ListColumn } from "./list-column";
 import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
-import { ChatListView } from "./desk-sidebar";
+import { ChatListView } from "./chat-sidebar";
 import { leaveList, listStop, type ContentListHandle } from "./content-list";
 import {
   ALL_CHATS,
@@ -61,12 +60,12 @@ import {
   stateRows,
   type ChatState,
 } from "./sidebar-model";
-import { AgentFace } from "../desk/agent-chip";
-import type { FlowKind } from "../desk/flow-kinds";
-import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
+import { AgentFace } from "../workspace/agent-chip";
+import type { FlowKind } from "../workspace/flow-kinds";
+import { AgentsView, FlowView, SettingsView, WelcomeView, LearnPane } from "./views";
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
-import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
+import { chatPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
 import { agentsHasList, agentsSelection, useAgentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { Runtime } from "./types";
@@ -81,19 +80,12 @@ const SEGMENT_KEY = "loki.segment";
 
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
-  return s === "inbox" || s === "agents" || s === "learn" ? s : "desk";
+  return s === "flow" || s === "agents" || s === "learn" ? s : "chats";
 }
 
 export function Shell() {
-  const desk = useDesk();
-  const { attention } = desk;
-  const screenRef = useRef<Segment | null>(null);
-  const { capture: captureRaw } = attention;
-  const capture = useCallback(
-    (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
-    [captureRaw],
-  );
-  const catchUp = useShellAttention(desk, capture);
+  const desk = useWorkspace();
+  const catchUp = useShellAttention(desk);
   const laneUntil = useLaneFollower("desktop", catchUp.flow);
   const notice = (m: string) => void notify(m);
   const archivedKey = desk.desks.list
@@ -120,25 +112,11 @@ export function Shell() {
   const [flowKind, setFlowKind] = useState<FlowKind>("all");
   const [unselected, setUnselected] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const prevSegment = useRef<Segment | null>(null);
-  useEffect(() => {
-    if (prevSegment.current !== null) capture("view_opened", { view: segment, from: prevSegment.current });
-    prevSegment.current = segment;
-    screenRef.current = segment;
-  }, [segment, capture]);
-  useEffect(() => {
-    capture("desk_switched", { desk: desk.scope });
-  }, [desk.scope, capture]);
   const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
   const chat = useChatLayout(desk);
   const hasAdvisor = !!(desk.agentId && desk.conversationId && catchUp.conversation(desk.agentId, desk.conversationId).advisor);
-  const pane = useDeskPane(desk.scope, hasAdvisor);
+  const pane = useCanvasPane(desk.scope, hasAdvisor);
   const { chatOpen, setChatOpen } = chat;
-  const prevChatOpen = useRef<boolean | null>(null);
-  useEffect(() => {
-    if (prevChatOpen.current !== null) capture(chatOpen ? "chat_opened" : "chat_closed");
-    prevChatOpen.current = chatOpen;
-  }, [chatOpen, capture]);
   const [focusChat, setFocusChat] = useState(0);
   const [findChat, setFindChat] = useState(0);
   const [decideChat, setDecideChat] = useState<{ n: number; behavior: "allow" | "deny" }>({ n: 0, behavior: "allow" });
@@ -193,7 +171,7 @@ export function Shell() {
   const paneOpen = pane.open;
   const deskList = desk.desks.list;
   const agentList = catchUp.agents;
-  const openDesk = useCallback(
+  const openChat = useCallback(
     (agentId: string, conversationId: string, _opts: { chat?: boolean } = {}) => {
       const scope = scopeFor(conversationId, agentId);
       const to = openIn({ scope, agent_id: agentId }, { source: chatSource, query: sidebarQuery }, deskList, agentList);
@@ -204,22 +182,22 @@ export function Shell() {
       setUnselected(false);
       switchTo(scope);
       paneOpen(scope);
-      setSegment("desk");
+      setSegment("chats");
       setNewChat(null);
       setFocusChat((n) => n + 1);
     },
     [setSegment, paneOpen, switchTo, chatSource, chatState, sidebarQuery, deskList, agentList, catchUp.items],
   );
   const openAdvisor = (agentId: string, conversationId: string) => {
-    openDesk(agentId, conversationId);
+    openChat(agentId, conversationId);
     pane.showAdvisor(scopeFor(conversationId, agentId));
   };
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
-    openDesk(agentId, conversationId, { chat: true });
+    openChat(agentId, conversationId, { chat: true });
     catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title, origin: "lesson" });
   };
 
-  const recall = useRecall(desk, segment, notice);
+  const recall = useLearn(desk, segment, notice);
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
   const [keysOpen, setKeysOpen] = useState(false);
@@ -227,20 +205,20 @@ export function Shell() {
   const startNewChat = (agentId: string | null) => {
     setNewChat((was) => ({ agentId, n: (was?.n ?? 0) + 1 }));
     setPrefsOpen(false);
-    setSegment("desk");
+    setSegment("chats");
   };
   const queueFirst = useFirstMessage(desk.scope, desk.connection, (m) =>
-    catchUp.send(m.runtime, m.text, m.images, { desk: null, labels: null, origin: "desk" }),
+    catchUp.send(m.runtime, m.text, m.images, { desk: null, labels: null, origin: "chats" }),
   );
   const startChat = async ({ agentId, folder, home, text, images }: { agentId: string; folder: string; home?: string; text: string; images: Attachment[] }) => {
     const rt = await catchUp.createDesk(agentId, folder, "", home);
     queueFirst({ scope: scopeFor(rt.conversation_id, rt.agent_id), runtime: rt, text, images });
-    openDesk(rt.agent_id, rt.conversation_id, { chat: true });
+    openChat(rt.agent_id, rt.conversation_id, { chat: true });
   };
 
   const waiting = catchUpQueue(catchUp.flow.laneItems).length;
-  const toggleInbox = useCallback(() => setSegmentRaw((s) => (s === "inbox" ? "desk" : "inbox")), []);
-  useTray(waiting, toggleInbox);
+  const toggleFlow = useCallback(() => setSegmentRaw((s) => (s === "flow" ? "chats" : "flow")), []);
+  useTray(waiting, toggleFlow);
   useEffect(() => {
     sessionStorage.setItem(SEGMENT_KEY, segment);
   }, [segment]);
@@ -258,7 +236,7 @@ export function Shell() {
     ? null
     : landing({
         scope: desk.scope,
-        onChats: segment === "desk" && newChat === null,
+        onChats: segment === "chats" && newChat === null,
         ready: desk.desks.loaded && catchUp.status === "open" && catchUp.agentsLoaded,
         desks: desk.desks.list,
         waiting,
@@ -267,7 +245,7 @@ export function Shell() {
   const land = useEffectEvent(() => {
     if (!where) return;
     setLanded(true);
-    if (where.kind === "flow") setSegment("inbox");
+    if (where.kind === "flow") setSegment("flow");
     else if (where.kind === "chat") {
       setChatSource(where.source);
       setUnselected(false);
@@ -286,15 +264,15 @@ export function Shell() {
     };
   }, [whereKey]);
   useEffect(() => {
-    if (segment === "desk") {
-      if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
+    if (segment === "chats") {
+      if (desk.scope !== "shared") recentPlaces.add(chatPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
   let placeOwner: ReactNode;
   switch (segment) {
-    case "inbox":
+    case "flow":
       placeOwner = (
-        <InboxView
+        <FlowView
           desk={desk}
           catchUp={catchUp}
           notice={notice}
@@ -302,10 +280,9 @@ export function Shell() {
           onLoadModels={loadModels}
           onPickModel={pickModel}
           onPickMode={pickMode}
-          onOpenDesk={openDesk}
+          onOpenChat={openChat}
           onOpenAdvisor={openAdvisor}
-          onClose={() => setSegment("desk")}
-          onPass={(pass) => capture("inbox_pass_completed", pass)}
+          onClose={() => setSegment("chats")}
           kind={flowKind}
           onKind={setFlowKind}
         />
@@ -316,21 +293,21 @@ export function Shell() {
         <AgentsView
           desk={desk}
           catchUp={catchUp}
-          onOpenDesk={openDesk}
+          onOpenChat={openChat}
           onAskToUpdate={(agentId, text) => {
-            openDesk(agentId, MAIN_CHAT_ID, { chat: true });
+            openChat(agentId, MAIN_CHAT_ID, { chat: true });
             setChatPrefill({ text, tick: Date.now() });
           }}
-          onShowDesks={() => setSegment("desk")}
+          onShowChats={() => setSegment("chats")}
         />
       );
       break;
     case "learn":
-      placeOwner = <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />;
+      placeOwner = <LearnPane recall={recall} active={!searchOpen} onOpenChat={openChat} onBegin={beginLesson} />;
       break;
   }
   const agentsState = useAgentsSelection();
-  const hasList = segment === "desk" || (segment === "agents" ? agentsHasList(agentsState, agentList.length) : placeOwner !== undefined);
+  const hasList = segment === "chats" || (segment === "agents" ? agentsHasList(agentsState, agentList.length) : placeOwner !== undefined);
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
   const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
   const column = useColumn(segment, hasList);
@@ -358,7 +335,7 @@ export function Shell() {
     column.dismiss();
     setChatSource(id);
     setPrefsOpen(false);
-    setSegment("desk");
+    setSegment("chats");
     const open = deskList.find((d) => d.scope === desk.scope);
     setUnselected(!open || !sourceHolds(id, open));
   };
@@ -368,7 +345,7 @@ export function Shell() {
   const chooseLane = (id: string) => {
     column.dismiss();
     setPrefsOpen(false);
-    setSegment("inbox");
+    setSegment("flow");
     lanes.onSelect(id);
   };
   const agentPlaces = agentSources({
@@ -402,8 +379,8 @@ export function Shell() {
     chooseSource(ALL_CHATS);
     setSidebarQuery(`label:${name}`);
   };
-  const drafting = newChat !== null && segment === "desk";
-  const onChat = segment === "desk" && !drafting;
+  const drafting = newChat !== null && segment === "chats";
+  const onChat = segment === "chats" && !drafting;
   const noChat = desk.scope === SHARED_SCOPE || unselected;
   const listSelected = noChat ? null : desk.scope;
   const sidebarShown = layout.sidebarShown;
@@ -429,7 +406,7 @@ export function Shell() {
     startTransition(() => {
       desk.desks.switchTo(scope);
       pane.open(scope);
-      setSegment("desk");
+      setSegment("chats");
       setNewChat(null);
       setUnselected(false);
     });
@@ -460,7 +437,7 @@ export function Shell() {
   const listColumn = useRef<HTMLDivElement>(null);
   const toList = () => {
     if (!layout.listShown) return;
-    listStop(segment === "desk" ? chatSlot.current : listSlot)?.focus();
+    listStop(segment === "chats" ? chatSlot.current : listSlot)?.focus();
   };
 
   const segmentKey = (id: string) => {
@@ -472,16 +449,16 @@ export function Shell() {
   useShellKeys(
     { segment },
     {
-      "segment.desk": () => segmentKey("segment.desk"),
-      "segment.inbox": () => segmentKey("segment.inbox"),
+      "segment.chats": () => segmentKey("segment.chats"),
+      "segment.flow": () => segmentKey("segment.flow"),
       "segment.learn": () => segmentKey("segment.learn"),
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
       "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
-      "desk.new": () => startNewChat(source.agentId),
+      "chat.new": () => startNewChat(source.agentId),
       "keys.sheet": () => setKeysOpen((v) => !v),
-      "desk.prev": () => chatList.current?.step(-1),
-      "desk.next": () => chatList.current?.step(1),
+      "chat.prev": () => chatList.current?.step(-1),
+      "chat.next": () => chatList.current?.step(1),
       "column.toggle": () => {
         if (column.has) column.toggle();
       },
@@ -519,7 +496,7 @@ export function Shell() {
     if (t.kind === "preferences") return showPreferences(t.page);
     setPrefsOpen(false);
     if (t.kind === "label") return showLabel(t.name);
-    if (t.kind === "desk") return openDesk(t.agentId, t.conversationId);
+    if (t.kind === "desk") return openChat(t.agentId, t.conversationId);
     if (t.kind === "agent") {
       agentsSelection.pickAgent(t.agentId);
       return setSegment("agents");
@@ -578,7 +555,7 @@ export function Shell() {
               waiting={waiting}
               dueCards={recall.due}
               sources={{
-                desk: {
+                chats: {
                   items: [
                     { id: ALL_CHATS, title: "All Chats", icon: "desk", count: allWaiting },
                     ...sources
@@ -588,7 +565,7 @@ export function Shell() {
                   selected: source.id,
                   onSelect: chooseSource,
                 },
-                inbox: { ...lanes, onSelect: chooseLane },
+                flow: { ...lanes, onSelect: chooseLane },
                 agents: { ...agentPlaces, onSelect: chooseAgent },
                 learn: { ...learnPlaces, onSelect: chooseView },
               }}
@@ -614,7 +591,7 @@ export function Shell() {
           <div
             ref={chatSlot}
             className="loki-list-column-slot"
-            style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? undefined : "hidden" }}
+            style={{ position: "absolute", inset: 0, visibility: segment === "chats" ? undefined : "hidden" }}
           >
             <ChatListView
               ref={chatList}
@@ -625,7 +602,7 @@ export function Shell() {
               stateFilter={filtering ? { state: chatState, onState: chooseChatState } : undefined}
               source={source}
               selected={listSelected}
-              shown={segment === "desk"}
+              shown={segment === "chats"}
               onSelect={selectChat}
               onPrefetch={prefetchScope}
               onEnter={enterChat}
@@ -646,9 +623,9 @@ export function Shell() {
           {(hasList || placeOwner !== undefined) && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
           <PlaceSlotsProvider slots={placeSlots}>{placeOwner}</PlaceSlotsProvider>
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
-            <DeskPane
+            <CanvasPane
               desk={desk}
-              onOpenChat={openDesk}
+              onOpenChat={openChat}
               catchUp={catchUp}
               active={onChat && !unselected}
               tab={pane.tab}
@@ -716,7 +693,7 @@ export function Shell() {
               models={modelList}
               onLoadModels={loadModels}
               onModelsChanged={forgetModels}
-              onDone={(agentId) => openDesk(agentId, MAIN_CHAT_ID, { chat: true })}
+              onDone={(agentId) => openChat(agentId, MAIN_CHAT_ID, { chat: true })}
             />
           )}
         </main>
@@ -725,7 +702,7 @@ export function Shell() {
       {searchOpen && (
         <SearchSheet
           sources={searchSources}
-          here={segment === "desk" ? deskPlace(desk.scope) : segment === "settings" ? null : sectionPlace(segment)}
+          here={segment === "chats" ? chatPlace(desk.scope) : segment === "settings" ? null : sectionPlace(segment)}
           avatar={avatarUrl}
           onOpen={openHit}
           onClose={() => setSearchOpen(false)}
@@ -756,7 +733,6 @@ export function Shell() {
       <Notices />
       <RestartNotice due={desk.daemon.restartDue} restart={desk.daemon.restart} />
       <UpdateNotice update={update} working={working} />
-      <MoveNotice update={update} />
     </div>
   );
 }

@@ -24,17 +24,12 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 - **No `any`, no `x!`, no floating promises.** Parse `unknown` at the edge; narrow instead of asserting; `await`,
   return, or `void` every promise.
 - **Named exports only**, `import type` for types, `.ts` extensions on imports in `core/`, `mod/`, `daemon/` and `desktop/`.
-- **Names**: every file kebab-case, components and hooks too (`suggestion-card.tsx`, `use-desk.ts`); identifiers camelCase,
+- **Names**: every file kebab-case, components and hooks too (`suggestion-card.tsx`, `use-workspace.ts`); identifiers camelCase,
   types and components PascalCase, acronyms as words (`agentUrl`); data loki owns (frames, saved files, suggestions,
   tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
-- **Comments are the exception**: a licence header, a gotcha forced by something outside loki (its first line
-  `Outside (<what>): `, `<what>` from `OUTSIDE` in `eslint-comments.mjs`), `prettier-ignore` or a style-only lint
-  suppression with its reason, a doc comment stating a contract across a process or disk boundary (frames, `~/.loki`
-  files, the mod API, tool arguments, the shell's commands), or an issue or RFC link. A surprise in loki's own code is fixed
-  by renaming, extracting or typing it, not explained. No commented-out code, no `TODO`, no plan tags. `bun run lint`
-  fails on any other comment.
+- **Comments**: explain non-obvious constraints ("why", not "what"); prefer clearer naming/types over comments for obvious code. No `TODO`/`FIXME`, no commented-out code, no `eslint-disable`, and every `oxlint-disable` must give `-- reason`. `bun run lint` checks those automatically.
 - **Words on screen**: Apple's (the Human Interface Guidelines): controls in title case (`Mark as Read`), everything else
   a sentence, keys in tooltips and the menu bar rather than on buttons, plain words, no exclamation marks.
 - **Styles** stay on the scales in [docs/design.md](docs/design.md) (`test/tokens.test.ts` checks).
@@ -73,7 +68,7 @@ included, before saying it is done.
   72 characters at most (`feat(chat): suggest work for another chat`). The PR title follows the same shape; CI checks
   it.
 - **The scope is one of these, or left out**; a folder or topic name that is not here fails CI: `chat`, `history`,
-  `acp`, `mcp`, `memory`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `peers`, `motion`,
+  `acp`, `mcp`, `memory`, `learn`, `phone`, `canvas`, `flow`, `agents`, `settings`, `peers`, `motion`,
   `daemon`, `mod`, `core`, `app`, `shell`, `release`, `deps`, `style`. Check the title before opening the PR:
 
   ```bash

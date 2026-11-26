@@ -1,22 +1,22 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DeskState, Scope } from "../core/desk-core.ts";
-import type { DeskStore } from "./desk-store.ts";
+import type { CanvasState, Scope } from "../core/canvas-core.ts";
+import type { CanvasStore } from "./canvas-store.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
 const DEBOUNCE_MS = 200;
 
-function isDeskState(v: unknown): v is DeskState {
+function isCanvasState(v: unknown): v is CanvasState {
   return (
     typeof v === "object" &&
     v !== null &&
-    typeof (v as DeskState).scope === "string" &&
-    typeof (v as DeskState).layout === "object" &&
-    typeof (v as DeskState).overlay === "object"
+    typeof (v as CanvasState).scope === "string" &&
+    typeof (v as CanvasState).layout === "object" &&
+    typeof (v as CanvasState).overlay === "object"
   );
 }
 
-export function loadDesks(store: DeskStore, dir: string): Scope[] {
+export function loadCanvases(store: CanvasStore, dir: string): Scope[] {
   let files: string[];
   try {
     files = readdirSync(dir).filter((f) => f.endsWith(".json"));
@@ -27,7 +27,7 @@ export function loadDesks(store: DeskStore, dir: string): Scope[] {
   for (const f of files) {
     try {
       const parsed: unknown = JSON.parse(readFileSync(join(dir, f), "utf8"));
-      if (isDeskState(parsed)) {
+      if (isCanvasState(parsed)) {
         store.load({ ...parsed, rev: typeof parsed.rev === "number" ? parsed.rev : 0 });
         loaded.push(parsed.scope);
       }
@@ -38,7 +38,7 @@ export function loadDesks(store: DeskStore, dir: string): Scope[] {
 
 const SCOPE_AS_FILE_NAME = /^[A-Za-z0-9_-]+$/;
 
-export function persistDesks(store: DeskStore, dir: string, debounceMs = DEBOUNCE_MS): () => void {
+export function persistCanvases(store: CanvasStore, dir: string, debounceMs = DEBOUNCE_MS): () => void {
   const timers = new Map<Scope, ReturnType<typeof setTimeout>>();
 
   const flush = (scope: Scope) => {

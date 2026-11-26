@@ -1,5 +1,5 @@
 import { isAdvisorChat, type AdvisorView } from "../advisor.ts";
-import { isMainChat } from "../desk-core.ts";
+import { isMainChat } from "../canvas-core.ts";
 import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
 import { ThreadModel, type Step } from "./thread.ts";
@@ -73,7 +73,6 @@ export interface Live {
   thread: ThreadModel;
   turns: number;
   inTurn: boolean;
-  turnId?: string;
   queued: QueuedSend[];
   mode?: string;
   cwd?: string;
@@ -212,7 +211,7 @@ export type ChatEvent =
   /** The chat's permission mode, folder or engine, as the backend has them now. */
   | { kind: "device"; mode?: string; cwd?: string; engine?: ChatEngineView | null }
   /** Whether the chat is running, idle, or waiting on an approval. */
-  | { kind: "loop"; state: "running" | "idle" | "approval"; turn_id?: string }
+  | { kind: "loop"; state: "running" | "idle" | "approval" }
   /** A piece of the thread: a message, a streamed piece of the reply, a call, an approval, a result. */
   | { kind: "step"; step: Step }
   /** The turn failed. */
@@ -224,7 +223,7 @@ export type ChatEvent =
   /** The answer in flight as written so far, for a client that starts listening mid-answer: the stream starts from it. */
   | { kind: "streaming"; text: string; at: string | null }
   /** The turn ended. */
-  | { kind: "turn_end"; turn_id?: string }
+  | { kind: "turn_end" }
   /** The chat's open suggestions (plan 049), whole, on every change to any of them: the screen shows exactly these. */
   | { kind: "suggestions"; suggestions: Suggestion[] }
   /** The chat's open reply proposals (plan 067, KTD9), whole, on every change to any of them. */
@@ -265,7 +264,6 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
     case "loop": {
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
       l.loop = e.state;
-      if (e.turn_id) l.turnId = e.turn_id;
       if (e.state === "running") l.inTurn = true;
       if (e.state === "idle") {
         l.thread.settle(now);
@@ -321,7 +319,6 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       l.advisor = e.advisor;
       return { changed: true, userSpoke: false };
     case "turn_end":
-      if (e.turn_id) l.turnId = e.turn_id;
       l.thread.settle(now);
       if (l.inTurn) {
         l.turns += 1;

@@ -2,7 +2,7 @@ import { isAbsolute, relative, sep } from "node:path";
 import { basename } from "node:path";
 import { peerMeaning, pushMeaning } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
-import { scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/canvas-core.ts";
 import type { ChatDirectory, ChatRef, Location } from "./chat-directory.ts";
 import { PeerRefusal } from "./peer-link.ts";
 import { messageOf } from "../core/errors.ts";

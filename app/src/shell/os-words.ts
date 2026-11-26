@@ -1,4 +1,4 @@
-import { platform, systemName, type Platform } from "../desk/env";
+import { platform, systemName, type Platform } from "../workspace/env";
 
 export interface OsWords {
   machine: string;

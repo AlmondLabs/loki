@@ -225,7 +225,7 @@ describe("focus on arrival", () => {
   });
   test("a heading in a screen kept mounted but away (the hidden Inbox) is not the one focused", () => {
     const log: string[] = [];
-    const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
+    const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "flow"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
     // oxlint-disable-next-line no-empty-function -- a stand-in class for instanceof, which needs a function, not an arrow

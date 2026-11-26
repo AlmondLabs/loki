@@ -1,12 +1,11 @@
-import type { Scope } from "../core/desk-core.ts";
-import { KIT, SHARED_SCOPE, mergeData, scopeFor } from "../core/desk-core.ts";
-import type { ModApi } from "../daemon/mods/api.ts";
-import type { DeskStore } from "./desk-store.ts";
+import type { Scope } from "../core/canvas-core.ts";
+import { KIT, SHARED_SCOPE, mergeData, scopeFor } from "../core/canvas-core.ts";
+import type { ModApi, ModTool, ToolContext } from "../daemon/mods/api.ts";
+import type { CanvasStore } from "./canvas-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
-import type { GestureLog } from "./gestures.ts";
-import { scopeOfId } from "../core/desk-core.ts";
+import { scopeOfId } from "../core/canvas-core.ts";
 import { log, withTimeout } from "./log.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
 import { linkLines, type ChatMessages } from "./chat-links.ts";
@@ -14,9 +13,8 @@ import { messageOf } from "../core/errors.ts";
 import { consultingSection, consultRefusal, sentText, type AdvisorConsulting } from "./advisor.ts";
 
 export interface ToolDeps {
-  store: DeskStore;
+  store: CanvasStore;
   widgets: WidgetsWatcher;
-  gestures: GestureLog;
   widgetsDir: string;
   activeScope: () => Scope;
   remember?: (conversationId: string, agentId?: string | null) => Scope;
@@ -34,20 +32,17 @@ export interface ListedAgent {
 export interface ChatToolDeps {
   suggestions: Pick<Suggestions, "add">;
   agents(): ListedAgent[] | Promise<ListedAgent[]>;
-  chats(): DeskSummary[];
+  chats(): ChatSummary[];
   passChat(conversationId: string): boolean;
   messages?: Pick<ChatMessages, "send" | "linksOf">;
   advisor?: AdvisorConsulting;
 }
 
-export function scopeForCall(
-  deps: ToolDeps,
-  ctx: { args?: Record<string, unknown>; conversation?: { id: string | null } | null; agent?: { id: string } | null } | undefined,
-): Scope {
-  const desk = ctx?.args?.desk;
+export function scopeForCall(deps: ToolDeps, args?: Record<string, unknown>, ctx?: Pick<ToolContext, "chatId" | "agentId">): Scope {
+  const desk = args?.desk;
   if (typeof desk === "string" && desk) return scopeFor(desk);
-  const conv = ctx?.conversation?.id;
-  const agentId = ctx?.agent?.id || null;
+  const conv = ctx?.chatId;
+  const agentId = ctx?.agentId || null;
   if (conv) return deps.remember ? deps.remember(conv, agentId) : scopeFor(conv, agentId);
   return deps.activeScope();
 }
@@ -69,60 +64,12 @@ export function deskSnapshot(deps: ToolDeps, scope: Scope) {
   });
 }
 
-export interface Call {
-  args: Record<string, unknown>;
-  conversation: { id: string };
-  agent: { id: string; name: string };
-  signal?: AbortSignal;
-  cwd?: string;
-}
-export interface LokiTool {
-  name: string;
-  description: string;
-  parameters: object;
-  annotations?: { readOnly?: boolean };
-  forAgent?: (agentId: string) => boolean;
-  callers?: ReadonlyArray<"model" | "tools">;
-  outputSchema?: object;
-  run(ctx: Call): unknown;
-}
-
 const SCRIPTS_ONLY = ["tools"] as const;
 
 /** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
 export const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
-export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () => void } {
-  return {
-    register: (tool: LokiTool) =>
-      api.tools.register({
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-        ...(tool.annotations ? { annotations: tool.annotations } : {}),
-        ...(tool.forAgent ? { forAgent: tool.forAgent } : {}),
-        ...(tool.callers ? { callers: tool.callers } : {}),
-        ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
-        execute: async (args, c) => {
-          const out = await tool.run({
-            args,
-            conversation: { id: c.chatId },
-            agent: { id: c.agentId, name: c.agentName },
-            signal: c.signal,
-            ...(c.cwd === undefined ? {} : { cwd: c.cwd }),
-          });
-          if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") {
-            const content = (out as { content?: unknown }).content;
-            throw new Error(content === undefined || content === null ? "the tool failed" : typeof content === "string" ? content : JSON.stringify(content));
-          }
-          return out;
-        },
-      }),
-  };
-}
-
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
-  const tools = toolRegistrar(api);
   const kitLine = Object.entries(KIT)
     .map(([t, k]) => `${t}: ${k.data_shape}`)
     .join("; ");
@@ -141,7 +88,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   );
 
   disposers.push(
-    tools.register({
+    api.tools.register({
       name: "canvas_read",
       annotations: { readOnly: true },
       callers: SCRIPTS_ONLY,
@@ -149,8 +96,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       description:
         "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
         "and on the shared canvas: file, type, title, data (with the user's gesture edits applied), position, and any " +
-        "build/runtime error, and each canvas's folder. The result is for the conversation you are in (pass `desk` to " +
-        "look at another). User gestures are also attached automatically to your next turn.",
+        "build/runtime error, and each canvas's folder. The result is for the conversation you are in (pass `desk` to look at another).",
       parameters: {
         type: "object",
         properties: {
@@ -158,11 +104,10 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         },
         additionalProperties: false,
       },
-      async run(ctx) {
-        const args = ctx.args;
+      async execute(args, ctx) {
         log("tool:canvas_read:start", args);
         await withTimeout(deps.widgets.rescan(), 2000, "canvas_read rescan", undefined);
-        const scope = scopeForCall(deps, ctx);
+        const scope = scopeForCall(deps, args, ctx);
         const out: Record<string, unknown> = {
           desk: scope,
           widgets_dir: `${deps.widgetsDir}/${scope}`,
@@ -172,8 +117,6 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
           out.shared_widgets_dir = `${deps.widgetsDir}/${SHARED_SCOPE}`;
           out.shared = deskSnapshot(deps, SHARED_SCOPE);
         }
-        const pending = [...deps.gestures.peek(scope), ...(scope !== SHARED_SCOPE ? deps.gestures.peek(SHARED_SCOPE) : [])];
-        if (pending.length) out.pending_canvas_activity = pending;
         log("tool:canvas_read:done", { desk: scope, widgets: (out.widgets as unknown[]).length });
         return JSON.stringify(out, null, 2);
       },
@@ -181,7 +124,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   );
 
   disposers.push(
-    tools.register({
+    api.tools.register({
       name: "canvas_focus",
       annotations: { readOnly: true },
       callers: SCRIPTS_ONLY,
@@ -197,17 +140,16 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         },
         additionalProperties: false,
       },
-      run(ctx) {
-        const args = ctx.args;
+      execute(args) {
         const ids = Array.isArray(args.widget_ids)
           ? (args.widget_ids as unknown[]).filter((x): x is string => typeof x === "string")
           : typeof args.widget_id === "string" && args.widget_id
             ? [args.widget_id]
             : [];
         log("tool:canvas_focus", { ids });
-        if (ids.length === 0) return { status: "error", content: "give widget_id or widget_ids" };
+        if (ids.length === 0) throw new Error("give widget_id or widget_ids");
         const missing = ids.filter((id) => !deps.widgets.get(id));
-        if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check canvas_read` };
+        if (missing.length) throw new Error(`no widget ${missing.map((m) => `"${m}"`).join(", ")} — check canvas_read`);
         const scopes = new Set(ids.map(scopeOfId));
         const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE;
         deps.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, scope === SHARED_SCOPE ? undefined : scope);
@@ -217,14 +159,14 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   );
 
   const chats = deps.chats;
-  if (chats) disposers.push(...registerChatTools(tools, chats));
+  if (chats) disposers.push(...registerChatTools(api, chats));
   if (chats?.advisor) disposers.push(consultingSection(api, (id) => chats.passChat(id)));
 
   return disposers;
 }
 
-type OpenChat = DeskSummary & { conversation_id: string; agent_id: string };
-const openChats = (rows: DeskSummary[]): OpenChat[] => rows.filter((d): d is OpenChat => d.status === "live" && !!d.conversation_id && !!d.agent_id);
+type OpenChat = ChatSummary & { conversation_id: string; agent_id: string };
+const openChats = (rows: ChatSummary[]): OpenChat[] => rows.filter((d): d is OpenChat => d.status === "live" && !!d.conversation_id && !!d.agent_id);
 
 function chatLine(d: OpenChat, calling: string): string {
   return [
@@ -243,13 +185,14 @@ function chatLine(d: OpenChat, calling: string): string {
     .join(" · ");
 }
 
-function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, deps: ChatToolDeps): Array<() => void> {
-  const failed = (content: string) => ({ status: "error", content });
-  const passError = failed("a background pass has no chat screen to show suggestions in, so it cannot list chats or suggest");
-  const source = (ctx: Call) => ({ agent_id: ctx.agent.id, conversation_id: ctx.conversation.id });
-  const reason = (err: unknown) => messageOf(err);
+function registerChatTools(api: ModApi, deps: ChatToolDeps): Array<() => void> {
+  const passError = () => new Error("a background pass has no chat screen to show suggestions in, so it cannot list chats or suggest");
+  const source = (ctx: ToolContext) => ({ agent_id: ctx.agentId, conversation_id: ctx.chatId });
+  const fail = (err: unknown): never => {
+    throw err instanceof Error ? err : new Error(messageOf(err));
+  };
 
-  const chatList: LokiTool = {
+  const chatList: ModTool = {
     name: "chat_list",
     annotations: { readOnly: true },
     callers: SCRIPTS_ONLY,
@@ -264,13 +207,13 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       properties: { filter: { type: "string", description: "Text a row must contain (any case), such as a label, folder or word of a purpose." } },
       additionalProperties: false,
     },
-    async run(ctx) {
-      if (deps.passChat(ctx.conversation.id)) return passError;
-      const filter = argText(ctx.args.filter).trim().toLowerCase();
+    async execute(args, ctx) {
+      if (deps.passChat(ctx.chatId)) throw passError();
+      const filter = argText(args.filter).trim().toLowerCase();
       const keep = (line: string) => !filter || line.toLowerCase().includes(filter);
       const agents = (await deps.agents()).filter((a) => keep(`${a.id} · ${a.name} · on ${a.mac}${a.reachable ? "" : ", out of reach"}`));
       const chats = openChats(deps.chats())
-        .filter((d) => keep(chatLine(d, ctx.conversation.id)))
+        .filter((d) => keep(chatLine(d, ctx.chatId)))
         .map((d) => ({
           conversation_id: d.conversation_id,
           agent_id: d.agent_id,
@@ -283,7 +226,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
           pinned: d.pinned,
           last_active: d.last_active,
           purpose: d.purpose,
-          this_chat: d.conversation_id === ctx.conversation.id,
+          this_chat: d.conversation_id === ctx.chatId,
         }));
       log("tool:chat_list", { agents: agents.length, chats: chats.length });
       const rawLinks = deps.messages ? deps.messages.linksOf(source(ctx)) : [];
@@ -304,7 +247,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
     },
   };
 
-  const create: LokiTool = {
+  const create: ModTool = {
     name: "suggestion_create",
     annotations: { readOnly: true },
     description:
@@ -336,36 +279,36 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       required: ["title", "text", "target"],
       additionalProperties: false,
     },
-    async run(ctx) {
-      if (deps.passChat(ctx.conversation.id)) return passError;
-      const target = parseSuggestionTarget(ctx.args.target);
-      if (!target) return failed("suggestion_create needs a target: { agent_id, conversation_id } for an open chat, or { agent_id, folder } for a new one");
+    async execute(args, ctx) {
+      if (deps.passChat(ctx.chatId)) throw passError();
+      const target = parseSuggestionTarget(args.target);
+      if (!target) throw new Error("suggestion_create needs a target: { agent_id, conversation_id } for an open chat, or { agent_id, folder } for a new one");
       const agents = await deps.agents();
       if (!agents.some((a) => a.id === target.agent_id))
-        return failed(`no agent ${target.agent_id}: the agents are ${agents.map((a) => `${a.id} (${a.name})`).join(", ") || "none"}`);
+        throw new Error(`no agent ${target.agent_id}: the agents are ${agents.map((a) => `${a.id} (${a.name})`).join(", ") || "none"}`);
       const chats = openChats(deps.chats());
       if ("conversation_id" in target) {
         const chat = chats.find((d) => d.conversation_id === target.conversation_id);
         if (!chat)
-          return failed(
+          throw new Error(
             `no open chat ${target.conversation_id}: the open chats are ${chats.map((d) => `${d.conversation_id} "${d.title ?? "untitled"}" (agent ${d.agent_id})`).join(", ") || "none"}`,
           );
-        if (chat.agent_id !== target.agent_id) return failed(`chat ${target.conversation_id} belongs to agent ${chat.agent_id}, not ${target.agent_id}`);
+        if (chat.agent_id !== target.agent_id) throw new Error(`chat ${target.conversation_id} belongs to agent ${chat.agent_id}, not ${target.agent_id}`);
       } else {
         const folders = [...new Set(chats.map((d) => d.cwd).filter((f): f is string => !!f))];
-        if (!folders.includes(target.folder)) return failed(`no chat works in ${target.folder}: the folders are ${folders.join(", ") || "none"}`);
+        if (!folders.includes(target.folder)) throw new Error(`no chat works in ${target.folder}: the folders are ${folders.join(", ") || "none"}`);
       }
       try {
-        const made = await deps.suggestions.add(source(ctx), { title: argText(ctx.args.title), text: argText(ctx.args.text), target });
-        log("tool:suggestion_create", { conversation: ctx.conversation.id, id: made.id });
+        const made = await deps.suggestions.add(source(ctx), { title: argText(args.title), text: argText(args.text), target });
+        log("tool:suggestion_create", { conversation: ctx.chatId, id: made.id });
         return `suggested ${made.id} "${made.title}": it waits for the person to send, save or reject it. Name it in one line of your reply.`;
       } catch (err) {
-        return failed(reason(err));
+        return fail(err);
       }
     },
   };
 
-  const message: LokiTool = {
+  const message: ModTool = {
     name: "chat_message",
     annotations: { readOnly: true },
     description:
@@ -386,25 +329,23 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       required: ["agent_id", "conversation_id", "text"],
       additionalProperties: false,
     },
-    async run(ctx) {
-      if (deps.passChat(ctx.conversation.id)) return failed("a background pass has no chat screen to ask the person in, so it cannot message chats");
-      if (!deps.messages) return failed("chat links are not kept by this daemon");
-      const target = { agent_id: argText(ctx.args.agent_id), conversation_id: argText(ctx.args.conversation_id) };
-      if (!target.agent_id || !target.conversation_id) return failed("chat_message needs agent_id and conversation_id: list them with chat_list in a script");
+    async execute(args, ctx) {
+      if (deps.passChat(ctx.chatId)) throw new Error("a background pass has no chat screen to ask the person in, so it cannot message chats");
+      if (!deps.messages) throw new Error("chat links are not kept by this daemon");
+      const target = { agent_id: argText(args.agent_id), conversation_id: argText(args.conversation_id) };
+      if (!target.agent_id || !target.conversation_id) throw new Error("chat_message needs agent_id and conversation_id: list them with chat_list in a script");
       const chat = openChats(deps.chats()).find((d) => d.conversation_id === target.conversation_id);
-      if (chat && chat.agent_id !== target.agent_id) return failed(`chat ${target.conversation_id} belongs to agent ${chat.agent_id}, not ${target.agent_id}`);
-      try {
-        const out = await deps.messages.send(source(ctx), target, argText(ctx.args.text), ctx.signal ?? new AbortController().signal);
-        log("tool:chat_message", { conversation: ctx.conversation.id, to: target.conversation_id, ok: out.ok });
-        return out.ok ? out.message : failed(out.message);
-      } catch (err) {
-        return failed(reason(err));
-      }
+      if (chat && chat.agent_id !== target.agent_id)
+        throw new Error(`chat ${target.conversation_id} belongs to agent ${chat.agent_id}, not ${target.agent_id}`);
+      const out = await deps.messages.send(source(ctx), target, argText(args.text), ctx.signal).catch(fail);
+      log("tool:chat_message", { conversation: ctx.chatId, to: target.conversation_id, ok: out.ok });
+      if (!out.ok) throw new Error(out.message);
+      return out.message;
     },
   };
 
   const advisor = deps.advisor;
-  const consult: LokiTool | null = advisor
+  const consult: ModTool | null = advisor
     ? {
         name: "advisor_consult",
         annotations: { readOnly: true },
@@ -427,23 +368,24 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
           },
           additionalProperties: false,
         },
-        async run(ctx) {
-          const refused = consultRefusal(ctx.conversation.id, (id) => deps.passChat(id));
-          if (refused) return failed(refused);
-          const typed = argText(ctx.args.text);
-          const folder = ctx.cwd ?? openChats(deps.chats()).find((d) => d.conversation_id === ctx.conversation.id)?.cwd ?? undefined;
+        async execute(args, ctx) {
+          const refused = consultRefusal(ctx.chatId, (id) => deps.passChat(id));
+          if (refused) throw new Error(refused);
+          const typed = argText(args.text);
+          const folder = ctx.cwd ?? openChats(deps.chats()).find((d) => d.conversation_id === ctx.chatId)?.cwd ?? undefined;
           try {
             const asked = typed.trim() ? { text: typed } : await advisor.changes(folder);
-            if ("notice" in asked) return failed(`${asked.notice} Nothing was sent: say in text what to look at.`);
+            if ("notice" in asked) throw new Error(`${asked.notice} Nothing was sent: say in text what to look at.`);
             const out = await advisor.consult(source(ctx), asked.text);
-            log("tool:advisor_consult", { conversation: ctx.conversation.id, sent: !("refused" in out), changes: !typed.trim() });
-            return "refused" in out ? failed(`not sent to your advisor: ${out.refused}`) : sentText(out);
+            log("tool:advisor_consult", { conversation: ctx.chatId, sent: !("refused" in out), changes: !typed.trim() });
+            if ("refused" in out) throw new Error(`not sent to your advisor: ${out.refused}`);
+            return sentText(out);
           } catch (err) {
-            return failed(reason(err));
+            return fail(err);
           }
         },
       }
     : null;
 
-  return [chatList, create, ...(deps.messages ? [message] : []), ...(consult ? [consult] : [])].map((tool) => tools.register(tool));
+  return [chatList, create, ...(deps.messages ? [message] : []), ...(consult ? [consult] : [])].map((tool) => api.tools.register(tool));
 }

@@ -1,29 +1,29 @@
-import { homesOf } from "../shell/desk-sidebar";
+import { homesOf } from "../shell/chat-sidebar";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/use-inline-widgets";
 import { useAttention } from "../../../core/attention/use-attention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { modBase } from "../desk/env";
-import { useDesk } from "../desk/use-desk";
+import { modBase } from "../workspace/env";
+import { useWorkspace } from "../workspace/use-workspace";
 import { resolveLane, useActiveLaneId } from "../shared/active-lane";
-import { savePurpose } from "../desk/rename-desk";
-import { lokiModels } from "../desk/advisor-pane";
+import { savePurpose } from "../workspace/rename-chat";
+import { lokiModels } from "../workspace/advisor-pane";
 import { AgentPage, FilePage } from "./agent-page";
 import { Agents, knownDescription } from "./agents";
 import { ConversationScreen, type Thread } from "./conversation-screen";
 import { Archive } from "./archive";
-import { Home, type ArchiveDesk, type RenameDeskName } from "./home";
+import { Home, type ArchiveChat, type RenameChatTitle } from "./home";
 import { canRename } from "../shell/sidebar-model";
-import { Inbox, useDeck, type Deck } from "./inbox";
+import { Flow, useDeck, type Deck } from "./flow";
 import { Pair, type Me } from "./pair";
 import { More } from "./more";
 import { Search } from "./search";
 import { AboutPage, ConnectionPage, Preferences } from "./preferences";
 import { UsageScreen } from "./usage";
 import { Learn } from "./learn";
-import { useRecall } from "../shell/use-recall";
-import { useDeckPass } from "../recall/use-deck-pass";
+import { useLearn } from "../shell/use-learn";
+import { useDeckPass } from "../learn/use-deck-pass";
 import { TabBar } from "./tab-bar";
 import { UpdateBar, useHealthBuild } from "./update-bar";
 import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, type LinkState } from "./model";
@@ -37,7 +37,6 @@ import {
   navigate,
   openConversation,
   replace,
-  screenOf,
   showsNav,
   useRouteState,
   type Route,
@@ -48,7 +47,7 @@ import { nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./sess
 import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
-import { conversationDirName, isMainChat, scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, isMainChat, scopeFor } from "../../../core/canvas-core.ts";
 import { advisedChat, isAdvisorChat } from "../../../core/advisor.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
@@ -60,7 +59,7 @@ import { useLaneFollower } from "../shared/lane-follower";
 
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
 
-type DeskApi = ReturnType<typeof useDesk>;
+type DeskApi = ReturnType<typeof useWorkspace>;
 type CatchUp = ReturnType<typeof useAttention>;
 type ConversationRoute = Extract<Route, { kind: "conversation" }>;
 
@@ -160,14 +159,8 @@ function usePrefill(conv: ConversationRoute | null) {
 }
 
 function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
-  const desk = useDesk();
+  const desk = useWorkspace();
   const { attention } = desk;
-  const screenRef = useRef<string | null>(null);
-  const { capture: captureRaw } = attention;
-  const capture = useCallback(
-    (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
-    [captureRaw],
-  );
   const [laneId, setLaneId] = useActiveLaneId("phone");
   const catchUp = useAttention({
     lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: null, resolve: resolveLane },
@@ -184,21 +177,13 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,
     loadLocalStep: attention.loadStep,
-    listConversations: attention.listInbox,
-    capture,
+    listConversations: attention.listFlow,
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
     visibility: pageVisibility,
   });
   useLaneFollower("phone", catchUp.flow);
   const { route, from, arrival } = useRouteState();
-  const routeView = screenOf(route);
-  const prevView = useRef<string | null>(null);
-  useEffect(() => {
-    if (prevView.current !== null && prevView.current !== routeView) capture("view_opened", { view: routeView, from: prevView.current });
-    prevView.current = routeView;
-    screenRef.current = routeView;
-  }, [routeView, capture]);
 
   useEffect(() => {
     if (new URLSearchParams(location.search).has("code")) history.replaceState(null, "", location.pathname + location.hash);
@@ -225,7 +210,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 
   const deck = useDeck(catchUp.flow.laneItems, catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
-  const recall = useRecall(desk, route.kind === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
+  const recall = useLearn(desk, route.kind === "learn" ? "learn" : "chats", (m) => setRecallNote(m));
   const learnPass = useDeckPass(recall.snap?.cards ?? []);
   useEffect(() => {
     if (!recallNote) return;
@@ -251,8 +236,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   });
   const recentFolders = useCallback(() => foldersRef.current.recent().then((r) => r.byAgent), []);
   const tab = route.kind === "tab" ? route.tab : null;
-  const nav = showsNav(route) && !(tab === "inbox" && deck.current);
-  const inboxFrom = tab === "inbox" && from && formatRoute(from) !== formatRoute(route) ? from : HOME;
+  const nav = showsNav(route) && !(tab === "flow" && deck.current);
+  const flowFrom = tab === "flow" && from && formatRoute(from) !== formatRoute(route) ? from : HOME;
 
   const onBack = () => back(route);
   const backTo = backTarget(route, from);
@@ -270,7 +255,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     if (route.kind !== "tab" && route.kind !== "search") recentPlaces.add(place);
   }, [place, route.kind]);
 
-  const onArchive: ArchiveDesk | null =
+  const onArchive: ArchiveChat | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
           if (!d.conversation_id) return "This chat has no conversation";
@@ -279,7 +264,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
           return err;
         }
       : null;
-  const onRename: RenameDeskName | null =
+  const onRename: RenameChatTitle | null =
     attention.available && catchUp.status === "open"
       ? async (d, name) => {
           if (!d.conversation_id) return "This chat has no conversation";
@@ -392,7 +377,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
             recentFolders={recentFolders}
             onArchive={onArchive}
             onRename={onRename}
-            inboxBack={labelOf(inboxFrom)}
+            inboxBack={labelOf(flowFrom)}
             models={models.list}
             onLoadModels={models.load}
           />
@@ -426,8 +411,8 @@ function ConversationPage({
   conv: ConversationRoute;
   desk: DeskApi;
   catchUp: CatchUp;
-  onRename: RenameDeskName | null;
-  onArchive: ArchiveDesk | null;
+  onRename: RenameChatTitle | null;
+  onArchive: ArchiveChat | null;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
   banner: ReactNode;
@@ -570,8 +555,8 @@ function Screen({
   due: number;
   banner: ReactNode;
   recentFolders: () => Promise<Partial<Record<string, string[]>>>;
-  onArchive: ArchiveDesk | null;
-  onRename: RenameDeskName | null;
+  onArchive: ArchiveChat | null;
+  onRename: RenameChatTitle | null;
   inboxBack: string;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
@@ -622,8 +607,8 @@ function Screen({
         labelList={catchUp.labels.list}
         onTopCard={deck.hold}
       />
-      <Inbox
-        hidden={tab !== "inbox"}
+      <Flow
+        hidden={tab !== "flow"}
         items={catchUp.items}
         labelList={catchUp.labels.list}
         loaded={catchUp.agentsLoaded}

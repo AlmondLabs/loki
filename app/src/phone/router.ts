@@ -3,8 +3,8 @@ import { advisedChat } from "../../../core/advisor.ts";
 import { activeControl, focusMemory } from "./session";
 import { expectPop, transition } from "./transitions";
 
-export type Tab = "home" | "inbox" | "agents" | "more";
-export const TABS: readonly Tab[] = ["home", "inbox", "agents", "more"];
+export type Tab = "home" | "flow" | "agents" | "more";
+export const TABS: readonly Tab[] = ["home", "flow", "agents", "more"];
 
 export type Route =
   | { kind: "tab"; tab: Tab }
@@ -29,7 +29,7 @@ const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
 const CHILDREN = ["learn", "archive", "preferences", "usage", "connection", "about"] as const;
 type Child = (typeof CHILDREN)[number];
 const isChild = (s: string): s is Child => (CHILDREN as readonly string[]).includes(s);
-const LEGACY: Record<string, Route> = { you: { kind: "tab", tab: "more" }, settings: { kind: "preferences" } };
+const LEGACY: Record<string, Route> = { you: { kind: "tab", tab: "more" }, settings: { kind: "preferences" }, inbox: { kind: "tab", tab: "flow" } };
 
 const dec = (s: string): string => {
   try {
@@ -141,7 +141,7 @@ export function screenOf(r: Route): string {
 
 export function labelOf(r: Route): string {
   const screen = screenOf(r);
-  return screen === "inbox" ? "flow" : screen;
+  return screen === "flow" ? "flow" : screen;
 }
 
 interface Stamp {

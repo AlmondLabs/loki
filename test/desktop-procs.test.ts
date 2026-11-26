@@ -23,7 +23,7 @@ afterEach(() => {
 
 const TOKEN = "/home/x/.loki/token";
 const daemonLine = (extra = "") =>
-  `/usr/local/bin/node --disable-warning=ExperimentalWarning /home/x/.loki/daemon/daemon.mjs --loki-daemon --dir /home/x/.loki --mod /home/x/.loki/mod/loki-mod.mjs --token-file ${TOKEN}${extra}`;
+  `/usr/local/bin/node --disable-warning=ExperimentalWarning /home/x/.loki/daemon/daemon.mjs --loki-daemon --dir /home/x/.loki --token-file ${TOKEN}${extra}`;
 const daemon = (pid: number, parent: number | null, extra = ""): Proc => ({ pid, parent, started: 99_000, name: "node", command: daemonLine(extra) });
 const proc = (pid: number, name: string, parent: number | null = 1, started = 1000): Proc => ({ pid, parent, started, name, command: `/bin/${name}` });
 

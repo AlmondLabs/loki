@@ -1,23 +1,23 @@
 import { useEffect } from "react";
-import { inDesktop, platform, type Platform } from "../desk/env";
+import { inDesktop, platform, type Platform } from "../workspace/env";
 import { currentWindow, invoke, listen } from "./desktop";
 import type { Segment } from "./keymap";
-import type { Desk } from "./types";
+import type { Workspace } from "./types";
 
 export function windowTitle(
-  desk: Pick<Desk, "title" | "status" | "scope" | "agentName">,
+  desk: Pick<Workspace, "title" | "status" | "scope" | "agentName">,
   segment: Segment,
   waiting: number,
   dueCards = 0,
   laneName: string | null = null,
   until: string | null = null,
 ): { name: string; document: string } {
-  const deskName = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
-  const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
+  const chatTitle = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
+  const who = desk.agentName && !chatTitle.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
   const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
   const flow = ["Flow", ...(laneName ? [laneName] : []), ...(until ? [`until ${until}`] : []), ...(waiting > 0 ? [`${waiting} waiting`] : [])].join(" · ");
   const name =
-    segment === "inbox"
+    segment === "flow"
       ? flow
       : segment === "learn"
         ? dueCards > 0
@@ -27,8 +27,8 @@ export function windowTitle(
           ? "Agents"
           : segment === "settings"
             ? "Preferences"
-            : `${who}${deskName}${state}`;
-  return { name, document: waiting > 0 && segment !== "inbox" ? `(${waiting}) ${name}` : name };
+            : `${who}${chatTitle}${state}`;
+  return { name, document: waiting > 0 && segment !== "flow" ? `(${waiting}) ${name}` : name };
 }
 
 /**
@@ -37,7 +37,7 @@ export function windowTitle(
  * title.
  */
 export function useWindowTitle(
-  desk: Pick<Desk, "title" | "status" | "scope" | "agentName">,
+  desk: Pick<Workspace, "title" | "status" | "scope" | "agentName">,
   segment: Segment,
   waiting: number,
   dueCards = 0,

@@ -58,7 +58,7 @@ function fixture(
       c.send({ type: "hello", scope: c.scope, device_id: c.deviceId ?? null });
     },
     onMessage: (c, m) => {
-      if (m.type === "list_desks") c.send({ type: "desks", desks: [{ scope: c.scope }] });
+      if (m.type === "chats_list") c.send({ type: "chats", desks: [{ scope: c.scope }] });
     },
   };
   const changes: Array<["status" | "devices", LanStatus]> = [];
@@ -408,9 +408,9 @@ describe("LAN listener", () => {
       const good = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?t=${DESKTOP}&desk=conv%2F1`, { cookie: p.cookie });
       const hello = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
       expect(hello).toEqual({ type: "hello", scope: "conv_1", device_id: p.body.device_id });
-      good.send(JSON.stringify({ type: "list_desks" }));
+      good.send(JSON.stringify({ type: "chats_list" }));
       const desks = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
-      expect(desks).toEqual({ type: "desks", desks: [{ scope: "conv_1" }] });
+      expect(desks).toEqual({ type: "chats", desks: [{ scope: "conv_1" }] });
       expect(f.lan.clientCount()).toBe(1);
 
       const viaBearer = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?desk=c2`, { authorization: `Bearer ${p.token}` });

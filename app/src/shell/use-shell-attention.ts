@@ -1,9 +1,9 @@
 import { useAttention } from "../../../core/attention/use-attention.ts";
 import { resolveDesktopLane, useActiveLaneId } from "../shared/active-lane";
 import { pageActivity, pageVisibility } from "../shared/page-activity";
-import type { Desk } from "./types";
+import type { Workspace } from "./types";
 
-export function useShellAttention(desk: Desk, capture: (event: string, properties?: Record<string, unknown>) => void) {
+export function useShellAttention(desk: Workspace) {
   const { attention } = desk;
   const [laneId, setLaneId] = useActiveLaneId("desktop");
   const catchUp = useAttention({
@@ -21,8 +21,7 @@ export function useShellAttention(desk: Desk, capture: (event: string, propertie
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,
     loadLocalStep: attention.loadStep,
-    listConversations: attention.listInbox,
-    capture,
+    listConversations: attention.listFlow,
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
     visibility: pageVisibility,

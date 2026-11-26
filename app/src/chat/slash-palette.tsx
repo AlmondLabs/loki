@@ -1,6 +1,6 @@
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { Row, sentence } from "../components";
-import { keyboard, type Platform } from "../desk/env";
+import { keyboard, type Platform } from "../workspace/env";
 import { formatKeys, keyFor } from "../shell/keymap";
 
 export function commandText(c: SlashCommand, os: Platform = keyboard): string {

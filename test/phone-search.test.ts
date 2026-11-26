@@ -7,9 +7,9 @@ import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
 import { DESTINATIONS, buildIndex, isPlace, recentPlaceHits, search, type SearchSources } from "../app/src/phone/search-index.ts";
 import { GROUP_MAX, MAX_QUERY, cleanQuery, tierOf } from "../app/src/shared/search.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 
-const desk = (title: string | null, over: Partial<DeskSummary> = {}): DeskSummary => ({
+const desk = (title: string | null, over: Partial<ChatSummary> = {}): ChatSummary => ({
   scope: `s-${title}`,
   title,
   status: "live",
@@ -80,7 +80,7 @@ describe("matching", () => {
   test("category-aware: each kind lands in its own group, in a fixed order", () => {
     const s = src({ desks: [desk("Ledger sync")] });
     const groups = search(s, "ledger");
-    expect(groups.map((g) => g.id)).toEqual(["desks", "agents", "inbox"]);
+    expect(groups.map((g) => g.id)).toEqual(["desks", "agents", "flow"]);
     expect(groups[0].hits[0].route).toEqual({ kind: "conversation", agentId: "a1", conversationId: "c-Ledger sync", prefill: null });
     expect(groups[1].hits[0].route).toEqual({ kind: "agent", agentId: "a2" });
     expect(groups[2].hits[0].route).toEqual({ kind: "conversation", agentId: "a2", conversationId: "i1", prefill: null });
@@ -102,14 +102,14 @@ describe("matching", () => {
     expect(titles(src(), "archive", "pages")).toContain("Archived chats");
     expect(search(src(), "connection").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "connection" });
     expect(titles(src(), "inbox", "pages")).toEqual(["Flow"]);
-    expect(search(src(), "inbox").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "tab", tab: "inbox" });
+    expect(search(src(), "inbox").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "tab", tab: "flow" });
     for (const d of DESTINATIONS) expect(d.route.kind).not.toBe("search");
   });
   test("the inbox holds the loaded actionable items only", () => {
     const s = src({
       items: [item("i1", "Approve the invoice"), item("i2", "Invoice draft", { status: "running" }), item("i3", "Invoice idle", { status: "idle" })],
     });
-    expect(titles(s, "invoice", "inbox")).toEqual(["Approve the invoice"]);
+    expect(titles(s, "invoice", "flow")).toEqual(["Approve the invoice"]);
   });
   test("an email or Slack thread waiting in the Inbox is not a chat, so search does not offer to open it as one", () => {
     expect(search(src({ items: [outsideItem("Quarterly numbers")] }), "quarterly")).toEqual([]);
@@ -191,7 +191,7 @@ describe("recent places", () => {
   const agent = formatRoute({ kind: "agent", agentId: "a2" });
   const file = formatRoute({ kind: "file", agentId: "a2", path: "notes/today.md" });
   test("each kind of place resolves to a row that opens it", () => {
-    const hits = recentPlaceHits([conv, inboxConv, agent, file, "#/learn", "#/preferences", "#/inbox"], src());
+    const hits = recentPlaceHits([conv, inboxConv, agent, file, "#/learn", "#/preferences", "#/flow"], src());
     expect(hits.map((h) => h.title)).toEqual(["Loki mobile", "Approve the invoice", "Ledger", "today.md", "Learn", "Preferences", "Flow"]);
     for (const h of hits) expect(typeof formatRoute(h.route)).toBe("string");
     expect(hits[0].route).toEqual({ kind: "conversation", agentId: "a1", conversationId: "c-Loki mobile", prefill: null });

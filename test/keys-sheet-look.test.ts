@@ -8,7 +8,7 @@ vi.mock("../app/src/ui/dialog.tsx", () => import("./fixtures/inline-dialog.ts"))
 
 const noop = () => {};
 const html = (el: ReactElement) => renderToStaticMarkup(createElement(ThemeProvider, null, el));
-const sheet = () => createElement(KeysSheet, { segment: "desk", onClose: noop, onSettings: noop });
+const sheet = () => createElement(KeysSheet, { segment: "chats", onClose: noop, onSettings: noop });
 
 describe("the keys sheet", () => {
   test("dims nothing behind it, and names the view as the sidebar does", () => {

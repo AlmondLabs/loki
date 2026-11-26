@@ -37,7 +37,7 @@ describe("slash commands", () => {
   });
   test("/flow opens Flow, and /inbox, its old name, still does without being listed (plan 087, KTD12)", () => {
     const flow = LOKI_COMMANDS.find((c) => c.id === "flow");
-    expect(flow?.action).toBe("segment.inbox");
+    expect(flow?.action).toBe("segment.flow");
     expect(parseSlash("/flow")).toEqual({ id: "flow", args: "" });
     expect(parseSlash("/inbox")).toEqual({ id: "flow", args: "" });
     expect(allCommands().map((c) => c.id)).not.toContain("inbox");

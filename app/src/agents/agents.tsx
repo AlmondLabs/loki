@@ -23,7 +23,7 @@ import { ReflectionPage, reflectionRuns } from "./reflection-page";
 import { SkillsPage, skillRows, type Adding } from "./skills-page";
 import type { AgentEdit, AgentsApi, AgentsWrite, ModelChoice, ReflectionControls } from "./types";
 import type { MacIdentity } from "../../../core/frame-types.ts";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
 
@@ -33,15 +33,15 @@ export interface AgentsProps {
   agents: Array<{ id: string; name: string }>;
   api: AgentsApi;
   avatar: (agentId: string) => string;
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   initialAgentId: string | null;
-  onOpenDesk: (agentId: string, conversationId: string) => void;
+  onOpenChat: (agentId: string, conversationId: string) => void;
   onAskToUpdate: (agentId: string, text: string) => void;
   onUpdateAgent: (agentId: string, body: AgentEdit) => Promise<string | null>;
   write: AgentsWrite;
   reflect: ReflectionControls;
   listModels: () => Promise<ModelChoice[]>;
-  onShowDesks: () => void;
+  onShowChats: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
   accounts?: AccountsApi;
   macs?: MacIdentity[];
@@ -67,13 +67,13 @@ export function useAgentsPlace({
   avatar,
   desks,
   initialAgentId,
-  onOpenDesk,
+  onOpenChat,
   onAskToUpdate,
   onUpdateAgent,
   write,
   reflect,
   listModels,
-  onShowDesks,
+  onShowChats,
   mcp,
   accounts,
   macs,
@@ -189,8 +189,8 @@ export function useAgentsPlace({
           onLoadModels={loadModels}
           onSave={store.save}
           desks={desks}
-          onOpenDesk={onOpenDesk}
-          onShowDesks={onShowDesks}
+          onOpenChat={onOpenChat}
+          onShowChats={onShowChats}
           confirmDelete={store.confirmDelete}
           setConfirmDelete={store.setConfirmDelete}
           onRemove={store.remove}

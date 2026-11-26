@@ -32,7 +32,6 @@ const SEARCH_LIMIT = 5;
 
 export const SEARCH_TOOL = "mcp_search";
 
-type Capture = (event: string, properties: Record<string, unknown>) => void;
 export interface Secrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
@@ -60,7 +59,6 @@ export class McpTools {
   private readonly configPath: string;
   private readonly lokiDir: string;
   private readonly report: (message: string) => void;
-  private capture: Capture = () => {};
   private problems: string[] = [];
   private readonly installing = coalesce(() => this.install(), 0, { unref: true });
   private watching = false;
@@ -106,10 +104,6 @@ export class McpTools {
       this.installing.schedule();
     });
     this.install();
-  }
-
-  setCapture(capture: Capture): void {
-    this.capture = capture;
   }
 
   start(): void {
@@ -225,7 +219,6 @@ export class McpTools {
         const query = typeof asked === "string" ? asked : "";
         const all = this.toolsFor((await api.snapshot(AgentInfoDoc, context))?.id);
         const found = selected(query, all) ?? rank(query, all, SEARCH_LIMIT);
-        this.capture("mcp_search", { hits: found.length, loaded: found.map((t) => t.key), select: query.trim().toLowerCase().startsWith("select:") });
         if (!found.length) {
           const servers = this.servers
             .status()
@@ -260,25 +253,11 @@ export class McpTools {
       description: `[${t.server}] ${t.title && !t.description.startsWith(t.title) ? `${t.title}: ` : ""}${t.description || t.name}`,
       parameters: t.inputSchema as never,
       execute: async (args, api, context) => {
-        const started = Date.now();
         const spillDir = await toolResultsDir(this.lokiDir, api, api.conversationId, context);
-        try {
-          const input: unknown = args;
-          const result = await this.servers.call(t.key, (input ?? {}) as Record<string, unknown>, context.abortSignal);
-          const mapped = mapResult(result, { spillDir, name: t.key });
-          this.capture("mcp_call", {
-            server: t.server,
-            tool: t.name,
-            ms: Date.now() - started,
-            error: mapped.isError,
-            spilled: mapped.spilled !== null,
-            chars: mapped.chars,
-          });
-          return { output: mapped.content, isError: mapped.isError };
-        } catch (error) {
-          this.capture("mcp_call", { server: t.server, tool: t.name, ms: Date.now() - started, error: true, spilled: false, chars: 0 });
-          throw error;
-        }
+        const input: unknown = args;
+        const result = await this.servers.call(t.key, (input ?? {}) as Record<string, unknown>, context.abortSignal);
+        const mapped = mapResult(result, { spillDir, name: t.key });
+        return { output: mapped.content, isError: mapped.isError };
       },
     });
   }

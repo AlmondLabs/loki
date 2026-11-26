@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import type { WidgetLogEntry } from "../core/desk-core.ts";
+import type { WidgetLogEntry } from "../core/canvas-core.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { parseWidgetEntry, widgetMarks, withEntry, withHistoryLog } from "../app/src/desk/widget-rows.ts";
+import { parseWidgetEntry, widgetMarks, withEntry, withHistoryLog } from "../app/src/workspace/widget-rows.ts";
 
 const T0 = Date.parse("2026-09-23T10:00:00.000Z");
 const iso = (min: number) => new Date(T0 + min * 60_000).toISOString();

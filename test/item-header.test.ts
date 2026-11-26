@@ -5,8 +5,8 @@ import type { OutsideFacts } from "../core/frame-types.ts";
 import { chatItem, outsideItem } from "../app/src/item/item-view.ts";
 import type { ToolbarMove } from "../app/src/item/toolbar.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
-import { ChatItemHeader, type ChatMoves } from "../app/src/desk/catch-up-parts.tsx";
-import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-toolbar.tsx";
+import { ChatItemHeader, type ChatMoves } from "../app/src/workspace/catch-up-parts.tsx";
+import { OutsideItemActions, OutsideItemHeader } from "../app/src/workspace/outside-toolbar.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
@@ -67,7 +67,7 @@ describe("a chat card's moves as toolbar symbols (plan 2026-11-14-1330, R10)", (
     read: noop,
     later: noop,
     archive: noop,
-    onOpenDesk: noop,
+    onOpenChat: noop,
     onClose: noop,
     ...over,
   });

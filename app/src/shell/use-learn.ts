@@ -1,0 +1,153 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { lessonBrief } from "../../../core/learn/extract.ts";
+import type { Grade } from "../../../core/learn/fsrs.ts";
+import { dueCount, learnTitle, type CardWithSchedule, type LearnSnapshot } from "../../../core/learn/model.ts";
+import type { Segment } from "./keymap";
+import type { Workspace } from "./types";
+
+export function useLearn(desk: Workspace, segment: Segment, notice: (m: string) => void) {
+  const [snap, setSnap] = useState<LearnSnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const lastDeleted = useRef<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+
+  const learnApi = useRef(desk.learn);
+  useEffect(() => {
+    learnApi.current = desk.learn;
+  });
+  const refresh = useCallback(
+    () =>
+      desk.connection !== "open"
+        ? Promise.resolve()
+        : learnApi.current.list().then((s) => {
+            if (s) {
+              setSnap(s);
+              setError(null);
+            } else setError("learn did not answer");
+          }),
+    [desk.connection],
+  );
+  useEffect(() => {
+    if (desk.connection === "open") void refresh();
+  }, [desk.learnVersion, desk.connection, refresh]);
+  useEffect(() => {
+    if (segment !== "learn") return;
+    void refresh();
+    const t = setInterval(() => void refresh(), 60_000);
+    return () => clearInterval(t);
+  }, [segment, refresh]);
+
+  const patch = (id: string, card: CardWithSchedule | null) =>
+    setSnap((s) => (s ? { ...s, cards: card ? s.cards.map((c) => (c.card.id === id ? card : c)) : s.cards.filter((c) => c.card.id !== id) } : s));
+
+  const grade = async (id: string, g: Grade) => {
+    const r = await desk.learn.grade(id, g);
+    if (!r.ok) return notice(r.message);
+    patch(id, r.card);
+  };
+  const remove = async (id: string) => {
+    const r = await desk.learn.reject(id);
+    if (!r.ok) return notice(r.message);
+    lastDeleted.current = id;
+    patch(id, null);
+    notice("card deleted — Z brings it back");
+    void refresh();
+  };
+  const undo = async () => {
+    const id = lastDeleted.current;
+    if (!id) return;
+    lastDeleted.current = null;
+    const r = await desk.learn.restore(id);
+    if (!r.ok) return notice(r.message);
+    notice("card restored");
+    void refresh();
+  };
+  const restore = async (id: string) => {
+    const r = await desk.learn.restore(id);
+    if (!r.ok) return notice(r.message);
+    void refresh();
+  };
+  const forget = async (id: string) => {
+    const r = await desk.learn.forget(id);
+    if (!r.ok) return notice(r.message);
+    void refresh();
+  };
+  const edit = async (id: string, text: { front?: string; back?: string; tags?: string[] }) => {
+    const r = await desk.learn.edit(id, text);
+    if (!r.ok) return notice(r.message);
+    patch(id, r.card);
+  };
+  const settings = async (s: { enabled?: boolean; daily_cap?: number }) => {
+    const next = await desk.learn.settings(s);
+    if (next) setSnap(next);
+    else notice("the setting did not take");
+  };
+  const run = async () => {
+    setRunning(true);
+    const note = await desk.learn.run();
+    setRunning(false);
+    notice(`learn: ${note}`);
+    void refresh();
+  };
+  const exportCards = async () => {
+    const tsv = await desk.learn.export();
+    if (tsv === null) return notice("export did not answer");
+    const n = snap?.cards.length ?? 0;
+    const copiedNotice = `${n} card${n === 1 ? "" : "s"} copied as Anki text — front, back, tags per line`;
+    try {
+      await navigator.clipboard.writeText(tsv);
+      notice(copiedNotice);
+    } catch {
+      notice("the clipboard refused");
+    }
+  };
+
+  const startLead = async (id: string): Promise<{ agentId: string; conversationId: string; brief: string; title: string } | null> => {
+    const lead = snap?.leads.find((l) => l.id === id);
+    if (!lead) return null;
+    setStarting(id);
+    const r = await desk.learn.leadStart(id);
+    setStarting(null);
+    if (!r.ok) {
+      notice(r.message);
+      return null;
+    }
+    void refresh();
+    return { agentId: r.agentId, conversationId: r.conversationId, brief: lessonBrief(lead), title: learnTitle(lead.title) };
+  };
+  const dismissLead = async (id: string) => {
+    const next = await desk.learn.leadDismiss(id);
+    if (next) setSnap(next);
+    else notice("the lead did not go");
+  };
+  const restoreLead = async (id: string) => {
+    const next = await desk.learn.leadRestore(id);
+    if (next) setSnap(next);
+    else notice("nothing to restore");
+  };
+
+  const due = snap ? dueCount(snap.cards) : 0;
+  return {
+    snap,
+    error,
+    due,
+    running,
+    starting,
+    refresh,
+    grade,
+    remove,
+    undo,
+    restore,
+    forget,
+    edit,
+    settings,
+    run,
+    exportCards,
+    startLead,
+    dismissLead,
+    restoreLead,
+  };
+}
+
+export type Learn = ReturnType<typeof useLearn>;

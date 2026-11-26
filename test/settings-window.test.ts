@@ -84,20 +84,20 @@ describe("a session value kept in localStorage follows another window", () => {
 
 describe("which page is the Settings window", () => {
   test("the Mac app's start-up script says so, with the page it opens on", async () => {
-    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    const { settingsWindowFrom } = await import("../app/src/workspace/env.ts");
     expect(settingsWindowFrom({ window: "settings", page: "providers" }, "", true, false)).toEqual({ page: "providers" });
     expect(settingsWindowFrom({}, "?window=settings", true, false)).toBeNull();
   });
 
   test("a browser tab asks with ?window=settings and &page=, so it draws the window as the Mac does", async () => {
-    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
-    expect(settingsWindowFrom(undefined, "?t=abc&window=settings&page=inbox", false, false)).toEqual({ page: "inbox" });
+    const { settingsWindowFrom } = await import("../app/src/workspace/env.ts");
+    expect(settingsWindowFrom(undefined, "?t=abc&window=settings&page=flow", false, false)).toEqual({ page: "flow" });
     expect(settingsWindowFrom(undefined, "?window=settings", false, false)).toEqual({ page: null });
     expect(settingsWindowFrom(undefined, "?t=abc", false, false)).toBeNull();
   });
 
   test("the phone has no Settings window, whatever the address says", async () => {
-    const { settingsWindowFrom } = await import("../app/src/desk/env.ts");
+    const { settingsWindowFrom } = await import("../app/src/workspace/env.ts");
     expect(settingsWindowFrom({ lan: true }, "?window=settings", false, true)).toBeNull();
   });
 });

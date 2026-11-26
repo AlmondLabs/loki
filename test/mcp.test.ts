@@ -348,8 +348,6 @@ describe("loki.mcp in a chat", () => {
     const mem = inMemory({ tools: opts.tools });
     const registry = createRegistry();
     const mcp = new McpTools({ registry, configPath: join(dir, "mcp.json"), lokiDir: dir, servers: new McpServers({ connect: mem.connect }) });
-    const captured: Array<[string, Record<string, unknown>]> = [];
-    mcp.setCapture((e, p) => captured.push([e, p]));
     mcp.reload();
     await until(() => mcp.servers.status()[0]?.state === "connected");
     await until(() =>
@@ -379,7 +377,7 @@ describe("loki.mcp in a chat", () => {
       await store.close(ctx);
       rmSync(dir, { recursive: true, force: true });
     };
-    return { dir, registry, mcp, store, chat, faux, reply, asked, results, captured, cleanup };
+    return { dir, registry, mcp, store, chat, faux, reply, asked, results, cleanup };
   }
 
   test("the section names every server and tool; no MCP tool is offered until mcp_search loads it, then it is a real tool", async () => {
@@ -402,8 +400,6 @@ describe("loki.mcp in a chat", () => {
       const r = await s.results();
       expect(r[0]).toContain("Loaded");
       expect(r[1]).toContain('list_issues {\\"repo\\":\\"loki\\"}');
-      expect(s.captured.map(([e]) => e)).toEqual(["mcp_search", "mcp_call"]);
-      expect(s.captured[1][1]).toMatchObject({ server: "fake", tool: "list_issues", error: false, spilled: false });
       await s.mcp.prepare(s.store, s.chat, ctx);
       s.faux.setResponses([s.reply(fauxAssistantMessage("still here"))]);
       await (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
@@ -430,7 +426,6 @@ describe("loki.mcp in a chat", () => {
       const [r] = await s.results();
       expect(r).not.toContain("create_issue {");
       expect(JSON.parse(r)).toMatchObject({ isError: true });
-      expect(s.captured.filter(([e]) => e === "mcp_call")).toEqual([]);
     } finally {
       await s.cleanup();
     }

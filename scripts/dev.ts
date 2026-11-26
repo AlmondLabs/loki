@@ -5,7 +5,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPage, pageStale } from "../daemon/page-build.ts";
-import { ensureBuilt } from "../mod/boot.ts";
 import { buildDesktop, DESKTOP_OUT } from "./build-desktop.ts";
 
 const DEV_PORT = 5173;
@@ -127,7 +126,6 @@ if (vite === "other") {
   process.exit(1);
 }
 const desktopBuild = buildDesktop();
-const modBuild = ensureBuilt();
 if (!hot) {
   if (pageStale(root)) {
     console.error("loki dev: building the page (app/dist), about fifteen seconds");
@@ -155,7 +153,7 @@ if (!hot) {
   }
 }
 
-await Promise.all([desktopBuild, modBuild]);
+await desktopBuild;
 const shell = run(electron, electronArgs, true);
 shell.on("exit", (code) => {
   stopAll();

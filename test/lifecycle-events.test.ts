@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { DeskRegistry } from "../mod/desks.ts";
+import { ChatRegistry } from "../mod/chats.ts";
 import { ScopeDebouncer } from "../mod/lifecycle-events.ts";
 import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -9,7 +9,7 @@ describe("lifecycle event routing", () => {
   test("an agent's main chat resolves to its canonical desk", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-events-"));
     try {
-      const desks = new DeskRegistry(join(dir, "desks.json"), () => null);
+      const desks = new ChatRegistry(join(dir, "chats.json"), () => null);
       expect(desks.remember("default", "agent-9")).toBe("default-agent-9");
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -119,7 +119,7 @@ describe("Flow's rows are divided", () => {
   test("only a divided list is marked, and Flow is one", () => {
     expect(list(true)).toContain('class="loki-content-list-rows" data-divided="true"');
     expect(list(false)).not.toContain("data-divided");
-    const flow = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up.tsx"), "utf8");
+    const flow = readFileSync(join(import.meta.dirname, "..", "app", "src", "workspace", "catch-up.tsx"), "utf8");
     expect(flow).toMatch(/rows=\{flowRows\(flow\.rows\)\}\s*divided\s/);
   });
   test("its rows get 8px above and below, and a hairline from the text's edge between them", () => {

@@ -15,7 +15,7 @@ import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
 import type { SuggestionsProps } from "../chat/suggestion-card";
 import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
-import { avatarUrl } from "../desk/env";
+import { avatarUrl } from "../workspace/env";
 import { Button, Sheet } from "../components";
 import { threadNotice } from "./deck";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";

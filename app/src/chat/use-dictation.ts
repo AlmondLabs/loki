@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { inLan, keyboard, type Platform } from "../desk/env";
+import { inLan, keyboard, type Platform } from "../workspace/env";
 import { KEYMAP, keyFor, keysOf } from "../shell/keymap";
 
 interface RecognitionAlternative {

@@ -197,7 +197,7 @@ export class FrameChatClient {
     const state = await this.call("chat_open", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, mode: opts.mode ?? null });
     this.opened.add(`${rt.agent_id}\u0000${rt.conversation_id}`);
     this.emit(rt, [
-      { kind: "loop", state: state.loop, ...(state.turn_id ? { turn_id: state.turn_id } : {}) },
+      { kind: "loop", state: state.loop },
       {
         kind: "device",
         ...(state.mode ? { mode: state.mode } : {}),

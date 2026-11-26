@@ -58,7 +58,7 @@ async function mac(name: string, macId: string) {
           forget: none,
           hello: () => peers.hello(),
           agents: () => ({ agents: [], tombstones: [] }),
-          chats: () => ({ desks: [], inbox: [] }),
+          chats: () => ({ chats: [], flow: [] }),
           state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
           memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
           group: {

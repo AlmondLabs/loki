@@ -18,7 +18,7 @@ import {
 } from "./model.ts";
 import type { Attachment } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
-import { idOf, inboxQueue } from "./queue.ts";
+import { idOf } from "./queue.ts";
 import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
 import {
@@ -51,21 +51,15 @@ import type {
   Suggestion,
 } from "../frame-types.ts";
 import { ChatStore, type AgentEntry, type ChatStoreHost } from "./chat-store.ts";
-import { laneEvent, laneItems, type Lane, type LaneSwitchBy, type ResolvedLane } from "./lanes.ts";
+import { laneItems, type Lane, type LaneSwitchBy, type ResolvedLane } from "./lanes.ts";
 import type { SentReplies } from "./sent-replies.ts";
 import { Listeners } from "../listeners.ts";
-import { inboxCardSource } from "../analytics.ts";
 
 export type EngageAction = PayloadOf<"focus_add">["action"];
 
 export type CardAction = "next" | "later" | "archive" | "label" | "approve" | "deny" | "reply" | "answer" | "open" | "handoff";
 
 export type CardVia = "key" | "click" | "swipe" | "tap";
-
-const minutesSince = (iso: string | null, now: number): number | null => {
-  const t = iso ? Date.parse(iso) : NaN;
-  return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 60_000));
-};
 
 export interface LaneChoice {
   id: string;
@@ -101,7 +95,6 @@ export interface UseAttentionOptions {
   loadLocalStep?: (agentId: string, conversationId: string, row: number) => Promise<WholeRow | null>;
   listConversations: () => Promise<Array<ConversationInfo & Digest> | null>;
   subscribeLimit?: number;
-  capture?: (event: string, properties?: Record<string, unknown>) => void;
   sent?: (rt: Runtime) => void;
   activity?: Activity;
   visibility?: Activity;
@@ -305,7 +298,7 @@ export function createCardMoves(first: CardMovesHost) {
         if (w.error) return w.error;
         settle({ action: "archive", change: w.change });
       } else {
-        const err = await host.store.archiveConversation(item.id, true, "inbox", item.agent_id);
+        const err = await host.store.archiveConversation(item.id, true, "flow", item.agent_id);
         if (err) return err;
         settle({ action: "archive" });
       }
@@ -354,7 +347,7 @@ export function createCardMoves(first: CardMovesHost) {
 
   const writeBack = (item: AttentionItem, move: MoveTaken): Promise<string | null> => {
     if (move.change) return host.store.restoreOutside(item, move.change);
-    if (move.action === "archive" && !item.outside) return host.store.archiveConversation(item.id, false, "inbox_undo", item.agent_id);
+    if (move.action === "archive" && !item.outside) return host.store.archiveConversation(item.id, false, "flow_undo", item.agent_id);
     return Promise.resolve(null);
   };
 
@@ -408,8 +401,7 @@ function movesHost(store: ChatStore, opts: UseAttentionOptions, report: CardMove
     returnTimes: () => opts.returnTimes,
     now: Date.now,
     report,
-    reportUndone: (item, action) => {
-      opts.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) });
+    reportUndone: (item) => {
       const move = item.outside ? ledgerMoveOf("undo", null, null) : null;
       if (move) store.moveOutside(item, move);
     },
@@ -527,10 +519,9 @@ export function useAttention(opts: UseAttentionOptions) {
   const resolveLane = opts.lane?.resolve;
   const setId = opts.lane?.setId ?? noLaneSwitch;
   const setLaneId = useCallback(
-    (id: string, by: LaneSwitchBy = "hand") => {
+    (id: string, _by: LaneSwitchBy = "hand") => {
       if (id === laneId) return;
       setId(id);
-      optsRef.current.capture?.("inbox_filtered", laneEvent(id, by));
     },
     [laneId, setId],
   );
@@ -542,60 +533,26 @@ export function useAttention(opts: UseAttentionOptions) {
     [activeLane, laneId, setLaneId, lanes, setLanes, flowItems],
   );
 
-  const itemsRef = useRef(items);
-  useEffect(() => {
-    itemsRef.current = items;
-  });
   const shownAt = useRef(new Map<string, number>());
   const [clock] = useState(() => createActiveClock());
   const activity = opts.activity;
   useEffect(() => activity?.((on) => clock.set(on)), [activity, clock]);
-  const cardProps = useCallback(
-    (item: AttentionItem) => {
-      const queue = inboxQueue(itemsRef.current);
-      const at = queue.findIndex((i) => idOf(i) === idOf(item));
-      const it = queue[at] ?? item;
-      return {
-        ...inboxCardSource(item),
-        turn_id: item.outside ? null : store.turnOf(item.agent_id, item.id),
-        rank: at >= 0 ? at + 1 : null,
-        of: queue.length,
-        score: Math.round(it.score * 10) / 10,
-        focus: Math.round(it.focus * 100) / 100,
-        reason: it.reason,
-        status: it.status,
-        new: it.unread,
-        idle_min: minutesSince(it.last_message_at, Date.now()),
-        rung: it.rung ?? 0,
-        rested: it.rested ?? false,
-      };
-    },
-    [store],
-  );
   const shown = useCallback(
     (item: AttentionItem) => {
       shownAt.current.set(idOf(item), clock.now());
-      optsRef.current.capture?.("inbox_card_shown", cardProps(item));
     },
-    [clock, cardProps],
+    [clock],
   );
   const report = useCallback(
     (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => {
       const since = shownAt.current.get(idOf(item));
-      const props = cardProps(item);
       const dwell = since === undefined ? null : Math.round(clock.now() - since);
-      optsRef.current.capture?.("inbox_card_decided", {
-        action,
-        ...(via ? { via } : {}),
-        ...props,
-        dwell_ms: dwell,
-      });
       const move = item.outside ? ledgerMoveOf(action, via ?? null, dwell, facts) : null;
       if (move) store.moveOutside(item, move);
       const sender = item.outside && action !== "next" && action !== "later" ? senderKeyOf(item.outside) : null;
       if (sender) optsRef.current.engage?.(sender.agentId, sender.conversationId, "decide");
     },
-    [clock, cardProps, store],
+    [clock, store],
   );
   const [moves] = useState(() => createCardMoves(movesHost(store, opts, () => {})));
   useEffect(() => moves.setHost(movesHost(store, opts, report)));
@@ -666,7 +623,7 @@ export function useAttention(opts: UseAttentionOptions) {
   );
   const reply = useCallback(
     (item: AttentionItem, text: string, images: Attachment[] = []) =>
-      send(item.runtime, text, images, { desk: item.title, labels: item.labels ?? null, origin: "inbox" }),
+      send(item.runtime, text, images, { desk: item.title, labels: item.labels ?? null, origin: "flow" }),
     [send],
   );
   const loadHistory = useCallback((item: AttentionItem) => store.loadThread(item.runtime), [store]);

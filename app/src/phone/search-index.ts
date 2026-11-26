@@ -14,13 +14,13 @@ import {
   type SearchIndex as CoreIndex,
 } from "../shared/search";
 import type { IconName } from "./icons";
-import { deskName } from "./model";
+import { chatTitle } from "./model";
 import { formatRoute, parseRoute, type Route } from "./router";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 
-export type GroupId = "desks" | "agents" | "inbox" | "pages";
-const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Flow", pages: "Pages" };
-const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
+export type GroupId = "desks" | "agents" | "flow" | "pages";
+const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", flow: "Flow", pages: "Pages" };
+const GROUP_ORDER: GroupId[] = ["desks", "agents", "flow", "pages"];
 
 export interface Hit {
   key: string;
@@ -35,7 +35,7 @@ export interface Hit {
 export type Group = HitGroup<Hit, GroupId>;
 
 export interface SearchSources {
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   describe?: (agentId: string) => string | null | undefined;
@@ -52,7 +52,7 @@ export interface Destination {
 export const DESTINATIONS: readonly Destination[] = [
   { route: { kind: "tab", tab: "home" }, icon: "home", label: "Home", line: "Chats and what needs you", keywords: ["chats", "desks", "start"] },
   {
-    route: { kind: "tab", tab: "inbox" },
+    route: { kind: "tab", tab: "flow" },
     icon: "inbox",
     label: "Flow",
     line: "What waits on you",
@@ -101,10 +101,10 @@ export const DESTINATIONS: readonly Destination[] = [
 
 type Entry = Indexed<Hit>;
 
-const deskHit = (d: DeskSummary & { agent_id: string; conversation_id: string }): Hit => ({
+const deskHit = (d: ChatSummary & { agent_id: string; conversation_id: string }): Hit => ({
   key: `desk:${d.agent_id}/${d.conversation_id}`,
   group: "desks",
-  title: deskName(d),
+  title: chatTitle(d),
   preview: d.status === "live" ? (d.agent_name ?? "agent") : `${d.agent_name ?? "agent"} · ${d.status}`,
   route: { kind: "conversation", agentId: d.agent_id, conversationId: d.conversation_id, prefill: null },
   lead: { icon: d.status === "live" ? "desk" : "archive" },
@@ -121,7 +121,7 @@ const agentHit = (a: { id: string; name: string }, description: string | null | 
 });
 const itemHit = (i: AttentionItem): Hit => ({
   key: `inbox:${i.agent_id}/${i.id}`,
-  group: "inbox",
+  group: "flow",
   title: i.title || "Untitled conversation",
   preview: [i.agent_name ?? "agent", WAITS[i.status]].filter(Boolean).join(" · "),
   route: { kind: "conversation", agentId: i.agent_id, conversationId: i.id, prefill: null },
@@ -138,13 +138,13 @@ const pageHit = (d: Destination): Hit => ({
   dim: false,
 });
 
-const openable = (d: DeskSummary): d is DeskSummary & { agent_id: string; conversation_id: string } => !!d.agent_id && !!d.conversation_id;
+const openable = (d: ChatSummary): d is ChatSummary & { agent_id: string; conversation_id: string } => !!d.agent_id && !!d.conversation_id;
 
 export type SearchIndex = CoreIndex<Hit>;
 
 export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
-  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskName(d), d.agent_name ?? ""], recency: timeOf(d.last_active) });
+  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [chatTitle(d), d.agent_name ?? ""], recency: timeOf(d.last_active) });
   for (const a of src.agents) {
     const description = src.describe?.(a.id) ?? null;
     out.push({ hit: agentHit(a, description), fields: [a.name, description ?? ""], recency: 0 });

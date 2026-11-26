@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { followStatus, UPDATE_EVENT, type StatusCalls, type UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
-const status = (kind: "idle" | "checking"): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state: { kind }, moved: false });
+const status = (kind: "idle" | "checking"): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state: { kind } });
 
 function deferred<T>() {
   let resolve: (value: T) => void = () => {};

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { ListIcon, Sheet } from "../components";
-import { AgentFace } from "../desk/agent-chip";
+import { AgentFace } from "../workspace/agent-chip";
 import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
 import { buildIndex, coverageLine, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./search-model";

@@ -72,6 +72,10 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
     loadedAt.set(file, modified);
     try {
       const mod = await importMod(path, buildDir);
+      if (mod.name === "loki") {
+        report(`mod ${file} failed to load: "loki" is reserved for loki's built-in mod`);
+        return;
+      }
       const was = names.get(file);
       if (was !== undefined && was !== mod.name) {
         mods.unload(was);

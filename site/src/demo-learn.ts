@@ -1,6 +1,6 @@
-import { review, newSchedule, type Grade } from "../../core/recall/fsrs.ts";
-import { learnTitle, type Card, type CardSource, type Lead, type RecallSnapshot } from "../../core/recall/model.ts";
-import { lessonBrief } from "../../core/recall/extract.ts";
+import { review, newSchedule, type Grade } from "../../core/learn/fsrs.ts";
+import { learnTitle, type Card, type CardSource, type Lead, type LearnSnapshot } from "../../core/learn/model.ts";
+import { lessonBrief } from "../../core/learn/extract.ts";
 
 const DAY = 86_400_000;
 
@@ -12,7 +12,7 @@ const from = (agent: string, conversation: string, title: string, at: string): C
   at,
 });
 
-export function startingLearn(now: number): RecallSnapshot {
+export function startingLearn(now: number): LearnSnapshot {
   const at = (daysAgo: number) => new Date(now - daysAgo * DAY).toISOString();
   const card = (id: string, front: string, back: string, source: CardSource, daysAgo: number): Card => ({
     id,
@@ -98,7 +98,7 @@ export function startingLearn(now: number): RecallSnapshot {
   };
 }
 
-type Move = (snap: RecallSnapshot, now: number) => RecallSnapshot;
+type Move = (snap: LearnSnapshot, now: number) => LearnSnapshot;
 
 export const gradeCard =
   (id: string, g: Grade): Move =>

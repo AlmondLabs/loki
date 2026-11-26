@@ -7,7 +7,7 @@ import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
-import type { DeskTitleFrame } from "../chat-listing.ts";
+import type { ChatMetaFrame } from "../chat-listing.ts";
 import type { UsualModels } from "../usual-models.ts";
 import type { ReasoningEffort } from "../../core/models.ts";
 import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
@@ -80,7 +80,7 @@ export interface ChatDeps {
   chat?: ChatBackend;
   agentDeleteBlocked?: (agentId: string) => string | null;
   chatBlocked?: (agentId: string, conversationId: string) => string | null;
-  titleFrame?: (agentId: string, conversationId: string) => DeskTitleFrame | null;
+  titleFrame?: (agentId: string, conversationId: string) => ChatMetaFrame | null;
   usualModels?: { read: () => UsualModels; record: (agentId: string, handle: string, effort: ReasoningEffort | null) => UsualModels };
 }
 

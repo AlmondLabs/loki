@@ -56,11 +56,11 @@ export function linkDir(target: string, dst: string): void {
 
 export function linkCheckout(checkout: string, home: string): InstallReport {
   const report = skippedReport(home);
-  const boot = join(checkout, "mod", "boot.ts");
-  report.mod_path = boot;
-  if (!isFile(boot)) {
+  const entry = join(checkout, "daemon", "main.ts");
+  report.mod_path = entry;
+  if (!isFile(entry)) {
     report.mod = "error";
-    report.error = `${checkout} is not a checkout: no mod/boot.ts`;
+    report.error = `${checkout} is not a checkout: no daemon/main.ts`;
     return report;
   }
   report.mod = "linked";
@@ -89,7 +89,7 @@ export function linkCheckout(checkout: string, home: string): InstallReport {
 }
 
 export function findResources(resourceDir: string): string | null {
-  return [join(resourceDir, "resources"), resourceDir].find((d) => isFile(join(d, "mod", "loki-mod.mjs"))) ?? null;
+  return [join(resourceDir, "resources"), resourceDir].find((d) => isFile(join(d, "daemon", "daemon.mjs"))) ?? null;
 }
 
 function writeIfChanged(path: string, bytes: Buffer): "installed" | "updated" | "current" {
@@ -113,40 +113,27 @@ function walk(dir: string, prefix = ""): string[] {
   return out;
 }
 
-function installMod(resources: string, dataDir: string): { state: InstallState; path: string } {
-  let bundle: Buffer;
-  try {
-    bundle = readFileSync(join(resources, "mod", "loki-mod.mjs"));
-  } catch (error) {
-    throw new Error(`bundled mod unreadable: ${messageOf(error)}`, { cause: error });
-  }
-  const path = join(dataDir, "mod", "loki-mod.mjs");
-  try {
-    return { state: writeIfChanged(path, bundle), path };
-  } catch (error) {
-    throw new Error(`could not write ${path}: ${messageOf(error)}`, { cause: error });
-  }
-}
-
-function installDaemon(resources: string, dataDir: string): InstallState {
+function installDaemon(resources: string, dataDir: string): { state: InstallState; path: string } {
   const src = join(resources, "daemon");
-  if (!isFile(join(src, "daemon.mjs"))) return "skipped";
+  if (!isFile(join(src, "daemon.mjs"))) throw new Error("bundled daemon unreadable");
   let files: string[];
   try {
     files = walk(src);
   } catch (error) {
     throw new Error(`bundled daemon unreadable: ${messageOf(error)}`, { cause: error });
   }
-  let state: InstallState = "current";
+  const fresh = !isFile(join(dataDir, "daemon", "daemon.mjs"));
+  let state: InstallState = fresh ? "installed" : "current";
   for (const rel of files) {
     const bytes = readFileSync(join(src, rel));
     try {
-      if (writeIfChanged(join(dataDir, "daemon", rel), bytes) !== "current") state = "updated";
+      const written = writeIfChanged(join(dataDir, "daemon", rel), bytes);
+      if (!fresh && written !== "current") state = "updated";
     } catch (error) {
       throw new Error(`could not write ${rel}: ${messageOf(error)}`, { cause: error });
     }
   }
-  return state;
+  return { state, path: join(dataDir, "daemon", "daemon.mjs") };
 }
 
 function installSkill(resources: string, home: string): { state: InstallState; path: string } {
@@ -229,8 +216,7 @@ function readStamp(dir: string): string | null {
 
 function bundlesCurrent(resources: string, dataDir: string, stamp: string): boolean {
   if (readStamp(dataDir) !== stamp) return false;
-  if (!isFile(join(dataDir, "mod", "loki-mod.mjs"))) return false;
-  if (isFile(join(resources, "daemon", "daemon.mjs")) && !isFile(join(dataDir, "daemon", "daemon.mjs"))) return false;
+  if (!isFile(join(dataDir, "daemon", "daemon.mjs"))) return false;
   if (isFile(join(resources, "app", "index.html")) && !isFile(join(dataDir, "app", "index.html"))) return false;
   return true;
 }
@@ -243,7 +229,7 @@ export function installBundles(resources: string, dataDir: string, home: string)
     report.app = hasApp ? "current" : "skipped";
     report.app_path = join(dataDir, "app");
     report.mod = "current";
-    report.mod_path = join(dataDir, "mod", "loki-mod.mjs");
+    report.mod_path = join(dataDir, "daemon", "daemon.mjs");
   } else {
     try {
       const app = installApp(resources, dataDir);
@@ -254,16 +240,11 @@ export function installBundles(resources: string, dataDir: string, home: string)
       report.error = messageOf(error);
     }
     try {
-      const mod = installMod(resources, dataDir);
-      report.mod = mod.state;
-      report.mod_path = mod.path;
+      const daemon = installDaemon(resources, dataDir);
+      report.mod = daemon.state;
+      report.mod_path = daemon.path;
     } catch (error) {
       report.mod = "error";
-      report.error = joinErrors(report.error, messageOf(error));
-    }
-    try {
-      installDaemon(resources, dataDir);
-    } catch (error) {
       report.error = joinErrors(report.error, messageOf(error));
     }
     if (stamp !== null && report.mod !== "error" && report.app !== "error") {
@@ -307,7 +288,7 @@ export function launchInstall(opts: {
     const resources = findResources(opts.resourceDir);
     return resources
       ? installBundles(resources, opts.dataDir, opts.home)
-      : { ...skippedReport(opts.home), mod: "error", error: "bundled mod not found in the app's resources" };
+      : { ...skippedReport(opts.home), mod: "error", error: "bundled daemon not found in the app's resources" };
   }
   const checkout = devCheckout(opts.packaged, opts.env, opts.checkout);
   return checkout ? linkCheckout(checkout, opts.home) : skippedReport(opts.home);

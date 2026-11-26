@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { OutsideMessage, OutsideWindow } from "../core/frame-types.ts";
-import { refreshAsk, withNewer, type Shown } from "../app/src/desk/outside-card.tsx";
-import { atBottom } from "../app/src/desk/slack-thread.tsx";
+import { refreshAsk, withNewer, type Shown } from "../app/src/workspace/outside-card.tsx";
+import { atBottom } from "../app/src/workspace/slack-thread.tsx";
 
 const msg = (id: string, extra: Partial<OutsideMessage> = {}): OutsideMessage => ({ id, sender: "Ada", at: "", text: `at ${id}`, mine: false, ...extra });
 const channel: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };

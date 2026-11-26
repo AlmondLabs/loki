@@ -1,8 +1,7 @@
-import type { WidgetManifestEntry } from "../../core/desk-core.ts";
+import type { WidgetManifestEntry } from "../../core/canvas-core.ts";
 import { createBridge, type BridgeDeps } from "../../mod/bridge.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "../../mod/frames/index.ts";
-import { DeskStore } from "../../mod/desk-store.ts";
-import { GestureLog } from "../../mod/gestures.ts";
+import { CanvasStore } from "../../mod/canvas-store.ts";
 import type { Client } from "../../mod/server.ts";
 import type { WidgetsWatcher } from "../../mod/widgets-fs.ts";
 
@@ -60,7 +59,6 @@ const RENAMED_FIELDS: Readonly<Partial<Record<string, string>>> = {
   timedOut: "timed_out",
   tokenHash: "token_hash",
   toolName: "tool_name",
-  turnId: "turn_id",
   updatedAt: "updated_at",
   updatedBy: "updated_by",
   upstreamPath: "upstream_path",
@@ -118,15 +116,14 @@ export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { 
   };
 }
 
-type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; capture?: BridgeDeps["capture"]; modules?: BridgeDeps["modules"] };
+type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; modules?: BridgeDeps["modules"] };
 
 export function bridgeOf(deps: BridgeOf = {}) {
-  const full: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), ...deps };
+  const full: ModuleDeps = { store: new CanvasStore(), widgets: fakeWidgets([]), ...deps };
   return createBridge({
     modules: deps.modules ?? frameModules(full),
     welcome: welcomeFrames(full),
     broadcast: deps.broadcast ?? (() => {}),
-    capture: deps.capture,
   });
 }
 

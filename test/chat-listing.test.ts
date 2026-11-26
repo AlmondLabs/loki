@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SHARED_SCOPE, backendName, type Scope } from "../core/desk-core.ts";
+import { SHARED_SCOPE, backendName, type Scope } from "../core/canvas-core.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
-import type { InboxRow, LocalAgent } from "../core/frame-types.ts";
+import type { FlowRow, LocalAgent } from "../core/frame-types.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatListing } from "../mod/chat-listing.ts";
-import { DeskRegistry, type LocalConversationInfo, type LocalConversationRow } from "../mod/desks.ts";
+import { ChatRegistry, type LocalConversationInfo, type LocalConversationRow } from "../mod/chats.ts";
 
 const IRA = "agent-ira";
 const OTTO = "agent-otto";
@@ -17,7 +17,7 @@ type Chat = LocalConversationRow & { title: string | null };
 
 let dir: string;
 let rows: Chat[];
-let desks: DeskRegistry;
+let desks: ChatRegistry;
 let layouts: Scope[];
 let canvases: Scope[];
 let passChats: Set<string>;
@@ -64,7 +64,7 @@ const source: ChatSource = {
   folders: () => ({ recent: [], by_conversation: {}, by_agent: {} }),
 };
 
-const listing = (readAgent?: (agentId: string) => LocalAgent | null, outside?: () => InboxRow[]) =>
+const listing = (readAgent?: (agentId: string) => LocalAgent | null, outside?: () => FlowRow[]) =>
   new ChatListing({
     chats: source,
     desks,
@@ -81,7 +81,7 @@ const listing = (readAgent?: (agentId: string) => LocalAgent | null, outside?: (
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "loki-chat-listing-"));
   mkdirSync(join(dir, "agents"), { recursive: true });
-  desks = new DeskRegistry(join(dir, "desks.json"), (id) => source.agentOf(id));
+  desks = new ChatRegistry(join(dir, "chats.json"), (id) => source.agentOf(id));
   rows = [];
   layouts = [];
   canvases = [];
@@ -98,16 +98,16 @@ describe("which chats show", () => {
     rows = [chat("conv-1", IRA), chat("conv-hidden", IRA, { hidden: true }), chat("conv-pass", IRA), chat("conv-gone", GONE)];
     passChats.add("conv-pass");
     const l = listing();
-    expect(l.desks().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
-    expect(l.inbox().map((r) => r.id)).toEqual(["conv-1"]);
+    expect(l.summaries().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
+    expect(l.flow().map((r) => r.id)).toEqual(["conv-1"]);
   });
 
   test("a chat's advisor chat stays out of the Chats list and Flow, even once a message to it remembered its scope (R22)", () => {
     rows = [chat("conv-1", IRA), chat("advisor-conv-1", IRA, { hidden: true, lastMessageAt: "2026-11-22T10:00:00Z" })];
     desks.remember("advisor-conv-1", IRA);
     const l = listing();
-    expect(l.desks().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
-    expect(l.inbox().map((r) => r.id)).toEqual(["conv-1"]);
+    expect(l.summaries().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
+    expect(l.flow().map((r) => r.id)).toEqual(["conv-1"]);
   });
 
   test("the chat list keeps archived chats and lessons; the inbox, open chats only, newest first", () => {
@@ -118,21 +118,21 @@ describe("which chats show", () => {
       chat("conv-lesson", IRA, { title: "[Learn] cron syntax" }),
     ];
     const l = listing();
-    expect(l.desks().map((d) => [d.scope, d.status])).toEqual([
+    expect(l.summaries().map((d) => [d.scope, d.status])).toEqual([
       [SHARED_SCOPE, "none"],
       ["conv-new", "live"],
       ["conv-old", "live"],
       ["conv-lesson", "live"],
       ["conv-archived", "archived"],
     ]);
-    expect(l.inbox().map((r) => r.id)).toEqual(["conv-new", "conv-old"]);
+    expect(l.flow().map((r) => r.id)).toEqual(["conv-new", "conv-old"]);
   });
 
   test("a canvas left here by a chat that moved to another Mac stays out; a canvas of no chat shows", () => {
     rows = [chat("conv-moved", IRA, { hidden: true })];
     canvases = ["conv-moved", "scratch"];
     layouts = ["conv-moved"];
-    const shown = listing().desks();
+    const shown = listing().summaries();
     expect(shown.map((d) => [d.scope, d.status, d.widgets])).toEqual([
       [SHARED_SCOPE, "none", 0],
       ["scratch", "none", 1],
@@ -141,7 +141,7 @@ describe("which chats show", () => {
 
   test("a pinned chat says so, with its agent's name and model", () => {
     rows = [chat("conv-pinned", IRA)];
-    const [, row] = listing().desks();
+    const [, row] = listing().summaries();
     expect(row).toMatchObject({ scope: "conv-pinned", pinned: true, agent_name: "ira", agent_id: IRA, model: "anthropic/claude-fable-5" });
   });
 });
@@ -149,7 +149,7 @@ describe("which chats show", () => {
 describe("outside cards in the inbox (plan 067)", () => {
   test("the inbox holds the accounts' open threads beside the chats, newest first; the chat list does not", () => {
     rows = [chat("conv-1", IRA, { lastMessageAt: "2026-11-04T08:00:00Z" })];
-    const thread: InboxRow = {
+    const thread: FlowRow = {
       kind: "outside",
       id: "t1#1",
       agent_id: "account:gmail:ada@acme.com",
@@ -162,11 +162,11 @@ describe("outside cards in the inbox (plan 067)", () => {
       last_ask: null,
     };
     const l = listing(undefined, () => [thread]);
-    expect(l.inbox().map((r) => [r.kind ?? "chat", r.id])).toEqual([
+    expect(l.flow().map((r) => [r.kind ?? "chat", r.id])).toEqual([
       ["outside", "t1#1"],
       ["chat", "conv-1"],
     ]);
-    expect(l.desks().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
+    expect(l.summaries().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
   });
 });
 
@@ -179,14 +179,14 @@ describe("a list reads each agent once (plan 040)", () => {
       reads.set(id, (reads.get(id) ?? 0) + 1);
       return readLocalAgent(id, dir);
     });
-    expect(l.desks()).toHaveLength(31);
+    expect(l.summaries()).toHaveLength(31);
     expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [OTTO]: 1 });
     reads.clear();
-    expect(l.inbox()).toHaveLength(30);
+    expect(l.flow()).toHaveLength(30);
     expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [OTTO]: 1 });
 
     writeFileSync(join(dir, "agents", `${backendName(IRA)}.json`), JSON.stringify({ id: IRA, name: "Ira two", model: "anthropic/claude-fable-5", tags: [] }));
-    expect(new Set(l.desks().flatMap((d) => (d.agent_name ? [d.agent_name] : [])))).toEqual(new Set(["Ira two", "otto"]));
+    expect(new Set(l.summaries().flatMap((d) => (d.agent_name ? [d.agent_name] : [])))).toEqual(new Set(["Ira two", "otto"]));
   });
 });
 
@@ -196,7 +196,7 @@ describe("listing tidies the desks an older loki kept", () => {
     passChats.add("conv-pass");
     expect(
       listing()
-        .desks()
+        .summaries()
         .map((d) => d.scope),
     ).toEqual([SHARED_SCOPE]);
     expect(desks.all()).toEqual([]);
@@ -212,7 +212,7 @@ describe("a chat's permission mode", () => {
   });
 });
 
-describe("the desk_title push", () => {
+describe("the chat_meta push", () => {
   test("waits for a title, then carries what the chat list would say", () => {
     rows = [chat("conv-1", IRA, { title: null })];
     const l = listing();
@@ -220,7 +220,7 @@ describe("the desk_title push", () => {
     expect(l.titleFrame(scope)).toBeNull();
     rows = [chat("conv-1", IRA, { title: "trip", archived: true })];
     expect(l.titleFrame(scope)).toEqual({
-      type: "desk_title",
+      type: "chat_meta",
       scope,
       title: "trip",
       status: "archived",

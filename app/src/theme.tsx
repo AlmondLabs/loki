@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { inLan, inDesktop, platform, type Platform } from "./desk/env";
+import { inLan, inDesktop, platform, type Platform } from "./workspace/env";
 import { currentWindow } from "./shell/desktop";
 
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;

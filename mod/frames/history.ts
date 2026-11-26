@@ -1,7 +1,7 @@
-import type { WidgetLogEntry } from "../../core/desk-core.ts";
+import type { WidgetLogEntry } from "../../core/canvas-core.ts";
 import { leanPage, type TranscriptRow } from "../../core/attention/transcript.ts";
-import type { InboxRow } from "../../core/frame-types.ts";
-import { HISTORY_MAX, HISTORY_PAGE } from "../desks.ts";
+import type { FlowRow } from "../../core/frame-types.ts";
+import { HISTORY_MAX, HISTORY_PAGE } from "../chats.ts";
 import { reply, type FrameHandlers } from "./context.ts";
 
 export interface HistoryDeps {
@@ -14,7 +14,7 @@ export interface HistoryDeps {
   ) => { rows: TranscriptRow[]; more: boolean; start: number };
   row?: (agentId: string | null, conversationId: string, row: number) => TranscriptRow | null;
   widgetLog?: (agentId: string | null, conversationId: string) => WidgetLogEntry[];
-  listInbox?: () => InboxRow[];
+  listFlow?: () => FlowRow[];
 }
 
 export function historyFrames(deps: HistoryDeps): FrameHandlers {
@@ -43,6 +43,6 @@ export function historyFrames(deps: HistoryDeps): FrameHandlers {
       const wait = deps.ensureTranscript?.(agentId, conversationId);
       return wait ? wait.then(run) : run();
     },
-    inbox_list: () => reply({ conversations: deps.listInbox?.() ?? [] }),
+    flow_get: () => reply({ conversations: deps.listFlow?.() ?? [] }),
   };
 }

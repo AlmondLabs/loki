@@ -1,7 +1,7 @@
 import { modeOf } from "../core/chat-links.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
-import { conversationDirName, isMainChat, scopeFor, type Scope } from "../core/desk-core.ts";
+import { conversationDirName, isMainChat, scopeFor, type Scope } from "../core/canvas-core.ts";
 import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
 import { COMPACTION, entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, ThreadModel, type StoredStep } from "../core/attention/thread.ts";
@@ -9,7 +9,7 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
-import type { LocalConversationInfo, LocalConversationRow } from "../mod/desks.ts";
+import type { LocalConversationInfo, LocalConversationRow } from "../mod/chats.ts";
 import { ChatIndex, type AgentStore, type ChatInfo } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { Listeners } from "../core/listeners.ts";

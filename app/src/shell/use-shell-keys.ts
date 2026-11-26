@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { inDesktop, keyboard, type Platform } from "../desk/env";
+import { inDesktop, keyboard, type Platform } from "../workspace/env";
 import { invoke, listen } from "./desktop";
 import {
   chordIds,
@@ -65,8 +65,8 @@ export function escapeSteps(at: { segment: Segment; dialog: DialogState; typing:
   if (at.prevented) return [];
   if (at.dialog === "preferences") return ["preferences"];
   if (at.dialog !== "none") return [];
-  if (at.typing) return at.segment === "inbox" && at.inDetail ? ["list"] : [];
-  const steps: EscapeStep[] = at.segment === "desk" ? ["messages"] : [];
+  if (at.typing) return at.segment === "flow" && at.inDetail ? ["list"] : [];
+  const steps: EscapeStep[] = at.segment === "chats" ? ["messages"] : [];
   return at.inDetail ? [...steps, "list"] : steps;
 }
 

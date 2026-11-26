@@ -336,6 +336,6 @@ describe("label changes in a mailbox that keeps its history", () => {
     box.deliver({ thread: "t-old", at: new Date("2026-11-02T08:00:00Z"), from: "bob@acme.com" });
     box.deliver({ thread: "t-archived", at: new Date("2026-11-03T08:00:00Z"), from: "bob@acme.com", labels: [] });
     box.deliver({ thread: "t-new", at: new Date("2026-11-04T08:00:00Z"), from: "bob@acme.com", labels: ["INBOX"] });
-    expect(await client.listInbox()).toEqual({ threads: ["t-new", "t-old"] });
+    expect(await client.listFlow()).toEqual({ threads: ["t-new", "t-old"] });
   });
 });

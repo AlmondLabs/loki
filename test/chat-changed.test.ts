@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { chatFrames, type ChatBackend } from "../mod/frames/chat.ts";
 import type { FrameContext } from "../mod/frames/context.ts";
-import type { DeskTitleFrame } from "../mod/chat-listing.ts";
+import type { ChatMetaFrame } from "../mod/chat-listing.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = () => {
@@ -20,8 +20,8 @@ const backend = (fail = false) =>
     update: async () => (fail ? Promise.reject(new Error("no chat conv-1")) : undefined),
   }) as unknown as ChatBackend;
 
-const title = (conversationId: string): DeskTitleFrame => ({
-  type: "desk_title",
+const title = (conversationId: string): ChatMetaFrame => ({
+  type: "chat_meta",
   scope: conversationId,
   title: "renamed",
   status: "archived",

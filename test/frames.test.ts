@@ -6,9 +6,8 @@ import { frameModules, type ModuleDeps } from "../mod/frames/index.ts";
 import type { FrameHandlers } from "../mod/frames/context.ts";
 import { SeenStore } from "../mod/seen.ts";
 import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
-import { RecallStore } from "../mod/recall.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
+import { LearnStore } from "../mod/learn.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
 import { bridgeOf, client, fakeWidgets, settled } from "./fixtures/frames.ts";
 import {
   DOCTOR_WAIT_MS,
@@ -66,36 +65,35 @@ describe("the frame table", () => {
         "chat_model",
         "chat_models",
         "chat_agents",
-        "capture",
-        "list_desks",
+        "chats_list",
         "seen_list",
         "seen_mark",
         "seen_unmark",
         "viewed_mark",
         "history_get",
         "history_step_get",
-        "inbox_list",
+        "flow_get",
         "pin_set",
         "folders_get",
         "agent_get",
         "memory_read",
         "memory_log",
         "memory_diff",
-        "recall_list",
+        "learn_list",
         "usage_get",
-        "recall_grade",
-        "recall_reject",
-        "recall_restore",
-        "recall_edit",
-        "recall_export",
-        "recall_lead_start",
-        "recall_lead_dismiss",
-        "recall_lead_restore",
+        "learn_grade",
+        "learn_reject",
+        "learn_restore",
+        "learn_edit",
+        "learn_export",
+        "learn_lead_start",
+        "learn_lead_dismiss",
+        "learn_lead_restore",
         "models_recent_add",
         "focus_add",
         "card_rest",
         "return_times_set",
-        "desk_get",
+        "canvas_get",
         "suggestion_decide",
         "suggestion_retarget",
         "account_thread_archive",
@@ -143,12 +141,12 @@ describe("the frame table", () => {
       "skills_global",
       "skill_installed",
       "skill_refreshed",
-      "inbox",
-      "recall",
-      "recall_card",
-      "recall_ran",
-      "recall_export",
-      "recall_lesson",
+      "flow",
+      "learn",
+      "learn_card",
+      "learn_ran",
+      "learn_export",
+      "learn_lesson",
     ]) {
       expect([r, replies.has(r)]).toEqual([r, true]);
     }
@@ -213,29 +211,29 @@ describe("the frame table", () => {
     expect(FRAMES.chat_passes_set.parse({})).toEqual({});
     expect(FRAMES.chat_passes_set.parse({ learn: { daily_cap: -1 } })).toBe("learn.daily_cap must be a number, 0 or more");
     expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: "yes" } })).toBe("reflection.enabled must be true or false");
-    expect(FRAMES.recall_settings.parse({ enabled: true, daily_cap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, daily_cap: 3 });
+    expect(FRAMES.learn_settings.parse({ enabled: true, daily_cap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, daily_cap: 3 });
   });
 
   test("a Learn id must be one: a phone cannot name a file outside the recall folder", () => {
     for (const name of [
-      "recall_grade",
-      "recall_edit",
-      "recall_reject",
-      "recall_restore",
-      "recall_forget",
-      "recall_lead_dismiss",
-      "recall_lead_restore",
-      "recall_lead_start",
+      "learn_grade",
+      "learn_edit",
+      "learn_reject",
+      "learn_restore",
+      "learn_forget",
+      "learn_lead_dismiss",
+      "learn_lead_restore",
+      "learn_lead_start",
     ] as const)
       for (const id of ["../../settings", "a/b", "..", "", "x".repeat(65), 7, undefined])
         expect(FRAMES[name].parse({ id, grade: 3 })).toBe("a card or lead id required");
-    expect(FRAMES.recall_reject.parse({ id: "20261010-abc123" })).toEqual({ id: "20261010-abc123" });
-    expect(FRAMES.recall_edit.parse({ id: "c_1", front: "f" })).toEqual({ id: "c_1", front: "f", back: undefined, tags: undefined });
+    expect(FRAMES.learn_reject.parse({ id: "20261010-abc123" })).toEqual({ id: "20261010-abc123" });
+    expect(FRAMES.learn_edit.parse({ id: "c_1", front: "f" })).toEqual({ id: "c_1", front: "f", back: undefined, tags: undefined });
   });
 
   test("parsers keep today's checks", () => {
-    expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
-    expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
+    expect(FRAMES.learn_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
+    expect(FRAMES.learn_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
     expect(FRAMES.history_get.parse({ agent_id: "a" })).toBe("conversation_id required");
     const approve = { request_id: "frame-1", agent_id: "agent-local-a", conversation_id: "c", approval_id: "approval-t1", allow: true };
     expect(FRAMES.chat_approve.parse(approve)).toEqual({
@@ -257,7 +255,6 @@ describe("the frame table", () => {
     expect(FRAMES.memory_read.parse({ agent_id: "../etc" })).toBe("agent_id required");
     expect(FRAMES.lan_via_set.parse({ via: "bluetooth" })).toBe('via must be "tailscale" or "lan"');
     expect(FRAMES.focus_add.parse({ conversation_id: "c", action: "open" })).toBe("action must be answer or decide");
-    expect(FRAMES.capture.parse({ event: "desk_switched", properties: [1] })).toEqual({ event: "desk_switched", properties: undefined });
     expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({
       gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } },
     });
@@ -270,8 +267,8 @@ describe("the app's side is typed by the table, checked by the typecheck and no-
   const send = <N extends SendName>(_frame: { type: N } & InputOf<N>): boolean => true;
   test("a request without a required field, or a send of a wrong field, does not compile", () => {
     // @ts-expect-error a grade is required
-    request("recall_grade", { id: "c1" });
-    request("recall_grade", { id: "c1", grade: 3 });
+    request("learn_grade", { id: "c1" });
+    request("learn_grade", { id: "c1", grade: 3 });
     request("history_get", { conversation_id: "c" });
     const more: boolean | undefined = request("history_get", { conversation_id: "c" })?.more;
     // @ts-expect-error a focus engagement the mod does not take from the app
@@ -301,12 +298,11 @@ describe("every frame in the table, through the real router", () => {
     tailscale: null,
   };
   const deps: ModuleDeps = {
-    store: new DeskStore(),
+    store: new CanvasStore(),
     widgets: fakeWidgets([]),
-    gestures: new GestureLog(),
     seen: new SeenStore(join(dir, "attention.json"), { debounceMs: 0 }),
-    listDesks: () => [],
-    listInbox: () => [],
+    listChats: () => [],
+    listFlow: () => [],
     deleteWidgetFile: () => "gone",
     setPin: () => true,
     recentModels: { read: () => [], add: (h) => [h] },
@@ -318,8 +314,8 @@ describe("every frame in the table, through the real router", () => {
       check: (path) => ({ ok: true, path, branch: null }),
       pick: () => Promise.resolve(null),
     },
-    recall: {
-      store: new RecallStore(join(dir, "recall")),
+    learn: {
+      store: new LearnStore(join(dir, "recall")),
       status: () => ({ enabled: false, daily_cap: 5, last_run_at: null, last_run_note: null, written_today: 0 }),
       setSettings: async () => {},
       run: () => Promise.resolve({ note: "ran" }),
@@ -353,9 +349,9 @@ describe("every frame in the table, through the real router", () => {
       begin: () => Promise.resolve({ code: "K9HF6D", host: null, expires_at: "" }),
       join: () => Promise.reject(new Error("no Mac there")),
       forget: () => Promise.resolve(false),
-      hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 1 }),
+      hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 2 }),
       agents: () => ({ agents: [], tombstones: [] }),
-      chats: () => ({ desks: [], inbox: [] }),
+      chats: () => ({ chats: [], flow: [] }),
       state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
       memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
     },
@@ -365,7 +361,7 @@ describe("every frame in the table, through the real router", () => {
     measure: { id: "d1/w", size: { w: 1, h: 1 } },
     trash: { id: "d1/w" },
     widget_status: { id: "d1/w", error: null },
-    desk_get: { scope: "d1" },
+    canvas_get: { scope: "d1" },
     pin_set: { agent_id: "agent-1", conversation_id: "conv-1", pinned: true },
     models_recent_add: { handle: "m" },
     seen_mark: { conversation_id: "conv-1" },
@@ -375,16 +371,15 @@ describe("every frame in the table, through the real router", () => {
     card_rest: { conversation_id: "conv-1", rest: { n: 1, until: "2026-10-20T09:10:00Z", stamp: "s", at: "2026-10-20T09:00:00Z" } },
     return_times_set: { return_times: RETURN_TIMES_DEFAULT },
     lanes_set: { lanes: [{ id: "l-work", name: "Work", chats: "all", accounts: [] }] },
-    capture: { event: "frames_walked" },
     history_get: { conversation_id: "conv-1" },
-    recall_grade: { id: "k", grade: 3 },
-    recall_edit: { id: "k" },
-    recall_reject: { id: "k" },
-    recall_restore: { id: "k" },
-    recall_forget: { id: "k" },
-    recall_lead_dismiss: { id: "l" },
-    recall_lead_restore: { id: "l" },
-    recall_lead_start: { id: "l" },
+    learn_grade: { id: "k", grade: 3 },
+    learn_edit: { id: "k" },
+    learn_reject: { id: "k" },
+    learn_restore: { id: "k" },
+    learn_forget: { id: "k" },
+    learn_lead_dismiss: { id: "l" },
+    learn_lead_restore: { id: "l" },
+    learn_lead_start: { id: "l" },
     agent_get: { agent_id: "agent-1" },
     memory_read: { agent_id: "agent-1", path: "a.md" },
     memory_log: { agent_id: "agent-1" },
@@ -655,7 +650,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "suggestion_decide",
       "suggestion_retarget",
     ]);
-    expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
+    expect(by("scope")).toEqual(["canvas_get", "gesture", "measure", "widget_status"]);
     expect(by("home")).toEqual([
       "account_emoji_search",
       "account_labels_list",
@@ -682,7 +677,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
     ]);
     expect(by("new-chat")).toEqual(["chat_create"]);
     expect(names.filter((n) => pushMeaning(n)?.relay === "chat")).toEqual(["chat_event"]);
-    expect(names.filter((n) => pushMeaning(n)?.relay === "scope").sort()).toEqual(["desk", "state", "widget_change", "widgets"]);
+    expect(names.filter((n) => pushMeaning(n)?.relay === "scope").sort()).toEqual(["canvas", "state", "widget_change", "widgets"]);
   });
 
   test("a frame only Macs send each other is a peer_ frame; the rest of those are Settings' own, never a Mac's", () => {
@@ -700,7 +695,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
   });
 
   test("the pushes that change how chats are listed, and the chat events that do", () => {
-    expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_changed", "chat_left", "desks"]);
+    expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_changed", "chat_left", "chats"]);
     expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device", "reply_proposals"]);
     expect(peerMeaning("chat_move")).toMatchObject({ relists: true, timeout_ms: 180_000 });
     expect(peerMeaning("peers_get")).toBeNull();

@@ -2,7 +2,6 @@ import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { COMPACTION, compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
-import { turnIdOf } from "./telemetry.ts";
 
 const DETAIL_CHARS = 300;
 
@@ -40,13 +39,10 @@ export class ChatEventConverter {
   private partial: { text: string; at: string | null } | null = null;
   private blocks = new Map<number, string>();
   private maxIndex = -1;
-  private turnId: string | null = null;
   private readonly blocking = new Set<string>();
-  private readonly agentId: string;
   private readonly nameImage?: ImageNamer;
 
-  constructor(agentId = "", nameImage?: ImageNamer) {
-    this.agentId = agentId;
+  constructor(_agentId = "", nameImage?: ImageNamer) {
     this.nameImage = nameImage;
   }
 
@@ -64,15 +60,12 @@ export class ChatEventConverter {
         return [];
       }
       case "run_start":
-        this.turnId = turnIdOf(this.agentId, ev.inputs);
-        return [{ kind: "loop", state: "running", ...(this.turnId ? { turn_id: this.turnId } : {}) }];
+        return [{ kind: "loop", state: "running" }];
       case "run_end": {
-        const turnId = turnIdOf(this.agentId, ev.inputs) ?? this.turnId;
-        this.turnId = null;
         this.partial = null;
         this.blocks.clear();
         this.maxIndex = -1;
-        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
+        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" }];
       }
       // Outside (pi-durable): a user message is shown at its end, which says what entry it is (a compaction's summary is
       // a user message too). An answer's start is its first partial, and often holds its first words.
@@ -143,7 +136,7 @@ export class ChatEventConverter {
           { kind: "error", message: unanswered(ev.record.reason, ev.record.detail) },
           { kind: "settle" },
           { kind: "loop", state: "idle" },
-          { kind: "turn_end", turn_id: turnIdOf(this.agentId, [ev.record.id]) ?? undefined },
+          { kind: "turn_end" },
         ];
       default:
         return [];

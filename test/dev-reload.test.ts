@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from "vitest";
-import { DevReload, MOD_SETTLE_MS } from "../daemon/dev-reload.ts";
+import { describe, expect, test } from "vitest";
+import { DevReload } from "../daemon/dev-reload.ts";
 import type { Severity } from "../core/log-line.ts";
 import type { RestartAnswer } from "../mod/frames/daemon.ts";
 
@@ -7,13 +7,8 @@ function setup(built = false) {
   const said: string[] = [];
   const severities: Array<Severity | undefined> = [];
   const restarts: string[] = [];
-  const state = { idle: true, reloads: 0, builds: 0, buildFails: null as string | null, reloadSays: "ok", release: () => {}, finishBuild: () => {} };
+  const state = { idle: true, builds: 0, buildFails: null as string | null, finishBuild: () => {} };
   const dev = new DevReload({
-    reloadMod: () =>
-      new Promise((resolve) => {
-        state.reloads++;
-        state.release = () => resolve(state.reloadSays);
-      }),
     ...(built
       ? {
           buildPage: () =>
@@ -43,52 +38,6 @@ const settle = async () => {
 };
 
 describe("a checkout keeping up with its sources (plan 024)", () => {
-  test("a burst of mod changes is one reload, once the files have been still for a moment", async () => {
-    vi.useFakeTimers();
-    const s = setup();
-    const first = s.dev.modChanged("mod/index.ts");
-    await vi.advanceTimersByTimeAsync(MOD_SETTLE_MS - 1);
-    void s.dev.modChanged("core/frames.ts");
-    await vi.advanceTimersByTimeAsync(MOD_SETTLE_MS - 1);
-    void s.dev.modChanged("mod/bridge.ts");
-    await vi.advanceTimersByTimeAsync(MOD_SETTLE_MS - 1);
-    expect(s.state.reloads).toBe(0);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(s.state.reloads).toBe(1);
-    s.state.release();
-    await first;
-    expect(s.said).toEqual(["mod loki reloaded after mod/bridge.ts changed: ok"]);
-    expect(s.severities).toEqual(["info"]);
-  });
-
-  test("a change while the mod reloads is one more reload after it, again once the files are still", async () => {
-    vi.useFakeTimers();
-    const s = setup();
-    const first = s.dev.modChanged("mod/index.ts");
-    await vi.advanceTimersByTimeAsync(MOD_SETTLE_MS);
-    void s.dev.modChanged("mod/bridge.ts");
-    s.state.release();
-    await vi.advanceTimersByTimeAsync(MOD_SETTLE_MS - 1);
-    expect(s.state.reloads).toBe(1);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(s.state.reloads).toBe(2);
-    s.state.release();
-    await first;
-    expect(s.said).toEqual(["mod loki reloaded after mod/index.ts changed: ok", "mod loki reloaded after mod/bridge.ts changed: ok"]);
-  });
-
-  test("a reload that fails is reported as an error", async () => {
-    vi.useFakeTimers();
-    const s = setup();
-    s.state.reloadSays = "mod loki failed to load: boom";
-    const first = s.dev.modChanged("mod/index.ts");
-    await vi.advanceTimersByTimeAsync(MOD_SETTLE_MS);
-    s.state.release();
-    await first;
-    expect(s.said).toEqual(["mod loki reloaded after mod/index.ts changed: mod loki failed to load: boom"]);
-    expect(s.severities).toEqual(["error"]);
-  });
-
   test("a daemon change only makes a restart due: the window hears it, and nothing restarts by itself", () => {
     const s = setup();
     const heard: string[] = [];

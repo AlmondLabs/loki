@@ -17,13 +17,12 @@ import { AgentStore, ChatDoc } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import type { Suggestion } from "../core/frame-types.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
 import { Suggestions } from "../mod/suggestions.ts";
 import { registerTools } from "../mod/tools.ts";
 import { sampleEntries } from "./fixtures/entries.ts";
 import { AGENT, consultSetup } from "./fixtures/advisor-consult.ts";
-import { isPassChat } from "../mod/recall-worker.ts";
+import { isPassChat } from "../mod/learn-worker.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const cleanups: Array<() => Promise<void>> = [];
@@ -286,8 +285,7 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
       apiVersion: 1,
       activate: (api) =>
         registerTools(api, {
-          store: new DeskStore(),
-          gestures: new GestureLog(),
+          store: new CanvasStore(),
           widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
           widgetsDir: join(dir, "widgets"),
           activeScope: () => "shared",
@@ -351,8 +349,7 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
       apiVersion: 1,
       activate: (api) =>
         registerTools(api, {
-          store: new DeskStore(),
-          gestures: new GestureLog(),
+          store: new CanvasStore(),
           widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
           widgetsDir: join(s.root, "widgets"),
           activeScope: () => "shared",

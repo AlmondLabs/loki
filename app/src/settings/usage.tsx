@@ -70,7 +70,7 @@ function SpendSection({
       {summary.cost.other > 0 && seededUntil !== null && (
         <Fact
           label="Before"
-          value={`${new Date(seededUntil).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, cost comes from loki's analytics and is not split by token type`}
+          value={`${new Date(seededUntil).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, cost comes from an earlier turn log and is not split by token type`}
         />
       )}
     </Block>

@@ -4,8 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { PendingApproval } from "../core/attention/model.ts";
 import type { ReplyProposal } from "../core/frame-types.ts";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView } from "../app/src/item/proposal.tsx";
-import { replyEdit, replySend } from "../app/src/desk/use-reply-card.ts";
-import { kickerOf, quotedSubject, replyPeopleSource, sendNote } from "../app/src/desk/reply-proposal-card.tsx";
+import { replyEdit, replySend } from "../app/src/workspace/use-reply-card.ts";
+import { kickerOf, quotedSubject, replyPeopleSource, sendNote } from "../app/src/workspace/reply-proposal-card.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);

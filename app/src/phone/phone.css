@@ -886,10 +886,10 @@ html:has(.loki-phone-shell) {
   overflow-x: auto;
 }
 
-/* A screen, and the Inbox: one column under the shell. Home stays mounted while hidden, so `hidden` must win
+/* A screen, and the Flow: one column under the shell. Home stays mounted while hidden, so `hidden` must win
    over flex. */
 .loki-phone-page,
-.loki-phone-inbox {
+.loki-phone-flow {
   --phone-top-clearance: 0px;
   flex: 1;
   min-height: 0;
@@ -1403,7 +1403,7 @@ span.loki-phone-section-btn {
 
 /* The Inbox stays mounted under other tabs and pages. Out of sight it keeps its boxes (visibility, not
    display), so the card's thread keeps its scroll offset and the box its caret; nothing in it is reachable. */
-.loki-phone-inbox[data-away] {
+.loki-phone-flow[data-away] {
   position: absolute;
   inset: 0;
   visibility: hidden;
@@ -3026,7 +3026,7 @@ html[data-nav="pop"]:has(.loki-phone-shell)::view-transition-old(root) {
 html[data-nav="pop"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-nav-under-in var(--nav-ms, var(--spring-smooth-ms)) var(--nav-ease, var(--spring-smooth)) both;
 }
-html[data-nav="zoom"] .loki-phone-shell[data-screen="tab"] .loki-phone-inbox:not([data-away]) .loki-phone-card[data-role="top"],
+html[data-nav="zoom"] .loki-phone-shell[data-screen="tab"] .loki-phone-flow:not([data-away]) .loki-phone-card[data-role="top"],
 html[data-nav="zoom"] .loki-phone-shell[data-screen="conversation"] > .loki-phone-main {
   view-transition-name: loki-zoom;
 }

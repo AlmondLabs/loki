@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { advisorChatId } from "../core/advisor.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
-import { scopeFor } from "../core/desk-core.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
+import { scopeFor } from "../core/canvas-core.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { createBridge } from "../mod/bridge.ts";
 import { ChatDirectory } from "../mod/chat-directory.ts";
@@ -49,7 +49,7 @@ function client(): Client & { sent: Array<Record<string, unknown>> } {
   return { scope: CONV, sent, send: (m) => sent.push(m as Record<string, unknown>) };
 }
 
-const DESK: DeskSummary = {
+const DESK: ChatSummary = {
   scope: CONV,
   title: "fix the flaky test",
   status: "live",
@@ -123,7 +123,7 @@ async function macs() {
           forget: () => Promise.resolve(false),
           hello: () => farPeers.hello(),
           agents: () => ({ agents: [], tombstones: [] }),
-          chats: () => ({ desks: [DESK], inbox: [] }),
+          chats: () => ({ chats: [DESK], flow: [] }),
           state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
           memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
           where: (chat) => farDirectory.answer(chat),

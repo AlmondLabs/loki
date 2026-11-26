@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { inLan, inDesktop, installShellLogging, openExternal, platform, settingsWindow } from "./desk/env";
+import { inLan, inDesktop, installShellLogging, openExternal, platform, settingsWindow } from "./workspace/env";
 
 installShellLogging();
 import { ThemeProvider } from "./theme";

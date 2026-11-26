@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideReach } from "../core/frame-types.ts";
 import { REACH_LABEL, REACH_LEVEL, mailReach, slackReach } from "../core/outside-reach.ts";
-import { CardFace } from "../app/src/desk/card-head.tsx";
+import { CardFace } from "../app/src/workspace/card-head.tsx";
 
 describe("how directly a card is meant for the person", () => {
   test("a mail sent by a machine or a list reads as that even when it is addressed to the person", () => {

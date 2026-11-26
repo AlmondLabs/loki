@@ -16,11 +16,11 @@ import { OutsideThreads } from "../mod/outside-threads.ts";
 import { peopleChange, replyOf } from "../mod/reply-addressing.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { OutsideReply } from "../app/src/desk/outside-card.tsx";
+import { OutsideReply } from "../app/src/workspace/outside-card.tsx";
 import { formatKeys } from "../app/src/shell/keymap.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
-import { addressSummary, addressingFor, recipientName, startAddressing, suggest, typedRecipient } from "../app/src/desk/mail-address.tsx";
+import { addressSummary, addressingFor, recipientName, startAddressing, suggest, typedRecipient } from "../app/src/workspace/mail-address.tsx";
 
 const dirs: string[] = [];
 const scratch = (): string => {

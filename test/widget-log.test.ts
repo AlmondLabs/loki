@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
+import type { WidgetLogEntry, WidgetManifestEntry } from "../core/canvas-core.ts";
 import { WIDGET_LOG_COLLAPSE_MS, WIDGET_LOG_EXPECT_MS, WIDGET_LOG_LIMIT, WidgetLog, broadcastWidgetChanges } from "../mod/widget-log.ts";
 import { watchWidgets, type WidgetsDiff } from "../mod/widgets-fs.ts";
 import { attachWs, startServer } from "../mod/server.ts";

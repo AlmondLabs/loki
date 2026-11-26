@@ -1,5 +1,5 @@
 import { HeroCanvas } from "./hero-canvas";
-import { InboxDemo } from "./inbox-demo";
+import { FlowDemo } from "./flow-demo";
 import { LearnDemo } from "./learn-demo";
 import { PhoneDemo } from "./phone-demo";
 import { SuggestionsDemo } from "./suggestions-demo";
@@ -42,7 +42,7 @@ export function Site() {
         </a>
         <nav aria-label="sections">
           <a href="#canvas">canvas</a>
-          <a href="#inbox">flow</a>
+          <a href="#flow">flow</a>
           <a href="#suggestions">suggestions</a>
           <a href="#phone">phone</a>
           <a href="#learn">learn</a>
@@ -74,7 +74,7 @@ export function Site() {
           <HeroCanvas />
         </section>
 
-        <section className="site-section" id="inbox">
+        <section className="site-section" id="flow">
           <div className="site-section-text">
             <h2>One flow for everything waiting on you</h2>
             <p>
@@ -101,7 +101,7 @@ export function Site() {
             </ul>
             <p className="site-fine">Try it: the cards on the right are made-up chats, and the agents answer.</p>
           </div>
-          <InboxDemo />
+          <FlowDemo />
         </section>
 
         <section className="site-section" id="suggestions">

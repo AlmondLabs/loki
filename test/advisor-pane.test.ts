@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { AdvisorView } from "../core/advisor.ts";
 import { FrameChatClient } from "../core/attention/chat-client.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { advisorConversation, lokiModels, type AdvisorModels } from "../app/src/desk/advisor-pane.tsx";
+import { advisorConversation, lokiModels, type AdvisorModels } from "../app/src/workspace/advisor-pane.tsx";
 import { must } from "./fixtures/must.ts";
 
 const RT = { agent_id: "ada", conversation_id: "advisor-c1" };

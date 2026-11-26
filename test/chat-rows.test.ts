@@ -3,13 +3,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ListRow, ListSection } from "../app/src/components/index.tsx";
 import { DeskRow } from "../app/src/phone/home.tsx";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { toggleLabelTerm } from "../core/labels.ts";
 
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
-const desk = (over: Partial<DeskSummary> = {}): DeskSummary => ({
+const desk = (over: Partial<ChatSummary> = {}): ChatSummary => ({
   scope: "conv-1",
   title: "Release checklist",
   status: "live",

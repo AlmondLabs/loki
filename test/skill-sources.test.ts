@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backendName } from "../core/desk-core.ts";
+import { backendName } from "../core/canvas-core.ts";
 import { memorySkills } from "../mod/agents.ts";
 import { serial } from "../daemon/repo-queue.ts";
 import { must } from "./fixtures/must.ts";

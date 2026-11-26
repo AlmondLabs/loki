@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { landing, landingKey } from "../app/src/shell/landing.ts";
 
-const desk = (scope: string, lastActive: string | null, status: DeskSummary["status"] = "live") =>
+const desk = (scope: string, lastActive: string | null, status: ChatSummary["status"] = "live") =>
   ({
     scope,
     last_active: lastActive,
@@ -16,7 +16,7 @@ const desk = (scope: string, lastActive: string | null, status: DeskSummary["sta
     pinned: false,
     widgets: 0,
     active: false,
-  }) as DeskSummary;
+  }) as ChatSummary;
 const base = { scope: "shared", onChats: true, ready: true, desks: [desk("a", "2026-11-13T10:00:00Z"), desk("b", "2026-11-14T09:00:00Z")], waiting: 0 };
 
 describe("where a window lands", () => {

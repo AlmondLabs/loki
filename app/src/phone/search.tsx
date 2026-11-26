@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { avatarUrl } from "../desk/env";
+import { avatarUrl } from "../workspace/env";
 import { Icon } from "./icons";
 import type { LinkState } from "./model";
 import { navigate, rewrite } from "./router";
@@ -12,7 +12,7 @@ import { useTopClearance } from "./ui";
 const keepFocusInField = (e: PointerEvent) => e.preventDefault();
 
 const COVERAGE = "Searches chat titles, agents, waiting items and pages on this phone — not message text.";
-const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "more" } as const satisfies Record<GroupId, string>;
+const GROUP_ICON = { desks: "desk", agents: "agents", flow: "inbox", pages: "more" } as const satisfies Record<GroupId, string>;
 
 export function Search({
   q,

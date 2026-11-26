@@ -1,10 +1,9 @@
-import { linkAnswerWords, linkAskOf, parseLinkAnswer, type ChatLink, type LinkDuration } from "../chat-links.ts";
+import type { ChatLink, LinkDuration } from "../chat-links.ts";
 import type { AppliedModel, ModelSelection, ReasoningEffort } from "../models.ts";
-import type { LabelView } from "../labels.ts";
-import { isMainChat, scopeFor } from "../desk-core.ts";
+import { isMainChat } from "../canvas-core.ts";
 import { keepSame } from "../same-data.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
-import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold, type ImageAttachment } from "./content.ts";
+import { buildQuestionAnswer, environmentNote, type Attachment, type EnvNoteTold } from "./content.ts";
 import {
   applyChatEvent,
   cancelQueued as dropQueued,
@@ -12,155 +11,67 @@ import {
   faceOf,
   folderMoveAnswer,
   keyOf,
-  OUTSIDE_ENDS,
   sendMode,
   takeQueued,
   type ConversationInfo,
-  type Digest,
   type Live,
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { ReplyAction, ReplyDecideOptions, SuggestionAction } from "../frames.ts";
-import type {
-  AccountLabel,
-  HandoffProposal,
-  OutsideChange,
-  OutsideMove,
-  OutsideRead,
-  OutsideWindowAsk,
-  ReplyPersonChoice,
-  ReplyProposal,
-  ReplyThen,
-  EmojiChoice,
-  SlackPerson,
-  MailAddressing,
-  MailCompose,
-  Suggestion,
-  SuggestionTarget,
-} from "../frame-types.ts";
-import { commandInput, type SlashCommand } from "./commands.ts";
-import { ownSendKey, RELOADED, type HistoryRow } from "./thread.ts";
-import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
+import type { ReplyPersonChoice, Suggestion, SuggestionTarget } from "../frame-types.ts";
+import { commandInput } from "./commands.ts";
+import { RELOADED, type HistoryRow } from "./thread.ts";
+import type { TranscriptRow } from "./transcript.ts";
 import { coalesce } from "../timers.ts";
 import { Listeners } from "../listeners.ts";
 import { messageOf } from "../errors.ts";
-import { createSentReplies, sentKey } from "./sent-replies.ts";
+import { createSentReplies } from "./sent-replies.ts";
 import { PickedPeople } from "./picked-people.ts";
+import {
+  FOLDER_MOVE_MS,
+  HISTORY_PAGE,
+  LIST_RETRY_MS,
+  NOT_CONNECTED,
+  emptySnapshot,
+  flagged,
+  formatAnswerSummary,
+  outgoing,
+  pruneConversationKeys,
+  pruneUnknownKeys,
+  sentRow,
+  subscribeTopConversations,
+} from "./chat-store-helpers.ts";
+import { createOutsideActions } from "./chat-store-outside.ts";
+import type {
+  AgentEntry,
+  ArchiveOrigin,
+  ChatSnapshot,
+  ChatStoreHost,
+  FolderMove,
+  HistoryPage,
+  OutsideCardRef,
+  OutsideWritten,
+  ReplyOutcome,
+  SendOrigin,
+  SuggestionOutcome,
+} from "./chat-store-types.ts";
 
-export type SendOrigin = "desk" | "inbox" | "lesson";
-
-export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
-
-export type OutsideCardRef = Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">;
-
-export interface OutsideWritten {
-  change: OutsideChange | null;
-  error: string | null;
-}
-
-export interface HistoryPage {
-  rows: Array<{
-    role: "user" | "assistant" | "tool" | "event";
-    text: string;
-    summary?: string | null;
-    detail?: string | null;
-    row?: number;
-    at?: string | null;
-    tool?: ToolStep;
-    files?: FileRef[];
-  }>;
-  more: boolean;
-  start: number;
-}
-
-export interface ChatStoreHost {
-  markSeen: (agentId: string, conversationId: string) => void;
-  listConversations: () => Promise<Array<ConversationInfo & Digest> | null>;
-  loadLocalHistory?: (agentId: string, conversationId: string, limit?: number, before?: number) => Promise<HistoryPage | null>;
-  subscribeLimit?: number;
-  capture?: (event: string, properties?: Record<string, unknown>) => void;
-  engage?: (agentId: string, conversationId: string, action: "decide" | "answer") => void;
-  sent?: (rt: Runtime) => void;
-}
-
-export interface SuggestionOutcome {
-  done: boolean;
-  message: string | null;
-  suggestion: Suggestion | null;
-}
-
-export interface ReplyOutcome {
-  done: boolean;
-  message: string | null;
-  proposal: ReplyProposal | null;
-}
-
-export interface AgentEntry {
-  id: string;
-  name: string;
-  home_mac?: string | null;
-}
-
-export interface ChatSnapshot {
-  status: "off" | "connecting" | "open" | "closed";
-  server: { version: string | null; protocol: number | null; advertised: SlashCommand[]; only?: string[] } | null;
-  agents: AgentEntry[];
-  agentsLoaded: boolean;
-  listed: boolean;
-  conversations: ConversationInfo[];
-  digests: Map<string, Digest>;
-  live: Map<string, Live>;
-  older: Partial<Record<string, true>>;
-  failed: Partial<Record<string, true>>;
-  providers: ConnectProvider[] | null;
-  labels: LabelView[] | null;
-}
-
-export const HISTORY_PAGE = 100;
-const FOLDER_MOVE_MS = 8000;
-const LIST_RETRY_MS = 1000;
-const NOT_CONNECTED = "not connected to loki's daemon";
-const NOT_OUTSIDE = "this card is not from an account";
-
-const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
-const withoutKey = <T>(o: Partial<Record<string, T>>, key: string): Partial<Record<string, T>> =>
-  Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
-const flagged = (o: Partial<Record<string, true>>, key: string, on: boolean) =>
-  !!o[key] === on ? o : on ? { ...o, [key]: true as const } : withoutKey(o, key);
-
-function outgoing(text: string, attachments: Attachment[]): { text: string; images: ImageAttachment[]; key: string } {
-  const files = attachments.filter(isFileAttachment);
-  const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a));
-  return { text: withAttachments(text, files), images, key: ownSendKey(text, files) };
-}
-
-function sentRow(text: string, attachments: Attachment[], at: string) {
-  const files = attachments.filter(isFileAttachment).map(({ path, name, size, mime }) => ({ path, name, size, mime }));
-  const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a)).map((i) => i.url);
-  return { role: "user" as const, text, ...(images.length ? { images } : {}), ...(files.length ? { files } : {}), at };
-}
-
-interface FolderMove {
-  from: string | undefined;
-  to: string;
-  done: (err: string | null) => void;
-}
+export {
+  HISTORY_PAGE,
+  type AgentEntry,
+  type ArchiveOrigin,
+  type ChatSnapshot,
+  type ChatStoreHost,
+  type HistoryPage,
+  type OutsideCardRef,
+  type OutsideWritten,
+  type ReplyOutcome,
+  type SendOrigin,
+  type SuggestionOutcome,
+};
 
 export class ChatStore {
-  private snap: ChatSnapshot = {
-    status: "off",
-    server: null,
-    agents: [],
-    agentsLoaded: false,
-    listed: false,
-    conversations: [],
-    digests: new Map(),
-    live: new Map(),
-    older: {},
-    failed: {},
-    providers: null,
-    labels: null,
-  };
+  private snap: ChatSnapshot = emptySnapshot();
   private readonly listeners = new Listeners();
   private readonly allThreadWatchers = new Listeners();
   private readonly threadWatchers = new Map<string, Listeners>();
@@ -183,6 +94,20 @@ export class ChatStore {
   private current: ChatStoreHost;
   private readonly now: () => number;
   readonly sent = createSentReplies();
+  readonly picked = new PickedPeople();
+
+  private readonly outsideActions = createOutsideActions({
+    sent: this.sent,
+    picked: this.picked,
+    now: () => this.now(),
+    attempt: (work) => this.attempt(work),
+    tried: (work) => this.tried(work),
+    reload: () => this.reload(),
+    dropCard: (card) => this.dropCard(card),
+    dropCardImmediately: (card) => {
+      this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+    },
+  });
 
   constructor(host: ChatStoreHost, now: () => number = Date.now) {
     this.current = host;
@@ -197,15 +122,11 @@ export class ChatStore {
     return this.current;
   }
 
-  subscribe = (listener: () => void): (() => void) => {
-    return this.listeners.add(listener);
-  };
+  subscribe = (listener: () => void): (() => void) => this.listeners.add(listener);
 
   getSnapshot = (): ChatSnapshot => this.snap;
 
-  watchThreads = (onChange: () => void): (() => void) => {
-    return this.allThreadWatchers.add(onChange);
-  };
+  watchThreads = (onChange: () => void): (() => void) => this.allThreadWatchers.add(onChange);
 
   watchThread = (agentId: string, conversationId: string, onChange: () => void): (() => void) => {
     const key = keyOf(agentId, conversationId);
@@ -222,8 +143,6 @@ export class ChatStore {
   };
 
   threadRows = (agentId: string, conversationId: string): TranscriptRow[] | undefined => this.liveMap.get(keyOf(agentId, conversationId))?.thread.rows();
-
-  turnOf = (agentId: string, conversationId: string): string | null => this.liveMap.get(keyOf(agentId, conversationId))?.turnId ?? null;
 
   setVisible(shown: boolean): void {
     this.visible = shown;
@@ -282,7 +201,7 @@ export class ChatStore {
           .catch(() => {});
         const [agents, rows] = await Promise.all([client.listAgents(), this.host().listConversations()]);
         if (cancelled) return;
-        const next = agents.filter((a) => a.hidden !== true).map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
+        const next: AgentEntry[] = agents.filter((a) => a.hidden !== true).map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
         this.set({ agents: keepSame(this.snap.agents, next), agentsLoaded: true });
         if (stopped()) return;
         if (rows === null) {
@@ -301,10 +220,7 @@ export class ChatStore {
           .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
         if (!same) {
           this.known = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
-          for (const k of this.liveMap.keys()) if (!this.known.has(k)) this.liveMap.delete(k);
-          for (const k of this.faces.keys()) if (!this.known.has(k)) this.faces.delete(k);
-          for (const k of this.envNotes.keys()) if (!this.known.has(k)) this.envNotes.delete(k);
-          for (const k of this.threadsRead.keys()) if (!this.known.has(k)) this.threadsRead.delete(k);
+          pruneUnknownKeys(this.known, [this.liveMap, this.faces, this.envNotes, this.threadsRead]);
           this.set({
             conversations: convs,
             digests: new Map(
@@ -313,19 +229,7 @@ export class ChatStore {
           });
         }
         this.set({ listed: true });
-        const targets = convs
-          .filter((x) => !x.outside)
-          .slice(0, this.host().subscribeLimit ?? 30)
-          .map((c) => ({ agent_id: c.agent_id, conversation_id: c.id }))
-          .filter((rt) => !client.isSubscribed(rt));
-        let cursor = 0;
-        const worker = async () => {
-          while (cursor < targets.length && !stopped()) {
-            const rt = targets[cursor++];
-            await client.runtimeStart(rt).catch(() => {});
-          }
-        };
-        if (targets.length) await Promise.all(Array.from({ length: Math.min(6, targets.length) }, worker));
+        await subscribeTopConversations(client, convs, this.host().subscribeLimit ?? 30, stopped);
       } finally {
         loadInFlight = false;
         if (loadPending && !cancelled) {
@@ -374,7 +278,6 @@ export class ChatStore {
     const key = keyOf(agent, conv);
     const l = this.liveOf(key);
     const wasInTurn = l.inTurn;
-    const asked = { approval: l.pending?.requestId ?? null, question: l.pendingAsk?.requestId ?? null };
     const errorBefore = l.error;
     let changed = false;
     let userSpoke = false;
@@ -383,12 +286,6 @@ export class ChatStore {
       changed ||= r.changed;
       userSpoke ||= r.userSpoke;
     }
-    const request =
-      l.pending && l.pending.requestId !== asked.approval
-        ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" }
-        : l.pendingAsk && l.pendingAsk.requestId !== asked.question
-          ? { id: l.pendingAsk.requestId, tool: "user_ask", kind: "question" }
-          : null;
     const move = this.folderMoves.get(key);
     const answer = move ? folderMoveAnswer(events, l.cwd, move) : null;
     if (move && answer === "moved") move.done(null);
@@ -397,8 +294,6 @@ export class ChatStore {
       l.error = errorBefore;
     }
     const host = this.host();
-    if (request)
-      host.capture?.("approval_requested", { desk: deskOf(agent, conv), agent, tool: request.tool, kind: request.kind, once: `request:${request.id}` });
     if (userSpoke) host.markSeen(agent, conv);
     if (changed) this.bump(key);
     if (wasInTurn && !l.inTurn) {
@@ -495,13 +390,6 @@ export class ChatStore {
     const host = this.host();
     host.markSeen(rt.agent_id, rt.conversation_id);
     host.engage?.(rt.agent_id, rt.conversation_id, "decide");
-    host.capture?.("approval_decided", {
-      desk: deskOf(rt.agent_id, rt.conversation_id),
-      agent: rt.agent_id,
-      turn_id: l?.turnId ?? null,
-      behavior,
-      wait_ms: was ? Math.max(0, this.now() - Date.parse(was.at)) || null : null,
-    });
     this.bump(key);
     void this.client
       ?.respondApproval(rt, requestId, behavior)
@@ -519,21 +407,11 @@ export class ChatStore {
     const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
     if (!l || !was) return;
     l.pendingAsk = null;
-    const link = linkAskOf(was.input);
-    const summary = link
-      ? linkAnswerWords(link, parseLinkAnswer(answers))
-      : Object.values(answers)
-          .map((a) => (Array.isArray(a) ? a.join(", ") : a))
-          .join(" · ");
+    const summary = formatAnswerSummary(was.input, answers);
     if (summary.trim()) l.thread.own({ role: "user", text: summary, at: new Date(this.now()).toISOString() });
     const host = this.host();
     host.markSeen(rt.agent_id, rt.conversation_id);
     host.engage?.(rt.agent_id, rt.conversation_id, "answer");
-    host.capture?.("question_answered", {
-      desk: deskOf(rt.agent_id, rt.conversation_id),
-      agent: rt.agent_id,
-      wait_ms: Math.max(0, this.now() - Date.parse(was.at)) || null,
-    });
     this.bump(key);
     void this.client
       ?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers))
@@ -553,18 +431,7 @@ export class ChatStore {
   ): void => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     const l = this.liveOf(key);
-    const fileCount = images.filter(isFileAttachment).length;
-    const host = this.host();
-    host.capture?.("message_sent", {
-      desk: deskOf(rt.agent_id, rt.conversation_id),
-      agent: rt.agent_id,
-      turn_id: l.turnId ?? null,
-      origin: env.origin ?? null,
-      images: images.length - fileCount,
-      files: fileCount,
-      queued: l.inTurn,
-    });
-    host.sent?.(rt);
+    this.host().sent?.(rt);
     const at = new Date(this.now()).toISOString();
     const mode = sendMode(l, rt.conversation_id);
     if (mode === "queue") {
@@ -589,7 +456,7 @@ export class ChatStore {
         l.error = `this message may not have been sent: ${why}`;
         this.bump(key);
       });
-    host.markSeen(rt.agent_id, rt.conversation_id);
+    this.host().markSeen(rt.agent_id, rt.conversation_id);
   };
 
   decideSuggestion = (rt: Runtime, suggestionId: string, action: SuggestionAction): Promise<SuggestionOutcome> =>
@@ -606,9 +473,7 @@ export class ChatStore {
     this.attempt((c) => c.replies.findPeople(rt, proposalId, query));
 
   closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
-
   listLinks = (): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> => this.attempt((c) => c.links.list());
-
   setLinkDefault = (duration: LinkDuration): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> =>
     this.attempt((c) => c.links.setDefault(duration));
 
@@ -642,7 +507,6 @@ export class ChatStore {
     const l = this.liveOf(key);
     const input = commandInput(commandId, args);
     const at = () => new Date(this.now()).toISOString();
-    this.host().capture?.("command_run", { command: commandId });
     const client = this.client;
     if (!client) {
       l.thread.finishCommand(input, false, NOT_CONNECTED, at());
@@ -717,9 +581,7 @@ export class ChatStore {
   disconnectProvider = (providerId: string): Promise<string | null> => this.tried(async (c) => this.set({ providers: await c.disconnectProvider(providerId) }));
 
   loadLabels = (): Promise<string | null> => this.tried(async (c) => this.set({ labels: (await c.labels.get()).labels }));
-
   setLabels = async (rt: Runtime, next: string[]): Promise<string | null> => (await this.tried((c) => c.labels.set(rt, next))) ?? this.loadLabels();
-
   editLabel = async (change: Parameters<ChatClient["labels"]["edit"]>[0]): Promise<string | null> =>
     (await this.tried((c) => c.labels.edit(change))) ?? this.loadLabels();
 
@@ -752,7 +614,6 @@ export class ChatStore {
         done: (err) => {
           clearTimeout(timer);
           if (this.folderMoves.get(key) === move) this.folderMoves.delete(key);
-          if (!err) this.host().capture?.("folder_changed", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id });
           resolve(err);
         },
       };
@@ -767,180 +628,44 @@ export class ChatStore {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     const l = this.liveMap.get(key);
     if (l) l.mode = mode;
-    this.host().capture?.("mode_set", { mode });
     this.bump(key);
     return null;
   };
 
-  archiveConversation = async (conversationId: string, archived: boolean, origin?: ArchiveOrigin, agentId?: string): Promise<string | null> => {
+  archiveConversation = async (conversationId: string, archived: boolean, _origin?: ArchiveOrigin, agentId?: string): Promise<string | null> => {
     if (this.client && isMainChat(conversationId)) return "a main chat cannot be archived";
     const err = await this.tried((c) => c.updateConversation(conversationId, { archived }, agentId));
     if (err) return err;
-    if (origin)
-      this.host().capture?.(archived ? "chat_archived" : "chat_restored", {
-        desk: scopeFor(conversationId),
-        origin,
-        ...(archived ? { turn_id: [...this.liveMap].find(([key]) => key.endsWith(`/${conversationId}`))?.[1].turnId ?? null } : {}),
-      });
     if (archived) {
-      this.pruneConversation(conversationId, agentId);
+      pruneConversationKeys(conversationId, agentId, [this.liveMap, this.faces, this.envNotes, this.threadsRead], this.dirtyKeys);
       this.set({ conversations: this.snap.conversations.filter((x) => x.id !== conversationId) });
     } else this.reload();
     return null;
   };
 
-  archiveOutside = async (card: OutsideCardRef): Promise<OutsideWritten> => {
-    if (card.outside && !OUTSIDE_ENDS[card.outside.provider].archive) return { change: null, error: "a jira card ends with read" };
-    const r = await this.writeOutside(card, (c, o, home) => c.archiveOutside(o.account_id, o.thread_id, home));
-    if (!r.error) this.dropCard(card);
-    return r;
-  };
-
-  markReadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
-    this.writeOutside(card, (c, o, home) => c.markReadOutside(o.account_id, o.thread_id, home));
-
-  markUnreadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
-    this.writeOutside(card, (c, o, home) => c.markUnreadOutside(o.account_id, o.thread_id, home));
-
-  labelOutside = (card: OutsideCardRef, labels: string[]): Promise<OutsideWritten> =>
-    this.writeOutside(card, (c, o, home) => c.labelOutside(o.account_id, o.thread_id, labels, home));
-
-  restoreOutside = async (card: OutsideCardRef, change: OutsideChange): Promise<string | null> => {
-    const o = card.outside;
-    if (!o) return NOT_OUTSIDE;
-    const err = await this.tried((c) => c.restoreOutside(o.account_id, o.thread_id, change, card.home ?? null));
-    if (!err && change.ended) this.reload();
-    return err;
-  };
-
-  labelsOf = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<AccountLabel[] | string> => {
-    const o = card.outside;
-    if (!o) return NOT_OUTSIDE;
-    return this.attempt((c) => c.labelsOutside(o.account_id, card.home ?? null));
-  };
-
-  private async writeOutside(
-    card: OutsideCardRef,
-    work: (client: ChatClient, outside: NonNullable<ConversationInfo["outside"]>, home: string | null) => Promise<OutsideChange | null>,
-  ): Promise<OutsideWritten> {
-    const o = card.outside;
-    if (!o) return { change: null, error: NOT_OUTSIDE };
-    const r = await this.attempt((c) => work(c, o, card.home ?? null));
-    if (typeof r === "string") return { change: null, error: r };
-    if (r?.ended) this.dropCard(card);
-    return { change: r, error: null };
-  }
+  archiveOutside = this.outsideActions.archiveOutside;
+  markReadOutside = this.outsideActions.markReadOutside;
+  markUnreadOutside = this.outsideActions.markUnreadOutside;
+  labelOutside = this.outsideActions.labelOutside;
+  restoreOutside = this.outsideActions.restoreOutside;
+  labelsOf = this.outsideActions.labelsOf;
+  readOutside = this.outsideActions.readOutside;
+  replyOutside = this.outsideActions.replyOutside;
+  composeOutside = this.outsideActions.composeOutside;
+  reactOutside = this.outsideActions.reactOutside;
+  searchEmoji = this.outsideActions.searchEmoji;
+  pickPerson = this.outsideActions.pickPerson;
+  searchPeople = this.outsideActions.searchPeople;
+  unsendOutside = this.outsideActions.unsendOutside;
+  settleUnsent = this.outsideActions.settleUnsent;
+  moveOutside = this.outsideActions.moveOutside;
+  handoffPropose = this.outsideActions.handoffPropose;
+  handoff = this.outsideActions.handoff;
 
   private dropCard(card: Pick<ConversationInfo, "agent_id" | "id">): void {
     this.droppedHere = true;
     this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
   }
-
-  readOutside = async (card: Pick<ConversationInfo, "outside" | "home">, ask: OutsideWindowAsk = {}): Promise<OutsideRead | string> => {
-    const o = card.outside;
-    if (!o) return "this card is not from an account";
-    return this.attempt((c) => c.readOutside(o.account_id, o.thread_id, card.home ?? null, ask));
-  };
-
-  replyOutside = async (
-    card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
-    text: string,
-    then: ReplyThen,
-    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null } = {},
-  ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null; undone?: true }> => {
-    const o = card.outside;
-    if (!o) return { sent: false, error: "this card is not from an account", change: null };
-    const place = sentKey(o.account_id, o.thread_id, extra.thread_ts ?? null);
-    const shown = then === "stay" ? this.sent.add(place, text.trim(), new Date(this.now()).toISOString()) : null;
-    const mentions = this.picked.in(o.account_id, text);
-    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, { ...extra, mentions }));
-    if (shown) {
-      if (typeof r === "string" || !r.sent) this.sent.drop(shown);
-      else this.sent.went(shown);
-    }
-    if (typeof r === "string") return { sent: false, error: r, change: null };
-    if (!r.sent) return { sent: false, error: null, change: null, undone: true };
-    if (r.change?.ended) this.dropCard(card);
-    return { sent: true, error: r.then_error, change: r.change };
-  };
-
-  composeOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<MailCompose | string> => {
-    const o = card.outside;
-    if (o?.provider !== "gmail") return "this card is not a mail";
-    return this.attempt((c) => c.composeOutside(o.account_id, o.thread_id, card.home ?? null));
-  };
-
-  reactOutside = async (card: Pick<ConversationInfo, "outside" | "home">, messageId: string, name: string, on: boolean): Promise<string | null> => {
-    const o = card.outside;
-    if (!o) return "only a Slack message or a mail takes a reaction";
-    if (o.provider === "jira") return "a Jira comment takes no reaction";
-    const r = await this.attempt((c) => c.reactOutside(o.account_id, o.thread_id, messageId, name, on, card.home ?? null));
-    return typeof r === "string" ? r : null;
-  };
-
-  searchEmoji = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<EmojiChoice[] | string> => {
-    const o = card.outside;
-    if (!o) return "only a Slack message or a mail takes a reaction";
-    if (o.provider === "jira") return "a Jira comment takes no reaction";
-    return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
-  };
-
-  readonly picked = new PickedPeople();
-
-  pickPerson = (card: Pick<ConversationInfo, "outside">, person: SlackPerson): void => {
-    const o = card.outside;
-    if (o?.provider === "slack") this.picked.add(o.account_id, { display: person.name, id: person.id, address: null });
-  };
-
-  searchPeople = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<SlackPerson[] | string> => {
-    const o = card.outside;
-    if (o?.provider !== "slack") return "only a Slack account has people to mention";
-    return this.attempt((c) => c.searchPeople(o.account_id, query, card.home ?? null));
-  };
-
-  unsendOutside = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string): Promise<boolean> => {
-    const o = card.outside;
-    if (!o) return false;
-    const r = await this.attempt((c) => c.unsendOutside(o.account_id, outboxId, card.home ?? null));
-    return r === true;
-  };
-
-  settleUnsent = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string, action: "resend" | "discard"): Promise<string | null> => {
-    const o = card.outside;
-    if (!o) return NOT_OUTSIDE;
-    const home = card.home ?? null;
-    if (action === "discard") {
-      const r = await this.attempt((c) => c.discardOutside(o.account_id, outboxId, home));
-      if (typeof r === "string") return r;
-      this.reload();
-      return null;
-    }
-    const r = await this.attempt((c) => c.resendOutside(o.account_id, o.thread_id, outboxId, home));
-    if (typeof r === "string") return r;
-    this.reload();
-    return r.sent && r.then_error ? `sent, but ${r.then_error}` : null;
-  };
-
-  moveOutside = (card: Pick<ConversationInfo, "outside" | "home">, move: OutsideMove): void => {
-    const o = card.outside;
-    if (o) void this.tried((c) => c.moveOutside(o.account_id, o.thread_id, move, card.home ?? null));
-  };
-
-  handoffPropose = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<HandoffProposal | string> => {
-    const o = card.outside;
-    if (!o) return "this card is not from an account";
-    return this.attempt((c) => c.handoffPropose(o.account_id, o.thread_id, card.home ?? null));
-  };
-
-  handoff = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, conversationId: string | null): Promise<string | null> => {
-    const o = card.outside;
-    if (!o) return "this card is not from an account";
-    const err = await this.tried((c) => c.handoff(o.account_id, o.thread_id, conversationId, card.home ?? null));
-    if (err) return err;
-    if (!OUTSIDE_ENDS[o.provider].handoff) return null;
-    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
-    return null;
-  };
 
   renameConversation = async (conversationId: string, name: string): Promise<string | null> => {
     if (this.client && isMainChat(conversationId)) return "a main chat cannot be renamed";
@@ -960,15 +685,12 @@ export class ChatStore {
 
   abortTurn = (rt: Runtime): Promise<string | null> =>
     this.tried(async (c) => {
-      const turnId = this.turnOf(rt.agent_id, rt.conversation_id);
-      const aborted = await c.abortTurn(rt);
-      this.host().capture?.("turn_stopped", { aborted, turn_id: turnId });
+      await c.abortTurn(rt);
     });
 
   updateModel = async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const applied = await this.attempt((c) => c.updateModel(rt, selection));
     if (typeof applied === "string") return { applied: null, error: applied };
-    this.host().capture?.("model_switched", { model: applied.handle, effort: applied.reasoning_effort });
     return { applied, error: null };
   };
 
@@ -1024,16 +746,6 @@ export class ChatStore {
     if (keys.every((k) => this.snap[k] === part[k])) return;
     this.snap = { ...this.snap, ...part };
     this.listeners.emit();
-  }
-
-  private pruneConversation(conversationId: string, agentId?: string): void {
-    const exact = agentId ? keyOf(agentId, conversationId) : null;
-    const suffix = `/${conversationId}`;
-    for (const k of [...this.liveMap.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.liveMap.delete(k);
-    for (const k of [...this.faces.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.faces.delete(k);
-    for (const k of [...this.envNotes.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.envNotes.delete(k);
-    for (const k of [...this.threadsRead.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.threadsRead.delete(k);
-    for (const k of [...this.dirtyKeys]) if (exact ? k === exact : k.endsWith(suffix)) this.dirtyKeys.delete(k);
   }
 
   private publish(): void {

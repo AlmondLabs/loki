@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
-import { applyFiles, filesSnapshot } from "../mod/recall-sync.ts";
+import { applyFiles, filesSnapshot } from "../mod/learn-sync.ts";
 
 const servers = (path: string) => (JSON.parse(readFileSync(path, "utf8")) as { mcpServers: Record<string, unknown> }).mcpServers;
 

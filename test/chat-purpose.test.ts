@@ -6,7 +6,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { MemoryStorage } from "@earendil-works/pi-durable";
-import { SHARED_SCOPE } from "../core/desk-core.ts";
+import { SHARED_SCOPE } from "../core/canvas-core.ts";
 import { FRAMES, type PayloadOf } from "../core/frames.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import type { SavedDraft, Suggestion } from "../core/frame-types.ts";
@@ -19,7 +19,7 @@ import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { Providers } from "../daemon/providers.ts";
 import { ChatListing } from "../mod/chat-listing.ts";
-import { DeskRegistry } from "../mod/desks.ts";
+import { ChatRegistry } from "../mod/chats.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -62,7 +62,7 @@ async function setup() {
   mkdirSync(join(backendDir, "memfs", ada), { recursive: true });
   const projection = new ChatProjection(ctx, () => "Ada");
   await projection.attach(ada, await stores.get(ada));
-  const desks = new DeskRegistry(join(dir, "desks.json"), (id) => projection.agentOf(id));
+  const desks = new ChatRegistry(join(dir, "chats.json"), (id) => projection.agentOf(id));
   const listing = new ChatListing({
     chats: projection,
     desks,
@@ -75,8 +75,8 @@ async function setup() {
   });
   const update = (conversationId: string, change: Partial<PayloadOf<"chat_update">>) =>
     chats.update({ agent_id: ada, conversation_id: conversationId, title: undefined, archived: undefined, hidden: undefined, labels: undefined, ...change });
-  const row = (conversationId: string) => listing.inbox().find((r) => r.id === conversationId);
-  const desk = (conversationId: string) => listing.desks().find((d) => d.conversation_id === conversationId);
+  const row = (conversationId: string) => listing.flow().find((r) => r.id === conversationId);
+  const desk = (conversationId: string) => listing.summaries().find((d) => d.conversation_id === conversationId);
   return { chats, stores, ada, projection, update, row, desk, faux, pushed };
 }
 

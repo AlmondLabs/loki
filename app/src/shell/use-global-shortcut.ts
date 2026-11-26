@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { inDesktop, platform, type Platform } from "../desk/env";
+import { inDesktop, platform, type Platform } from "../workspace/env";
 import { invoke } from "./desktop";
 import { messageOf } from "../../../core/errors.ts";
 import { useStorageKey } from "../shared/use-storage-key";

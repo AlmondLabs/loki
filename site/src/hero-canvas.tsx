@@ -1,8 +1,32 @@
 import { useEffect, useRef, useState } from "react";
-import { applyGesture, getPath, mergeData, type DeskState, type Gesture, type WidgetManifestEntry } from "../../core/desk-core.ts";
-import { describeGesture, formatDeskContext } from "../../mod/gestures.ts";
-import { WidgetFrame } from "../../app/src/desk/widget-frame";
+import { applyGesture, getPath, mergeData, type CanvasState, type Gesture, type WidgetManifestEntry } from "../../core/canvas-core.ts";
+import { WidgetFrame } from "../../app/src/workspace/widget-frame";
 import { KIT_COMPONENTS } from "../../app/src/kit";
+
+function describeDemoGesture(g: Gesture, entry: WidgetManifestEntry | undefined, before?: Record<string, unknown>): { line: string; key: string } | null {
+  const name = entry ? `"${entry.title}" (${entry.id})` : `"${g.id}"`;
+  switch (g.kind) {
+    case "focus":
+      return null;
+    case "move":
+      return { key: `move:${g.id}`, line: `moved ${name} to (${Math.round(g.position.x)}, ${Math.round(g.position.y)})` };
+    case "resize":
+      return { key: `resize:${g.id}`, line: `resized ${name} to ${Math.round(g.size.w)}×${Math.round(g.size.h)}` };
+    case "close":
+      return { key: `close:${g.id}`, line: `minimised ${name} to the tray — the file still exists` };
+    case "open":
+      return { key: `open:${g.id}`, line: `restored ${name} from the tray` };
+    case "set": {
+      const fromServer = before ? getPath(before, g.path) : undefined;
+      const prev = fromServer !== undefined ? fromServer : g.prev;
+      const was = prev !== undefined ? ` (was ${JSON.stringify(prev)})` : "";
+      return { key: `set:${g.id}:${g.path}`, line: `set ${g.path} = ${JSON.stringify(g.value)}${was} on ${name}` };
+    }
+  }
+}
+
+const formatDemoContext = (scope: string, lines: string[]) =>
+  [`<loki-desk desk="${scope}">`, "Canvas activity:", ...lines.map((l) => `- ${l}`), "</loki-desk>"].join("\n");
 
 const SCOPE = "saturday";
 const CANVAS = { w: 760, h: 470 };
@@ -43,7 +67,7 @@ const WIDGETS: WidgetManifestEntry[] = [
   widget("heating", "Heating", "slider-control", { label: "living room", value: 20, min: 16, max: 25, step: 0.5, unit: "°C" }),
 ];
 
-const START: DeskState = {
+const START: CanvasState = {
   scope: SCOPE,
   rev: 0,
   overlay: {},
@@ -79,7 +103,7 @@ export function HeroCanvas() {
 
   const gesture = (g: Gesture) => {
     const entry = WIDGETS.find((w) => w.id === g.id);
-    const told = describeGesture(g, entry, entry?.data);
+    const told = describeDemoGesture(g, entry, entry?.data);
     if (told) setSaid((m) => new Map(m).set(told.key, told.line));
     setDesk((d) => applyGesture(d, g));
   };
@@ -125,7 +149,7 @@ export function HeroCanvas() {
             </button>
           )}
         </div>
-        <pre>{lines.length ? formatDeskContext(SCOPE, lines) : "drag a widget, tick an item or move the slider"}</pre>
+        <pre>{lines.length ? formatDemoContext(SCOPE, lines) : "drag a widget, tick an item or move the slider"}</pre>
       </div>
     </div>
   );

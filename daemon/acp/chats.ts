@@ -4,19 +4,18 @@ import type * as acp from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";
 import { contentText } from "../../core/harness.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
-import { messageSteps } from "../../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
 import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
-import { AgentInfoDoc, type AgentStore, type ChatEngine, type ChatInfo, type UsageAdd } from "../kernel/index.ts";
+import { AgentInfoDoc, type AgentStore, type ChatEngine, type ChatInfo } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import type { EnginesView } from "../../core/frame-types.ts";
 import { LOKI_TOOLS_SERVER, LokiTools } from "./loki-tools.ts";
 import type { AcpAgentConfig } from "./agents.ts";
 import { AcpCatalog, selectOptions } from "./catalog.ts";
 import { AcpProcess } from "./process.ts";
-import { acpTurnProperties } from "../telemetry.ts";
 import type { ModRegistry } from "../mods/registry.ts";
+import { Stopped, applySessionNotification, finishTurn, stopNote, unlessStopped, type Live, type StreamHost, type Turn, type TurnOutcome } from "./stream.ts";
 
 const SIGN_IN_WAIT_MS = 10 * 60_000;
 const STOP_WAIT_MS = 3_000;
@@ -33,71 +32,11 @@ export interface AcpChatsDeps {
   openUrl?: (url: string) => void;
   allowedTools?: (agentId: string) => string[];
   passServer?: (agentId: string, conversationId: string, tools: readonly string[]) => acp.McpServer | null;
-  capture?: (event: string, properties: Record<string, unknown>) => void;
   report?: (message: string) => void;
   stopWaitMs?: number;
   configFile?: string;
   cacheFile?: string;
   now?: () => Date;
-}
-
-interface Call {
-  name: string;
-  args: unknown;
-  toolKind?: string;
-  textBefore: string;
-  thoughtBefore: string;
-  output: string;
-  done: boolean;
-  failed?: boolean;
-}
-
-const kindOf = (call: Call): { tool_kind?: string } => (call.toolKind ? { tool_kind: call.toolKind } : {});
-
-/** Whether a call's arguments say anything yet (Claude's adapter opens a call as "Preparing file…" with none). */
-const hasArgs = (args: unknown) => args !== undefined && args !== null && !(typeof args === "object" && Object.keys(args).length === 0);
-
-interface Turn {
-  id: string;
-  abort: AbortController;
-  text: string;
-  thought: string;
-  at: string | null;
-  calls: Map<string, Call>;
-  plan: acp.PlanEntry[] | null;
-  model: string | null;
-  cost: number;
-  writes: Array<Promise<void>>;
-  startedAt: number;
-  firstOutputAt: number | null;
-  responses: number;
-}
-
-interface Live {
-  agentId: string;
-  conversationId: string;
-  agent: string;
-  model: string;
-  effort: string | null;
-  sessionId: string | null;
-  epoch: symbol | null;
-  loading: boolean;
-  preamble: string | null;
-  turn: Turn | null;
-  stop: AbortController | null;
-  queue: Promise<void>;
-  sent: Set<string>;
-  modes: acp.SessionModeState | null;
-  configOptions: acp.SessionConfigOption[];
-  commands: acp.AvailableCommand[];
-  /** The agent's running total of dollars for the session (it reports the total, not each turn's). */
-  costSoFar: number;
-  pass: { instructions: string; tools: readonly string[] } | null;
-}
-
-interface TurnOutcome {
-  text: string;
-  error: string | null;
 }
 
 export interface PassRun {
@@ -113,54 +52,6 @@ export interface PassRun {
 }
 
 const key = (agentId: string, conversationId: string) => `${agentId}\u0000${conversationId}`;
-
-function contentOutput(content: acp.ToolCallContent[] | null | undefined): string {
-  return (content ?? [])
-    .map((c) => {
-      if (c.type === "diff") {
-        const lines = (text: string) => text.replace(/\n$/, "").split("\n");
-        const old = lines(c.oldText ?? "").map((l) => `-${l}`);
-        const now = lines(c.newText).map((l) => `+${l}`);
-        return [`--- ${c.path}`, `+++ ${c.path}`, ...(c.oldText ? old : []), ...now].join("\n");
-      }
-      if (c.type === "terminal") return `(terminal ${c.terminalId})`;
-      return c.content.type === "text" ? c.content.text : `[${c.content.type}]`;
-    })
-    .join("\n");
-}
-
-function rawText(raw: unknown): string {
-  if (raw === undefined || raw === null) return "";
-  return typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
-}
-
-function planText(entries: acp.PlanEntry[]): string {
-  return entries.map((e) => `${e.status === "completed" ? "[x]" : e.status === "in_progress" ? "[~]" : "[ ]"} ${e.content}`).join("\n");
-}
-
-class Stopped extends Error {}
-
-function unlessStopped<T>(work: Promise<T>, signal: AbortSignal, waitMs: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const stopped = () => {
-      timer = setTimeout(() => reject(new Stopped("the agent did not stop when asked")), waitMs);
-    };
-    if (signal.aborted) stopped();
-    else signal.addEventListener("abort", stopped, { once: true });
-    work.then(resolve, reject).finally(() => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", stopped);
-    });
-  });
-}
-
-function stopNote(reason: acp.StopReason): string | null {
-  if (reason === "refusal") return "the agent refused to continue";
-  if (reason === "max_tokens") return "the agent's answer hit its length limit";
-  if (reason === "max_turn_requests") return "the agent stopped after its most steps in one turn";
-  return null;
-}
 
 export class AcpChats {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
@@ -178,6 +69,21 @@ export class AcpChats {
     this.deps = deps;
     this.stopWaitMs = deps.stopWaitMs ?? STOP_WAIT_MS;
     this.catalog = new AcpCatalog({ agents: deps.agents, configFile: deps.configFile, cacheFile: deps.cacheFile });
+  }
+
+  private streamHost(): StreamHost {
+    return {
+      context: this.deps.context,
+      now: () => this.now(),
+      push: (agentId, conversationId, events) => this.push(agentId, conversationId, events),
+      view: (engine) => this.view(engine),
+      chat: (agentId, conversationId) => this.chat(agentId, conversationId),
+      saveMode: async (agentId, conversationId, modeId) => {
+        const store = await this.deps.stores.get(agentId);
+        await store.updateChat(conversationId, { mode: modeId }, this.deps.context);
+      },
+      remember: (live) => this.remember(live),
+    };
   }
 
   private remember(live: Live): void {
@@ -339,7 +245,6 @@ export class AcpChats {
       agent_id: agentId,
       conversation_id: conversationId,
       loop: waiting ? "approval" : turn ? "running" : "idle",
-      turn_id: turn?.id ?? null,
       mode: info.mode ?? live?.modes?.currentModeId ?? null,
       cwd: settings?.cwd ?? null,
       engine: info.engine?.kind === "acp" ? this.view(info.engine) : null,
@@ -606,11 +511,10 @@ export class AcpChats {
       ...images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type })),
     ];
     this.push(live.agentId, live.conversationId, [
-      { kind: "loop", state: "running", turn_id: turn.id },
+      { kind: "loop", state: "running" },
       { kind: "step", step: { kind: "user", raw: contentText(content), at } },
     ]);
     let usage: acp.Usage | null = null;
-    let stopReason: acp.StopReason | null = null;
     const outcome: TurnOutcome = { text: "", error: null };
     try {
       await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
@@ -626,16 +530,14 @@ export class AcpChats {
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "this agent takes no pictures; they were not sent" }]);
       const response = await unlessStopped(proc.prompt({ sessionId, prompt }), turn.abort.signal, this.stopWaitMs);
       usage = response.usage ?? null;
-      stopReason = response.stopReason;
-      outcome.text = await this.finish(live, store, chat, turn, usage, info.engine);
+      outcome.text = await finishTurn(this.streamHost(), live, store, chat, turn, usage, info.engine);
       if (response.stopReason !== "end_turn") outcome.error = stopNote(response.stopReason) ?? `the agent stopped: ${response.stopReason}`;
       this.catalog.went(live.agent, { status: "ready", detail: null });
       const note = stopNote(response.stopReason);
       if (note) this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
     } catch (error) {
-      await this.finish(live, store, chat, turn, null, info.engine).catch(() => {});
+      await finishTurn(this.streamHost(), live, store, chat, turn, null, info.engine).catch(() => {});
       if (error instanceof Stopped) {
-        stopReason = "cancelled";
         outcome.error = "the turn was stopped";
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "the agent did not answer the stop, so loki ended the turn without it" }]);
         return outcome;
@@ -647,122 +549,9 @@ export class AcpChats {
     } finally {
       live.turn = null;
       if (live.stop === turn.abort) live.stop = null;
-      this.push(live.agentId, live.conversationId, [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turn_id: turn.id }]);
-      this.measure(live, turn, info.engine, usage, stopReason);
+      this.push(live.agentId, live.conversationId, [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" }]);
     }
     return outcome;
-  }
-
-  private measure(live: Live, turn: Turn, engine: ChatEngine, usage: acp.Usage | null, stopReason: acp.StopReason | null): void {
-    const calls = [...turn.calls.values()];
-    this.deps.capture?.(
-      "turn_finished",
-      acpTurnProperties({
-        agentId: live.agentId,
-        chatId: live.conversationId,
-        turnId: turn.id,
-        model: `acp:${engine.agent}/${turn.model ?? engine.model}`,
-        agent: engine.agent,
-        startedAt: turn.startedAt,
-        firstOutputAt: turn.firstOutputAt,
-        endedAt: Date.parse(this.now()),
-        usage: usage && {
-          input: usage.inputTokens,
-          output: usage.outputTokens,
-          cacheRead: usage.cachedReadTokens ?? 0,
-          cacheWrite: usage.cachedWriteTokens ?? 0,
-          reasoning: usage.thoughtTokens ?? 0,
-        },
-        cost: turn.cost,
-        responses: turn.responses,
-        toolCalls: calls.length,
-        toolFailures: calls.filter((c) => c.failed).length,
-        stopReason,
-        failed: stopReason === null,
-      }),
-    );
-  }
-
-  private async finish(live: Live, store: AgentStore, chat: Conversation, turn: Turn, usage: acp.Usage | null, engine: ChatEngine): Promise<string> {
-    await Promise.allSettled(turn.writes);
-    for (const [id, call] of turn.calls) {
-      if (call.done) continue;
-      call.done = true;
-      call.failed = true;
-      turn.responses++;
-      await this.writeCall(live, store, chat, id, call, true, call.output || "the tool did not finish");
-    }
-    const at = this.now();
-    const entries: Array<{ kind: "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }> = [];
-    if (turn.plan) {
-      const id = `plan-${turn.id}`;
-      turn.responses++;
-      entries.push(
-        { kind: "pi.assistant", message: { role: "assistant", content: [{ type: "toolCall", id, name: "plan", arguments: {} }], timestamp: Date.parse(at) } },
-        {
-          kind: "pi.tool-result",
-          message: {
-            role: "toolResult",
-            toolCallId: id,
-            toolName: "plan",
-            content: [{ type: "text", text: planText(turn.plan) }],
-            isError: false,
-            timestamp: Date.parse(at),
-          },
-        },
-      );
-    }
-    const words = turn.text;
-    const thought = turn.thought;
-    turn.text = "";
-    turn.thought = "";
-    if (words) {
-      turn.responses++;
-      const content = [...(thought ? [{ type: "thinking", thinking: thought }] : []), { type: "text", text: words }];
-      const message = { role: "assistant", content, timestamp: Date.parse(turn.at ?? at) };
-      entries.push({ kind: "pi.assistant", message });
-      this.push(
-        live.agentId,
-        live.conversationId,
-        messageSteps(message, turn.at ?? at).map((step) => ({ kind: "step", step })),
-      );
-    }
-    const add: UsageAdd | null =
-      usage || turn.cost
-        ? {
-            input: usage?.inputTokens ?? 0,
-            output: usage?.outputTokens ?? 0,
-            cacheRead: usage?.cachedReadTokens ?? 0,
-            cacheWrite: usage?.cachedWriteTokens ?? 0,
-            cost: turn.cost,
-          }
-        : null;
-    if (entries.length || add)
-      await store.appendEntries(chat, entries, add ? { model: `acp:${engine.agent}/${turn.model ?? engine.model}`, add } : null, this.deps.context);
-    return words;
-  }
-
-  private async writeCall(live: Live, store: AgentStore, chat: Conversation, id: string, call: Call, failed: boolean, output: string): Promise<void> {
-    const at = Date.parse(this.now());
-    const content = [
-      ...(call.thoughtBefore ? [{ type: "thinking", thinking: call.thoughtBefore }] : []),
-      ...(call.textBefore ? [{ type: "text", text: call.textBefore }] : []),
-      { type: "toolCall", id, name: call.name, arguments: call.args ?? {}, ...kindOf(call) },
-    ];
-    const result = [{ type: "text", text: output }];
-    this.push(live.agentId, live.conversationId, [
-      { kind: "step", step: { kind: "call", name: call.name, args: call.args, id, at: new Date(at).toISOString(), ...kindOf(call) } },
-      { kind: "step", step: { kind: "result", id, output: result, failed } },
-    ]);
-    await store.appendEntries(
-      chat,
-      [
-        { kind: "pi.assistant", message: { role: "assistant", content, timestamp: at } },
-        { kind: "pi.tool-result", message: { role: "toolResult", toolCallId: id, toolName: call.name, content: result, isError: failed, timestamp: at } },
-      ],
-      null,
-      this.deps.context,
-    );
   }
 
   private register(sessionId: string, live: Live): void {
@@ -783,110 +572,7 @@ export class AcpChats {
       if (this.early.size > 8) this.early.delete(this.early.keys().next().value ?? "");
       return;
     }
-    const u = n.update;
-    const push = (events: ChatEvent[]) => this.push(live.agentId, live.conversationId, events);
-    switch (u.sessionUpdate) {
-      case "current_mode_update":
-        if (live.modes) live.modes = { ...live.modes, currentModeId: u.currentModeId };
-        void this.deps.stores
-          .get(live.agentId)
-          .then((store) => store.updateChat(live.conversationId, { mode: u.currentModeId }, this.deps.context))
-          .catch(() => {});
-        push([{ kind: "device", mode: u.currentModeId }]);
-        return;
-      case "available_commands_update":
-        live.commands = u.availableCommands;
-        this.remember(live);
-        this.pushView(live, { agent: live.agent, model: live.model });
-        return;
-      case "config_option_update":
-        live.configOptions = u.configOptions;
-        this.remember(live);
-        return;
-    }
-    // Outside (ACP): loading a session replays its history as updates, and loki has it already.
-    if (live.loading) return;
-    const turn = live.turn;
-    if (!turn) return;
-    const now = this.now();
-    switch (u.sessionUpdate) {
-      case "agent_message_chunk":
-        if (u.content.type !== "text" || !u.content.text) return;
-        turn.at ??= now;
-        turn.firstOutputAt ??= Date.parse(now);
-        turn.text += u.content.text;
-        push([{ kind: "step", step: { kind: "assistant", text: u.content.text, at: now, chunk: true } }]);
-        return;
-      case "agent_thought_chunk":
-        if (u.content.type !== "text" || !u.content.text) return;
-        turn.firstOutputAt ??= Date.parse(now);
-        turn.thought += u.content.text;
-        push([{ kind: "step", step: { kind: "thinking", text: u.content.text, at: now, chunk: true } }]);
-        return;
-      case "tool_call": {
-        turn.firstOutputAt ??= Date.parse(now);
-        const call: Call = {
-          name: u.title || u.name || u.kind || "tool",
-          args: u.rawInput ?? {},
-          ...(u.kind ? { toolKind: u.kind } : {}),
-          textBefore: turn.text,
-          thoughtBefore: turn.thought,
-          output: contentOutput(u.content),
-          done: false,
-        };
-        if (turn.text) push([{ kind: "step", step: { kind: "assistant", text: turn.text, at: turn.at ?? now } }]);
-        turn.text = "";
-        turn.thought = "";
-        turn.at = null;
-        turn.calls.set(u.toolCallId, call);
-        if (hasArgs(call.args)) {
-          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now, ...kindOf(call) } }]);
-        }
-        if (u.status === "completed" || u.status === "failed") this.completeCall(live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
-        return;
-      }
-      case "tool_call_update": {
-        const call = turn.calls.get(u.toolCallId);
-        if (!call || call.done) return;
-        if (u.title) call.name = u.title;
-        if (u.kind) call.toolKind = u.kind;
-        if (u.rawInput !== undefined) call.args = u.rawInput;
-        const output = contentOutput(u.content);
-        if (output) call.output = output;
-        if (u.status === "completed" || u.status === "failed") this.completeCall(live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
-        else if ((u.title || u.rawInput !== undefined) && hasArgs(call.args)) {
-          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now, ...kindOf(call) } }]);
-        }
-        return;
-      }
-      case "plan":
-        turn.plan = u.entries;
-        push([
-          { kind: "step", step: { kind: "call", name: "plan", args: {}, id: `plan-${turn.id}`, at: now } },
-          { kind: "step", step: { kind: "result", id: `plan-${turn.id}`, output: [{ type: "text", text: planText(u.entries) }], failed: false } },
-        ]);
-        return;
-      case "usage_update": {
-        const model = u._meta?.["_claude/model"];
-        if (typeof model === "string" && model) turn.model = model;
-        if (u.cost?.currency === "USD") {
-          // Outside (ACP): an agent reports its session's running total; a total below the last one is a restarted agent's, all of it new.
-          turn.cost += u.cost.amount >= live.costSoFar ? u.cost.amount - live.costSoFar : u.cost.amount;
-          live.costSoFar = u.cost.amount;
-        }
-        return;
-      }
-      default:
-        return;
-    }
-  }
-
-  private completeCall(live: Live, turn: Turn, id: string, call: Call, failed: boolean, raw: string): void {
-    call.done = true;
-    call.failed = failed;
-    turn.responses++;
-    const output = call.output || raw || (failed ? "the tool failed" : "done");
-    turn.writes.push(this.chat(live.agentId, live.conversationId).then(({ store, chat }) => this.writeCall(live, store, chat, id, call, failed, output)));
+    applySessionNotification(this.streamHost(), live, n);
   }
 
   private async elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse> {

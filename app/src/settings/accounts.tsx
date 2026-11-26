@@ -1,8 +1,8 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import type { AccountProvider, AccountView, GoogleService, SlackWorkspaceView } from "../../../core/frame-types.ts";
 import { Button, Dot, Field, sentence } from "../components";
-import { disconnectedText } from "../desk/outside-words";
-import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
+import { disconnectedText } from "../workspace/outside-words";
+import { notYetOn, openExternal, platform, type Platform } from "../workspace/env";
 import { Block, Fold, Setting } from "./layout";
 import { JiraConnectForm, JiraConnectSetting, type JiraConnect, type JiraForm } from "./jira-connect";
 

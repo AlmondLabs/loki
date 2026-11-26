@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { insertMention, isDismissed, mentionAt } from "../app/src/desk/mentions.tsx";
+import { insertMention, isDismissed, mentionAt } from "../app/src/workspace/mentions.tsx";
 import { PickedPeople } from "../core/attention/picked-people.ts";
 
 describe("the @ being typed in a reply (plan 082)", () => {

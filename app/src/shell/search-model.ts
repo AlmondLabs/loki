@@ -1,6 +1,6 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import { isMainChat, scopeFor } from "../../../core/desk-core.ts";
+import { isMainChat, scopeFor } from "../../../core/canvas-core.ts";
 
 import {
   GROUP_MAX,
@@ -19,7 +19,7 @@ import type { IconName } from "../shared/icons";
 import { PAGES, PAGE_WORDS, pageTitle, type SettingsPage } from "../settings/pages";
 import type { Segment } from "./keymap";
 import { osWords } from "./os-words";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 import type { LabelView } from "../../../core/labels.ts";
 
 export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
@@ -54,7 +54,7 @@ export interface SearchHit {
 export type SearchGroup = HitGroup<SearchHit, GroupId>;
 
 export interface SearchSources {
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   labels?: readonly LabelView[] | null;
@@ -72,7 +72,7 @@ interface Page {
 export const DESTINATIONS: readonly Page[] = [
   {
     key: "page:desk",
-    target: { kind: "section", segment: "desk" },
+    target: { kind: "section", segment: "chats" },
     icon: "desk",
     label: "Chats",
     line: "The chat you were on",
@@ -80,7 +80,7 @@ export const DESTINATIONS: readonly Page[] = [
   },
   {
     key: "page:inbox",
-    target: { kind: "section", segment: "inbox" },
+    target: { kind: "section", segment: "flow" },
     icon: "inbox",
     label: "Flow",
     line: "What waits on you",
@@ -116,10 +116,10 @@ export const DESTINATIONS: readonly Page[] = [
 export const PLACES_KEY = "loki.desktop.recentPlaces";
 export const recentPlaces = createRecents({ key: PLACES_KEY, max: 8 });
 
-type OpenableDesk = DeskSummary & { agent_id: string; conversation_id: string };
-const openable = (d: DeskSummary): d is OpenableDesk => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
+type OpenableDesk = ChatSummary & { agent_id: string; conversation_id: string };
+const openable = (d: ChatSummary): d is OpenableDesk => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
-const deskTitle = (d: DeskSummary): string => d.title ?? (isMainChat(d.conversation_id) ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
+const deskTitle = (d: ChatSummary): string => d.title ?? (isMainChat(d.conversation_id) ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
 
 const agentNamer = (src: SearchSources) => {
   const names = new Map(src.agents.map((a) => [a.id, a.name]));
@@ -158,7 +158,7 @@ const labelHit = (l: LabelView): SearchHit => ({
 });
 const itemHit = (i: AttentionItem, agentName: string): SearchHit => ({
   key: `waiting:${i.agent_id}/${i.id}`,
-  place: deskPlace(scopeFor(i.id, i.agent_id)),
+  place: chatPlace(scopeFor(i.id, i.agent_id)),
   group: "waiting",
   title: i.title || "Untitled conversation",
   preview: [agentName, WAITS[i.status]].filter(Boolean).join(" · "),
@@ -229,7 +229,7 @@ export function recentPlaceHits(keys: readonly string[], src: SearchSources): Se
   return keys.map((k) => placeHit(k, src)).filter((h): h is SearchHit => h !== null);
 }
 
-export function deskPlace(scope: string): string {
+export function chatPlace(scope: string): string {
   return `desk:${scope}`;
 }
 export const sectionPlace = (segment: Exclude<Segment, "settings">): string => `page:${segment}`;

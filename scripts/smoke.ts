@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 const repo = fileURLToPath(new URL("..", import.meta.url));
 const resources = process.env.LOKI_SMOKE_RESOURCES ?? join(repo, "desktop", "resources");
 const daemonEntry = join(resources, "daemon", "daemon.mjs");
-const modEntry = join(resources, "mod", "loki-mod.mjs");
 const START_MS = 30_000;
 const REQUEST_MS = 20_000;
 
@@ -45,7 +44,7 @@ async function start(home: string): Promise<Daemon> {
   const dir = join(home, ".loki");
   const tokenFile = join(dir, "token");
   let output = "";
-  const child = spawn(process.execPath, [daemonEntry, "--loki-daemon", "--dir", dir, "--mod", modEntry, "--token-file", tokenFile], {
+  const child = spawn(process.execPath, [daemonEntry, "--loki-daemon", "--dir", dir, "--token-file", tokenFile], {
     cwd: home,
     env: {
       ...process.env,
@@ -54,7 +53,6 @@ async function start(home: string): Promise<Daemon> {
       LOKI_DIR: dir,
       LOKI_PORT: String(port),
       LOKI_LAN_PORT: "0",
-      LOKI_ANALYTICS: "0",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -126,7 +124,7 @@ async function agents(sock: Awaited<ReturnType<typeof connect>>) {
 }
 
 async function main(): Promise<void> {
-  for (const f of [daemonEntry, modEntry]) if (!existsSync(f)) throw new Error(`${f} is missing: run bun run build:mod first`);
+  if (!existsSync(daemonEntry)) throw new Error(`${daemonEntry} is missing: run bun run build:mod first`);
   const home = mkdtempSync(join(tmpdir(), "loki-smoke-"));
   console.log(`smoke: the bundle in ${resources}, home ${home}`);
   let daemon: Daemon | null = null;
@@ -267,7 +265,6 @@ async function electronSmoke(given: string): Promise<void> {
       XDG_CONFIG_HOME: join(home, ".config"),
       LOKI_PORT: String(port),
       LOKI_LAN_PORT: "0",
-      LOKI_ANALYTICS: "0",
       LOKI_UPDATE_URL: "http://127.0.0.1:9/desktop.json",
     },
     stdio: ["ignore", "pipe", "pipe"],

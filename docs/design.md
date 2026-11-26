@@ -42,7 +42,7 @@ AA on every working surface. The roles:
   monogram. `--loki-segment` — the chosen segment of a segmented control, raised off its grey track.
 - `--loki-positive` / `--loki-negative` — status inks (a pass, a failure, a destructive action).
 - `--loki-mention` / `--loki-mention-bar` — a mention's wash and the bar at its left edge, on a Slack message that
-  brought its card into the Inbox (plan 077). Only behind a message, never a control.
+  brought its card into the Flow (plan 077). Only behind a message, never a control.
 - Inputs, agent speech, user speech and inline code each have their own surface token (`--loki-well`,
   `--loki-bubble`, `--loki-user-bubble`, `--loki-code`) instead of borrowing selection or accent.
 - `--loki-label-0` … `--loki-label-7` — the eight chat-label colours, each a mark that reads at 3:1 or more on
@@ -295,7 +295,7 @@ widget. Under a widget's latest row the widget itself is drawn, live (`chat/inli
 the thread allows, with "Show on canvas"; using it there is using it on the canvas (a `set` gesture on the widget's own
 desk, recorded for that desk's agent). Earlier rows for the same widget stay one line each, so a widget edited ten
 times is drawn once. Every chat surface draws them: the desk's chat, the Flow card (which asks the mod for that chat's
-widgets, `desk_get`) and the phone, where kit widgets draw read only and a custom module says to open the chat on the
+widgets, `canvas_get`) and the phone, where kit widgets draw read only and a custom module says to open the chat on the
 Mac. While the agent works and the box is empty, send becomes **Stop** (a filled round with a square), which ends the
 turn where it is — an approval it waits on too — through the `chat_abort` frame; typing brings send back (it queues).
 **The model and permission mode** are changed in ⌘K (⌘⇧M, ⌘⇧P): its Models scope opens on the agent's Usual, filters

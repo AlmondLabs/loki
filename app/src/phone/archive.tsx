@@ -1,11 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
 
 import { Button, Field } from "../components";
-import { DeskActions, DeskRow, type ArchiveDesk, type RenameDeskName } from "./home";
+import { DeskActions, DeskRow, type ArchiveChat, type RenameChatTitle } from "./home";
 import { archiveList } from "./model";
 import { SkeletonRows } from "./rows";
 import { BackButton, Scroll, TopBar } from "./ui";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 
 export function Archive({
   desks,
@@ -16,16 +16,16 @@ export function Archive({
   onArchive,
   onRename,
 }: {
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   loaded: boolean;
   banner?: ReactNode;
   backLabel: string;
   onBack: () => void;
-  onArchive: ArchiveDesk | null;
-  onRename: RenameDeskName | null;
+  onArchive: ArchiveChat | null;
+  onRename: RenameChatTitle | null;
 }) {
   const [query, setQuery] = useState("");
-  const [acting, setActing] = useState<DeskSummary | null>(null);
+  const [acting, setActing] = useState<ChatSummary | null>(null);
   const all = useMemo(() => archiveList(desks, null, ""), [desks]);
   const shown = useMemo(() => archiveList(desks, null, query), [desks, query]);
   return (

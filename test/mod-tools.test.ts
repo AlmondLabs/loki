@@ -12,11 +12,10 @@ import { asks } from "../daemon/approvals.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import type { ModApi, ModTool } from "../daemon/mods/api.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import type { AdvisorConsulting } from "../mod/advisor.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
-import { isPassChat } from "../mod/recall-worker.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
+import { isPassChat } from "../mod/learn-worker.ts";
 import { registerTools } from "../mod/tools.ts";
 import { AGENT, consultSetup, until } from "./fixtures/advisor-consult.ts";
 import { must } from "./fixtures/must.ts";
@@ -98,11 +97,10 @@ describe("per-agent mod tools on loki's engine (plan 067, U1)", () => {
   });
 });
 
-function lokiMod(advisor: AdvisorConsulting, chats: () => DeskSummary[] = () => []) {
+function lokiMod(advisor: AdvisorConsulting, chats: () => ChatSummary[] = () => []) {
   return (api: ModApi) =>
     registerTools(api, {
-      store: new DeskStore(),
-      gestures: new GestureLog(),
+      store: new CanvasStore(),
       widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
       widgetsDir: join("/", "widgets"),
       activeScope: () => "shared",
@@ -111,7 +109,7 @@ function lokiMod(advisor: AdvisorConsulting, chats: () => DeskSummary[] = () => 
     });
 }
 
-function consultTool(advisor: AdvisorConsulting, chats?: () => DeskSummary[]) {
+function consultTool(advisor: AdvisorConsulting, chats?: () => ChatSummary[]) {
   const tools: ModTool[] = [];
   const api = {
     tools: { register: (t: ModTool) => (tools.push(t), () => {}) },
@@ -199,7 +197,7 @@ describe("advisor_consult", () => {
       agent_id: "agent-local-ada",
       status: "live",
       cwd: join("/", "acp"),
-    } as DeskSummary;
+    } as ChatSummary;
     const consult = consultTool(r.advisor, () => [listed]);
     await consult({}, "local-conv-work", work);
     await consult({ text: "  " }, "local-conv-acp");

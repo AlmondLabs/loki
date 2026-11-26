@@ -21,17 +21,15 @@ export function suggestionFrames(deps: SuggestionDeps): FrameHandlers {
       const who = by(ctx.client);
       try {
         const out = await deps.suggestions.decide(chatOf(p), p.suggestion_id, p.action, who);
-        ctx.track("suggestion_decided", { action: p.action, outcome: out.done ? "done" : "refused", by: who });
         return reply(out);
       } catch (err) {
         return fail(errorMessage(err));
       }
     },
-    suggestion_retarget: async (p, ctx) => {
+    suggestion_retarget: async (p) => {
       if (!deps.suggestions) return fail(NOT_HERE);
       try {
         const out = await deps.suggestions.retarget(chatOf(p), p.suggestion_id, p.target);
-        ctx.track("suggestion_decided", { action: "retarget", outcome: out.done ? "done" : "refused", by: by(ctx.client) });
         return reply(out);
       } catch (err) {
         return fail(errorMessage(err));

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideMessage, OutsideWindow } from "../core/frame-types.ts";
-import { OutsideThread } from "../app/src/desk/outside-card.tsx";
+import { OutsideThread } from "../app/src/workspace/outside-card.tsx";
 import { must } from "./fixtures/must.ts";
 import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
 import { THEME_PREFERENCES } from "../app/src/theme.tsx";
@@ -40,7 +40,7 @@ import { deskMark } from "../app/src/shell/sidebar-model.ts";
 import type { AttentionItem } from "../core/attention/model.ts";
 
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 
 describe("pairing URL", () => {
   test("the code comes out of the QR's URL", () => {
@@ -339,7 +339,7 @@ describe("reloading a newer canvas", () => {
 });
 
 describe("Home: shortcuts, attention and desks (U3)", () => {
-  const desk = (over: Partial<DeskSummary>): DeskSummary => ({
+  const desk = (over: Partial<ChatSummary>): ChatSummary => ({
     scope: `${over.agent_id ?? "a1"}/${over.conversation_id ?? "c"}`,
     title: "t",
     status: "live",
@@ -386,16 +386,16 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
 
   test("shortcut counts: waiting inbox items, due cards, agents running, archived desks with a conversation", () => {
     const c = homeCounts({ items, due: 31, agents: [{ id: "a1" }, { id: "a2" }, { id: "a3" }], desks });
-    expect(c).toEqual({ inbox: 2, learn: 31, agents: 3, running: 1, archive: 2 });
+    expect(c).toEqual({ flow: 2, learn: 31, agents: 3, running: 1, archive: 2 });
   });
   test("shortcut lines say the count, or a calm state when there is none", () => {
-    const c = { inbox: 12, learn: 31, agents: 3, running: 2, archive: 85 };
-    expect(shortcutLine("inbox", c)).toBe("12 waiting");
+    const c = { flow: 12, learn: 31, agents: 3, running: 2, archive: 85 };
+    expect(shortcutLine("flow", c)).toBe("12 waiting");
     expect(shortcutLine("learn", c)).toBe("31 due");
     expect(shortcutLine("agents", c)).toBe("2 running");
     expect(shortcutLine("archive", c)).toBe("85 chats");
-    const none = { inbox: 0, learn: 0, agents: 1, running: 0, archive: 1 };
-    expect(shortcutLine("inbox", none)).toBe("All caught up");
+    const none = { flow: 0, learn: 0, agents: 1, running: 0, archive: 1 };
+    expect(shortcutLine("flow", none)).toBe("All caught up");
     expect(shortcutLine("learn", none)).toBe("Nothing due");
     expect(shortcutLine("agents", none)).toBe("1 agent");
     expect(shortcutLine("archive", none)).toBe("1 chat");
@@ -461,7 +461,7 @@ describe("Home's presence dot: the paired Mac's link in one word", () => {
 });
 
 describe("Agents: Slack's DM list, one row per agent (U6)", () => {
-  const desk = (over: Partial<DeskSummary>): DeskSummary => ({
+  const desk = (over: Partial<ChatSummary>): ChatSummary => ({
     scope: "s",
     title: "t",
     status: "live",

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backendName } from "../core/desk-core.ts";
+import { backendName } from "../core/canvas-core.ts";
 import { memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
 import { isAgentId } from "../core/frames.ts";
 import { must } from "./fixtures/must.ts";

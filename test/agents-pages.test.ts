@@ -301,13 +301,13 @@ describe("agents place", () => {
     avatar: () => "",
     desks: [],
     initialAgentId: null,
-    onOpenDesk: () => {},
+    onOpenChat: () => {},
     onAskToUpdate: () => {},
     onUpdateAgent: () => Promise.resolve(null),
     write: {},
     reflect: {},
     listModels: () => Promise.resolve([]),
-    onShowDesks: () => {},
+    onShowChats: () => {},
   });
   const render = async (p: object) => {
     const { createElement, Fragment } = await import("react");
