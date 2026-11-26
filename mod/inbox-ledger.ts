@@ -47,9 +47,12 @@ export interface InboxLedgerOptions {
   maxBytes?: number;
 }
 
+const CHECK_ROTATE_EVERY = 50;
+
 export class InboxLedger {
   private readonly opts: InboxLedgerOptions;
   private ready = false;
+  private writes = 0;
 
   constructor(opts: InboxLedgerOptions) {
     this.opts = opts;
@@ -87,7 +90,7 @@ export class InboxLedger {
         mkdirSync(dirname(path), { recursive: true });
         this.ready = true;
       }
-      rotateIfLarge(path, this.opts.maxBytes ?? LEDGER_MAX_BYTES);
+      if (this.writes++ % CHECK_ROTATE_EVERY === 0) rotateIfLarge(path, this.opts.maxBytes ?? LEDGER_MAX_BYTES);
       appendFileSync(path, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
     } catch (err) {
       log.error("inbox-ledger:write-failed", { error: messageOf(err) });

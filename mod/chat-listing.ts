@@ -54,7 +54,11 @@ export class ChatListing {
     const passChat = this.opts.passChats();
     this.tidy(passChat);
     const scopes = new Set<Scope>([SHARED_SCOPE, ...this.opts.layouts(), ...desks.all().map((d) => d.scope)]);
-    for (const e of widgets.entries()) scopes.add(e.scope);
+    const widgetCounts = new Map<Scope, number>();
+    for (const e of widgets.entries()) {
+      scopes.add(e.scope);
+      widgetCounts.set(e.scope, (widgetCounts.get(e.scope) ?? 0) + 1);
+    }
     const rows = chats.list();
     for (const c of this.shown(rows, agents, passChat)) scopes.add(desks.remember(c.conversationId, c.agentId));
     const hidden = hiddenScopes(rows);
@@ -81,7 +85,7 @@ export class ChatListing {
             purpose: info.purpose ?? null,
             has_draft: info.has_draft ?? false,
             cwd: info.cwd ?? null,
-            widgets: widgets.entries(scope).length,
+            widgets: widgetCounts.get(scope) ?? 0,
             active: scope === active,
             last_active: info.last_active,
           };

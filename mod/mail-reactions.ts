@@ -49,6 +49,7 @@ const isRetried = (error: unknown) =>
 
 export class MailReactions {
   private readonly verdicts = new Map<string, string | null>();
+  private readonly inFlight = new Map<string, Promise<string | null>>();
   private readonly client: Pick<GmailClient, "getMessage">;
 
   constructor(client: Pick<GmailClient, "getMessage">) {
@@ -69,12 +70,20 @@ export class MailReactions {
     const known = this.verdicts.get(m.id);
     if (known !== undefined) return known;
     if (!mightBeReaction(m)) return null;
-    try {
-      return this.saw(await this.client.getMessage(m.id));
-    } catch (error) {
-      if (isRetried(error)) throw error;
-      return null;
-    }
+    const active = this.inFlight.get(m.id);
+    if (active) return active;
+    const task = (async () => {
+      try {
+        return this.saw(await this.client.getMessage(m.id));
+      } catch (error) {
+        if (isRetried(error)) throw error;
+        return null;
+      } finally {
+        this.inFlight.delete(m.id);
+      }
+    })();
+    this.inFlight.set(m.id, task);
+    return task;
   }
 
   private keep(id: string, emoji: string | null): void {

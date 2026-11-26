@@ -138,6 +138,7 @@ export type Audience = "all" | "macs";
 
 export interface WsBridge {
   broadcast(msg: object, scope?: Scope, to?: Audience): void;
+  broadcastText?(text: string, scope?: Scope, to?: Audience): void;
   clientCount(): number;
   closeDevice(deviceId: string): number;
   closePeer(peerId: string): number;
@@ -263,6 +264,11 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     return n;
   };
 
+  const pushText = (text: string, scope?: Scope, to: Audience = "all") => {
+    for (const [ws, c] of clients)
+      if ((to === "all" || c.peerId) && (!scope || c.scope === scope || c.peerId) && ws.readyState === WebSocket.OPEN) send(ws, text);
+  };
+
   return {
     broadcast(msg, scope, to = "all") {
       let text: string | undefined;
@@ -270,6 +276,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
         if ((to === "all" || c.peerId) && (!scope || c.scope === scope || c.peerId) && ws.readyState === WebSocket.OPEN)
           send(ws, (text ??= JSON.stringify(msg)));
     },
+    broadcastText: pushText,
     clientCount: () => clients.size,
     closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
     closePeer: (peerId) => closeWhere((c) => c.peerId === peerId),

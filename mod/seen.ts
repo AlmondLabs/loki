@@ -93,9 +93,26 @@ export class SeenStore {
       key,
       seen: done && !(this.unseen[key] && this.unseen[key] >= done) ? done : null,
       viewed: this.viewed[key] ?? null,
-      focus: this.focusAll()[key] ?? null,
+      focus: this.focusOf(key),
       rest: this.rests[key] ?? null,
     };
+  }
+
+  restOf(key: string): Rest | null {
+    return this.rests[key] ?? null;
+  }
+
+  focusOf(key: string): FocusEntry | null {
+    const own = (this.focus as Partial<Record<string, FocusEntry>>)[key];
+    const others: Array<Record<string, FocusEntry>> = [];
+    for (const m of Object.values(this.remoteFocus)) {
+      const entry = (m as Partial<Record<string, FocusEntry>>)[key];
+      if (entry) others.push({ [key]: entry });
+    }
+    if (!own && !others.length) return null;
+    if (!others.length) return own ?? null;
+    const base: Record<string, FocusEntry> = own ? { [key]: own } : {};
+    return (combineFocus(base, others, Date.parse(this.now())) as Partial<Record<string, FocusEntry>>)[key] ?? null;
   }
 
   viewedAll(): Record<string, string> {
@@ -167,11 +184,14 @@ export class SeenStore {
     later(this.seen, snap.seen);
     later(this.unseen, snap.unseen);
     later(this.viewed, snap.viewed);
+    let nextRests: Record<string, Rest> | null = null;
     for (const [key, rest] of Object.entries(snap.rests ?? {})) {
       if (!isRest(rest) || (key in this.rests && this.rests[key].at >= rest.at)) continue;
-      this.rests = { ...this.rests, [key]: rest };
+      nextRests ??= { ...this.rests };
+      nextRests[key] = rest;
       moved = true;
     }
+    if (nextRests) this.rests = nextRests;
     const theirs = snap.return_times;
     if (isReturnTimesMark(theirs) && !(this.returns && this.returns.at >= theirs.at)) {
       this.returns = theirs;
@@ -216,7 +236,8 @@ export class SeenStore {
 
   unmark(agentId: string | null | undefined, conversationId: string): boolean {
     const key = SeenStore.key(agentId, conversationId);
-    if (!(key in this.all())) return false;
+    const at = this.seen[key];
+    if (!at || (this.unseen[key] && this.unseen[key] >= at)) return false;
     this.unseen = { ...this.unseen, [key]: this.now() };
     this.persist();
     return true;

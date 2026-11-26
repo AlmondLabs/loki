@@ -16,7 +16,7 @@ export type GmailSyncClient = Pick<GmailClient, "profile" | "sendAsAddresses" | 
 
 export interface GmailSyncOptions {
   accounts: Pick<Accounts, "get" | "setBackfill">;
-  threads: Pick<AccountThreads, "observe" | "markGoneOutThere" | "reopen" | "get" | "list">;
+  threads: Pick<AccountThreads, "observe" | "markGoneOutThere" | "reopen" | "get" | "list"> & Partial<Pick<AccountThreads, "batch">>;
   account: AccountRecord;
   client: GmailSyncClient;
   people?: Pick<MailPeople, "saw">;
@@ -33,7 +33,17 @@ interface GmailCursor {
 
 const CURSOR_VERSION = 3;
 const PREVIEW_LINES = 3;
+const SYNC_CONCURRENCY = 4;
 const WAITS = ["rateLimitExceeded", "userRateLimitExceeded"];
+
+async function runPool<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items];
+  await Promise.all(
+    Array.from({ length: Math.min(limit, queue.length) }, async () => {
+      for (let item = queue.shift(); item !== undefined; item = queue.shift()) await fn(item);
+    }),
+  );
+}
 
 const NEVER_MOVED: ReadonlySet<string> = new Set(["TRASH", "SPAM", "SENT", "DRAFT", "CHAT"]);
 
@@ -191,20 +201,25 @@ export class GmailSync implements AccountSync {
 
   async tick(): Promise<void> {
     const own = (this.own ??= [...new Set([...(await this.opts.client.sendAsAddresses()), this.opts.account.address].map((a) => a.trim().toLowerCase()))]);
-    const cursor = this.cursor();
-    if (!cursor) {
-      const profile = await this.opts.client.profile();
-      this.save({ history_id: profile.historyId, more: true, version: CURSOR_VERSION });
-    } else {
-      const changes = await this.opts.client.historySince(cursor.history_id);
-      if (changes.kind === "expired") await this.rebuild(own);
-      else {
-        const { all, back, added } = this.touched(changes.history);
-        for (const threadId of all) await this.syncThread(threadId, own, false, back.has(threadId), added.get(threadId));
-        this.save({ ...cursor, history_id: changes.history_id });
+    const runBatch = <T>(fn: () => Promise<T>) => (this.opts.threads.batch ? this.opts.threads.batch(this.accountId, fn) : fn());
+    await runBatch(async () => {
+      const cursor = this.cursor();
+      if (!cursor) {
+        const profile = await this.opts.client.profile();
+        this.save({ history_id: profile.historyId, more: true, version: CURSOR_VERSION });
+      } else {
+        const changes = await this.opts.client.historySince(cursor.history_id);
+        if (changes.kind === "expired") await this.rebuild(own);
+        else {
+          const { all, back, added } = this.touched(changes.history);
+          await runPool([...all], SYNC_CONCURRENCY, async (threadId) => {
+            await this.syncThread(threadId, own, false, back.has(threadId), added.get(threadId));
+          });
+          if (changes.history.length > 0 || changes.history_id !== cursor.history_id) this.save({ ...cursor, history_id: changes.history_id });
+        }
       }
-    }
-    await this.listInbox(own);
+      await this.listInbox(own);
+    });
   }
 
   private touched(history: GmailHistoryRecord[]): { all: Set<string>; back: Set<string>; added: Map<string, Set<string>> } {
@@ -245,7 +260,9 @@ export class GmailSync implements AccountSync {
       for (const threadId of page.threads) if (this.opts.threads.get(this.accountId, threadId)) threadIds.add(threadId);
       pageToken = page.nextPageToken;
     } while (pageToken);
-    for (const threadId of threadIds) await this.syncThread(threadId, own, false);
+    await runPool([...threadIds], SYNC_CONCURRENCY, async (threadId) => {
+      await this.syncThread(threadId, own, false);
+    });
     this.save({ history_id: profile.historyId, more: true, version: CURSOR_VERSION });
   }
 
@@ -292,8 +309,7 @@ export class GmailSync implements AccountSync {
     };
     const inbox = messages.filter(isInInbox);
     for (const m of [...inbox].reverse()) if (!(await isReaction(m))) break;
-    for (const m of inbox) if (m.labelIds.includes("UNREAD")) await isReaction(m);
-    for (const m of arrived) await isReaction(m);
+    await Promise.all([...inbox.filter((m) => m.labelIds.includes("UNREAD")).map(isReaction), ...arrived.map(isReaction)]);
     const mails = inbox.filter((m) => !found.has(m));
     const newest = mails.filter((m) => !fromOwn(m, own)).at(-1) ?? mails.at(-1);
     let lines = 0;
