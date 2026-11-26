@@ -218,6 +218,16 @@ function CopyAsMarkdown({ text }: { text: string }) {
   );
 }
 
+const UserMarkdown = memo(function UserMarkdown({ text }: { text: string }) {
+  return (
+    <div className="loki-md">
+      <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+        {text}
+      </Markdown>
+    </div>
+  );
+});
+
 function UserContent({ row: m }: { row: TranscriptRow }) {
   return (
     <div className="flex flex-col gap-2">
@@ -235,13 +245,7 @@ function UserContent({ row: m }: { row: TranscriptRow }) {
           ))}
         </AttachmentGroup>
       )}
-      {m.text && (
-        <div className="loki-md">
-          <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {m.text}
-          </Markdown>
-        </div>
-      )}
+      {m.text && <UserMarkdown text={m.text} />}
     </div>
   );
 }

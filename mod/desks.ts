@@ -134,5 +134,5 @@ export function agentHasMemory(agentId: string, backendDir = defaultBackendDir()
   return existsSync(join(backendDir, "memfs", agentId));
 }
 
-export const HISTORY_PAGE = 400;
+export const HISTORY_PAGE = 100;
 export const HISTORY_MAX = 20_000;

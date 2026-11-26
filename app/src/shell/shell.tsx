@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
@@ -277,8 +277,13 @@ export function Shell() {
   });
   useEffect(() => {
     if (!whereKey) return;
-    const frame = requestAnimationFrame(() => land());
-    return () => cancelAnimationFrame(frame);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) land();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [whereKey]);
   useEffect(() => {
     if (segment === "desk") {
@@ -421,12 +426,34 @@ export function Shell() {
   };
 
   const selectChat = (scope: string) => {
-    desk.desks.switchTo(scope);
-    pane.open(scope);
-    setSegment("desk");
-    setNewChat(null);
-    setUnselected(false);
+    startTransition(() => {
+      desk.desks.switchTo(scope);
+      pane.open(scope);
+      setSegment("desk");
+      setNewChat(null);
+      setUnselected(false);
+    });
   };
+  const prefetchScope = (scope: string) => {
+    if (catchUp.status !== "open") return;
+    const d = desk.desks.list.find((x) => x.scope === scope);
+    if (d?.agent_id && d.conversation_id) void catchUp.prefetchThread({ agent_id: d.agent_id, conversation_id: d.conversation_id });
+  };
+  const topThreeKey = chatRows
+    .slice(0, 3)
+    .map((r) => `${r.desk.agent_id ?? ""}/${r.desk.conversation_id ?? ""}`)
+    .join("\0");
+  const prefetchTop = useEffectEvent(() => {
+    if (catchUp.status !== "open") return;
+    for (const r of chatRows.slice(0, 3)) {
+      if (r.desk.agent_id && r.desk.conversation_id) {
+        void catchUp.prefetchThread({ agent_id: r.desk.agent_id, conversation_id: r.desk.conversation_id });
+      }
+    }
+  });
+  useEffect(() => {
+    if (catchUp.status === "open" && topThreeKey) prefetchTop();
+  }, [catchUp.status, topThreeKey]);
   const enterChat = () => setFocusChat((n) => n + 1);
   const chatList = useRef<ContentListHandle>(null);
   const chatSlot = useRef<HTMLDivElement>(null);
@@ -600,6 +627,7 @@ export function Shell() {
               selected={listSelected}
               shown={segment === "desk"}
               onSelect={selectChat}
+              onPrefetch={prefetchScope}
               onEnter={enterChat}
               onNew={startNewChat}
               query={sidebarQuery}

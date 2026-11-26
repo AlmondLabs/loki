@@ -12,6 +12,7 @@ export interface ChatSource {
   /** Up to `limit` rows of a thread ending before position `before` (its newest when null), where they start, and whether older ones remain. */
   page(conversationId: string, agentId: string | null, limit: number, before?: number | null): { rows: TranscriptRow[]; more: boolean; start: number };
   row(conversationId: string, agentId: string | null, row: number): TranscriptRow | null;
+  ensureLoaded?(conversationId: string, agentId?: string | null): Promise<void> | void;
   /** The thread from position `from` on (Learn's cursor), and the position to continue from. */
   since(conversationId: string, agentId: string | null, from: number): { rows: TranscriptRow[]; lines: number };
   digest(conversationId: string, agentId: string | null): LocalDigest;

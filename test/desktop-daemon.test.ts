@@ -554,7 +554,18 @@ describe("a real child on the IPC channel", () => {
     closeSync(fd);
     const up = new Promise<void>((resolve) => child.once("message", () => resolve()));
     const wrapped = wrapChild(child, process.platform, () => {});
+    let readyCount = 0;
+    const readyPromise = new Promise<void>((resolve) =>
+      wrapped.onReady?.(() => {
+        readyCount++;
+        resolve();
+      }),
+    );
     await up;
+    expect(readyCount).toBe(0);
+    child.emit("message", "ready");
+    await readyPromise;
+    expect(readyCount).toBe(1);
     const code = new Promise<number | null>((resolve) => wrapped.onExit(resolve));
     expect(wrapped.send("stop")).toBe(true);
     expect(await code).toBe(0);

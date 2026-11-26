@@ -489,6 +489,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     deskInfo,
     deleteWidgetFile,
     seen,
+    ensureTranscript: (agentId, conversationId) => chats.ensureLoaded?.(conversationId, agentId),
     transcript: (agentId, conversationId, limit, before) => chats.page(conversationId, agentId, limit, before),
     row: (agentId, conversationId, row) => chats.row(conversationId, agentId, row),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
@@ -571,8 +572,6 @@ export default function activate(api: ModApi, host: Host): () => void {
       throw err;
     }
   };
-  void serve().catch((err: unknown) => log.error("server:error", messageOf(err)));
-
   const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
   const lan: LanListener = new LanListener({
     port: lanPort,
@@ -597,8 +596,15 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
   });
   sockets.attachPhones(lan);
-  if (lan.enabled()) void lan.start();
-  macs.start();
+  let stopped = false;
+  void serve()
+    .then(() => {
+      process.send?.("ready");
+      if (stopped) return;
+      if (lan.enabled()) void lan.start();
+      macs.start();
+    })
+    .catch((err: unknown) => log.error("server:error", messageOf(err)));
 
   const eventDisposers: Array<() => void> = [advisorStrips.start()];
   const titleRefreshes = new ScopeDebouncer(1200);
@@ -695,6 +701,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   );
 
   const shutdown = (): void => {
+    stopped = true;
     log("shutdown");
     watcher.stop();
     replies.stop();

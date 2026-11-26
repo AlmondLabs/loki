@@ -6,6 +6,7 @@ import { welcomeFrames, type ModuleDeps } from "../mod/frames/index.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { DeskStore } from "../mod/desk-store.ts";
+import { HISTORY_PAGE } from "../mod/desks.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import { scopeFor, type WidgetManifestEntry } from "../core/desk-core.ts";
@@ -515,7 +516,7 @@ describe("bridge history", () => {
     const c = client("c1");
     for (const limit of [undefined, 800, 1200, 5, 1e9])
       bridge.onMessage(c, { type: "history_get", request_id: "h", agent_id: "a1", conversation_id: "c1", limit });
-    expect(asked).toEqual([400, 800, 1200, 400, 20_000]);
+    expect(asked).toEqual([HISTORY_PAGE, 800, 1200, HISTORY_PAGE, 20_000]);
     expect(c.sent.filter((m) => m.type === "history").map((m) => m.more)).toEqual([true, true, false, true, false]);
   });
   test("history_get pages back by position: `before` reaches the transcript, and the reply says where its rows start", () => {
@@ -535,11 +536,11 @@ describe("bridge history", () => {
       bridge.onMessage(c, { type: "history_get", request_id: "h", agent_id: "a1", conversation_id: "c1", before });
     expect(asked).toEqual([null, 600, 0, null, null]);
     expect(c.sent.filter((m) => m.type === "history").map((m) => [m.start, m.more])).toEqual([
-      [600, true],
-      [200, true],
+      [1000 - HISTORY_PAGE, true],
+      [600 - HISTORY_PAGE, true],
       [0, false],
-      [600, true],
-      [600, true],
+      [1000 - HISTORY_PAGE, true],
+      [1000 - HISTORY_PAGE, true],
     ]);
   });
   test("history carries the desk's widget change log; a desk with none gets an empty list", () => {

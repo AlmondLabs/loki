@@ -208,6 +208,24 @@ describe("chat projection", () => {
     expect(chats.since("nope", AGENT, 0)).toEqual({ rows: [], lines: 0 });
     expect(chats.digest("nope", AGENT)).toEqual({ last_role: null, last_assistant_text: null, last_ask: null });
   });
+
+  test("lazy attach reads metadata first, then hydrates full history on ensureLoaded", async () => {
+    const { store, model, chats } = await setup();
+    try {
+      const converted = sampleEntries();
+      const long = Array.from({ length: Math.ceil(60 / converted.length) }, () => converted).flat();
+      const chat = await store.createChat("long", { title: "Long", agent: { model } }, ctx);
+      await store.importEntries(chat, long, ctx);
+      await chats.attach(AGENT, store, { eagerEntries: false });
+      expect(chats.info("long", AGENT)?.title).toBe("Long");
+      expect(chats.entryCount("long", AGENT)).toBeLessThanOrEqual(20);
+      await chats.ensureLoaded("long", AGENT);
+      expect(chats.entryCount("long", AGENT)).toBe(long.length);
+      expect(chats.page("long", AGENT, 1000).rows).toEqual(foldSteps(long.flatMap((e) => entrySteps(e))));
+    } finally {
+      await store.close(ctx);
+    }
+  });
 });
 
 describe("a store whose chats fail to load", () => {

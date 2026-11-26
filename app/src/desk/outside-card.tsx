@@ -260,6 +260,46 @@ function useSentStandIns(source: OutsideThreadSource | null, facts: OutsideFacts
 export const ticketAsk = (o: OutsideFacts | undefined, showsTicket: boolean): OutsideWindowAsk =>
   o?.provider === "jira" && showsTicket ? { ticket: true } : {};
 
+const OUTSIDE_PREFETCH_TTL_MS = 30_000;
+const OUTSIDE_PREFETCH_MAX = 20;
+
+interface CachedOutside {
+  at: number;
+  promise: Promise<OutsideRead | string>;
+}
+
+const outsidePrefetchCache = new WeakMap<OutsideThreadSource["readOutside"], Map<string, CachedOutside>>();
+
+function cacheFor(read: OutsideThreadSource["readOutside"]): Map<string, CachedOutside> {
+  let map = outsidePrefetchCache.get(read);
+  if (!map) {
+    map = new Map();
+    outsidePrefetchCache.set(read, map);
+  }
+  return map;
+}
+
+export function prefetchOutside(item: AttentionItem, source: OutsideThreadSource | null, now: number = Date.now()): void {
+  const o = item.outside;
+  if (!o || !source) return;
+  const key = cardKey(item);
+  if (!key) return;
+  const tag = o.provider === "slack" ? `${key}/` : `${key}//${o.newest_message_id}`;
+  const map = cacheFor(source.readOutside);
+  const existing = map.get(tag);
+  if (existing && now - existing.at < OUTSIDE_PREFETCH_TTL_MS) return;
+  while (map.size >= OUTSIDE_PREFETCH_MAX) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+  const promise = source.readOutside(item, { ...ticketAsk(o, true) }).then((out) => {
+    if (typeof out === "string" && map.get(tag)?.promise === promise) map.delete(tag);
+    return out;
+  });
+  map.set(tag, { at: now, promise });
+}
+
 export function useOutsideThread(
   item: AttentionItem,
   source: OutsideThreadSource | null,
@@ -282,6 +322,15 @@ export function useOutsideThread(
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
+  const consumePrefetched = useEffectEvent(() => {
+    if (!source || threadTs !== null) return null;
+    const map = outsidePrefetchCache.get(source.readOutside);
+    const cached = map?.get(tag);
+    if (!cached) return null;
+    map?.delete(tag);
+    if (Date.now() - cached.at >= OUTSIDE_PREFETCH_TTL_MS) return null;
+    return cached.promise;
+  });
   const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
   const readNewer = useEffectEvent(() => {
     if (!steady || shown?.tag !== tag || shown.failed !== null || !shown.window) return null;
@@ -303,7 +352,7 @@ export function useOutsideThread(
       });
       return stop;
     }
-    void read({})?.then((out) => {
+    void (consumePrefetched() ?? read({}))?.then((out) => {
       if (!live) return;
       if (typeof out !== "string") {
         setShown({ view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null, ticket: out.ticket ?? null });

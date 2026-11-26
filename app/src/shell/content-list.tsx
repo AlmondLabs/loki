@@ -22,6 +22,7 @@ export interface ContentListProps {
   rows: readonly ContentRow[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onPrefetch?: (id: string) => void;
   onEnter: (id: string) => void;
   onMenu?: (id: string, e: MouseEvent<HTMLButtonElement>) => void;
   empty: ReactNode;
@@ -67,6 +68,7 @@ export function ContentList({
   rows,
   selectedId,
   onSelect,
+  onPrefetch,
   onEnter,
   onMenu,
   empty,
@@ -120,6 +122,7 @@ export function ContentList({
         current={id === current}
         tabIndex={id === tabStop ? 0 : -1}
         onOpen={() => selection().click(id)}
+        onPrefetch={onPrefetch ? () => onPrefetch(id) : undefined}
         onKeyDown={(e) => onListKeyDown(e, ids, selection(), focusRow)}
         onMenu={
           onMenu

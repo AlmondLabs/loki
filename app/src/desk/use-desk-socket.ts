@@ -10,6 +10,8 @@ import { Listeners } from "../../../core/listeners.ts";
 import { parseWidgetEntry } from "./widget-rows";
 import { EMPTY_DESK_SOCKET, PHONE_DEMO, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "./desk-pushes";
 import { RequestWaiters } from "./request-waiters";
+import { inDesktop, listen } from "../shell/desktop";
+import { readCachedDesks, writeCachedDesks } from "./boot-cache";
 
 const STALE_AFTER_HIDDEN_MS = 5_000;
 
@@ -18,7 +20,10 @@ type Update<K extends keyof DeskSocketState> = (fn: (current: DeskSocketState[K]
 export function useDeskSocket() {
   const [scope, setScope] = useState<Scope>(() => scopeFor(readSession().desk));
   const [connection, setConnection] = useState<Connection>("connecting");
-  const [state, setState] = useState<DeskSocketState>(EMPTY_DESK_SOCKET);
+  const [state, setState] = useState<DeskSocketState>(() => {
+    const cachedDesks = readCachedDesks();
+    return cachedDesks ? { ...EMPTY_DESK_SOCKET, deskList: cachedDesks } : EMPTY_DESK_SOCKET;
+  });
   const [updates] = useState(() => {
     const part =
       <K extends keyof DeskSocketState>(key: K): Update<K> =>
@@ -68,7 +73,8 @@ export function useDeskSocket() {
 
   useEffect(() => {
     let disposed = false;
-    let retryMs = 500;
+    let everOpened = false;
+    let retryMs = 150;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let dropped = false;
     const token = readSession().token;
@@ -80,6 +86,8 @@ export function useDeskSocket() {
       setConnection("connecting");
 
       ws.onopen = () => {
+        if (wsRef.current !== ws || disposed) return;
+        everOpened = true;
         retryMs = 500;
         setConnection("open");
         setState(opened);
@@ -93,6 +101,7 @@ export function useDeskSocket() {
         dropped = false;
       };
       ws.onmessage = (ev) => {
+        if (wsRef.current !== ws || disposed) return;
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
         if (typeof raw.request_id === "string") {
           waiters.answer(raw.request_id, raw);
@@ -102,6 +111,7 @@ export function useDeskSocket() {
         if (STATE_PUSHES.has(msg.type)) {
           const ctx = { now: Date.now(), lastInteraction: lastInteractionRef.current, phoneDemo: PHONE_DEMO };
           setState((s) => applyPush(s, msg, ctx));
+          if (msg.type === "desks") writeCachedDesks(msg.desks);
         }
         switch (msg.type) {
           case "desk": {
@@ -141,20 +151,49 @@ export function useDeskSocket() {
       };
       ws.onclose = () => {
         waiters.closed(ws);
+        if (wsRef.current !== ws) return;
         setConnection("closed");
         if (!disposed) {
           dropped = true;
+          const cap = everOpened ? 8000 : 1000;
           retry = setTimeout(connect, retryMs);
-          retryMs = Math.min(retryMs * 2, 8000);
+          retryMs = Math.min(retryMs * 2, cap);
         }
       };
     };
 
+    let unlistenReady: (() => void) | null = null;
+    if (inDesktop) {
+      void listen("loki:daemon-ready", () => {
+        if (disposed) return;
+        const current = wsRef.current;
+        if (current?.readyState === WebSocket.OPEN) return;
+        if (current) {
+          wsRef.current = null;
+          current.close();
+        }
+        if (retry) {
+          clearTimeout(retry);
+          retry = null;
+        }
+        retryMs = 150;
+        connect();
+      })
+        .then((fn) => {
+          if (!disposed) unlistenReady = fn;
+          else fn();
+        })
+        .catch(() => {});
+    }
+
     connect();
     return () => {
       disposed = true;
+      unlistenReady?.();
       if (retry) clearTimeout(retry);
-      wsRef.current?.close();
+      const current = wsRef.current;
+      wsRef.current = null;
+      current?.close();
     };
   }, [scope, switchDesk, listsStale, chatListeners, reconnectListeners, waiters]);
 

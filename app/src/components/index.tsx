@@ -527,6 +527,7 @@ export interface ListRowProps {
   flags?: ReactNode;
   label?: string;
   onOpen: () => void;
+  onPrefetch?: () => void;
   onMenu?: (e: MouseEvent<HTMLButtonElement>) => void;
   actions?: ReactNode;
   launch?: string;
@@ -551,6 +552,7 @@ export function ListRow({
   flags,
   label,
   onOpen,
+  onPrefetch,
   onMenu,
   actions,
   launch,
@@ -579,6 +581,8 @@ export function ListRow({
         data-launch={launch}
         data-row={rowId}
         onClick={onOpen}
+        onPointerEnter={onPrefetch}
+        onFocus={onPrefetch}
         onKeyDown={onKeyDown}
         onContextMenu={
           onMenu

@@ -688,22 +688,33 @@ const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
   );
 });
 
+const StaticMarkdown = memo(function StaticMarkdown({ text }: { text: string }) {
+  return (
+    <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+      {text}
+    </Markdown>
+  );
+});
+
 export function shownText(m: TranscriptRow): string {
   return m.role === "assistant" ? withoutReplies(m.text) : m.text;
 }
 
 export function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   const text = withoutReplies(m.text);
+  if (!cursor) {
+    return (
+      <div className="loki-md">
+        <StaticMarkdown text={text} />
+      </div>
+    );
+  }
   return (
-    <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
-      {cursor ? (
-        streamBlocks(text).map((block) => <LiveBlock key={block.at} text={block.text} />)
-      ) : (
-        <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-          {text}
-        </Markdown>
-      )}
-      {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
+    <div className="loki-md loki-md--live">
+      {streamBlocks(text).map((block) => (
+        <LiveBlock key={block.at} text={block.text} />
+      ))}
+      <span style={{ opacity: 0.6 }}>▍</span>
     </div>
   );
 }
@@ -759,9 +770,7 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
       )}
       {m.text && (
         <div className="loki-md">
-          <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-            {m.text}
-          </Markdown>
+          <StaticMarkdown text={m.text} />
         </div>
       )}
     </>

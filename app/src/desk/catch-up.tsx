@@ -81,6 +81,7 @@ type DeckProps = FlowPlaceProps;
 export function FlowPlace(props: FlowPlaceProps) {
   const { onClose, items, lane, kind = "all", onKind, onOpenDesk } = props;
   const { replyOutside, composeOutside, unsendOutside } = props.chats;
+  const outsideSource = threadSourceOf(props.chats);
   const flow = useFlowDeck({
     items,
     lane,
@@ -90,6 +91,7 @@ export function FlowPlace(props: FlowPlaceProps) {
     onPass: props.onPass,
     onShown: props.onShown,
     loadHistory: props.loadHistory,
+    outsideSource,
   });
   const { shown, current, decided, actions } = flow;
   const others = useMemo(() => otherLanesCount(items, lane), [items, lane]);
@@ -103,7 +105,6 @@ export function FlowPlace(props: FlowPlaceProps) {
 
   const { handoffPropose, handoff } = props.chats;
   const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
-  const outsideSource = threadSourceOf(props.chats);
   const compose = useMailCompose(current, composeOutside ? { composeOutside } : null);
   const typing = typingRaw && !!current;
   useReplyHold(useTypedReplyOnCard(current ? draftKey(current.agent_id, current.id) : null, current ? idOf(current) : null));

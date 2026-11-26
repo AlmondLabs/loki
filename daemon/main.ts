@@ -107,6 +107,23 @@ if (!oldData.ok) {
 }
 process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
+type CoreActivate = (api: ModApi, host: Host) => unknown;
+interface CoreModule {
+  default: CoreActivate;
+  build?: (opts?: { fresh?: boolean }) => Promise<CoreActivate>;
+}
+const modPath = args.mod;
+const initialBuild = import(pathToFileURL(modPath).href).then(
+  async (mod): Promise<{ core: CoreModule; built: CoreActivate } | { error: unknown }> => {
+    const coreModule = mod as CoreModule;
+    try {
+      return { core: coreModule, built: coreModule.build ? await coreModule.build({ fresh: false }) : coreModule.default };
+    } catch (error) {
+      return { error };
+    }
+  },
+  (error: unknown) => ({ error }),
+);
 const secrets =
   process.env.LOKI_KEYCHAIN === "0"
     ? memorySecrets()
@@ -226,7 +243,6 @@ const lokiTools = new LokiTools({
       ),
   },
 });
-await lokiTools.start();
 const acpFile = join(args.dir, "state", "acp.json");
 const acp = new AcpChats({
   stores,
@@ -283,7 +299,6 @@ const analytics = createAnalytics({
   appVersion: appVersion(paths.root),
 });
 mcp.setCapture((event, properties) => analytics.capture("mod", event, properties));
-mcp.start();
 const telemetry = new TurnTelemetry({
   capture: (event, properties) => analytics.capture("mod", event, properties),
   harnessVersion: harnessVersion(paths.root),
@@ -302,23 +317,34 @@ const usage = new UsageLedger({
   report,
 });
 usage.follow(stores);
-await Promise.all(
+const agentsReady = Promise.all(
   listAgents(backend).map(async (id) => {
     const store = await stores.get(id);
     await store.setAgent({ id, name: readLocalAgent(id, backend)?.name ?? id }, context);
   }),
-);
+).then(() => chats.metadataLoaded());
 
-type CoreActivate = (api: ModApi, host: Host) => unknown;
-const core = (await import(pathToFileURL(args.mod).href)) as { default: CoreActivate; build?: () => Promise<CoreActivate> };
-const loadCore = async (): Promise<LoadResult> => {
+let core: CoreModule | null = null;
+const loadCore = async (fresh = false): Promise<LoadResult> => {
   let built: CoreActivate;
-  try {
-    built = core.build ? await core.build() : core.default;
-  } catch (error) {
-    const refused = `mod loki did not build, so the one running stays: ${messageOf(error)}`;
-    report(refused);
-    return { refused };
+  if (!fresh && core === null) {
+    const init = await initialBuild;
+    if ("error" in init) {
+      const refused = `mod loki did not build, so the one running stays: ${messageOf(init.error)}`;
+      report(refused);
+      return { refused };
+    }
+    core = init.core;
+    built = init.built;
+  } else {
+    try {
+      core ??= (await import(pathToFileURL(modPath).href)) as CoreModule;
+      built = core.build ? await core.build({ fresh }) : core.default;
+    } catch (error) {
+      const refused = `mod loki did not build, so the one running stays: ${messageOf(error)}`;
+      report(refused);
+      return { refused };
+    }
   }
   return mods.load({
     name: "loki",
@@ -371,7 +397,7 @@ const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : nul
 const builtPage = checkout && process.env.LOKI_BUILT_PAGE === "1" ? checkout : null;
 const devReload: DevReload = new DevReload({
   reloadMod: async () => {
-    const result = await loadCore();
+    const result = await loadCore(true);
     return "loaded" in result ? "ok" : result.refused;
   },
   ...(builtPage ? { buildPage: () => buildPage(builtPage) } : {}),
@@ -382,7 +408,10 @@ const devReload: DevReload = new DevReload({
   },
   report,
 });
-await loadCore();
+await Promise.all([agentsReady, initialBuild]);
+await loadCore(false);
+mcp.start();
+void lokiTools.start().catch((error: unknown) => report(`loki tools did not start: ${String(error)}`));
 void advisors.start().catch((error: unknown) => report(`advisor consults did not settle: ${String(error)}`));
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout

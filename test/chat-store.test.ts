@@ -627,4 +627,18 @@ describe("the chat store (plan 052)", () => {
     expect(d.handoffs).toEqual([["jira:acme.atlassian.net:acc-me", "10001", "c1", "mac-mini"]]);
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("10001#1");
   });
+
+  test("prefetchThread loads an unread thread once and skips redundant reads", async () => {
+    const d = daemon();
+    let reads = 0;
+    d.host.loadLocalHistory = () => {
+      reads++;
+      return Promise.resolve({ rows: [{ role: "user", text: "hi", at: "2026-10-29T10:00:00Z" }], start: 0, more: false });
+    };
+    await flush();
+    await Promise.all([d.store.prefetchThread(ADA), d.store.prefetchThread(ADA)]);
+    await d.store.prefetchThread(ADA);
+    expect(reads).toBe(1);
+    expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hi"]);
+  });
 });

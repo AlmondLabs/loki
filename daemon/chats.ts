@@ -16,6 +16,7 @@ import { Listeners } from "../core/listeners.ts";
 import { messageOf } from "../core/errors.ts";
 
 interface Kept {
+  id: number;
   steps: StoredStep[];
   role: "user" | "assistant" | null;
   text: string;
@@ -36,6 +37,7 @@ interface Chat {
   info: ChatInfo | null;
   settings: AgentSettings;
   entries: Kept[];
+  entriesLoaded: boolean;
   lastId: number;
   lastAt: string | null;
   lastCompactionIndex: number;
@@ -48,15 +50,15 @@ function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMe
   return undefined;
 }
 
-function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: ImageNamer): Kept {
-  if (entry.kind === COMPACTION) return { steps: entrySteps(entry), role: null, text: "", at: null, compaction: true };
+function keep(entry: Pick<EntryRecord, "id" | "kind" | "model" | "data">, nameImage?: ImageNamer): Kept {
+  if (entry.kind === COMPACTION) return { id: entry.id, steps: entrySteps(entry), role: null, text: "", at: null, compaction: true };
   const steps = entrySteps(entry, nameImage);
   const message = shownMessage(entry);
-  if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
+  if (!message || (message.role !== "user" && message.role !== "assistant")) return { id: entry.id, steps, role: null, text: "", at: null };
   const text = contentText(message.content).trim();
-  if (message.role !== "user") return { steps, role: message.role, text, at: messageAt(message) };
+  if (message.role !== "user") return { id: entry.id, steps, role: message.role, text, at: messageAt(message) };
   const said = stripHarnessMarkup(text).trim();
-  return { steps, role: message.role, text: said === text ? text : ownText(said), at: messageAt(message) };
+  return { id: entry.id, steps, role: message.role, text: said === text ? text : ownText(said), at: messageAt(message) };
 }
 
 // Outside (pi-ai): a thinking level left unset is pi's default, off.
@@ -76,6 +78,10 @@ export class ChatProjection implements ChatSource {
   private readonly listeners = new Listeners<[agentId: string, chatId: string, kind: "answer" | "compaction"]>();
   private readonly unsubscribe = new Map<string, () => void>();
   private readonly attaching = new Set<Promise<void>>();
+  private readonly stores = new Map<string, AgentStore>();
+  private readonly hydrating = new Map<string, Promise<void>>();
+  private readonly hydrationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly loadingEntries = new Map<string, Promise<void>>();
   private readonly context: Context;
   private readonly agentName: (agentId: string) => string | null;
 
@@ -101,7 +107,7 @@ export class ChatProjection implements ChatSource {
 
   follow(stores: StoreManager, report: (message: string) => void): () => void {
     return stores.onOpen((agentId, store) => {
-      const attached = this.attach(agentId, store)
+      const attached = this.attach(agentId, store, { eagerEntries: false })
         .catch((err: unknown) => {
           this.unsubscribe.get(agentId)?.();
           this.unsubscribe.delete(agentId);
@@ -112,12 +118,94 @@ export class ChatProjection implements ChatSource {
     });
   }
 
-  async loaded(): Promise<void> {
+  async metadataLoaded(): Promise<void> {
     while (this.attaching.size) await Promise.allSettled([...this.attaching]);
   }
 
-  async attach(agentId: string, store: AgentStore): Promise<void> {
+  async loaded(): Promise<void> {
+    while (this.attaching.size || this.hydrating.size) await Promise.allSettled([...this.attaching, ...this.hydrating.values()]);
+  }
+
+  ensureLoaded(conversationId: string, agentId?: string | null): Promise<void> | void {
+    const chat = this.find(conversationId, agentId);
+    if (chat) return chat.entriesLoaded ? undefined : this.ensureEntries(chat);
+    if (!this.attaching.size) return undefined;
+    return this.metadataLoaded().then(() => {
+      const next = this.find(conversationId, agentId);
+      return next && !next.entriesLoaded ? this.ensureEntries(next) : undefined;
+    });
+  }
+
+  private ensureEntries(chat: Chat): Promise<void> {
+    if (chat.entriesLoaded) return Promise.resolve();
+    const key = this.key(chat.agentId, chat.chatId);
+    const pending = this.loadingEntries.get(key);
+    if (pending) return pending;
+    const store = this.stores.get(chat.agentId);
+    if (!store) return Promise.resolve();
+    const task = this.hydrateChat(chat, store).finally(() => {
+      if (this.loadingEntries.get(key) === task) this.loadingEntries.delete(key);
+    });
+    this.loadingEntries.set(key, task);
+    return task;
+  }
+
+  private async hydrateChat(chat: Chat, store: AgentStore): Promise<void> {
+    if (chat.entriesLoaded) return;
+    const conversation = await store.harness.conversation(chat.conversationId as ConversationId, this.context);
+    if (!conversation) {
+      chat.entriesLoaded = true;
+      return;
+    }
+    const entries: Kept[] = [];
+    let lastId = 0;
+    let lastAt: string | null = null;
+    let lastCompactionIndex = -1;
+    await store.eachEntry(conversation, this.context, (e) => {
+      const kept = keep(e, this.nameImage);
+      entries.push(kept);
+      if (kept.at) lastAt = kept.at;
+      if (kept.compaction) lastCompactionIndex = entries.length - 1;
+      lastId = e.id;
+    });
+    for (const live of chat.entries) {
+      if (live.id <= lastId) continue;
+      entries.push(live);
+      if (live.at) lastAt = live.at;
+      if (live.compaction) lastCompactionIndex = entries.length - 1;
+      lastId = live.id;
+    }
+    if (this.chats.get(this.key(chat.agentId, chat.chatId)) !== chat) return;
+    chat.entries = entries;
+    chat.lastId = lastId;
+    chat.lastAt = lastAt;
+    chat.lastCompactionIndex = lastCompactionIndex;
+    chat.fold = undefined;
+    chat.entriesLoaded = true;
+  }
+
+  private async hydrateAgent(agentId: string): Promise<void> {
+    const waiting = [...this.chats.values()]
+      .filter((c) => c.agentId === agentId && !c.entriesLoaded)
+      .sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
+    if (!waiting.length) return;
+    const worker = async (): Promise<void> => {
+      const next = waiting.shift();
+      if (!next) return;
+      await this.ensureEntries(next);
+      return worker();
+    };
+    await Promise.all(Array.from({ length: Math.min(2, waiting.length) }, worker));
+  }
+
+  async attach(agentId: string, store: AgentStore, { eagerEntries = true }: { eagerEntries?: boolean } = {}): Promise<void> {
     this.unsubscribe.get(agentId)?.();
+    const timer = this.hydrationTimers.get(agentId);
+    if (timer) {
+      clearTimeout(timer);
+      this.hydrationTimers.delete(agentId);
+    }
+    this.stores.set(agentId, store);
     for (const [key, chat] of [...this.chats.entries()]) {
       if (chat.agentId !== agentId) continue;
       this.adjustScope(chat, -1);
@@ -138,17 +226,50 @@ export class ChatProjection implements ChatSource {
       let lastId = 0;
       let lastAt: string | null = null;
       let lastCompactionIndex = -1;
-      const [, info, settings] = await Promise.all([
-        store.eachEntry(conversation, this.context, (e) => {
-          const kept = keep(e, this.nameImage);
-          entries.push(kept);
-          if (kept.at) lastAt = kept.at;
-          if (kept.compaction) lastCompactionIndex = entries.length - 1;
-          lastId = e.id;
-        }),
+      let entriesLoaded = true;
+      if (eagerEntries) {
+        const [, info, settings] = await Promise.all([
+          store.eachEntry(conversation, this.context, (e) => {
+            const kept = keep(e, this.nameImage);
+            entries.push(kept);
+            if (kept.at) lastAt = kept.at;
+            if (kept.compaction) lastCompactionIndex = entries.length - 1;
+            lastId = e.id;
+          }),
+          store.chatInfo(conversation.id, this.context),
+          store.agentSettings(conversation.id, this.context),
+        ]);
+        const chat: Chat = {
+          agentId,
+          chatId,
+          conversationId,
+          info: info ?? null,
+          settings: settings ?? {},
+          entries,
+          entriesLoaded: true,
+          lastId,
+          lastAt,
+          lastCompactionIndex,
+        };
+        this.chats.set(this.key(agentId, chatId), chat);
+        this.byConv.set(this.convKey(agentId, conversationId), chat);
+        this.adjustScope(chat, 1);
+        return;
+      }
+      const [tailPage, info, settings] = await Promise.all([
+        conversation.entries({ order: "descending" }, 20, undefined, this.context),
         store.chatInfo(conversation.id, this.context),
         store.agentSettings(conversation.id, this.context),
       ]);
+      for (let i = tailPage.items.length - 1; i >= 0; i--) {
+        const e = tailPage.items[i];
+        const kept = keep(e, this.nameImage);
+        entries.push(kept);
+        if (kept.at) lastAt = kept.at;
+        if (kept.compaction) lastCompactionIndex = entries.length - 1;
+        lastId = e.id;
+      }
+      entriesLoaded = tailPage.next === undefined;
       const chat: Chat = {
         agentId,
         chatId,
@@ -156,6 +277,7 @@ export class ChatProjection implements ChatSource {
         info: info ?? null,
         settings: settings ?? {},
         entries,
+        entriesLoaded,
         lastId,
         lastAt,
         lastCompactionIndex,
@@ -172,6 +294,22 @@ export class ChatProjection implements ChatSource {
     );
     loading = false;
     for (const publication of pending) this.apply(agentId, publication);
+    if (!eagerEntries && [...this.chats.values()].some((c) => c.agentId === agentId && !c.entriesLoaded)) {
+      const task = new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, 0);
+        t.unref();
+        this.hydrationTimers.set(agentId, t);
+      })
+        .then(() => {
+          this.hydrationTimers.delete(agentId);
+          return this.hydrateAgent(agentId);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (this.hydrating.get(agentId) === task) this.hydrating.delete(agentId);
+        });
+      this.hydrating.set(agentId, task);
+    }
   }
 
   onEntry(listener: (agentId: string, chatId: string, kind: "answer" | "compaction") => void): () => void {
@@ -234,6 +372,7 @@ export class ChatProjection implements ChatSource {
               info: null,
               settings: {},
               entries: [],
+              entriesLoaded: true,
               lastId: 0,
               lastAt: null,
               lastCompactionIndex: -1,

@@ -438,7 +438,11 @@ export function useDesk() {
       loaded: desksLoaded,
       request: requestDesks,
       switchTo: switchDesk,
-      pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agent_id: agentId, conversation_id: conversationId, pinned }),
+      pin: (agentId: string, conversationId: string, pinned: boolean) => {
+        const s = scopeFor(conversationId, agentId);
+        setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, pinned } : d)));
+        send({ type: "pin_set", agent_id: agentId, conversation_id: conversationId, pinned });
+      },
     },
     attention,
     phone,
