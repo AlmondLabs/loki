@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, type CSSProperties, type ReactNode } fro
 import type { LabelView } from "../../../core/labels.ts";
 import type { AccountProvider } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { AttentionItem, PendingQuestion } from "../../../core/attention/model.ts";
 import { idOf } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
 import { OpenAdvisor, OpenChat } from "../chat/transcript";
@@ -57,6 +57,111 @@ export function UndoButton({ via, onUndo }: { via: Move; onUndo: () => void }) {
   );
 }
 
+function emptyDeckCopy({
+  available,
+  loaded,
+  banner,
+  running,
+  passedOver,
+  resting,
+  pass,
+  others,
+}: {
+  available: boolean;
+  loaded: boolean;
+  banner?: ReactNode;
+  running: number;
+  passedOver: number;
+  resting: number;
+  pass: PassSummary;
+  others: string | null;
+}) {
+  const macProblem = !available || !!banner;
+  const again = loaded && !macProblem && passedOver > 0;
+  const title = !available
+    ? "loki is not running on the Mac"
+    : banner
+      ? "The Mac is out of reach"
+      : again
+        ? "You've been through every chat"
+        : "You're caught up";
+  const line = !available
+    ? "Open loki on the Mac."
+    : banner
+      ? "Cards come back when it reconnects; nothing in Flow is lost."
+      : again
+        ? `${passedOver === 1 ? "1 chat still needs" : `${passedOver} chats still need`} you. Every chat stays until you archive it.`
+        : resting > 0
+          ? resting === 1
+            ? "1 chat rests until it's due or something new comes."
+            : `${resting} chats rest until they're due or something new comes.`
+          : running > 0
+            ? `${running} still running. They land here when they finish.`
+            : "Nothing is waiting on you.";
+  return {
+    loading: !loaded && !macProblem,
+    macProblem,
+    again,
+    title,
+    line,
+    summary: summaryLine(pass),
+    done: loaded && !macProblem,
+    othersText: !macProblem ? others : null,
+  };
+}
+
+function EmptyDeckActions({
+  macProblem,
+  again,
+  resting,
+  onAgain,
+  onResting,
+  onEverything,
+  backLabel,
+  onClose,
+  onConnection,
+}: {
+  macProblem: boolean;
+  again: boolean;
+  resting: number;
+  onAgain: () => void;
+  onResting: () => void;
+  onEverything?: () => void;
+  backLabel: string;
+  onClose: () => void;
+  onConnection: () => void;
+}) {
+  if (macProblem) {
+    return (
+      <Button size="touch" tone="paper" onClick={onConnection}>
+        Connection Details
+      </Button>
+    );
+  }
+  return (
+    <div className="loki-phone-empty-actions">
+      {again && (
+        <Button size="touch" tone="paper" onClick={onAgain}>
+          Go Through Again
+        </Button>
+      )}
+      {!again && resting > 0 && (
+        <Button size="touch" tone="paper" onClick={onResting}>
+          Go Through Them
+        </Button>
+      )}
+      {onEverything && (
+        <Button size="touch" tone="paper" onClick={onEverything}>
+          Back to Everything
+        </Button>
+      )}
+      <Button size="touch" tone="paper" onClick={onClose}>
+        Back to {backLabel}
+      </Button>
+    </div>
+  );
+}
+
 export function EmptyDeck({
   available,
   loaded,
@@ -88,74 +193,35 @@ export function EmptyDeck({
   onClose: () => void;
   onConnection: () => void;
 }) {
-  const summary = summaryLine(pass);
-  const macProblem = !available || !!banner;
-  if (!loaded && !macProblem)
+  const copy = emptyDeckCopy({ available, loaded, banner, running, passedOver, resting, pass, others });
+  if (copy.loading) {
     return (
       <div className="loki-phone-scroll loki-phone-scroll--flush">
         <SkeletonCard label="Reading Flow…" />
       </div>
     );
-  const again = loaded && !macProblem && passedOver > 0;
-  const title = !available
-    ? "loki is not running on the Mac"
-    : banner
-      ? "The Mac is out of reach"
-      : again
-        ? "You've been through every chat"
-        : "You're caught up";
-  const line = !available
-    ? "Open loki on the Mac."
-    : banner
-      ? "Cards come back when it reconnects; nothing in Flow is lost."
-      : again
-        ? `${passedOver === 1 ? "1 chat still needs" : `${passedOver} chats still need`} you. Every chat stays until you archive it.`
-        : resting > 0
-          ? resting === 1
-            ? "1 chat rests until it's due or something new comes."
-            : `${resting} chats rest until they're due or something new comes.`
-          : running > 0
-            ? `${running} still running. They land here when they finish.`
-            : "Nothing is waiting on you.";
-  const done = loaded && !macProblem;
+  }
   return (
-    <>
-      <div className="loki-phone-scroll loki-phone-scroll--flush">
-        <div className="loki-phone-empty" role="status" data-done={done || undefined}>
-          <Icon name={macProblem ? "laptop" : "check"} size={32} className="loki-phone-empty-mark" />
-          <p className="loki-phone-headline">{title}</p>
-          <p>{line}</p>
-          {summary && <p className="loki-phone-meta">This visit: {summary}</p>}
-          {!macProblem && others && <p className="loki-phone-meta">{others}</p>}
-          {macProblem ? (
-            <Button size="touch" tone="paper" onClick={onConnection}>
-              Connection Details
-            </Button>
-          ) : (
-            <div className="loki-phone-empty-actions">
-              {again && (
-                <Button size="touch" tone="paper" onClick={onAgain}>
-                  Go Through Again
-                </Button>
-              )}
-              {!again && resting > 0 && (
-                <Button size="touch" tone="paper" onClick={onResting}>
-                  Go Through Them
-                </Button>
-              )}
-              {onEverything && (
-                <Button size="touch" tone="paper" onClick={onEverything}>
-                  Back to Everything
-                </Button>
-              )}
-              <Button size="touch" tone="paper" onClick={onClose}>
-                Back to {backLabel}
-              </Button>
-            </div>
-          )}
-        </div>
+    <div className="loki-phone-scroll loki-phone-scroll--flush">
+      <div className="loki-phone-empty" role="status" data-done={copy.done || undefined}>
+        <Icon name={copy.macProblem ? "laptop" : "check"} size={32} className="loki-phone-empty-mark" />
+        <p className="loki-phone-headline">{copy.title}</p>
+        <p>{copy.line}</p>
+        {copy.summary && <p className="loki-phone-meta">This visit: {copy.summary}</p>}
+        {copy.othersText && <p className="loki-phone-meta">{copy.othersText}</p>}
+        <EmptyDeckActions
+          macProblem={copy.macProblem}
+          again={copy.again}
+          resting={resting}
+          onAgain={onAgain}
+          onResting={onResting}
+          onEverything={onEverything}
+          backLabel={backLabel}
+          onClose={onClose}
+          onConnection={onConnection}
+        />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -169,21 +235,31 @@ const REVEAL: Partial<Record<Via, { label: string; icon: "check" | "clock" | "ar
 
 const REVEAL_CLASS: Record<Direction, string> = { right: "loki-phone-reveal-right", left: "loki-phone-reveal-left", up: "loki-phone-reveal-up" };
 
-export function Reveal({ drag, width, item, typed, sending }: { drag: Drag | null; width: number; item: AttentionItem; typed: boolean; sending: boolean }) {
+function revealBadge(drag: Drag | null, width: number, item: AttentionItem, typed: boolean, sending: boolean) {
   const dx = drag?.dx ?? 0;
   const dy = drag?.dy ?? 0;
   const up = -dy > Math.abs(dx);
   const dir: Direction | null = up ? "up" : dx > 0 ? "right" : dx < 0 ? "left" : null;
-  const gesture = dir ? gestureFor(item, dir, { typed, sending }) : null;
-  const shown = gesture && "via" in gesture ? REVEAL[gesture.via] : undefined;
+  if (!dir) return null;
+  const gesture = gestureFor(item, dir, { typed, sending });
+  const shown = "via" in gesture ? REVEAL[gesture.via] : undefined;
+  if (!shown) return null;
   const reach = up ? -dy : dx;
-  const opacity = shown ? revealOpacity(reach, width) : 0;
-  const ready = !!shown && armed(reach, width);
+  const opacity = revealOpacity(reach, width);
+  return { dir, shown, opacity, ready: armed(reach, width) };
+}
+
+export function Reveal({ drag, width, item, typed, sending }: { drag: Drag | null; width: number; item: AttentionItem; typed: boolean; sending: boolean }) {
+  const badge = revealBadge(drag, width, item, typed, sending);
   return (
-    <div aria-hidden className="loki-phone-reveal" data-dir={dir ?? undefined}>
-      {shown && dir && (
-        <span className={REVEAL_CLASS[dir]} data-armed={ready || undefined} style={{ opacity, transform: `scale(${0.9 + opacity * 0.1})` }}>
-          <Icon name={shown.icon} size={20} /> {shown.label}
+    <div aria-hidden className="loki-phone-reveal" data-dir={badge?.dir ?? undefined}>
+      {badge && (
+        <span
+          className={REVEAL_CLASS[badge.dir]}
+          data-armed={badge.ready || undefined}
+          style={{ opacity: badge.opacity, transform: `scale(${0.9 + badge.opacity * 0.1})` }}
+        >
+          <Icon name={badge.shown.icon} size={20} /> {badge.shown.label}
         </span>
       )}
     </div>
@@ -336,6 +412,55 @@ export function Stack({
 
 const OUTSIDE_NAMED: Record<AccountProvider, boolean> = { gmail: true, slack: false, jira: true };
 
+function cardHeaderMeta(item: AttentionItem, labelList: readonly LabelView[] | null | undefined, suggestions: number) {
+  const outside = item.outside;
+  const named = outside ? OUTSIDE_NAMED[outside.provider] : false;
+  const title = outside ? (named ? outsideTitle(outside) : outsideWho(outside)) : (item.title ?? item.id);
+  const who = outside ? senderName(outside.sender) : (item.agent_name ?? "agent");
+  const showFrom = !!(outside && named);
+  const hasLabels = labelList !== undefined && !!item.labels?.length;
+  return {
+    title,
+    who,
+    avatarSrc: outside ? null : avatarUrl(item.agent_id),
+    avatarName: outside ? who : item.agent_name,
+    whoLabel: outside ? `${title}, from ${who}` : `Open ${title} with ${item.agent_name ?? "the agent"}`,
+    showChevron: !outside,
+    showFrom,
+    outsideFrom: outside ? outsideWho(outside) : null,
+    showExtra: showFrom || item.has_draft || suggestions > 0 || hasLabels,
+  };
+}
+
+function CardExtra({
+  item,
+  outsideFrom,
+  suggestions,
+  onSuggestions,
+  labelList,
+  tabIndex,
+}: {
+  item: AttentionItem;
+  outsideFrom: string | null;
+  suggestions: number;
+  onSuggestions?: () => void;
+  labelList?: readonly LabelView[] | null;
+  tabIndex: number | undefined;
+}) {
+  return (
+    <div className="loki-phone-card-extra">
+      {outsideFrom && <span className="loki-phone-ellipsis loki-phone-card-from">{outsideFrom}</span>}
+      {item.has_draft && <span className="loki-phone-card-draft">Draft</span>}
+      {suggestions > 0 && (
+        <button type="button" className="loki-phone-card-suggestions" onClick={onSuggestions} aria-haspopup="dialog" tabIndex={tabIndex}>
+          {sentence(chipText(suggestions, false))}
+        </button>
+      )}
+      {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
+    </div>
+  );
+}
+
 export function Card({
   item,
   role,
@@ -364,34 +489,27 @@ export function Card({
   children?: ReactNode;
 }) {
   const top = role === "top";
-  const named = item.outside ? OUTSIDE_NAMED[item.outside.provider] : false;
-  const title = item.outside ? (named ? outsideTitle(item.outside) : outsideWho(item.outside)) : (item.title ?? item.id);
-  const who = item.outside ? senderName(item.outside.sender) : (item.agent_name ?? "agent");
+  const tabIndex = top ? undefined : -1;
+  const meta = cardHeaderMeta(item, labelList, suggestions);
   return (
     <article
       className="loki-phone-card"
       data-role={role}
       data-refused={refused || undefined}
-      aria-label={top ? `${title}, with ${item.agent_name ?? "the agent"}` : undefined}
+      aria-label={top ? `${meta.title}, with ${item.agent_name ?? "the agent"}` : undefined}
       aria-hidden={!top || undefined}
       inert={!top}
       {...(top ? handlers : {})}
       style={style}
     >
       <header className="loki-phone-card-head">
-        <button
-          type="button"
-          className="loki-phone-card-who"
-          onClick={onOpen}
-          aria-label={item.outside ? `${title}, from ${who}` : `Open ${title} with ${item.agent_name ?? "the agent"}`}
-          tabIndex={top ? undefined : -1}
-        >
-          <Avatar name={item.outside ? who : item.agent_name} src={item.outside ? null : avatarUrl(item.agent_id)} size={28} />
-          <span className="loki-phone-ellipsis">{who}</span>
-          {!item.outside && <Icon name="chevron-down" size={16} />}
+        <button type="button" className="loki-phone-card-who" onClick={onOpen} aria-label={meta.whoLabel} tabIndex={tabIndex}>
+          <Avatar name={meta.avatarName} src={meta.avatarSrc} size={28} />
+          <span className="loki-phone-ellipsis">{meta.who}</span>
+          {meta.showChevron && <Icon name="chevron-down" size={16} />}
         </button>
         <span className="loki-phone-card-desk">
-          <span className="loki-phone-ellipsis loki-phone-card-title">{title}</span>
+          <span className="loki-phone-ellipsis loki-phone-card-title">{meta.title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
         </span>
@@ -401,23 +519,21 @@ export function Card({
             className="loki-phone-card-more"
             onClick={onMore}
             aria-haspopup="dialog"
-            aria-label={`Actions for ${title}`}
-            tabIndex={top ? undefined : -1}
+            aria-label={`Actions for ${meta.title}`}
+            tabIndex={tabIndex}
           >
             <Icon name="more" size={20} />
           </button>
         )}
-        {((item.outside && named) || item.has_draft || suggestions > 0 || (labelList !== undefined && !!item.labels?.length)) && (
-          <div className="loki-phone-card-extra">
-            {item.outside && named && <span className="loki-phone-ellipsis loki-phone-card-from">{outsideWho(item.outside)}</span>}
-            {item.has_draft && <span className="loki-phone-card-draft">Draft</span>}
-            {suggestions > 0 && (
-              <button type="button" className="loki-phone-card-suggestions" onClick={onSuggestions} aria-haspopup="dialog" tabIndex={top ? undefined : -1}>
-                {sentence(chipText(suggestions, false))}
-              </button>
-            )}
-            {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
-          </div>
+        {meta.showExtra && (
+          <CardExtra
+            item={item}
+            outsideFrom={meta.showFrom ? meta.outsideFrom : null}
+            suggestions={suggestions}
+            onSuggestions={onSuggestions}
+            labelList={labelList}
+            tabIndex={tabIndex}
+          />
         )}
       </header>
       {children && <div className="loki-phone-card-body loki-phone-thread">{children}</div>}
@@ -429,6 +545,50 @@ export function Card({
 function LiveCardConversation({ chats, ...card }: { chats: ChatViews } & Omit<Parameters<typeof CardConversation>[0], "view">) {
   const view = useConversation(chats, card.item.agent_id, card.item.id);
   return <CardConversation {...card} view={view} />;
+}
+
+function cardConversationConfig(item: AttentionItem, view: CardView, banner: ReactNode | undefined, card: CardActions, onHold: () => void) {
+  const agentName = item.agent_name ?? "the agent";
+  const question: PendingQuestion | null = view.question ?? null;
+  const approval = view.pending ?? item.pendingApproval;
+  const said = cardNotice(item, view.status);
+  const notice = banner ?? (said ? <ThreadNotice text={said} /> : null);
+  const model = card.model;
+  const onPick = model?.onPick;
+  const onStop = card.onStop;
+  const error = item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null);
+  return {
+    agentName,
+    notice,
+    placeholder: replyPlaceholder(!!question, !!approval, agentName),
+    models: model?.models ?? null,
+    suggestions: card.suggestions ? { ...card.suggestions, rt: item.runtime } : null,
+    conversationView: {
+      rows: view.rows,
+      status: view.status,
+      error,
+      approval,
+      question,
+      model: model?.modelOf(item) ?? null,
+      reasoningEffort: model?.effortOf(item) ?? null,
+      older: view.older ?? null,
+      loadFailed: view.loadFailed ?? null,
+      loadStep: view.loadStep,
+    },
+    conversationActions: {
+      onLoadModels: model?.onLoad,
+      onPickModel: onPick ? (selection: Parameters<NonNullable<typeof onPick>>[1]) => onPick(item, selection) : undefined,
+      onSend: (text: string, images: Parameters<CardActions["onSend"]>[2] = []) => card.onSend(item, text, images),
+      onAnswer: question
+        ? (answers: Record<string, string | string[]>) => {
+            card.onAnswer(item, question.requestId, answers);
+            onHold();
+          }
+        : undefined,
+      onCancelQueued: (text: string) => card.onCancelQueued(item, text),
+      onStop: onStop ? () => onStop(item) : undefined,
+    },
+  };
 }
 
 export function CardConversation({
@@ -447,15 +607,8 @@ export function CardConversation({
   onHold: () => void;
 }) {
   const [draft, setDraft] = useDraft(draftKey(item.agent_id, item.id));
-  const agentName = item.agent_name ?? "the agent";
   const layout = useThreadLayout({ agentId: item.agent_id, conversationId: item.id, agentName: item.agent_name }, view.rows, item, item.viewedAt);
-  const question = view.question ?? null;
-  const approval = view.pending ?? item.pendingApproval;
-  const said = cardNotice(item, view.status);
-  const notice = banner ?? (said && <ThreadNotice text={said} />);
-  const model = card.model;
-  const onPick = model?.onPick;
-  const onStop = card.onStop;
+  const cfg = cardConversationConfig(item, view, banner, card, onHold);
   const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
   const openAdvisor = useCallback((advisorChat: string) => openConversation(item.agent_id, advisorChat), [item.agent_id]);
   return message.wrap(
@@ -465,39 +618,16 @@ export function CardConversation({
         <Conversation
           touch
           dim={false}
-          view={{
-            rows: view.rows,
-            status: view.status,
-            error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null),
-            approval,
-            question,
-            model: model?.modelOf(item) ?? null,
-            reasoningEffort: model?.effortOf(item) ?? null,
-            older: view.older ?? null,
-            loadFailed: view.loadFailed ?? null,
-            loadStep: view.loadStep,
-          }}
-          models={model?.models ?? null}
-          actions={{
-            onLoadModels: model?.onLoad,
-            onPickModel: onPick ? (selection) => onPick(item, selection) : undefined,
-            onSend: (text, images = []) => card.onSend(item, text, images),
-            onAnswer: question
-              ? (answers) => {
-                  card.onAnswer(item, question.requestId, answers);
-                  onHold();
-                }
-              : undefined,
-            onCancelQueued: (text) => card.onCancelQueued(item, text),
-            onStop: onStop ? () => onStop(item) : undefined,
-          }}
-          agentName={agentName}
+          view={cfg.conversationView}
+          models={cfg.models}
+          actions={cfg.conversationActions}
+          agentName={cfg.agentName}
           layout={layout}
-          notice={notice || null}
-          placeholder={replyPlaceholder(!!question, !!approval, agentName)}
+          notice={cfg.notice}
+          placeholder={cfg.placeholder}
           draft={{ value: draft, onChange: setDraft }}
           onSent={onHold}
-          suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}
+          suggestions={cfg.suggestions}
           suggestionsTick={suggestionsTick}
           fold
           describe={dragWords(item)}

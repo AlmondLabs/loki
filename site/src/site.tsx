@@ -42,7 +42,7 @@ export function Site() {
         </a>
         <nav aria-label="sections">
           <a href="#canvas">canvas</a>
-          <a href="#inbox">flow</a>
+          <a href="#flow">flow</a>
           <a href="#suggestions">suggestions</a>
           <a href="#phone">phone</a>
           <a href="#learn">learn</a>

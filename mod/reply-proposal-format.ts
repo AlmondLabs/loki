@@ -60,9 +60,9 @@ export function bytesWords(bytes: number): string {
 }
 
 export async function checkedFiles(files: readonly ReplyAttachment[]): Promise<Array<{ name: string; data: Buffer }>> {
+  const entries = await Promise.all(files.map(async (f) => ({ f, data: await readFile(f.path).catch(() => null) })));
   const read: Array<{ name: string; data: Buffer }> = [];
-  for (const f of files) {
-    const data = await readFile(f.path).catch(() => null);
+  for (const { f, data } of entries) {
     if (!data) throw new Error(`${f.name} is no longer in the chat's folder: take it off, or reject the reply and ask for it again`);
     if (md5(data) !== f.md5) throw new Error(`${f.name} changed since this reply was proposed: take it off, or reject the reply and ask for it again`);
     read.push({ name: f.name, data });

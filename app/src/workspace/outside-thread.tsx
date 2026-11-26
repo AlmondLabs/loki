@@ -11,13 +11,21 @@ import { NewLine, SlackThread, loadLabel } from "./slack-thread";
 import type { ThreadState } from "./use-outside-thread";
 
 export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; touch?: boolean }) {
+  const seen = new Map<string, number>();
   return (
     <div className="flex flex-col" style={{ gap: touch ? "var(--phone-space-3)" : 12 }}>
-      {facts.lines.map((line, i) => (
-        <p key={i} style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : "var(--text-sm)" }}>
-          {line}
-        </p>
-      ))}
+      {facts.lines.map((line) => {
+        const count = (seen.get(line) ?? 0) + 1;
+        seen.set(line, count);
+        return (
+          <p
+            key={`${line}\u0000${String(count)}`}
+            style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : "var(--text-sm)" }}
+          >
+            {line}
+          </p>
+        );
+      })}
     </div>
   );
 }

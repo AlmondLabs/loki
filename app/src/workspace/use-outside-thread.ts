@@ -255,11 +255,51 @@ export function prefetchOutside(item: AttentionItem, source: OutsideThreadSource
   map.set(tag, { at: now, promise });
 }
 
-export function useOutsideThread(
-  item: AttentionItem,
-  source: OutsideThreadSource | null,
-  hold?: { opened: OpenedThread | null; setOpened: (opened: OpenedThread | null) => void },
+function consumePrefetchedRead(source: OutsideThreadSource | null, threadTs: string | null, tag: string): Promise<OutsideRead | string> | null {
+  if (!source || threadTs !== null) return null;
+  const map = outsidePrefetchCache.get(source.readOutside);
+  const cached = map?.get(tag);
+  if (!cached) return null;
+  map?.delete(tag);
+  if (Date.now() - cached.at >= OUTSIDE_PREFETCH_TTL_MS) return null;
+  return cached.promise;
+}
+
+function applyInitialRead(prev: Shown | null, out: OutsideRead | string, view: string, tag: string): Shown {
+  if (typeof out !== "string") {
+    return { view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null, ticket: out.ticket ?? null };
+  }
+  if (prev?.tag === tag && prev.failed === null) return prev;
+  return { view, tag, messages: [], window: null, busy: null, failed: out, link: null, ticket: null };
+}
+
+function buildThreadState(
+  shown: Shown | null,
+  view: string,
+  standIns: readonly OutsideMessage[],
+  provider: string | undefined,
+  reacting: Pick<ThreadControls, "react" | "quick" | "searchEmoji" | "refusal">,
+  threadTs: string | null,
+  key: string,
+  load: (direction: "before" | "after") => void,
+  setOpened: (opened: OpenedThread | null) => void,
 ): ThreadState {
+  if (!key || shown?.view !== view) return { kind: "loading" };
+  if (shown.failed !== null) return { kind: "failed", message: shown.failed };
+  const messages = [...shown.messages, ...standIns];
+  const w = shown.window;
+  if (!w) return { kind: "read", messages, link: shown.link, ticket: shown.ticket, ...(provider === "gmail" && reacting.react ? { reacting } : {}) };
+  const controls: ThreadControls = {
+    load,
+    openThread: (ts) => setOpened({ key, ts }),
+    ...(threadTs ? { back: () => setOpened(null) } : {}),
+    busy: shown.busy,
+    ...reacting,
+  };
+  return { kind: "read", messages, window: w, controls, opened: threadTs, link: shown.link, ticket: shown.ticket };
+}
+
+function useThreadOpening(item: AttentionItem, hold?: { opened: OpenedThread | null; setOpened: (opened: OpenedThread | null) => void }) {
   const o = item.outside;
   const key = cardKey(item);
   const [ownOpened, setOwnOpened] = useState<OpenedThread | null>(null);
@@ -271,26 +311,32 @@ export function useOutsideThread(
   const newest = o?.newest_message_id ?? "";
   const steady = o?.provider === "slack";
   const tag = steady ? view : `${view}/${newest}`;
+  return { o, key, threadTs, setOpened, ask, view, newest, steady, tag };
+}
+
+export function useOutsideThread(
+  item: AttentionItem,
+  source: OutsideThreadSource | null,
+  hold?: { opened: OpenedThread | null; setOpened: (opened: OpenedThread | null) => void },
+): ThreadState {
+  const { o, key, threadTs, setOpened, ask, view, newest, steady, tag } = useThreadOpening(item, hold);
   const [shown, setShown] = useState<Shown | null>(null);
+  const shownRef = useRef<Shown | null>(null);
+  useEffect(() => {
+    shownRef.current = shown;
+  }, [shown]);
   const reacted = useRef<Reacted>({ seq: 0, at: new Map() });
   const tick = useTick(steady && key !== "", REFRESH_MS);
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
-  const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
-  const consumePrefetched = useEffectEvent(() => {
-    if (!source || threadTs !== null) return null;
-    const map = outsidePrefetchCache.get(source.readOutside);
-    const cached = map?.get(tag);
-    if (!cached) return null;
-    map?.delete(tag);
-    if (Date.now() - cached.at >= OUTSIDE_PREFETCH_TTL_MS) return null;
-    return cached.promise;
-  });
-  const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
-  const readNewer = useEffectEvent(() => {
-    if (!steady || shown?.tag !== tag || shown.failed !== null || !shown.window) return null;
-    const again = refreshAsk(shown.messages, shown.window);
-    return { pending: again ? read(again) : null, asked: reacted.current.seq };
+  const fetchThread = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
+  const readCachedOrFresh = useEffectEvent(() => consumePrefetchedRead(source, threadTs, tag) ?? fetchThread({}));
+  const finishWent = useEffectEvent((targetWent: number) => sent.settle(targetWent));
+  const pollNewer = useEffectEvent(() => {
+    const current = shownRef.current;
+    if (!steady || current?.tag !== tag || current.failed !== null || !current.window) return null;
+    const again = refreshAsk(current.messages, current.window);
+    return { pending: again ? fetchThread(again) : null, asked: reacted.current.seq };
   });
   useEffect(() => {
     if (!key) return;
@@ -298,40 +344,29 @@ export function useOutsideThread(
     const stop = () => {
       live = false;
     };
-    const newer = readNewer();
+    const newer = pollNewer();
     if (newer) {
       void newer.pending?.then((out) => {
         if (!live || typeof out === "string") return;
         setShown((s) => (s?.tag === tag ? withNewer(s, out, reactedAfter(reacted.current, newer.asked)) : s));
-        if (out.window?.more_after !== true) settle(went);
+        if (out.window?.more_after !== true) finishWent(went);
       });
       return stop;
     }
-    void (consumePrefetched() ?? read({}))?.then((out) => {
+    void readCachedOrFresh()?.then((out) => {
       if (!live) return;
-      if (typeof out !== "string") {
-        setShown({ view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null, ticket: out.ticket ?? null });
-        settle(went);
-        return;
-      }
-      setShown((now) =>
-        now?.tag === tag && now.failed === null ? now : { view, tag, messages: [], window: null, busy: null, failed: out, link: null, ticket: null },
-      );
+      setShown((now) => applyInitialRead(now, out, view, tag));
+      if (typeof out !== "string") finishWent(went);
     });
     return stop;
   }, [key, tag, view, newest, went, tick]);
-  const noteReacted = (messageId: string) => {
+  const reacting = useReactControls(item, source, setShown, tag, (messageId) => {
     reacted.current.seq += 1;
     reacted.current.at.set(messageId, reacted.current.seq);
-  };
-  const reacting = useReactControls(item, source, setShown, tag, noteReacted);
-  if (!key || shown?.view !== view) return { kind: "loading" };
-  if (shown.failed !== null) return { kind: "failed", message: shown.failed };
-  const messages = [...shown.messages, ...sent.standIns];
-  const w = shown.window;
-  if (!w) return { kind: "read", messages, link: shown.link, ticket: shown.ticket, ...(o?.provider === "gmail" && reacting.react ? { reacting } : {}) };
+  });
   const load = (direction: "before" | "after") => {
-    if (shown.busy) return;
+    if (!shown || shown.busy || !shown.window) return;
+    const w = shown.window;
     const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
     if (!from) return;
     setShown({ ...shown, busy: direction });
@@ -339,14 +374,7 @@ export function useOutsideThread(
       ?.readOutside(item, { ...ask, ...ticketAsk(o, shown.ticket !== null), direction, from })
       .then((out) => setShown((now) => (now?.tag !== tag ? now : typeof out === "string" ? { ...now, busy: null } : withLoaded(now, out, w, direction))));
   };
-  const controls: ThreadControls = {
-    load,
-    openThread: (ts) => setOpened({ key, ts }),
-    ...(threadTs ? { back: () => setOpened(null) } : {}),
-    busy: shown.busy,
-    ...reacting,
-  };
-  return { kind: "read", messages, window: w, controls, opened: threadTs, link: shown.link, ticket: shown.ticket };
+  return buildThreadState(shown, view, sent.standIns, o?.provider, reacting, threadTs, key, load, setOpened);
 }
 
 export function useMailCompose(item: AttentionItem | undefined, source: Pick<OutsideSource, "composeOutside"> | null): MailCompose | null {

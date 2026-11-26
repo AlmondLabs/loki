@@ -171,13 +171,18 @@ export async function finishTurn(
   engine: ChatEngine,
 ): Promise<string> {
   await Promise.allSettled(turn.writes);
-  for (const [id, call] of turn.calls) {
-    if (call.done) continue;
-    call.done = true;
-    call.failed = true;
-    turn.responses++;
-    await writeCall(host, live, store, chat, id, call, true, call.output || "the tool did not finish");
-  }
+  await [...turn.calls.entries()]
+    .filter(([, call]) => !call.done)
+    .reduce<Promise<void>>(
+      (chain, [id, call]) =>
+        chain.then(() => {
+          call.done = true;
+          call.failed = true;
+          turn.responses++;
+          return writeCall(host, live, store, chat, id, call, true, call.output || "the tool did not finish");
+        }),
+      Promise.resolve(),
+    );
   const at = host.now();
   const entries: Array<{ kind: "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }> = [];
   if (turn.plan) {
