@@ -164,16 +164,12 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
       const href = target.getAttribute("href") ?? "";
       if (openableHref(href)) openExternal(href);
     };
-    const cleanupDoc = () => {
-      observer?.disconnect();
-      observer = null;
-      prevDoc?.removeEventListener("click", click);
-      prevDoc = null;
-    };
     const loaded = () => {
       const page = el.contentDocument;
       if (!page) return;
-      cleanupDoc();
+      observer?.disconnect();
+      observer = null;
+      prevDoc?.removeEventListener("click", click);
       prevDoc = page;
       fit();
       page.addEventListener("click", click);
@@ -184,7 +180,10 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
     if (el.contentDocument?.readyState === "complete") loaded();
     return () => {
       el.removeEventListener("load", loaded);
-      cleanupDoc();
+      observer?.disconnect();
+      observer = null;
+      prevDoc?.removeEventListener("click", click);
+      prevDoc = null;
     };
   }, [doc]);
   const page = (
