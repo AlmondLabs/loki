@@ -47,13 +47,21 @@ let spills = 0;
 export function mapResult(result: CallToolResult, opts: { spillDir: string; name: string }): Mapped {
   const content = parts(result);
   const isError = result.isError === true;
+  let textCount = 0;
+  let chars = 0;
+  for (const p of content) {
+    if (p.type === "text") {
+      if (textCount > 0) chars += 1;
+      chars += p.text.length;
+      textCount++;
+    }
+  }
+  if (isError) return { content: content.map((p) => (p.type === "text" ? { ...p, text: trimError(p.text) } : p)), isError, spilled: null, chars };
+  if (chars <= SPILL_CHARS) return { content, isError, spilled: null, chars };
   const text = content
     .filter((p): p is Extract<Part, { type: "text" }> => p.type === "text")
     .map((p) => p.text)
     .join("\n");
-  const chars = text.length;
-  if (isError) return { content: content.map((p) => (p.type === "text" ? { ...p, text: trimError(p.text) } : p)), isError, spilled: null, chars };
-  if (chars <= SPILL_CHARS) return { content, isError, spilled: null, chars };
   const images = content.filter((p) => p.type === "image");
   const start = text.slice(0, START_CHARS);
   try {

@@ -39,24 +39,43 @@ export function selected(query: string, tools: readonly McpTool[]): McpTool[] | 
   });
 }
 
+interface IndexedDoc {
+  tf: Map<string, number>;
+  len: number;
+}
+
+const indexedDocs = new WeakMap<McpTool, IndexedDoc>();
+
+function docOf(t: McpTool): IndexedDoc {
+  let cached = indexedDocs.get(t);
+  if (cached) return cached;
+  const doc = document(t);
+  const tf = new Map<string, number>();
+  for (const w of doc) tf.set(w, (tf.get(w) ?? 0) + 1);
+  cached = { tf, len: doc.length };
+  indexedDocs.set(t, cached);
+  return cached;
+}
+
 export const RELATIVE_CUTOFF = 0.5;
 
 export function rank(query: string, tools: readonly McpTool[], limit = 5): McpTool[] {
   const q = [...new Set(words(query))];
   if (!q.length || !tools.length) return [];
-  const docs = tools.map(document);
-  const avg = docs.reduce((n, d) => n + d.length, 0) / docs.length;
+  const docs = tools.map(docOf);
+  const avg = docs.reduce((n, d) => n + d.len, 0) / docs.length;
   const df = new Map<string, number>();
-  for (const d of docs) for (const w of new Set(d)) df.set(w, (df.get(w) ?? 0) + 1);
+  for (const d of docs) for (const w of d.tf.keys()) df.set(w, (df.get(w) ?? 0) + 1);
   const k1 = 1.2;
   const b = 0.75;
   const scored = docs.map((d, i) => {
     let score = 0;
     for (const w of q) {
-      const tf = d.filter((x) => x === w).length;
+      const tf = d.tf.get(w) ?? 0;
       if (!tf) continue;
-      const idf = Math.log(1 + (docs.length - (df.get(w) ?? 0) + 0.5) / ((df.get(w) ?? 0) + 0.5));
-      score += (idf * tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * d.length) / avg));
+      const dfCount = df.get(w) ?? 0;
+      const idf = Math.log(1 + (docs.length - dfCount + 0.5) / (dfCount + 0.5));
+      score += (idf * tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * d.len) / avg));
     }
     return { tool: tools[i], score };
   });

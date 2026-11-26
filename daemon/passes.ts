@@ -186,7 +186,7 @@ export class PassRunner {
     const failed = this.failedAt.get(k);
     if (failed !== undefined && now.getTime() - failed < quietMs) return null;
     const cursor = this.deps.state.cursor(job.name, agentId, chatId) ?? 0;
-    if (this.deps.chats.answers(chatId, agentId, 0).entries <= cursor) return null;
+    if (this.deps.chats.entryCount(chatId, agentId) <= cursor) return null;
     const quiet = lastMessageAt !== null && now.getTime() - Date.parse(lastMessageAt) >= quietMs;
     const compacted = job.onCompaction === true && this.deps.chats.compactedSince(chatId, agentId, cursor);
     if (!quiet && !compacted) return null;
@@ -246,9 +246,14 @@ export class PassRunner {
       const byAgent = new Map<string, string[]>();
       for (const row of this.chats()) {
         const cursor = this.deps.state.cursor(job.name, row.agentId, row.conversationId) ?? 0;
-        if (this.deps.chats.answers(row.conversationId, row.agentId, 0).entries <= cursor) continue;
+        if (this.deps.chats.entryCount(row.conversationId, row.agentId) <= cursor) continue;
         if (await this.deps.busy(row.agentId, row.conversationId)) continue;
-        byAgent.set(row.agentId, [...(byAgent.get(row.agentId) ?? []), row.conversationId]);
+        let list = byAgent.get(row.agentId);
+        if (!list) {
+          list = [];
+          byAgent.set(row.agentId, list);
+        }
+        list.push(row.conversationId);
       }
       if (!byAgent.size) return;
       const outcomes = [...byAgent].map(([agentId, chats]) => this.enqueue(job, agentId, chats, true));
@@ -263,6 +268,7 @@ export class PassRunner {
     let room = MAX_BATCH_CHARS;
     let busy = false;
     let leftover = false;
+    const cursorUpdates: Array<{ chatId: string; at: number }> = [];
     for (const chatId of chatIds) {
       if (await this.deps.busy(agentId, chatId)) {
         busy = true;
@@ -272,14 +278,14 @@ export class PassRunner {
       const stretch = this.stretch(job, chatId, agentId, cursor, agentName);
       if (stretch.lines <= cursor) continue;
       if (!stretch.transcript.length || (!force && stretch.transcript.length < MIN_NEW_CHARS)) {
-        state.setCursor(job.name, agentId, chatId, stretch.lines);
+        cursorUpdates.push({ chatId, at: stretch.lines });
         continue;
       }
       if (stretch.transcript.length > room && parts.length) {
         leftover = true;
         continue;
       }
-      if (stretch.lines < this.deps.chats.answers(chatId, agentId, 0).entries) leftover = true;
+      if (stretch.lines < this.deps.chats.entryCount(chatId, agentId)) leftover = true;
       room -= stretch.transcript.length;
       parts.push({
         chatId,
@@ -290,6 +296,7 @@ export class PassRunner {
         lines: stretch.lines,
       });
     }
+    state.setCursors(job.name, agentId, cursorUpdates);
     return { parts, busy, leftover };
   }
 
@@ -326,7 +333,11 @@ export class PassRunner {
       if (!parts.length) return gathered.busy ? "skipped" : finish("nothing");
       const input: PassInput = { agentId, agentName, memoryRoot: memoryRoot(this.deps.backendDir, agentId), parts, material: batchText(parts), now: started };
       const advance = () => {
-        for (const p of parts) state.setCursor(job.name, agentId, p.chatId, p.lines);
+        state.setCursors(
+          job.name,
+          agentId,
+          parts.map((p) => ({ chatId: p.chatId, at: p.lines })),
+        );
       };
       const prompt = await job.prompt(input);
       if (prompt === null) {

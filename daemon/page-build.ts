@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { messageOf } from "../core/errors.ts";
 
@@ -26,25 +27,20 @@ export function isPageSource(file: string): boolean {
   return !BUILT.has(top) && top !== "node_modules" && !(parts.at(-1) ?? "").startsWith(".");
 }
 
-function newest(dir: string, skip: (rel: string) => boolean, rel = ""): number {
-  let latest = 0;
+function hasNewer(dir: string, skip: (rel: string) => boolean, built: number, rel = ""): boolean {
   for (const entry of readdirSync(join(dir, rel), { withFileTypes: true })) {
     const path = rel ? join(rel, entry.name) : entry.name;
     if (skip(path)) continue;
-    latest = Math.max(latest, entry.isDirectory() ? newest(dir, skip, path) : statSync(join(dir, path)).mtimeMs);
+    if (entry.isDirectory() ? hasNewer(dir, skip, built, path) : statSync(join(dir, path)).mtimeMs > built) return true;
   }
-  return latest;
+  return false;
 }
 
 export function pageStale(checkout: string): boolean {
   const index = join(checkout, "app", "dist", "index.html");
   if (!existsSync(index)) return true;
   const built = statSync(index).mtimeMs;
-  const sources = Math.max(
-    newest(join(checkout, "app"), (p) => !isPageSource(p)),
-    newest(join(checkout, "core"), () => false),
-  );
-  return sources > built;
+  return hasNewer(join(checkout, "app"), (p) => !isPageSource(p), built) || hasNewer(join(checkout, "core"), () => false, built);
 }
 
 function tail(output: string, lines = 6): string {
@@ -56,19 +52,19 @@ export async function buildPage(checkout: string, run: Runner = runFile, node: s
   const next = join(app, ".dist-next");
   const dist = join(app, "dist");
   const old = join(app, ".dist-old");
-  rmSync(next, { recursive: true, force: true });
+  await rm(next, { recursive: true, force: true });
   const vite = join(checkout, "node_modules", "vite", "bin", "vite.js");
   const args = [vite, "build", "--config", join("app", "vite.config.ts"), "--outDir", next, "--emptyOutDir", "--logLevel", "error"];
   const result = await run(node, args, checkout);
   if (result.code !== 0 || !existsSync(join(next, "index.html"))) {
-    rmSync(next, { recursive: true, force: true });
+    await rm(next, { recursive: true, force: true });
     return tail(result.output) || `the build exited with ${result.code}`;
   }
   try {
-    rmSync(old, { recursive: true, force: true });
-    if (existsSync(dist)) renameSync(dist, old);
-    renameSync(next, dist);
-    rmSync(old, { recursive: true, force: true });
+    await rm(old, { recursive: true, force: true });
+    if (existsSync(dist)) await rename(dist, old);
+    await rename(next, dist);
+    await rm(old, { recursive: true, force: true });
     return null;
   } catch (err) {
     return `the build could not replace app/dist: ${messageOf(err)}`;

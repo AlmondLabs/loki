@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { PassSettings } from "../core/attention/protocol.ts";
 import { readJson, writeJsonAtomic } from "../mod/json-file.ts";
@@ -44,6 +44,7 @@ export class PassState {
   readonly settingsFile: string;
   readonly cursorsFile: string;
   private data: Cursors;
+  private cachedSettings: { mtimeMs: number; size: number; value: PassSettings } | null = null;
 
   constructor(stateDir: string) {
     this.settingsFile = join(stateDir, "passes.json");
@@ -61,15 +62,25 @@ export class PassState {
   }
 
   settings(): PassSettings {
-    return normalSettings(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
+    try {
+      const st = statSync(this.settingsFile);
+      if (this.cachedSettings && this.cachedSettings.mtimeMs === st.mtimeMs && this.cachedSettings.size === st.size) {
+        return this.cachedSettings.value;
+      }
+      const value = normalSettings(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
+      this.cachedSettings = { mtimeMs: st.mtimeMs, size: st.size, value };
+      return value;
+    } catch {
+      this.cachedSettings = null;
+      return normalSettings(null);
+    }
   }
 
   setSettings(s: Parameters<typeof normalSettings>[0]): PassSettings {
     const now = this.settings();
-    writeJson(
-      this.settingsFile,
-      normalSettings({ reflection: { ...now.reflection, ...s?.reflection }, learn: { ...now.learn, ...s?.learn }, acp: { ...now.acp, ...s?.acp } }),
-    );
+    const next = normalSettings({ reflection: { ...now.reflection, ...s?.reflection }, learn: { ...now.learn, ...s?.learn }, acp: { ...now.acp, ...s?.acp } });
+    writeJson(this.settingsFile, next);
+    this.cachedSettings = null;
     return this.settings();
   }
 
@@ -79,6 +90,12 @@ export class PassState {
 
   setCursor(job: JobName, agentId: string, chatId: string, at: number): void {
     this.data.cursors[job][key(agentId, chatId)] = at;
+    this.save();
+  }
+
+  setCursors(job: JobName, agentId: string, updates: ReadonlyArray<{ chatId: string; at: number }>): void {
+    if (!updates.length) return;
+    for (const u of updates) this.data.cursors[job][key(agentId, u.chatId)] = u.at;
     this.save();
   }
 

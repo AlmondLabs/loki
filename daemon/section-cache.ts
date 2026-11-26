@@ -21,7 +21,15 @@ export class SectionCache {
   clear(): void {
     this.kept.clear();
   }
+
+  clearRoot(root: string): void {
+    const exact = `\u0000${root}`;
+    const prefix = `\u0000${root}\u0000`;
+    for (const key of this.kept.keys()) {
+      if (key.endsWith(exact) || key.includes(prefix)) this.kept.delete(key);
+    }
+  }
 }
 
 export const sections = new SectionCache();
-onRepoSettled(() => sections.clear());
+onRepoSettled((root) => sections.clearRoot(root));

@@ -48,7 +48,18 @@ export class LokiEngine implements Engine {
   }
 
   forgetAgent(agentId: string): void {
-    for (const key of [...this.following.keys()]) if (key.startsWith(`${agentId}\u0000`)) this.following.delete(key);
+    const prefix = `${agentId}\u0000`;
+    for (const [key, stream] of [...this.following.entries()]) {
+      if (!key.startsWith(prefix)) continue;
+      this.following.delete(key);
+      void stream.then(
+        (s) => s.stop(),
+        () => {},
+      );
+    }
+    for (const key of [...this.converters.keys()]) {
+      if (key.startsWith(prefix)) this.converters.delete(key);
+    }
   }
 
   async open(c: EngineChat, mode: string | null): Promise<ChatState> {

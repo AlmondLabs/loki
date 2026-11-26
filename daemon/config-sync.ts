@@ -48,20 +48,23 @@ function readManifest(path: string): Manifest {
 function refresh(configPath: string, manifestPath: string, now: string) {
   const raw = readRaw(configPath);
   const m = readManifest(manifestPath);
+  let dirty = false;
   for (const [entry, value] of Object.entries(raw.mcpServers)) {
     const h = hash(value);
     if (m.seen[entry] !== h) {
       m.seen[entry] = h;
       m.changed[entry] = now;
-      m.removed = Object.fromEntries(Object.entries(m.removed).filter(([k]) => k !== entry));
+      if (entry in m.removed) m.removed = Object.fromEntries(Object.entries(m.removed).filter(([k]) => k !== entry));
+      dirty = true;
     }
   }
   for (const entry of Object.keys(m.seen))
     if (!(entry in raw.mcpServers)) {
       m.seen = Object.fromEntries(Object.entries(m.seen).filter(([k]) => k !== entry));
       m.removed[entry] = now;
+      dirty = true;
     }
-  writeJson(manifestPath, m);
+  if (dirty) writeJson(manifestPath, m);
   return { raw, m };
 }
 
@@ -95,8 +98,10 @@ export function applyMcp(configPath: string, manifestPath: string, theirs: McpSn
     m.removed[entry] = at;
     moved = true;
   }
-  if (moved) writeJson(configPath, raw);
-  writeJson(manifestPath, m);
+  if (moved) {
+    writeJson(configPath, raw);
+    writeJson(manifestPath, m);
+  }
   return moved;
 }
 

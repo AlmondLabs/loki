@@ -43,7 +43,16 @@ export const usesOauth = (c: ServerConfig): boolean => c.kind === "remote" && !O
 
 const takesStepDescription = (schema: Record<string, unknown>): boolean => isRecord(schema.properties) && !("description" in schema.properties);
 
-export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
+const tokenCache = new WeakMap<McpTool, number>();
+
+export const toolTokens = (t: McpTool): number => {
+  let tokens = tokenCache.get(t);
+  if (tokens === undefined) {
+    tokens = Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
+    tokenCache.set(t, tokens);
+  }
+  return tokens;
+};
 
 export class McpTools {
   readonly servers: McpServers;
@@ -127,7 +136,7 @@ export class McpTools {
   annotations(name: string): { readOnly?: boolean; destructive?: boolean } | undefined {
     if (name === SEARCH_TOOL) return { readOnly: true };
     if (!name.startsWith("mcp__")) return undefined;
-    const tool = this.servers.tools().find((t) => t.key === name);
+    const tool = this.servers.tool(name);
     return tool ? { readOnly: tool.readOnly, destructive: tool.destructive } : undefined;
   }
 
@@ -275,17 +284,13 @@ export class McpTools {
   }
 
   async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
-    const agentId = (await store.harness.snapshot(AgentInfoDoc, context))?.id;
-    const off = this.offFor(agentId);
-    const all = this.servers.tools().map((t) => t.key);
-    const usable = new Set(
-      this.servers
-        .tools()
-        .filter((t) => !off.has(t.server))
-        .map((t) => t.key),
-    );
+    const [agent, settingsRaw] = await Promise.all([store.harness.snapshot(AgentInfoDoc, context), store.agentSettings(chat.id, context)]);
+    const off = this.offFor(agent?.id);
+    const serverTools = this.servers.tools();
+    const all = serverTools.map((t) => t.key);
+    const usable = new Set(serverTools.filter((t) => !off.has(t.server)).map((t) => t.key));
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
-    const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
+    const settings = settingsRaw as { tools?: string[] | { remove: string[] } } | undefined;
     if (Array.isArray(settings?.tools)) return;
     const removed = settings?.tools?.remove ?? [];
     if (!all.length && !removed.some((n) => n.startsWith("mcp__"))) return;
@@ -469,7 +474,15 @@ export class McpTools {
   }
 }
 
-const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && new Set([...a, ...b]).size === new Set(a).size;
+const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
+  if (a.length === 0 && b.length === 0) return true;
+  const setA = new Set(a);
+  if (setA.size !== b.length && new Set(b).size !== setA.size) return false;
+  const setB = new Set(b);
+  if (setA.size !== setB.size) return false;
+  for (const x of setA) if (!setB.has(x)) return false;
+  return true;
+};
 
 function summary(t: McpTool): string {
   const props = Object.keys(t.inputSchema.properties ?? {});
