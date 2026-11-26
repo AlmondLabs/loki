@@ -475,6 +475,23 @@ function OutsideReplyFooter({
   );
 }
 
+function composerLayout(ctrl: ReplyController, compose: MailCompose | null, touch: boolean, folded: boolean) {
+  const { meta, busy, error } = ctrl;
+  return {
+    rootClass: meta.framed ? "loki-mail-compose" : undefined,
+    rootStyle: meta.framed ? undefined : { display: "flex", flexDirection: "column" as const, gap: touch ? "var(--phone-space-2)" : 8 },
+    headClass: meta.framed ? "loki-mail-compose-head" : undefined,
+    showHead: meta.isMail && !folded,
+    textSize: touch ? ("touch" as const) : ("sm" as const),
+    textBare: meta.framed,
+    textClass: meta.framed ? "loki-mail-compose-text" : undefined,
+    rows: folded ? 1 : touch ? 4 : 3,
+    showExtras: meta.isMail && !!compose && !folded,
+    showFooter: !folded || busy,
+    trailingError: !meta.framed ? error : null,
+  };
+}
+
 function OutsideReplyComposer({
   ctrl,
   facts,
@@ -500,17 +517,14 @@ function OutsideReplyComposer({
   folded: boolean;
   notSent: ReactNode;
 }) {
-  const { meta, off, mail, setMail, lineOpen, setLineOpen, mentions, busy, error } = ctrl;
+  const { off, mail, setMail, lineOpen, setLineOpen, mentions, meta } = ctrl;
+  const layout = composerLayout(ctrl, compose, touch, folded);
   const field = replyFieldBindings(ctrl, inputRef, onTyping);
-  const rows = folded ? 1 : touch ? 4 : 3;
   return (
-    <div
-      className={meta.framed ? "loki-mail-compose" : undefined}
-      style={meta.framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
-    >
+    <div className={layout.rootClass} style={layout.rootStyle}>
       {notSent}
-      {meta.isMail && !folded && (
-        <div className={meta.framed ? "loki-mail-compose-head" : undefined}>
+      {layout.showHead && (
+        <div className={layout.headClass}>
           <MailAddressLine
             compose={compose}
             value={mail}
@@ -526,20 +540,13 @@ function OutsideReplyComposer({
       )}
       <div className="flex flex-col" style={{ position: "relative" }}>
         {mentions.list}
-        <TextArea
-          size={touch ? "touch" : "sm"}
-          bare={meta.framed}
-          className={meta.framed ? "loki-mail-compose-text" : undefined}
-          rows={rows}
-          placeholder={meta.hint}
-          {...field}
-        />
+        <TextArea size={layout.textSize} bare={layout.textBare} className={layout.textClass} rows={layout.rows} placeholder={meta.hint} {...field} />
       </div>
-      {meta.isMail && compose && !folded && <MailReplyExtras ctrl={ctrl} quote={quote} touch={touch} />}
-      {(!folded || busy) && <OutsideReplyFooter ctrl={ctrl} facts={facts} touch={touch} onUndo={onUndo} actions={actions} />}
-      {!meta.framed && error && (
+      {layout.showExtras && <MailReplyExtras ctrl={ctrl} quote={quote} touch={touch} />}
+      {layout.showFooter && <OutsideReplyFooter ctrl={ctrl} facts={facts} touch={touch} onUndo={onUndo} actions={actions} />}
+      {layout.trailingError && (
         <Meta negative wrap>
-          {error}
+          {layout.trailingError}
         </Meta>
       )}
     </div>
