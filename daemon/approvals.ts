@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { advisorRefusal, type AdvisorFolders } from "./advisor-gate.ts";
-import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { AgentInfoDoc, ChatDoc, type ChatInfo } from "./kernel/index.ts";
 import { lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
 import { SCRIPT_TOOL } from "./scripts.ts";
@@ -179,8 +179,8 @@ export class Approvals {
             const decision =
               decided ??
               (mayCall === undefined || !call.parent
-                ? await this.decideCall(call.name, call.arguments, call.id, api, context)
-                : await this.decideCall(call.name, call.arguments, call.id, api, context, call.parent.callId));
+                ? await this.decideCall(own, call.name, call.arguments, call.id, api, context)
+                : await this.decideCall(own, call.name, call.arguments, call.id, api, context, call.parent.callId));
             if (!decision) return undefined;
             if (!decided) await api.memo(memoName, decision, context);
             return decision.allow ? undefined : { block: decision.message || "The person declined this tool call." };
@@ -200,6 +200,7 @@ export class Approvals {
   }
 
   private async decideCall(
+    own: Readonly<ChatInfo> | undefined,
     name: string,
     args: Record<string, unknown>,
     callId: string,
@@ -207,11 +208,7 @@ export class Approvals {
     context: Context,
     script?: string,
   ): Promise<Decision | null> {
-    const [own, agent, settings] = await Promise.all([
-      api.snapshot(ChatDoc, api.conversationId, context),
-      api.snapshot(AgentInfoDoc, context),
-      api.snapshot(PiAgentDoc, api.conversationId, context),
-    ]);
+    const [agent, settings] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(PiAgentDoc, api.conversationId, context)]);
     const chat = own?.helper_for === undefined ? own : ((await api.snapshot(ChatDoc, own.helper_for, context)) ?? own);
     const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;

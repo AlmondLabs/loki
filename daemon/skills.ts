@@ -58,18 +58,22 @@ export function skillsExtension(backendDir: string, globalDir?: string): Extensi
       section("skills", async (input, context) => {
         const agent = await input.read.snapshot(AgentInfoDoc, context);
         const id = agent?.id ?? "";
-        return sections.get(`skills\u0000${backendDir}\u0000${id}\u0000${globalDir ?? ""}`, () =>
-          skillsText(skillsOf(backendDir, agent?.id, globalDir), join(memoryRoot(backendDir, id), "skills"), globalDir ?? globalSkillsDir()),
+        const root = memoryRoot(backendDir, id);
+        return sections.get(`skills\u0000${root}\u0000${backendDir}\u0000${globalDir ?? ""}`, () =>
+          skillsText(skillsOf(backendDir, agent?.id, globalDir), join(root, "skills"), globalDir ?? globalSkillsDir()),
         );
       }),
       section("project", (input) => {
         const cwd = input.agent.cwd;
         if (!cwd) return undefined;
-        for (const name of PROJECT_FILES) {
-          const file = join(cwd, name);
-          if (existsSync(file)) return `Instructions for work in ${cwd}, from its ${name}:\n\n${readFileSync(file, "utf8").slice(0, PROJECT_LIMIT).trimEnd()}`;
-        }
-        return undefined;
+        return sections.get(`project\u0000${cwd}`, () => {
+          for (const name of PROJECT_FILES) {
+            const file = join(cwd, name);
+            if (existsSync(file))
+              return `Instructions for work in ${cwd}, from its ${name}:\n\n${readFileSync(file, "utf8").slice(0, PROJECT_LIMIT).trimEnd()}`;
+          }
+          return undefined;
+        });
       }),
     ],
   });

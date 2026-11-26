@@ -16,7 +16,7 @@ import {
 import type { AdvisorConsult } from "../../core/advisor.ts";
 import type { SavedDraft, Suggestion } from "../../core/frame-types.ts";
 
-const smallDoc = (): boolean => false;
+const smallDoc = (): boolean => true;
 
 /** loki's chat id → pi-durable conversation id, for one agent's store. */
 export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({

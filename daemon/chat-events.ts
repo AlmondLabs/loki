@@ -39,6 +39,7 @@ function textBlocks(message: AssistantMessage | undefined): Map<number, string> 
 export class ChatEventConverter {
   private partial: { text: string; at: string | null } | null = null;
   private blocks = new Map<number, string>();
+  private maxIndex = -1;
   private turnId: string | null = null;
   private readonly blocking = new Set<string>();
   private readonly agentId: string;
@@ -57,6 +58,7 @@ export class ChatEventConverter {
     switch (ev.type) {
       case "snapshot": {
         this.blocks = textBlocks(ev.generation?.message);
+        this.maxIndex = Math.max(-1, ...this.blocks.keys());
         const text = this.joined();
         this.partial = text ? { text, at: now } : null;
         return [];
@@ -69,6 +71,7 @@ export class ChatEventConverter {
         this.turnId = null;
         this.partial = null;
         this.blocks.clear();
+        this.maxIndex = -1;
         return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
       }
       // Outside (pi-durable): a user message is shown at its end, which says what entry it is (a compaction's summary is
@@ -76,23 +79,42 @@ export class ChatEventConverter {
       case "message_start":
         if (ev.message.role === "user") return [];
         this.blocks = textBlocks(ev.message.role === "assistant" ? ev.message : undefined);
+        this.maxIndex = Math.max(-1, ...this.blocks.keys());
         return this.streamed(now);
       case "message_update": {
+        if (this.partial !== null && ev.changes.length > 0 && ev.changes.every((c) => c.type === "text_delta" && c.contentIndex === this.maxIndex)) {
+          let delta = "";
+          for (const change of ev.changes) if (change.type === "text_delta") delta += change.delta;
+          if (!delta) return [];
+          this.blocks.set(this.maxIndex, (this.blocks.get(this.maxIndex) ?? "") + delta);
+          this.partial = { text: this.partial.text + delta, at: this.partial.at };
+          return [{ kind: "step", step: { kind: "assistant", text: delta, at: now, chunk: true } }];
+        }
         for (const change of ev.changes) {
           if (change.type === "text_start" || change.type === "block") {
-            if (change.block.type === "text") this.blocks.set(change.contentIndex, change.block.text);
-          } else if (change.type === "text_delta") this.blocks.set(change.contentIndex, (this.blocks.get(change.contentIndex) ?? "") + change.delta);
-          else if (change.type === "message") this.blocks = textBlocks(change.message);
+            if (change.block.type === "text") {
+              this.blocks.set(change.contentIndex, change.block.text);
+              if (change.contentIndex > this.maxIndex) this.maxIndex = change.contentIndex;
+            }
+          } else if (change.type === "text_delta") {
+            this.blocks.set(change.contentIndex, (this.blocks.get(change.contentIndex) ?? "") + change.delta);
+            if (change.contentIndex > this.maxIndex) this.maxIndex = change.contentIndex;
+          } else if (change.type === "message") {
+            this.blocks = textBlocks(change.message);
+            this.maxIndex = Math.max(-1, ...this.blocks.keys());
+          }
         }
         return this.streamed(now);
       }
       case "auto_retry_start":
         this.partial = null;
         this.blocks.clear();
+        this.maxIndex = -1;
         return [{ kind: "step", step: { kind: "assistant", text: "", at: now } }];
       case "message_end":
         this.partial = null;
         this.blocks.clear();
+        this.maxIndex = -1;
         return this.answered(ev.entry, now);
       case "tool_execution_end": {
         const result = ev.entry?.model?.[0] as { content?: unknown; isError?: boolean } | undefined;

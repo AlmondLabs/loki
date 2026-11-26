@@ -54,7 +54,7 @@ import { agentPrompt } from "./acp/prompt.ts";
 import { reporter } from "./report.ts";
 import { watchParent } from "./parent-watch.ts";
 import { messageOf } from "../core/errors.ts";
-import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
+import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptSandbox } from "./scripts.ts";
 
 export const EXIT_HELD = 3;
 /** The exit for a loki folder this build refuses (`checkOldData`); the shell's supervisor (desktop/daemon.ts) stops restarting on it. */
@@ -141,11 +141,7 @@ const approvals = new Approvals({
   kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
   alwaysPath: join(args.dir, "state", "approvals.json"),
   advisorFolders: { dataDir: args.dir, backendDir: backend, home: homedir() },
-  scriptMayCall: (name) =>
-    mods.registry
-      .snapshot()
-      .tools()
-      .some(({ tool }) => tool.name === name && scriptMayCall(tool)),
+  scriptMayCall: (name) => mods.isScriptCallable(name),
 });
 const chatImages = new ChatImages(join(args.dir, "chat-images"));
 const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
@@ -208,7 +204,7 @@ async function startPassCursors(): Promise<void> {
   if (passState.started()) return;
   const list = chats
     .list()
-    .flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
+    .flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.entryCount(c.conversationId, c.agentId) }] : []));
   passState.startCursors(list);
 }
 const lokiTools = new LokiTools({

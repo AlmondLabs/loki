@@ -1,7 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import { defineExtension, section, type ConversationId, type DocumentReader, type Extension } from "@earendil-works/pi-durable";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync, type Dirent } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
@@ -26,16 +26,25 @@ export function memoryRoot(backendDir: string, agentId: string): string {
 }
 
 function files(root: string, dir = root, out: string[] = []): string[] {
-  let names: string[];
+  let entries: Dirent[];
   try {
-    names = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return out;
   }
-  for (const name of names.sort()) {
-    if (name === ".git" || name === "node_modules") continue;
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) files(root, full, out);
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    if (entry.name === ".git" || entry.name === "node_modules") continue;
+    const full = join(dir, entry.name);
+    let isDir = entry.isDirectory();
+    if (!isDir && entry.isSymbolicLink()) {
+      try {
+        isDir = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+    }
+    if (isDir) files(root, full, out);
     else out.push(relative(root, full).split(sep).join("/"));
   }
   return out;
@@ -70,8 +79,37 @@ export function overBudget(root: string): string | null {
   return `Also: your core notes (system/) come to ${kb(size.bytes)}, over their budget of ${kb(CORE_BUDGET)}. Move what is not needed in every conversation into notes outside system/, each with a description, leaving at most a line in its place. The biggest:\n${biggest.join("\n")}`;
 }
 
+const HEAD_BYTES = 8192;
+const descriptionCache = new Map<string, { mtimeMs: number; size: number; description: string | null }>();
+
+function readHead(file: string, size: number): string {
+  if (size <= HEAD_BYTES) return readFileSync(file, "utf8");
+  const fd = openSync(file, "r");
+  try {
+    const buf = Buffer.allocUnsafe(HEAD_BYTES);
+    const read = readSync(fd, buf, 0, HEAD_BYTES, 0);
+    return buf.subarray(0, read).toString("utf8");
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function descriptionOf(file: string): string | null {
+  try {
+    const st = statSync(file);
+    const cached = descriptionCache.get(file);
+    if (cached && cached.mtimeMs === st.mtimeMs && cached.size === st.size) return cached.description;
+    const description = skillDescription(readHead(file, st.size));
+    if (descriptionCache.size >= 1000) descriptionCache.clear();
+    descriptionCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, description });
+    return description;
+  } catch {
+    return null;
+  }
+}
+
 function listed(root: string, path: string, shown: string): string {
-  const description = path.endsWith(".md") ? skillDescription(readFileSync(join(root, path), "utf8")) : null;
+  const description = path.endsWith(".md") ? descriptionOf(join(root, path)) : null;
   return `- ${shown}${description ? ` — ${briefDescription(description)}` : ""}`;
 }
 
@@ -85,8 +123,9 @@ export function memorySection(root: string, how: keyof typeof MEMORY_INTRO = "to
   if (!existsSync(root)) return undefined;
   const all = files(root);
   const core = coreOf(all);
+  const coreSet = new Set(core);
   const parts = core.map((f) => `<file path="${f}">\n${readFileSync(join(root, f), "utf8").slice(0, FILE_LIMIT).trimEnd()}\n</file>`);
-  const rest = all.filter((f) => !core.includes(f) && !f.startsWith("skills/"));
+  const rest = all.filter((f) => !coreSet.has(f) && !f.startsWith("skills/"));
   if (rest.length)
     parts.push(
       `Other memory files (${how === "files" ? "read one at its path" : "read one with memory_read"} when its description fits what you are doing):\n${rest

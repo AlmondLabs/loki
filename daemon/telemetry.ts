@@ -216,16 +216,29 @@ export class TurnTelemetry {
 
   private apply(agentId: string, store: AgentStore, publication: CommitPublication): void {
     const at = this.now();
-    const unanswered = new Map<string, { conversationId: number; reason: string }>();
-    const outcomes = new Map<string, string>();
+    let unanswered: Map<string, { conversationId: number; reason: string }> | null = null;
+    let outcomes: Map<string, string> | null = null;
     for (const change of publication.changes) {
       if (change.type === "submission") {
         const s = change.value as { id: unknown; conversationId: number; requestId?: string; status: string; reason?: string };
-        if (s.requestId) this.requests.set(`${agentId}\u0000${String(s.id)}`, s.requestId);
-        if (s.status === "unanswered") unanswered.set(String(s.id), { conversationId: s.conversationId, reason: s.reason ?? "unanswered" });
+        const reqKey = `${agentId}\u0000${String(s.id)}`;
+        if (s.requestId) {
+          if (this.requests.size > 4096) {
+            const first = this.requests.keys().next().value;
+            if (first !== undefined) this.requests.delete(first);
+          }
+          this.requests.set(reqKey, s.requestId);
+        }
+        if (s.status === "unanswered") {
+          unanswered ??= new Map();
+          unanswered.set(String(s.id), { conversationId: s.conversationId, reason: s.reason ?? "unanswered" });
+        }
       } else if (change.type === "task") {
         const outcome = (change.value as { state?: { outcome?: { status?: string } } }).state?.outcome?.status;
-        if (outcome && outcome !== "completed") outcomes.set(String(change.value.id), outcome);
+        if (outcome && outcome !== "completed") {
+          outcomes ??= new Map();
+          outcomes.set(String(change.value.id), outcome);
+        }
       } else if (change.type === "entry") {
         const run = this.running.get(`${agentId}\u0000${change.value.conversationId}`);
         if (!run) continue;
@@ -248,7 +261,7 @@ export class TurnTelemetry {
       else if (run) {
         for (const id of run.inputs) inRuns.add(String(id));
         this.running.delete(key);
-        const failure = run.inputs.map((id) => unanswered.get(String(id))?.reason).find(Boolean) ?? outcomes.get(String(run.taskId)) ?? null;
+        const failure = run.inputs.map((id) => unanswered?.get(String(id))?.reason).find(Boolean) ?? outcomes?.get(String(run.taskId)) ?? null;
         void this.finish(agentId, store, change.conversationId, run, at, failure);
         run = undefined;
       }
@@ -260,9 +273,11 @@ export class TurnTelemetry {
       }
       if (run && ((live.generation?.message?.content?.length ?? 0) > 0 || (live.tools?.length ?? 0) > 0)) run.firstOutputAt ??= at;
     }
-    for (const [id, { conversationId, reason }] of unanswered) {
-      if (inRuns.has(id) || [...this.running.values()].some((r) => r.inputs.some((i) => String(i) === id))) continue;
-      void this.finish(agentId, store, conversationId, { taskId: null, inputs: [id], startedAt: at, firstOutputAt: null, entries: [] }, at, reason);
+    if (unanswered) {
+      for (const [id, { conversationId, reason }] of unanswered) {
+        if (inRuns.has(id) || [...this.running.values()].some((r) => r.inputs.some((i) => String(i) === id))) continue;
+        void this.finish(agentId, store, conversationId, { taskId: null, inputs: [id], startedAt: at, firstOutputAt: null, entries: [] }, at, reason);
+      }
     }
   }
 

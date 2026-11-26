@@ -1,7 +1,7 @@
 import { modeOf } from "../core/chat-links.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
-import { conversationDirName, isMainChat } from "../core/desk-core.ts";
+import { conversationDirName, isMainChat, scopeFor, type Scope } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
 import { COMPACTION, entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, ThreadModel, type StoredStep } from "../core/attention/thread.ts";
@@ -37,6 +37,8 @@ interface Chat {
   settings: AgentSettings;
   entries: Kept[];
   lastId: number;
+  lastAt: string | null;
+  lastCompactionIndex: number;
   fold?: { thread: ThreadModel; entries: number };
 }
 
@@ -69,6 +71,8 @@ const LOAD_AT_ONCE = 4;
 
 export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
+  private readonly byConv = new Map<string, Chat>();
+  private readonly scopeCounts = new Map<Scope, number>();
   private readonly listeners = new Listeners<[agentId: string, chatId: string, kind: "answer" | "compaction"]>();
   private readonly unsubscribe = new Map<string, () => void>();
   private readonly attaching = new Set<Promise<void>>();
@@ -81,6 +85,18 @@ export class ChatProjection implements ChatSource {
     this.context = context;
     this.agentName = agentName;
     this.nameImage = nameImage;
+  }
+
+  private adjustScope(chat: Chat, delta: 1 | -1): void {
+    if (chat.info?.hidden === true) return;
+    const scope = scopeFor(chat.chatId, chat.agentId);
+    const next = (this.scopeCounts.get(scope) ?? 0) + delta;
+    if (next <= 0) this.scopeCounts.delete(scope);
+    else this.scopeCounts.set(scope, next);
+  }
+
+  hasScope(scope: Scope): boolean {
+    return (this.scopeCounts.get(scope) ?? 0) > 0;
   }
 
   follow(stores: StoreManager, report: (message: string) => void): () => void {
@@ -102,7 +118,12 @@ export class ChatProjection implements ChatSource {
 
   async attach(agentId: string, store: AgentStore): Promise<void> {
     this.unsubscribe.get(agentId)?.();
-    for (const key of [...this.chats.keys()]) if (this.chats.get(key)?.agentId === agentId) this.chats.delete(key);
+    for (const [key, chat] of [...this.chats.entries()]) {
+      if (chat.agentId !== agentId) continue;
+      this.adjustScope(chat, -1);
+      this.chats.delete(key);
+      this.byConv.delete(this.convKey(agentId, chat.conversationId));
+    }
     const pending: CommitPublication[] = [];
     let loading = true;
     this.unsubscribe.set(
@@ -115,15 +136,33 @@ export class ChatProjection implements ChatSource {
       if (!conversation) return;
       const entries: Kept[] = [];
       let lastId = 0;
+      let lastAt: string | null = null;
+      let lastCompactionIndex = -1;
       const [, info, settings] = await Promise.all([
         store.eachEntry(conversation, this.context, (e) => {
-          entries.push(keep(e, this.nameImage));
+          const kept = keep(e, this.nameImage);
+          entries.push(kept);
+          if (kept.at) lastAt = kept.at;
+          if (kept.compaction) lastCompactionIndex = entries.length - 1;
           lastId = e.id;
         }),
         store.chatInfo(conversation.id, this.context),
         store.agentSettings(conversation.id, this.context),
       ]);
-      this.chats.set(this.key(agentId, chatId), { agentId, chatId, conversationId, info: info ?? null, settings: settings ?? {}, entries, lastId });
+      const chat: Chat = {
+        agentId,
+        chatId,
+        conversationId,
+        info: info ?? null,
+        settings: settings ?? {},
+        entries,
+        lastId,
+        lastAt,
+        lastCompactionIndex,
+      };
+      this.chats.set(this.key(agentId, chatId), chat);
+      this.byConv.set(this.convKey(agentId, conversationId), chat);
+      this.adjustScope(chat, 1);
     };
     const waiting = Object.entries(index?.chats ?? {});
     await Promise.all(
@@ -139,27 +178,33 @@ export class ChatProjection implements ChatSource {
     return this.listeners.add(listener);
   }
 
+  entryCount(conversationId: string, agentId: string): number {
+    return this.find(conversationId, agentId)?.entries.length ?? 0;
+  }
+
   answers(conversationId: string, agentId: string, from: number): { entries: number; since: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { entries: 0, since: 0 };
-    return { entries: chat.entries.length, since: chat.entries.slice(Math.max(0, from)).filter((e) => e.role === "assistant").length };
+    let since = 0;
+    for (let i = Math.max(0, from); i < chat.entries.length; i++) if (chat.entries[i].role === "assistant") since++;
+    return { entries: chat.entries.length, since };
   }
 
   compactedSince(conversationId: string, agentId: string, from: number): boolean {
-    return (
-      this.find(conversationId, agentId)
-        ?.entries.slice(Math.max(0, from))
-        .some((e) => e.compaction === true) ?? false
-    );
+    const chat = this.find(conversationId, agentId);
+    return chat ? chat.lastCompactionIndex >= Math.max(0, from) : false;
   }
 
   private key(agentId: string, chatId: string): string {
     return `${agentId}\u0000${chatId}`;
   }
 
+  private convKey(agentId: string, conversationId: number): string {
+    return `${agentId}\u0000${conversationId}`;
+  }
+
   private byConversation(agentId: string, conversationId: number): Chat | undefined {
-    for (const chat of this.chats.values()) if (chat.agentId === agentId && chat.conversationId === conversationId) return chat;
-    return undefined;
+    return this.byConv.get(this.convKey(agentId, conversationId));
   }
 
   private apply(agentId: string, publication: CommitPublication): void {
@@ -175,15 +220,42 @@ export class ChatProjection implements ChatSource {
           if (was?.conversationId === conversationId) continue;
           const moved = was ? undefined : this.byConversation(agentId, conversationId);
           if (moved) {
+            this.adjustScope(moved, -1);
             this.chats.delete(this.key(agentId, moved.chatId));
-            this.chats.set(key, { ...moved, chatId });
-          } else this.chats.set(key, { agentId, chatId, conversationId, info: null, settings: {}, entries: [], lastId: 0 });
+            const nextChat: Chat = { ...moved, chatId };
+            this.chats.set(key, nextChat);
+            this.byConv.set(this.convKey(agentId, conversationId), nextChat);
+            this.adjustScope(nextChat, 1);
+          } else {
+            const created: Chat = {
+              agentId,
+              chatId,
+              conversationId,
+              info: null,
+              settings: {},
+              entries: [],
+              lastId: 0,
+              lastAt: null,
+              lastCompactionIndex: -1,
+            };
+            this.chats.set(key, created);
+            this.byConv.set(this.convKey(agentId, conversationId), created);
+            this.adjustScope(created, 1);
+          }
         }
       } else if (change.conversationId !== undefined) {
         const chat = this.byConversation(agentId, change.conversationId);
         if (!chat) continue;
-        if (change.record.kind === "loki.chat") chat.info = change.value as unknown as ChatInfo;
-        else if (change.record.kind === "pi.agent") chat.settings = change.value;
+        if (change.record.kind === "loki.chat") {
+          const nextInfo = change.value as unknown as ChatInfo;
+          const wasHidden = chat.info?.hidden === true;
+          const nowHidden = nextInfo.hidden;
+          if (wasHidden !== nowHidden) {
+            this.adjustScope(chat, -1);
+            chat.info = nextInfo;
+            this.adjustScope(chat, 1);
+          } else chat.info = nextInfo;
+        } else if (change.record.kind === "pi.agent") chat.settings = change.value;
       }
     }
     const entries = publication.changes.flatMap((c) => (c.type === "entry" ? [c.value] : [])).sort((a, b) => a.id - b.id);
@@ -192,6 +264,8 @@ export class ChatProjection implements ChatSource {
       if (!chat || entry.id <= chat.lastId) continue;
       const kept = keep(entry, this.nameImage);
       chat.entries.push(kept);
+      if (kept.at) chat.lastAt = kept.at;
+      if (kept.compaction) chat.lastCompactionIndex = chat.entries.length - 1;
       chat.lastId = entry.id;
       const kind = entry.kind === COMPACTION ? "compaction" : kept.role === "assistant" ? "answer" : null;
       if (kind) this.listeners.emit(agentId, chat.chatId, kind);
@@ -206,8 +280,7 @@ export class ChatProjection implements ChatSource {
   }
 
   private lastMessageAt(chat: Chat): string | null {
-    for (let i = chat.entries.length - 1; i >= 0; i--) if (chat.entries[i].at) return chat.entries[i].at;
-    return null;
+    return chat.lastAt;
   }
 
   list(): LocalConversationRow[] {
@@ -275,8 +348,11 @@ export class ChatProjection implements ChatSource {
   since(conversationId: string, agentId: string | null, from: number, to?: number, steps = false): { rows: TranscriptRow[]; lines: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { rows: [], lines: 0 };
+    const start = Math.max(0, from);
     const end = Math.min(chat.entries.length, to ?? chat.entries.length);
-    const rows = foldSteps(chat.entries.slice(Math.max(0, from), end).flatMap((e) => e.steps));
+    const collected: StoredStep[] = [];
+    for (let i = start; i < end; i++) for (const step of chat.entries[i].steps) collected.push(step);
+    const rows = foldSteps(collected);
     return { rows: steps ? rows : rows.map(({ tool: _tool, ...row }) => row), lines: end };
   }
 
@@ -300,7 +376,7 @@ export class ChatProjection implements ChatSource {
   folders(): RecentFolders {
     const byAgent: Record<string, string[]> = {};
     const byConversation: Record<string, string> = {};
-    const recent = [...this.chats.values()].sort((a, b) => (this.lastMessageAt(b) ?? "").localeCompare(this.lastMessageAt(a) ?? ""));
+    const recent = [...this.chats.values()].sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
     for (const chat of recent) {
       const cwd = chat.settings.cwd;
       if (!cwd) continue;

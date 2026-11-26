@@ -25,6 +25,8 @@ export async function keychain(): Promise<SecretBackend> {
 export class KeychainCredentials implements CredentialStore {
   private readonly backend: SecretBackend;
   private readonly serial = keyedQueue();
+  private cachedIndex: string[] | null = null;
+  private readonly cache = new Map<string, Credential | undefined>();
 
   constructor(backend: SecretBackend) {
     this.backend = backend;
@@ -35,20 +37,29 @@ export class KeychainCredentials implements CredentialStore {
   }
 
   private async index(): Promise<string[]> {
+    if (this.cachedIndex !== null) return this.cachedIndex;
     try {
       const raw = await this.backend.get(INDEX);
       const ids = raw ? (JSON.parse(raw) as unknown) : [];
-      return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
+      const list = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
+      this.cachedIndex = list;
+      return list;
     } catch {
       return [];
     }
   }
 
   async read(providerId: string): Promise<Credential | undefined> {
+    if (this.cache.has(providerId)) return this.cache.get(providerId);
     const raw = await this.backend.get(this.account(providerId));
-    if (!raw) return undefined;
+    if (!raw) {
+      this.cache.set(providerId, undefined);
+      return undefined;
+    }
     try {
-      return JSON.parse(raw) as Credential;
+      const parsed = JSON.parse(raw) as Credential;
+      this.cache.set(providerId, parsed);
+      return parsed;
     } catch {
       return undefined;
     }
@@ -69,9 +80,14 @@ export class KeychainCredentials implements CredentialStore {
       const next = await fn(current);
       if (next === undefined) return current;
       await this.backend.set(this.account(providerId), JSON.stringify(next));
+      this.cache.set(providerId, next);
       await this.serial(INDEX, async () => {
         const ids = await this.index();
-        if (!ids.includes(providerId)) await this.backend.set(INDEX, JSON.stringify([...ids, providerId]));
+        if (!ids.includes(providerId)) {
+          const updated = [...ids, providerId];
+          await this.backend.set(INDEX, JSON.stringify(updated));
+          this.cachedIndex = updated;
+        }
       });
       return next;
     });
@@ -80,9 +96,14 @@ export class KeychainCredentials implements CredentialStore {
   delete(providerId: string): Promise<void> {
     return this.serial(providerId, async () => {
       await this.backend.delete(this.account(providerId));
+      this.cache.set(providerId, undefined);
       await this.serial(INDEX, async () => {
         const ids = await this.index();
-        if (ids.includes(providerId)) await this.backend.set(INDEX, JSON.stringify(ids.filter((id) => id !== providerId)));
+        if (ids.includes(providerId)) {
+          const updated = ids.filter((id) => id !== providerId);
+          await this.backend.set(INDEX, JSON.stringify(updated));
+          this.cachedIndex = updated;
+        }
       });
     });
   }

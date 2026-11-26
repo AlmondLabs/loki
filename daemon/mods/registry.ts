@@ -17,7 +17,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { kindOf } from "../approvals.ts";
 import { piTool, type ChatTool } from "../chat-tools.ts";
-import { SCRIPT_TOOL } from "../scripts.ts";
+import { SCRIPT_TOOL, scriptMayCall } from "../scripts.ts";
 import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import {
   MOD_API_VERSION,
@@ -100,13 +100,23 @@ function keepingDescription(replacement: Record<string, unknown>, original: Reco
     : replacement;
 }
 
-const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && new Set([...a, ...b]).size === new Set(a).size;
+const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
+  if (a.length === 0 && b.length === 0) return true;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  if (setA.size !== setB.size) return false;
+  for (const x of setA) if (!setB.has(x)) return false;
+  return true;
+};
 
 export class ModRegistry {
   readonly registry: Registry = createRegistry();
   private readonly loaded = new Map<string, Loaded>();
   private readonly loading = keyedQueue();
   private readonly report: Report;
+  private cachedChatTools: ChatTool[] | null = null;
+  private cachedAnnotations: Map<string, ModTool["annotations"] | undefined> | null = null;
+  private cachedScriptCallable: Set<string> | null = null;
 
   constructor(report: Report) {
     this.report = report;
@@ -182,23 +192,46 @@ export class ModRegistry {
   unload(name: string): void {
     const extension = this.registry.snapshot().extension(name);
     this.retire(name);
-    if (extension) this.registry.uninstall(extension);
+    if (extension) {
+      this.registry.uninstall(extension);
+      this.invalidateCaches();
+    }
   }
 
   chatTools(): ChatTool[] {
-    return [...this.loaded.values()].flatMap((entry) => entry.pieces.tools.map((tool) => modChatTool(tool, (m) => this.report(`${entry.mod.name}: ${m}`))));
+    if (!this.cachedChatTools) {
+      const list: ChatTool[] = [];
+      for (const entry of this.loaded.values()) {
+        for (const tool of entry.pieces.tools) list.push(modChatTool(tool, (m) => this.report(`${entry.mod.name}: ${m}`)));
+      }
+      this.cachedChatTools = list;
+    }
+    return this.cachedChatTools;
+  }
+
+  isScriptCallable(name: string): boolean {
+    if (!this.cachedScriptCallable) {
+      const set = new Set<string>();
+      for (const { tool } of this.registry.snapshot().tools()) {
+        if (scriptMayCall(tool)) set.add(tool.name);
+      }
+      this.cachedScriptCallable = set;
+    }
+    return this.cachedScriptCallable.has(name);
   }
 
   async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
+    const [settingsRaw, agent] = await Promise.all([store.agentSettings(chat.id, context), store.harness.snapshot(AgentInfoDoc, context)]);
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
-    const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
+    const settings = settingsRaw as { tools?: string[] | { remove: string[] } } | undefined;
     if (Array.isArray(settings?.tools)) return;
-    const agentId = (await store.harness.snapshot(AgentInfoDoc, context))?.id ?? "";
+    const agentId = agent?.id ?? "";
     const tools = this.chatTools();
     const ours = new Set([...tools.map((t) => t.name), SCRIPT_TOOL]);
     const removed = settings?.tools?.remove ?? [];
-    const shown = tools.filter((t) => !t.forAgent || t.forAgent(agentId));
-    const hide = tools.filter((t) => !shown.includes(t)).map((t) => t.name);
+    const shown = new Set<string>();
+    for (const t of tools) if (!t.forAgent || t.forAgent(agentId)) shown.add(t.name);
+    const hide = tools.filter((t) => !shown.has(t.name)).map((t) => t.name);
     const next = [...removed.filter((n) => !ours.has(n)), ...hide];
     if (sameSet(next, removed)) return;
     const registered = new Map(
@@ -213,11 +246,14 @@ export class ModRegistry {
   }
 
   annotations(toolName: string): ModTool["annotations"] | undefined {
-    for (const { pieces } of this.loaded.values()) {
-      const tool = pieces.tools.find((t) => t.name === toolName);
-      if (tool) return tool.annotations;
+    if (!this.cachedAnnotations) {
+      const map = new Map<string, ModTool["annotations"] | undefined>();
+      for (const { pieces } of this.loaded.values()) {
+        for (const tool of pieces.tools) if (!map.has(tool.name)) map.set(tool.name, tool.annotations);
+      }
+      this.cachedAnnotations = map;
     }
-    return undefined;
+    return this.cachedAnnotations.get(toolName);
   }
 
   names(): string[] {
@@ -225,18 +261,24 @@ export class ModRegistry {
   }
 
   async renderSections(input: SectionInput): Promise<string[]> {
-    const shown: string[] = [];
+    const tasks: Array<Promise<string | undefined>> = [];
     for (const { pieces, mod } of this.loaded.values()) {
       for (const { key, render } of pieces.sections) {
-        try {
-          const text = await render(input);
-          if (text !== undefined) shown.push(`<${key}>\n${text}\n</${key}>`);
-        } catch (error) {
-          this.report(`${mod.name}: section ${key} failed: ${messageOf(error)}`);
-        }
+        tasks.push(
+          Promise.resolve()
+            .then(() => render(input))
+            .then(
+              (text) => (text !== undefined ? `<${key}>\n${text}\n</${key}>` : undefined),
+              (error: unknown) => {
+                this.report(`${mod.name}: section ${key} failed: ${messageOf(error)}`);
+                return undefined;
+              },
+            ),
+        );
       }
     }
-    return shown;
+    const results = await Promise.all(tasks);
+    return results.filter((s): s is string => s !== undefined);
   }
 
   transformMessage(message: OutgoingMessage): OutgoingMessage["content"] {
@@ -267,10 +309,17 @@ export class ModRegistry {
     }
   }
 
+  private invalidateCaches(): void {
+    this.cachedChatTools = null;
+    this.cachedAnnotations = null;
+    this.cachedScriptCallable = null;
+  }
+
   private retire(name: string): void {
     const previous = this.loaded.get(name);
     if (!previous) return;
     this.loaded.delete(name);
+    this.invalidateCaches();
     previous.abort.abort();
     try {
       previous.dispose?.();
@@ -280,6 +329,7 @@ export class ModRegistry {
   }
 
   private install(name: string): void {
+    this.invalidateCaches();
     const entry = this.loaded.get(name);
     if (entry) this.registry.install(this.extension(name, entry.pieces));
   }

@@ -93,6 +93,9 @@ export class McpServers {
   private readonly report: Report;
   private readonly version: string;
   private closed = false;
+  private cachedTools: McpTool[] | null = null;
+  private cachedToolsByKey: Map<string, McpTool> | null = null;
+  private cachedAlwaysLoaded: Set<string> | null = null;
 
   constructor(
     opts: {
@@ -115,6 +118,9 @@ export class McpServers {
   }
 
   private changed(): void {
+    this.cachedTools = null;
+    this.cachedToolsByKey = null;
+    this.cachedAlwaysLoaded = null;
     this.listeners.emit();
   }
 
@@ -263,13 +269,33 @@ export class McpServers {
   }
 
   tools(): McpTool[] {
-    return [...this.entries.values()].flatMap((e) => (e.state === "connected" ? e.tools : []));
+    if (!this.cachedTools) {
+      const list: McpTool[] = [];
+      for (const e of this.entries.values()) if (e.state === "connected") list.push(...e.tools);
+      this.cachedTools = list;
+    }
+    return this.cachedTools;
+  }
+
+  tool(key: string): McpTool | undefined {
+    if (!this.cachedToolsByKey) {
+      const map = new Map<string, McpTool>();
+      for (const t of this.tools()) map.set(t.key, t);
+      this.cachedToolsByKey = map;
+    }
+    return this.cachedToolsByKey.get(key);
   }
 
   alwaysLoaded(): Set<string> {
-    const out = new Set<string>();
-    for (const e of this.entries.values()) for (const t of e.tools) if (e.config.alwaysLoad.includes(t.name)) out.add(t.key);
-    return out;
+    if (!this.cachedAlwaysLoaded) {
+      const out = new Set<string>();
+      for (const e of this.entries.values()) {
+        const always = new Set(e.config.alwaysLoad);
+        for (const t of e.tools) if (always.has(t.name)) out.add(t.key);
+      }
+      this.cachedAlwaysLoaded = out;
+    }
+    return this.cachedAlwaysLoaded;
   }
 
   status(): ServerStatus[] {
@@ -284,7 +310,7 @@ export class McpServers {
   }
 
   async call(key: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<CallToolResult> {
-    const tool = this.tools().find((t) => t.key === key);
+    const tool = this.tool(key);
     if (!tool) throw new Error(`${key} is not available: its server is down or no longer has it`);
     const client = this.entries.get(tool.server)?.client;
     if (!client) throw new Error(`the ${tool.server} MCP server is not connected`);

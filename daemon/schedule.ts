@@ -1,7 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import { defineExtension, type Extension } from "@earendil-works/pi-durable";
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import type { Delivery } from "./engine.ts";
 import { piTool, type ChatCall, type ChatTool } from "./chat-tools.ts";
@@ -54,12 +54,16 @@ function field(text: string, min: number, max: number): Set<number> {
 const SUNDAY = 0;
 const SUNDAY_AS_SEVEN = 7;
 
+const cronCache = new Map<string, Fields>();
+
 export function parseCron(expr: string): Fields {
+  const cached = cronCache.get(expr);
+  if (cached) return cached;
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) throw new Error(`a cron expression has five fields: ${expr}`);
   const weekday = field(parts[4], 0, 7);
   if (weekday.has(SUNDAY_AS_SEVEN)) weekday.add(SUNDAY);
-  return {
+  const parsed: Fields = {
     minute: field(parts[0], 0, 59),
     hour: field(parts[1], 0, 23),
     day: field(parts[2], 1, 31),
@@ -68,11 +72,23 @@ export function parseCron(expr: string): Fields {
     dayStar: parts[2] === "*",
     weekdayStar: parts[4] === "*",
   };
+  cronCache.set(expr, parsed);
+  return parsed;
 }
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function partsIn(at: Date, timezone: string) {
+interface Parts {
+  minute: number;
+  hour: number;
+  day: number;
+  month: number;
+  year: number;
+  weekday: number;
+}
+
+function partsIn(at: Date, timezone: string): Parts {
   let f = formatters.get(timezone);
   if (!f) {
     f = new Intl.DateTimeFormat("en-US", {
@@ -87,25 +103,53 @@ function partsIn(at: Date, timezone: string) {
     });
     formatters.set(timezone, f);
   }
-  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
-  const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
-  return { minute: Number(p.minute), hour: Number(p.hour), day: Number(p.day), month: Number(p.month), year: Number(p.year), weekday };
+  let minute = 0;
+  let hour = 0;
+  let day = 0;
+  let month = 0;
+  let year = 0;
+  let weekday = -1;
+  for (const part of f.formatToParts(at)) {
+    switch (part.type) {
+      case "minute":
+        minute = Number(part.value);
+        break;
+      case "hour":
+        hour = Number(part.value);
+        break;
+      case "day":
+        day = Number(part.value);
+        break;
+      case "month":
+        month = Number(part.value);
+        break;
+      case "year":
+        year = Number(part.value);
+        break;
+      case "weekday":
+        weekday = WEEKDAYS.indexOf(part.value);
+        break;
+    }
+  }
+  return { minute, hour, day, month, year, weekday };
 }
 
 function checkTimezone(timezone: string, at: Date): void {
   partsIn(at, timezone);
 }
 
+function dayMatches(fields: Fields, p: Parts): boolean {
+  if (!fields.month.has(p.month)) return false;
+  if (fields.dayStar && fields.weekdayStar) return true;
+  if (fields.dayStar) return fields.weekday.has(p.weekday);
+  if (fields.weekdayStar) return fields.day.has(p.day);
+  return fields.day.has(p.day) || fields.weekday.has(p.weekday);
+}
+
 /** Whether a minute matches; day-of-month and day-of-week match either, as cron has it when both are given. */
 export function matches(fields: Fields, at: Date, timezone: string): boolean {
   const p = partsIn(at, timezone);
-  if (!fields.minute.has(p.minute) || !fields.hour.has(p.hour) || !fields.month.has(p.month)) return false;
-  const day = fields.day.has(p.day);
-  const weekday = fields.weekday.has(p.weekday);
-  if (fields.dayStar && fields.weekdayStar) return true;
-  if (fields.dayStar) return weekday;
-  if (fields.weekdayStar) return day;
-  return day || weekday;
+  return fields.minute.has(p.minute) && fields.hour.has(p.hour) && dayMatches(fields, p);
 }
 
 /**
@@ -113,14 +157,30 @@ export function matches(fields: Fields, at: Date, timezone: string): boolean {
  * last firing, is not due again: when the clocks go back an hour, its wall-clock minute comes round a second time.
  */
 export function dueBetween(fields: Fields, timezone: string, from: Date, to: Date, fired?: Date): boolean {
-  const start = Math.max(Math.floor(from.getTime() / 60_000) + 1, Math.floor(to.getTime() / 60_000) - 31 * 24 * 60);
+  const end = Math.floor(to.getTime() / 60_000);
+  let m = Math.max(Math.floor(from.getTime() / 60_000) + 1, end - 31 * 24 * 60);
   const last = fired ? partsIn(fired, timezone) : null;
-  for (let m = start; m <= Math.floor(to.getTime() / 60_000); m++) {
-    const at = new Date(m * 60_000);
-    if (!matches(fields, at, timezone)) continue;
+  while (m <= end) {
+    const p = partsIn(new Date(m * 60_000), timezone);
+    if (!dayMatches(fields, p)) {
+      m += Math.max(1, (23 - p.hour) * 60 + (60 - p.minute) - 60);
+      continue;
+    }
+    if (!fields.hour.has(p.hour)) {
+      m += Math.max(1, 60 - p.minute);
+      continue;
+    }
+    if (!fields.minute.has(p.minute)) {
+      let nextMinute = 60;
+      for (const candidate of fields.minute) if (candidate > p.minute && candidate < nextMinute) nextMinute = candidate;
+      m += nextMinute - p.minute;
+      continue;
+    }
     if (!last) return true;
-    const p = partsIn(at, timezone);
-    if (p.minute === last.minute && p.hour === last.hour && p.day === last.day && p.month === last.month && p.year === last.year) continue;
+    if (p.minute === last.minute && p.hour === last.hour && p.day === last.day && p.month === last.month && p.year === last.year) {
+      m += 1;
+      continue;
+    }
     return true;
   }
   return false;
@@ -144,6 +204,7 @@ export class Schedules {
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
   private readonly quiet = new Map<string, { from: number; to: number }>();
+  private cached: { mtimeMs: number; size: number; tasks: ScheduledTask[] } | null = null;
 
   private readonly now: () => Date;
 
@@ -156,15 +217,26 @@ export class Schedules {
 
   list(): ScheduledTask[] {
     try {
+      const st = statSync(this.file);
+      if (this.cached && this.cached.mtimeMs === st.mtimeMs && this.cached.size === st.size) return this.cached.tasks.map((t) => ({ ...t }));
       const raw = JSON.parse(readFileSync(this.file, "utf8")) as { tasks?: ScheduledTask[] };
-      return Array.isArray(raw.tasks) ? raw.tasks : [];
+      const tasks = Array.isArray(raw.tasks) ? raw.tasks : [];
+      this.cached = { mtimeMs: st.mtimeMs, size: st.size, tasks };
+      return tasks.map((t) => ({ ...t }));
     } catch {
+      this.cached = null;
       return [];
     }
   }
 
   private save(tasks: ScheduledTask[]): void {
     writeJsonAtomic(this.file, { version: 1, tasks }, { pretty: true });
+    try {
+      const st = statSync(this.file);
+      this.cached = { mtimeMs: st.mtimeMs, size: st.size, tasks: tasks.map((t) => ({ ...t })) };
+    } catch {
+      this.cached = null;
+    }
   }
 
   create(t: Omit<ScheduledTask, "id" | "status" | "created_at" | "last_fired_at" | "fire_count">, now = new Date()): ScheduledTask {
@@ -212,7 +284,13 @@ export class Schedules {
     this.ticking = true;
     try {
       let fired = 0;
-      for (const { id } of this.list()) {
+      const initial = this.list();
+      const activeIds = new Set(initial.filter((t) => t.status === "active").map((t) => t.id));
+      for (const k of [...this.quiet.keys()]) {
+        const taskId = k.split("\u0000", 1)[0];
+        if (!activeIds.has(taskId)) this.quiet.delete(k);
+      }
+      for (const { id } of initial) {
         const tasks = this.list();
         const task = tasks.find((t) => t.id === id);
         if (!task || task.status === "cancelled") continue;

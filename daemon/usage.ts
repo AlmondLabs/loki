@@ -76,10 +76,46 @@ function modelCounters(state: Readonly<Partial<UsageState>> | null | undefined):
 }
 
 function growth(before: Counters, now: Counters): Counters | null {
-  const keys = Object.keys(ZERO) as Array<keyof Counters>;
-  const reset = keys.some((k) => now[k] < before[k]);
-  const d = Object.fromEntries(keys.map((k) => [k, reset ? now[k] : now[k] - before[k]])) as unknown as Counters;
-  return keys.some((k) => d[k] > 0) ? d : null;
+  const reset =
+    now.input < before.input ||
+    now.output < before.output ||
+    now.cache_read < before.cache_read ||
+    now.cache_write < before.cache_write ||
+    now.reasoning < before.reasoning ||
+    now.cost_input < before.cost_input ||
+    now.cost_output < before.cost_output ||
+    now.cost_cache_read < before.cost_cache_read ||
+    now.cost_cache_write < before.cost_cache_write ||
+    now.cost_total < before.cost_total;
+  const d: Counters = reset
+    ? { ...now }
+    : {
+        input: now.input - before.input,
+        output: now.output - before.output,
+        cache_read: now.cache_read - before.cache_read,
+        cache_write: now.cache_write - before.cache_write,
+        reasoning: now.reasoning - before.reasoning,
+        cost_input: now.cost_input - before.cost_input,
+        cost_output: now.cost_output - before.cost_output,
+        cost_cache_read: now.cost_cache_read - before.cost_cache_read,
+        cost_cache_write: now.cost_cache_write - before.cost_cache_write,
+        cost_total: now.cost_total - before.cost_total,
+      };
+  if (
+    d.input > 0 ||
+    d.output > 0 ||
+    d.cache_read > 0 ||
+    d.cache_write > 0 ||
+    d.reasoning > 0 ||
+    d.cost_input > 0 ||
+    d.cost_output > 0 ||
+    d.cost_cache_read > 0 ||
+    d.cost_cache_write > 0 ||
+    d.cost_total > 0
+  ) {
+    return d;
+  }
+  return null;
 }
 
 const ORIGIN_OF_TURN: Partial<Record<string, UsageOrigin>> = {
@@ -122,6 +158,8 @@ export class UsageLedger {
   private readonly serial = serialQueue();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private seededUntil: string | null = null;
+  private dirty = false;
+  private cachedRows: UsageRow[] | null = null;
   private readonly listeners = new Listeners();
 
   constructor(deps: UsageLedgerDeps) {
@@ -150,6 +188,8 @@ export class UsageLedger {
     this.unsubscribe.set(
       agentId,
       store.harness.subscribeCommits((publication) => {
+        if (!publication.changes.some((c) => c.type === "document" && c.record.kind === "pi.usage" && c.conversationId !== undefined && Boolean(c.value)))
+          return;
         const at = this.now();
         this.enqueue(() => this.apply(agentId, store, publication, at));
       }),
@@ -162,7 +202,7 @@ export class UsageLedger {
   }
 
   rows(): UsageRow[] {
-    return [...this.rowsByKey.values()].sort((a, b) => a.hour.localeCompare(b.hour));
+    return (this.cachedRows ??= [...this.rowsByKey.values()].sort((a, b) => a.hour.localeCompare(b.hour)));
   }
 
   settled(): Promise<void> {
@@ -172,7 +212,9 @@ export class UsageLedger {
   close(): void {
     for (const off of this.unsubscribe.values()) off();
     this.unsubscribe.clear();
-    this.save();
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    if (this.dirty) this.save();
   }
 
   save(): void {
@@ -182,6 +224,7 @@ export class UsageLedger {
     const data: LedgerFile = { version: 1, rows: this.rows(), seen: this.seen, ...(this.seededUntil ? { seeded_until: this.seededUntil } : {}) };
     try {
       writeJsonAtomic(this.deps.file, data);
+      this.dirty = false;
     } catch (error) {
       this.deps.report?.(`usage: could not save ${this.deps.file}: ${String(error)}`);
     }
@@ -209,15 +252,27 @@ export class UsageLedger {
 
   private prune(): void {
     const oldest = hourOf(this.now() - KEEP_DAYS * 86_400_000);
-    for (const [key, row] of this.rowsByKey) if (row.hour < oldest) this.rowsByKey.delete(key);
+    let pruned = false;
+    for (const [key, row] of this.rowsByKey) {
+      if (row.hour < oldest) {
+        this.rowsByKey.delete(key);
+        pruned = true;
+      }
+    }
+    if (pruned) {
+      this.cachedRows = null;
+      this.dirty = true;
+    }
   }
 
   private changed(): void {
+    this.dirty = true;
     this.listeners.emit();
     this.scheduleSave();
   }
 
   private scheduleSave(): void {
+    this.dirty = true;
     const delay = this.deps.saveDelayMs ?? SAVE_DELAY_MS;
     if (delay === 0 || this.timer) return;
     this.timer = setTimeout(() => {
@@ -287,7 +342,10 @@ export class UsageLedger {
       const now = modelCounters(change.value);
       const before = seen[String(conversationId)];
       seen[String(conversationId)] = now;
-      if (!before && change.ops.length > 0) continue;
+      if (!before) {
+        this.scheduleSave();
+        if (change.ops.length > 0) continue;
+      }
       const hour = hourOf(at);
       const growths = Object.entries(now).flatMap(([model, counters]) => {
         const d = counters ? growth(before?.[model] ?? ZERO, counters) : null;
@@ -298,7 +356,6 @@ export class UsageLedger {
         for (const { model, d } of growths) this.add(hour, agentId, model, origin, d);
         grew = true;
       }
-      this.scheduleSave();
     }
     if (grew) this.changed();
   }
@@ -331,6 +388,7 @@ export class UsageLedger {
     row.cost.total += d.cost_total;
     row.cache_read_as_input += (d.cache_read * (this.deps.inputRate(model) ?? 0)) / 1_000_000;
     this.rowsByKey.set(key, row);
+    this.cachedRows = null;
     return row;
   }
 }
