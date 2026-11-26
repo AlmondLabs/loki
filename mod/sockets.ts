@@ -5,6 +5,7 @@ export type PushTo = "everyone" | "desktop" | "macs";
 
 export interface PhoneListener {
   broadcast(msg: object, scope?: Scope, to?: Audience): void;
+  broadcastText?(text: string, scope?: Scope, to?: Audience): void;
   clientCount(): number;
   stop(): Promise<unknown>;
 }
@@ -16,8 +17,18 @@ export class Sockets<P extends PhoneListener = PhoneListener> {
   private stopped = false;
 
   push(msg: object, { to = "everyone", scope }: { to?: PushTo; scope?: Scope } = {}): void {
-    if (to !== "macs") this.desktop?.broadcast(msg, scope);
-    if (to !== "desktop") this.lan?.broadcast(msg, scope, to === "macs" ? "macs" : "all");
+    const sendDesktop = to !== "macs" && (this.desktop?.clientCount() ?? 0) > 0;
+    const sendLan = to !== "desktop" && (this.lan?.clientCount() ?? 0) > 0;
+    if (!sendDesktop && !sendLan) return;
+    const lanAudience: Audience = to === "macs" ? "macs" : "all";
+    if (sendDesktop && sendLan && this.desktop?.broadcastText && this.lan?.broadcastText) {
+      const text = JSON.stringify(msg);
+      this.desktop.broadcastText(text, scope);
+      this.lan.broadcastText(text, scope, lanAudience);
+      return;
+    }
+    if (sendDesktop) this.desktop?.broadcast(msg, scope);
+    if (sendLan) this.lan?.broadcast(msg, scope, lanAudience);
   }
 
   async serve(start: () => Promise<LokiServer>, attach: (server: LokiServer) => WsBridge): Promise<LokiServer> {

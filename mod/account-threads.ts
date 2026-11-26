@@ -180,9 +180,24 @@ export class AccountThreads {
   private readonly sources = new Map<AccountProvider, OutsideSource>();
   private readonly listeners = new Listeners();
   private readonly serial = keyedQueue();
+  private readonly batchDepth = new Map<string, number>();
+  private readonly batchDirty = new Set<string>();
 
   constructor(opts: AccountThreadsOptions) {
     this.opts = opts;
+  }
+
+  async batch<T>(accountId: string, fn: () => Promise<T> | T): Promise<T> {
+    this.batchDepth.set(accountId, (this.batchDepth.get(accountId) ?? 0) + 1);
+    try {
+      return await fn();
+    } finally {
+      const left = (this.batchDepth.get(accountId) ?? 1) - 1;
+      if (left <= 0) {
+        this.batchDepth.delete(accountId);
+        if (this.batchDirty.delete(accountId)) this.saveNow(accountId);
+      } else this.batchDepth.set(accountId, left);
+    }
   }
 
   register(provider: AccountProvider, source: OutsideSource): void {
@@ -429,8 +444,16 @@ export class AccountThreads {
 
   rows(): InboxRow[] {
     const out: InboxRow[] = [];
-    for (const account of this.opts.accounts.list())
-      for (const r of this.records(account.account_id).values()) if (r.state === "open") out.push(this.row(account, r));
+    const accounts = this.opts.accounts.list();
+    const providerCounts = new Map<AccountProvider, number>();
+    for (const a of accounts) providerCounts.set(a.provider, (providerCounts.get(a.provider) ?? 0) + 1);
+    const ownerNames = new Map<string, string | null>();
+    for (const account of accounts) {
+      if (!ownerNames.has(account.owner_agent_id)) ownerNames.set(account.owner_agent_id, this.opts.agentName?.(account.owner_agent_id) ?? null);
+      const ownerName = ownerNames.get(account.owner_agent_id) ?? null;
+      const onlyAccount = (providerCounts.get(account.provider) ?? 0) <= 1;
+      for (const r of this.records(account.account_id).values()) if (r.state === "open") out.push(this.row(account, r, ownerName, onlyAccount));
+    }
     return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   }
 
@@ -438,7 +461,7 @@ export class AccountThreads {
     return this.listeners.add(listener);
   }
 
-  private row(account: AccountRecord, r: ThreadRecord): InboxRow {
+  private row(account: AccountRecord, r: ThreadRecord, ownerName: string | null, onlyAccount: boolean): InboxRow {
     const label = accountLabel(account);
     return {
       kind: "outside",
@@ -458,7 +481,7 @@ export class AccountThreads {
         thread_id: r.thread_id,
         generation: r.generation,
         owner_agent_id: account.owner_agent_id,
-        owner_name: this.opts.agentName?.(account.owner_agent_id) ?? null,
+        owner_name: ownerName,
         sender: r.sender,
         sender_address: senderAddressOf(account.provider, r),
         subject: r.subject_or_first_line,
@@ -473,7 +496,7 @@ export class AccountThreads {
         place: r.place,
         sender_avatar: r.sender_avatar,
         ...(r.not_sent ? { not_sent: { ...r.not_sent } } : {}),
-        only_account: this.opts.accounts.list().filter((a) => a.provider === account.provider).length <= 1,
+        only_account: onlyAccount,
         ...(r.seeds.length > 0 ? { seeds: r.seeds.map((s) => ({ ...s })) } : {}),
       },
     };
@@ -522,6 +545,14 @@ export class AccountThreads {
   }
 
   private save(accountId: string): void {
+    if ((this.batchDepth.get(accountId) ?? 0) > 0) {
+      this.batchDirty.add(accountId);
+      return;
+    }
+    this.saveNow(accountId);
+  }
+
+  private saveNow(accountId: string): void {
     writeJsonAtomic(this.file(accountId), { version: 1, threads: [...this.records(accountId).values()] }, { pretty: true, newline: true, mode: 0o600 });
     this.listeners.emit();
   }

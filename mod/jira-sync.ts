@@ -17,7 +17,7 @@ export type JiraSyncClient = Pick<JiraClient, "searchWatched" | "comments" | "hi
 
 export interface JiraSyncOptions {
   accounts: Pick<Accounts, "get" | "setBackfill">;
-  threads: Pick<AccountThreads, "observe" | "get" | "list">;
+  threads: Pick<AccountThreads, "observe" | "get" | "list"> & Partial<Pick<AccountThreads, "batch">>;
   account: AccountRecord;
   client: JiraSyncClient;
   resting?: (record: ThreadRecord) => boolean;
@@ -91,10 +91,13 @@ export class JiraSync implements AccountSync {
 
   async tick(): Promise<void> {
     const started = this.now();
-    const cursor = this.cursor();
-    if (!cursor) this.save({ watermark: started.toISOString(), seen: {}, past: { page_token: null, done: false } });
-    else await this.changed(cursor, started);
-    await this.fillPast();
+    const runBatch = <T>(fn: () => Promise<T>) => (this.opts.threads.batch ? this.opts.threads.batch(this.accountId, fn) : fn());
+    await runBatch(async () => {
+      const cursor = this.cursor();
+      if (!cursor) this.save({ watermark: started.toISOString(), seen: {}, past: { page_token: null, done: false } });
+      else await this.changed(cursor, started);
+      await this.fillPast();
+    });
   }
 
   private async changed(cursor: JiraCursor, started: Date): Promise<void> {
@@ -140,9 +143,10 @@ export class JiraSync implements AccountSync {
 
   private async fillPast(): Promise<void> {
     let read = 0;
+    let room = this.room();
     while (read < TICKETS_PER_TICK) {
       const cursor = this.cursor();
-      if (!cursor || cursor.past.done || this.room() <= 0) return;
+      if (!cursor || cursor.past.done || room <= 0) return;
       const page = await this.opts.client
         .searchWatched({ sinceMinutes: null, pageToken: cursor.past.page_token, limit: TICKETS_PER_TICK })
         .catch((error: unknown) => {
@@ -153,10 +157,11 @@ export class JiraSync implements AccountSync {
           throw error;
         });
       const unread = page.tickets.filter((ticket) => !this.opts.threads.get(this.accountId, ticket.id));
-      while (unread.length > 0 && this.room() > 0) {
-        const batch = unread.splice(0, Math.min(TICKETS_AT_A_TIME, this.room()));
+      while (unread.length > 0 && room > 0) {
+        const batch = unread.splice(0, Math.min(TICKETS_AT_A_TIME, room));
         await Promise.all(batch.map((ticket) => this.read(ticket, null)));
         read += batch.length;
+        room = this.room();
       }
       if (unread.length > 0) return;
       this.save({ ...cursor, past: { page_token: page.next_page_token, done: page.next_page_token === null } });

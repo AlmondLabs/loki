@@ -67,7 +67,14 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       const route = deps.route;
       const redirect = client.peerId && route && entry?.kind === "request" ? route.redirect(msg) : null;
       if (redirect) return client.send({ type: "error", request_id: requestId, ...redirect });
-      if (client.peerId || !route || !entry || entry.kind === "push" || typeof entry.parse(msg) === "string") return here(client, msg);
+      if (client.peerId || !route || !entry || entry.kind === "push") return here(client, msg);
+      let parsed: unknown;
+      try {
+        parsed = entry.parse(msg);
+      } catch (err) {
+        return client.send({ type: "error", ...(entry.kind === "request" ? { request_id: requestId } : {}), message: errorMessage(err) });
+      }
+      if (typeof parsed === "string") return here(client, msg, parsed);
       const kind = entry.kind;
       const forward = (home: NonNullable<Target>) =>
         void route.forward(home, msg, kind).then(
@@ -78,15 +85,15 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           (err: unknown) => client.send({ type: "error", ...(kind === "request" ? { request_id: requestId } : {}), message: errorMessage(err) }),
         );
       const home = route.target(msg);
-      if (!(home instanceof Promise)) return home ? forward(home) : here(client, msg);
+      if (!(home instanceof Promise)) return home ? forward(home) : here(client, msg, parsed);
       void home.then(
-        (h) => (h ? forward(h) : here(client, msg)),
-        () => here(client, msg),
+        (h) => (h ? forward(h) : here(client, msg, parsed)),
+        () => here(client, msg, parsed),
       );
     },
   };
 
-  function here(client: Client, msg: Record<string, unknown>): void {
+  function here(client: Client, msg: Record<string, unknown>, parsed?: unknown): void {
     const requestId = typeof msg.request_id === "string" ? msg.request_id : undefined;
     const entry = frameEntry(msg.type);
     const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
@@ -99,7 +106,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       track: (event, properties) => deps.capture?.(client, event, properties),
     };
     const run = () => {
-      const payload = entry.parse(msg);
+      const payload = parsed === undefined ? entry.parse(msg) : parsed;
       if (typeof payload === "string") {
         if (entry.kind === "request") return fail(payload);
         throw new Error(payload);

@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { hostname, networkInterfaces } from "node:os";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import type { Scope } from "../core/desk-core.ts";
 import type { DeviceStore } from "./devices.ts";
 import { TOO_MANY_WRONG_CODES, type CodeCheck, type PairingCodes } from "./pairing.ts";
@@ -57,6 +57,10 @@ export class LanListener {
   private serveStatic: StaticHandler;
   private enabledFlag: boolean;
   private bonjour: { at: number; name: string | null } | null = null;
+  private bonjourRefreshing = false;
+  private cachedIfaces: { at: number; table: ReturnType<typeof networkInterfaces> } | null = null;
+  private readonly chatRoute: ReturnType<typeof chatImageRoute> | null;
+  private readonly peerChatRoute: ReturnType<typeof chatImageRoute> | null;
   private peersNeeded = false;
   private viaSetting: LanVia | undefined;
   private readonly tailscale: Tailscale | null;
@@ -80,7 +84,31 @@ export class LanListener {
     this.enabledFlag = state.enabled;
     this.viaSetting = state.via;
     this.tailscale = opts.tailscale ?? null;
+    this.chatRoute = opts.chatImages
+      ? chatImageRoute({ prefix: "/chat-images/", dir: opts.chatImages.dir, authorize: this.authorize, denied: 401, fetchRemote: opts.chatImages.fetchRemote })
+      : null;
+    this.peerChatRoute =
+      opts.chatImages && opts.peers
+        ? chatImageRoute({
+            prefix: "/peer/chat-images/",
+            dir: opts.chatImages.dir,
+            authorize: (req) => {
+              const token = deviceToken(req);
+              return { ok: Boolean(token && token !== this.opts.desktopToken && opts.peers?.verify(token)) };
+            },
+            denied: 401,
+          })
+        : null;
     opts.devices.onSeen = () => this.tell("devices", this.status());
+  }
+
+  private interfacesTable(): ReturnType<typeof networkInterfaces> {
+    if (this.opts.interfaces) return this.opts.interfaces();
+    const now = (this.opts.now ?? Date.now)();
+    if (this.cachedIfaces && now - this.cachedIfaces.at < 5_000) return this.cachedIfaces.table;
+    const table = networkInterfaces();
+    this.cachedIfaces = { at: now, table };
+    return table;
   }
 
   enabled(): boolean {
@@ -88,7 +116,7 @@ export class LanListener {
   }
 
   status(): LanStatus {
-    const addresses = lanAddresses(this.opts.interfaces).filter((a) => !isTailnetAddress(a));
+    const addresses = lanAddresses(() => this.interfacesTable()).filter((a) => !isTailnetAddress(a));
     const listening = this.server !== null;
     const tailscale = this.tailscale?.cached() ?? null;
     return {
@@ -105,12 +133,34 @@ export class LanListener {
   }
 
   private host(): string | null {
-    const now = (this.opts.now ?? Date.now)();
-    if (!this.bonjour || now - this.bonjour.at >= HOST_TTL_MS) this.bonjour = { at: now, name: (this.opts.host ?? bonjourHost)() };
+    const nowFn = this.opts.now ?? Date.now;
+    const now = nowFn();
+    if (this.opts.host) {
+      if (!this.bonjour || now - this.bonjour.at >= HOST_TTL_MS) this.bonjour = { at: now, name: this.opts.host() };
+      return this.bonjour.name;
+    }
+    if (!this.bonjour) {
+      this.bonjour = { at: now, name: fallbackBonjourHost() };
+      this.refreshBonjourHost(nowFn);
+    } else if (now - this.bonjour.at >= HOST_TTL_MS) {
+      this.refreshBonjourHost(nowFn);
+    }
     return this.bonjour.name;
   }
 
+  private refreshBonjourHost(nowFn: () => number): void {
+    if (this.bonjourRefreshing) return;
+    this.bonjourRefreshing = true;
+    execFile("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1500 }, (err, stdout) => {
+      this.bonjourRefreshing = false;
+      const raw = !err ? stdout.trim() || null : null;
+      const name = formatBonjourHost(raw) ?? fallbackBonjourHost();
+      this.bonjour = { at: nowFn(), name };
+    });
+  }
+
   async refresh(): Promise<LanStatus> {
+    this.cachedIfaces = null;
     if (this.tailscale) {
       const next = await this.tailscale.status();
       const prev = this.lastTailscale;
@@ -260,6 +310,10 @@ export class LanListener {
     this.ws?.broadcast(msg, scope, to);
   }
 
+  broadcastText(text: string, scope?: Scope, to?: Audience): void {
+    this.ws?.broadcastText?.(text, scope, to);
+  }
+
   clientCount(): number {
     return this.ws?.clientCount() ?? 0;
   }
@@ -290,7 +344,7 @@ export class LanListener {
 
   private via(req: IncomingMessage): DeviceVia {
     if (this.opts.via) return this.opts.via(req);
-    return requestVia(req, this.tailscale ? tailnetAddresses(this.opts.interfaces, this.tailscale.cached().ip) : undefined);
+    return requestVia(req, this.tailscale ? tailnetAddresses(() => this.interfacesTable(), this.tailscale.cached().ip) : undefined);
   }
 
   private handle(req: IncomingMessage, res: ServerResponse): void {
@@ -331,12 +385,7 @@ export class LanListener {
         }
       }
       if (profileRoute(req, res, url, this.authorize, this.opts.profile, 401)) return;
-      const images = this.opts.chatImages;
-      if (
-        images &&
-        chatImageRoute({ prefix: "/chat-images/", dir: images.dir, authorize: this.authorize, denied: 401, fetchRemote: images.fetchRemote })(req, res, url)
-      )
-        return;
+      if (this.chatRoute?.(req, res, url)) return;
       if (
         this.opts.uploads &&
         uploadRoute(req, res, url, { authorize: this.authorize, dir: this.opts.uploads, denied: 401, guard: (r) => crossOrigin(r, this.allowedHosts()) })
@@ -366,8 +415,7 @@ export class LanListener {
       const token = deviceToken(req);
       return token && token !== this.opts.desktopToken ? peers.verify(token) : null;
     };
-    const images = this.opts.chatImages;
-    if (images && chatImageRoute({ prefix: "/peer/chat-images/", dir: images.dir, authorize: () => ({ ok: !!bearer() }), denied: 401 })(req, res, url)) return;
+    if (this.peerChatRoute?.(req, res, url)) return;
     switch (url.pathname) {
       case "/peer/pair": {
         if (req.method !== "POST") return json(res, 405, { error: "POST" });
@@ -577,6 +625,23 @@ export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfac
   return out;
 }
 
+function formatBonjourHost(name: string | null): string | null {
+  if (!name || !/^[A-Za-z0-9-]+$/.test(name)) return null;
+  return `${name.toLowerCase()}.local`;
+}
+
+function fallbackBonjourHost(): string | null {
+  try {
+    const raw =
+      hostname()
+        .replace(/\.local\.?$/i, "")
+        .trim() || null;
+    return formatBonjourHost(raw);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The Mac's Bonjour name, `<LocalHostName>.local`, which iOS resolves on the LAN without DNS. macOS keeps it in
  * scutil; os.hostname() is the fallback (it may already carry .local, or be a DHCP-assigned name). Lower-cased:
@@ -588,18 +653,7 @@ export function bonjourHost(): string | null {
     name =
       execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
   } catch {}
-  if (!name) {
-    try {
-      name =
-        hostname()
-          .replace(/\.local\.?$/i, "")
-          .trim() || null;
-    } catch {
-      return null;
-    }
-  }
-  if (!name || !/^[A-Za-z0-9-]+$/.test(name)) return null;
-  return `${name.toLowerCase()}.local`;
+  return formatBonjourHost(name) ?? fallbackBonjourHost();
 }
 
 export function deviceToken(req: IncomingMessage): string | null {

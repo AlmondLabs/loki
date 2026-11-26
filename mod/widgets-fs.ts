@@ -79,7 +79,12 @@ function splitName(fileName: string): { stem: string; ext: string } | null {
 
 export type ScanCache = Map<string, { mtime: number; size: number; entry: WidgetManifestEntry }>;
 
-async function readEntry(root: string, scope: Scope, fileName: string, cache?: ScanCache): Promise<WidgetManifestEntry | null> {
+async function readEntry(
+  root: string,
+  scope: Scope,
+  fileName: string,
+  cache?: ScanCache,
+): Promise<{ entry: WidgetManifestEntry; mtime: number; size: number } | null> {
   const parts = splitName(fileName);
   if (!parts) return null;
   let kind: WidgetKind;
@@ -96,7 +101,7 @@ async function readEntry(root: string, scope: Scope, fileName: string, cache?: S
     mtime = st.mtimeMs;
     size = st.size;
     const seen = cache?.get(abs);
-    if (seen?.mtime === mtime && seen.size === size) return seen.entry;
+    if (seen?.mtime === mtime && seen.size === size) return { entry: seen.entry, mtime, size };
     text = readFileSync(abs, "utf8");
   } catch {
     return null;
@@ -106,26 +111,19 @@ async function readEntry(root: string, scope: Scope, fileName: string, cache?: S
 
   if (kind === "json") {
     const p = parseJsonWidget(text);
-    return { ...base, title: p.title ?? parts.stem, type: p.type, data: p.data, ...(p.error ? { error: p.error } : {}) };
+    return { entry: { ...base, title: p.title ?? parts.stem, type: p.type, data: p.data, ...(p.error ? { error: p.error } : {}) }, mtime, size };
   }
   const error = await checkModule(text, base.file);
-  return { ...base, title: titleFromModule(text) ?? parts.stem, data: {}, ...(error ? { error } : {}) };
+  return { entry: { ...base, title: titleFromModule(text) ?? parts.stem, data: {}, ...(error ? { error } : {}) }, mtime, size };
 }
 
 async function readCached(root: string, scope: Scope, fileName: string, cache?: ScanCache): Promise<WidgetManifestEntry | null> {
-  const entry = await readEntry(root, scope, fileName, cache);
+  const result = await readEntry(root, scope, fileName, cache);
   const abs = join(root, scope, fileName);
-  if (!cache) return entry;
-  if (!entry) cache.delete(abs);
-  else if (cache.get(abs)?.entry !== entry) {
-    try {
-      const st = statSync(abs);
-      cache.set(abs, { mtime: st.mtimeMs, size: st.size, entry });
-    } catch {
-      cache.delete(abs);
-    }
-  }
-  return entry;
+  if (!cache) return result?.entry ?? null;
+  if (!result) cache.delete(abs);
+  else if (cache.get(abs)?.entry !== result.entry) cache.set(abs, { mtime: result.mtime, size: result.size, entry: result.entry });
+  return result?.entry ?? null;
 }
 
 export async function scanWidgets(root: string, cache?: ScanCache): Promise<Map<string, WidgetManifestEntry>> {
@@ -137,16 +135,23 @@ export async function scanWidgets(root: string, cache?: ScanCache): Promise<Map<
       return [];
     }
   };
-  if (!existsSync(root)) return out;
-  if (cache) for (const abs of cache.keys()) if (!existsSync(abs)) cache.delete(abs);
+  if (!existsSync(root)) {
+    cache?.clear();
+    return out;
+  }
+  const seen = cache ? new Set<string>() : null;
   for (const scopeDir of list(root)) {
     if (!scopeDir.isDirectory() || scopeDir.name.startsWith(".")) continue;
-    for (const f of list(join(root, scopeDir.name))) {
-      if (!f.isFile()) continue;
-      const entry = await readCached(root, scopeDir.name, f.name, cache);
-      if (entry) out.set(entry.id, entry);
-    }
+    const files = list(join(root, scopeDir.name)).filter((f) => f.isFile());
+    const entries = await Promise.all(
+      files.map(async (f) => {
+        seen?.add(join(root, scopeDir.name, f.name));
+        return readCached(root, scopeDir.name, f.name, cache);
+      }),
+    );
+    for (const entry of entries) if (entry) out.set(entry.id, entry);
   }
+  if (cache && seen) for (const abs of [...cache.keys()]) if (!seen.has(abs)) cache.delete(abs);
   return out;
 }
 

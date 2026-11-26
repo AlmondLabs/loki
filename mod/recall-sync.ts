@@ -71,14 +71,30 @@ const RECALL: SyncedFiles = {
   safe: (path) => /^[a-z-]+\/[A-Za-z0-9._-]+\.json$/.test(path) && FOLDERS.includes(path.split("/")[0]),
 };
 
-function refresh(dir: string, which: SyncedFiles, now: number): { files: Record<string, number>; manifest: Manifest } {
+function sameNumbers(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const k of keys) if (a[k] !== b[k]) return false;
+  return true;
+}
+
+function refresh(dir: string, which: SyncedFiles, now: number): { files: Record<string, number>; manifest: Manifest; dirty: boolean } {
   const files = which.list(dir);
   const manifest = readManifest(dir);
-  for (const path of Object.keys(manifest.known)) if (!(path in files)) manifest.deleted[path] = now;
-  for (const [path, mtime] of Object.entries(files)) if ((manifest.deleted[path] ?? -1) < mtime) manifest.deleted = without(manifest.deleted, path);
+  let dirty = !sameNumbers(manifest.known, files);
+  for (const path of Object.keys(manifest.known))
+    if (!(path in files)) {
+      manifest.deleted[path] = now;
+      dirty = true;
+    }
+  for (const [path, mtime] of Object.entries(files))
+    if ((manifest.deleted[path] ?? -1) < mtime) {
+      manifest.deleted = without(manifest.deleted, path);
+      dirty = true;
+    }
   manifest.known = files;
-  writeManifest(dir, manifest);
-  return { files, manifest };
+  if (dirty) writeManifest(dir, manifest);
+  return { files, manifest, dirty };
 }
 
 export function recallSnapshot(dir: string, now = Date.now()): RecallSnapshot {
@@ -104,6 +120,7 @@ export function applyFiles(dir: string, which: SyncedFiles, theirs: RecallSnapsh
   const { files, manifest } = refresh(dir, which, now);
   const { safe } = which;
   let moved = false;
+  let manifestDirty = false;
   for (const [path, file] of Object.entries(theirs.files)) {
     if (!safe(path) || typeof file.content !== "string" || typeof file.mtime !== "number") continue;
     const mine = Math.max(files[path] ?? -1, manifest.deleted[path] ?? -1);
@@ -114,18 +131,23 @@ export function applyFiles(dir: string, which: SyncedFiles, theirs: RecallSnapsh
     manifest.known[path] = file.mtime;
     manifest.deleted = without(manifest.deleted, path);
     moved = true;
+    manifestDirty = true;
   }
   for (const [path, at] of Object.entries(theirs.deleted)) {
     if (!safe(path) || typeof at !== "number") continue;
     if ((files[path] ?? -1) >= at || !existsSync(join(dir, path))) {
-      if (!(path in files) && (manifest.deleted[path] ?? -1) < at) manifest.deleted[path] = at;
+      if (!(path in files) && (manifest.deleted[path] ?? -1) < at) {
+        manifest.deleted[path] = at;
+        manifestDirty = true;
+      }
       continue;
     }
     rmSync(join(dir, path), { force: true });
     manifest.known = without(manifest.known, path);
     manifest.deleted[path] = at;
     moved = true;
+    manifestDirty = true;
   }
-  writeManifest(dir, manifest);
+  if (manifestDirty) writeManifest(dir, manifest);
   return moved;
 }

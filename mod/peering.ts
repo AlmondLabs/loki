@@ -49,7 +49,7 @@ export interface PeeringDeps {
   build: string | null;
   secrets: SecretBackend;
   memory: MemoryRepos;
-  chats: Pick<ChatSource, "list">;
+  chats: Pick<ChatSource, "list" | "hasScope">;
   chat: Pick<
     ChatBackend,
     | "moveCandidates"
@@ -207,7 +207,7 @@ export function startPeering(deps: PeeringDeps): Peering {
   const peerAccounts = new PeerAccounts({ link: (id) => links.get(id), name: (id) => peerStore.get(id)?.name ?? "another Mac" });
   const directory: ChatDirectory = new ChatDirectory({
     here: macId,
-    holds: (scope) => chats.list().some((c) => !c.hidden && scopeFor(c.conversationId, c.agentId) === scope),
+    holds: (scope) => (chats.hasScope ? chats.hasScope(scope) : chats.list().some((c) => !c.hidden && scopeFor(c.conversationId, c.agentId) === scope)),
     macs: () => peerStore.list().map((p) => p.mac_id),
     reachable: (id) => links.reachable(id),
     ask: async (id, chat) => {
@@ -269,10 +269,10 @@ export function startPeering(deps: PeeringDeps): Peering {
         mcp: applyMcp(join(dirs.data, "mcp.json"), join(dirs.state, "mcp-sync.json"), theirs.mcp),
         mods: theirs.mods ? applyFiles(join(dirs.data, "mods"), MOD_FILES, theirs.mods) : false,
       };
-      if (moved.marks) broadcast(seenFrame({ seen }));
-      if (moved.pins) broadcast({ type: "desks", desks: desks() });
-      if (moved.labels) broadcast({ type: "lists_changed" });
-      if (moved.learn) broadcast({ type: "recall_changed" });
+      if (moved.marks) sockets.push(seenFrame({ seen }));
+      if (moved.pins) sockets.push({ type: "desks", desks: desks() });
+      if (moved.labels) sockets.push({ type: "lists_changed" });
+      if (moved.learn) sockets.push({ type: "recall_changed" });
       return moved;
     },
     link: (id) => links.get(id),

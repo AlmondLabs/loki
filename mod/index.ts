@@ -267,7 +267,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     if (change.kind === "disconnected") mailPeople.forget(change.account_id);
   });
   const restingIn = (accountId: string) => (r: ThreadRecord) =>
-    outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now(), r.seeds);
+    outsideResting(seen.restOf(keyOf(`account:${accountId}`, outsideCardId(r))) ?? undefined, r.newest_message_id, Date.now(), r.seeds);
   const previews = new OutsidePreviews({ dir: paths.chatImages });
   const wiring: AccountWiring = previewAccounts(process.env)
     ? previewWiring(threads)
@@ -329,6 +329,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     ? new Suggestions({
         records: host.suggestions,
         chat: (ref) => {
+          const local = chats.info(ref.conversation_id, ref.agent_id);
+          if (local) return { title: local.title, status: local.archived ? "archived" : "live", has_draft: local.hasDraft };
           const desk = macs.desks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
           return desk ? { title: desk.title, status: desk.status, has_draft: desk.has_draft === true } : null;
         },
@@ -406,6 +408,12 @@ export default function activate(api: ModApi, host: Host): () => void {
     ? new ChatMessages({
         links: new LinkStore(join(paths.state, "chat-links.json")),
         chat: (ref) => {
+          const local = chats.info(ref.conversation_id, ref.agent_id);
+          if (local) {
+            const agent = readLocalAgent(local.agentId ?? ref.agent_id);
+            const agentName = agent && agent.name !== agent.id ? agent.name : null;
+            return { title: local.title, agent_name: agentName, mac: null, open: !local.archived };
+          }
           const desk = macs.desks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
           return desk
             ? { title: desk.title, agent_name: desk.agent_name, mac: desk.home ? (desk.home_name ?? null) : null, open: desk.status === "live" }

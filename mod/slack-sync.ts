@@ -21,7 +21,7 @@ import {
 
 export interface SlackSyncOptions {
   accounts: Pick<Accounts, "get" | "setBackfill">;
-  threads: Pick<AccountThreads, "observe" | "describe" | "markGoneOutThere" | "get" | "list">;
+  threads: Pick<AccountThreads, "observe" | "describe" | "markGoneOutThere" | "get" | "list"> & Partial<Pick<AccountThreads, "batch">>;
   account: AccountRecord;
   client: SlackClient;
   resting?: (record: ThreadRecord) => boolean;
@@ -39,6 +39,17 @@ const REFILL_DAYS = [3, 7, 14, 30];
 const DAY_MS = 86_400_000;
 const ACCOUNT_ERRORS = ["signed_out", "ratelimited"];
 const PASSING_ERRORS = ["internal_error", "fatal_error", "service_unavailable", "request_timeout"];
+
+const SYNC_CONCURRENCY = 4;
+
+async function runPool<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items];
+  await Promise.all(
+    Array.from({ length: Math.min(limit, queue.length) }, async () => {
+      for (let item = queue.shift(); item !== undefined; item = queue.shift()) await fn(item);
+    }),
+  );
+}
 
 type Observed = "card" | "nothing" | "failed";
 type Refilled = "filled" | "short" | "stopped";
@@ -166,34 +177,48 @@ export class SlackSync implements AccountSync {
 
     this.remember(candidates, feed.complete);
 
-    const connectedAt = this.opts.account.connected_at;
-    const older: Candidate[] = [];
-    for (const c of candidates.values()) {
-      if ((tsIso(c.ts) ?? "") < connectedAt) older.push(c);
-      else await this.observe(c, false);
-    }
-
-    for (const r of threads.list(this.accountId)) {
-      if (r.state !== "open" || r.waiting || r.kept_open || candidates.has(r.thread_id)) continue;
-      if (r.thread_id.includes(":")) {
-        if (feed.complete) threads.markGoneOutThere(this.accountId, r.thread_id);
-        continue;
+    const runBatch = <T>(fn: () => Promise<T>) => (threads.batch ? threads.batch(this.accountId, fn) : fn());
+    await runBatch(async () => {
+      const connectedAt = this.opts.account.connected_at;
+      const older: Candidate[] = [];
+      const current: Candidate[] = [];
+      for (const c of candidates.values()) {
+        if ((tsIso(c.ts) ?? "") < connectedAt) older.push(c);
+        else current.push(c);
       }
-      const dm = dms.get(r.thread_id);
-      // Outside (Slack): a DM closed in Slack drops out of client.counts, so Slack is asked about it alone, else its card never ends.
-      const ended = dm ? !dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read)) : await this.closedDmEnded(r);
-      if (ended) threads.markGoneOutThere(this.accountId, r.thread_id);
-    }
+      await runPool(current, SYNC_CONCURRENCY, async (c) => {
+        await this.observe(c, false);
+      });
 
-    const open = threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
-    if (open >= PAST_CAP) {
-      if (feed.walked) this.backlogLeft = true;
-      return;
-    }
-    if (feed.walked) this.backlogLeft = false;
-    const refilled = await this.refill(older, feed.complete, PAST_CAP - open);
-    if (feed.walked) this.backlogLeft = refilled === "filled";
-    else if (refilled === "short" && this.backlogLeft) this.nextFullWalk = 0;
+      const dmChecks: ThreadRecord[] = [];
+      for (const r of threads.list(this.accountId)) {
+        if (r.state !== "open" || r.waiting || r.kept_open || candidates.has(r.thread_id)) continue;
+        if (r.thread_id.includes(":")) {
+          if (feed.complete) threads.markGoneOutThere(this.accountId, r.thread_id);
+          continue;
+        }
+        const dm = dms.get(r.thread_id);
+        // Outside (Slack): a DM closed in Slack drops out of client.counts, so Slack is asked about it alone, else its card never ends.
+        if (dm) {
+          if (!dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read))) {
+            threads.markGoneOutThere(this.accountId, r.thread_id);
+          }
+        } else dmChecks.push(r);
+      }
+      await runPool(dmChecks, SYNC_CONCURRENCY, async (r) => {
+        if (await this.closedDmEnded(r)) threads.markGoneOutThere(this.accountId, r.thread_id);
+      });
+
+      const open = threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
+      if (open >= PAST_CAP) {
+        if (feed.walked) this.backlogLeft = true;
+        return;
+      }
+      if (feed.walked) this.backlogLeft = false;
+      const refilled = await this.refill(older, feed.complete, PAST_CAP - open);
+      if (feed.walked) this.backlogLeft = refilled === "filled";
+      else if (refilled === "short" && this.backlogLeft) this.nextFullWalk = 0;
+    });
   }
 
   async archive(record: ThreadRecord): Promise<void> {
@@ -610,24 +635,47 @@ export class SlackSync implements AccountSync {
     return (await this.person(user)).name;
   }
 
-  private async person(user: string): Promise<{ name: string; image: string | null }> {
+  private readonly inFlightPeople = new Map<string, Promise<{ name: string; image: string | null }>>();
+  private readonly inFlightPlaces = new Map<string, Promise<string | null>>();
+
+  private person(user: string): Promise<{ name: string; image: string | null }> {
     const known = this.names.get(user);
-    if (known !== undefined) return known;
-    const u = await this.opts.client.usersInfo(user);
-    const person = { name: u.display_name || u.real_name || u.name || user, image: u.image || null };
-    this.names.set(user, person);
-    return person;
+    if (known !== undefined) return Promise.resolve(known);
+    const active = this.inFlightPeople.get(user);
+    if (active) return active;
+    const task = (async () => {
+      try {
+        const u = await this.opts.client.usersInfo(user);
+        const person = { name: u.display_name || u.real_name || u.name || user, image: u.image || null };
+        this.names.set(user, person);
+        return person;
+      } finally {
+        this.inFlightPeople.delete(user);
+      }
+    })();
+    this.inFlightPeople.set(user, task);
+    return task;
   }
 
-  private async place(channel: string): Promise<string | null> {
-    if (this.places.has(channel)) return this.places.get(channel) ?? null;
-    const info = await this.opts.client.conversationsInfo(channel).catch((err: unknown) => {
-      if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
-      return null;
-    });
-    const place = info?.name ? `#${info.name}` : null;
-    this.places.set(channel, place);
-    return place;
+  private place(channel: string): Promise<string | null> {
+    if (this.places.has(channel)) return Promise.resolve(this.places.get(channel) ?? null);
+    const active = this.inFlightPlaces.get(channel);
+    if (active) return active;
+    const task = (async () => {
+      try {
+        const info = await this.opts.client.conversationsInfo(channel).catch((err: unknown) => {
+          if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
+          return null;
+        });
+        const place = info?.name ? `#${info.name}` : null;
+        this.places.set(channel, place);
+        return place;
+      } finally {
+        this.inFlightPlaces.delete(channel);
+      }
+    })();
+    this.inFlightPlaces.set(channel, task);
+    return task;
   }
 
   private async plain(text: string): Promise<string> {

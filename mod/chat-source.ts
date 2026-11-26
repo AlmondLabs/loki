@@ -1,9 +1,11 @@
+import type { Scope } from "../core/desk-core.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalConversationInfo, LocalConversationRow } from "./desks.ts";
 
 export interface ChatSource {
   list(): LocalConversationRow[];
+  hasScope?(scope: Scope): boolean;
   info(conversationId: string, agentId?: string | null): LocalConversationInfo | null;
   /** The agent a conversation belongs to; null for an agent's main chat, whose id alone does not say. */
   agentOf(conversationId: string): string | null;
