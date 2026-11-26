@@ -67,6 +67,9 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const settingsPages = new Map<number, string | null>();
+const popupImages = new Map<string, Electron.NativeImage>();
+let cachedToken: string | null = null;
+const tokenNow = () => (cachedToken ??= ensureToken(lokiDir, log));
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -161,10 +164,12 @@ function openSettings(page: string | null): void {
     return;
   }
   const win = new BrowserWindow(settingsWindowOptions(os, preload, appIcon));
+  const settingsWebContentsId = win.webContents.id;
   settingsPages.set(win.webContents.id, page);
   guard(win);
   win.once("ready-to-show", () => win.show());
   win.on("closed", () => {
+    settingsPages.delete(settingsWebContentsId);
     settingsWindow = null;
   });
   settingsWindow = win;
@@ -183,8 +188,14 @@ function popup(sender: WebContents, entries: PopupEntry[], x: number, y: number)
           chosen = index;
         },
         (png) => {
-          const image = nativeImage.createFromBuffer(Buffer.from(png), { scaleFactor: 2 });
-          image.setTemplateImage(true);
+          const buf = Buffer.from(png);
+          const key = buf.toString("base64");
+          let image = popupImages.get(key);
+          if (!image) {
+            image = nativeImage.createFromBuffer(buf, { scaleFactor: 2 });
+            image.setTemplateImage(true);
+            popupImages.set(key, image);
+          }
           return image;
         },
       ),
@@ -240,7 +251,7 @@ function shellHandlers(installReport: ReturnType<typeof launchInstall>): Record<
 }
 
 ipcMain.on("loki:globals", (event: IpcMainEvent) => {
-  const token = trusted(event.senderFrame) ? ensureToken(lokiDir, log) : null;
+  const token = trusted(event.senderFrame) ? tokenNow() : null;
   const id = event.sender.id;
   event.returnValue = token
     ? lokiGlobals({ token, env: process.env, os, ...(settingsPages.has(id) ? { settings: settingsPages.get(id) ?? null } : {}) })
@@ -248,7 +259,7 @@ ipcMain.on("loki:globals", (event: IpcMainEvent) => {
 });
 
 void app.whenReady().then(() => {
-  ensureToken(lokiDir, log);
+  tokenNow();
   const installReport = launchInstall({ packaged: app.isPackaged, env: process.env, resourceDir: process.resourcesPath, checkout, dataDir: lokiDir, home });
   protocol.handle(SCHEME, (request) => {
     const url = new URL(request.url);

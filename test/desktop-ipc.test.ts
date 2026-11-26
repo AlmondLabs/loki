@@ -88,19 +88,25 @@ describe("events from the shell to the page", () => {
     expect(sent).toEqual([[EVENT_CHANNEL, "loki:runtime", status]]);
   });
 
-  test("a resize, maximise or restore tells the page the window resized", () => {
+  test("a resize, maximise or restore tells the page when the maximised state changes", () => {
     const listeners = new Map<string, () => void>();
     const sent: unknown[][] = [];
+    let maximized = false;
     sendResizes({
       on: (event, listener) => listeners.set(event, listener),
+      isMaximized: () => maximized,
       webContents: { isDestroyed: () => false, send: (...args: unknown[]) => void sent.push(args) },
     });
-    for (const fire of listeners.values()) fire();
+    listeners.get("resize")?.();
+    maximized = true;
+    listeners.get("maximize")?.();
+    listeners.get("maximize")?.();
+    maximized = false;
+    listeners.get("unmaximize")?.();
     expect([...listeners.keys()]).toEqual(["resize", "maximize", "unmaximize"]);
     expect(sent).toEqual([
-      [EVENT_CHANNEL, "loki:window-resized", null],
-      [EVENT_CHANNEL, "loki:window-resized", null],
-      [EVENT_CHANNEL, "loki:window-resized", null],
+      [EVENT_CHANNEL, "loki:window-resized", true],
+      [EVENT_CHANNEL, "loki:window-resized", false],
     ]);
   });
 });

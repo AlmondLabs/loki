@@ -10,6 +10,7 @@ import { buildDesktop, DESKTOP_OUT } from "./build-desktop.ts";
 const DEV_PORT = 5173;
 const DEV_URL = `http://127.0.0.1:${DEV_PORT}`;
 const hot = process.argv.includes("--hot");
+const phone = process.argv.includes("--phone");
 const command = hot ? "bun run dev" : "bun run start";
 const VITE_MARKER = 'name="apple-mobile-web-app-title" content="loki"';
 const MOD_HEALTH = `http://127.0.0.1:${process.env.LOKI_PORT ?? "41414"}/health`;
@@ -123,6 +124,7 @@ if (vite === "other") {
   );
   process.exit(1);
 }
+const desktopBuild = buildDesktop();
 if (!hot) {
   if (pageStale(root)) {
     console.error("loki dev: building the page (app/dist), about fifteen seconds");
@@ -150,14 +152,14 @@ if (!hot) {
   }
 }
 
-await buildDesktop();
+await desktopBuild;
 const shell = run(electron, electronArgs, true);
 shell.on("exit", (code) => {
   stopAll();
   process.exit(code ?? 0);
 });
 
-if (hot) watchPhoneBuild();
+if (hot && phone) watchPhoneBuild();
 
 function watchPhoneBuild(): void {
   console.error("loki dev: rebuilding the phone's app (app/dist) as the code changes");

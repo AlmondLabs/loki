@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { messageOf } from "../core/errors.ts";
 
 export const MANAGED_MARKER = ".managed-by-loki";
+export const BUNDLE_STAMP = ".bundle-stamp";
 const MARKER_TEXT = "files here are written by the loki app on launch\n";
 
 export type InstallState = "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
@@ -218,28 +219,61 @@ function installApp(resources: string, dataDir: string): { state: InstallState; 
   return { state, path: dst };
 }
 
+function readStamp(dir: string): string | null {
+  try {
+    return readFileSync(join(dir, BUNDLE_STAMP), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function bundlesCurrent(resources: string, dataDir: string, stamp: string): boolean {
+  if (readStamp(dataDir) !== stamp) return false;
+  if (!isFile(join(dataDir, "mod", "loki-mod.mjs"))) return false;
+  if (isFile(join(resources, "daemon", "daemon.mjs")) && !isFile(join(dataDir, "daemon", "daemon.mjs"))) return false;
+  if (isFile(join(resources, "app", "index.html")) && !isFile(join(dataDir, "app", "index.html"))) return false;
+  return true;
+}
+
 export function installBundles(resources: string, dataDir: string, home: string): InstallReport {
   const report = skippedReport(home);
-  try {
-    const app = installApp(resources, dataDir);
-    report.app = app.state;
-    report.app_path = app.path;
-  } catch (error) {
-    report.app = "error";
-    report.error = messageOf(error);
-  }
-  try {
-    const mod = installMod(resources, dataDir);
-    report.mod = mod.state;
-    report.mod_path = mod.path;
-  } catch (error) {
-    report.mod = "error";
-    report.error = joinErrors(report.error, messageOf(error));
-  }
-  try {
-    installDaemon(resources, dataDir);
-  } catch (error) {
-    report.error = joinErrors(report.error, messageOf(error));
+  const stamp = readStamp(resources);
+  if (stamp !== null && bundlesCurrent(resources, dataDir, stamp)) {
+    const hasApp = isFile(join(resources, "app", "index.html"));
+    report.app = hasApp ? "current" : "skipped";
+    report.app_path = join(dataDir, "app");
+    report.mod = "current";
+    report.mod_path = join(dataDir, "mod", "loki-mod.mjs");
+  } else {
+    try {
+      const app = installApp(resources, dataDir);
+      report.app = app.state;
+      report.app_path = app.path;
+    } catch (error) {
+      report.app = "error";
+      report.error = messageOf(error);
+    }
+    try {
+      const mod = installMod(resources, dataDir);
+      report.mod = mod.state;
+      report.mod_path = mod.path;
+    } catch (error) {
+      report.mod = "error";
+      report.error = joinErrors(report.error, messageOf(error));
+    }
+    try {
+      installDaemon(resources, dataDir);
+    } catch (error) {
+      report.error = joinErrors(report.error, messageOf(error));
+    }
+    if (stamp !== null && report.mod !== "error" && report.app !== "error") {
+      try {
+        mkdirSync(dataDir, { recursive: true });
+        writeFileSync(join(dataDir, BUNDLE_STAMP), stamp);
+      } catch (error) {
+        report.error = joinErrors(report.error, messageOf(error));
+      }
+    }
   }
   try {
     const skill = installSkill(resources, home);

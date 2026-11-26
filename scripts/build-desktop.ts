@@ -18,6 +18,8 @@ export async function buildDesktop(): Promise<void> {
     format: "cjs",
     target: "node24",
     external: ["electron", "esbuild"],
+    minify: true,
+    keepNames: true,
     sourcemap: "linked",
     logLevel: "warning",
   });

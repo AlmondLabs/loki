@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
+  BUNDLE_STAMP,
   devCheckout,
   findResources,
   installBundles,
@@ -191,5 +192,26 @@ describe("a development build", () => {
     });
     expect(launchInstall({ packaged: false, env: {}, resourceDir: resources, checkout: c, dataDir: data, home }).mod).toBe("linked");
     expect(launchInstall({ packaged: false, env: { LOKI_NO_INSTALL: "1" }, resourceDir: resources, checkout: c, dataDir: data, home }).mod).toBe("skipped");
+  });
+
+  test("a matching .bundle-stamp skips reading unchanged bundles; a changed stamp updates them", () => {
+    const { resources, data, home } = fixture();
+    withApp(resources);
+    write(join(resources, "daemon", "daemon.mjs"), "// d1\n");
+    write(join(resources, BUNDLE_STAMP), "stamp-1\n");
+    let r = installBundles(resources, data, home);
+    expect([r.app, r.mod]).toEqual(["installed", "installed"]);
+    expect(readFileSync(join(data, BUNDLE_STAMP), "utf8")).toBe("stamp-1\n");
+
+    write(join(resources, "mod", "loki-mod.mjs"), "export default () => 2;\n");
+    r = installBundles(resources, data, home);
+    expect([r.app, r.mod]).toEqual(["current", "current"]);
+    expect(readFileSync(join(data, "mod", "loki-mod.mjs"), "utf8")).toBe("export default () => 1;\n");
+
+    write(join(resources, BUNDLE_STAMP), "stamp-2\n");
+    r = installBundles(resources, data, home);
+    expect([r.app, r.mod]).toEqual(["current", "updated"]);
+    expect(readFileSync(join(data, "mod", "loki-mod.mjs"), "utf8")).toBe("export default () => 2;\n");
+    expect(readFileSync(join(data, BUNDLE_STAMP), "utf8")).toBe("stamp-2\n");
   });
 });

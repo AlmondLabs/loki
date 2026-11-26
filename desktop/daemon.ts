@@ -91,6 +91,7 @@ export interface DaemonDeps {
   toolsMissing: () => Promise<"macos" | "linux" | null>;
   installTools: () => Promise<void>;
   lockHolder: () => Promise<LockHolder>;
+  pidAlive?: (pid: number) => boolean;
   stopLeftover: (pid: number, started: number) => Promise<boolean>;
   spawn: (request: SpawnRequest) => Promise<DaemonChild>;
   clock: Clock;
@@ -287,12 +288,11 @@ export class DaemonSupervisor {
   private async startOnce(): Promise<void> {
     const gitPath = await this.prepareGit();
     if (gitPath === null) return;
-    const tools = await this.deps.toolsMissing();
+    const [tools, search, otherLoki] = await Promise.all([this.deps.toolsMissing(), this.deps.findNode(), this.checkLock()]);
     if (tools) {
       this.publish({ ...emptyStatus(), toolsMissing: tools });
       return;
     }
-    const search = await this.deps.findNode();
     if (!search.found) {
       const needsNode = needsNodeOf(search.old);
       this.deps.log(nodeMissingMessage(needsNode));
@@ -300,7 +300,6 @@ export class DaemonSupervisor {
       return;
     }
     const nodeShown = versionText(search.version);
-    const otherLoki = await this.checkLock();
     const { command, args } = daemonCommand({
       node: search.node,
       entry: this.deps.entries.entry,
@@ -431,6 +430,10 @@ export class DaemonSupervisor {
   }
 
   private async heldRetry(): Promise<void> {
+    if (this.current.otherLoki && this.deps.pidAlive?.(this.current.otherLoki.pid)) {
+      this.restartAfter(HELD_RETRY_MS, () => void this.heldRetry());
+      return;
+    }
     const otherLoki = await this.checkLock();
     if (otherLoki?.pid !== this.current.otherLoki?.pid) this.publish({ ...this.current, otherLoki });
     const failed = await this.launch();
@@ -558,7 +561,12 @@ export function machineDaemon(o: MachineDaemonOptions): DaemonSupervisor {
         : null,
     toolsMissing: () => toolsMissing(toolsHost(), () => developerDir(o.platform)),
     installTools: () => installTools(o.platform),
-    lockHolder: async () => lockHolder(await listProcs(o.platform), readLockPid(join(o.lokiDir, "daemon.lock")), join(o.lokiDir, "token"), windows),
+    lockHolder: async () => {
+      const lockPid = readLockPid(join(o.lokiDir, "daemon.lock"));
+      if (lockPid === null || !alive(lockPid)) return { kind: "none" };
+      return lockHolder(await listProcs(o.platform), lockPid, join(o.lokiDir, "token"), windows);
+    },
+    pidAlive: (pid) => alive(pid),
     stopLeftover: (pid, started) => stopLeftover(stopHost, pid, started),
     spawn: (request) => spawnDaemon(request, o.platform, o.log),
     clock: realClock,
