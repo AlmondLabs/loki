@@ -194,6 +194,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     await fresh.adoptTrafficLights(() => Promise.resolve({ left: 13.4, right: 66.6, middle: 25.5 }));
     expect(fresh.GLASS_LIGHTS).toEqual({ left: 13, right: 67, middle: 26 });
     expect(fresh.sidebarToggleTop(true, "macos")).toBe(12);
+    await fresh.adoptTrafficLights(() => Promise.resolve(before));
   });
 
   test("with the sidebar shown, the Mac's toggle sits at its trailing end, in line with the counts, clear of the lights", async () => {

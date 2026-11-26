@@ -9,13 +9,18 @@ const CHROME = 26;
 const BOOT_TIMEOUT_MS = 10_000;
 const OPEN_EVERY_MS = 1500;
 
+let cachedCss: { count: number; css: string } | null = null;
+
 function pageCss(): string {
+  const count = document.styleSheets.length;
+  if (cachedCss?.count === count) return cachedCss.css;
   let out = "";
   for (const sheet of Array.from(document.styleSheets)) {
     try {
       for (const rule of Array.from(sheet.cssRules)) out += `${rule.cssText}\n`;
     } catch {}
   }
+  cachedCss = { count, css: out };
   return out;
 }
 

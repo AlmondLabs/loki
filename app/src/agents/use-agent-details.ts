@@ -106,9 +106,11 @@ export function useAgentDetails({
     let r: Awaited<ReturnType<AgentsApi["refreshSkill"]>>;
     try {
       r = await api.refreshSkill(selected, skill.name, source);
-    } finally {
+    } catch (e) {
       setRefreshing(null);
+      throw e;
     }
+    setRefreshing(null);
     if ("error" in r) return r.error;
     setNeedsSource(null);
     if (r.outcome === "current") flash(`${skill.name} is current (${r.label})`);

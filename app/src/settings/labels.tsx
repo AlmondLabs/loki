@@ -41,9 +41,11 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
       const err = await api.edit(change);
       onError(err);
       if (!err) setMode("show");
-    } finally {
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   };
   const renamed = labelName(name);
   const chats = `${label.chats} ${label.chats === 1 ? "chat" : "chats"}`;

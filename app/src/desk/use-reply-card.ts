@@ -84,14 +84,14 @@ export function useReplyCard(p: ReplyProposal, onDecide: DecideReply): ReplyCard
   const [focusUndo, setFocusUndo] = useState(false);
   const act = async (action: ReplyAction, opts: ReplyDecideOptions) => {
     setBusy(true);
+    let out: Awaited<ReturnType<DecideReply>> | null = null;
     try {
-      const out = await onDecide(action, opts);
-      setFailed(out.done || out.message === null ? null : failedAction(out.message, p));
+      out = await onDecide(action, opts);
     } catch (err: unknown) {
       setFailed(failedAction(messageOf(err), p));
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
+    if (out) setFailed(out.done || out.message === null ? null : failedAction(out.message, p));
   };
   const undoRef = useCallback(
     (el: HTMLButtonElement | null) => {

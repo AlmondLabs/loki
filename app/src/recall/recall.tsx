@@ -60,13 +60,15 @@ export function Recall({
     void recall.grade(current.card.id, g);
     pass.advance();
   };
-  const remove = (id = current?.card.id) => {
-    if (!id) return;
-    void recall.remove(id);
-    pass.advance(id);
+  const remove = (id?: string) => {
+    const targetId = id ?? current?.card.id;
+    if (!targetId) return;
+    void recall.remove(targetId);
+    pass.advance(targetId);
   };
-  const open = (id = current?.card.id) => {
-    const s = cards.find((c) => c.card.id === id)?.card.source;
+  const open = (id?: string) => {
+    const targetId = id ?? current?.card.id;
+    const s = cards.find((c) => c.card.id === targetId)?.card.source;
     if (s?.agent_id && s.conversation_id) onOpenDesk(s.agent_id, s.conversation_id);
   };
   const listRef = useRef<ContentListHandle>(null);

@@ -88,7 +88,10 @@ export function useTranscriptScroll(
     ro.observe(el);
     for (const child of el.children) ro.observe(child);
     const mo = new MutationObserver((changes) => {
-      for (const change of changes) for (const node of change.addedNodes) if (node instanceof Element) ro.observe(node);
+      for (const change of changes) {
+        for (const node of change.addedNodes) if (node instanceof Element) ro.observe(node);
+        for (const node of change.removedNodes) if (node instanceof Element) ro.unobserve(node);
+      }
     });
     mo.observe(el, { childList: true });
     return () => {
@@ -177,10 +180,16 @@ function readingAt(el: HTMLElement): Reading | null {
 }
 
 export function keepReading(el: HTMLElement, was: Reading | null): Reading | null {
+  const elTop = el.getBoundingClientRect().top;
   if (was?.row.isConnected) {
+    const rect = was.row.getBoundingClientRect();
     const expected = was.offset - (el.scrollTop - was.scrollTop);
-    const moved = was.row.getBoundingClientRect().top - el.getBoundingClientRect().top - expected;
-    if (Math.abs(moved) >= 1) el.scrollTop += moved;
+    const moved = rect.top - elTop - expected;
+    const shift = Math.abs(moved) >= 1 ? moved : 0;
+    if (shift) el.scrollTop += shift;
+    const top = rect.top - shift;
+    const bottom = rect.bottom - shift;
+    if (top <= elTop + 1 && bottom > elTop + 1) return { row: was.row, offset: top - elTop, scrollTop: el.scrollTop };
   }
   return readingAt(el);
 }

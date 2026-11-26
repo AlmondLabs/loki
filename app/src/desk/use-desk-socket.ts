@@ -51,7 +51,7 @@ export function useDeskSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const lastInteractionRef = useRef(0);
   const pendingRef = useRef<Gesture[]>([]);
-  const watchedRef = useRef(new Set<Scope>());
+  const watchedRef = useRef(new Map<Scope, number>());
   const pendingMeasures = useRef(new Map<string, Size>());
 
   const switchDesk = useCallback(
@@ -84,7 +84,7 @@ export function useDeskSocket() {
         setConnection("open");
         setState(opened);
         ws.send(JSON.stringify({ type: "seen_list" }));
-        for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
+        for (const s of watchedRef.current.keys()) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
         waiters.flush(ws, (frame) => ws.send(JSON.stringify(frame)));
         if (dropped) {
           reconnectListeners.emit();
@@ -198,10 +198,15 @@ export function useDeskSocket() {
     [send],
   );
 
-  const watchDesk = (s: Scope) => {
-    if (watchedRef.current.has(s)) return;
-    watchedRef.current.add(s);
-    send({ type: "desk_get", scope: s });
+  const watchDesk = (s: Scope): (() => void) => {
+    const count = watchedRef.current.get(s) ?? 0;
+    watchedRef.current.set(s, count + 1);
+    if (count === 0) send({ type: "desk_get", scope: s });
+    return () => {
+      const next = (watchedRef.current.get(s) ?? 0) - 1;
+      if (next > 0) watchedRef.current.set(s, next);
+      else watchedRef.current.delete(s);
+    };
   };
 
   return {

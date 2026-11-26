@@ -38,7 +38,11 @@ export function flowSources(
   lanes: readonly Lane[] | null,
   onLane: (lane: ResolvedLane | null) => void,
 ): PlaceSources {
-  const rows = flowLanes(items, lane, lanes).filter((r) => !(r.lane && "agent_id" in r.lane));
+  const need = (l: ResolvedLane | null) => catchUpQueue(laneItems(items, l)).length;
+  const rows: FlowLaneRow[] = [
+    { id: "", lane: null, name: "Everything", icon: "inbox", count: need(null) },
+    ...(lanes ?? []).map((l): FlowLaneRow => ({ id: l.id, lane: l, name: l.name, icon: "filter", count: need(l) })),
+  ];
   return {
     items: rows.map((r) => ({ id: r.id, title: r.name, icon: r.icon, count: r.count })),
     selected: lane?.id ?? "",

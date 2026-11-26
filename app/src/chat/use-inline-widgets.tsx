@@ -8,7 +8,7 @@ import type { WidgetMark } from "./transcript";
 export interface InlineWidgetSource {
   widgetLogOf: (scope: Scope) => WidgetLogEntry[] | undefined;
   widgetsOf: (scope: Scope) => { entries: WidgetManifestEntry[]; overlay: Record<string, Record<string, unknown>> } | undefined;
-  watchDesk: (scope: Scope) => void;
+  watchDesk: (scope: Scope) => (() => void) | undefined;
   gesture: (g: Gesture) => void;
 }
 
@@ -35,7 +35,8 @@ export function useInlineWidgets(
     open.current = opts.onOpen;
   });
   useEffect(() => {
-    if (shows && scope) watch.current?.(scope);
+    if (!shows || !scope) return;
+    return watch.current?.(scope);
   }, [shows, scope]);
   const known = scope ? source?.widgetsOf(scope) : undefined;
   const entries = known?.entries;

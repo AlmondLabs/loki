@@ -1,4 +1,4 @@
-import { MOVE_OUT_OF_REACH } from "../../../core/frames.ts";
+import { MOVE_OUT_OF_REACH } from "../../../core/frame-client.ts";
 import { Button } from "../components";
 import type { TranscriptRow } from "./transcript";
 import { readTurnError, retryMessage } from "./turn-error";

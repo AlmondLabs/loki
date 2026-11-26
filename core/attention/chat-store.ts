@@ -162,7 +162,9 @@ export class ChatStore {
     labels: null,
   };
   private readonly listeners = new Listeners();
-  private readonly threadWatchers = new Listeners();
+  private readonly allThreadWatchers = new Listeners();
+  private readonly threadWatchers = new Map<string, Listeners>();
+  private readonly dirtyKeys = new Set<string>();
   private readonly liveMap = new Map<string, Live>();
   private readonly threadsRead = new Map<string, Runtime>();
   private readonly faces = new Map<string, readonly unknown[]>();
@@ -202,7 +204,21 @@ export class ChatStore {
   getSnapshot = (): ChatSnapshot => this.snap;
 
   watchThreads = (onChange: () => void): (() => void) => {
-    return this.threadWatchers.add(onChange);
+    return this.allThreadWatchers.add(onChange);
+  };
+
+  watchThread = (agentId: string, conversationId: string, onChange: () => void): (() => void) => {
+    const key = keyOf(agentId, conversationId);
+    let list = this.threadWatchers.get(key);
+    if (!list) {
+      list = new Listeners();
+      this.threadWatchers.set(key, list);
+    }
+    const off = list.add(onChange);
+    return () => {
+      off();
+      if (this.threadWatchers.get(key)?.size === 0) this.threadWatchers.delete(key);
+    };
   };
 
   threadRows = (agentId: string, conversationId: string): TranscriptRow[] | undefined => this.liveMap.get(keyOf(agentId, conversationId))?.thread.rows();
@@ -225,12 +241,18 @@ export class ChatStore {
         if (!this.linkDropped) return;
         this.linkDropped = false;
         let changed = false;
-        for (const l of this.liveMap.values()) if (l.thread.settleCommands()) changed = true;
+        for (const [k, l] of this.liveMap)
+          if (l.thread.settleCommands()) {
+            this.dirtyKeys.add(k);
+            changed = true;
+          }
         if (changed) this.bump();
       }
     });
     let reloadTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let loadInFlight = false;
+    let loadPending = false;
     const off = client.onChat((rt, events) => {
       const changed = this.heard(client, rt, events);
       const key = keyOf(rt.agent_id, rt.conversation_id);
@@ -245,48 +267,72 @@ export class ChatStore {
     let lastRows: unknown = null;
     const stopped = () => cancelled;
     const loadOnce = async () => {
-      void client
-        .serverInfo()
-        .then((info) => {
-          if (!cancelled)
-            this.set({ server: keepSame(this.snap.server, { version: info.version, protocol: info.protocol, advertised: [], only: info.commands }) });
-        })
-        .catch(() => {});
-      const agents = await client.listAgents();
-      if (cancelled) return;
-      const next = agents.filter((a) => a.hidden !== true).map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
-      this.set({ agents: keepSame(this.snap.agents, next), agentsLoaded: true });
-      const rows = await this.host().listConversations();
-      if (stopped()) return;
-      if (rows === null) {
-        retryTimer ??= setTimeout(() => {
-          retryTimer = null;
-          load();
-        }, LIST_RETRY_MS);
+      if (loadInFlight) {
+        loadPending = true;
         return;
       }
-      this.lastReload = this.now();
-      const same = !this.droppedHere && keepSame(lastRows, rows) === lastRows;
-      this.droppedHere = false;
-      lastRows = rows;
-      const convs: ConversationInfo[] = rows
-        .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
-        .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
-      if (!same) {
-        this.known = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
-        this.set({
-          conversations: convs,
-          digests: new Map(
-            rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }]),
-          ),
-        });
-      }
-      this.set({ listed: true });
-      for (const c of convs.filter((x) => !x.outside).slice(0, this.host().subscribeLimit ?? 30)) {
-        const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
-        // react-doctor-disable-next-line react-doctor/async-await-in-loop
-        if (!client.isSubscribed(rt)) await client.runtimeStart(rt).catch(() => {});
+      loadInFlight = true;
+      try {
+        void client
+          .serverInfo()
+          .then((info) => {
+            if (!cancelled)
+              this.set({ server: keepSame(this.snap.server, { version: info.version, protocol: info.protocol, advertised: [], only: info.commands }) });
+          })
+          .catch(() => {});
+        const agents = await client.listAgents();
+        if (cancelled) return;
+        const next = agents.filter((a) => a.hidden !== true).map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
+        this.set({ agents: keepSame(this.snap.agents, next), agentsLoaded: true });
+        const rows = await this.host().listConversations();
         if (stopped()) return;
+        if (rows === null) {
+          retryTimer ??= setTimeout(() => {
+            retryTimer = null;
+            load();
+          }, LIST_RETRY_MS);
+          return;
+        }
+        this.lastReload = this.now();
+        const same = !this.droppedHere && keepSame(lastRows, rows) === lastRows;
+        this.droppedHere = false;
+        lastRows = rows;
+        const convs: ConversationInfo[] = rows
+          .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
+          .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
+        if (!same) {
+          this.known = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
+          for (const k of this.liveMap.keys()) if (!this.known.has(k)) this.liveMap.delete(k);
+          for (const k of this.faces.keys()) if (!this.known.has(k)) this.faces.delete(k);
+          for (const k of this.envNotes.keys()) if (!this.known.has(k)) this.envNotes.delete(k);
+          for (const k of this.threadsRead.keys()) if (!this.known.has(k)) this.threadsRead.delete(k);
+          this.set({
+            conversations: convs,
+            digests: new Map(
+              rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }]),
+            ),
+          });
+        }
+        this.set({ listed: true });
+        const targets = convs
+          .filter((x) => !x.outside)
+          .slice(0, this.host().subscribeLimit ?? 30)
+          .map((c) => ({ agent_id: c.agent_id, conversation_id: c.id }))
+          .filter((rt) => !client.isSubscribed(rt));
+        let cursor = 0;
+        const worker = async () => {
+          while (cursor < targets.length && !stopped()) {
+            const rt = targets[cursor++];
+            await client.runtimeStart(rt).catch(() => {});
+          }
+        };
+        if (targets.length) await Promise.all(Array.from({ length: Math.min(6, targets.length) }, worker));
+      } finally {
+        loadInFlight = false;
+        if (loadPending && !cancelled) {
+          loadPending = false;
+          load();
+        }
       }
     };
     const load = () => void loadOnce().catch((err: unknown) => console.warn("loki catch up:", err));
@@ -308,6 +354,9 @@ export class ChatStore {
       if (reloadTimer) clearTimeout(reloadTimer);
       if (retryTimer) clearTimeout(retryTimer);
       off();
+      this.flushing.cancel();
+      for (const m of [...this.folderMoves.values()]) m.done(NOT_CONNECTED);
+      this.folderMoves.clear();
       client.close();
       if (this.client === client) {
         this.client = null;
@@ -352,14 +401,14 @@ export class ChatStore {
     if (request)
       host.capture?.("approval_requested", { desk: deskOf(agent, conv), agent, tool: request.tool, kind: request.kind, once: `request:${request.id}` });
     if (userSpoke) host.markSeen(agent, conv);
-    if (changed) this.bump();
+    if (changed) this.bump(key);
     if (wasInTurn && !l.inTurn) {
       const next = takeQueued(l);
       if (next) {
         const out = outgoing(next.text, next.images);
         l.thread.expectEcho(out.key);
         l.inTurn = true;
-        this.bump();
+        this.bump(key);
         void client
           .sendUserMessage(rt, out.text, out.images, this.noteFor(key, next.desk, next.labels))
           .catch((err: unknown) => console.warn("loki: queued send", err));
@@ -383,6 +432,7 @@ export class ChatStore {
       this.threadsRead.set(key, rt);
       const first = thread.firstPosition;
       this.set({ older: flagged(this.snap.older, key, first === null ? !!page?.more : first > 0) });
+      this.dirtyKeys.add(key);
       this.publish();
     };
     await read().catch((err: unknown) => console.warn("loki: thread", err));
@@ -401,6 +451,7 @@ export class ChatStore {
       if (page) thread.prepend(page.rows, page.start);
       const first = thread.firstPosition;
       this.set({ older: flagged(this.snap.older, key, first !== null && first > 0) });
+      this.dirtyKeys.add(key);
       this.publish();
     };
     void read()
@@ -432,7 +483,8 @@ export class ChatStore {
   };
 
   decide = (rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always"): void => {
-    const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const l = this.liveMap.get(key);
     const was = l?.pending?.requestId === requestId ? l.pending : null;
     if (l && was) l.pending = null;
     const host = this.host();
@@ -445,19 +497,20 @@ export class ChatStore {
       behavior,
       wait_ms: was ? Math.max(0, this.now() - Date.parse(was.at)) || null : null,
     });
-    this.bump();
+    this.bump(key);
     void this.client
       ?.respondApproval(rt, requestId, behavior)
       .catch(() => false)
       .then((ok) => {
         if (ok || !l || !was) return;
         l.pending ??= was;
-        this.bump();
+        this.bump(key);
       });
   };
 
   answer = (rt: Runtime, requestId: string, answers: Record<string, string | string[]>): void => {
-    const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const l = this.liveMap.get(key);
     const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
     if (!l || !was) return;
     l.pendingAsk = null;
@@ -476,14 +529,14 @@ export class ChatStore {
       agent: rt.agent_id,
       wait_ms: Math.max(0, this.now() - Date.parse(was.at)) || null,
     });
-    this.bump();
+    this.bump(key);
     void this.client
       ?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers))
       .catch(() => false)
       .then((ok) => {
         if (ok) return;
         l.pendingAsk ??= was;
-        this.bump();
+        this.bump(key);
       });
   };
 
@@ -512,13 +565,13 @@ export class ChatStore {
     if (mode === "queue") {
       l.queued.push({ text, images, desk: env.desk, labels: env.labels });
       l.thread.queue(sentRow(text, images, at));
-      this.bump();
+      this.bump(key);
       return;
     }
     const out = outgoing(text, images);
     l.thread.own(sentRow(text, images, at), out.key);
     l.lastRole = "user";
-    this.bump();
+    this.bump(key);
     void this.follow(rt)
       .then(() => this.client?.sendUserMessage(rt, out.text, out.images, this.noteFor(key, env.desk, env.labels), mode === "steer"))
       .then(
@@ -529,7 +582,7 @@ export class ChatStore {
         if (why === null) return;
         console.warn("loki: send", why);
         l.error = `this message may not have been sent: ${why}`;
-        this.bump();
+        this.bump(key);
       });
     host.markSeen(rt.agent_id, rt.conversation_id);
   };
@@ -574,33 +627,35 @@ export class ChatStore {
   };
 
   cancelQueued = (rt: Runtime, text: string): void => {
-    const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
-    if (l && dropQueued(l, text)) this.bump();
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const l = this.liveMap.get(key);
+    if (l && dropQueued(l, text)) this.bump(key);
   };
 
   execute = async (rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> => {
-    const l = this.liveOf(keyOf(rt.agent_id, rt.conversation_id));
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const l = this.liveOf(key);
     const input = commandInput(commandId, args);
     const at = () => new Date(this.now()).toISOString();
     this.host().capture?.("command_run", { command: commandId });
     const client = this.client;
     if (!client) {
       l.thread.finishCommand(input, false, NOT_CONNECTED, at());
-      this.bump();
+      this.bump(key);
       return { success: false, output: NOT_CONNECTED };
     }
     if (!client.isSubscribed(rt)) l.thread.beginCommand(input, at());
-    this.bump();
+    this.bump(key);
     try {
       const res = await client.executeCommand(rt, commandId, args);
       if (l.thread.commandRunning(input)) l.thread.finishCommand(input, res.success, res.output, at());
-      this.bump();
+      this.bump(key);
       return res;
     } catch (err) {
       const message = messageOf(err);
       const reloaded = commandId === "reload" && /link closed/i.test(message);
       l.thread.finishCommand(input, reloaded, reloaded ? RELOADED : message, at());
-      this.bump();
+      this.bump(key);
       return { success: reloaded, output: reloaded ? "reloaded" : message };
     }
   };
@@ -704,10 +759,11 @@ export class ChatStore {
   setMode = async (rt: Runtime, mode: string): Promise<string | null> => {
     const err = await this.tried((c) => c.runtimeStart(rt, { mode }));
     if (err) return err;
-    const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const l = this.liveMap.get(key);
     if (l) l.mode = mode;
     this.host().capture?.("mode_set", { mode });
-    this.bump();
+    this.bump(key);
     return null;
   };
 
@@ -721,8 +777,10 @@ export class ChatStore {
         origin,
         ...(archived ? { turn_id: [...this.liveMap].find(([key]) => key.endsWith(`/${conversationId}`))?.[1].turnId ?? null } : {}),
       });
-    if (archived) this.set({ conversations: this.snap.conversations.filter((x) => x.id !== conversationId) });
-    else this.reload();
+    if (archived) {
+      this.pruneConversation(conversationId, agentId);
+      this.set({ conversations: this.snap.conversations.filter((x) => x.id !== conversationId) });
+    } else this.reload();
     return null;
   };
 
@@ -886,10 +944,11 @@ export class ChatStore {
 
   keepMoveHere = async (rt: Runtime): Promise<string | null> => {
     const why = await this.tried((c) => c.keepMoveHere(rt));
-    const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const l = this.liveMap.get(key);
     if (!why && l) {
       l.error = null;
-      this.bump();
+      this.bump(key);
     }
     return why;
   };
@@ -962,6 +1021,16 @@ export class ChatStore {
     this.listeners.emit();
   }
 
+  private pruneConversation(conversationId: string, agentId?: string): void {
+    const exact = agentId ? keyOf(agentId, conversationId) : null;
+    const suffix = `/${conversationId}`;
+    for (const k of [...this.liveMap.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.liveMap.delete(k);
+    for (const k of [...this.faces.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.faces.delete(k);
+    for (const k of [...this.envNotes.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.envNotes.delete(k);
+    for (const k of [...this.threadsRead.keys()]) if (exact ? k === exact : k.endsWith(suffix)) this.threadsRead.delete(k);
+    for (const k of [...this.dirtyKeys]) if (exact ? k === exact : k.endsWith(suffix)) this.dirtyKeys.delete(k);
+  }
+
   private publish(): void {
     let moved = false;
     for (const [key, l] of this.liveMap) {
@@ -972,10 +1041,14 @@ export class ChatStore {
       moved = true;
     }
     if (moved) this.set({ live: new Map(this.liveMap) });
-    this.threadWatchers.emit();
+    const dirty = [...this.dirtyKeys];
+    this.dirtyKeys.clear();
+    for (const key of dirty) this.threadWatchers.get(key)?.emit();
+    this.allThreadWatchers.emit();
   }
 
-  private bump(): void {
+  private bump(key?: string): void {
+    if (key) this.dirtyKeys.add(key);
     this.flushing.schedule();
   }
 }

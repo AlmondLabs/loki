@@ -15,18 +15,22 @@ export function useAgentDraft(onCreate: CreateAgent, onDone: (agentId: string) =
     if (busy || !name.trim()) return;
     setBusy(true);
     setError(null);
+    const opts: NewAgentOptions = {
+      name: name.trim(),
+      description: description.trim() || undefined,
+      persona: persona.trim() || undefined,
+      model: model.trim() || undefined,
+    };
+    let r: Awaited<ReturnType<CreateAgent>>;
     try {
-      const r = await onCreate({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        persona: persona.trim() || undefined,
-        model: model.trim() || undefined,
-      });
-      if ("error" in r) return setError(r.error);
-      onDone(r.id);
-    } finally {
+      r = await onCreate(opts);
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
+    if ("error" in r) return setError(r.error);
+    onDone(r.id);
   };
   return { name, setName, description, setDescription, persona, setPersona, model, setModel, busy, error, create };
 }

@@ -194,9 +194,11 @@ function EngineForm({
       });
       if (typeof r === "string") setError(r);
       else onDone(r);
-    } finally {
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   };
   return (
     <div className="grid gap-2" style={{ padding: 12, marginTop: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--radius-xl)" }}>

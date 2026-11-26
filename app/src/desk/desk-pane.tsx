@@ -105,6 +105,9 @@ export function DeskPane(props: DeskPaneProps) {
   const prefillFor = (v: PaneView) => (props.chatPrefill && tickFor(prefill, v) ? props.chatPrefill : null);
 
   const [labeling, setLabeling] = useState(false);
+  const [deskMounted, setDeskMounted] = useState(tab === "desk");
+  if (tab === "desk" && !deskMounted) setDeskMounted(true);
+  const openAdvisor = useCallback(() => onTab("advisor"), [onTab]);
   const row = desk.desks.list.find((d) => d.scope === scope);
   const chatLabels = row?.labels ?? [];
   const purpose = row?.purpose ?? null;
@@ -176,7 +179,7 @@ export function DeskPane(props: DeskPaneProps) {
   const advisor = view.advisor;
   const advisorScope = advisor && agentId ? scopeFor(advisor.advisor_chat, agentId) : null;
   return (
-    <OpenAdvisor.Provider value={() => onTab("advisor")}>
+    <OpenAdvisor.Provider value={openAdvisor}>
       <div className="loki-desk-pane" ref={paneRef}>
         <PaneHeader
           title={name}
@@ -286,18 +289,20 @@ export function DeskPane(props: DeskPaneProps) {
               style={{ visibility: tab === "desk" ? "inherit" : "hidden" }}
               aria-hidden={tab !== "desk"}
             >
-              <Surface
-                {...props}
-                chat={chat}
-                active={visible === "inset"}
-                draft={draft}
-                focusChat={tickFor(focus, "inset")}
-                findChat={tickFor(find, "inset")}
-                modelPickerTick={tickFor(model, "inset")}
-                modeMenuTick={tickFor(mode, "inset")}
-                suggestionsTick={tickFor(suggest, "inset")}
-                chatPrefill={prefillFor("inset")}
-              />
+              {deskMounted && (
+                <Surface
+                  {...props}
+                  chat={chat}
+                  active={visible === "inset"}
+                  draft={draft}
+                  focusChat={tickFor(focus, "inset")}
+                  findChat={tickFor(find, "inset")}
+                  modelPickerTick={tickFor(model, "inset")}
+                  modeMenuTick={tickFor(mode, "inset")}
+                  suggestionsTick={tickFor(suggest, "inset")}
+                  chatPrefill={prefillFor("inset")}
+                />
+              )}
             </div>
           </div>
         </OpenChat.Provider>

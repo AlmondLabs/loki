@@ -66,15 +66,18 @@ export function JiraConnectForm({
   const connect = async (ready: JiraConnect) => {
     if (connecting) return;
     onConnecting(true);
+    let r: AccountView[] | string;
     try {
-      const r = await api.connectJira(ready);
-      if (typeof r === "string") return onNotice(r);
-      onForm(null);
-      onNotice(null);
-      apply(r);
-    } finally {
+      r = await api.connectJira(ready);
+    } catch (e) {
       onConnecting(false);
+      throw e;
     }
+    onConnecting(false);
+    if (typeof r === "string") return onNotice(r);
+    onForm(null);
+    onNotice(null);
+    apply(r);
   };
   return (
     <>

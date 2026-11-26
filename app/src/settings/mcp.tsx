@@ -325,15 +325,24 @@ function ServerForm({
     if (!key) return setError("Give the server a name");
     setBusy(true);
     setError(null);
+    const secureFn = keychain
+      ? (pairs: Record<string, string>) => secureValues(pairs, key, api.secret)
+      : (pairs: Record<string, string>) => Promise.resolve(pairs);
+    const entryKey = server?.entry ?? key;
+    const renameTo = server && key !== server.entry ? key : undefined;
+    let r: McpView | string | null = null;
+    let failed = false;
     try {
-      const edit = await editOf(form, (pairs) => (keychain ? secureValues(pairs, key, api.secret) : Promise.resolve(pairs)));
-      const r = await api.server(server?.entry ?? key, edit, server && key !== server.entry ? key : undefined);
+      const edit = await editOf(form, secureFn);
+      r = await api.server(entryKey, edit, renameTo);
+    } catch (e) {
+      failed = true;
+      setError(messageOf(e));
+    }
+    setBusy(false);
+    if (!failed) {
       if (typeof r === "string") setError(r);
       else onDone(r);
-    } catch (e) {
-      setError(messageOf(e));
-    } finally {
-      setBusy(false);
     }
   };
 

@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button, Sheet } from "../components";
 import { MessageHold } from "../chat/transcript";
@@ -7,15 +7,27 @@ import { SheetRow } from "./home";
 export function useMessageActions(names: { user: string; assistant: string }): { wrap: (thread: ReactNode) => ReactNode; sheet: ReactNode } {
   const [held, setHeld] = useState<{ row: TranscriptRow; selecting: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const close = () => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     setHeld(null);
     setCopied(false);
   };
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    },
+    [],
+  );
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(close, 600);
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(close, 600);
     } catch {
       setHeld((h) => (h ? { ...h, selecting: true } : h));
     }

@@ -1,4 +1,26 @@
 import { isEventName } from "./analytics.ts";
+import {
+  DOCTOR_WAIT_MS,
+  HANDOFF_WAIT_MS,
+  MAIL_HOLD_MS,
+  MOVE_OUT_OF_REACH,
+  MOVE_TIMEOUT_MS,
+  PASS_RUN_TIMEOUT_MS,
+  REPLY_WAIT_MS,
+  requestResult,
+  type RequestResult,
+} from "./frame-client.ts";
+export {
+  DOCTOR_WAIT_MS,
+  HANDOFF_WAIT_MS,
+  MAIL_HOLD_MS,
+  MOVE_OUT_OF_REACH,
+  MOVE_TIMEOUT_MS,
+  PASS_RUN_TIMEOUT_MS,
+  REPLY_WAIT_MS,
+  requestResult,
+  type RequestResult,
+};
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
 import { isReasoningEffort, type ChatEngineView, type ModelEntry, type ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
@@ -514,18 +536,6 @@ export interface PushPeerMeaning {
   /** It may change that Mac's chats, so they are read again: always, or only for these chat event kinds. */
   lists?: true | ReadonlyArray<ChatEvent["kind"]>;
 }
-
-export const MOVE_TIMEOUT_MS = 180_000;
-export const PASS_RUN_TIMEOUT_MS = 10 * 60_000;
-export const DOCTOR_WAIT_MS = PASS_RUN_TIMEOUT_MS + 60_000;
-export const MAIL_HOLD_MS = 10_000;
-export const REPLY_WAIT_MS = 60_000;
-export const HANDOFF_WAIT_MS = 60_000;
-/**
- * What a chat says while it is held for a move to a Mac out of reach (plan 096); the app finds it in the error line and
- * offers **keep it here** there.
- */
-export const MOVE_OUT_OF_REACH = "which is out of reach: keep it here";
 
 interface RequestEntry<R extends ReplyName, P> {
   kind: "request";
@@ -1569,18 +1579,11 @@ export type InputOf<N extends RequestName | SendName> = Optional<PayloadOf<N>>;
 type Optional<T> = { [K in keyof T as undefined extends T[K] ? K : null extends T[K] ? K : never]?: T[K] } & {
   [K in keyof T as undefined extends T[K] ? never : null extends T[K] ? never : K]: T[K];
 };
-export type RequestResult<R> = { ok: true; reply: R } | { ok: false; error: string; timed_out: boolean };
 export type ReplyOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? Replies[R] : never;
 export type PushFrame = { [K in PushName]: { type: K } & Pushes[K] }[PushName];
 
 export const frameEntry = (type: unknown): Table[FrameName] | undefined =>
   typeof type === "string" && Object.hasOwn(FRAMES, type) ? FRAMES[type as FrameName] : undefined;
-
-export function requestResult<R>(answer: Record<string, unknown> | null): RequestResult<R> {
-  if (!answer) return { ok: false, error: "no answer from the mod", timed_out: true };
-  if (answer.type === "error") return { ok: false, error: typeof answer.message === "string" ? answer.message : "the mod refused", timed_out: false };
-  return { ok: true, reply: answer as unknown as R };
-}
 
 /**
  * The frames a paired phone may send over its /ws (mod/lan.ts), marked `phone` above; everything else answers `error`.

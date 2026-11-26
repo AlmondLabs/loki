@@ -1,5 +1,5 @@
+import { memo, type ReactNode } from "react";
 import { capitalFirst } from "../kit/words";
-import type { ReactNode } from "react";
 import { Badge } from "@/ui/badge";
 import { Loader } from "@/ui/ai-elements/loader";
 import type { TurnPart, TurnState } from "./entries";
@@ -11,7 +11,7 @@ const STATE: Record<TurnState, { words: (failed: number) => string; className: s
   done: { words: () => "done", className: "text-loki-positive" },
 };
 
-export function AgentTurn({
+export const AgentTurn = memo(function AgentTurn({
   agentName,
   state,
   failed,
@@ -50,4 +50,4 @@ export function AgentTurn({
       ))}
     </section>
   );
-}
+});

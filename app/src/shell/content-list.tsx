@@ -84,13 +84,18 @@ export function ContentList({
     latest.current = { selectedId, onSelect, onEnter };
   });
   const selectionRef = useRef<ListSelection | null>(null);
-  const selection = () =>
-    (selectionRef.current ??= createListSelection({
+  const selection = () => {
+    const cur = selectionRef.current;
+    if (cur) return cur;
+    const next = createListSelection({
       committed: () => latest.current.selectedId,
       commit: (id) => latest.current.onSelect(id),
       focusDetail: (id, via) => (via === "tab" ? tabIntoDetail(() => latest.current.onEnter(id)) : latest.current.onEnter(id)),
       onHighlight: (id) => setHighlight(id === null ? null : { id, over: latest.current.selectedId }),
-    }));
+    });
+    selectionRef.current = next;
+    return next;
+  };
   useEffect(() => () => selectionRef.current?.stop(), []);
 
   const current = highlight?.over === selectedId ? highlight.id : selectedId;

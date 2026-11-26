@@ -316,8 +316,7 @@ const DESCRIPTION_MAX = 200;
 
 const isWholeTitle = (said: string): boolean => !said.includes("\n") && said.length <= DESCRIPTION_MAX;
 
-export function toolInput(name: string, input: unknown): string | undefined {
-  const args = argsOf(input);
+function toolInputOf(name: string, args: Record<string, unknown> | null): string | undefined {
   if (!args) return undefined;
   const pick = isQuestionTool(name) ? undefined : argOf(args);
   if (pick) return cap(pick);
@@ -325,6 +324,10 @@ export function toolInput(name: string, input: unknown): string | undefined {
   const rest = said && isWholeTitle(said) ? Object.fromEntries(Object.entries(args).filter(([k]) => k !== "description")) : args;
   const json = JSON.stringify(rest, null, 2);
   return json === "{}" ? undefined : cap(json);
+}
+
+export function toolInput(name: string, input: unknown): string | undefined {
+  return toolInputOf(name, argsOf(input));
 }
 
 function toolText(raw: unknown): string | undefined {
@@ -346,16 +349,19 @@ export function toolOutput(raw: unknown): string | undefined {
   return text ? cap(text) : undefined;
 }
 
-export function toolStep(name: string, input: unknown, id?: string | null, kind?: string): ToolStep {
+function toolStepOf(name: string, args: Record<string, unknown> | null, id?: string | null, kind?: string): ToolStep {
   const step: ToolStep = { name };
   if (id) step.id = id;
   if (kind) step.acp_kind = kind;
-  const given = toolInput(name, input);
+  const given = toolInputOf(name, args);
   if (given !== undefined) step.input = given;
-  const args = argsOf(input);
   const said = args && descriptionOf(name, args);
   if (said && said !== given) step.description = said.split("\n")[0].slice(0, DESCRIPTION_MAX);
   return step;
+}
+
+export function toolStep(name: string, input: unknown, id?: string | null, kind?: string): ToolStep {
+  return toolStepOf(name, argsOf(input), id, kind);
 }
 
 const lastLine = (text: string) =>
@@ -406,8 +412,7 @@ export function planItems(text: string): PlanItem[] | null {
   return items;
 }
 
-export function toolLabel(name: string, input: unknown): string {
-  const args = argsOf(input);
+function toolLabelOf(name: string, args: Record<string, unknown> | null): string {
   if (!args) return name;
   const question = isQuestionTool(name) ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
   const arg = typeof args.command === "string" && args.command.trim() ? shellTitle(args.command.trim()) : (argOf(args) ?? titleOf(name, args));
@@ -418,6 +423,15 @@ export function toolLabel(name: string, input: unknown): string {
   const key = argKey(args);
   const isPath = !question && target === arg && key !== undefined && PATH_KEYS.has(key);
   return `${name} · ${capLabel(target, isPath)}`;
+}
+
+export function toolLabel(name: string, input: unknown): string {
+  return toolLabelOf(name, argsOf(input));
+}
+
+export function toolCall(name: string, input: unknown, id?: string | null, kind?: string): { text: string; step: ToolStep } {
+  const args = argsOf(input);
+  return { text: toolLabelOf(name, args), step: toolStepOf(name, args, id, kind) };
 }
 
 export function movedMark(from: string, to: string): string {

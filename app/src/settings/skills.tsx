@@ -49,13 +49,16 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
     if (busy || !path.trim()) return;
     setBusy(true);
     setError(null);
+    let err: string | null;
     try {
-      const err = await onAdd(path.trim().replace(/^~(?=\/|$)/, "$HOME"));
-      if (err) return setError(err);
-      setPath("");
-    } finally {
+      err = await onAdd(path.trim().replace(/^~(?=\/|$)/, "$HOME"));
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
+    if (err) return setError(err);
+    setPath("");
   };
   return (
     <div className="grid gap-1" style={{ padding: "12px 0" }}>

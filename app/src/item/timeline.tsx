@@ -48,6 +48,15 @@ import { isNewSend } from "../chat/use-transcript-scroll";
 const TIME_GAP = 15 * 60_000;
 
 const EMPTY: TranscriptRow[] = [];
+const singleRows = new WeakMap<TranscriptRow, [TranscriptRow]>();
+const singleRow = (row: TranscriptRow): [TranscriptRow] => {
+  let box = singleRows.get(row);
+  if (!box) {
+    box = [row];
+    singleRows.set(row, box);
+  }
+  return box;
+};
 
 export const Timeline = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(function Timeline(props, ref) {
   return (
@@ -181,7 +190,7 @@ function ThreadBody({
       case "message":
         return (
           <>
-            {!thoughts.folded.has(p.key) && <Thought rows={[p.row]} />}
+            {!thoughts.folded.has(p.key) && <Thought rows={singleRow(p.row)} />}
             {message(p)}
           </>
         );

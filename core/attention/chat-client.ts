@@ -1,5 +1,5 @@
 import { isReasoningEffort, type AppliedModel, type ModelEntry, type ModelSelection } from "../models.ts";
-import { DOCTOR_WAIT_MS, HANDOFF_WAIT_MS, REPLY_WAIT_MS } from "../frames.ts";
+import { DOCTOR_WAIT_MS, HANDOFF_WAIT_MS, REPLY_WAIT_MS } from "../frame-client.ts";
 import type { InputOf, ReplyAction, ReplyDecideOptions, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type {
   AccountLabel,

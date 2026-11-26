@@ -637,9 +637,11 @@ export function OutsideReply({
         setOwnMail(null);
       }
       if (r.error) setError(r.error);
-    } finally {
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   };
   const keys = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (mentions.onKeyDown(e)) return;
@@ -898,9 +900,11 @@ function NotSentLine({
     setError(null);
     try {
       setError(await onUnsent(note.outbox_id, action));
-    } finally {
+    } catch (e) {
       setBusy(null);
+      throw e;
     }
+    setBusy(null);
   };
   const size = touch ? "touch" : "sm";
   return (

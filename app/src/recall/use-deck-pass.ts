@@ -16,8 +16,9 @@ export function useDeckPass(cards: CardWithSchedule[]) {
   const current = queue.find((c) => c.card.id === currentId) ?? queue.at(0);
   const revealed = !!current && revealedId === current.card.id;
   const reveal = () => current && setRevealedId(current.card.id);
-  const advance = (id = current?.card.id) => {
-    const card = queue.find((c) => c.card.id === id);
+  const advance = (id?: string) => {
+    const targetId = id ?? current?.card.id;
+    const card = queue.find((c) => c.card.id === targetId);
     if (!card) return;
     const next = nextInDeck(queue, card, chosenId === card.card.id || card !== current);
     setPassed((p) => new Set(p).add(card.card.id));

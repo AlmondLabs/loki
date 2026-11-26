@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
 import { otherLanesCount, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
@@ -322,10 +322,13 @@ function Card({
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
   const cameBack = cameBackIn(decided, current);
   const moves: ChatMoves = { current, typing, ...deckMoves, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
+  const { onOpenDesk, onClose } = deck;
+  const openChat = useCallback((agent: string, conversation: string) => (onOpenDesk(agent, conversation), onClose()), [onOpenDesk, onClose]);
+  const openAdvisor = useMemo(() => (onOpenAdvisor ? () => (onOpenAdvisor(agentId, id), onClose()) : null), [onOpenAdvisor, agentId, id, onClose]);
   return (
     <div className="loki-flow-card">
-      <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
-        <OpenAdvisor.Provider value={onOpenAdvisor ? () => (onOpenAdvisor(agentId, id), deck.onClose()) : null}>
+      <OpenChat.Provider value={openChat}>
+        <OpenAdvisor.Provider value={openAdvisor}>
           <Conversation
             view={{
               rows: thread.rows,

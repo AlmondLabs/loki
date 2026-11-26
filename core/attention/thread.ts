@@ -1,4 +1,4 @@
-import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult, type HarnessEvent } from "../harness.ts";
+import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolCall, withResult, type HarnessEvent } from "../harness.ts";
 import { THOUGHT_MAX, type FileRef, type TranscriptRow } from "./transcript.ts";
 
 /** One thing the harness reported, in the shape every source is parsed into. `at` is when it was written, null when unknown. */
@@ -244,6 +244,7 @@ export class ThreadModel {
   private modelFailed(message: string, at: string | null): { changed: boolean; spoke: string | null } {
     this.streamingText = "";
     this.streamingAt = null;
+    this.args.clear();
     const detail = message.length > MODEL_ERROR_CHARS ? `${message.slice(0, MODEL_ERROR_CHARS - 1)}…` : message;
     const last = this.tail.at(-1);
     const tries = last ? this.modelErrors.get(last) : undefined;
@@ -264,6 +265,7 @@ export class ThreadModel {
     const replaced = this.streamingText !== "";
     this.streamingText = "";
     this.streamingAt = null;
+    this.args.clear();
     const t = text.trim();
     const last = this.tail.at(-1);
     if (t && last && this.modelErrors.has(last)) this.tail.pop();
@@ -539,7 +541,8 @@ export class ThreadModel {
     this.settle(at);
     const last = this.tail.at(-1);
     if (last && this.modelErrors.has(last)) this.tail.pop();
-    this.push({ role: "tool", text: toolLabel(name, args), ...rowAt(at), tool: toolStep(name, args, id, kind) });
+    const call = toolCall(name, args, id, kind);
+    this.push({ role: "tool", text: call.text, ...rowAt(at), tool: call.step });
     return true;
   }
 
@@ -556,11 +559,17 @@ export class ThreadModel {
   }
 
   private updateInput(id: string, name: string, args: unknown, kind?: string): boolean {
-    const at = this.tail.findIndex((row) => row.tool?.id === id);
+    if (typeof args === "string" && !args.trimEnd().endsWith("}")) return false;
+    let at = -1;
+    for (let i = this.tail.length - 1; i >= 0; i--) {
+      if (this.tail[i].tool?.id === id) {
+        at = i;
+        break;
+      }
+    }
     if (at < 0) return false;
     const row = this.tail[at];
-    const step = toolStep(name, args, id, kind);
-    const text = toolLabel(name, args);
+    const { step, text } = toolCall(name, args, id, kind);
     if (step.input === row.tool?.input && step.description === row.tool?.description && step.acp_kind === row.tool?.acp_kind && text === row.text) return false;
     this.tail[at] = { ...row, text, tool: { ...row.tool, ...step } };
     this.touch();
