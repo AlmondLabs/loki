@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { widgetModule } from "../app/src/frame/widget-module.ts";
 
@@ -65,18 +65,36 @@ export function pageCsp(scriptHashes: string[]): string {
   ].join("; ");
 }
 
+const cspCache = new Map<string, { mtimeMs: number; size: number; csp: string }>();
+
 export async function serveApp(root: string, url: URL): Promise<Response> {
   const file = appFile(url.pathname);
   if (!file) return new Response("not found", { status: 404 });
+  const full = join(root, file);
   let body: Buffer;
   try {
-    body = await readFile(join(root, file));
+    body = await readFile(full);
   } catch {
     return new Response("not found", { status: 404 });
   }
-  const headers: Record<string, string> = { "content-type": contentType(file), "cache-control": "no-cache" };
-  if (file.endsWith(".html") && file !== "widget-frame.html") headers["content-security-policy"] = pageCsp(inlineScriptHashes(body.toString("utf8")));
-  return new Response(new Uint8Array(body), { headers });
+  const cacheControl = file.startsWith("assets/") ? "public, max-age=31536000, immutable" : "no-cache";
+  const headers: Record<string, string> = { "content-type": contentType(file), "cache-control": cacheControl };
+  if (file.endsWith(".html") && file !== "widget-frame.html") {
+    let csp: string | null = null;
+    try {
+      const st = await stat(full);
+      const hit = cspCache.get(full);
+      if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) csp = hit.csp;
+      else {
+        csp = pageCsp(inlineScriptHashes(body.toString("utf8")));
+        cspCache.set(full, { mtimeMs: st.mtimeMs, size: st.size, csp });
+      }
+    } catch {
+      csp = pageCsp(inlineScriptHashes(body.toString("utf8")));
+    }
+    headers["content-security-policy"] = csp;
+  }
+  return new Response(new Uint8Array(body.buffer as ArrayBuffer, body.byteOffset, body.byteLength), { headers });
 }
 
 export async function serveWidget(widgetsDir: string, url: URL): Promise<Response> {
@@ -88,7 +106,8 @@ export async function serveWidget(widgetsDir: string, url: URL): Promise<Respons
   }
   const code = url.pathname.startsWith("/widgets/") ? await widgetModule(widgetsDir, rel) : null;
   if (code === null) return new Response("not found", { status: 404 });
+  const cacheControl = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-store";
   return new Response(code, {
-    headers: { "content-type": "text/javascript; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store" },
+    headers: { "content-type": "text/javascript; charset=utf-8", "access-control-allow-origin": "*", "cache-control": cacheControl },
   });
 }

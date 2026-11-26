@@ -1,8 +1,10 @@
+import { mkdtemp, open, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { messageOf } from "../../core/errors.ts";
 import { compareVersions, parseVersion } from "../../core/version.ts";
 import type { Installer } from "./install.ts";
 import { UPDATE_PUBLIC_KEY, updateVerifier, type UpdateVerifier } from "./minisign.ts";
-import { fieldOf, UpdateFailure, type Found, type Remote } from "./updates.ts";
+import { disposePayload, fieldOf, UpdateFailure, type Found, type Remote, type UpdatePayload } from "./updates.ts";
 
 export const CHECK_TIMEOUT_MS = 60 * 1000;
 export const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
@@ -35,9 +37,42 @@ export function newerRelease(desktopJson: unknown, current: string, key: Platfor
   return { version, url, signature };
 }
 
-async function readBody(response: Response, onChunk: (bytes: number, total: number | null) => void, verifier: UpdateVerifier): Promise<Uint8Array> {
+async function readBody(
+  response: Response,
+  onChunk: (bytes: number, total: number | null) => void,
+  verifier: UpdateVerifier,
+  tempDir?: string,
+): Promise<UpdatePayload> {
   const length = Number(response.headers.get("content-length"));
   const total = Number.isInteger(length) && length > 0 ? length : null;
+  if (tempDir) {
+    const dir = await mkdtemp(join(tempDir, "loki-dl-"));
+    const path = join(dir, "update.bin");
+    const dispose = () => rm(dir, { recursive: true, force: true });
+    let handle;
+    try {
+      handle = await open(path, "w");
+      if (!response.body) {
+        const buf = new Uint8Array(await response.arrayBuffer());
+        await handle.write(buf);
+        verifier.update(buf);
+        onChunk(buf.length, total);
+      } else {
+        for await (const chunk of response.body) {
+          await handle.write(chunk);
+          verifier.update(chunk);
+          onChunk(chunk.length, total);
+        }
+      }
+      await handle.close();
+      handle = undefined;
+      return { path, dispose };
+    } catch (error) {
+      await handle?.close().catch(() => {});
+      await dispose().catch(() => {});
+      throw error;
+    }
+  }
   const chunks: Uint8Array[] = [];
   const take = (chunk: Uint8Array) => {
     chunks.push(chunk);
@@ -55,9 +90,10 @@ export interface RemoteOptions {
   platform: PlatformKey | null;
   installer: Installer;
   publicKey?: string;
+  tempDir?: string;
 }
 
-function found(release: Release, { fetch, current, installer, publicKey = UPDATE_PUBLIC_KEY }: RemoteOptions): Found {
+function found(release: Release, { fetch, current, installer, publicKey = UPDATE_PUBLIC_KEY, tempDir }: RemoteOptions): Found {
   const headers = { "user-agent": `loki/${current}` };
   return {
     version: release.version,
@@ -70,20 +106,21 @@ function found(release: Release, { fetch, current, installer, publicKey = UPDATE
       } catch (error) {
         throw new UpdateFailure("signature", messageOf(error));
       }
-      let bytes: Uint8Array;
+      let payload: UpdatePayload;
       try {
         const response = await fetch(release.url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), headers });
         if (!response.ok) throw new Error(`${release.url} answered ${response.status}`);
-        bytes = await readBody(response, onChunk, verifier);
+        payload = await readBody(response, onChunk, verifier, tempDir);
       } catch (error) {
         throw new UpdateFailure("download", messageOf(error));
       }
       try {
-        verifier.verify(bytes);
+        verifier.verify(payload instanceof Uint8Array ? payload : payload.path);
       } catch (error) {
+        await disposePayload(payload);
         throw new UpdateFailure("signature", messageOf(error));
       }
-      return bytes;
+      return payload;
     },
   };
 }

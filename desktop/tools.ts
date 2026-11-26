@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readdirSync, renameSync, rmSync, statSync, writeSync } from "node:fs";
+import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { open } from "node:fs/promises";
 import { join, posix, win32 } from "node:path";
 import { messageOf } from "../core/errors.ts";
 import type { PageOs } from "./env.ts";
@@ -84,7 +85,7 @@ async function fetchChecked(h: GitHost, archive: Archive, fileName: string, to: 
     stall = setTimeout(() => abort.abort(new Error("the download stalled")), h.stallMs ?? STALL_MS);
   };
   watch();
-  const fd = openSync(to, "w");
+  const handle = await open(to, "w");
   try {
     let response: Response;
     try {
@@ -109,7 +110,7 @@ async function fetchChecked(h: GitHost, archive: Archive, fileName: string, to: 
       }
       if (chunk.done) break;
       hash.update(chunk.value);
-      writeSync(fd, chunk.value);
+      await handle.write(chunk.value);
       done += chunk.value.byteLength;
       progress({ name: "git", version, done, total });
     }
@@ -117,7 +118,7 @@ async function fetchChecked(h: GitHost, archive: Archive, fileName: string, to: 
       throw new Error(`${fileName} does not match its published checksum, so loki did not use it`);
   } finally {
     clearTimeout(stall);
-    closeSync(fd);
+    await handle.close();
   }
 }
 

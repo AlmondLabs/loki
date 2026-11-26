@@ -1,4 +1,5 @@
 import { createPublicKey, sign, verify, type KeyObject } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { blake2b512, createBlake2b512 } from "./blake2b.ts";
 
 export const UPDATE_PUBLIC_KEY =
@@ -74,7 +75,7 @@ export function signedVersion(trustedComment: string): string | null {
 
 export interface UpdateVerifier {
   update: (chunk: Uint8Array) => void;
-  verify: (file: Uint8Array) => void;
+  verify: (file: Uint8Array | string) => void;
 }
 
 export function updateVerifier(signatureBase64: string, announced: string, publicKey: string = UPDATE_PUBLIC_KEY): UpdateVerifier {
@@ -86,7 +87,8 @@ export function updateVerifier(signatureBase64: string, announced: string, publi
   return {
     update: (chunk) => hash?.update(chunk),
     verify: (file) => {
-      if (!verify(null, hash ? hash.digest() : file, key.key, sig.signature)) throw new Error("the update's signature does not match the downloaded file");
+      const target = hash ? hash.digest() : typeof file === "string" ? readFileSync(file) : file;
+      if (!verify(null, target, key.key, sig.signature)) throw new Error("the update's signature does not match the downloaded file");
       if (!verify(null, Buffer.concat([sig.signature, Buffer.from(sig.trustedComment, "utf8")]), key.key, sig.globalSignature))
         throw new Error("the signature's trusted comment does not verify");
       const version = signedVersion(sig.trustedComment);

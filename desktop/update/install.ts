@@ -1,9 +1,9 @@
 import { execFile, spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
-import { chmod, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { messageOf } from "../../core/errors.ts";
-import { installProblem, type Unsupported } from "./updates.ts";
+import { disposePayload, installProblem, type Unsupported, type UpdatePayload } from "./updates.ts";
 
 export const MAC_UPDATE_APP = "loki.app";
 
@@ -23,7 +23,7 @@ export type SpawnDetached = (command: string, args: string[]) => Promise<void>;
 export interface Installer {
   installsAfterQuit: boolean;
   problem: () => string | null;
-  install: (bytes: Uint8Array, relaunch: boolean) => Promise<void>;
+  install: (payload: UpdatePayload, relaunch: boolean) => Promise<void>;
 }
 
 export const nodeInstallFs: InstallFs = {
@@ -93,27 +93,46 @@ async function putBack(fs: InstallFs, aside: string, app: string, why: unknown):
   }
 }
 
+async function placePayload(fs: InstallFs, payload: UpdatePayload, target: string): Promise<void> {
+  if (payload instanceof Uint8Array) return fs.writeFile(target, payload);
+  try {
+    await fs.rename(payload.path, target);
+  } catch {
+    await copyFile(payload.path, target);
+  }
+}
+
 export function macInstaller({ exe, fs, run }: { exe: string; fs: InstallFs; run: Run }): Installer {
   return {
     installsAfterQuit: false,
     problem: () => installProblem(exe, fs.writable),
-    install: async (bytes) => {
+    install: async (payload) => {
       const app = appBundleOf(exe);
-      if (!app) throw new Error(`loki is not running from an app bundle (${exe})`);
+      if (!app) {
+        await disposePayload(payload);
+        throw new Error(`loki is not running from an app bundle (${exe})`);
+      }
       const folder = dirname(app);
       const unpacked = await fs.mkdtemp(join(folder, ".loki-update-"));
       const fresh = join(unpacked, MAC_UPDATE_APP);
       const aside = join(unpacked, "previous.app");
       try {
-        const archive = join(unpacked, "update.tar.gz");
-        await fs.writeFile(archive, bytes);
+        let archive: string;
+        if (payload instanceof Uint8Array) {
+          archive = join(unpacked, "update.tar.gz");
+          await fs.writeFile(archive, payload);
+        } else {
+          archive = payload.path;
+        }
         await run("tar", ["-xzf", archive, "-C", unpacked]);
         if (!(await fs.isDirectory(fresh))) throw new Error(`the update holds no ${MAC_UPDATE_APP}`);
         await fs.rename(app, aside);
       } catch (error) {
+        await disposePayload(payload);
         await removeQuietly(fs, unpacked);
         throw error;
       }
+      await disposePayload(payload);
       try {
         await fs.rename(fresh, app);
       } catch (error) {
@@ -130,11 +149,15 @@ export function windowsInstaller({ tempDir, fs, spawn: start }: { tempDir: strin
   return {
     installsAfterQuit: true,
     problem: () => null,
-    install: async (bytes, relaunch) => {
-      const folder = await fs.mkdtemp(join(tempDir, "loki-update-"));
-      const installer = join(folder, "loki-setup.exe");
-      await fs.writeFile(installer, bytes);
-      await start(installer, ["/S", "--updated", ...(relaunch ? ["--force-run"] : [])]);
+    install: async (payload, relaunch) => {
+      try {
+        const folder = await fs.mkdtemp(join(tempDir, "loki-update-"));
+        const installer = join(folder, "loki-setup.exe");
+        await placePayload(fs, payload, installer);
+        await start(installer, ["/S", "--updated", ...(relaunch ? ["--force-run"] : [])]);
+      } finally {
+        await disposePayload(payload);
+      }
     },
   };
 }
@@ -143,15 +166,17 @@ export function linuxInstaller({ appImage, fs }: { appImage: string; fs: Install
   return {
     installsAfterQuit: false,
     problem: () => null,
-    install: async (bytes) => {
+    install: async (payload) => {
       const next = `${appImage}.update`;
       try {
-        await fs.writeFile(next, bytes);
+        await placePayload(fs, payload, next);
         await fs.chmod(next, 0o755);
         await fs.rename(next, appImage);
       } catch (error) {
         await removeQuietly(fs, next);
         throw error;
+      } finally {
+        await disposePayload(payload);
       }
     },
   };

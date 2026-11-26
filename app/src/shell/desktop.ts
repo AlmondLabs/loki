@@ -45,7 +45,7 @@ export interface DesktopEvents {
   "loki:menu": string;
   "loki:catch-up": null;
   "loki:settings-page": string;
-  "loki:window-resized": null;
+  "loki:window-resized": boolean;
 }
 
 export interface OpenDialogOptions {
@@ -88,7 +88,7 @@ export interface DesktopWindow {
   toggleMaximize: () => Promise<void>;
   close: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
-  onResized: (handler: () => void) => Promise<() => void>;
+  onResized: (handler: (maximized: boolean) => void) => Promise<() => void>;
   setTheme: (theme: "light" | "dark" | null) => Promise<void>;
 }
 
@@ -99,7 +99,7 @@ const DESKTOP_WINDOW: DesktopWindow = {
   toggleMaximize: () => invoke("window_toggle_maximize"),
   close: () => invoke("window_close"),
   isMaximized: () => invoke("window_is_maximized"),
-  onResized: (handler) => listen("loki:window-resized", () => handler()),
+  onResized: (handler) => listen("loki:window-resized", (e) => handler(e.payload)),
   setTheme: (theme) => invoke("window_set_theme", { theme }),
 };
 

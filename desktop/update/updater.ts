@@ -61,7 +61,14 @@ export function createUpdater(options: UpdaterOptions): Updater {
   if (overrideUrl && !unsupported) log(`checking ${overrideUrl} (${OVERRIDE_VAR})`);
   const updates = Updates.open({ dir: lokiDir, current, overrideUrl, unsupported, log });
   const remote = installer
-    ? githubRemote({ fetch: options.fetch, current, platform: platformKey(options.platform, options.arch), installer, publicKey: options.publicKey })
+    ? githubRemote({
+        fetch: options.fetch,
+        current,
+        platform: platformKey(options.platform, options.arch),
+        installer,
+        publicKey: options.publicKey,
+        tempDir: options.tempDir,
+      })
     : null;
 
   const check = () => {

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { posix, win32 } from "node:path";
 import type { PageOs } from "./env.ts";
 
@@ -28,6 +28,7 @@ export interface NodeHost {
   version: (bin: string) => Promise<Version | null>;
   isFile: (path: string) => boolean;
   list: (dir: string) => string[];
+  realpath?: (path: string) => string;
 }
 
 export type NodeSearch = { found: true; node: string; dir: string; version: Version } | { found: false; old: { version: Version; at: string } | null };
@@ -103,22 +104,44 @@ export async function findNode(h: NodeHost): Promise<NodeSearch> {
     const v = await h.version(chosen);
     if (v && compareVersions(v, NODE_MIN) >= 0) return { found: true, node: chosen, dir: p.dirname(chosen), version: v };
   }
-  const candidates = binDirs(h)
+  const rawCandidates = binDirs(h)
     .flatMap((d) => programNames(h.os, "node").map((n) => p.join(d, n)))
     .filter((file) => !inRuntime(file) && h.isFile(file));
-  const versions = await Promise.all(candidates.map(async (file) => ({ file, v: await h.version(file) })));
+  const seenReal = new Set<string>();
+  const candidates: string[] = [];
+  for (const file of rawCandidates) {
+    let resolved = file;
+    if (h.realpath) {
+      try {
+        resolved = h.realpath(file);
+      } catch {
+        continue;
+      }
+    }
+    if (seenReal.has(resolved)) continue;
+    seenReal.add(resolved);
+    candidates.push(file);
+  }
+  const hasNpx = (file: string) => scriptNames(h.os, "npx").some((n) => h.isFile(p.join(p.dirname(file), n)));
+  const withNpx = candidates.filter(hasNpx);
+  const withoutNpx = candidates.filter((file) => !hasNpx(file));
+  const withNpxVersions = await Promise.all(withNpx.map(async (file) => ({ file, v: await h.version(file) })));
   let best: { file: string; v: Version } | null = null;
   let old: { version: Version; at: string } | null = null;
-  for (const { file, v } of versions) {
+  for (const { file, v } of withNpxVersions) {
     if (!v) continue;
     if (compareVersions(v, NODE_MIN) < 0) {
       if (!old || compareVersions(v, old.version) > 0) old = { version: v, at: file };
       continue;
     }
-    const npx = scriptNames(h.os, "npx").some((n) => h.isFile(p.join(p.dirname(file), n)));
-    if (npx && (!best || compareVersions(v, best.v) > 0)) best = { file, v };
+    if (!best || compareVersions(v, best.v) > 0) best = { file, v };
   }
-  return best ? { found: true, node: best.file, dir: p.dirname(best.file), version: best.v } : { found: false, old };
+  if (best) return { found: true, node: best.file, dir: p.dirname(best.file), version: best.v };
+  const withoutNpxVersions = await Promise.all(withoutNpx.map(async (file) => ({ file, v: await h.version(file) })));
+  for (const { file, v } of withoutNpxVersions) {
+    if (v && compareVersions(v, NODE_MIN) < 0 && (!old || compareVersions(v, old.version) > 0)) old = { version: v, at: file };
+  }
+  return { found: false, old };
 }
 
 export function nodeVersion(bin: string): Promise<Version | null> {
@@ -149,5 +172,6 @@ export function machineNodeHost(os: PageOs, home: string, env: NodeJS.ProcessEnv
         return [];
       }
     },
+    realpath: (file) => realpathSync(file),
   };
 }

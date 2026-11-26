@@ -64,7 +64,8 @@ function fakeFound(log: string[], o: FakeFoundOptions = {}): Found {
       return end;
     },
     install: (bytes, relaunch) => {
-      log.push(`install ${version} ${Buffer.from(bytes).toString()} relaunch=${relaunch}`);
+      const raw = bytes instanceof Uint8Array ? Buffer.from(bytes) : readFileSync(bytes.path);
+      log.push(`install ${version} ${raw.toString()} relaunch=${relaunch}`);
       return o.install ? Promise.reject(o.install) : Promise.resolve();
     },
   };
@@ -462,9 +463,10 @@ function remoteFor(served: Served, key: Signer, installed: string[], current = "
     installer: {
       installsAfterQuit: false,
       problem: () => null,
-      install: (bytes) => {
-        installed.push(Buffer.from(bytes).toString("hex"));
-        return Promise.resolve();
+      install: async (bytes) => {
+        const raw = bytes instanceof Uint8Array ? Buffer.from(bytes) : readFileSync(bytes.path);
+        installed.push(raw.toString("hex"));
+        if (!(bytes instanceof Uint8Array)) await bytes.dispose();
       },
     },
   });
@@ -556,6 +558,53 @@ describe("desktop.json and the download", () => {
     const u = new Updates({ current: "2026.1120.0", channel: "stable", log: quiet });
     await check(u, remoteFor(serve(routes), key, []));
     expect(u.status().state).toEqual({ kind: "failed", stage: "download", message: `${FILE_URL} answered 410` });
+  });
+
+  test("a download given a tempDir streams to disk, verifies its signature, passes the path to install, and cleans up", async () => {
+    const key = signer();
+    const file = randomBytes(5000);
+    const dir = temp();
+    const served = serve(release(file, sigFor(file, key, "2026.1125.0")));
+    const installed: string[] = [];
+    const remote = githubRemote({
+      fetch: served.fetch,
+      current: "2026.1120.0",
+      platform: "darwin-aarch64",
+      publicKey: key.publicKey,
+      tempDir: dir,
+      installer: {
+        installsAfterQuit: false,
+        problem: () => null,
+        install: async (payload) => {
+          expect(payload).not.toBeInstanceOf(Uint8Array);
+          if (!(payload instanceof Uint8Array)) {
+            installed.push(readFileSync(payload.path).toString("hex"));
+            await payload.dispose();
+          }
+        },
+      },
+    });
+    const u = new Updates({ current: "2026.1120.0", channel: "stable", log: quiet });
+    await check(u, remote);
+    expect(u.status().state).toEqual({ kind: "ready", version: "2026.1125.0" });
+    await u.quit(quiet);
+    expect(installed).toEqual([file.toString("hex")]);
+    expect(readdirSync(dir)).toEqual([]);
+
+    const bad = new Updates({ current: "2026.1120.0", channel: "stable", log: quiet });
+    await check(
+      bad,
+      githubRemote({
+        fetch: serve(release(Buffer.concat([file, Buffer.from("x")]), sigFor(file, key, "2026.1125.0"))).fetch,
+        current: "2026.1120.0",
+        platform: "darwin-aarch64",
+        publicKey: key.publicKey,
+        tempDir: dir,
+        installer: linuxInstaller({ appImage: join(dir, "unused"), fs: nodeInstallFs }),
+      }),
+    );
+    expect(bad.status().state).toMatchObject({ kind: "failed", stage: "signature" });
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   test("each system reads its own entry in desktop.json", () => {

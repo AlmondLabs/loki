@@ -91,9 +91,10 @@ function useMaximized(): boolean {
     let live = true;
     let off: (() => void) | null = null;
     const win = currentWindow();
-    const read = () => win.isMaximized().then((m) => live && setMaximized(m));
-    void read()
-      .then(() => win.onResized(() => void read()))
+    void win
+      .isMaximized()
+      .then((m) => live && setMaximized(m))
+      .then(() => win.onResized((m) => live && setMaximized(m)))
       .then((unlisten) => {
         if (live) off = unlisten;
         else unlisten();

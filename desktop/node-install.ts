@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PageOs } from "./env.ts";
@@ -44,6 +45,8 @@ export interface NodeInstallHost {
   folder: () => Promise<string>;
   write: (file: string, bytes: Uint8Array) => Promise<void>;
   read: (file: string) => Promise<Uint8Array>;
+  writeStream?: (file: string, response: Response) => Promise<string>;
+  sha256File?: (file: string) => Promise<string>;
   remove: (folder: string) => Promise<void>;
   run: (command: string, args: string[]) => Promise<number | null>;
   log: (line: string) => void;
@@ -65,10 +68,15 @@ async function download(h: NodeInstallHost): Promise<{ folder: string; file: str
   if (!expected) return { kind: "failed", message: `nodejs.org lists no checksum for ${installer.file}` };
   const response = await h.fetch(installer.url);
   if (!response.ok) return { kind: "failed", message: `nodejs.org answered ${response.status} for ${installer.file}` };
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (sha256(bytes) !== expected) return { kind: "failed", message: `${installer.file} did not match nodejs.org's checksum` };
   const folder = await h.folder();
   const file = join(folder, installer.file);
+  if (h.writeStream && response.body) {
+    const actual = await h.writeStream(file, response);
+    if (actual !== expected) return { kind: "failed", message: `${installer.file} did not match nodejs.org's checksum` };
+    return { folder, file, installer };
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (sha256(bytes) !== expected) return { kind: "failed", message: `${installer.file} did not match nodejs.org's checksum` };
   await h.write(file, bytes);
   return { folder, file, installer };
 }
@@ -81,7 +89,8 @@ export async function installNode(h: NodeInstallHost): Promise<InstallOutcome> {
     if ("kind" in got) return got;
     folder = got.folder;
     const expected = checksumOf(await (await h.fetch(got.installer.sums)).text(), got.installer.file);
-    if (!expected || sha256(await h.read(got.file)) !== expected) return { kind: "failed", message: `${got.installer.file} changed before it opened` };
+    const actual = h.sha256File ? await h.sha256File(got.file) : sha256(await h.read(got.file));
+    if (!expected || actual !== expected) return { kind: "failed", message: `${got.installer.file} changed before it opened` };
     h.log(`opening the Node ${got.installer.version} installer`);
     if (h.os === "macos") {
       const code = await h.run("open", ["-W", got.file]);
@@ -102,6 +111,27 @@ export function machineNodeInstallHost(os: PageOs, log: (line: string) => void):
     folder: () => mkdtemp(join(tmpdir(), "loki-node-")),
     write: (file, bytes) => writeFile(file, bytes, { mode: 0o600 }),
     read: (file) => readFile(file),
+    writeStream: async (file, response) => {
+      const handle = await open(file, "w", 0o600);
+      const hash = createHash("sha256");
+      try {
+        for await (const chunk of response.body ?? []) {
+          hash.update(chunk);
+          await handle.write(chunk);
+        }
+        return hash.digest("hex");
+      } finally {
+        await handle.close();
+      }
+    },
+    sha256File: (file) =>
+      new Promise((resolve, reject) => {
+        const hash = createHash("sha256");
+        const stream = createReadStream(file);
+        stream.on("data", (chunk) => hash.update(chunk));
+        stream.on("error", reject);
+        stream.on("end", () => resolve(hash.digest("hex")));
+      }),
     remove: (folder) => rm(folder, { recursive: true, force: true }),
     run: (command, args) =>
       new Promise((resolve) => {

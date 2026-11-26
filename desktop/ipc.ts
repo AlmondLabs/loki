@@ -45,11 +45,18 @@ export function sendEvent(target: EventReceiver, name: string, payload: unknown)
 
 export interface ResizingWindow {
   on(event: "resize" | "maximize" | "unmaximize", listener: () => void): unknown;
+  isMaximized(): boolean;
   readonly webContents: EventReceiver;
 }
 
 export function sendResizes(win: ResizingWindow): void {
-  const resized = () => sendEvent(win.webContents, WINDOW_RESIZED_EVENT, null);
+  let lastMaximized = win.isMaximized();
+  const resized = () => {
+    const maximized = win.isMaximized();
+    if (maximized === lastMaximized) return;
+    lastMaximized = maximized;
+    sendEvent(win.webContents, WINDOW_RESIZED_EVENT, maximized);
+  };
   win.on("resize", resized);
   win.on("maximize", resized);
   win.on("unmaximize", resized);

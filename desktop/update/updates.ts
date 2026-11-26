@@ -49,11 +49,17 @@ export class UpdateFailure extends Error {
   }
 }
 
+export type UpdatePayload = Uint8Array | { path: string; dispose: () => Promise<void> };
+
+export async function disposePayload(payload: UpdatePayload): Promise<void> {
+  if (!(payload instanceof Uint8Array)) await payload.dispose().catch(() => {});
+}
+
 export interface Found {
   version: string;
   installProblem: () => string | null;
-  download: (onChunk: (bytes: number, total: number | null) => void) => Promise<Uint8Array>;
-  install: (bytes: Uint8Array, relaunch: boolean) => Promise<void>;
+  download: (onChunk: (bytes: number, total: number | null) => void) => Promise<UpdatePayload>;
+  install: (payload: UpdatePayload, relaunch: boolean) => Promise<void>;
 }
 
 export interface Remote {
@@ -137,7 +143,7 @@ export function installProblem(exe: string, writable: (folder: string) => boolea
 
 interface Held {
   found: Found;
-  bytes: Uint8Array;
+  bytes: UpdatePayload;
 }
 
 export interface UpdatesOptions {
