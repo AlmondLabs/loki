@@ -316,7 +316,7 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
     ]);
   });
 
-  test("an event with two guests is created and they are told; every page of events is listed", async () => {
+  test("an event with two guests is created quietly by default and notifies only when notify is true; every page of events is listed", async () => {
     const f = await fixture();
     const made = await f.call(WORK, "google_calendar_change", {
       action: "create",
@@ -334,10 +334,19 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
       f.ws.requests.find((q) => q.method === "POST" && q.url.pathname.includes("/calendar/")),
       "the insert",
     );
-    expect(insert.url.searchParams.get("sendUpdates")).toBe("all");
+    expect(insert.url.searchParams.get("sendUpdates")).toBe("none");
+    await f.call(WORK, "google_calendar_change", {
+      action: "create",
+      summary: "Meeting notified",
+      start: "2026-11-12T11:00:00",
+      end: "2026-11-12T11:30:00",
+      guests: ["bob@example.com"],
+      notify: true,
+    });
+    expect(f.ws.requests.at(-1)?.url.searchParams.get("sendUpdates")).toBe("all");
     for (const n of [2, 3]) await f.call(WORK, "google_calendar_change", { action: "create", summary: `Meeting ${n}`, start: "2026-11-13", end: "2026-11-14" });
     const all = await f.call(WORK, "google_calendar_list", { from: "2026-11-01T00:00:00Z", to: "2026-12-01T00:00:00Z", all_pages: true });
-    expect(all.count).toBe(3);
+    expect(all.count).toBe(4);
   });
 
   test("the request tool reaches a granted service's own host only", async () => {
@@ -357,6 +366,19 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
     expect((await f.call(OLD, "google_api", { service: "calendar", method: "GET", path: "/calendar/v3/users/me/calendarList" })).refused).toBe(
       "this Google account has not let loki use Calendar: sign in again for it in Preferences › Accounts",
     );
+  });
+
+  test("the request tool blocks Drive sharing permission mutations without making a request", async () => {
+    const f = await fixture();
+    const before = f.ws.requests.length;
+    for (const callArgs of [
+      { method: "POST", path: "/drive/v3/files/f1/permissions", body: { role: "reader", type: "anyone" } },
+      { method: "PATCH", path: "/drive/v3/files/f1/permissions/p1", body: { role: "writer" } },
+      { method: "DELETE", path: "/drive/v3/files/f1/permissions/p1" },
+    ]) {
+      expect((await f.call(WORK, "google_api", { service: "drive", ...callArgs })).refused).toContain("Drive sharing permissions");
+    }
+    expect(f.ws.requests).toHaveLength(before);
   });
 
   test("the request tool refuses Gmail's send and draft-send methods and makes no request (plan 2026-11-14-1530, R21)", async () => {

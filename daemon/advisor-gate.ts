@@ -8,12 +8,13 @@ import { resultsDirOf } from "./tool-results.ts";
 
 export const ADVISOR_TOOLS: readonly string[] = [
   "read",
-  "ls",
   "find",
   "grep",
   "bash",
   "web_search",
+  "web_fetch",
   "memory_read",
+  "memory_search",
   "history_search",
   "history_read",
   CHANGES_TOOL,
@@ -110,7 +111,7 @@ function bashReach(command: unknown): Reach[] | string {
 }
 
 function reachOf(name: string, args: Record<string, unknown>): Reach[] | string {
-  if (name === "read" || name === "ls") return [{ asked: pathArg(args.path), recursive: false }];
+  if (name === "read") return [{ asked: pathArg(args.path), recursive: false }];
   if (name === "find" || name === "grep") return [{ asked: pathArg(args.path), recursive: true }];
   if (name === CHANGES_TOOL) {
     const paths = Array.isArray(args.paths) ? args.paths.filter((p): p is string => typeof p === "string" && p !== "") : [];

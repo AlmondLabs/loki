@@ -179,13 +179,11 @@ describe("canvas_focus", () => {
     await expect(cam.run({ args: {} })).rejects.toThrow("give widget_id or widget_ids");
   });
 
-  test("frames several widgets and honours dwell", async () => {
+  test("frames several widgets immediately without blocking", async () => {
     const { tools, broadcasts } = harness();
     const cam = must(tools.get("canvas_focus"), "canvas_focus");
-    const t = Date.now();
-    const out = await cam.run({ args: { widget_ids: ["c1/sleep", "shared/welcome"], dwell: 120 } });
-    expect(Date.now() - t).toBeGreaterThanOrEqual(110);
-    expect(out).toMatch(/framing 2 widgets, held 120ms/);
+    const out = await cam.run({ args: { widget_ids: ["c1/sleep", "shared/welcome"] } });
+    expect(out).toMatch(/framing 2 widgets/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep", "shared/welcome"] }, undefined]);
   });
 });
@@ -263,45 +261,54 @@ describe("chat_list and the suggestion tools", () => {
     expect(names.filter((n) => !/^[a-z][a-z0-9]*_[a-z0-9]+$/.test(n))).toEqual([]);
   });
 
-  test("chat_list lists this Mac's and the paired Mac's open chats, one line each, leaves out archived ones and marks the calling chat", async () => {
-    const out = String(await suggesting().run("chat_list", {}));
-    const lines = out.split("\n");
+  test("chat_list returns structured agents and open chats across Macs, leaves out archived ones and marks the calling chat", async () => {
+    const out = (await suggesting().run("chat_list", {})) as {
+      agents: Array<{ id: string; name: string; mac: string; reachable: boolean }>;
+      chats: Array<Record<string, unknown>>;
+      links: Array<Record<string, unknown>>;
+    };
     const infra = must(
-      lines.find((l) => l.includes("conv-infra")),
+      out.chats.find((c) => c.conversation_id === "conv-infra"),
       "the infra row",
     );
-    for (const part of [FRIDAY, "Friday", '"infra"', "/work/infra", "ops", "pinned", "2026-10-28T10:00:00.000Z", "Everything about the build machines"])
-      expect(infra).toContain(part);
+    expect(infra).toMatchObject({
+      conversation_id: "conv-infra",
+      agent_id: FRIDAY,
+      agent_name: "Friday",
+      title: "infra",
+      cwd: "/work/infra",
+      labels: ["ops"],
+      pinned: true,
+      last_active: "2026-10-28T10:00:00.000Z",
+      purpose: "Everything about the build machines",
+      this_chat: false,
+    });
     expect(
       must(
-        lines.find((l) => l.includes("conv-site")),
+        out.chats.find((c) => c.conversation_id === "conv-site"),
         "the paired Mac's row",
-      ),
-    ).toContain("laptop");
+      ).home_name,
+    ).toBe("laptop");
     expect(
       must(
-        lines.find((l) => l.includes("conv-source")),
+        out.chats.find((c) => c.conversation_id === "conv-source"),
         "the calling chat",
-      ),
-    ).toContain("this chat");
-    expect(infra).not.toContain("this chat");
-    expect(out).not.toContain("conv-old");
+      ).this_chat,
+    ).toBe(true);
+    expect(out.chats.some((c) => c.conversation_id === "conv-old")).toBe(false);
   });
 
-  test("chat_list lists an agent with no chats, with its Mac and whether it is in reach; a filter narrows the lines", async () => {
+  test("chat_list includes agents with no chats, with their Mac and reachability; a filter narrows the entries", async () => {
     const { run } = suggesting();
+    const out = (await run("chat_list", {})) as { agents: Array<{ id: string; name: string; mac: string; reachable: boolean }> };
     const nova = must(
-      String(await run("chat_list", {}))
-        .split("\n")
-        .find((l) => l.includes(NOVA)),
+      out.agents.find((a) => a.id === NOVA),
       "Nova's row",
     );
-    expect(nova).toContain("Nova");
-    expect(nova).toContain("laptop");
-    expect(nova).toContain("out of reach");
-    const filtered = String(await run("chat_list", { filter: "BUILD MACHINES" }));
-    expect(filtered).toContain("conv-infra");
-    expect(filtered).not.toContain("conv-site");
+    expect(nova).toMatchObject({ name: "Nova", mac: "laptop", reachable: false });
+    const filtered = (await run("chat_list", { filter: "BUILD MACHINES" })) as { chats: Array<{ conversation_id: string }> };
+    expect(filtered.chats.map((c) => c.conversation_id)).toContain("conv-infra");
+    expect(filtered.chats.map((c) => c.conversation_id)).not.toContain("conv-site");
   });
 
   test("suggestion_create for an existing chat stores a pending suggestion on the calling chat and returns its id", async () => {
@@ -390,10 +397,17 @@ describe("chat_list and the suggestion tools", () => {
     expect(must(tools.get("chat_message"), "chat_message").description).toMatch(/suggestion_create instead/);
   });
 
-  test("chat_list names this chat's links and which way each goes", async () => {
-    const out = String(await messaging().run("chat_list", {}));
-    expect(out).toContain("This chat's links");
-    expect(out).toContain('conv-infra "infra" (agent agent-local-friday): both ways');
+  test("chat_list includes this chat's links and which way each goes", async () => {
+    const out = (await messaging().run("chat_list", {})) as {
+      links: Array<{ agent_id: string; conversation_id: string; title: string | null; direction: string }>;
+    };
+    expect(out.links).toContainEqual({
+      agent_id: FRIDAY,
+      conversation_id: "conv-infra",
+      title: "infra",
+      direction: "both_ways",
+      expires_at: null,
+    });
   });
 
   test("both only read, so no mode asks; suggestion_create says when to suggest", () => {

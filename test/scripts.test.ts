@@ -37,7 +37,7 @@ async function daemon(opts: { sandbox?: CodemodeSandbox; timeLimitMs?: number; f
   const sandbox = opts.sandbox ?? scriptSandbox();
   const scripts = scriptExtensions(sandbox, opts.timeLimitMs, opts.strangerText);
   const mods = new ModRegistry(() => {});
-  for (const e of [CodingTools, fileToolsExtension(), subagentExtension(scripts), ...scripts]) mods.registry.install(e);
+  for (const e of [CodingTools, fileToolsExtension(), subagentExtension(), ...scripts]) mods.registry.install(e);
   const echo = opts.echo ?? { calls: [] };
   await mods.load({
     name: "echo",
@@ -156,7 +156,7 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     ]);
     await run(d, owner, "check");
     const [result] = await scriptResults(d, owner);
-    expect(result).toContain("edit find google_echo grep ls read write|tools.bash does not exist|undefined|undefined");
+    expect(result).toContain("edit find google_echo grep read write|tools.bash does not exist|undefined|undefined");
   });
 
   test("a script reads a file in the chat's folder and gets a typed tool's value as an object", async () => {
@@ -266,7 +266,7 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     expect((await spinning).ok).toBe(false);
   });
 
-  test("R1: a helper has no script tool, and a chat with a fixed tool list (a background pass's) gets no script section", async () => {
+  test("R1: a helper can run scripts too while still barred from nested subagents, and a fixed-tool-list pass gets no script section", async () => {
     const d = await daemon();
     const dir = folder();
     const owner = await chatOf(d, OWNER, dir);
@@ -279,8 +279,8 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     await run(d, owner, "ask a helper");
     const [parent, helper] = sent;
     expect(parent).toContain(`"name":"${SCRIPT_TOOL}"`);
-    expect(helper).not.toContain(`"name":"${SCRIPT_TOOL}"`);
-    expect(helper).not.toContain("<codemode>");
+    expect(helper).toContain(`"name":"${SCRIPT_TOOL}"`);
+    expect(helper).not.toContain('"name":"subagent"');
 
     const read = d.mods.registry
       .snapshot()

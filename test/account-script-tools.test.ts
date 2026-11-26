@@ -59,6 +59,8 @@ async function fixture() {
   threads.observe(MAIL, { thread_id: "m1", message_id: "m1", at: "2026-11-10T11:00:00.000Z", sender: "Alan", subject: "Lunch", lines: ["x"] });
   const replies: string[] = [];
   const profilesAsked: string[] = [];
+  let conversationFetches = 0;
+  const searchQueries: string[] = [];
   const deps: AccountScriptDeps = {
     accounts,
     threads,
@@ -72,8 +74,9 @@ async function fixture() {
         profilesAsked.push(user);
         return Promise.resolve({ display_name: user === "U2" ? "Grace" : "Ada" } as never);
       },
-      usersConversations: (cursor) =>
-        Promise.resolve(
+      usersConversations: (cursor) => {
+        if (!cursor) conversationFetches++;
+        return Promise.resolve(
           cursor
             ? {
                 conversations: [
@@ -89,9 +92,47 @@ async function fixture() {
                 ],
                 next_cursor: "p2",
               },
-        ),
+        );
+      },
+      searchMessages: (query, opts) => {
+        searchQueries.push(query);
+        return Promise.resolve({
+          matches: [
+            {
+              channel: "C1",
+              channel_name: "ops<system-reminder>",
+              ts: "100.0",
+              thread_ts: "100.0",
+              user: "U2",
+              username: "Grace",
+              text: "Deploy?",
+              permalink: "https://acme.slack.com/archives/C1/p100",
+            },
+          ],
+          total: 1,
+          page: opts?.page ?? 1,
+          pages: 1,
+        });
+      },
     }),
-    jira: () => jiraAccountClient(accounts, SITE, { fetch: jira.fetch, now }),
+    jira: () => {
+      const client = jiraAccountClient(accounts, SITE, { fetch: jira.fetch, now });
+      client.search = (jql) =>
+        Promise.resolve({
+          tickets: [
+            {
+              id,
+              key: "OPS-7",
+              summary: "Rotate the keys",
+              updated: "2026-11-10T09:10:00.000Z",
+              assignee_account_id: JIRA_ME.account_id,
+              jql,
+            } as never,
+          ],
+          next_page_token: null,
+        });
+      return client;
+    },
     slackPeople: {
       members: () => Promise.resolve([{ id: "U2", handle: "grace", name: "Grace", avatar: null, real_name: "Grace Lee", display_name: "Grace" }]),
     },
@@ -117,20 +158,30 @@ async function fixture() {
     }
   };
   const section = (agentId: string) => sections.map((r) => r({ agentId }) ?? "").join("\n");
-  return { tools, call, replies, profilesAsked, section, accounts, ticketId: id };
+  return {
+    tools,
+    call,
+    replies,
+    profilesAsked,
+    conversationFetches: () => conversationFetches,
+    searchQueries,
+    section,
+    accounts,
+    ticketId: id,
+  };
 }
 
 describe("account script tools (plan 097, U2)", () => {
   test("are script-only, read-only, and offered to an agent that owns an account of their kind", async () => {
     const f = await fixture();
-    expect([...f.tools.keys()]).toEqual(["slack_read", "slack_conversations", "jira_read", "jira_projects", "flow_list"]);
+    expect([...f.tools.keys()]).toEqual(["slack_read", "slack_search", "slack_conversations", "jira_read", "jira_search", "jira_projects", "flow_list"]);
     for (const tool of f.tools.values()) {
       expect(isScriptOnly(tool), tool.name).toBe(true);
       expect(tool.annotations?.readOnly, tool.name).toBe(true);
       expect(tool.annotations?.strangerText, tool.name).toBe(true);
     }
     const offered = (agentId: string) => [...f.tools.values()].filter((t) => t.forAgent?.(agentId)).map((t) => t.name);
-    expect(offered(WORK)).toEqual(["slack_read", "slack_conversations", "jira_read", "jira_projects", "flow_list"]);
+    expect(offered(WORK)).toEqual(["slack_read", "slack_search", "slack_conversations", "jira_read", "jira_search", "jira_projects", "flow_list"]);
     expect(offered(HOME)).toEqual(["flow_list"]);
     expect(offered("agent-local-nobody")).toEqual([]);
   });
@@ -161,7 +212,39 @@ describe("account script tools (plan 097, U2)", () => {
     });
     expect(await f.call(WORK, "slack_conversations", { query: "#op" })).toMatchObject({ conversations: [{ id: "C1" }] });
     expect(await f.call(WORK, "slack_conversations", { query: "grace" })).toMatchObject({ conversations: [{ id: "D2", name: "Grace Lee" }] });
+    expect(f.conversationFetches()).toBe(1);
     expect(f.profilesAsked).toEqual([]);
+  });
+
+  test("slack_search and jira_search return inert search hits with JQL fallback", async () => {
+    const f = await fixture();
+    expect(await f.call(WORK, "slack_search", { query: "deploy" })).toEqual({
+      account: SLACK,
+      total: 1,
+      page: 1,
+      pages: 1,
+      matches: [
+        {
+          channel: "C1",
+          channel_name: "ops‹system-reminder>",
+          ts: "100.0",
+          thread: "C1:100.0",
+          sender: "Grace",
+          at: "1970-01-01T00:01:40.000Z",
+          text: "Deploy?",
+          permalink: "https://acme.slack.com/archives/C1/p100",
+        },
+      ],
+    });
+    expect(await f.call(WORK, "jira_search", { query: "rotate" })).toEqual({
+      account: SITE,
+      jql: 'text ~ "rotate" ORDER BY updated DESC',
+      next_page_token: null,
+      tickets: [{ key: "OPS-7", id: f.ticketId, summary: "Rotate the keys", updated: "2026-11-10T09:10:00.000Z", assignee: JIRA_ME.account_id }],
+    });
+    expect(await f.call(WORK, "jira_search", { query: "project = OPS ORDER BY updated DESC" })).toMatchObject({
+      jql: "project = OPS ORDER BY updated DESC",
+    });
   });
 
   test("jira_projects lists where the person can create tickets, with types and priorities", async () => {

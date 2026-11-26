@@ -41,7 +41,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     fileToolsExtension(),
     memoryExtension(deps.backendDir),
     skillsExtension(deps.backendDir),
-    subagentExtension(deps.scripts),
+    subagentExtension(),
     webSearchExtension(),
     backgroundExtension(deps.background),
     scheduleExtension(deps.schedules),

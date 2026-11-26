@@ -76,7 +76,7 @@ describe("the permission modes", () => {
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
-    for (const name of ["chat_list", "suggestion_create"]) expect(asks("strict", name, {}, {})).toBe(false);
+    for (const name of ["chat_list", "suggestion_create", "message_propose", "ticket_propose"]) expect(asks("strict", name, {}, {})).toBe(false);
     expect(asks("strict", "chat_message", {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
   });

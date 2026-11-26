@@ -222,18 +222,25 @@ describe("an agent's memory", () => {
       await store.setAgent({ id: agentId, name: "Ada" }, ctx);
       const model = { provider: faux.provider.id, modelId: faux.getModel().id };
       faux.setResponses([
-        fauxAssistantMessage(fauxToolCall("memory_delete", { path: "old.md", message: "Drop the stale note" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_write", { path: "old.md", content: null, message: "Drop the stale note" }), { stopReason: "toolUse" }),
         fauxAssistantMessage("done"),
-        fauxAssistantMessage(fauxToolCall("memory_delete", { path: "older.md" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_write", { path: "older.md", content: null }), { stopReason: "toolUse" }),
         fauxAssistantMessage("done"),
+        fauxAssistantMessage(fauxToolCall("memory_search", { query: "kept" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage("searched"),
       ]);
+      await editMemoryFile(dir, agentId, "kept.md", "We kept deployment Fridays.\n");
       const doctor = await store.createChat(`doctor-${agentId}`, { hidden: true, agent: { model } }, ctx);
       await (await doctor.submit({ type: "input", content: "review" }, ctx)).wait(ctx);
       const mine = await store.createChat("c", { agent: { model } }, ctx);
       await (await mine.submit({ type: "input", content: "forget older" }, ctx)).wait(ctx);
+      await (await mine.submit({ type: "input", content: "find kept" }, ctx)).wait(ctx);
       const root = memoryRoot(dir, agentId);
       expect(existsSync(join(root, "old.md")) || existsSync(join(root, "older.md"))).toBe(false);
       expect(log(root).slice(0, 2)).toEqual(["Ada|Remove older.md", "Doctor|Drop the stale note"]);
+      const results = (await store.entries(mine, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
+      expect(results.at(-1)).toContain("kept.md");
+      expect(results.at(-1)).toContain("deployment Fridays");
       await store.close(ctx);
     } finally {
       rmSync(dir, { recursive: true, force: true });

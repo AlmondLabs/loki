@@ -46,24 +46,22 @@ describe("the built-in tools", () => {
           "grep",
           "history_read",
           "history_search",
-          "ls",
-          "memory_delete",
           "memory_edit",
           "memory_read",
+          "memory_search",
           "memory_write",
           "read",
           "schedule_create",
           "schedule_delete",
           "schedule_list",
           "subagent",
+          "web_fetch",
           "web_search",
           "write",
         ].sort(),
       );
       const scriptsOnly = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.callers?.includes("model") === false);
-      expect(scriptsOnly.map((t) => t.name).sort()).toEqual(
-        ["find", "grep", "history_read", "history_search", "ls", "schedule_create", "schedule_delete", "schedule_list"].sort(),
-      );
+      expect(scriptsOnly.map((t) => t.name).sort()).toEqual(["history_read", "history_search", "schedule_create", "schedule_delete", "schedule_list"].sort());
       const deferred = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.deferred);
       expect(deferred.map((t) => t.name)).toEqual(["changes_read"]);
     } finally {

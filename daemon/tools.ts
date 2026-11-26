@@ -20,7 +20,7 @@ async function folderOf(api: ToolExecutionApi, context: Context): Promise<string
 
 const at = (cwd: string, p: unknown) => (typeof p === "string" && p ? (isAbsolute(p) ? p : resolve(cwd, p)) : cwd);
 
-async function walk(dir: string, limit: number, followLinks: boolean, out: string[] = []): Promise<string[]> {
+async function walk(dir: string, limit: number, followLinks: boolean, maxDepth = Infinity, depth = 1, out: string[] = []): Promise<string[]> {
   let names: string[];
   try {
     names = await readdir(dir);
@@ -38,8 +38,12 @@ async function walk(dir: string, limit: number, followLinks: boolean, out: strin
       continue;
     }
     if (st.isSymbolicLink()) continue;
-    if (st.isDirectory()) await walk(full, limit, followLinks, out);
-    else out.push(full);
+    if (st.isDirectory()) {
+      if (depth >= maxDepth) out.push(`${full}/`);
+      else await walk(full, limit, followLinks, maxDepth, depth + 1, out);
+    } else {
+      out.push(full);
+    }
   }
   return out;
 }
@@ -59,15 +63,18 @@ export function globTest(glob: string): (rel: string) => boolean {
     .replace(/\/$/, "")
     .replace(/\(\?:\.\*\/\)\?$/, ".*");
   const re = new RegExp(`^${source}$`);
-  return glob.includes("/") ? (rel) => re.test(rel) : (rel) => re.test(rel.split("/").pop() ?? rel);
+  return glob.includes("/")
+    ? (rel) => re.test(rel.replace(/\/$/, ""))
+    : (rel) => {
+        const clean = rel.replace(/\/$/, "");
+        return re.test(clean.split("/").pop() ?? clean);
+      };
 }
 
 const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 
-const SCRIPTS_ONLY = ["tools"] as const;
-
 export function fileToolsExtension(): Extension {
-  return defineExtension({ name: "loki.files", tools: fileTools({ callers: SCRIPTS_ONLY, followLinks: true }) });
+  return defineExtension({ name: "loki.files", tools: fileTools({ followLinks: true }) });
 }
 
 export function fileTools({ callers, followLinks }: { callers?: ReadonlyArray<"model" | "tools">; followLinks: boolean }): KindedTool[] {
@@ -76,30 +83,29 @@ export function fileTools({ callers, followLinks }: { callers?: ReadonlyArray<"m
     withKind(
       "read",
       defineTool({
-        name: "ls",
-        ...who,
-        description: "List a folder: its files and folders (folders end with /).",
-        parameters: { type: "object", properties: { path: { type: "string", description: "Default: the chat's folder" } } } as never,
-        execute: async (args, api, context) => {
-          const dir = at(await folderOf(api, context), (args as { path?: string }).path);
-          const kept = (await readdir(dir)).filter((n) => !SKIP.has(n)).sort();
-          const names = await Promise.all(kept.map(async (n) => ((await stat(join(dir, n)).catch(() => null))?.isDirectory() ? `${n}/` : n)));
-          return text(names.length ? names.join("\n") : "(empty)");
-        },
-      }),
-    ),
-    withKind(
-      "read",
-      defineTool({
         name: "find",
         ...who,
-        description: "Find files by a glob such as **/*.ts or README*, under a folder.",
-        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] } as never,
+        description: "Find files by an optional glob (default *) such as **/*.ts or README*, under a folder; pass max_depth: 1 to list direct children.",
+        parameters: {
+          type: "object",
+          properties: {
+            pattern: { type: "string", description: "Glob pattern such as **/*.ts (default: *)" },
+            path: { type: "string", description: "Default: the chat's folder" },
+            max_depth: { type: "integer", description: "Maximum folder depth (1 lists only direct children)." },
+          },
+        } as never,
         execute: async (args, api, context) => {
-          const a = args as { pattern: string; path?: string };
+          const a = args as { pattern?: string; path?: string; max_depth?: number };
           const root = at(await folderOf(api, context), a.path);
-          const test = globTest(a.pattern);
-          const hits = (await walk(root, 20_000, followLinks)).map((f) => relative(root, f).split(sep).join("/")).filter(test);
+          const pattern = typeof a.pattern === "string" && a.pattern.trim() ? a.pattern : "*";
+          const maxDepth = typeof a.max_depth === "number" && Number.isInteger(a.max_depth) && a.max_depth >= 1 ? a.max_depth : Infinity;
+          const test = globTest(pattern);
+          const hits = (await walk(root, 20_000, followLinks, maxDepth))
+            .map((f) => {
+              const rel = relative(root, f).split(sep).join("/");
+              return f.endsWith("/") && rel ? `${rel}/` : rel;
+            })
+            .filter(test);
           return text(hits.length ? hits.slice(0, LIMIT).join("\n") + (hits.length > LIMIT ? `\n… and ${hits.length - LIMIT} more` : "") : "no files match");
         },
       }),

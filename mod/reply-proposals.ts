@@ -930,6 +930,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
 
   const propose: LokiTool = {
     name: "reply_propose",
+    annotations: { readOnly: true },
     forAgent,
     description:
       "Propose a reply in a thread of an account you own: one the person handed to this chat, or one a script found " +
@@ -993,6 +994,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
   const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(argText).filter(Boolean) : []);
   const startNew: LokiTool = {
     name: "message_propose",
+    annotations: { readOnly: true },
     forAgent,
     description:
       "Propose a new conversation from an account you own: a new email from a Gmail account (`to`, `cc`, `subject`), or a " +
@@ -1053,6 +1055,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
 
   const newTicket: LokiTool = {
     name: "ticket_propose",
+    annotations: { readOnly: true },
     forAgent: (agentId) => deps.accounts.ownedBy(agentId).some((a) => a.provider === "jira"),
     description:
       "Propose a new Jira ticket on a site you own: `project` (its key or name) and `type` (an issue type of it, as jira_projects lists), a " +

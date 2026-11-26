@@ -495,7 +495,7 @@ export class PassRunner {
         },
         left,
       );
-      const changes = answer.toolCalls.filter((t) => t !== "memory_read" && MEMORY_TOOLS.includes(t)).length;
+      const changes = answer.toolCalls.filter((t) => t !== "memory_read" && t !== "memory_search" && MEMORY_TOOLS.includes(t)).length;
       const report = answer.text || (changes ? `${changes} change${changes === 1 ? "" : "s"} to memory` : "memory looks healthy");
       return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars, engine: engineName(on) });
     } catch (error) {

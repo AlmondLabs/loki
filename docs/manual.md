@@ -176,6 +176,7 @@ or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's. Kee
 and `~/.loki/state/migrations.json`: they are how loki tells a folder 2026.1116 opened from an older one, and
 without them it does not start. The other files those steps left, such as the `backup-letta-<date>` folders, are no
 longer read and can be deleted.
+(Later updates moved `find` and `grep` back to the model's tools too, while folding `ls` into `find`'s `max_depth` and `memory_delete` into writing `null` with `memory_write`.)
 
 ### Uninstall
 
@@ -633,7 +634,7 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 - keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget; your own gestures on the canvas show as one line before the message they went with ("You moved 2 widgets", or "You changed…" when they were not all moves), which opens to the list
 - keeps pins in `~/.loki/state/pins.json`
-- tools, for scripts: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes, which every chat's prompt explains.
+- tools, for scripts: `canvas_read`, `canvas_focus` (one widget, or several framed together). Rendering and authoring are file writes, which every chat's prompt explains.
 - keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` (for scripts)
   and `suggestion_create` (see [Suggestions](#suggestions))
 
@@ -800,11 +801,11 @@ fetches it the first time), so it needs a `claude` that is signed in (`claude /l
   with none), in the agent's memory folder, and with every permission Claude Code asks for refused; each run spends
   a little of that allowance. **Agents › Reflection › Without a provider** turns this off (**wait**), and they then
   wait until a provider is set up;
-- the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
+- the agent has loki's own tools, as the **loki** MCP server: its memory (read, search, write, edit and delete via `null` content, each change
   committed as in loki's chats), questions in loki's card, the suggestion tools, `advisor_consult` (see
   [Advisor](#advisor); the advisor itself runs on loki's models), any your mods add, and loki's
   `script` tool, through which it reaches its schedules, the canvas, `chat_list` and its history (see
-  [Scripts](#scripts)). Claude Code's own tools cover files, commands, web search and subagents;
+  [Scripts](#scripts)). Claude Code's own tools cover files, commands, web search/fetch and subagents;
 - Claude Code compacts its context by its own rules, and `/compact` is Claude Code's. Every turn stays in loki's
   history all the same, and the agent can search the whole chat (`history_search`) and read any part of it back
   (`history_read`), with a script, so what a compaction dropped, or a session that couldn't be picked up again, isn't lost to it;
@@ -1601,8 +1602,7 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 
 Every agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool. A script
 runs in a sandbox with no files, network or programs of its own; it reaches anything only by calling the tools only
-scripts may call and loki's file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have:
-the model uses `bash`), never `bash`. A script's first line may set its limits (`// @options: {"timeout_ms": 60000}`),
+scripts may call and loki's file tools (`read`, `write`, `edit`, `find` including `max_depth` directory listings, and `grep`, which both the model and scripts have), never `bash`. A script's first line may set its limits (`// @options: {"timeout_ms": 60000}`),
 and the next says in a few words what it does (`// @description: Count open PRs`), which titles its step. The tools only
 scripts may call are:
 
@@ -1633,8 +1633,8 @@ and a value one script stores is not kept for the next.
    delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
    use the chat's folder, and transfers report a checksum. Every call checks that the account is the agent's, on this
    Mac, connected, and allowed that service.
-4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `jira_read` a ticket with its comments and field
-   changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
+4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `slack_search` searches Slack workspace messages, `jira_read` reads a ticket with its comments and field
+   changes, `jira_search` searches Jira issues by JQL or keywords, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
    subject, time and the chat it went to. `people_find` finds people in one of the agent's accounts by name, with the
    address, Slack handle or Jira account id that names each one, so the agent can mention the right person, and
    `slack_conversations` lists the channels and DMs you are in, with the ids to post in them, and `jira_projects` the

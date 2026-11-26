@@ -15,7 +15,7 @@ const run = promisify(execFile);
 const FILE_LIMIT = 64 * 1024;
 const LISTED = 200;
 
-export const MEMORY_TOOLS = ["memory_read", "memory_write", "memory_edit", "memory_delete"];
+export const MEMORY_TOOLS = ["memory_read", "memory_search", "memory_write", "memory_edit"];
 
 export const isReflectionChat = (chatId: string): boolean => chatId.startsWith("reflection-");
 export const isDoctorChat = (chatId: string): boolean => chatId.startsWith("doctor-");
@@ -273,17 +273,82 @@ export function memoryTools(backendDir: string): ChatTool[] {
     },
     {
       kind: "read",
-      name: "memory_write",
-      description: "Write a whole memory file (created if new); the change is committed with your message.",
+      name: "memory_search",
+      description: "Search across your memory files for lines matching `query` (case-insensitive), optionally restricted to a subfolder `path`.",
       parameters: {
         type: "object",
-        properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
+        properties: {
+          query: { type: "string", description: "Words to find in memory files" },
+          path: { type: "string", description: "Optional folder prefix inside memory" },
+        },
+        required: ["query"],
+      },
+      run: async (args, call, context) => {
+        const a = args as { query?: string; path?: string };
+        const needle = typeof a.query === "string" ? a.query.trim().toLowerCase() : "";
+        if (!needle) throw new Error("memory_search needs query");
+        const { root } = await who(call.read, call.conversationId, context);
+        if (!existsSync(root)) return { output: [{ type: "text", text: `No memory files match "${a.query?.trim() ?? ""}".` }] };
+        const prefix = typeof a.path === "string" && a.path.trim() ? relative(root, inside(root, a.path.trim())).split(sep).join("/") : null;
+        const all = files(root).filter((f) => !f.startsWith("skills/") && (!prefix || f === prefix || f.startsWith(`${prefix}/`)));
+        const hits: string[] = [];
+        let found = 0;
+        const MAX_HITS = 20;
+        for (const f of all) {
+          const lines = readFileSync(join(root, f), "utf8").split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line.toLowerCase().includes(needle)) continue;
+            found++;
+            if (hits.length < MAX_HITS) {
+              const trimmed = line.trim();
+              hits.push(`${f}:${i + 1}: ${trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed}`);
+            }
+          }
+        }
+        if (!found) return { output: [{ type: "text", text: `No memory files match "${a.query?.trim() ?? ""}".` }] };
+        const more = found > hits.length ? ` (first ${hits.length} of ${found} shown)` : "";
+        return { output: [{ type: "text", text: `${found} ${found === 1 ? "match" : "matches"} for "${a.query?.trim() ?? ""}"${more}:\n${hits.join("\n")}` }] };
+      },
+    },
+    {
+      kind: "read",
+      name: "memory_write",
+      description:
+        "Write a whole memory file (created if new), or pass content: null to delete a file that is no longer needed; the change is committed with your message and can be undone.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+          content: { type: ["string", "null"], description: "New file contents, or null to delete the file." },
+          message: { type: "string", description: "Why, in a few words" },
+        },
         required: ["path", "content"],
       },
       run: async (args, call, context) => {
-        const a = args as { path: string; content: string; message?: string };
+        const a = args as { path: string; content: string | null; message?: string };
         const { root, author } = await who(call.read, call.conversationId, context);
         const full = inside(root, a.path);
+        if (a.content === null) {
+          if (!existsSync(full)) throw new Error(`no memory file ${a.path}`);
+          await serial(root, async () => {
+            await git(root, "rm", "--quiet", "--", full);
+            await git(
+              root,
+              "-c",
+              `user.name=${author.name}`,
+              "-c",
+              `user.email=${author.email}`,
+              "commit",
+              "--quiet",
+              "-m",
+              a.message?.trim() || `Remove ${a.path}`,
+              "--",
+              full,
+            );
+          });
+          return { output: [{ type: "text", text: `deleted ${a.path}` }] };
+        }
         mkdirSync(dirname(full), { recursive: true });
         writeFileSync(full, a.content);
         await commit(root, full, a.message?.trim() || `Update ${a.path}`, author);
@@ -311,40 +376,6 @@ export function memoryTools(backendDir: string): ChatTool[] {
         writeFileSync(full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
         await commit(root, full, a.message?.trim() || `Edit ${a.path}`, author);
         return { output: [{ type: "text", text: `edited ${a.path}` }] };
-      },
-    },
-    {
-      kind: "read",
-      name: "memory_delete",
-      description:
-        "Delete a memory file that is no longer needed (merged into another, or no longer true); the change is committed with your message and can be undone.",
-      parameters: {
-        type: "object",
-        properties: { path: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
-        required: ["path"],
-      },
-      run: async (args, call, context) => {
-        const a = args as { path: string; message?: string };
-        const { root, author } = await who(call.read, call.conversationId, context);
-        const full = inside(root, a.path);
-        if (!existsSync(full)) throw new Error(`no memory file ${a.path}`);
-        await serial(root, async () => {
-          await git(root, "rm", "--quiet", "--", full);
-          await git(
-            root,
-            "-c",
-            `user.name=${author.name}`,
-            "-c",
-            `user.email=${author.email}`,
-            "commit",
-            "--quiet",
-            "-m",
-            a.message?.trim() || `Remove ${a.path}`,
-            "--",
-            full,
-          );
-        });
-        return { output: [{ type: "text", text: `deleted ${a.path}` }] };
       },
     },
   ];

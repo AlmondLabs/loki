@@ -696,6 +696,7 @@ describe("the only things the client writes are the person's comment, its files 
             "attachments",
             "thumbnail",
             "searchUsers",
+            "search",
             "projects",
             "priorities",
             "formFields",
