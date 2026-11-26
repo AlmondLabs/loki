@@ -20,7 +20,7 @@ export const BUDGETS: Readonly<Record<string, Partial<Record<Os, number>>>> = {
   "bun run dist --dir": { Linux: 120, macOS: 120, Windows: 180 },
   "bun run smoke --electron": { Linux: 60, macOS: 60, Windows: 90 },
   "xvfb-run -a bun run smoke --electron": { Linux: 60 },
-  install: { Linux: 30, macOS: 30, Windows: 30 },
+  install: { Linux: 30, macOS: 30, Windows: 45 },
 };
 
 const SHARD_FLAG = / --shard=\d+\/\d+$/;

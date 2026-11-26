@@ -247,6 +247,90 @@ function useOutsideReplyController({
 
 type ReplyController = ReturnType<typeof useOutsideReplyController>;
 
+function replyFieldBindings(
+  ctrl: ReplyController,
+  inputRef: RefObject<HTMLTextAreaElement | null> | undefined,
+  onTyping: ((typing: boolean) => void) | undefined,
+) {
+  const { ownRef, text, off, meta, mentions, setText, keys } = ctrl;
+  return {
+    ref: (el: HTMLTextAreaElement | null) => {
+      ownRef.current = el;
+      if (inputRef) inputRef.current = el;
+    },
+    value: text,
+    disabled: off,
+    "aria-label": meta.hint,
+    ...mentions.field,
+    onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
+      setText(e.target.value);
+      mentions.onCaret(e.target);
+    },
+    onSelect: (e: SyntheticEvent<HTMLTextAreaElement>) => mentions.onCaret(e.currentTarget),
+    onKeyDown: keys,
+    onFocus: () => onTyping?.(true),
+    onBlur: () => {
+      mentions.onCaret(null);
+      onTyping?.(false);
+    },
+  };
+}
+
+function itemReplyBoxProps({
+  ctrl,
+  facts,
+  compose,
+  quote,
+  inputRef,
+  onTyping,
+  actions,
+}: {
+  ctrl: ReplyController;
+  facts: OutsideFacts;
+  compose: MailCompose | null;
+  quote: string | null;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
+  onTyping?: (typing: boolean) => void;
+  actions: ReactNode;
+}) {
+  const { meta, shown, mentions, off, text, mail, busy, error, setMail, lineOpen, setLineOpen, send, discard } = ctrl;
+  const fieldBase = replyFieldBindings(ctrl, inputRef, onTyping);
+  const placeholder = meta.isMail ? meta.hint : facts.provider === "jira" ? "write a comment…" : "write a reply…";
+  return {
+    isMail: meta.isMail,
+    target: meta.isMail ? (
+      <MailAddressLine
+        compose={compose}
+        value={mail}
+        onChange={setMail}
+        open={lineOpen}
+        onOpen={setLineOpen}
+        onTyping={onTyping}
+        touch={false}
+        disabled={off}
+        full
+      />
+    ) : (
+      meta.hint
+    ),
+    mentions: mentions.list,
+    field: { ...fieldBase, placeholder },
+    signature:
+      meta.isMail && compose && meta.hasSignature ? { text: meta.signature, toggle: () => shown && setMail({ ...shown, signature: !meta.signature }) } : null,
+    quote: meta.isMail && compose && quote ? { text: quote, forward: shown?.mode === "forward" } : null,
+    send: {
+      busy,
+      disabled: off || !text.trim(),
+      title: meta.nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider],
+      keys: meta.sendKey ? formatKeys(meta.sendKey) : keyFor("chat.send"),
+      onSend: () => void send(),
+    },
+    discard: meta.isMail ? { disabled: off || (!text && mail === null), onDiscard: discard } : null,
+    error,
+    actions: meta.isMail ? null : actions,
+  };
+}
+
 function OutsideItemReply({
   ctrl,
   facts,
@@ -266,68 +350,11 @@ function OutsideItemReply({
   actions: ReactNode;
   notSent: ReactNode;
 }) {
-  const { meta, shown, mentions, off, text, mail, busy, error, setText, setMail, lineOpen, setLineOpen, send, keys, discard, ownRef } = ctrl;
-  const target = meta.isMail ? (
-    <MailAddressLine
-      compose={compose}
-      value={mail}
-      onChange={setMail}
-      open={lineOpen}
-      onOpen={setLineOpen}
-      onTyping={onTyping}
-      touch={false}
-      disabled={off}
-      full
-    />
-  ) : (
-    meta.hint
-  );
+  const boxProps = itemReplyBoxProps({ ctrl, facts, compose, quote, inputRef, onTyping, actions });
   return (
     <>
       {notSent}
-      <ItemReplyBox
-        isMail={meta.isMail}
-        target={target}
-        mentions={mentions.list}
-        field={{
-          ref: (el: HTMLTextAreaElement | null) => {
-            ownRef.current = el;
-            if (inputRef) inputRef.current = el;
-          },
-          value: text,
-          disabled: off,
-          placeholder: meta.isMail ? meta.hint : facts.provider === "jira" ? "write a comment…" : "write a reply…",
-          "aria-label": meta.hint,
-          ...mentions.field,
-          onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
-            setText(e.target.value);
-            mentions.onCaret(e.target);
-          },
-          onSelect: (e: SyntheticEvent<HTMLTextAreaElement>) => mentions.onCaret(e.currentTarget),
-          onKeyDown: keys,
-          onFocus: () => onTyping?.(true),
-          onBlur: () => {
-            mentions.onCaret(null);
-            onTyping?.(false);
-          },
-        }}
-        signature={
-          meta.isMail && compose && meta.hasSignature
-            ? { text: meta.signature, toggle: () => shown && setMail({ ...shown, signature: !meta.signature }) }
-            : null
-        }
-        quote={meta.isMail && compose && quote ? { text: quote, forward: shown?.mode === "forward" } : null}
-        send={{
-          busy,
-          disabled: off || !text.trim(),
-          title: meta.nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider],
-          keys: meta.sendKey ? formatKeys(meta.sendKey) : keyFor("chat.send"),
-          onSend: () => void send(),
-        }}
-        discard={meta.isMail ? { disabled: off || (!text && mail === null), onDiscard: discard } : null}
-        error={error}
-        actions={meta.isMail ? null : actions}
-      />
+      <ItemReplyBox {...boxProps} />
     </>
   );
 }
@@ -384,6 +411,22 @@ function MailReplyExtras({ ctrl, quote, touch }: { ctrl: ReplyController; quote:
   );
 }
 
+function footerModel(ctrl: ReplyController, facts: OutsideFacts, touch: boolean, onUndo: (() => void) | undefined) {
+  const { meta, off, text, mail, busy, error } = ctrl;
+  return {
+    framed: meta.framed,
+    size: touch ? ("touch" as const) : ("sm" as const),
+    sendDisabled: off || !text.trim(),
+    sendKbd: touch ? undefined : meta.sendKey ? formatKeys(meta.sendKey) : keyFor("chat.send"),
+    sendTitle: touch ? "Send it as you; the card stays" : meta.nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider],
+    sendText: busy ? "Sending…" : "Send",
+    showUndo: touch && busy && !!onUndo,
+    showNote: touch && !error && !busy,
+    framedError: meta.framed ? error : null,
+    discardDisabled: off || (!text && mail === null),
+  };
+}
+
 function OutsideReplyFooter({
   ctrl,
   facts,
@@ -397,37 +440,29 @@ function OutsideReplyFooter({
   onUndo?: () => void;
   actions: ReactNode;
 }) {
-  const { meta, off, text, mail, busy, error, send, discard } = ctrl;
-  const sendTitle = touch ? "Send it as you; the card stays" : meta.nobody ? "Add someone to send it to first" : SEND_TITLE[facts.provider];
+  const model = footerModel(ctrl, facts, touch, onUndo);
   return (
-    <div className={cn(meta.framed && "loki-mail-compose-foot", "flex items-center gap-2")}>
-      <Button
-        size={touch ? "touch" : "sm"}
-        tone="positive"
-        disabled={off || !text.trim()}
-        onClick={() => void send()}
-        kbd={touch ? undefined : meta.sendKey ? formatKeys(meta.sendKey) : keyFor("chat.send")}
-        title={sendTitle}
-      >
-        {busy ? "Sending…" : "Send"}
+    <div className={cn(model.framed && "loki-mail-compose-foot", "flex items-center gap-2")}>
+      <Button size={model.size} tone="positive" disabled={model.sendDisabled} onClick={() => void ctrl.send()} kbd={model.sendKbd} title={model.sendTitle}>
+        {model.sendText}
       </Button>
-      {touch && busy && onUndo && (
+      {model.showUndo && onUndo && (
         <Button size="touch" onClick={onUndo}>
           Undo
         </Button>
       )}
-      {touch && !error && !busy && <Meta wrap>{SEND_NOTE[facts.provider]}</Meta>}
-      {meta.framed && error && (
+      {model.showNote && <Meta wrap>{SEND_NOTE[facts.provider]}</Meta>}
+      {model.framedError && (
         <Meta negative wrap className="flex-1">
-          {error}
+          {model.framedError}
         </Meta>
       )}
-      {meta.framed ? (
+      {model.framed ? (
         <Button
           size="sm"
           bare
-          disabled={off || (!text && mail === null)}
-          onClick={discard}
+          disabled={model.discardDisabled}
+          onClick={ctrl.discard}
           style={{ marginLeft: "auto" }}
           title="Clear the reply and its recipients"
         >
@@ -435,6 +470,77 @@ function OutsideReplyFooter({
         </Button>
       ) : (
         actions
+      )}
+    </div>
+  );
+}
+
+function OutsideReplyComposer({
+  ctrl,
+  facts,
+  compose,
+  quote,
+  inputRef,
+  onTyping,
+  actions,
+  onUndo,
+  touch,
+  folded,
+  notSent,
+}: {
+  ctrl: ReplyController;
+  facts: OutsideFacts;
+  compose: MailCompose | null;
+  quote: string | null;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
+  onTyping?: (typing: boolean) => void;
+  actions: ReactNode;
+  onUndo?: () => void;
+  touch: boolean;
+  folded: boolean;
+  notSent: ReactNode;
+}) {
+  const { meta, off, mail, setMail, lineOpen, setLineOpen, mentions, busy, error } = ctrl;
+  const field = replyFieldBindings(ctrl, inputRef, onTyping);
+  const rows = folded ? 1 : touch ? 4 : 3;
+  return (
+    <div
+      className={meta.framed ? "loki-mail-compose" : undefined}
+      style={meta.framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
+    >
+      {notSent}
+      {meta.isMail && !folded && (
+        <div className={meta.framed ? "loki-mail-compose-head" : undefined}>
+          <MailAddressLine
+            compose={compose}
+            value={mail}
+            onChange={setMail}
+            open={lineOpen}
+            onOpen={setLineOpen}
+            onTyping={onTyping}
+            touch={touch}
+            disabled={off}
+            full={!touch}
+          />
+        </div>
+      )}
+      <div className="flex flex-col" style={{ position: "relative" }}>
+        {mentions.list}
+        <TextArea
+          size={touch ? "touch" : "sm"}
+          bare={meta.framed}
+          className={meta.framed ? "loki-mail-compose-text" : undefined}
+          rows={rows}
+          placeholder={meta.hint}
+          {...field}
+        />
+      </div>
+      {meta.isMail && compose && !folded && <MailReplyExtras ctrl={ctrl} quote={quote} touch={touch} />}
+      {(!folded || busy) && <OutsideReplyFooter ctrl={ctrl} facts={facts} touch={touch} onUndo={onUndo} actions={actions} />}
+      {!meta.framed && error && (
+        <Meta negative wrap>
+          {error}
+        </Meta>
       )}
     </div>
   );
@@ -486,65 +592,20 @@ export function OutsideReply({
       <OutsideItemReply ctrl={ctrl} facts={facts} compose={compose} quote={quote} inputRef={inputRef} onTyping={onTyping} actions={actions} notSent={notSent} />
     );
   }
-  const { meta, off, text, setText, mail, setMail, lineOpen, setLineOpen, mentions, keys, ownRef, busy, error } = ctrl;
   return (
-    <div
-      className={meta.framed ? "loki-mail-compose" : undefined}
-      style={meta.framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
-    >
-      {notSent}
-      {meta.isMail && !folded && (
-        <div className={meta.framed ? "loki-mail-compose-head" : undefined}>
-          <MailAddressLine
-            compose={compose}
-            value={mail}
-            onChange={setMail}
-            open={lineOpen}
-            onOpen={setLineOpen}
-            onTyping={onTyping}
-            touch={touch}
-            disabled={off}
-            full={!touch}
-          />
-        </div>
-      )}
-      <div className="flex flex-col" style={{ position: "relative" }}>
-        {mentions.list}
-        <TextArea
-          ref={(el) => {
-            ownRef.current = el;
-            if (inputRef) inputRef.current = el;
-          }}
-          size={touch ? "touch" : "sm"}
-          bare={meta.framed}
-          className={meta.framed ? "loki-mail-compose-text" : undefined}
-          value={text}
-          rows={folded ? 1 : touch ? 4 : 3}
-          disabled={off}
-          placeholder={meta.hint}
-          aria-label={meta.hint}
-          {...mentions.field}
-          onChange={(e) => {
-            setText(e.target.value);
-            mentions.onCaret(e.target);
-          }}
-          onSelect={(e) => mentions.onCaret(e.currentTarget)}
-          onKeyDown={keys}
-          onFocus={() => onTyping?.(true)}
-          onBlur={() => {
-            mentions.onCaret(null);
-            onTyping?.(false);
-          }}
-        />
-      </div>
-      {meta.isMail && compose && !folded && <MailReplyExtras ctrl={ctrl} quote={quote} touch={touch} />}
-      {(!folded || busy) && <OutsideReplyFooter ctrl={ctrl} facts={facts} touch={touch} onUndo={onUndo} actions={actions} />}
-      {!meta.framed && error && (
-        <Meta negative wrap>
-          {error}
-        </Meta>
-      )}
-    </div>
+    <OutsideReplyComposer
+      ctrl={ctrl}
+      facts={facts}
+      compose={compose}
+      quote={quote}
+      inputRef={inputRef}
+      onTyping={onTyping}
+      actions={actions}
+      onUndo={onUndo}
+      touch={touch}
+      folded={folded}
+      notSent={notSent}
+    />
   );
 }
 

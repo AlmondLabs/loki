@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
 import type {
   EmojiChoice,
   JiraCardTicket,
@@ -314,6 +314,44 @@ function useThreadOpening(item: AttentionItem, hold?: { opened: OpenedThread | n
   return { o, key, threadTs, setOpened, ask, view, newest, steady, tag };
 }
 
+interface ThreadSnapshotRef {
+  item: AttentionItem;
+  source: OutsideThreadSource | null;
+  ask: OutsideWindowAsk;
+  threadTs: string | null;
+  tag: string;
+  view: string;
+  steady: boolean;
+  went: number;
+  sent: SentStandIns;
+  shown: Shown | null;
+}
+
+function loadOutsideThread(latest: ThreadSnapshotRef, reacted: Reacted, setShown: Dispatch<SetStateAction<Shown | null>>): () => void {
+  let live = true;
+  const stop = () => {
+    live = false;
+  };
+  const { item, source, ask, threadTs, tag, view, steady, went, sent, shown } = latest;
+  const read = (more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null;
+  if (steady && shown?.tag === tag && shown.failed === null && shown.window) {
+    const again = refreshAsk(shown.messages, shown.window);
+    const asked = reacted.seq;
+    void (again ? read(again) : null)?.then((out) => {
+      if (!live || typeof out === "string") return;
+      setShown((s) => (s?.tag === tag ? withNewer(s, out, reactedAfter(reacted, asked)) : s));
+      if (out.window?.more_after !== true) sent.settle(went);
+    });
+    return stop;
+  }
+  void (consumePrefetchedRead(source, threadTs, tag) ?? read({}))?.then((out) => {
+    if (!live) return;
+    setShown((now) => applyInitialRead(now, out, view, tag));
+    if (typeof out !== "string") sent.settle(went);
+  });
+  return stop;
+}
+
 export function useOutsideThread(
   item: AttentionItem,
   source: OutsideThreadSource | null,
@@ -321,44 +359,17 @@ export function useOutsideThread(
 ): ThreadState {
   const { o, key, threadTs, setOpened, ask, view, newest, steady, tag } = useThreadOpening(item, hold);
   const [shown, setShown] = useState<Shown | null>(null);
-  const shownRef = useRef<Shown | null>(null);
-  useEffect(() => {
-    shownRef.current = shown;
-  }, [shown]);
   const reacted = useRef<Reacted>({ seq: 0, at: new Map() });
   const tick = useTick(steady && key !== "", REFRESH_MS);
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
-  const fetchThread = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
-  const readCachedOrFresh = useEffectEvent(() => consumePrefetchedRead(source, threadTs, tag) ?? fetchThread({}));
-  const finishWent = useEffectEvent((targetWent: number) => sent.settle(targetWent));
-  const pollNewer = useEffectEvent(() => {
-    const current = shownRef.current;
-    if (!steady || current?.tag !== tag || current.failed !== null || !current.window) return null;
-    const again = refreshAsk(current.messages, current.window);
-    return { pending: again ? fetchThread(again) : null, asked: reacted.current.seq };
+  const latestRef = useRef<ThreadSnapshotRef>({ item, source, ask, threadTs, tag, view, steady, went, sent, shown });
+  useEffect(() => {
+    latestRef.current = { item, source, ask, threadTs, tag, view, steady, went, sent, shown };
   });
   useEffect(() => {
     if (!key) return;
-    let live = true;
-    const stop = () => {
-      live = false;
-    };
-    const newer = pollNewer();
-    if (newer) {
-      void newer.pending?.then((out) => {
-        if (!live || typeof out === "string") return;
-        setShown((s) => (s?.tag === tag ? withNewer(s, out, reactedAfter(reacted.current, newer.asked)) : s));
-        if (out.window?.more_after !== true) finishWent(went);
-      });
-      return stop;
-    }
-    void readCachedOrFresh()?.then((out) => {
-      if (!live) return;
-      setShown((now) => applyInitialRead(now, out, view, tag));
-      if (typeof out !== "string") finishWent(went);
-    });
-    return stop;
+    return loadOutsideThread(latestRef.current, reacted.current, setShown);
   }, [key, tag, view, newest, went, tick]);
   const reacting = useReactControls(item, source, setShown, tag, (messageId) => {
     reacted.current.seq += 1;

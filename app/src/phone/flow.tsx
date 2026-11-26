@@ -18,7 +18,21 @@ import { Sheet } from "../components";
 import { CardActionsSheet } from "./card-actions";
 import { FlowHint, useFlowHint } from "./flow-hint";
 import { EmptyDeck, Reveal, Stack, UndoButton, dragWords } from "./flow-card";
-import { takeSeeds, useDeckWidth, usePass, useReducedMotion, useSwipe, type CardActions, type Deck, type FlowMoves, type SeedsTaken } from "./use-flow-deck";
+import {
+  takeSeeds,
+  useDeckWidth,
+  usePass,
+  useReducedMotion,
+  useSwipe,
+  type CardActions,
+  type CardHandlers,
+  type Deck,
+  type Drag,
+  type FlowMoves,
+  type Leaving,
+  type Release,
+  type SeedsTaken,
+} from "./use-flow-deck";
 
 export { Card, CardConversation, dragWords } from "./flow-card";
 export { takeSeeds, useDeck, type CardActions, type CardModel, type CardView, type Deck, type FlowMoves, type SeedsTaken } from "./use-flow-deck";
@@ -38,6 +52,13 @@ function useFlowFocus(rootRef: RefObject<HTMLDivElement | null>, hasCard: boolea
     if (first || hidden || (a && a !== document.body && a.isConnected)) return;
     rootRef.current?.querySelector<HTMLElement>("[data-phone-heading]")?.focus({ preventScroll: true });
   }, [rootRef, hasCard, hidden]);
+}
+
+function useFlowShown(current: AttentionItem | undefined, currentId: string | null, hidden: boolean, onShown?: (item: AttentionItem) => void): void {
+  const shown = useEffectEvent(() => {
+    if (current && !hidden) onShown?.(current);
+  });
+  useEffect(() => shown(), [currentId, hidden]);
 }
 
 function useFlowInputState(current: AttentionItem | undefined, currentId: string | null, chats: Partial<OutsideSource>) {
@@ -186,6 +207,125 @@ function useFlowGestures({
   return { hint, leaving, undo, refused, said, commit, undoLast, pick, swipe };
 }
 
+function FlowMain({
+  current,
+  available,
+  loaded,
+  banner,
+  running,
+  needYou,
+  deck,
+  laneCards,
+  others,
+  lane,
+  flow,
+  backLabel,
+  onClose,
+  onConnection,
+  deckRef,
+  drag,
+  release,
+  handlers,
+  leaving,
+  refused,
+  width,
+  typed,
+  sending,
+  visible,
+  reduced,
+  chats,
+  card,
+  onOpen,
+  labelList,
+  items,
+  hint,
+  onMore,
+  onTyped,
+  onSending,
+}: {
+  current: AttentionItem | undefined;
+  available: boolean;
+  loaded: boolean;
+  banner?: ReactNode;
+  running: number;
+  needYou: number;
+  deck: Deck;
+  laneCards: AttentionItem[];
+  others: string | null;
+  lane: FlowLane["lane"] | null;
+  flow: FlowLane | undefined;
+  backLabel: string;
+  onClose: () => void;
+  onConnection: () => void;
+  deckRef: RefObject<HTMLDivElement | null>;
+  drag: Drag | null;
+  release: Release | null;
+  handlers: CardHandlers;
+  leaving: Leaving | null;
+  refused: boolean;
+  width: number;
+  typed: boolean;
+  sending: boolean;
+  visible: AttentionItem[];
+  reduced: boolean;
+  chats: ChatViews & Partial<HandoffSource> & Partial<OutsideSource>;
+  card: CardActions;
+  onOpen: (item: AttentionItem) => void;
+  labelList: readonly LabelView[] | null;
+  items: AttentionItem[];
+  hint: { shown: boolean; dismiss: () => void };
+  onMore: () => void;
+  onTyped: (item: AttentionItem, has: boolean) => void;
+  onSending: (item: AttentionItem, on: boolean) => void;
+}) {
+  if (!current) {
+    return (
+      <EmptyDeck
+        available={available}
+        loaded={loaded}
+        banner={banner}
+        running={running}
+        passedOver={needYou}
+        onAgain={deck.again}
+        resting={deck.resting ? 0 : restingCount(laneCards)}
+        others={others}
+        onEverything={lane && flow ? () => flow.setLaneId("") : undefined}
+        onResting={deck.restingToo}
+        pass={deck.pass}
+        backLabel={backLabel}
+        onClose={onClose}
+        onConnection={onConnection}
+      />
+    );
+  }
+  return (
+    <div ref={deckRef} className="loki-phone-deck">
+      <Reveal drag={drag} width={width} item={current} typed={typed} sending={sending} />
+      <Stack
+        onTyped={onTyped}
+        onSending={onSending}
+        visible={visible}
+        leaving={leaving}
+        drag={drag}
+        release={release}
+        width={width}
+        refused={refused}
+        onMore={onMore}
+        reduced={reduced}
+        chats={chats}
+        handlers={handlers}
+        deck={deck}
+        banner={banner}
+        card={card}
+        onOpen={onOpen}
+        labelList={labelList}
+        items={items}
+      />
+      {hint.shown && <FlowHint words={`Drag the reply box. ${dragWords(current)}`} onDismiss={hint.dismiss} />}
+    </div>
+  );
+}
+
 function FlowSheets({
   current,
   currentId,
@@ -332,11 +472,7 @@ export function Flow({
   });
   const handoff = chats.handoffPropose && chats.handoff ? { handoffPropose: chats.handoffPropose, handoff: chats.handoff } : null;
 
-  const shown = useEffectEvent(() => {
-    if (current && !hidden) onShown?.(current);
-  });
-  useEffect(() => shown(), [currentId, hidden]);
-
+  useFlowShown(current, currentId, hidden, onShown);
   const rootRef = useRef<HTMLDivElement>(null);
   useFlowFocus(rootRef, !!current, hidden);
 
@@ -360,49 +496,42 @@ export function Flow({
         {said}
       </div>
 
-      {!current ? (
-        <EmptyDeck
-          available={available}
-          loaded={loaded}
-          banner={banner}
-          running={running}
-          passedOver={needYou}
-          onAgain={deck.again}
-          resting={deck.resting ? 0 : restingCount(laneCards)}
-          others={others}
-          onEverything={lane && flow ? () => flow.setLaneId("") : undefined}
-          onResting={deck.restingToo}
-          pass={deck.pass}
-          backLabel={backLabel}
-          onClose={onClose}
-          onConnection={onConnection}
-        />
-      ) : (
-        <div ref={deckRef} className="loki-phone-deck">
-          <Reveal drag={swipe.drag} width={width} item={current} typed={typed} sending={sending} />
-          <Stack
-            onTyped={(item, has) => setTypedId(has ? idOf(item) : typedId === idOf(item) ? null : typedId)}
-            onSending={(item, on) => setSendingId((t) => (on ? idOf(item) : t === idOf(item) ? null : t))}
-            visible={visible}
-            leaving={leaving}
-            drag={swipe.drag}
-            release={swipe.release}
-            width={width}
-            refused={refused}
-            onMore={() => setMenuFor(currentId)}
-            reduced={reduced}
-            chats={chats}
-            handlers={swipe.handlers}
-            deck={deck}
-            banner={banner}
-            card={card}
-            onOpen={onOpen}
-            labelList={labelList}
-            items={items}
-          />
-          {hint.shown && <FlowHint words={`Drag the reply box. ${dragWords(current)}`} onDismiss={hint.dismiss} />}
-        </div>
-      )}
+      <FlowMain
+        current={current}
+        available={available}
+        loaded={loaded}
+        banner={banner}
+        running={running}
+        needYou={needYou}
+        deck={deck}
+        laneCards={laneCards}
+        others={others}
+        lane={lane}
+        flow={flow}
+        backLabel={backLabel}
+        onClose={onClose}
+        onConnection={onConnection}
+        deckRef={deckRef}
+        drag={swipe.drag}
+        release={swipe.release}
+        handlers={swipe.handlers}
+        leaving={leaving}
+        refused={refused}
+        width={width}
+        typed={typed}
+        sending={sending}
+        visible={visible}
+        reduced={reduced}
+        chats={chats}
+        card={card}
+        onOpen={onOpen}
+        labelList={labelList}
+        items={items}
+        hint={hint}
+        onMore={() => setMenuFor(currentId)}
+        onTyped={(item, has) => setTypedId(has ? idOf(item) : typedId === idOf(item) ? null : typedId)}
+        onSending={(item, on) => setSendingId((t) => (on ? idOf(item) : t === idOf(item) ? null : t))}
+      />
       <FlowSheets
         current={current}
         currentId={currentId}
